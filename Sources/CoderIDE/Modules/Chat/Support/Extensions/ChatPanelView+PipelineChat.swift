@@ -1,5 +1,31 @@
 import Foundation
 
+func fallbackStreamingAssistantMessageId(in conversation: Conversation?) -> UUID? {
+    conversation?.messages.last(where: {
+        $0.role == .assistant && $0.isStreaming
+    })?.id
+}
+
+func resolvePipelineBindingTarget(
+    conversation: Conversation?,
+    activeTurn: ToolTraceTurnContext?
+) -> (messageId: UUID, turnId: String)? {
+    guard let conversation else { return nil }
+
+    if let activeTurn,
+       let boundMessage = conversation.messages.first(where: { $0.id == activeTurn.assistantMessageId }) {
+        let turnId = boundMessage.turnMetadata?.turnId ?? boundMessage.id.uuidString
+        return (boundMessage.id, turnId)
+    }
+
+    guard let streamingMessageId = fallbackStreamingAssistantMessageId(in: conversation),
+          let streamingMessage = conversation.messages.first(where: { $0.id == streamingMessageId }) else {
+        return nil
+    }
+    let turnId = streamingMessage.turnMetadata?.turnId ?? streamingMessage.id.uuidString
+    return (streamingMessage.id, turnId)
+}
+
 extension ChatPanelView {
     @MainActor
     internal func currentAssistantPipelineTarget(for conversationId: UUID?) -> (messageId: UUID, turnId: String)? {
@@ -8,11 +34,11 @@ extension ChatPanelView {
         else {
             return nil
         }
-        let message = conversation.messages.last(where: { $0.role == .assistant && $0.isStreaming })
-            ?? conversation.messages.last(where: { $0.role == .assistant })
-        guard let message else { return nil }
-        let turnId = message.turnMetadata?.turnId ?? message.id.uuidString
-        return (message.id, turnId)
+        let activeTurn = activeToolTraceTurnsByConversation[conversationId]
+        return resolvePipelineBindingTarget(
+            conversation: conversation,
+            activeTurn: activeTurn
+        )
     }
 
     @MainActor

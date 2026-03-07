@@ -167,7 +167,7 @@ struct ChatPanelView: View {
     @State  var autoScrollWorkItem: DispatchWorkItem?
     @State  var lastAutoScrollTarget: AnyHashable?
     @State  var lastAutoScrollAt: Date = .distantPast
-    @State  var fallbackTurnStartWorkItem: DispatchWorkItem?
+    @State  var fallbackTurnStartWorkItemsByConversation: [UUID: DispatchWorkItem] = [:]
     @State  var streamContentVersion: Int = 0
     @State  var activeTurnStateByConversation: [UUID: ChatTurnState] = [:]
     @State  var renderSnapshotByConversation: [UUID: ChatTurnState] = [:]

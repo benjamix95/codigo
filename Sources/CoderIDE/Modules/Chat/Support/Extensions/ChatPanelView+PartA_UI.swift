@@ -3,6 +3,12 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldClearThreadScopedSwarmStateAfterConversationSwitch(
+    isTaskActiveForOldConversation: Bool
+) -> Bool {
+    !isTaskActiveForOldConversation
+}
+
 extension ChatPanelView {
     internal var rootLayout: some View {
         HStack(spacing: 6) {
@@ -161,10 +167,15 @@ extension ChatPanelView {
             if let newId {
                 bindRuntimeDebugProjection(for: newId)
             }
-            // Clear per-turn activity data so the swarm panel doesn't show
-            // activities from the previous conversation when reopened.
-            taskActivityStore.clearSwarmCards(for: oldId)
-            swarmProgressStore.clear(conversationId: oldId)
+            if shouldClearThreadScopedSwarmStateAfterConversationSwitch(
+                isTaskActiveForOldConversation: chatStore.isTaskActive(for: oldId)
+            ) {
+                // Only clear cached swarm UI for threads that are no longer running.
+                // Background tasks must keep their scoped progress so returning to
+                // the thread still shows accurate live state.
+                taskActivityStore.clearSwarmCards(for: oldId)
+                swarmProgressStore.clear(conversationId: oldId)
+            }
             syncProviderFromConversation()
             restorePlanStateIfNeeded(for: newId)
             restoreThreadUIState(for: newId)

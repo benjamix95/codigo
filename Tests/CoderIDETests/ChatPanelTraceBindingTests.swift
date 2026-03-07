@@ -49,4 +49,57 @@ final class ChatPanelTraceBindingTests: XCTestCase {
             fallbackAssistantMessageId: nil
         ))
     }
+
+    func testFallbackStreamingAssistantMessageIdIgnoresCompletedAssistantMessages() {
+        let conversation = Conversation(
+            id: UUID(),
+            title: "Trace",
+            messages: [
+                ChatMessage(role: .assistant, content: "done", isStreaming: false),
+                ChatMessage(role: .assistant, content: "still running", isStreaming: true),
+            ]
+        )
+
+        XCTAssertEqual(
+            fallbackStreamingAssistantMessageId(in: conversation),
+            conversation.messages.last?.id
+        )
+    }
+
+    func testResolvePipelineBindingTargetReturnsNilWithoutActiveTurnOrStreamingAssistant() {
+        let conversation = Conversation(
+            id: UUID(),
+            title: "Trace",
+            messages: [
+                ChatMessage(role: .assistant, content: "summary", isStreaming: false)
+            ]
+        )
+
+        XCTAssertNil(resolvePipelineBindingTarget(conversation: conversation, activeTurn: nil))
+    }
+
+    func testResolvePipelineBindingTargetPrefersActiveTurnOverLastStreamingAssistant() {
+        let boundMessageId = UUID()
+        let streamingMessageId = UUID()
+        let conversation = Conversation(
+            id: UUID(),
+            title: "Trace",
+            messages: [
+                ChatMessage(id: boundMessageId, role: .assistant, content: "bound", isStreaming: false),
+                ChatMessage(id: streamingMessageId, role: .assistant, content: "streaming", isStreaming: true),
+            ]
+        )
+        let activeTurn = ToolTraceTurnContext(
+            conversationId: conversation.id,
+            assistantMessageId: boundMessageId,
+            providerId: "codex"
+        )
+
+        let target = resolvePipelineBindingTarget(
+            conversation: conversation,
+            activeTurn: activeTurn
+        )
+
+        XCTAssertEqual(target?.messageId, boundMessageId)
+    }
 }

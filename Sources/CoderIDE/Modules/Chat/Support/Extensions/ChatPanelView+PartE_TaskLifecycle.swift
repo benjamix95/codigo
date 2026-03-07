@@ -3,6 +3,13 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldRecordFallbackTurnStartEvent(
+    isTaskActive: Bool,
+    scopedActivityCount: Int
+) -> Bool {
+    isTaskActive && scopedActivityCount == 0
+}
+
 extension ChatPanelView {
     internal func finalChatActionButton(
         icon: String,
@@ -43,11 +50,17 @@ extension ChatPanelView {
     }
 
     internal func scheduleFallbackTurnStartEvent(conversationId: UUID, providerId: String) {
-        fallbackTurnStartWorkItem?.cancel()
+        fallbackTurnStartWorkItemsByConversation[conversationId]?.cancel()
         let work = DispatchWorkItem {
             Task { @MainActor in
-                guard chatStore.isTaskActive(for: conversationId) else { return }
-                guard taskActivityStore.activities.isEmpty else { return }
+                let scopedActivityCount = taskActivityStore.activities(for: conversationId).count
+                guard shouldRecordFallbackTurnStartEvent(
+                    isTaskActive: chatStore.isTaskActive(for: conversationId),
+                    scopedActivityCount: scopedActivityCount
+                ) else {
+                    fallbackTurnStartWorkItemsByConversation.removeValue(forKey: conversationId)
+                    return
+                }
                 recordTaskActivity(
                     type: "turn_started",
                     payload: [
@@ -59,15 +72,24 @@ extension ChatPanelView {
                     providerId: providerId,
                     conversationId: conversationId
                 )
+                fallbackTurnStartWorkItemsByConversation.removeValue(forKey: conversationId)
             }
         }
-        fallbackTurnStartWorkItem = work
+        fallbackTurnStartWorkItemsByConversation[conversationId] = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
-    internal func cancelFallbackTurnStartEvent() {
-        fallbackTurnStartWorkItem?.cancel()
-        fallbackTurnStartWorkItem = nil
+    internal func cancelFallbackTurnStartEvent(for targetConversationId: UUID? = nil) {
+        guard let targetConversationId else {
+            let pending = fallbackTurnStartWorkItemsByConversation.values
+            fallbackTurnStartWorkItemsByConversation.removeAll()
+            for workItem in pending {
+                workItem.cancel()
+            }
+            return
+        }
+        fallbackTurnStartWorkItemsByConversation[targetConversationId]?.cancel()
+        fallbackTurnStartWorkItemsByConversation.removeValue(forKey: targetConversationId)
     }
 
     internal func liveScrollTarget() -> AnyHashable? {
@@ -269,6 +291,7 @@ extension ChatPanelView {
         if shouldEndTask {
             chatStore.endTask(conversationId: targetConversationId)
         }
+        cancelFallbackTurnStartEvent(for: targetConversationId)
         // Force immediate persistence so the final state (cards + content)
         // survives an app crash right after task completion.
         chatStore.saveConversationsImmediately()

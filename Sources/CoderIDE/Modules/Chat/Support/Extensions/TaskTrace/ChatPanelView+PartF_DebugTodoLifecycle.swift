@@ -95,10 +95,7 @@ extension ChatPanelView {
             return nil
         }
         let fallbackAssistantMessageId = conversationId.flatMap { id in
-            chatStore.conversation(for: id)?
-                .messages
-                .last(where: { $0.role == .assistant })?
-                .id
+            fallbackStreamingAssistantMessageId(in: chatStore.conversation(for: id))
         }
         guard let target = ToolTraceBindingResolver.resolve(
             activeTurn: activeTarget,
