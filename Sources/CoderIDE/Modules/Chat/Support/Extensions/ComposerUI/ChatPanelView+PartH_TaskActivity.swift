@@ -165,6 +165,7 @@ extension ChatPanelView {
                 providerNotReadyMessage: providerNotReadyMessage,
                 quickCommandPresets: composerQuickCommandPresets,
                 slashCommandPresets: composerSlashCommandPresets,
+                reviewModePresets: composerCodeReviewModePresets,
                 showCodeReviewAutofixToggle: coderMode == .codeReviewMultiSwarm,
                 showPlanRequestIndicator: showPlanRequestIndicator,
                 controlsRow: AnyView(composerControlsRow),
@@ -178,6 +179,9 @@ extension ChatPanelView {
                 onSend: { handleComposerSend() },
                 onApplyQuickCommand: { text in
                     handleComposerQuickCommand(text, runImmediately: false)
+                },
+                onToggleReviewMode: { modeId in
+                    toggleComposerCodeReviewMode(modeId)
                 },
                 onInputTextChanged: { _ in },
                 onRunQuickCommand: { text in

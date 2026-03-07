@@ -18,6 +18,11 @@ extension ChatComposerView {
                             onApplyQuickCommand("\(preset.slash)\n\n\(preset.prompt)")
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
+                                if let icon = preset.icon {
+                                    Image(systemName: icon)
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(activeModeColor)
+                                }
                                 Text(preset.slash)
                                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                                     .foregroundStyle(activeModeColor)
@@ -50,6 +55,51 @@ extension ChatComposerView {
                         }
                     }
                     .help(preset.prompt)
+                }
+            }
+            .padding(.horizontal, 1)
+        }
+    }
+
+    internal var reviewModeRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(reviewModePresets) { preset in
+                    Button {
+                        onToggleReviewMode(preset.id)
+                    } label: {
+                        HStack(spacing: 5) {
+                            if let icon = preset.icon {
+                                Image(systemName: icon)
+                                    .font(.system(size: 9))
+                            }
+                            Text(preset.label)
+                                .font(.system(size: 10.5, weight: .semibold))
+                        }
+                        .foregroundStyle(
+                            preset.isSelected ? activeModeColor : .secondary
+                        )
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(
+                                    preset.isSelected
+                                        ? activeModeColor.opacity(0.14)
+                                        : Color(nsColor: .controlBackgroundColor).opacity(0.38)
+                                )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(
+                                    preset.isSelected
+                                        ? activeModeColor.opacity(0.28)
+                                        : DesignSystem.Colors.border.opacity(0.14),
+                                    lineWidth: 0.6
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 1)

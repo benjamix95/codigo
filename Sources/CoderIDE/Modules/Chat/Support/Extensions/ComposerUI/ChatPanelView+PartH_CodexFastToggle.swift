@@ -22,7 +22,7 @@ extension ChatPanelView {
             .lowercased() ?? ""
 
         guard slash == "/fast", providerRegistry.selectedProviderId == "codex-cli" else {
-            inputText = text
+            inputText = applyComposerCodeReviewModesIfNeeded(to: text)
             isInputFocused = true
             if runImmediately {
                 sendMessage()

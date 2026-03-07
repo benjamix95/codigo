@@ -53,7 +53,8 @@ extension ChatPanelView {
                 id: cmd.id,
                 slash: cmd.slash,
                 label: cmd.label,
-                prompt: cmd.prompt
+                prompt: cmd.prompt,
+                icon: nil
             )
         }
         return defaults + customCodeReviewQuickPresets
@@ -69,7 +70,8 @@ extension ChatPanelView {
                 label: isFastModeEnabled
                     ? "Turn off Fast mode and return to standard inference speed"
                     : "Turn on Fast mode for faster inference across Codex runs",
-                prompt: ""
+                prompt: "",
+                icon: nil
             )
         ]
     }
@@ -95,7 +97,8 @@ extension ChatPanelView {
                 id: "review-custom-\(idx)-\(slash)",
                 slash: slash,
                 label: label,
-                prompt: prompt
+                prompt: prompt,
+                icon: nil
             )
         }
     }

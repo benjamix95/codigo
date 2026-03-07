@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     internal func sendMessage(preferCodeReviewRuntimeProvider: Bool? = nil) {
         let parsedInput = parsePlanCommandInput(inputText)
-        let text = parsedInput.llmPromptInput
+        let text = applyComposerCodeReviewModesIfNeeded(to: parsedInput.llmPromptInput)
         let displayedInput = parsedInput.displayedInput
         let forcePlanInline = parsedInput.forcePlanInline
         if forcePlanInline {

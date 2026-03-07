@@ -17,10 +17,6 @@ struct ReviewPanelHeader: View {
 
             ReviewPanelChatThreadSwitcher(store: store)
 
-            if !store.orderedSelectedModes.isEmpty {
-                modeBadges
-            }
-
             // Round info
             if let ri = store.computeMetrics().roundInfo, store.isRunning {
                 Text("Round \(ri.round)/\(ri.maxRounds)")
@@ -87,25 +83,6 @@ struct ReviewPanelHeader: View {
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3)
                 .background(Color.white.opacity(0.04), in: Capsule())
-        }
-    }
-
-    // MARK: - Mode Badge
-
-    private var modeBadges: some View {
-        HStack(spacing: 4) {
-            ForEach(store.orderedSelectedModes) { mode in
-                HStack(spacing: 3) {
-                    Image(systemName: mode.icon)
-                        .font(.system(size: 8))
-                    Text(mode.displayName)
-                        .font(.system(size: 9, weight: .semibold))
-                }
-                .foregroundStyle(mode.accentColor)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(mode.accentColor.opacity(0.12), in: Capsule())
-            }
         }
     }
 

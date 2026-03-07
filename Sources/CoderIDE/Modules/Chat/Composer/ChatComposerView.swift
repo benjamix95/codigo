@@ -13,6 +13,24 @@ struct ChatComposerView: View {
         let slash: String
         let label: String
         let prompt: String
+        let isSelected: Bool
+        let icon: String?
+
+        init(
+            id: String,
+            slash: String,
+            label: String,
+            prompt: String,
+            isSelected: Bool = false,
+            icon: String? = nil
+        ) {
+            self.id = id
+            self.slash = slash
+            self.label = label
+            self.prompt = prompt
+            self.isSelected = isSelected
+            self.icon = icon
+        }
     }
 
     // MARK: - Bindings & Environment
@@ -38,6 +56,7 @@ struct ChatComposerView: View {
     let providerNotReadyMessage: String
     let quickCommandPresets: [QuickCommandPreset]
     let slashCommandPresets: [QuickCommandPreset]
+    let reviewModePresets: [QuickCommandPreset]
     let showCodeReviewAutofixToggle: Bool
     let showPlanRequestIndicator: Bool
     let controlsRow: AnyView
@@ -47,6 +66,7 @@ struct ChatComposerView: View {
 
     let onSend: () -> Void
     let onApplyQuickCommand: (String) -> Void
+    let onToggleReviewMode: (String) -> Void
     let onInputTextChanged: (String) -> Void
     let onRunQuickCommand: (String) -> Void
     let onPauseResume: () -> Void
@@ -71,6 +91,9 @@ struct ChatComposerView: View {
                 }
                 if !quickCommandPresets.isEmpty {
                     quickCommandsRow
+                }
+                if !reviewModePresets.isEmpty {
+                    reviewModeRow
                 }
                 if showCodeReviewAutofixToggle {
                     codeReviewAutofixToggleRow
