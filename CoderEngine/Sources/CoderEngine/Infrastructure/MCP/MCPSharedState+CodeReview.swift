@@ -35,12 +35,17 @@ public struct MCPSharedCodeReviewIndex: Codable, Sendable {
 extension MCPSharedState {
     private static let allowedCodeReviewSessionIdCharacters = CharacterSet.alphanumerics
         .union(CharacterSet(charactersIn: "-_"))
+    private static let redactedFindingLabelPrefix = "redacted"
 
     public static func sanitizedCodeReviewSessionId(_ sessionId: String?) -> String? {
         guard let sessionId else { return nil }
         let normalized = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty, normalized.count <= 128 else { return nil }
         guard normalized.rangeOfCharacter(from: allowedCodeReviewSessionIdCharacters.inverted) == nil else {
+            return nil
+        }
+        guard let firstScalar = normalized.unicodeScalars.first,
+              CharacterSet.alphanumerics.contains(firstScalar) else {
             return nil
         }
         return normalized
@@ -142,6 +147,12 @@ extension MCPSharedState {
                 }
                 if let eln = finding.endLineNumber {
                     payload["end_line_number"] = String(eln)
+                }
+            } else {
+                payload["file_label"] = redactedFindingReference(for: finding)
+                payload["message_summary"] = redactedFindingSummary(for: finding)
+                if let ln = finding.lineNumber {
+                    payload["line_number"] = String(ln)
                 }
             }
             return payload
@@ -265,5 +276,25 @@ extension MCPSharedState {
         for directory in directories where !FileManager.default.fileExists(atPath: directory.path) {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
+    }
+
+    private static func redactedFindingReference(for finding: CodeReviewFinding) -> String {
+        let ext = (finding.filePath as NSString).pathExtension.lowercased()
+        let fileClass = ext.isEmpty ? "file" : "\(ext)-file"
+        return "\(redactedFindingLabelPrefix)-\(fileClass)-\(stableRedactionSuffix(for: finding.filePath))"
+    }
+
+    private static func redactedFindingSummary(for finding: CodeReviewFinding) -> String {
+        let category = finding.category.rawValue.replacingOccurrences(of: "_", with: " ")
+        return "Redacted \(finding.severity.rawValue) \(category) finding"
+    }
+
+    private static func stableRedactionSuffix(for value: String) -> String {
+        var hash: UInt32 = 2_166_136_261
+        for byte in value.utf8 {
+            hash ^= UInt32(byte)
+            hash = hash &* 16_777_619
+        }
+        return String(format: "%08x", hash)
     }
 }

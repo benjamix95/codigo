@@ -14,6 +14,7 @@ final class CodeReviewPanelStore: ObservableObject {
     let executionController: ExecutionController?
     let workspaceStore: WorkspaceStore
     let openFilesStore: OpenFilesStore
+    let conversationId: UUID?
     let providerFactoryConfigBuilder: () -> ProviderFactoryConfig
 
     // MARK: - Coordinator
@@ -75,6 +76,7 @@ final class CodeReviewPanelStore: ObservableObject {
         executionController: ExecutionController?,
         workspaceStore: WorkspaceStore,
         openFilesStore: OpenFilesStore,
+        conversationId: UUID?,
         providerFactoryConfigBuilder: @escaping () -> ProviderFactoryConfig
     ) {
         self.taskActivityStore = taskActivityStore
@@ -82,6 +84,7 @@ final class CodeReviewPanelStore: ObservableObject {
         self.executionController = executionController
         self.workspaceStore = workspaceStore
         self.openFilesStore = openFilesStore
+        self.conversationId = conversationId
         self.providerFactoryConfigBuilder = providerFactoryConfigBuilder
         self.settings = ReviewPanelSettingsPersistence.load()
     }
@@ -89,14 +92,16 @@ final class CodeReviewPanelStore: ObservableObject {
     // MARK: - Computed Properties
 
     var selectedSessionId: String? {
-        panelSessionId ?? taskActivityStore.codeReviewSnapshots(for: nil).first?.sessionId
+        panelSessionId
+            ?? taskActivityStore.selectedCodeReviewSessionId(for: conversationId)
+            ?? taskActivityStore.codeReviewSnapshots(for: conversationId).first?.sessionId
     }
 
     var currentSnapshot: CodeReviewSessionSnapshot? {
         guard let sid = selectedSessionId else { return nil }
         return taskActivityStore.codeReviewSnapshot(
             sessionId: sid,
-            conversationId: nil
+            conversationId: conversationId
         )
     }
 
@@ -109,7 +114,7 @@ final class CodeReviewPanelStore: ObservableObject {
     }
 
     var availableSnapshots: [CodeReviewSessionSnapshot] {
-        taskActivityStore.codeReviewSnapshots(for: nil)
+        taskActivityStore.codeReviewSnapshots(for: conversationId)
     }
 
     // MARK: - Tab Selection
@@ -124,6 +129,7 @@ final class CodeReviewPanelStore: ObservableObject {
 
     func setSelectedSession(_ sessionId: String?) {
         panelSessionId = sessionId
+        taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
         selectedFindingId = nil
     }
 
@@ -150,7 +156,7 @@ final class CodeReviewPanelStore: ObservableObject {
         )
 
         let cards = taskActivityStore
-            .swarmCardStates(for: nil)
+            .swarmCardStates(for: conversationId)
             .filter {
                 isCodeReviewSwarmCard($0)
                     && reviewCardBelongsToSession($0, sessionId: sessionId)

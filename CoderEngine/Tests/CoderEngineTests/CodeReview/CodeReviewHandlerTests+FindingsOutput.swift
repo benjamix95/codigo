@@ -14,8 +14,11 @@ extension CodeReviewHandlerTests {
         XCTAssertNil(result?.isError)
         let text = textContent(result)
         XCTAssertTrue(text.contains("Findings"))
+        XCTAssertTrue(text.contains("Redacted"))
+        XCTAssertTrue(text.contains("redacted-swift-file-"))
         XCTAssertFalse(text.contains("Package.swift"))
         XCTAssertFalse(text.contains("Test finding"))
+        XCTAssertFalse(text.contains("? —"))
     }
 
     func testReviewFindingsDoesNotFallBackToCompletedSessionWhenNoActiveSessionExists() {

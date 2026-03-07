@@ -22,13 +22,13 @@ extension CodeReviewPanelStore {
 
         let sessionState = CodeReviewSessionState(
             sessionId: sessionId,
-            conversationId: nil,
+            conversationId: conversationId,
             config: sessionConfig,
             onStateChange: { [weak self] snapshot in
                 Task { @MainActor in
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
                     self?.taskActivityStore.ingestCodeReviewSnapshot(
-                        snapshot, conversationId: nil
+                        snapshot, conversationId: self?.conversationId
                     )
                     self?.panelSessionId = snapshot.sessionId
                 }
@@ -57,6 +57,7 @@ extension CodeReviewPanelStore {
         let context = buildWorkspaceContext()
 
         panelSessionId = sessionId
+        taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
 
         coordinator.runReview(
             provider: provider,
@@ -88,7 +89,7 @@ extension CodeReviewPanelStore {
     /// Re-run a review session with the same scope.
     func rerunSession(_ sessionId: String) async {
         guard let snapshot = taskActivityStore.codeReviewSnapshot(
-            sessionId: sessionId, conversationId: nil
+            sessionId: sessionId, conversationId: conversationId
         ) else { return }
 
         let scope: ReviewScopeTarget
@@ -115,13 +116,15 @@ extension CodeReviewPanelStore {
                 let snapshot = await liveState.snapshot()
                 await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
                 taskActivityStore.ingestCodeReviewSnapshot(
-                    snapshot, conversationId: nil
+                    snapshot, conversationId: conversationId
                 )
             }
             return
         }
-        await mutateSnapshot(sessionId: sessionId) { finding in
+        await mutateSnapshot(sessionId: sessionId, findingId: findingId) { finding in
             finding.status = .fixApplied
+        } event: {
+            .findingFixApplied(findingId: findingId)
         }
     }
 
@@ -133,16 +136,20 @@ extension CodeReviewPanelStore {
         if let liveState = await ReviewSessionRegistry.shared.state(
             sessionId: sessionId
         ) {
-            await liveState.dismissFinding(findingId: findingId, reason: reason)
+            _ = await liveState.dismissFinding(findingId: findingId, reason: reason)
             let snapshot = await liveState.snapshot()
             await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
             taskActivityStore.ingestCodeReviewSnapshot(
-                snapshot, conversationId: nil
+                snapshot, conversationId: conversationId
             )
             return
         }
-        await mutateSnapshot(sessionId: sessionId) { finding in
-            finding.status = .dismissed
+        let status: FindingStatus = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() == FindingStatus.wontFix.rawValue ? .wontFix : .dismissed
+        await mutateSnapshot(sessionId: sessionId, findingId: findingId) { finding in
+            finding.status = status
+        } event: {
+            .findingDismissed(findingId: findingId, reason: reason)
         }
     }
 
@@ -168,7 +175,7 @@ extension CodeReviewPanelStore {
 
     func exportSummary(sessionId: String) -> String {
         guard let snapshot = taskActivityStore.codeReviewSnapshot(
-            sessionId: sessionId, conversationId: nil
+            sessionId: sessionId, conversationId: conversationId
         ) else { return "No session found" }
 
         let header = """
@@ -206,6 +213,9 @@ extension CodeReviewPanelStore {
     ) -> String {
         switch mode {
         case .standard:
+            if case .commits(let commits) = scope, !commits.isEmpty {
+                return ReviewPanelCoordinator.commitRangePrompt(commits: commits)
+            }
             return ReviewPanelCoordinator.standardPrompt(
                 scope: scope,
                 customInstructions: settings.customInstructions
@@ -240,17 +250,18 @@ extension CodeReviewPanelStore {
 
     private func mutateSnapshot(
         sessionId: String,
-        mutate: (inout CodeReviewFinding) -> Void
+        findingId: String,
+        mutate: (inout CodeReviewFinding) -> Void,
+        event: () -> CodeReviewSessionEvent
     ) async {
         // Fallback mutation for snapshots without live state
-        guard var snapshot = taskActivityStore.codeReviewSnapshot(
-            sessionId: sessionId, conversationId: nil
+        guard let snapshot = taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId, conversationId: conversationId
         ) else { return }
 
         var findings = snapshot.findings
-        for i in findings.indices {
-            mutate(&findings[i])
-        }
+        guard let index = findings.firstIndex(where: { $0.id == findingId }) else { return }
+        mutate(&findings[index])
         // Re-ingest the mutated snapshot
         let updated = CodeReviewSessionSnapshot(
             sessionId: snapshot.sessionId,
@@ -259,7 +270,7 @@ extension CodeReviewPanelStore {
             phase: snapshot.phase,
             stage: snapshot.stage,
             findings: findings,
-            events: snapshot.events,
+            events: snapshot.events + [event()],
             config: snapshot.config,
             scope: snapshot.scope,
             workspacePath: snapshot.workspacePath,
@@ -273,6 +284,6 @@ extension CodeReviewPanelStore {
             lastTestStatus: snapshot.lastTestStatus,
             lastUpdatedAt: Date()
         )
-        taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: nil)
+        taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
     }
 }

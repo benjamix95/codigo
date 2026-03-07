@@ -67,9 +67,9 @@ extension CoderIDEMCPServerApp {
             let sev = f["severity"] ?? "?"
             let category = f["category"] ?? "unknown"
             let st = f["status"] ?? "open"
-            let file = f["file_path"] ?? "?"
+            let file = f["file_path"] ?? f["file_label"] ?? "redacted-file"
             let line = f["line_number"].map { ":\($0)" } ?? ""
-            let message = f["message"] ?? ""
+            let message = f["message"] ?? f["message_summary"] ?? "Redacted finding details"
             return "[\(idx + 1)] [\(sev)] \(file)\(line) — \(message) (category: \(category), status: \(st), id: \(id))"
         }
         return reviewOK("Findings (\(findings.count)):\n" + lines.joined(separator: "\n"))

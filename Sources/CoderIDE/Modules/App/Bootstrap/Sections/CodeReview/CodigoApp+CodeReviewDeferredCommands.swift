@@ -26,6 +26,14 @@ extension CodigoApp {
         onSuccess: (@MainActor () async -> Bool)? = nil
     ) {
         Task { @MainActor in
+            let heartbeat = Task.detached(priority: .utility) {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 30_000_000_000)
+                    guard !Task.isCancelled else { break }
+                    MCPSharedState.refreshCodeReviewCommandHeartbeat(id: command.id)
+                }
+            }
+            defer { heartbeat.cancel() }
             do {
                 let stream = try await provider.send(
                     prompt: prompt,

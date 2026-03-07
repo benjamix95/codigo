@@ -81,14 +81,14 @@ enum ReviewScopeTarget: Equatable {
         case .uncommitted: return "[REVIEW_SCOPE:uncommitted]"
         case .staged: return "[REVIEW_SCOPE:staged]"
         case .againstRef(let ref): return "[AGAINST:\(ref)]"
-        case .branch(let name): return "[AGAINST:...\(name)]"
+        case .branch(let name): return "[AGAINST:\(name)]"
         case .commits(let shas):
             if shas.count == 1 {
                 return "[AGAINST:\(shas[0])]"
             }
             let first = shas.last ?? ""
             let last = shas.first ?? ""
-            return "[AGAINST:\(first)^\\.\\.\(last)]"
+            return "[AGAINST:\(first)^..\(last)]"
         }
     }
 }

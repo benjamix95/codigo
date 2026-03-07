@@ -173,6 +173,7 @@ struct ReviewPanelHost: View {
         executionController: ExecutionController?,
         workspaceStore: WorkspaceStore,
         openFilesStore: OpenFilesStore,
+        conversationId: UUID?,
         providerFactoryConfigBuilder: @escaping () -> ProviderFactoryConfig,
         onClose: @escaping () -> Void,
         onOpenFile: @escaping (String) -> Void
@@ -183,6 +184,7 @@ struct ReviewPanelHost: View {
             executionController: executionController,
             workspaceStore: workspaceStore,
             openFilesStore: openFilesStore,
+            conversationId: conversationId,
             providerFactoryConfigBuilder: providerFactoryConfigBuilder
         ))
         self.onClose = onClose

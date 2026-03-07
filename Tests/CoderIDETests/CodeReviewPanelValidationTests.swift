@@ -56,6 +56,24 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertTrue(isValidGitRefFormat("HEAD^"))
     }
 
+    func testBranchScopeTagProducesValidRefExpression() {
+        if case .branch(let ref) = ReviewScopeTarget.branch("feature/refactor") {
+            XCTAssertEqual(ref, "feature/refactor")
+            XCTAssertTrue(isValidGitRefFormat(ReviewScopeTarget.branch("feature/refactor").scopeTag.replacingOccurrences(of: "[AGAINST:", with: "").replacingOccurrences(of: "]", with: "")))
+        } else {
+            XCTFail("Expected branch scope")
+        }
+    }
+
+    func testCommitRangeScopeTagProducesValidRangeExpression() {
+        let target = ReviewScopeTarget.commits(["def456", "abc123"])
+        let rawRef = target.scopeTag
+            .replacingOccurrences(of: "[AGAINST:", with: "")
+            .replacingOccurrences(of: "]", with: "")
+        XCTAssertEqual(rawRef, "abc123^..def456")
+        XCTAssertTrue(isValidGitRefFormat(rawRef))
+    }
+
     // MARK: - Review worker activity selection
 
     func testLatestReviewWorkerPlanBatch_returnsMostRecentContiguousBatch() {

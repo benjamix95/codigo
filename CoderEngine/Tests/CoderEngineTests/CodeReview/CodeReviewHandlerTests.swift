@@ -70,6 +70,15 @@ final class CodeReviewHandlerTests: XCTestCase {
         XCTAssertTrue(textContent(result).contains("session_id"))
     }
 
+    func testReviewStartRejectsSessionIdStartingWithPunctuation() {
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_start",
+            args: ["session_id": "_session"]
+        )
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("session_id"))
+    }
+
     func testReviewStartInvalidMaxWorkers() {
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_start",

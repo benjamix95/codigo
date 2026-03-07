@@ -24,6 +24,17 @@ final class MCPSharedCodeReviewCommandsTests: XCTestCase {
         XCTAssertNil(command.sessionId)
     }
 
+    func testEnqueueCommandDropsSessionIdStartingWithPunctuation() {
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "start",
+            sessionId: "_session",
+            conversationId: nil,
+            payload: ["scope": "uncommitted"]
+        )
+
+        XCTAssertNil(command.sessionId)
+    }
+
     func testClaimPendingCommandsPromotesThemToProcessing() throws {
         _ = MCPSharedState.enqueueCodeReviewCommand(
             action: "start",
@@ -92,5 +103,33 @@ final class MCPSharedCodeReviewCommandsTests: XCTestCase {
 
         XCTAssertEqual(claimed.map(\.id), ["cmd-1"])
         XCTAssertEqual(claimed.first?.status, .processing)
+    }
+
+    func testHeartbeatRefreshPreventsStaleProcessingCommandFromBeingReclaimed() throws {
+        try FileManager.default.createDirectory(
+            at: MCPSharedState.codeReviewDirectoryPath,
+            withIntermediateDirectories: true
+        )
+
+        let stale = MCPSharedCodeReviewCommand(
+            id: "cmd-heartbeat",
+            action: "start",
+            sessionId: "session-1",
+            conversationId: nil,
+            payload: ["scope": "uncommitted"],
+            createdAt: Date(timeIntervalSinceNow: -600),
+            updatedAt: Date(timeIntervalSinceNow: -600),
+            status: .processing,
+            resultMessage: nil
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode([stale])
+        try data.write(to: MCPSharedState.codeReviewCommandsFilePath, options: .atomic)
+
+        MCPSharedState.refreshCodeReviewCommandHeartbeat(id: "cmd-heartbeat")
+        let claimed = MCPSharedState.claimPendingCodeReviewCommands()
+
+        XCTAssertTrue(claimed.isEmpty)
     }
 }

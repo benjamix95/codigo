@@ -176,6 +176,16 @@ extension MCPSharedState {
         }
     }
 
+    public static func refreshCodeReviewCommandHeartbeat(id: String) {
+        withCodeReviewFileLock {
+            var commands = _readCodeReviewCommandsUnsafe()
+            guard let index = commands.firstIndex(where: { $0.id == id }) else { return }
+            guard commands[index].status == .processing else { return }
+            commands[index].updatedAt = Date()
+            _writeCodeReviewCommandsUnsafe(commands)
+        }
+    }
+
     private static func _readCodeReviewCommandsUnsafe() -> [MCPSharedCodeReviewCommand] {
         guard let data = try? Data(contentsOf: codeReviewCommandsFilePath) else { return [] }
         let decoder = JSONDecoder()
