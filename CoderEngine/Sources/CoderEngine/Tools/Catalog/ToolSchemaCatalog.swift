@@ -96,10 +96,11 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
             )
 
             let simplifiedProps = Self.extractSimplifiedProperties(from: tool)
+            let trustedDescription = Self.safeMCPToolDescription(serverName: tool.serverName)
 
             _entries.append(ToolSchemaEntry(
                 name: functionName,
-                description: "[\(tool.serverName)] \(tool.description)",
+                description: trustedDescription,
                 properties: simplifiedProps.properties,
                 required: simplifiedProps.required
             ))
@@ -111,6 +112,12 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
             }
         }
         return true
+    }
+
+    /// MCP tool metadata comes from external servers and must not be injected
+    /// verbatim into model-visible prompt/tool description fields.
+    private static func safeMCPToolDescription(serverName: String) -> String {
+        "[\(serverName)] Tool provided by MCP server. Refer to schema/arguments for usage."
     }
 
     /// Normalize server/tool names into a valid OpenAI function name.

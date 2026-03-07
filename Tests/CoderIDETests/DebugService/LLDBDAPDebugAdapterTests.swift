@@ -41,6 +41,35 @@ final class LLDBDAPDebugAdapterTests: XCTestCase {
         XCTAssertTrue(launchCommands.contains("expression -- counter"))
     }
 
+
+    func testStartSessionEscapesTargetPathForLLDBCommand() async {
+        let runner = LLDBBatchRunnerSpy(
+            queuedResults: [
+                .init(exitCode: 0, output: "lldb version 17"),
+                .init(exitCode: 0, output: "Process 123 stopped")
+            ]
+        )
+        let adapter = LLDBDAPDebugAdapter(runBatch: { commands in
+            await runner.run(commands: commands)
+        })
+
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+        let targetURL = temporaryDirectory.appendingPathComponent("lldb-target-\"quoted\"\nline")
+        FileManager.default.createFile(atPath: targetURL.path, contents: Data(), attributes: nil)
+        defer { try? FileManager.default.removeItem(at: targetURL) }
+
+        _ = await adapter.startSession(
+            targetPath: targetURL.path,
+            arguments: [],
+            breakpoints: [],
+            watchExpressions: []
+        )
+
+        let launchCommands = await runner.invocation(at: 1)
+        let escapedTarget = LLDBDAPDebugAdapterSupport.escapeLLDBString(targetURL.path)
+        XCTAssertTrue(launchCommands.contains("target create \(escapedTarget)"))
+    }
+
     func testStepOverEsegueComandoStepNelBatch() async {
         let runner = LLDBBatchRunnerSpy(
             queuedResults: [

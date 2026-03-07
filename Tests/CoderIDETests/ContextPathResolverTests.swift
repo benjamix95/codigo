@@ -84,4 +84,43 @@ final class ContextPathResolverTests: XCTestCase {
         }
         XCTAssertEqual(Set(matches), Set([pathB.path, pathC.path]))
     }
+
+    func testResolveAbsolutePathWithinWorkspaceRoot() throws {
+        let fm = FileManager.default
+        let temp = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fm.removeItem(at: temp) }
+
+        try fm.createDirectory(at: temp, withIntermediateDirectories: true)
+        let target = temp.appendingPathComponent("inside.txt")
+        try "ok".write(to: target, atomically: true, encoding: .utf8)
+
+        let context = ProjectContext(kind: .singleProject, name: "one", folderPaths: [temp.path], isPinned: false)
+        let result = ContextPathResolver.resolve(reference: target.path, context: context)
+
+        guard case .resolved(let path) = result else {
+            XCTFail("Expected absolute path inside workspace to resolve")
+            return
+        }
+        XCTAssertEqual(path, target.path)
+    }
+
+    func testResolveAbsolutePathOutsideWorkspaceRootIsRejected() throws {
+        let fm = FileManager.default
+        let temp = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let root = temp.appendingPathComponent("root")
+        let outside = temp.appendingPathComponent("outside.txt")
+        defer { try? fm.removeItem(at: temp) }
+
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        try "nope".write(to: outside, atomically: true, encoding: .utf8)
+
+        let context = ProjectContext(kind: .singleProject, name: "one", folderPaths: [root.path], isPinned: false)
+        let result = ContextPathResolver.resolve(reference: outside.path, context: context)
+
+        guard case .notFound = result else {
+            XCTFail("Expected absolute path outside workspace to be rejected")
+            return
+        }
+    }
+
 }

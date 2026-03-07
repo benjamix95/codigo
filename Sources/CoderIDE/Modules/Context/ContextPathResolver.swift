@@ -12,7 +12,8 @@ enum ContextPathResolver {
         guard !cleaned.isEmpty else { return .notFound }
 
         if (cleaned as NSString).isAbsolutePath {
-            return FileManager.default.fileExists(atPath: cleaned) ? .resolved(cleaned) : .notFound
+            guard FileManager.default.fileExists(atPath: cleaned) else { return .notFound }
+            return isPathWithinProjectRoots(cleaned, context: context) ? .resolved(cleaned) : .notFound
         }
 
         if let activeRoot = context.activeFolderPath {
@@ -44,5 +45,13 @@ enum ContextPathResolver {
             return parts.dropLast().joined(separator: ":")
         }
         return raw
+    }
+
+    private static func isPathWithinProjectRoots(_ path: String, context: ProjectContext) -> Bool {
+        let resolvedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        return context.folderPaths.contains { root in
+            let resolvedRoot = URL(fileURLWithPath: root).standardizedFileURL.path
+            return resolvedPath == resolvedRoot || resolvedPath.hasPrefix(resolvedRoot + "/")
+        }
     }
 }

@@ -269,7 +269,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         XCTAssertTrue((payload["output"] ?? "").contains("let value = 1"))
     }
 
-    func testDoesNotInjectPolicyAckBeforeOperationalRawEvent() async throws {
+    func testDoesNotInjectSyntheticPolicyAckBeforeOperationalRawEvent() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("policy-ack-raw-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)

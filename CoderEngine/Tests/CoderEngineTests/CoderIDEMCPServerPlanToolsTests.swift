@@ -25,6 +25,25 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         }
     }
 
+    func testStructuredMCPEditPayloadOmitsDiffPreview() {
+        let structured = CoderIDEMCPServerApp.structuredMCPEditPayload(
+            toolName: "coderide_str_replace",
+            toolCallID: "tc-123",
+            payload: [
+                "path": "Sources/App.swift",
+                "linesAdded": "1",
+                "linesRemoved": "1",
+                "diffPreview": "@@ -1 +1 @@\n-let a = 1\n+let a = 2",
+            ],
+            isError: false
+        )
+
+        XCTAssertEqual(structured["path"], "Sources/App.swift")
+        XCTAssertEqual(structured["linesAdded"], "1")
+        XCTAssertEqual(structured["linesRemoved"], "1")
+        XCTAssertNil(structured["diffPreview"])
+    }
+
     func testPlanCreateRejectsMissingGoal() {
         let result = CoderIDEMCPServerApp.handleIDEStateTool(
             name: "plan_create",

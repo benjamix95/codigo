@@ -174,6 +174,41 @@ final class AppUpdateCenterTests: XCTestCase {
         XCTAssertLessThanOrEqual(abs((center.lastCheckedAt ?? .distantFuture).timeIntervalSince(expectedHealedDate)), 2.0)
     }
 
+
+    func testValidatedHTTPSURLAcceptsCanonicalHTTPSURL() {
+        let url = AppUpdateCenter.validatedHTTPSURL(from: "https://example.com/update/manifest.json")
+
+        XCTAssertEqual(url?.absoluteString, "https://example.com/update/manifest.json")
+    }
+
+    func testValidatedHTTPSURLRejectsNonHTTPSURL() {
+        XCTAssertNil(AppUpdateCenter.validatedHTTPSURL(from: "http://example.com/manifest.json"))
+        XCTAssertNil(AppUpdateCenter.validatedHTTPSURL(from: "file:///tmp/manifest.json"))
+        XCTAssertNil(AppUpdateCenter.validatedHTTPSURL(from: "javascript:alert(1)"))
+    }
+
+    func testValidatedHTTPSURLRejectsMissingHostAndEmbeddedCredentials() {
+        XCTAssertNil(AppUpdateCenter.validatedHTTPSURL(from: "https:///manifest.json"))
+        XCTAssertNil(AppUpdateCenter.validatedHTTPSURL(from: "https://user:pass@example.com/manifest.json"))
+    }
+
+    @MainActor
+    func testCheckForUpdatesFailsWhenManifestURLIsNotHTTPS() async {
+        defaults.set("http://example.com/manifest.json", forKey: AppUpdateCenter.manifestURLKey)
+        let center = AppUpdateCenter(userDefaults: defaults, urlSession: makeStubbedURLSession())
+
+        await center.checkForUpdates(force: true)
+
+        guard case .failed(let message) = center.state else {
+            XCTFail("Expected failed state for non-HTTPS manifest URL")
+            return
+        }
+        XCTAssertEqual(message, "Manifest URL must be a valid HTTPS URL.")
+        XCTAssertEqual(center.lastError, "Manifest URL must be a valid HTTPS URL.")
+        XCTAssertNil(center.availableUpdate)
+        XCTAssertNil(defaults.object(forKey: AppUpdateCenter.lastCheckedKey) as? Date)
+    }
+
     @MainActor
     func testCheckForUpdatesHTTPFailureDoesNotPersistLastCheckedAt() async {
         let url = URL(string: "https://example.com/manifest.json")!

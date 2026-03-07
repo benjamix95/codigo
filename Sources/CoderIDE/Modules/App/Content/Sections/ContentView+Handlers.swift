@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 extension ContentView {
     func openExternalURL(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
+        guard let url = AppUpdateCenter.validatedHTTPSURL(from: urlString) else { return }
         NSWorkspace.shared.open(url)
     }
 

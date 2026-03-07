@@ -77,6 +77,8 @@ enum LLDBDAPDebugAdapterSupport {
         let escaped = value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
         return "\"\(escaped)\""
     }
 

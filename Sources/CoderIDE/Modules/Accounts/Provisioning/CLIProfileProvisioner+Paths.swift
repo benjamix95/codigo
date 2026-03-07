@@ -25,39 +25,11 @@ extension CLIProfileProvisioner {
             return siblingPath
         }
 
-        // Dev fallback: locate the binary in CoderEngine/.build from workspace root.
-        if let workspaceRoot = locateWorkspaceRoot() {
-            if let fromEngineBuild = findMCPBinary(in: workspaceRoot.appendingPathComponent("CoderEngine/.build", isDirectory: true)) {
-                return fromEngineBuild
-            }
-            if let fromRootBuild = findMCPBinary(in: workspaceRoot.appendingPathComponent(".build", isDirectory: true)) {
-                return fromRootBuild
-            }
-        }
-
         let appSupportBuild = baseProfilesDir()
             .deletingLastPathComponent().deletingLastPathComponent() // up to App Support
             .appendingPathComponent("CoderEngine/.build", isDirectory: true)
         if let fromBuild = findMCPBinary(in: appSupportBuild) {
             return fromBuild
-        }
-
-        if let fromPath = findBinaryOnPATH(named: "coderide-mcp-server") {
-            return fromPath
-        }
-        return nil
-    }
-
-    private static func locateWorkspaceRoot() -> URL? {
-        var current = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-        for _ in 0..<10 {
-            let marker = current.appendingPathComponent("CoderEngine/Package.swift")
-            if FileManager.default.fileExists(atPath: marker.path) {
-                return current
-            }
-            let parent = current.deletingLastPathComponent()
-            if parent.path == current.path { break }
-            current = parent
         }
         return nil
     }
@@ -88,18 +60,6 @@ extension CLIProfileProvisioner {
             if fileURL.lastPathComponent == "coderide-mcp-server",
                FileManager.default.isExecutableFile(atPath: fileURL.path) {
                 return fileURL.path
-            }
-        }
-        return nil
-    }
-
-    private static func findBinaryOnPATH(named binaryName: String) -> String? {
-        let pathVar = ProcessInfo.processInfo.environment["PATH"] ?? ""
-        for component in pathVar.split(separator: ":") {
-            let candidate = URL(fileURLWithPath: String(component), isDirectory: true)
-                .appendingPathComponent(binaryName)
-            if FileManager.default.isExecutableFile(atPath: candidate.path) {
-                return candidate.path
             }
         }
         return nil

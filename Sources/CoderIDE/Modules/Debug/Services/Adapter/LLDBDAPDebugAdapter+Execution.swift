@@ -88,7 +88,7 @@ extension LLDBDAPDebugAdapter {
     }
 
     func buildBatchCommands(targetPath: String, actionCommand: String?) -> [String] {
-        var commands: [String] = ["target create \"\(targetPath)\""]
+        var commands: [String] = ["target create \(LLDBDAPDebugAdapterSupport.escapeLLDBString(targetPath))"]
         if !arguments.isEmpty {
             let lldbArgs = arguments.map(LLDBDAPDebugAdapterSupport.escapeLLDBString).joined(separator: " ")
             commands.append("settings set -- target.run-args \(lldbArgs)")
@@ -103,7 +103,7 @@ extension LLDBDAPDebugAdapter {
     }
 
     func buildBootstrapCommands(targetPath: String) -> [String] {
-        var commands: [String] = ["target create \"\(targetPath)\""]
+        var commands: [String] = ["target create \(LLDBDAPDebugAdapterSupport.escapeLLDBString(targetPath))"]
         if !arguments.isEmpty {
             let lldbArgs = arguments.map(LLDBDAPDebugAdapterSupport.escapeLLDBString).joined(separator: " ")
             commands.append("settings set -- target.run-args \(lldbArgs)")
