@@ -68,6 +68,38 @@ final class InstructionPolicyBundleTests: XCTestCase {
         XCTAssertNotEqual(reloaded.policyHash, first.policyHash)
     }
 
+    func testLoadIgnoresProjectPoliciesOutsideWorkspaceRoot() throws {
+        let parentRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("instruction-policy-parent-\(UUID().uuidString)")
+        let workspace = parentRoot.appendingPathComponent("workspace")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parentRoot) }
+
+        let parentAgents = parentRoot.appendingPathComponent("AGENTS.md")
+        try "outside-workspace-policy".write(to: parentAgents, atomically: true, encoding: .utf8)
+
+        InstructionPolicyBundle.invalidateCache()
+        let bundle = InstructionPolicyBundle.load(workspacePaths: [workspace.path])
+        XCTAssertFalse(bundle.policyText.contains("outside-workspace-policy"))
+    }
+
+    func testLoadRejectsSymlinkedProjectPolicyFile() throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("instruction-policy-symlink-\(UUID().uuidString)")
+        let workspace = tempRoot.appendingPathComponent("workspace")
+        let secretFile = tempRoot.appendingPathComponent("secret.txt")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        try "do-not-leak".write(to: secretFile, atomically: true, encoding: .utf8)
+        let agentsPath = workspace.appendingPathComponent("AGENTS.md").path
+        XCTAssertEqual(symlink(secretFile.path, agentsPath), 0)
+
+        InstructionPolicyBundle.invalidateCache()
+        let bundle = InstructionPolicyBundle.load(workspacePaths: [workspace.path])
+        XCTAssertFalse(bundle.policyText.contains("do-not-leak"))
+    }
+
 
 
     func testSkillContentRejectsPathTraversalName() throws {

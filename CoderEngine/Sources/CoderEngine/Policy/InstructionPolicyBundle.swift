@@ -198,31 +198,65 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
     private static func firstProjectFile(named fileName: String, workspacePaths: [String]) -> String? {
         for workspacePath in workspacePaths {
             guard !workspacePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-            if let found = nearestUpwardFile(named: fileName, startingAt: workspacePath) {
+            guard let workspaceRoot = workspaceDirectoryURL(for: workspacePath) else { continue }
+            if let found = nearestUpwardFile(named: fileName, startingAt: workspacePath, workspaceRoot: workspaceRoot) {
                 return found
             }
         }
         return nil
     }
 
-    private static func nearestUpwardFile(named fileName: String, startingAt rawPath: String) -> String? {
+    private static func nearestUpwardFile(named fileName: String, startingAt rawPath: String, workspaceRoot: URL) -> String? {
         let fm = FileManager.default
-        var current = URL(fileURLWithPath: rawPath)
+        var current = URL(fileURLWithPath: rawPath).resolvingSymlinksInPath().standardizedFileURL
         var isDir: ObjCBool = false
         if fm.fileExists(atPath: current.path, isDirectory: &isDir), !isDir.boolValue {
             current = current.deletingLastPathComponent()
         }
 
+        guard isPath(current.path, insideRoot: workspaceRoot.path) else { return nil }
+
         while true {
-            let candidate = current.appendingPathComponent(fileName).path
-            if fm.fileExists(atPath: candidate) {
-                return candidate
+            let candidate = current.appendingPathComponent(fileName)
+            if let trustedPath = trustedProjectPolicyPath(candidate, workspaceRoot: workspaceRoot) {
+                return trustedPath
             }
+            if current.path == workspaceRoot.path { break }
             let parent = current.deletingLastPathComponent()
             if parent.path == current.path { break }
             current = parent
         }
         return nil
+    }
+
+    private static func workspaceDirectoryURL(for rawPath: String) -> URL? {
+        let fm = FileManager.default
+        var url = URL(fileURLWithPath: rawPath).resolvingSymlinksInPath().standardizedFileURL
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue {
+            url = url.deletingLastPathComponent()
+        }
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else { return nil }
+        return url
+    }
+
+    private static func trustedProjectPolicyPath(_ candidate: URL, workspaceRoot: URL) -> String? {
+        let fm = FileManager.default
+        guard !isSymlink(candidate) else { return nil }
+
+        let resolved = candidate.resolvingSymlinksInPath().standardizedFileURL
+        guard isPath(resolved.path, insideRoot: workspaceRoot.path) else { return nil }
+
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: resolved.path, isDirectory: &isDir), !isDir.boolValue else {
+            return nil
+        }
+        return resolved.path
+    }
+
+    private static func isSymlink(_ url: URL) -> Bool {
+        guard let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey]) else { return false }
+        return values.isSymbolicLink ?? false
     }
 
     private static func readPolicyFile(_ path: String) -> String? {
