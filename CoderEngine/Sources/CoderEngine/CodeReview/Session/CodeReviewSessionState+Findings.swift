@@ -28,7 +28,9 @@ extension CodeReviewSessionState {
         with newFindings: [CodeReviewFinding]
     ) {
         findings.removeAll {
-            $0.status == .open && reviewedFiles.contains($0.filePath)
+            $0.status == .open
+                && $0.origin == .reviewer
+                && reviewedFiles.contains($0.filePath)
         }
         for finding in newFindings {
             findings.append(finding)

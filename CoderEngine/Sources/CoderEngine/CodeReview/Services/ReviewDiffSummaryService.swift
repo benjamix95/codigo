@@ -10,9 +10,10 @@ public enum ReviewDiffSummaryService {
     public static func renderSummary(
         snapshot: CodeReviewSessionSnapshot,
         workspacePath: URL,
-        fileFilter: String? = nil
+        fileFilter: String? = nil,
+        filteredFiles: [String]? = nil
     ) -> String {
-        let targetFiles = filteredScopeFiles(snapshot: snapshot, fileFilter: fileFilter)
+        let targetFiles = filteredFiles ?? filteredScopeFiles(snapshot: snapshot, fileFilter: fileFilter)
         guard !targetFiles.isEmpty else {
             return "No files available for diff summary."
         }

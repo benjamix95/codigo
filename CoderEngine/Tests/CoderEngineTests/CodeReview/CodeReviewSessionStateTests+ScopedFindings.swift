@@ -7,8 +7,8 @@ extension CodeReviewSessionStateTests {
         let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift", "b.swift"])
         await state.start(scope: scope)
         await state.addFindings([
-            CodeReviewFinding(id: "open-a", severity: .warning, category: .bug, filePath: "a.swift", message: "a"),
-            CodeReviewFinding(id: "open-b", severity: .warning, category: .bug, filePath: "b.swift", message: "b"),
+            CodeReviewFinding(id: "open-a", severity: .warning, category: .correctness, filePath: "a.swift", message: "a"),
+            CodeReviewFinding(id: "open-b", severity: .warning, category: .correctness, filePath: "b.swift", message: "b"),
         ])
 
         await state.replaceOpenFindings(
@@ -36,8 +36,8 @@ extension CodeReviewSessionStateTests {
         let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift", "b.swift"])
         await state.start(scope: scope)
         await state.addFindings([
-            CodeReviewFinding(id: "open-a", severity: .warning, category: .bug, filePath: "a.swift", message: "a"),
-            CodeReviewFinding(id: "open-b", severity: .warning, category: .bug, filePath: "b.swift", message: "b"),
+            CodeReviewFinding(id: "open-a", severity: .warning, category: .correctness, filePath: "a.swift", message: "a"),
+            CodeReviewFinding(id: "open-b", severity: .warning, category: .correctness, filePath: "b.swift", message: "b"),
         ])
 
         await state.markOpenFindingsAsFixApplied(in: ["a.swift"])
@@ -60,7 +60,7 @@ extension CodeReviewSessionStateTests {
         let started = await state.snapshot()
         await state.addFinding(CodeReviewFinding(
             severity: .warning,
-            category: .bug,
+            category: .correctness,
             filePath: "a.swift",
             message: "test"
         ))

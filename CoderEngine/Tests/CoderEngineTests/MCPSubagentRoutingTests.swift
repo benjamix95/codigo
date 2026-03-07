@@ -62,7 +62,7 @@ final class MCPSubagentRoutingTests: XCTestCase {
 
     func testBackendResolverFallsBackToClaudeForReadOnlyRole() {
         let selection = SubagentBackendResolver.selectBackend(
-            for: .reviewer,
+            for: .bugHunter,
             discoveredCLIs: [
                 "claude": "/usr/local/bin/claude",
             ]

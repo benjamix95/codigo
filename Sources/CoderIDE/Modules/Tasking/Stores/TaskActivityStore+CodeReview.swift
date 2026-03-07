@@ -216,6 +216,8 @@ extension TaskActivityStore {
         case .sessionCompleted: return "Review Completed"
         case .analysisStarted: return "Analysis Started"
         case .analysisCompleted: return "Analysis Completed"
+        case .auditStarted: return "Audit Started"
+        case .auditCompleted: return "Audit Completed"
         case .findingAdded: return "Finding Added"
         case .findingFixApplied: return "Fix Applied"
         case .findingDismissed: return "Finding Dismissed"

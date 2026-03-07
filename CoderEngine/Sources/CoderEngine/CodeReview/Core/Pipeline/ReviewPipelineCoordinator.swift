@@ -73,6 +73,16 @@ public actor ReviewPipelineCoordinator {
             continuation.finish()
             return
         }
+
+        let auditFindings = await self.runAuditStage(
+            filesToReview: filesToReview,
+            workspacePath: workspacePath,
+            sessionState: sessionState,
+            continuation: continuation
+        )
+        if !auditFindings.isEmpty {
+            await sessionState.addFindings(auditFindings)
+        }
         await sessionState.markAnalysisStarted()
 
         let analysisText = try await CodeReviewMultiSwarmProvider.runAnalysisPhase(
@@ -131,7 +141,13 @@ public actor ReviewPipelineCoordinator {
                     description: task.description,
                     files: task.files,
                     severity: task.severity,
-                    filePath: task.files.first
+                    category: task.category,
+                    origin: task.origin,
+                    filePath: task.files.first,
+                    confidence: task.confidence,
+                    evidence: task.evidence,
+                    sourceTool: task.sourceTool,
+                    blocking: task.blocking
                 )
             }
             await sessionState.addFindings(findings)
@@ -141,8 +157,10 @@ public actor ReviewPipelineCoordinator {
             await sessionState.addFinding(CodeReviewFinding(
                 severity: .warning,
                 category: .other,
+                origin: .reviewer,
                 filePath: fallbackFile,
-                message: "Structured review task extraction failed: \(extractionFailureReason)"
+                message: "Structured review task extraction failed: \(extractionFailureReason)",
+                blocking: false
             ))
             await sessionState.fail(error: "Review task extraction failed: \(extractionFailureReason)")
             continuation.yield(.completed)
@@ -204,6 +222,59 @@ public actor ReviewPipelineCoordinator {
             analysisProvider: staticAnalysisProvider,
             executionProvider: staticExecutionProvider
         )
+    }
+
+    func runAuditStage(
+        filesToReview: [String],
+        workspacePath: URL,
+        sessionState: CodeReviewSessionState,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) async -> [CodeReviewFinding] {
+        guard !filesToReview.isEmpty else { return [] }
+
+        let toolNames = ReviewAuditToolName.all
+        for toolName in toolNames {
+            await sessionState.markAuditStarted(toolName: toolName)
+        }
+
+        let results = await withTaskGroup(
+            of: ReviewAuditToolResult.self,
+            returning: [ReviewAuditToolResult].self
+        ) { group in
+            for toolName in toolNames {
+                group.addTask {
+                    CodeReviewAuditService.runTool(
+                        named: toolName,
+                        scopeFiles: filesToReview,
+                        workspacePath: workspacePath
+                    )
+                }
+            }
+
+            var aggregated: [ReviewAuditToolResult] = []
+            for await result in group {
+                aggregated.append(result)
+            }
+            return aggregated
+        }
+
+        var findings: [CodeReviewFinding] = []
+        for result in results.sorted(by: { $0.toolName < $1.toolName }) {
+            let sessionId = await sessionState.snapshot().sessionId
+            await sessionState.recordAuditResult(result)
+            findings.append(contentsOf: result.findings)
+            continuation.yield(.raw(type: "review-audit-tool", payload: [
+                "tool": result.toolName,
+                "session_id": sessionId,
+                "findings_count": String(result.findings.count),
+                "blocking_findings": String(result.blockingFindingsCount),
+                "coverage": result.coverageAvailable ? "true" : "false",
+                "duration_ms": String(result.durationMs),
+                "detail": result.summary,
+            ]))
+        }
+
+        return CodeReviewAuditService.deduplicate(findings)
     }
 
     private func reviewScopeDescription(

@@ -28,6 +28,30 @@ extension CoderIDEMCPServerApp {
             }
         }
 
+        let origin = sanitizedReviewArg(args, key: "origin")
+        if !origin.isEmpty {
+            let validOrigins: Set<String> = ["reviewer", "bugHunter", "securityAuditor", "audit_tool"]
+            if !validOrigins.contains(origin) {
+                return reviewError(
+                    "Error: invalid origin '\(origin)'. Use: reviewer, bugHunter, securityAuditor, audit_tool"
+                )
+            }
+        }
+
+        let category = sanitizedReviewArg(args, key: "category")
+        if !category.isEmpty {
+            let validCategories: Set<String> = [
+                "correctness", "regression", "concurrency", "security",
+                "tests", "maintainability", "performance", "other",
+            ]
+            let normalizedCategory = category.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !validCategories.contains(normalizedCategory) {
+                return reviewError(
+                    "Error: invalid category '\(category)'. Use: correctness, regression, concurrency, security, tests, maintainability, performance, other"
+                )
+            }
+        }
+
         if let limitStr = args["limit"],
            !limitStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             guard let val = Int(limitStr.trimmingCharacters(in: .whitespacesAndNewlines)),
@@ -55,6 +79,8 @@ extension CoderIDEMCPServerApp {
             sessionId: sessionId,
             severity: severity.isEmpty ? nil : severity,
             status: status.isEmpty ? nil : status,
+            origin: origin.isEmpty ? nil : origin,
+            category: category.isEmpty ? nil : category,
             file: args["file"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             limit: limitVal,
             includeSensitiveDetails: false
@@ -66,11 +92,14 @@ extension CoderIDEMCPServerApp {
             let id = f["id"] ?? "?"
             let sev = f["severity"] ?? "?"
             let category = f["category"] ?? "unknown"
+            let origin = f["origin"] ?? "reviewer"
             let st = f["status"] ?? "open"
             let file = f["file_path"] ?? f["file_label"] ?? "redacted-file"
             let line = f["line_number"].map { ":\($0)" } ?? ""
             let message = f["message"] ?? f["message_summary"] ?? "Redacted finding details"
-            return "[\(idx + 1)] [\(sev)] \(file)\(line) — \(message) (category: \(category), status: \(st), id: \(id))"
+            let blocking = f["blocking"] == "true" ? ", blocking: true" : ""
+            let confidence = f["confidence"].map { ", confidence: \($0)" } ?? ""
+            return "[\(idx + 1)] [\(sev)] \(file)\(line) — \(message) (origin: \(origin), category: \(category), status: \(st)\(blocking)\(confidence), id: \(id))"
         }
         return reviewOK("Findings (\(findings.count)):\n" + lines.joined(separator: "\n"))
     }

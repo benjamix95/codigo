@@ -53,6 +53,18 @@ extension CoderIDETools {
             annotations: .init(title: "Subagent: Reviewer", readOnlyHint: true)
         ),
         Tool(
+            name: "coderide_subagent_bugHunter",
+            description: "Spawn a bug hunting subagent that focuses on regressions, crash risks, concurrency issues, test gaps, and boundary-condition bugs.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "Bug hunting scope and focus areas"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Subagent: BugHunter", readOnlyHint: true)
+        ),
+        Tool(
             name: "coderide_subagent_testWriter",
             description: "Spawn a test-writing subagent that writes and runs tests for code changes.",
             inputSchema: .object([

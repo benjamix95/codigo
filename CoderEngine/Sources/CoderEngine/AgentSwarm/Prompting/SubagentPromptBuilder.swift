@@ -76,6 +76,18 @@ public struct SubagentPromptBuilder {
               {"issues_found": <int>, "critical": <int>, "warnings": <int>, "suggestions": <int>}
             - If everything looks good, say "No issues found."
             """
+        case .bugHunter:
+            return """
+            You are the BugHunter subagent. Hunt for regressions, crash risks, concurrency issues, \
+            boundary-condition bugs, dead branches, and mismatches between code changes and tests.
+
+            - Prioritize correctness and regression risk over style
+            - Focus on nil/optional misuse, force unwraps, try!, fatalError/precondition misuse, race conditions
+            - Flag suspicious diffs with missing test coverage or risky control-flow changes
+            - When helpful, use the `skill` tool with debugging/testing-oriented skills before falling back to generic exploration
+            - Report concrete findings with file paths, line numbers, confidence, and remediation guidance
+            - Do NOT auto-fix. If no issues are found, say "No issues found."
+            """
         case .testWriter:
             return """
             You are the TestWriter subagent. Write tests for the specified code.
@@ -103,18 +115,32 @@ public struct SubagentPromptBuilder {
             - Check for injection vulnerabilities (SQL, command, XSS)
             - Verify authentication and authorization patterns
             - Look for hardcoded secrets or credentials
+            - Prefer audit_security_* tools before generic search when available
+            - When helpful, use the `skill` tool with security-focused skills such as security-scan
             - Report findings with severity levels and remediation suggestions
             """
         }
     }
 
     private static func subagentPolicy(for role: SubagentRole) -> String {
-        if role == .explorer || role == .reviewer || role == .securityAuditor {
+        if role == .explorer || role == .reviewer || role == .bugHunter || role == .securityAuditor {
+            let roleSpecificTools: String
+            switch role {
+            case .reviewer:
+                roleSpecificTools = "Preferred review tools: review_findings, review_diff_summary."
+            case .bugHunter:
+                roleSpecificTools = "Preferred bug-hunting tools: audit_bug_diff_risks, audit_bug_test_gaps, audit_bug_hotspots, diagnostics, read_lints, and matching debugging/testing skills."
+            case .securityAuditor:
+                roleSpecificTools = "Preferred security tools: audit_security_secrets, audit_security_dependencies, audit_security_patterns, dependency_audit, and matching security skills."
+            default:
+                roleSpecificTools = ""
+            }
             return """
 
 
             **Policy:** You are a READ-ONLY subagent. Do NOT attempt to edit, create, or delete files.
             Use only search and read tools: grep, glob, read, semantic_search, codebase_search, find_symbol, find_references.
+            \(roleSpecificTools)
             """
         }
         return """

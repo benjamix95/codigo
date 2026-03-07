@@ -10,10 +10,10 @@ public enum SubagentCLIConfig {
     public static let knownProviderIDs = ["codex", "claude", "gemini"]
 
     /// Whether a subagent role should run in read-only sandbox mode.
-    /// Explorer, reviewer, and securityAuditor only analyze — they never edit files.
+    /// Explorer, reviewer, bugHunter, and securityAuditor only analyze — they never edit files.
     public static func isReadOnly(_ role: SubagentRole) -> Bool {
         switch role {
-        case .explorer, .reviewer, .securityAuditor:
+        case .explorer, .reviewer, .bugHunter, .securityAuditor:
             return true
         case .coder, .debugger, .testWriter, .docWriter:
             return false

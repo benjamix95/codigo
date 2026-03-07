@@ -26,7 +26,7 @@ extension ProviderToolEventMapper {
         "activate_plan_mode", "activate_debug_mode", "show_task_panel", "show_swarm_panel",
         // Subagent tools
         "subagent_explorer", "subagent_coder", "subagent_debugger", "subagent_reviewer",
-        "subagent_testwriter", "subagent_docwriter", "subagent_securityauditor", "subagent_tester",
+        "subagent_bughunter", "subagent_testwriter", "subagent_docwriter", "subagent_securityauditor", "subagent_tester",
     ]
 
     private static let canonicalToolAliases: [String: String] = [
@@ -66,6 +66,7 @@ extension ProviderToolEventMapper {
         // Subagent aliases / normalization
         "subagent_test_writer": "subagent_testwriter",
         "subagent_doc_writer": "subagent_docwriter",
+        "subagent_bug_hunter": "subagent_bughunter",
         "subagent_security_auditor": "subagent_securityauditor",
         "subagent_tester": "subagent_testwriter",
         "todowrite": "todo_write",

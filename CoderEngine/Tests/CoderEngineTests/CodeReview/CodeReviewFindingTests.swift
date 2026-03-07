@@ -8,14 +8,15 @@ final class CodeReviewFindingTests: XCTestCase {
     func testDefaultInit() {
         let finding = CodeReviewFinding(
             severity: .warning,
-            category: .bug,
+            category: .correctness,
             filePath: "test.swift",
             message: "Potential nil dereference"
         )
 
         XCTAssertFalse(finding.id.isEmpty)
         XCTAssertEqual(finding.severity, .warning)
-        XCTAssertEqual(finding.category, .bug)
+        XCTAssertEqual(finding.category, .correctness)
+        XCTAssertEqual(finding.origin, .reviewer)
         XCTAssertEqual(finding.filePath, "test.swift")
         XCTAssertNil(finding.lineNumber)
         XCTAssertNil(finding.endLineNumber)
@@ -30,6 +31,7 @@ final class CodeReviewFindingTests: XCTestCase {
             id: "custom-id",
             severity: .critical,
             category: .security,
+            origin: .securityAuditor,
             filePath: "auth.swift",
             lineNumber: 10,
             endLineNumber: 15,
@@ -41,6 +43,7 @@ final class CodeReviewFindingTests: XCTestCase {
 
         XCTAssertEqual(finding.id, "custom-id")
         XCTAssertEqual(finding.severity, .critical)
+        XCTAssertEqual(finding.origin, .securityAuditor)
         XCTAssertEqual(finding.lineNumber, 10)
         XCTAssertEqual(finding.endLineNumber, 15)
         XCTAssertEqual(finding.suggestedFix, "Use parameterized queries")
@@ -72,6 +75,7 @@ final class CodeReviewFindingTests: XCTestCase {
         XCTAssertEqual(payload["id"], "f1")
         XCTAssertEqual(payload["severity"], "warning")
         XCTAssertEqual(payload["category"], "performance")
+        XCTAssertEqual(payload["origin"], "reviewer")
         XCTAssertEqual(payload["file_path"], "perf.swift")
         XCTAssertEqual(payload["line_number"], "42")
         XCTAssertEqual(payload["message"], "N+1 query")
@@ -100,7 +104,8 @@ final class CodeReviewFindingTests: XCTestCase {
         let original = CodeReviewFinding(
             id: "roundtrip",
             severity: .suggestion,
-            category: .style,
+            category: .maintainability,
+            origin: .bugHunter,
             filePath: "style.swift",
             lineNumber: 5,
             message: "Use camelCase",
@@ -114,12 +119,34 @@ final class CodeReviewFindingTests: XCTestCase {
         XCTAssertEqual(decoded.id, original.id)
         XCTAssertEqual(decoded.severity, original.severity)
         XCTAssertEqual(decoded.category, original.category)
+        XCTAssertEqual(decoded.origin, original.origin)
         XCTAssertEqual(decoded.filePath, original.filePath)
         XCTAssertEqual(decoded.lineNumber, original.lineNumber)
         XCTAssertEqual(decoded.message, original.message)
         XCTAssertEqual(decoded.suggestedFix, original.suggestedFix)
         XCTAssertEqual(decoded.status, original.status)
         XCTAssertEqual(decoded.comments.count, 1)
+    }
+
+    func testLegacyCategoryDecodeMapsToCurrentCategory() throws {
+        let json = """
+        {
+          "id": "legacy",
+          "severity": "warning",
+          "category": "bug",
+          "filePath": "legacy.swift",
+          "message": "legacy finding",
+          "status": "open",
+          "comments": [],
+          "createdAt": "2026-03-07T18:00:00Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let finding = try decoder.decode(CodeReviewFinding.self, from: Data(json.utf8))
+        XCTAssertEqual(finding.category, .correctness)
+        XCTAssertEqual(finding.origin, .reviewer)
     }
 
     // MARK: - SessionConfig Clamping

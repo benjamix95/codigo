@@ -114,6 +114,8 @@ extension MCPSharedState {
         sessionId: String,
         severity: String? = nil,
         status: String? = nil,
+        origin: String? = nil,
+        category: String? = nil,
         file: String? = nil,
         limit: Int = 50,
         includeSensitiveDetails: Bool = false
@@ -128,6 +130,12 @@ extension MCPSharedState {
         if let status, !status.isEmpty {
             findings = findings.filter { $0.status.rawValue == status }
         }
+        if let origin, !origin.isEmpty {
+            findings = findings.filter { $0.origin.rawValue == origin }
+        }
+        if let category, !category.isEmpty {
+            findings = findings.filter { $0.category.rawValue == FindingCategory.fromStoredValue(category).rawValue }
+        }
         if let file, !file.isEmpty {
             findings = findings.filter { $0.filePath.contains(file) }
         }
@@ -137,8 +145,16 @@ extension MCPSharedState {
                 "id": finding.id,
                 "severity": finding.severity.rawValue,
                 "category": finding.category.rawValue,
+                "origin": finding.origin.rawValue,
                 "status": finding.status.rawValue,
+                "blocking": finding.blocking ? "true" : "false",
             ]
+            if let confidence = finding.confidence {
+                payload["confidence"] = String(format: "%.2f", confidence)
+            }
+            if let sourceTool = finding.sourceTool {
+                payload["source_tool"] = sourceTool
+            }
             if includeSensitiveDetails {
                 payload["file_path"] = finding.filePath
                 payload["message"] = finding.message
@@ -169,10 +185,26 @@ extension MCPSharedState {
             "stage": snapshot.stage.rawValue,
             "findings_total": String(snapshot.findings.count),
             "findings_open": String(snapshot.openFindings.count),
+            "findings_blocking_open": String(snapshot.blockingOpenFindings.count),
             "current_round": String(snapshot.currentRound),
             "active_workers": String(snapshot.activeWorkerCount),
             "summary": snapshot.statusSummary,
         ]
+        payload["audit_coverage_percent"] = String(format: "%.0f", snapshot.auditCoveragePercent)
+        if !snapshot.audit.toolCoverage.isEmpty {
+            payload["findings_by_origin"] = snapshot.findingsByOrigin
+                .map { "\($0.key.rawValue)=\($0.value.count)" }
+                .sorted()
+                .joined(separator: ",")
+            payload["audit_tools"] = snapshot.audit.toolCoverage
+                .map { "\($0.key)=\($0.value ? "covered" : "unavailable")" }
+                .sorted()
+                .joined(separator: ",")
+            payload["audit_durations_ms"] = snapshot.audit.toolDurationsMs
+                .map { "\($0.key)=\($0.value)" }
+                .sorted()
+                .joined(separator: ",")
+        }
         if let conversationId = snapshot.conversationId {
             payload["conversation_id"] = conversationId.uuidString.lowercased()
         }

@@ -223,7 +223,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
 enum ToolSchemaCatalog {
     /// Core built-in tool entries (static).
     static let coreEntries: [ToolSchemaEntry] =
-        fileTools + runtimeTools + indexTools + debugTools + advancedTools + planTools + integrationTools
+        fileTools + runtimeTools + auditTools + indexTools + debugTools + advancedTools + planTools + integrationTools
 
     /// All tool entries: core built-in tools + registered native MCP tools.
     static var entries: [ToolSchemaEntry] {

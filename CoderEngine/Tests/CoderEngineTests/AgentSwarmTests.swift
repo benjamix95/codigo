@@ -18,12 +18,13 @@ final class AgentSwarmTests: XCTestCase {
 
     func testAgentRoleAllCases() {
         let roles = AgentRole.allCases
-        XCTAssertEqual(roles.count, 8)
+        XCTAssertEqual(roles.count, 9)
         XCTAssertTrue(roles.contains(.planner))
         XCTAssertTrue(roles.contains(.explorer))
         XCTAssertTrue(roles.contains(.coder))
         XCTAssertTrue(roles.contains(.debugger))
         XCTAssertTrue(roles.contains(.reviewer))
+        XCTAssertTrue(roles.contains(.bugHunter))
         XCTAssertTrue(roles.contains(.docWriter))
         XCTAssertTrue(roles.contains(.securityAuditor))
         XCTAssertTrue(roles.contains(.testWriter))

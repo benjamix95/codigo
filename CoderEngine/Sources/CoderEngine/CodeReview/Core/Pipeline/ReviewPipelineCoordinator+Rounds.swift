@@ -140,12 +140,12 @@ extension ReviewPipelineCoordinator {
                 await sessionState.markOpenFindingsAsFixApplied(
                     in: Set(modifiedFiles)
                 )
-                let hasRemainingOpenFindings = !(await sessionState.snapshot()).openFindings.isEmpty
-                finalReviewState = hasRemainingOpenFindings ? .issues : .clean
-                if !hasRemainingOpenFindings {
+                let hasRemainingBlockingFindings = !(await sessionState.snapshot()).blockingOpenFindings.isEmpty
+                finalReviewState = hasRemainingBlockingFindings ? .issues : .clean
+                if !hasRemainingBlockingFindings {
                     break reviewLoop
                 }
-                finalFailureReason = "Some review findings remain open outside the files modified in the current round."
+                finalFailureReason = "Some blocking review findings remain open outside the files modified in the current round."
                 break reviewLoop
             case .inconclusive(let reason):
                 finalReviewState = .inconclusive(reason: reason)
@@ -171,7 +171,13 @@ extension ReviewPipelineCoordinator {
                         description: task.description,
                         files: task.files,
                         severity: task.severity,
-                        filePath: task.files.first
+                        category: task.category,
+                        origin: task.origin,
+                        filePath: task.files.first,
+                        confidence: task.confidence,
+                        evidence: task.evidence,
+                        sourceTool: task.sourceTool,
+                        blocking: task.blocking
                     )
                 }
                 await sessionState.replaceOpenFindings(
@@ -218,10 +224,14 @@ extension ReviewPipelineCoordinator {
                 return .failed(reason: "Review finished with unresolved test failures or inconclusive tests.")
             }
         case .issues?:
-            return .failed(reason: "Review finished with remaining open findings.")
+            return .failed(reason: "Review finished with remaining blocking findings.")
         case .inconclusive(let reason)?:
             return .failed(reason: "Review ended inconclusively: \(reason)")
         case nil:
+            let hasBlockingOpenFindings = !(await sessionState.snapshot()).blockingOpenFindings.isEmpty
+            if hasBlockingOpenFindings {
+                return .failed(reason: "Review finished with remaining blocking findings.")
+            }
             switch lastTestResult {
             case .passed:
                 return .completed
@@ -272,7 +282,10 @@ extension ReviewPipelineCoordinator {
         continuation.finish()
         switch testResult {
         case .passed:
-            return .completed
+            let hasBlockingOpenFindings = !(await sessionState.snapshot()).blockingOpenFindings.isEmpty
+            return hasBlockingOpenFindings
+                ? .failed(reason: "Review finished with remaining blocking findings.")
+                : .completed
         case .failed:
             return .failed(reason: "Tests failed.")
         case .inconclusive(let reason):

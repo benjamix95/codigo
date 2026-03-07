@@ -102,6 +102,7 @@ struct ExtensionRuntimeSandbox: Sendable {
             "subagent_explorer",
             "subagent_coder",
             "subagent_reviewer",
+            "subagent_bugHunter",
             "subagent_testWriter",
             "subagent_debugger",
             "subagent_docWriter",

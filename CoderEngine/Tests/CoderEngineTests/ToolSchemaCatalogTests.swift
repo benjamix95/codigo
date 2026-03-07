@@ -18,6 +18,8 @@ final class ToolSchemaCatalogTests: XCTestCase {
         let names = Set(ToolSchemaCatalog.entries.map(\.name))
         let required: Set<String> = [
             "semantic_search", "read_lints", "debug_context",
+            "audit_security_secrets", "audit_security_dependencies", "audit_security_patterns",
+            "audit_bug_diff_risks", "audit_bug_test_gaps", "audit_bug_hotspots",
             "codebase_search", "find_symbol", "list_symbols", "find_references",
             "index_status", "reindex",
             "parallel_apply", "regex_replace", "rename_symbol", "find_and_replace_all", "undo_edit",
@@ -119,6 +121,7 @@ final class ToolSchemaCatalogTests: XCTestCase {
             "subagent_coder",
             "subagent_debugger",
             "subagent_reviewer",
+            "subagent_bugHunter",
             "subagent_testWriter",
             "subagent_docWriter",
             "subagent_securityAuditor",
@@ -133,6 +136,7 @@ final class ToolSchemaCatalogTests: XCTestCase {
         let names = Set(ToolSchemaCatalog.anthropicTools.compactMap { $0["name"] as? String })
         XCTAssertTrue(names.contains("subagent_explorer"))
         XCTAssertTrue(names.contains("subagent_coder"))
+        XCTAssertTrue(names.contains("subagent_bugHunter"))
         XCTAssertTrue(names.contains("subagent_testWriter"))
         XCTAssertTrue(names.contains("subagent_securityAuditor"))
     }

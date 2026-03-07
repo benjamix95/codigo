@@ -47,6 +47,8 @@ enum PromptExecutionPolicy {
     e) Review + Test: ALWAYS spawn subagent_reviewer + subagent_testWriter in parallel after implementation.
     f) Documentation: Spawn subagent_docWriter in parallel with implementation subagents.
     g) Security: Spawn subagent_securityAuditor in parallel with other work.
+    h) Bug hunting: Spawn subagent_bugHunter when the task is an audit, regression scan, or proactive bug hunt.
+    i) Skills: when a matching local skill exists, use the `skill` tool inside the relevant subagent flow instead of generic manual steps.
 
     RULE 3 — THE ORCHESTRATOR DOES NOT DO IMPLEMENTATION WORK:
     - You (the orchestrator) plan, decompose, assign, and synthesize results.

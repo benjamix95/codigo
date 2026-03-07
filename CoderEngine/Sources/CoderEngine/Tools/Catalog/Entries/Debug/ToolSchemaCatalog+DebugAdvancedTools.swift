@@ -170,6 +170,14 @@ extension ToolSchemaCatalog {
             required: ["task"]
         ),
         ToolSchemaEntry(
+            name: "subagent_bugHunter",
+            description: "Spawn a bug-hunter subagent for regressions, crash risks, and test-gap analysis",
+            properties: [
+                "task": ["type": "string", "description": "Bug hunting task"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
             name: "subagent_testWriter",
             description: "Spawn a test-writer subagent for test creation and verification",
             properties: [

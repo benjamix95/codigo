@@ -137,7 +137,7 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
                 CodeReviewFinding(
                     id: "f123",
                     severity: .warning,
-                    category: .bug,
+                    category: .correctness,
                     filePath: "Package.swift",
                     message: "Test finding"
                 )

@@ -22,6 +22,9 @@ extension ToolEnabledLLMProvider {
             if let fromToolName = SubagentRole.fromToolName("subagent_\(normalized)") {
                 return fromToolName
             }
+            if normalized.contains("bug") || normalized.contains("regression") {
+                return .bugHunter
+            }
             if normalized.contains("review") { return .reviewer }
             if normalized.contains("debug") { return .debugger }
             if normalized.contains("test") { return .testWriter }
@@ -34,6 +37,9 @@ extension ToolEnabledLLMProvider {
         }
 
         let taskText = task.lowercased()
+        if taskText.contains("regression") || taskText.contains("bug hunt") || taskText.contains("bug-hunt") {
+            return .bugHunter
+        }
         if taskText.contains("review") { return .reviewer }
         if taskText.contains("debug") || taskText.contains("bug") { return .debugger }
         if taskText.contains("test") { return .testWriter }

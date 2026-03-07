@@ -192,9 +192,15 @@ public enum PipelineJobFactory {
                 fileScope: reviewTask.files,
                 metadata: [
                     "review_session_id": sessionId,
-                    "review_round": String(round),
+                    "review_round": "\(round)",
                     "review_severity": reviewTask.severity,
                     "review_description": reviewTask.description,
+                    "review_origin": reviewTask.origin.rawValue,
+                    "review_category": reviewTask.category ?? "",
+                    "review_confidence": reviewTask.confidence.map { "\($0)" } ?? "",
+                    "review_evidence": reviewTask.evidence ?? "",
+                    "review_source_tool": reviewTask.sourceTool ?? "",
+                    "review_blocking": reviewTask.blocking == true ? "true" : "false",
                 ],
                 status: .pending,
                 timeoutMs: 180_000

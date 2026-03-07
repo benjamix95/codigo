@@ -34,6 +34,7 @@ extension CodeReviewMultiSwarmProvider {
         3. **Performance** — unnecessary allocations, N+1 queries, blocking calls
         4. **Style** — naming, dead code, overly complex logic
         5. **Architecture** — SOLID violations, tight coupling, missing error handling
+        6. **Skills & Native Audits** — prefer audit_* tools and relevant skills (security-scan, debugging, testing) when they materially improve confidence
 
         ## Output Format
         First, provide your detailed analysis with findings.
@@ -200,12 +201,29 @@ extension CodeReviewMultiSwarmProvider {
             let severityRaw = (dict["severity"] as? String)?.lowercased() ?? "warning"
             let allowedSeverities: Set<String> = ["critical", "warning", "suggestion"]
             let severity = allowedSeverities.contains(severityRaw) ? severityRaw : "warning"
+            let category = (dict["category"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let originRaw = ((dict["origin"] as? String) ?? "reviewer")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let origin = FindingOrigin(rawValue: originRaw) ?? .reviewer
+            let confidence = dict["confidence"] as? Double
+            let evidence = (dict["evidence"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let sourceTool = (dict["source_tool"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let blocking = dict["blocking"] as? Bool
             tasks.append(
                 ReviewTask(
                     id: id,
                     description: normalizedDescription,
                     files: scopedFiles,
-                    severity: severity
+                    severity: severity,
+                    category: category,
+                    origin: origin,
+                    confidence: confidence,
+                    evidence: evidence,
+                    sourceTool: sourceTool,
+                    blocking: blocking
                 )
             )
             claimedFiles.formUnion(scopedFiles)

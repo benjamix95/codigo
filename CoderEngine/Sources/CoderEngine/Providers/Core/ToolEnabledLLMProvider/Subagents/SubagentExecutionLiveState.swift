@@ -96,7 +96,7 @@ enum SubagentPipelineLogger {
 extension ToolEnabledLLMProvider {
     static func subagentOutputLimit(for role: SubagentRole) -> Int {
         switch role {
-        case .reviewer, .securityAuditor:
+        case .reviewer, .bugHunter, .securityAuditor:
             return 20_000
         default:
             return 8_000

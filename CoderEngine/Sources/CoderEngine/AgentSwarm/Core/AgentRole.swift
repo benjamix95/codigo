@@ -7,6 +7,7 @@ public enum AgentRole: String, CaseIterable, Codable, Sendable, Equatable {
     case coder
     case debugger
     case reviewer
+    case bugHunter
     case docWriter
     case securityAuditor
     case testWriter
@@ -19,6 +20,7 @@ public enum AgentRole: String, CaseIterable, Codable, Sendable, Equatable {
         case .coder: "Coder"
         case .debugger: "Debugger"
         case .reviewer: "Reviewer"
+        case .bugHunter: "BugHunter"
         case .docWriter: "DocWriter"
         case .securityAuditor: "SecurityAuditor"
         case .testWriter: "TestWriter"
@@ -28,7 +30,7 @@ public enum AgentRole: String, CaseIterable, Codable, Sendable, Equatable {
     /// Ruoli read-only non possono mutare il repository (§6.13).
     public var isReadOnly: Bool {
         switch self {
-        case .planner, .explorer, .reviewer, .securityAuditor: true
+        case .planner, .explorer, .reviewer, .bugHunter, .securityAuditor: true
         case .coder, .debugger, .testWriter, .docWriter: false
         }
     }

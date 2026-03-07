@@ -17,7 +17,7 @@ extension ToolEnabledLLMProvider {
         "batch_read", "diff_files", "git_status", "git_show", "code_context",
         "web_search", "web_fetch",
         "plan_read", "plan_history_read", "plan_diff",
-        "subagent_explorer",
+        "subagent_explorer", "subagent_reviewer", "subagent_bugHunter", "subagent_securityAuditor",
     ]
 
     // MARK: - Real-time tool start events

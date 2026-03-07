@@ -114,6 +114,18 @@ extension UnifiedToolRuntime {
                 return await executeWorkspaceStats(call: call, context: context, startDate: startDate)
             case "dependency_audit":
                 return await executeDependencyAudit(call: call, context: context, startDate: startDate)
+            case ReviewAuditToolName.securitySecrets,
+                 ReviewAuditToolName.securityDependencies,
+                 ReviewAuditToolName.securityPatterns,
+                 ReviewAuditToolName.bugDiffRisks,
+                 ReviewAuditToolName.bugTestGaps,
+                 ReviewAuditToolName.bugHotspots:
+                return await executeAuditTool(
+                    name: normalizedName,
+                    call: call,
+                    context: context,
+                    startDate: startDate
+                )
             case "tail_log":
                 return await executeTailLog(call: call, context: context, startDate: startDate)
             case "glob":

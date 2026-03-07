@@ -106,6 +106,21 @@ public struct SessionConfig: Sendable, Codable {
     }
 }
 
+public struct ReviewAuditSnapshot: Sendable, Codable, Equatable {
+    public let toolCoverage: [String: Bool]
+    public let toolDurationsMs: [String: Int]
+
+    public static let empty = ReviewAuditSnapshot()
+
+    public init(
+        toolCoverage: [String: Bool] = [:],
+        toolDurationsMs: [String: Int] = [:]
+    ) {
+        self.toolCoverage = toolCoverage
+        self.toolDurationsMs = toolDurationsMs
+    }
+}
+
 public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let sessionId: String
     public let conversationId: UUID?
@@ -125,6 +140,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let lastError: String?
     public let currentJobId: String?
     public let lastTestStatus: ReviewSessionTestStatus?
+    public let audit: ReviewAuditSnapshot
     public let lastUpdatedAt: Date
 
     public init(
@@ -146,6 +162,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         lastError: String?,
         currentJobId: String?,
         lastTestStatus: ReviewSessionTestStatus?,
+        audit: ReviewAuditSnapshot = .empty,
         lastUpdatedAt: Date
     ) {
         self.sessionId = sessionId
@@ -166,6 +183,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         self.lastError = lastError
         self.currentJobId = currentJobId
         self.lastTestStatus = lastTestStatus
+        self.audit = audit
         self.lastUpdatedAt = lastUpdatedAt
     }
 
@@ -188,6 +206,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         case lastError
         case currentJobId
         case lastTestStatus
+        case audit
         case lastUpdatedAt
     }
 
@@ -217,6 +236,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
             ReviewSessionTestStatus.self,
             forKey: .lastTestStatus
         )
+        audit = try container.decodeIfPresent(ReviewAuditSnapshot.self, forKey: .audit) ?? .empty
         lastUpdatedAt = try container.decode(Date.self, forKey: .lastUpdatedAt)
     }
 
@@ -228,8 +248,26 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         Dictionary(grouping: findings, by: \.severity)
     }
 
+    public var findingsByOrigin: [FindingOrigin: [CodeReviewFinding]] {
+        Dictionary(grouping: findings, by: \.origin)
+    }
+
+    public var findingsByCategory: [FindingCategory: [CodeReviewFinding]] {
+        Dictionary(grouping: findings, by: \.category)
+    }
+
     public var openFindings: [CodeReviewFinding] {
         findings.filter { $0.status == .open }
+    }
+
+    public var blockingOpenFindings: [CodeReviewFinding] {
+        openFindings.filter(\.blocking)
+    }
+
+    public var auditCoveragePercent: Double {
+        guard !audit.toolCoverage.isEmpty else { return 0 }
+        let covered = audit.toolCoverage.values.filter { $0 }.count
+        return Double(covered) / Double(audit.toolCoverage.count) * 100.0
     }
 
     public var isActive: Bool {
@@ -244,10 +282,11 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public var statusSummary: String {
         let total = findings.count
         let open = findings.filter { $0.status == .open }.count
+        let blocking = blockingOpenFindings.count
         let fixed = findings.filter { $0.status == .fixApplied }.count
         let dismissed = findings.filter {
             $0.status == .dismissed || $0.status == .wontFix
         }.count
-        return "\(total) findings: \(open) open, \(fixed) fixed, \(dismissed) dismissed"
+        return "\(total) findings: \(open) open (\(blocking) blocking), \(fixed) fixed, \(dismissed) dismissed"
     }
 }

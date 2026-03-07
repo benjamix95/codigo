@@ -7,12 +7,14 @@ struct CoderIDETools {
     static let all: [Tool] = fileTools
         + searchTools
         + executionTools
+        + auditTools
         + webTools
         + advancedEditingTools
         + ideIntegrationTools
         + planIntegrationTools
         + skillTools
         + debugTools
+        + subagentTools
         + codeReviewTools
 
     private static let allowedRuntimeToolNames: Set<String> = Set(

@@ -137,6 +137,27 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewDiffSummary(args: [String: String]) -> CallTool.Result {
+        let originFilter = sanitizedReviewArg(args, key: "origin")
+        if !originFilter.isEmpty {
+            let validOrigins: Set<String> = ["reviewer", "bugHunter", "securityAuditor", "audit_tool"]
+            if !validOrigins.contains(originFilter) {
+                return reviewError(
+                    "Error: invalid origin '\(originFilter)'. Use: reviewer, bugHunter, securityAuditor, audit_tool"
+                )
+            }
+        }
+        let categoryFilter = sanitizedReviewArg(args, key: "category")
+        if !categoryFilter.isEmpty {
+            let validCategories: Set<String> = [
+                "correctness", "regression", "concurrency", "security",
+                "tests", "maintainability", "performance", "other",
+            ]
+            if !validCategories.contains(categoryFilter.lowercased()) {
+                return reviewError(
+                    "Error: invalid category '\(categoryFilter)'. Use: correctness, regression, concurrency, security, tests, maintainability, performance, other"
+                )
+            }
+        }
         let explicitSessionId = sanitizedReviewArg(
             args,
             key: args["session_id"] != nil ? "session_id" : "sessionId"
@@ -157,11 +178,27 @@ extension CoderIDEMCPServerApp {
             return reviewError("Error: unable to load the requested review session")
         }
         let fileFilter = sanitizedReviewArg(args, key: "file")
+        let filteredFiles: [String]?
+        if originFilter.isEmpty && categoryFilter.isEmpty {
+            filteredFiles = nil
+        } else {
+            filteredFiles = Array(
+                Set(
+                    snapshot.findings
+                        .filter { finding in
+                            (originFilter.isEmpty || finding.origin.rawValue == originFilter)
+                                && (categoryFilter.isEmpty || finding.category.rawValue == FindingCategory.fromStoredValue(categoryFilter).rawValue)
+                        }
+                        .map(\.filePath)
+                )
+            ).sorted()
+        }
         let workspacePath = URL(fileURLWithPath: snapshot.workspacePath ?? FileManager.default.currentDirectoryPath)
         let rendered = ReviewDiffSummaryService.renderSummary(
             snapshot: snapshot,
             workspacePath: workspacePath,
-            fileFilter: fileFilter.isEmpty ? nil : fileFilter
+            fileFilter: fileFilter.isEmpty ? nil : fileFilter,
+            filteredFiles: filteredFiles
         )
         return reviewOK(rendered)
     }

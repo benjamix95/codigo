@@ -305,12 +305,14 @@ public actor AgentWorkerAdapter {
         case .reviewer:
             return """
             Review the code changes. Report findings as structured feedback.
+            Use relevant skills when available for security scanning, debugging, or testing gaps.
             If you find critical issues, include "critical" in your summary.
             If all looks good, confirm the code is ready for testing.
             """
         case .bugHunter:
             return """
             Hunt for regressions, crash risks, concurrency bugs, and missing edge-case coverage.
+            Prefer relevant debugging/testing skills before generic exploration when they match the task.
             Report concrete findings with file paths and remediation guidance.
             If you find critical issues, include "critical" in your summary.
             """
@@ -328,6 +330,7 @@ public actor AgentWorkerAdapter {
         case .securityAuditor:
             return """
             Audit code for security vulnerabilities. Report findings.
+            Prefer relevant security skills when available, then confirm with audit tools.
             If you find critical vulnerabilities, include "security vulnerability" in your summary.
             """
         }

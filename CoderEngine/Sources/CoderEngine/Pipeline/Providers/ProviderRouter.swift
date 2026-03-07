@@ -158,6 +158,11 @@ public struct ProviderRouter: Sendable {
                 needsReadonlySubagent: true,
                 needsNativeTools: true
             )
+        case .bugHunter:
+            return RequiredCapabilities(
+                needsReadonlySubagent: true,
+                needsNativeTools: true
+            )
         case .explorer:
             return RequiredCapabilities(
                 needsReadonlySubagent: true

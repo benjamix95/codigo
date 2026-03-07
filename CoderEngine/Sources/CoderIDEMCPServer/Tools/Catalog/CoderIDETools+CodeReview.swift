@@ -69,7 +69,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_status",
-            description: "Get the current status of the active code review session: phase, progress, active workers, round info.",
+            description: "Get the current status of the active code review session: phase, progress, active workers, round info, audit breakdown, and blocking summary.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -87,7 +87,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_findings",
-            description: "List code review findings. Filter by severity, file, or status.",
+            description: "List code review findings. Filter by severity, file, status, origin, or category.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -102,6 +102,14 @@ extension CoderIDETools {
                     "status": .object([
                         "type": "string",
                         "description": "Filter by status: open, fix_applied, dismissed, wont_fix",
+                    ]),
+                    "origin": .object([
+                        "type": "string",
+                        "description": "Filter by origin: reviewer, bugHunter, securityAuditor, audit_tool",
+                    ]),
+                    "category": .object([
+                        "type": "string",
+                        "description": "Filter by category: correctness, regression, concurrency, security, tests, maintainability, performance, other",
                     ]),
                     "limit": .object([
                         "type": "integer",
@@ -210,13 +218,21 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_diff_summary",
-            description: "Get a structured summary of the diff for files in the current review scope.",
+            description: "Get a structured summary of the diff for files in the current review scope, optionally filtered by finding origin/category.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
                     "file": .object([
                         "type": "string",
                         "description": "Optional specific file to get diff for. Returns all files if omitted.",
+                    ]),
+                    "origin": .object([
+                        "type": "string",
+                        "description": "Optional finding origin filter applied before rendering the diff summary.",
+                    ]),
+                    "category": .object([
+                        "type": "string",
+                        "description": "Optional finding category filter applied before rendering the diff summary.",
                     ]),
                     "session_id": .object([
                         "type": "string",

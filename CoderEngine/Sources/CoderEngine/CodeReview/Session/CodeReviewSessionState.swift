@@ -27,6 +27,7 @@ public actor CodeReviewSessionState {
     var lastError: String?
     var currentJobId: String?
     var lastTestStatus: ReviewSessionTestStatus?
+    var audit: ReviewAuditSnapshot = .empty
 
     /// Callback fired on every state mutation (for bridging to @MainActor stores).
     private var onStateChange: (@Sendable (CodeReviewSessionSnapshot) -> Void)?
@@ -75,6 +76,7 @@ public actor CodeReviewSessionState {
             lastError: lastError,
             currentJobId: currentJobId,
             lastTestStatus: lastTestStatus,
+            audit: audit,
             lastUpdatedAt: Date()
         )
     }

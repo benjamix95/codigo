@@ -15,8 +15,8 @@ final class ChatPanelTaskCompletionNotificationFlowTests: XCTestCase {
         )
 
         XCTAssertNotNil(payload)
-        XCTAssertEqual(payload?.title, "Che hai fatto?")
-        XCTAssertEqual(payload?.body, "Ho completato il task.")
+        XCTAssertEqual(payload?.title, "Task completato")
+        XCTAssertEqual(payload?.body, "Apri CoderIDE per vedere i dettagli.")
     }
 
     func testFailedOrAbortedOutcomeSkipsNotificationPayload() {

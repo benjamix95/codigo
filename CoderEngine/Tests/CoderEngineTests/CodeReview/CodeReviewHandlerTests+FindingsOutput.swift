@@ -16,6 +16,8 @@ extension CodeReviewHandlerTests {
         XCTAssertTrue(text.contains("Findings"))
         XCTAssertTrue(text.contains("Redacted"))
         XCTAssertTrue(text.contains("redacted-swift-file-"))
+        XCTAssertTrue(text.contains("origin: bugHunter"))
+        XCTAssertTrue(text.contains("category: correctness"))
         XCTAssertFalse(text.contains("Package.swift"))
         XCTAssertFalse(text.contains("Test finding"))
         XCTAssertFalse(text.contains("? —"))

@@ -32,6 +32,8 @@ extension CodeReviewSessionEvent {
         case sessionStarted = "session_started"
         case analysisStarted = "analysis_started"
         case analysisCompleted = "analysis_completed"
+        case auditStarted = "audit_started"
+        case auditCompleted = "audit_completed"
         case findingAdded = "finding_added"
         case findingFixApplied = "finding_fix_applied"
         case findingDismissed = "finding_dismissed"

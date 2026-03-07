@@ -161,6 +161,7 @@ public actor SwarmBudgetManager {
         case .explorer:        config.maxExplorersPerTask
         case .coder:           config.maxCodersPerTask
         case .reviewer:        config.maxReviewersPerPatch
+        case .bugHunter:       config.maxReviewersPerPatch
         case .testWriter:      config.maxTestWritersPerTask
         case .docWriter:       config.maxDocWritersPerTask
         case .debugger:        config.maxCodersPerTask

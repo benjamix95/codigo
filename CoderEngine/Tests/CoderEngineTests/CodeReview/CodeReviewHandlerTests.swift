@@ -126,6 +126,22 @@ final class CodeReviewHandlerTests: XCTestCase {
         XCTAssertEqual(result?.isError, true)
     }
 
+    func testReviewFindingsInvalidOrigin() {
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_findings",
+            args: ["origin": "unknown"]
+        )
+        XCTAssertEqual(result?.isError, true)
+    }
+
+    func testReviewFindingsInvalidCategory() {
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_findings",
+            args: ["category": "style"]
+        )
+        XCTAssertEqual(result?.isError, true)
+    }
+
     // MARK: - review_apply_fix
 
     func testReviewApplyFixRequiresFindingId() {

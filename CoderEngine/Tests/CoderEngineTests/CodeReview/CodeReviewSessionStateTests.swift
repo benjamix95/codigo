@@ -59,7 +59,7 @@ final class CodeReviewSessionStateTests: XCTestCase {
         let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift"])
         await state.start(scope: scope)
         await state.addFinding(CodeReviewFinding(
-            severity: .warning, category: .bug,
+            severity: .warning, category: .correctness,
             filePath: "a.swift", message: "test"
         ))
         await state.reset()
@@ -98,8 +98,8 @@ final class CodeReviewSessionStateTests: XCTestCase {
         await state.start(scope: scope)
 
         let findings = [
-            CodeReviewFinding(severity: .critical, category: .bug, filePath: "a.swift", message: "crash"),
-            CodeReviewFinding(severity: .warning, category: .style, filePath: "b.swift", message: "style"),
+            CodeReviewFinding(severity: .critical, category: .correctness, filePath: "a.swift", message: "crash"),
+            CodeReviewFinding(severity: .warning, category: .maintainability, filePath: "b.swift", message: "style"),
         ]
         await state.addFindings(findings)
         let snap = await state.snapshot()
@@ -113,7 +113,7 @@ final class CodeReviewSessionStateTests: XCTestCase {
         await state.start(scope: scope)
 
         let finding = CodeReviewFinding(
-            id: "f1", severity: .warning, category: .bug,
+            id: "f1", severity: .warning, category: .correctness,
             filePath: "a.swift", message: "test"
         )
         await state.addFinding(finding)
@@ -136,7 +136,7 @@ final class CodeReviewSessionStateTests: XCTestCase {
         await state.start(scope: scope)
 
         let finding = CodeReviewFinding(
-            id: "f2", severity: .suggestion, category: .style,
+            id: "f2", severity: .suggestion, category: .maintainability,
             filePath: "a.swift", message: "naming"
         )
         await state.addFinding(finding)
@@ -153,7 +153,7 @@ final class CodeReviewSessionStateTests: XCTestCase {
         await state.start(scope: scope)
 
         let finding = CodeReviewFinding(
-            id: "f2", severity: .suggestion, category: .style,
+            id: "f2", severity: .suggestion, category: .maintainability,
             filePath: "a.swift", message: "naming"
         )
         await state.addFinding(finding)
@@ -170,7 +170,7 @@ final class CodeReviewSessionStateTests: XCTestCase {
         await state.start(scope: scope)
 
         let finding = CodeReviewFinding(
-            id: "f3", severity: .warning, category: .bug,
+            id: "f3", severity: .warning, category: .correctness,
             filePath: "a.swift", message: "test"
         )
         await state.addFinding(finding)
@@ -220,8 +220,8 @@ final class CodeReviewSessionStateTests: XCTestCase {
         let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift"])
         await state.start(scope: scope)
         await state.addFindings([
-            CodeReviewFinding(id: "open-1", severity: .warning, category: .bug, filePath: "a.swift", message: "old open"),
-            CodeReviewFinding(id: "fixed-1", severity: .warning, category: .bug, filePath: "a.swift", message: "old fixed", status: .fixApplied),
+            CodeReviewFinding(id: "open-1", severity: .warning, category: .correctness, filePath: "a.swift", message: "old open"),
+            CodeReviewFinding(id: "fixed-1", severity: .warning, category: .correctness, filePath: "a.swift", message: "old fixed", status: .fixApplied),
         ])
 
         await state.replaceOpenFindings(with: [
@@ -237,7 +237,7 @@ final class CodeReviewSessionStateTests: XCTestCase {
         let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift"])
         await state.start(scope: scope)
         await state.addFindings([
-            CodeReviewFinding(id: "open-1", severity: .warning, category: .bug, filePath: "a.swift", message: "old open"),
+            CodeReviewFinding(id: "open-1", severity: .warning, category: .correctness, filePath: "a.swift", message: "old open"),
             CodeReviewFinding(id: "open-2", severity: .critical, category: .security, filePath: "a.swift", message: "old open 2"),
         ])
 
@@ -255,8 +255,8 @@ final class CodeReviewSessionStateTests: XCTestCase {
         await state.start(scope: scope)
 
         await state.addFindings([
-            CodeReviewFinding(id: "1", severity: .critical, category: .bug, filePath: "a.swift", message: "crash"),
-            CodeReviewFinding(id: "2", severity: .warning, category: .style, filePath: "a.swift", message: "naming"),
+            CodeReviewFinding(id: "1", severity: .critical, category: .correctness, filePath: "a.swift", message: "crash"),
+            CodeReviewFinding(id: "2", severity: .warning, category: .maintainability, filePath: "a.swift", message: "naming"),
             CodeReviewFinding(id: "3", severity: .critical, category: .security, filePath: "b.swift", message: "xss"),
         ])
         _ = await state.applyFix(findingId: "1")

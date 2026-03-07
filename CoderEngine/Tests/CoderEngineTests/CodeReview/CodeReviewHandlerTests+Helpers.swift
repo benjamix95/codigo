@@ -40,7 +40,8 @@ extension CodeReviewHandlerTests {
             CodeReviewFinding(
                 id: "f123",
                 severity: .warning,
-                category: .bug,
+                category: .correctness,
+                origin: .bugHunter,
                 filePath: "Package.swift",
                 message: "Test finding"
             )

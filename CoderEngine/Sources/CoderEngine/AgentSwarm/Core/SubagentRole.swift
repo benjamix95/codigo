@@ -7,6 +7,7 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
     case coder
     case debugger
     case reviewer
+    case bugHunter
     case testWriter
     case docWriter
     case securityAuditor
@@ -21,6 +22,7 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
         case .coder:           return "Coder"
         case .debugger:        return "Debugger"
         case .reviewer:        return "Reviewer"
+        case .bugHunter:       return "BugHunter"
         case .testWriter:      return "TestWriter"
         case .docWriter:       return "DocWriter"
         case .securityAuditor: return "SecurityAuditor"
@@ -31,7 +33,7 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
     /// Read-only roles can search/read/analyze but never edit.
     public var canEditFiles: Bool {
         switch self {
-        case .explorer, .reviewer, .securityAuditor:
+        case .explorer, .reviewer, .bugHunter, .securityAuditor:
             return false
         default: return true
         }
@@ -43,7 +45,7 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
         switch self {
         case .explorer:
             return 40
-        case .reviewer, .securityAuditor:
+        case .reviewer, .bugHunter, .securityAuditor:
             return 50
         case .testWriter:
             return 100
@@ -83,6 +85,8 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
             return .debugger
         case "reviewer":
             return .reviewer
+        case "bughunter", "bug_hunter", "bugfinder", "bug_finder":
+            return .bugHunter
         case "testwriter", "test_writer", "tester":
             return .testWriter
         case "docwriter", "doc_writer":
@@ -267,6 +271,8 @@ private extension SubagentRole {
             return .debugger
         case .reviewer:
             return .reviewer
+        case .bugHunter:
+            return .bugHunter
         case .testWriter:
             return .testWriter
         case .docWriter:

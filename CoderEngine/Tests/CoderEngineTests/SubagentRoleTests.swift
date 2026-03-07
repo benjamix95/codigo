@@ -10,6 +10,8 @@ final class SubagentRoleTests: XCTestCase {
         XCTAssertEqual(SubagentRole.fromToolName("subagent_test_writer"), .testWriter)
         XCTAssertEqual(SubagentRole.fromToolName("subagent_docWriter"), .docWriter)
         XCTAssertEqual(SubagentRole.fromToolName("subagent_doc_writer"), .docWriter)
+        XCTAssertEqual(SubagentRole.fromToolName("subagent_bugHunter"), .bugHunter)
+        XCTAssertEqual(SubagentRole.fromToolName("subagent_bug_hunter"), .bugHunter)
         XCTAssertEqual(SubagentRole.fromToolName("subagent_securityAuditor"), .securityAuditor)
         XCTAssertEqual(SubagentRole.fromToolName("subagent_security_auditor"), .securityAuditor)
     }
@@ -21,6 +23,7 @@ final class SubagentRoleTests: XCTestCase {
     func testCanEditFilesMatchesReadOnlyRoles() {
         XCTAssertFalse(SubagentRole.explorer.canEditFiles)
         XCTAssertFalse(SubagentRole.reviewer.canEditFiles)
+        XCTAssertFalse(SubagentRole.bugHunter.canEditFiles)
         XCTAssertFalse(SubagentRole.securityAuditor.canEditFiles)
         XCTAssertTrue(SubagentRole.coder.canEditFiles)
         XCTAssertTrue(SubagentRole.debugger.canEditFiles)
@@ -31,6 +34,7 @@ final class SubagentRoleTests: XCTestCase {
     func testMaxToolRoundsAreRoleSpecific() {
         XCTAssertEqual(SubagentRole.explorer.maxToolRounds, 40)
         XCTAssertEqual(SubagentRole.reviewer.maxToolRounds, 50)
+        XCTAssertEqual(SubagentRole.bugHunter.maxToolRounds, 50)
         XCTAssertEqual(SubagentRole.securityAuditor.maxToolRounds, 50)
         XCTAssertEqual(SubagentRole.testWriter.maxToolRounds, 100)
         XCTAssertEqual(SubagentRole.coder.maxToolRounds, 80)

@@ -88,6 +88,7 @@ struct ReviewPanelTimelineTab: View {
         switch type {
         case .sessionStarted, .sessionCompleted: return store.accent
         case .analysisStarted, .analysisCompleted: return DesignSystem.Colors.info
+        case .auditStarted, .auditCompleted: return DesignSystem.Colors.info.opacity(0.85)
         case .findingAdded: return DesignSystem.Colors.warning
         case .findingFixApplied: return DesignSystem.Colors.success
         case .findingDismissed: return .secondary
@@ -107,6 +108,8 @@ struct ReviewPanelTimelineTab: View {
         case .sessionCompleted: return "checkmark.circle.fill"
         case .analysisStarted: return "magnifyingglass"
         case .analysisCompleted: return "magnifyingglass.circle.fill"
+        case .auditStarted: return "shield"
+        case .auditCompleted: return "shield.checkered"
         case .findingAdded: return "exclamationmark.triangle"
         case .findingFixApplied: return "wrench.and.screwdriver"
         case .findingDismissed: return "xmark.circle"
@@ -128,6 +131,8 @@ struct ReviewPanelTimelineTab: View {
         case .sessionCompleted: return "Review Completed"
         case .analysisStarted: return "Analysis Started"
         case .analysisCompleted: return "Analysis Completed"
+        case .auditStarted: return "Audit Started"
+        case .auditCompleted: return "Audit Completed"
         case .findingAdded: return "Finding Added"
         case .findingFixApplied: return "Fix Applied"
         case .findingDismissed: return "Finding Dismissed"

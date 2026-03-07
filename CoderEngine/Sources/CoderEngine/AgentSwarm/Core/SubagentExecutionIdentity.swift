@@ -86,6 +86,8 @@ public enum SubagentExecutionIdentityBuilder {
             return ["analyze", "analyse", "check", "esplora", "explore", "inspect", "investigate", "research", "review", "rivedi", "study", "verify", "verifica"]
         case .reviewer:
             return ["audit", "check", "inspect", "review", "rivedi", "scan", "verify", "verifica"]
+        case .bugHunter:
+            return ["analyze", "bug", "bugs", "check", "find", "hunt", "investigate", "regression", "review", "scan", "verify"]
         case .debugger:
             return ["debug", "diagnose", "fix", "indaga", "investigate", "repair", "resolve", "risolvi"]
         case .coder:

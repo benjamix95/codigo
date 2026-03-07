@@ -6,6 +6,12 @@ extension CodeReviewMultiSwarmProvider {
         let description: String
         let files: [String]
         let severity: String
+        let category: String?
+        let origin: FindingOrigin
+        let confidence: Double?
+        let evidence: String?
+        let sourceTool: String?
+        let blocking: Bool?
     }
 
     enum ReviewTaskExtractionResult: Sendable {

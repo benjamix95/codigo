@@ -148,6 +148,10 @@ final class MCPSubagentPipelineTests: XCTestCase {
         XCTAssertTrue(SubagentCLIConfig.isReadOnly(.reviewer))
     }
 
+    func testIsReadOnly_bugHunterIsReadOnly() {
+        XCTAssertTrue(SubagentCLIConfig.isReadOnly(.bugHunter))
+    }
+
     func testIsReadOnly_securityAuditorIsReadOnly() {
         XCTAssertTrue(SubagentCLIConfig.isReadOnly(.securityAuditor))
     }
@@ -173,6 +177,7 @@ final class MCPSubagentPipelineTests: XCTestCase {
     func testTimeout_readOnlyRolesStayUnderMCPDeadline() {
         XCTAssertEqual(SubagentCLIConfig.timeout(for: .explorer), 95)
         XCTAssertEqual(SubagentCLIConfig.timeout(for: .reviewer), 95)
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .bugHunter), 95)
         XCTAssertEqual(SubagentCLIConfig.timeout(for: .securityAuditor), 95)
     }
 
@@ -183,14 +188,15 @@ final class MCPSubagentPipelineTests: XCTestCase {
         XCTAssertEqual(SubagentCLIConfig.timeout(for: .docWriter), 110)
     }
 
-    // MARK: - SubagentRole resolution (all 7 roles)
+    // MARK: - SubagentRole resolution (all 8 roles)
 
-    func testAllSevenRolesResolveFromToolName() {
+    func testAllEightRolesResolveFromToolName() {
         let expectations: [(String, SubagentRole)] = [
             ("subagent_explorer", .explorer),
             ("subagent_coder", .coder),
             ("subagent_debugger", .debugger),
             ("subagent_reviewer", .reviewer),
+            ("subagent_bugHunter", .bugHunter),
             ("subagent_testWriter", .testWriter),
             ("subagent_docWriter", .docWriter),
             ("subagent_securityAuditor", .securityAuditor),

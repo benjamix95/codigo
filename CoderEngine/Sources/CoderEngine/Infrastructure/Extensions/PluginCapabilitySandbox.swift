@@ -10,7 +10,7 @@ enum PluginCapabilitySandbox {
         .mcp: ["mcp_call", "mcp_batch", "mcp_list_resources", "mcp_read_resource", "mcp_health", "mcp_reconnect", "mcp_restart_server"],
         .git: ["git_diff", "git_status", "git_show", "git_log_search"],
         .debug: ["debug_context", "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean", "debug_set_phase", "debug_request_user", "debug_resolve"],
-        .subagent: ["subagent_explorer", "subagent_coder", "subagent_reviewer", "subagent_testWriter", "subagent_debugger", "subagent_docWriter", "subagent_securityAuditor"],
+        .subagent: ["subagent_explorer", "subagent_coder", "subagent_reviewer", "subagent_bugHunter", "subagent_testWriter", "subagent_debugger", "subagent_docWriter", "subagent_securityAuditor"],
     ]
 
     static func validate(

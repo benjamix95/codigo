@@ -19,6 +19,7 @@ extension CodeReviewSessionState {
         self.lastError = nil
         self.currentJobId = nil
         self.lastTestStatus = nil
+        self.audit = .empty
 
         events.append(.sessionStarted(scope: scope.description, fileCount: scope.files.count))
         notifyChange()
@@ -63,6 +64,7 @@ extension CodeReviewSessionState {
         lastError = nil
         currentJobId = nil
         lastTestStatus = nil
+        audit = .empty
         notifyChange()
     }
 
@@ -92,6 +94,40 @@ extension CodeReviewSessionState {
         analysisCompletedAt = Date()
         stage = .findings
         events.append(CodeReviewSessionEvent(type: .analysisCompleted, detail: "Analysis completed"))
+        notifyChange()
+    }
+
+    public func markAuditStarted(toolName: String) {
+        events.append(CodeReviewSessionEvent(
+            type: .auditStarted,
+            detail: "Running \(toolName)",
+            metadata: ["tool": toolName]
+        ))
+        notifyChange()
+    }
+
+    public func recordAuditResult(_ result: ReviewAuditToolResult) {
+        var coverage = audit.toolCoverage
+        coverage[result.toolName] = result.coverageAvailable
+
+        var durations = audit.toolDurationsMs
+        durations[result.toolName] = result.durationMs
+
+        audit = ReviewAuditSnapshot(
+            toolCoverage: coverage,
+            toolDurationsMs: durations
+        )
+
+        events.append(CodeReviewSessionEvent(
+            type: .auditCompleted,
+            detail: result.summary,
+            metadata: [
+                "tool": result.toolName,
+                "coverage": result.coverageAvailable ? "true" : "false",
+                "duration_ms": String(result.durationMs),
+                "findings_count": String(result.findings.count),
+            ]
+        ))
         notifyChange()
     }
 

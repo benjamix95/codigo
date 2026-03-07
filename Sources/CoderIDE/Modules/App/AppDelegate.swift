@@ -158,7 +158,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     static func applyMainWindowStyle(_ window: NSWindow) {
-        guard window.canBecomeMain else { return }
         window.title = ""
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
