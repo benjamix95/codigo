@@ -54,10 +54,14 @@ extension ProviderFactory {
         environmentOverride: [String: String]? = nil,
         subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
+        let effectiveClaudeTools = claudeTools(
+            from: config.claudeAllowedTools,
+            toolPolicy: toolPolicy
+        )
         let base = ClaudeCLIProvider(
             claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
             model: config.claudeModel,
-            allowedTools: config.claudeAllowedTools,
+            allowedTools: effectiveClaudeTools,
             executionController: executionController,
             executionScope: executionScope,
             environmentOverride: environmentOverride

@@ -80,6 +80,20 @@ extension ProviderFactory {
         return tools
     }
 
+    static func claudeTools(
+        from configuredTools: [String],
+        toolPolicy: ToolRuntimePolicy?
+    ) -> [String] {
+        guard let policy = toolPolicy, !policy.allowMutatingTools else {
+            return configuredTools
+        }
+
+        let readOnlyToolSet: Set<String> = ["read", "search", "glob", "grep"]
+        let filtered = configuredTools.filter { readOnlyToolSet.contains($0.lowercased()) }
+
+        return filtered.isEmpty ? ["Read"] : filtered
+    }
+
     static func parseRoles(_ raw: String) -> Set<AgentRole> {
         var roles = Set<AgentRole>()
         for token in raw.components(separatedBy: ",") {
