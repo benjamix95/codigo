@@ -244,6 +244,7 @@ extension ContentView {
         .environmentObject(chatStore)
         .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
+        .environmentObject(editorNavigationDispatchStore)
         .environmentObject(planHistoryStore)
         .environmentObject(browserTabManager)
         .chatPanelContainer(

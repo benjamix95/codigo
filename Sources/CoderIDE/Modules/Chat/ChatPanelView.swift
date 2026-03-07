@@ -9,6 +9,7 @@ struct ChatPanelView: View {
     @EnvironmentObject var workspaceStore: WorkspaceStore
     @EnvironmentObject var projectContextStore: ProjectContextStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
+    @EnvironmentObject var editorNavigationDispatchStore: EditorNavigationDispatchStore
     @EnvironmentObject var taskActivityStore: TaskActivityStore
     @EnvironmentObject var toolTraceStore: ToolTraceStore
     @EnvironmentObject var todoStore: TodoStore

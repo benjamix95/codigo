@@ -168,7 +168,17 @@ extension ChatPanelView {
             conversationId: conversationId,
             providerFactoryConfigBuilder: { [self] in providerFactoryConfig() },
             onClose: { showCodeReviewPanel = false },
-            onOpenFile: { openFilesStore.openFile($0) }
+            onOpenFile: { openFilesStore.openFile($0) },
+            onOpenFileAtLocation: { path, line in
+                openFilesStore.openFile(path)
+                if let line {
+                    editorNavigationDispatchStore.dispatch(
+                        path: path,
+                        line: line,
+                        pane: .primary
+                    )
+                }
+            }
         )
         .frame(width: CGFloat(codeReviewPanelWidthStorage))
     }

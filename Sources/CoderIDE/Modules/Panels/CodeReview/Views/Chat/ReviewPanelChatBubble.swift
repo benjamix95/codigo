@@ -6,6 +6,7 @@ struct ReviewPanelChatBubble: View {
     let message: ReviewPanelMessage
     let accent: Color
     let onOpenFile: ((String) -> Void)?
+    let onOpenFileAtLocation: ((String, Int?) -> Void)?
     let onSelectFinding: ((String) -> Void)?
 
     var body: some View {
@@ -235,12 +236,16 @@ struct ReviewPanelChatBubble: View {
 
                     ForEach(targets) { target in
                         Button {
-                            onOpenFile?(target.path)
+                            if let onOpenFileAtLocation {
+                                onOpenFileAtLocation(target.path, target.line)
+                            } else {
+                                onOpenFile?(target.path)
+                            }
                         } label: {
                             actionChip(target.displayLabel, systemName: "arrow.up.forward.app")
                         }
                         .buttonStyle(.plain)
-                        .disabled(onOpenFile == nil)
+                        .disabled(onOpenFileAtLocation == nil && onOpenFile == nil)
                     }
 
                     ForEach(findingTargets) { target in

@@ -6,6 +6,7 @@ import SwiftUI
 struct ReviewPanelChatTab: View {
     @ObservedObject var store: CodeReviewPanelStore
     let onOpenFile: (String) -> Void
+    let onOpenFileAtLocation: (String, Int?) -> Void
     @State private var inputText: String = ""
 
     var body: some View {
@@ -87,6 +88,7 @@ struct ReviewPanelChatTab: View {
                             message: msg,
                             accent: store.accent,
                             onOpenFile: onOpenFile,
+                            onOpenFileAtLocation: onOpenFileAtLocation,
                             onSelectFinding: { store.focusFinding($0) }
                         )
                         .id(msg.id)

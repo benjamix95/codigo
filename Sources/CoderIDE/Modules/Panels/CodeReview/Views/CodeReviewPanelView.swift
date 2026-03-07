@@ -7,6 +7,7 @@ struct CodeReviewPanelView: View {
     @ObservedObject var store: CodeReviewPanelStore
     let onClose: () -> Void
     let onOpenFile: (String) -> Void
+    let onOpenFileAtLocation: (String, Int?) -> Void
 
     private let topInteractiveInset: CGFloat = 22
 
@@ -60,7 +61,11 @@ struct CodeReviewPanelView: View {
         case .timeline:
             ReviewPanelTimelineTab(store: store)
         case .chat:
-            ReviewPanelChatTab(store: store, onOpenFile: onOpenFile)
+            ReviewPanelChatTab(
+                store: store,
+                onOpenFile: onOpenFile,
+                onOpenFileAtLocation: onOpenFileAtLocation
+            )
         case .settings:
             ReviewPanelSettingsTab(store: store)
         }
@@ -166,6 +171,7 @@ struct ReviewPanelHost: View {
     @StateObject private var store: CodeReviewPanelStore
     let onClose: () -> Void
     let onOpenFile: (String) -> Void
+    let onOpenFileAtLocation: (String, Int?) -> Void
 
     init(
         taskActivityStore: TaskActivityStore,
@@ -176,7 +182,8 @@ struct ReviewPanelHost: View {
         conversationId: UUID?,
         providerFactoryConfigBuilder: @escaping () -> ProviderFactoryConfig,
         onClose: @escaping () -> Void,
-        onOpenFile: @escaping (String) -> Void
+        onOpenFile: @escaping (String) -> Void,
+        onOpenFileAtLocation: @escaping (String, Int?) -> Void
     ) {
         _store = StateObject(wrappedValue: CodeReviewPanelStore(
             taskActivityStore: taskActivityStore,
@@ -189,13 +196,15 @@ struct ReviewPanelHost: View {
         ))
         self.onClose = onClose
         self.onOpenFile = onOpenFile
+        self.onOpenFileAtLocation = onOpenFileAtLocation
     }
 
     var body: some View {
         CodeReviewPanelView(
             store: store,
             onClose: onClose,
-            onOpenFile: onOpenFile
+            onOpenFile: onOpenFile,
+            onOpenFileAtLocation: onOpenFileAtLocation
         )
     }
 }
