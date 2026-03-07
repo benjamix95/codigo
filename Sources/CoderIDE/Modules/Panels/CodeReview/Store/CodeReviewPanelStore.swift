@@ -161,6 +161,12 @@ final class CodeReviewPanelStore: ObservableObject {
         selectedFindingId = nil
     }
 
+    func focusFinding(_ findingId: String) {
+        guard currentFindings.contains(where: { $0.id == findingId }) else { return }
+        selectedFindingId = findingId
+        selectTab(.findings)
+    }
+
     // MARK: - Workspace Context
 
     func buildWorkspaceContext() -> WorkspaceContext {

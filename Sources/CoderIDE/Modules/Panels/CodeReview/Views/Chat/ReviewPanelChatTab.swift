@@ -86,7 +86,8 @@ struct ReviewPanelChatTab: View {
                         ReviewPanelChatBubble(
                             message: msg,
                             accent: store.accent,
-                            onOpenFile: onOpenFile
+                            onOpenFile: onOpenFile,
+                            onSelectFinding: { store.focusFinding($0) }
                         )
                         .id(msg.id)
                     }

@@ -21,9 +21,21 @@ struct ReviewPanelChatMessageFileTarget: Identifiable, Equatable {
     }
 }
 
+struct ReviewPanelChatFindingTarget: Identifiable, Equatable {
+    let findingId: String
+
+    var id: String { findingId }
+
+    var displayLabel: String {
+        "Finding \(findingId)"
+    }
+}
+
 enum ReviewPanelChatMessageContext {
     private static let fileReferencePattern =
         #"([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)(?::([0-9]+))?"#
+    private static let findingReferencePattern =
+        #"finding\s+([A-Za-z0-9_-]+)"#
 
     static func fileTargets(from content: String, limit: Int = 3) -> [ReviewPanelChatMessageFileTarget] {
         guard !content.isEmpty,
@@ -57,6 +69,31 @@ enum ReviewPanelChatMessageContext {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+    }
+
+    static func findingTargets(from content: String, limit: Int = 3) -> [ReviewPanelChatFindingTarget] {
+        guard !content.isEmpty,
+              let regex = try? NSRegularExpression(
+                pattern: findingReferencePattern,
+                options: [.caseInsensitive]
+              ) else {
+            return []
+        }
+
+        let nsRange = NSRange(content.startIndex..<content.endIndex, in: content)
+        let matches = regex.matches(in: content, range: nsRange)
+        var targets: [ReviewPanelChatFindingTarget] = []
+        var seen = Set<String>()
+
+        for match in matches {
+            guard let idRange = Range(match.range(at: 1), in: content) else { continue }
+            let findingId = String(content[idRange])
+            guard seen.insert(findingId).inserted else { continue }
+            targets.append(ReviewPanelChatFindingTarget(findingId: findingId))
+            if targets.count >= limit { break }
+        }
+
+        return targets
     }
 
     private static func isLikelyFilePath(_ value: String) -> Bool {

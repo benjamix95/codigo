@@ -26,4 +26,22 @@ final class ReviewPanelChatMessageContextTests: XCTestCase {
             ]
         )
     }
+
+    func testExtractsFindingTargetsFromStatusMessages() {
+        let content = """
+        Fix applied to finding r1-worker-1.
+        Finding r1-worker-1 dismissed.
+        Another update for finding f-2.
+        """
+
+        let targets = ReviewPanelChatMessageContext.findingTargets(from: content)
+
+        XCTAssertEqual(
+            targets,
+            [
+                ReviewPanelChatFindingTarget(findingId: "r1-worker-1"),
+                ReviewPanelChatFindingTarget(findingId: "f-2"),
+            ]
+        )
+    }
 }

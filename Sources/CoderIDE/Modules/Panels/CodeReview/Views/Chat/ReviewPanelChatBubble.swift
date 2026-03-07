@@ -6,6 +6,7 @@ struct ReviewPanelChatBubble: View {
     let message: ReviewPanelMessage
     let accent: Color
     let onOpenFile: ((String) -> Void)?
+    let onSelectFinding: ((String) -> Void)?
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
@@ -212,6 +213,10 @@ struct ReviewPanelChatBubble: View {
         ReviewPanelChatMessageContext.fileTargets(from: message.content)
     }
 
+    private var findingTargets: [ReviewPanelChatFindingTarget] {
+        ReviewPanelChatMessageContext.findingTargets(from: message.content)
+    }
+
     private var hasActions: Bool {
         !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -236,6 +241,16 @@ struct ReviewPanelChatBubble: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(onOpenFile == nil)
+                    }
+
+                    ForEach(findingTargets) { target in
+                        Button {
+                            onSelectFinding?(target.findingId)
+                        } label: {
+                            actionChip(target.displayLabel, systemName: "scope")
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(onSelectFinding == nil)
                     }
 
                     Spacer(minLength: 0)
