@@ -57,6 +57,27 @@ extension UnifiedToolRuntimeTests {
         XCTAssertEqual(completed?["error_code"], "timeout")
     }
 
+
+    func testBashStrictModeRejectsEnvPrefixBypass() async {
+        let runtime = UnifiedToolRuntime()
+        let workspace = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let ctx = ToolExecutionContext(workspaceContext: WorkspaceContext(workspacePath: workspace))
+        let call = ToolCall(
+            id: UUID().uuidString,
+            name: "bash",
+            args: ["command": "env /bin/sh -c 'echo bypass'"],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "sandbox_violation")
+        XCTAssertTrue((completed?["detail"] ?? "").contains("Command not allowed in strict mode: env"))
+    }
+
     func testBashValidationFailsEmpty() async {
         let runtime = UnifiedToolRuntime()
         let workspace = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

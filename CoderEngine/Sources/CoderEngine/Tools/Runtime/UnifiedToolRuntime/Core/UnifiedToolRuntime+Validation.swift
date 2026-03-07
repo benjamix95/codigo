@@ -213,7 +213,7 @@ extension UnifiedToolRuntime {
                 "rg", "find", "git", "ls", "cat", "head", "tail", "sed", "awk", "wc", "echo", "pwd", "stat", "which",
                 "swift", "ps", "du", "printf", "npm", "pnpm", "yarn", "node", "python", "python3",
                 "cargo", "rustc", "go", "make", "cmake", "mkdir", "cp", "mv", "touch", "chmod",
-                "curl", "tar", "unzip", "zip", "diff", "sort", "uniq", "xargs", "tee", "env",
+                "curl", "tar", "unzip", "zip", "diff", "sort", "uniq", "xargs", "tee",
                 "xcodebuild", "xcrun", "swiftformat", "swiftlint", "prettier", "eslint",
                 "fd", "tree", "jq", "gh", "brew", "pip", "pip3", "pod", "bundle", "ruby",
                 "docker", "docker-compose", "kubectl", "terraform", "deno", "bun",
