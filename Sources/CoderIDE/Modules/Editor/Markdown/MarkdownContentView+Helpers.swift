@@ -7,7 +7,7 @@ extension MarkdownContentView {
     /// File link regex compiled once and reused.
     static let fileLinkRegex: NSRegularExpression? = {
         let pattern =
-            #"((?:~?/|/|\./|\.\./)?[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:swift|m|mm|h|hpp|c|cpp|cc|ts|tsx|js|jsx|py|json|md|markdown|html|css|scss|yaml|yml|xml|plist|strings|kt|kts|java|go|rs|rb|php|sh|zsh|bash|toml|ini|sql)(?::\d+(?::\d+)?)?)\b"#
+            #"([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:swift|m|mm|h|hpp|c|cpp|cc|ts|tsx|js|jsx|py|json|md|markdown|html|css|scss|yaml|yml|xml|plist|strings|kt|kts|java|go|rs|rb|php|sh|zsh|bash|toml|ini|sql)(?::\d+(?::\d+)?)?)\b"#
         return try? NSRegularExpression(pattern: pattern)
     }()
 
@@ -18,7 +18,8 @@ extension MarkdownContentView {
             with: "",
             options: .regularExpression
         )
-        if (t as NSString).isAbsolutePath { return t }
+        let parts = t.split(separator: "/", omittingEmptySubsequences: false)
+        if parts.contains("..") { return t }
         if let context {
             switch ContextPathResolver.resolve(reference: t, context: context) {
             case .resolved(let path): return path
