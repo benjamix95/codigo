@@ -241,8 +241,7 @@ final class OpenFilesStore: ObservableObject {
 
         if result.count < maxFiles {
             for path in linkedPaths where !seen.contains(path) {
-                let content = fileContents[path] ?? loadContextContentFromDisk(path: path)
-                guard let content else { continue }
+                guard let content = fileContents[path] else { continue }
                 result.append(OpenFile(path: path, content: String(content.prefix(maxCharsPerFile))))
                 seen.insert(path)
                 if result.count >= maxFiles { break }
@@ -259,16 +258,6 @@ final class OpenFilesStore: ObservableObject {
 
         return result
     }
-
-    private func loadContextContentFromDisk(path: String) -> String? {
-        guard FileManager.default.fileExists(atPath: path) else { return nil }
-        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
-        fileContents[path] = content
-        diskSnapshot[path] = content
-        loadErrors[path] = nil
-        return content
-    }
-
     private func trackOpenPath(_ path: String) {
         if !openPaths.contains(path) {
             openPaths.append(path)
