@@ -25,7 +25,7 @@ extension UnifiedToolRuntime {
         let timeoutMs = max(1_000, Int(call.args["timeout_ms"] ?? "") ?? context.policy.timeoutMs)
         var command = "swift build"
         if !configuration.isEmpty {
-            command += " -c \(shellEscaped(configuration))"
+            command += " -c '\(shellEscaped(configuration))'"
         }
         if !target.isEmpty {
             command += " --target '\(shellEscaped(target))'"
