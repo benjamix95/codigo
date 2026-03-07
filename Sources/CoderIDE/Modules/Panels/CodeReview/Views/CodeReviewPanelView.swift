@@ -112,7 +112,7 @@ struct CodeReviewPanelView: View {
 
                 if let sessionId = store.selectedSessionId {
                     Button {
-                        let _ = store.exportSummary(sessionId: sessionId)
+                        store.publishSummaryToChat(sessionId: sessionId)
                     } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "square.and.arrow.up")

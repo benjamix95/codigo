@@ -33,9 +33,14 @@ struct ReviewPanelCustomCommand: Identifiable, Codable, Equatable {
     ) {
         self.id = id
         self.name = name
-        self.slash = slash.hasPrefix("/") ? slash : "/\(slash)"
+        self.slash = slash.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         self.prompt = prompt
         self.icon = icon
+    }
+
+    var displayCommand: String {
+        slash.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 }
 

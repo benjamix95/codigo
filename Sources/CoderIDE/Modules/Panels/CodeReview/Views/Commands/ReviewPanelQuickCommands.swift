@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Quick commands card showing built-in and custom slash commands.
+/// Quick commands card showing built-in and custom panel commands.
 struct ReviewPanelQuickCommands: View {
     @ObservedObject var store: CodeReviewPanelStore
 
@@ -18,12 +18,7 @@ struct ReviewPanelQuickCommands: View {
 
             ForEach(store.allSlashCommands) { cmd in
                 Button {
-                    Task {
-                        await store.startReview(
-                            scope: store.scopeTarget,
-                            mode: store.activeMode
-                        )
-                    }
+                    Task { await store.runQuickCommand(cmd) }
                 } label: {
                     commandRow(cmd)
                 }
@@ -42,7 +37,7 @@ struct ReviewPanelQuickCommands: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
-                    Text(cmd.slash)
+                    Text(cmd.displayCommand)
                         .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                         .foregroundStyle(store.accent)
                     if cmd.isCustom {

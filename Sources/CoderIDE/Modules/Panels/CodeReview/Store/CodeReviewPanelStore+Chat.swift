@@ -11,24 +11,18 @@ extension CodeReviewPanelStore {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isChatProcessing else { return }
 
-        // Add user message
-        let userMessage = ReviewPanelMessage(
-            role: .user,
-            content: trimmed
-        )
-        chatMessages.append(userMessage)
+        appendChatMessage(ReviewPanelMessage(role: .user, content: trimmed))
 
         // Create streaming assistant message
         let assistantId = UUID()
-        let assistantMessage = ReviewPanelMessage(
+        appendChatMessage(ReviewPanelMessage(
             id: assistantId,
             role: .assistant,
             content: "",
             isStreaming: true
-        )
-        chatMessages.append(assistantMessage)
-        isChatProcessing = true
-        chatStartedAt = Date()
+        ))
+        let startedAt = Date()
+        setChatProcessing(true, startedAt: startedAt)
 
         // Resolve provider - use the currently selected provider
         guard let provider = providerRegistry.selectedProvider else {
@@ -43,23 +37,30 @@ extension CodeReviewPanelStore {
         // Build contextual prompt
         let prompt = buildChatPrompt(userMessage: trimmed)
         let context = buildWorkspaceContext()
+        let sessionStore = chatSessionStore
+        let sessionKey = chatSessionKey
 
         coordinator.runChatStream(
             provider: provider,
             prompt: prompt,
             context: context,
-            onToken: { [weak self] accumulated in
-                self?.updateChatMessage(id: assistantId, content: accumulated)
+            onToken: { accumulated in
+                sessionStore.updateMessage(id: assistantId, for: sessionKey) {
+                    $0.content = accumulated
+                }
             },
-            onComplete: { [weak self] in
-                self?.finalizeChatStreamComplete(id: assistantId)
+            onComplete: {
+                sessionStore.updateMessage(id: assistantId, for: sessionKey) {
+                    $0.isStreaming = false
+                }
+                sessionStore.setProcessing(false, startedAt: nil, for: sessionKey)
             },
-            onError: { [weak self] error in
-                self?.finalizeChatMessage(
-                    id: assistantId,
-                    content: "Error: \(error)",
-                    isError: true
-                )
+            onError: { error in
+                sessionStore.updateMessage(id: assistantId, for: sessionKey) {
+                    $0.content = "Error: \(error)"
+                    $0.isStreaming = false
+                }
+                sessionStore.setProcessing(false, startedAt: nil, for: sessionKey)
             }
         )
     }
@@ -72,8 +73,7 @@ extension CodeReviewPanelStore {
     /// Cancel the current chat stream.
     func cancelChatStream() {
         coordinator.cancelChat()
-        isChatProcessing = false
-        chatStartedAt = nil
+        setChatProcessing(false, startedAt: nil)
 
         // Mark last assistant message as not streaming
         if let lastIndex = chatMessages.indices.last,
@@ -84,14 +84,75 @@ extension CodeReviewPanelStore {
             if chatMessages[lastIndex].content.isEmpty {
                 chatMessages[lastIndex].content = "Cancelled."
             }
+            persistChatState()
         }
     }
 
     /// Clear chat history.
     func clearChatHistory() {
-        chatMessages.removeAll()
-        isChatProcessing = false
-        chatStartedAt = nil
+        applyChatSessionState(.empty)
+        chatSessionStore.clearState(for: chatSessionKey)
+    }
+
+    func beginPanelActionOutput(
+        title: String,
+        detail: String? = nil,
+        selectChatTab: Bool = true
+    ) -> UUID {
+        if selectChatTab {
+            selectTab(.chat)
+        }
+        let commandText = detail.map { "\(title)\n\n\($0)" } ?? title
+        appendChatMessage(ReviewPanelMessage(role: .user, content: commandText))
+        let assistantId = UUID()
+        appendChatMessage(ReviewPanelMessage(
+            id: assistantId,
+            role: .assistant,
+            content: "",
+            isStreaming: true
+        ))
+        return assistantId
+    }
+
+    func streamPanelActionOutput(id: UUID, event: StreamEvent) {
+        switch event {
+        case .textDelta(let delta):
+            let current = chatMessages.first(where: { $0.id == id })?.content ?? ""
+            updateChatMessage(id: id, content: current + delta)
+        case .textReplace(let replacement):
+            updateChatMessage(id: id, content: replacement)
+        default:
+            break
+        }
+    }
+
+    func finishPanelActionOutput(id: UUID, fallbackContent: String? = nil) {
+        if let fallbackContent,
+           let message = chatMessages.first(where: { $0.id == id }),
+           message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updateChatMessage(id: id, content: fallbackContent)
+        }
+        guard let index = chatMessages.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        chatMessages[index].isStreaming = false
+        persistChatState()
+    }
+
+    func failPanelActionOutput(id: UUID, error: String) {
+        guard let index = chatMessages.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        chatMessages[index].content = "Error: \(error)"
+        chatMessages[index].isStreaming = false
+        persistChatState()
+    }
+
+    func appendPanelSystemMessage(_ text: String, selectChatTab: Bool = false) {
+        if selectChatTab {
+            selectTab(.chat)
+        }
+        appendChatMessage(ReviewPanelMessage(role: .system, content: text))
     }
 
     // MARK: - Private
@@ -138,6 +199,7 @@ extension CodeReviewPanelStore {
             return
         }
         chatMessages[index].content = content
+        persistChatState()
     }
 
     private func finalizeChatStreamComplete(id: UUID) {
@@ -145,8 +207,8 @@ extension CodeReviewPanelStore {
             return
         }
         chatMessages[index].isStreaming = false
-        isChatProcessing = false
-        chatStartedAt = nil
+        setChatProcessing(false, startedAt: nil)
+        persistChatState()
     }
 
     private func finalizeChatMessage(
@@ -159,7 +221,29 @@ extension CodeReviewPanelStore {
         }
         chatMessages[index].content = content
         chatMessages[index].isStreaming = false
-        isChatProcessing = false
-        chatStartedAt = nil
+        setChatProcessing(false, startedAt: nil)
+        persistChatState()
+    }
+
+    private func appendChatMessage(_ message: ReviewPanelMessage) {
+        chatMessages.append(message)
+        persistChatState()
+    }
+
+    private func setChatProcessing(_ isProcessing: Bool, startedAt: Date?) {
+        isChatProcessing = isProcessing
+        chatStartedAt = startedAt
+        persistChatState()
+    }
+
+    private func persistChatState() {
+        chatSessionStore.replaceState(
+            ReviewPanelChatSessionState(
+                messages: chatMessages,
+                isProcessing: isChatProcessing,
+                startedAt: chatStartedAt
+            ),
+            for: chatSessionKey
+        )
     }
 }

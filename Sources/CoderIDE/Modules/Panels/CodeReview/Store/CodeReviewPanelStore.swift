@@ -1,4 +1,5 @@
 import CoderEngine
+import Combine
 import Foundation
 import SwiftUI
 
@@ -15,6 +16,7 @@ final class CodeReviewPanelStore: ObservableObject {
     let workspaceStore: WorkspaceStore
     let openFilesStore: OpenFilesStore
     let conversationId: UUID?
+    let chatSessionStore: ReviewPanelChatSessionStore
     let providerFactoryConfigBuilder: () -> ProviderFactoryConfig
 
     // MARK: - Coordinator
@@ -64,6 +66,10 @@ final class CodeReviewPanelStore: ObservableObject {
 
     @Published var panelSessionId: String?
 
+    // MARK: - Session Persistence
+
+    private var chatStateCancellable: AnyCancellable?
+
     // MARK: - Accent Color
 
     let accent = DesignSystem.Colors.reviewColor
@@ -77,6 +83,7 @@ final class CodeReviewPanelStore: ObservableObject {
         workspaceStore: WorkspaceStore,
         openFilesStore: OpenFilesStore,
         conversationId: UUID?,
+        chatSessionStore: ReviewPanelChatSessionStore? = nil,
         providerFactoryConfigBuilder: @escaping () -> ProviderFactoryConfig
     ) {
         self.taskActivityStore = taskActivityStore
@@ -85,8 +92,29 @@ final class CodeReviewPanelStore: ObservableObject {
         self.workspaceStore = workspaceStore
         self.openFilesStore = openFilesStore
         self.conversationId = conversationId
+        let resolvedChatSessionStore = chatSessionStore ?? ReviewPanelChatSessionStore.shared
+        self.chatSessionStore = resolvedChatSessionStore
         self.providerFactoryConfigBuilder = providerFactoryConfigBuilder
         self.settings = ReviewPanelSettingsPersistence.load()
+
+        let initialChatState = resolvedChatSessionStore.state(
+            for: Self.chatSessionKey(conversationId: conversationId)
+        )
+        self.chatMessages = initialChatState.messages
+        self.isChatProcessing = initialChatState.isProcessing
+        self.chatStartedAt = initialChatState.startedAt
+        if !initialChatState.messages.isEmpty {
+            self.selectedTab = .chat
+        }
+
+        let sessionKey = Self.chatSessionKey(conversationId: conversationId)
+        self.chatStateCancellable = resolvedChatSessionStore.$statesByKey
+            .map { $0[sessionKey] ?? .empty }
+            .removeDuplicates()
+            .sink { [weak self] state in
+                guard let self else { return }
+                self.applyChatSessionState(state)
+            }
     }
 
     // MARK: - Computed Properties
@@ -217,5 +245,19 @@ final class CodeReviewPanelStore: ObservableObject {
             workers: workers,
             roundInfo: round
         )
+    }
+
+    static func chatSessionKey(conversationId: UUID?) -> String {
+        conversationId?.uuidString.lowercased() ?? "workspace-review-panel"
+    }
+
+    var chatSessionKey: String {
+        Self.chatSessionKey(conversationId: conversationId)
+    }
+
+    func applyChatSessionState(_ state: ReviewPanelChatSessionState) {
+        chatMessages = state.messages
+        isChatProcessing = state.isProcessing
+        chatStartedAt = state.startedAt
     }
 }

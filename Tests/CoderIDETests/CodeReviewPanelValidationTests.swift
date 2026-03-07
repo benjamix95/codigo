@@ -74,6 +74,17 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertTrue(isValidGitRefFormat(rawRef))
     }
 
+    func testCustomCommandNormalizesLeadingSlashAway() {
+        let command = ReviewPanelCustomCommand(
+            name: "Deep Review",
+            slash: "/deep-review",
+            prompt: "Review everything"
+        )
+
+        XCTAssertEqual(command.slash, "deep-review")
+        XCTAssertEqual(command.displayCommand, "deep-review")
+    }
+
     // MARK: - Review worker activity selection
 
     func testLatestReviewWorkerPlanBatch_returnsMostRecentContiguousBatch() {

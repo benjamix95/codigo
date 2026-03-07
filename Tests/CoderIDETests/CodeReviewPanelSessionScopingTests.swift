@@ -4,6 +4,11 @@ import CoderEngine
 
 @MainActor
 final class CodeReviewPanelSessionScopingTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        ReviewPanelChatSessionStore.shared.clearAll()
+    }
+
     func testScopedReviewActivitiesForSessionFiltersMismatchedSession() {
         let activities = [
             TaskActivity(type: "review-worker-plan", title: "a", payload: ["session_id": "s1"]),
@@ -83,6 +88,32 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
 
         XCTAssertEqual(store.availableSnapshots.map(\.sessionId), ["session-a"])
         XCTAssertEqual(store.selectedSessionId, "session-a")
+    }
+
+    func testPanelStoreRestoresCachedChatSessionState() {
+        let conversationId = UUID()
+        let sessionKey = CodeReviewPanelStore.chatSessionKey(conversationId: conversationId)
+        ReviewPanelChatSessionStore.shared.replaceState(
+            ReviewPanelChatSessionState(
+                messages: [
+                    ReviewPanelMessage(role: .user, content: "Run review"),
+                    ReviewPanelMessage(role: .assistant, content: "Streaming...", isStreaming: true),
+                ],
+                isProcessing: true,
+                startedAt: Date(timeIntervalSinceReferenceDate: 42)
+            ),
+            for: sessionKey
+        )
+
+        let store = makePanelStore(
+            taskActivityStore: TaskActivityStore(),
+            conversationId: conversationId
+        )
+
+        XCTAssertEqual(store.chatMessages.count, 2)
+        XCTAssertTrue(store.isChatProcessing)
+        XCTAssertEqual(store.chatMessages.last?.content, "Streaming...")
+        XCTAssertTrue(store.chatMessages.last?.isStreaming == true)
     }
 
     func testPanelFallbackApplyFixOnlyMutatesRequestedFinding() async throws {

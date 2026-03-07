@@ -89,4 +89,8 @@ struct ReviewPanelSlashCommand: Identifiable {
     let label: String
     let prompt: String
     let isCustom: Bool
+
+    var displayCommand: String {
+        slash.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
 }

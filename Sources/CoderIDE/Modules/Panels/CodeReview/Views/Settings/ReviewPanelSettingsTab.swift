@@ -173,7 +173,7 @@ struct ReviewPanelSettingsTab: View {
                         .font(.system(size: 9))
                         .foregroundStyle(store.accent)
                         .frame(width: 14)
-                    Text(cmd.slash)
+                    Text(cmd.displayCommand)
                         .font(.system(size: 10, weight: .medium,
                                       design: .monospaced))
                         .foregroundStyle(.primary.opacity(0.9))

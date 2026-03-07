@@ -21,6 +21,7 @@ final class ReviewPanelCoordinator {
         prompt: String,
         context: WorkspaceContext,
         sessionState: CodeReviewSessionState,
+        onEvent: @escaping @MainActor (StreamEvent) -> Void,
         onStart: @escaping @MainActor () -> Void,
         onComplete: @escaping @MainActor (CodeReviewSessionSnapshot) -> Void,
         onError: @escaping @MainActor (String) -> Void
@@ -36,8 +37,9 @@ final class ReviewPanelCoordinator {
                     context: context,
                     imageURLs: nil
                 )
-                for try await _ in stream {
+                for try await event in stream {
                     if Task.isCancelled { break }
+                    onEvent(event)
                 }
 
                 let snapshot = await sessionState.snapshot()

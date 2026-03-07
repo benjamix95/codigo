@@ -109,7 +109,7 @@ struct ReviewPanelCustomCommands: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(cmd.slash)
+                    Text(cmd.displayCommand)
                         .font(.system(size: 10, weight: .semibold,
                                       design: .monospaced))
                         .foregroundStyle(.primary)
@@ -159,7 +159,7 @@ struct ReviewPanelCommandEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""
-    @State private var slash: String = "/"
+    @State private var slash: String = ""
     @State private var prompt: String = ""
     @State private var icon: String = "terminal"
 
@@ -181,8 +181,8 @@ struct ReviewPanelCommandEditor: View {
                         .font(.system(size: 11))
                 }
 
-                fieldRow("Slash") {
-                    TextField("/mycommand", text: $slash)
+                fieldRow("Command") {
+                    TextField("mycommand", text: $slash)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 11, design: .monospaced))
                 }
@@ -232,7 +232,7 @@ struct ReviewPanelCommandEditor: View {
         .onAppear {
             if let c = command {
                 name = c.name
-                slash = c.slash
+                slash = c.displayCommand
                 prompt = c.prompt
                 icon = c.icon
             }

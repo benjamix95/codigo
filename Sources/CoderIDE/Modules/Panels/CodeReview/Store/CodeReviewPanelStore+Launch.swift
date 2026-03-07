@@ -8,7 +8,9 @@ extension CodeReviewPanelStore {
     /// Start an independent code review. Replicates the bootstrap deferred command pattern.
     func startReview(
         scope: ReviewScopeTarget,
-        mode: CodeReviewPanelMode
+        mode: CodeReviewPanelMode,
+        promptOverride: String? = nil,
+        invocationLabel: String? = nil
     ) async {
         guard !isRunning else { return }
 
@@ -53,8 +55,15 @@ extension CodeReviewPanelStore {
             return
         }
 
-        let prompt = buildPrompt(scope: scope, mode: mode)
+        let prompt = promptOverride ?? buildPrompt(scope: scope, mode: mode)
         let context = buildWorkspaceContext()
+        let outputMessageId = beginPanelActionOutput(
+            title: invocationLabel ?? reviewInvocationLabel(scope: scope, mode: mode),
+            detail: prompt,
+            selectChatTab: true
+        )
+        let sessionStore = chatSessionStore
+        let sessionKey = chatSessionKey
 
         panelSessionId = sessionId
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
@@ -64,17 +73,39 @@ extension CodeReviewPanelStore {
             prompt: prompt,
             context: context,
             sessionState: sessionState,
+            onEvent: { event in
+                sessionStore.updateMessage(id: outputMessageId, for: sessionKey) { message in
+                    switch event {
+                    case .textDelta(let delta):
+                        message.content += delta
+                    case .textReplace(let replacement):
+                        message.content = replacement
+                    default:
+                        break
+                    }
+                }
+            },
             onStart: { [weak self] in
-                self?.selectedTab = .findings
+                self?.selectedTab = .chat
             },
             onComplete: { [weak self] _ in
                 self?.isRunning = false
                 self?.freezeTimer()
+                sessionStore.updateMessage(id: outputMessageId, for: sessionKey) { message in
+                    if message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        message.content = "Review completed."
+                    }
+                    message.isStreaming = false
+                }
             },
             onError: { [weak self] error in
                 self?.isRunning = false
                 self?.lastError = error
                 self?.freezeTimer()
+                sessionStore.updateMessage(id: outputMessageId, for: sessionKey) { message in
+                    message.content = "Error: \(error)"
+                    message.isStreaming = false
+                }
             }
         )
     }
@@ -105,6 +136,15 @@ extension CodeReviewPanelStore {
         await startReview(scope: scope, mode: activeMode)
     }
 
+    func runQuickCommand(_ command: ReviewPanelSlashCommand) async {
+        await startReview(
+            scope: scopeTarget,
+            mode: activeMode,
+            promptOverride: command.prompt,
+            invocationLabel: command.displayCommand
+        )
+    }
+
     // MARK: - Finding Mutations
 
     func applyFix(sessionId: String, findingId: String) async {
@@ -118,6 +158,10 @@ extension CodeReviewPanelStore {
                 taskActivityStore.ingestCodeReviewSnapshot(
                     snapshot, conversationId: conversationId
                 )
+                appendPanelSystemMessage(
+                    "Fix applied to finding \(findingId).",
+                    selectChatTab: false
+                )
             }
             return
         }
@@ -126,6 +170,10 @@ extension CodeReviewPanelStore {
         } event: {
             .findingFixApplied(findingId: findingId)
         }
+        appendPanelSystemMessage(
+            "Fix applied to finding \(findingId).",
+            selectChatTab: false
+        )
     }
 
     func dismissFinding(
@@ -142,6 +190,10 @@ extension CodeReviewPanelStore {
             taskActivityStore.ingestCodeReviewSnapshot(
                 snapshot, conversationId: conversationId
             )
+            appendPanelSystemMessage(
+                "Finding \(findingId) dismissed (\(reason)).",
+                selectChatTab: false
+            )
             return
         }
         let status: FindingStatus = reason.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -151,6 +203,10 @@ extension CodeReviewPanelStore {
         } event: {
             .findingDismissed(findingId: findingId, reason: reason)
         }
+        appendPanelSystemMessage(
+            "Finding \(findingId) dismissed (\(reason)).",
+            selectChatTab: false
+        )
     }
 
     func applyAllFixes(sessionId: String, findingIds: [String]) async {
@@ -193,6 +249,11 @@ extension CodeReviewPanelStore {
         }
 
         return ([header] + findings).joined(separator: "\n")
+    }
+
+    func publishSummaryToChat(sessionId: String) {
+        let summary = exportSummary(sessionId: sessionId)
+        appendPanelSystemMessage(summary, selectChatTab: true)
     }
 
     // MARK: - Private Helpers
@@ -246,6 +307,13 @@ extension CodeReviewPanelStore {
         let minutes = elapsed / 60
         let seconds = elapsed % 60
         frozenTimerText = String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func reviewInvocationLabel(
+        scope: ReviewScopeTarget,
+        mode: CodeReviewPanelMode
+    ) -> String {
+        "Run \(mode.displayName) on \(scope.displayDescription)"
     }
 
     private func mutateSnapshot(

@@ -5,13 +5,17 @@ struct CodeReviewQuickCommand: Identifiable {
     let slash: String
     let label: String
     let prompt: String
+
+    var displayCommand: String {
+        slash.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
 }
 
 enum CodeReviewQuickCommands {
     static let defaults: [CodeReviewQuickCommand] = [
         CodeReviewQuickCommand(
             id: "review-uncommitted",
-            slash: "/review-uncommitted",
+            slash: "review-uncommitted",
             label: "Full uncommitted audit",
             prompt:
                 """
@@ -25,7 +29,7 @@ enum CodeReviewQuickCommands {
         ),
         CodeReviewQuickCommand(
             id: "review-staged",
-            slash: "/review-staged",
+            slash: "review-staged",
             label: "Staged diff only",
             prompt:
                 """
@@ -36,7 +40,7 @@ enum CodeReviewQuickCommands {
         ),
         CodeReviewQuickCommand(
             id: "review-autofix",
-            slash: "/review-autofix",
+            slash: "review-autofix",
             label: "Review + auto fix",
             prompt:
                 """
@@ -46,7 +50,7 @@ enum CodeReviewQuickCommands {
         ),
         CodeReviewQuickCommand(
             id: "review-autofix-commit",
-            slash: "/review-autofix-commit",
+            slash: "review-autofix-commit",
             label: "Review + fix + commit",
             prompt:
                 """
@@ -56,7 +60,7 @@ enum CodeReviewQuickCommands {
         ),
         CodeReviewQuickCommand(
             id: "review-focus-ui",
-            slash: "/review-focus-ui",
+            slash: "review-focus-ui",
             label: "Focus UI flows",
             prompt:
                 """

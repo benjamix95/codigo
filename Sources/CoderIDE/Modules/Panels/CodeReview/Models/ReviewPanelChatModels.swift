@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Panel Chat Message
 
-struct ReviewPanelMessage: Identifiable {
+struct ReviewPanelMessage: Identifiable, Equatable {
     let id: UUID
     let role: ReviewPanelMessageRole
     var content: String
@@ -26,7 +26,7 @@ struct ReviewPanelMessage: Identifiable {
 
 // MARK: - Message Role
 
-enum ReviewPanelMessageRole: String {
+enum ReviewPanelMessageRole: String, Equatable {
     case user
     case assistant
     case system
