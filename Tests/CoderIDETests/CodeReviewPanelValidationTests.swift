@@ -198,7 +198,7 @@ final class CodeReviewPanelValidationTests: XCTestCase {
     func testShouldDisplayCodeReviewMetricsWhenConversationStillHasReviewArtifacts() {
         XCTAssertTrue(
             shouldDisplayCodeReviewMetrics(
-                coderMode: .agent,
+                isRunning: false,
                 hasReviewArtifacts: true
             )
         )
@@ -207,7 +207,7 @@ final class CodeReviewPanelValidationTests: XCTestCase {
     func testShouldDisplayCodeReviewMetricsStaysHiddenWithoutModeOrArtifacts() {
         XCTAssertFalse(
             shouldDisplayCodeReviewMetrics(
-                coderMode: .agent,
+                isRunning: false,
                 hasReviewArtifacts: false
             )
         )
@@ -238,7 +238,7 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         ]
 
         XCTAssertTrue(
-            hasCodeReviewArtifacts(
+            hasCodeReviewArtifactsCheck(
                 cards: [],
                 workerActivities: [],
                 activities: activities

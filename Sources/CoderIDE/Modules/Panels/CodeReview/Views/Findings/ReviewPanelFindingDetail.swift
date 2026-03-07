@@ -1,58 +1,52 @@
-import SwiftUI
 import CoderEngine
+import SwiftUI
 
-extension CodeReviewPanelView {
-    // MARK: - Finding Detail View
+/// Detail view for a single finding with description, suggested fix, comments, and actions.
+struct ReviewPanelFindingDetail: View {
+    @ObservedObject var store: CodeReviewPanelStore
+    let finding: CodeReviewFinding
+    let onOpenFile: (String) -> Void
+    let onBack: () -> Void
 
-    @ViewBuilder
-    func findingDetailView(
-        _ finding: CodeReviewFinding,
-        onApplyFix: @escaping (String) -> Void,
-        onDismiss: @escaping (String) -> Void,
-        onOpenFile: @escaping (String) -> Void,
-        onBack: @escaping () -> Void
-    ) -> some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            detailHeader(finding, onBack: onBack)
+            detailHeader
             Divider().opacity(0.2)
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 12) {
-                    detailLocationSection(finding, onOpenFile: onOpenFile)
-                    detailMessageSection(finding)
+                    locationSection
+                    messageSection
                     if let fix = finding.suggestedFix, !fix.isEmpty {
-                        detailSuggestedFixSection(fix)
+                        suggestedFixSection(fix)
                     }
                     if !finding.comments.isEmpty {
-                        detailCommentsSection(finding.comments)
+                        commentsSection
                     }
-                    detailActionsSection(finding, onApplyFix: onApplyFix, onDismiss: onDismiss)
+                    actionsSection
                 }
                 .padding(12)
             }
         }
     }
 
-    // MARK: - Detail Header
+    // MARK: - Header
 
-    private func detailHeader(
-        _ finding: CodeReviewFinding,
-        onBack: @escaping () -> Void
-    ) -> some View {
+    private var detailHeader: some View {
         HStack(spacing: 6) {
             Button(action: onBack) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(accent)
+                    .foregroundStyle(store.accent)
             }
             .buttonStyle(.plain)
 
             RoundedRectangle(cornerRadius: 1.5)
-                .fill(findingSeverityColor(finding.severity))
+                .fill(reviewSeverityColor(finding.severity))
                 .frame(width: 3, height: 14)
 
             Text(finding.severity.rawValue.uppercased())
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(findingSeverityColor(finding.severity))
+                .foregroundStyle(reviewSeverityColor(finding.severity))
 
             Spacer()
 
@@ -64,18 +58,11 @@ extension CodeReviewPanelView {
         .padding(.vertical, 8)
     }
 
-    // MARK: - Location Section
+    // MARK: - Location
 
-    private func detailLocationSection(
-        _ finding: CodeReviewFinding,
-        onOpenFile: @escaping (String) -> Void
-    ) -> some View {
+    private var locationSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("LOCATION")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.quaternary)
-                .tracking(0.6)
-
+            sectionLabel("LOCATION")
             Button {
                 onOpenFile(finding.filePath)
             } label: {
@@ -95,39 +82,31 @@ extension CodeReviewPanelView {
                         }
                     }
                 }
-                .foregroundStyle(accent)
+                .foregroundStyle(store.accent)
             }
             .buttonStyle(.plain)
         }
     }
 
-    // MARK: - Message Section
+    // MARK: - Description
 
-    private func detailMessageSection(_ finding: CodeReviewFinding) -> some View {
+    private var messageSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("DESCRIPTION")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.quaternary)
-                .tracking(0.6)
-
+            sectionLabel("DESCRIPTION")
             Text(finding.message)
-                .font(.system(size: 11, weight: .regular))
+                .font(.system(size: 11))
                 .foregroundStyle(.primary.opacity(0.85))
                 .textSelection(.enabled)
         }
     }
 
-    // MARK: - Suggested Fix Section
+    // MARK: - Suggested Fix
 
-    private func detailSuggestedFixSection(_ fix: String) -> some View {
+    private func suggestedFixSection(_ fix: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("SUGGESTED FIX")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.quaternary)
-                .tracking(0.6)
-
+            sectionLabel("SUGGESTED FIX")
             Text(fix)
-                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.primary.opacity(0.8))
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -143,21 +122,17 @@ extension CodeReviewPanelView {
         }
     }
 
-    // MARK: - Comments Section
+    // MARK: - Comments
 
-    private func detailCommentsSection(_ comments: [FindingComment]) -> some View {
+    private var commentsSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("COMMENTS (\(comments.count))")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.quaternary)
-                .tracking(0.6)
-
-            ForEach(comments, id: \.id) { comment in
+            sectionLabel("COMMENTS (\(finding.comments.count))")
+            ForEach(finding.comments, id: \.id) { comment in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
                         Text(comment.author)
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(accent)
+                            .foregroundStyle(store.accent)
                         Spacer()
                         Text(comment.createdAt, style: .relative)
                             .font(.system(size: 8))
@@ -176,29 +151,27 @@ extension CodeReviewPanelView {
         }
     }
 
-    // MARK: - Actions Section
+    // MARK: - Actions
 
-    private func detailActionsSection(
-        _ finding: CodeReviewFinding,
-        onApplyFix: @escaping (String) -> Void,
-        onDismiss: @escaping (String) -> Void
-    ) -> some View {
+    private var actionsSection: some View {
         HStack(spacing: 8) {
-            if finding.status == .open {
+            if finding.status == .open, let sessionId = store.selectedSessionId {
                 Button {
-                    onApplyFix(finding.id)
+                    Task { await store.applyFix(sessionId: sessionId, findingId: finding.id) }
                 } label: {
                     Label("Apply Fix", systemImage: "wrench.and.screwdriver")
                         .font(.system(size: 10, weight: .semibold))
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(accent)
+                .tint(store.accent)
                 .controlSize(.small)
-            }
 
-            if finding.status == .open {
                 Button {
-                    onDismiss(finding.id)
+                    Task {
+                        await store.dismissFinding(
+                            sessionId: sessionId, findingId: finding.id, reason: "dismissed"
+                        )
+                    }
                 } label: {
                     Label("Dismiss", systemImage: "xmark.circle")
                         .font(.system(size: 10, weight: .medium))
@@ -206,10 +179,18 @@ extension CodeReviewPanelView {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
-
             Spacer()
         }
-        .disabled(isTaskRunning)
-        .opacity(isTaskRunning ? 0.72 : 1)
+        .disabled(store.isRunning)
+        .opacity(store.isRunning ? 0.72 : 1)
+    }
+
+    // MARK: - Helper
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(.quaternary)
+            .tracking(0.6)
     }
 }
