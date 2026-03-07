@@ -28,9 +28,9 @@ enum EnginePluginManifestAdapter {
                 mapped.insert(.writeWorkspace)
             case .bash, .subagent:
                 mapped.insert(.executeCommands)
-            case .web:
+            case .web, .mcp:
                 mapped.insert(.networkAccess)
-            case .mcp, .git, .debug:
+            case .git, .debug:
                 mapped.insert(.readOnlyTools)
             }
         }

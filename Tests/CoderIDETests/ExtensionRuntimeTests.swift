@@ -183,6 +183,20 @@ final class ExtensionRuntimeTests: XCTestCase {
         XCTAssertEqual(Set(manifest.capabilities), [.readWorkspace, .networkAccess])
     }
 
+    func testEngineManifestAdapterMapsMCPToNetworkAccess() {
+        let engineManifest = IDEPluginManifest(
+            id: "plugin.contract.bridge.mcp",
+            name: "Contract Bridge MCP",
+            version: "2.0.0",
+            entryPoint: "plugin.js",
+            capabilities: [.mcp],
+            exposedTools: ["mcp_call"]
+        )
+
+        let extensionManifest = EnginePluginManifestAdapter.toExtensionManifest(engineManifest)
+        XCTAssertEqual(Set(extensionManifest.capabilities), [.networkAccess])
+    }
+
     func testEngineManifestAdapterMapsCapabilitiesToExtensionContract() {
         let engineManifest = IDEPluginManifest(
             id: "plugin.contract.bridge",
