@@ -190,19 +190,17 @@ public enum ClaudeDetector {
     }
 
     private static func waitForExit(_ process: Process, timeout: TimeInterval) -> Int32? {
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        if process.isRunning {
+        let timeoutItem = DispatchWorkItem {
+            guard process.isRunning else { return }
             process.terminate()
-            let hardStop = Date().addingTimeInterval(0.5)
-            while process.isRunning, Date() < hardStop {
-                Thread.sleep(forTimeInterval: 0.02)
-            }
-            if process.isRunning {
-                process.interrupt()
-            }
+        }
+        DispatchQueue.global().asyncAfter(
+            deadline: .now() + max(0.1, timeout),
+            execute: timeoutItem
+        )
+        process.waitUntilExit()
+        timeoutItem.cancel()
+        if process.terminationReason == .uncaughtSignal {
             return nil
         }
         return process.terminationStatus

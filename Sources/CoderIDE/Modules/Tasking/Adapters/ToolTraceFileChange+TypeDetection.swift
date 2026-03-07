@@ -25,10 +25,17 @@ extension ToolTraceFileChangeMapper {
         return .unknown
     }
 
-    static let replacementSummaryRegex = try! NSRegularExpression(
-        pattern: "\\((\\d+)\\s+lines?\\s*(?:->|→)\\s*(\\d+)\\s+lines?\\)",
-        options: [.caseInsensitive]
-    )
+    static let replacementSummaryRegex: NSRegularExpression = {
+        do {
+            return try NSRegularExpression(
+                pattern: "\\((\\d+)\\s+lines?\\s*(?:->|→)\\s*(\\d+)\\s+lines?\\)",
+                options: [.caseInsensitive])
+        } catch {
+            assertionFailure("Invalid hardcoded regex – \(error)")
+            do { return try NSRegularExpression(pattern: "", options: []) }
+            catch { preconditionFailure("Empty NSRegularExpression pattern must always compile") }
+        }
+    }()
 
     static func parseReplacementSummaryCounts(from summary: String) -> (added: Int, removed: Int)? {
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)

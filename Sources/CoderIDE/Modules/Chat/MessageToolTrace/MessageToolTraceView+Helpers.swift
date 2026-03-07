@@ -100,10 +100,17 @@ extension MessageToolTraceView {
         return nil
     }
 
-    private static let replacementSummaryRegex = try! NSRegularExpression(
-        pattern: "\\((\\d+)\\s+lines?\\s*(?:->|\u{2192})\\s*(\\d+)\\s+lines?\\)",
-        options: [.caseInsensitive]
-    )
+    private static let replacementSummaryRegex: NSRegularExpression = {
+        do {
+            return try NSRegularExpression(
+                pattern: "\\((\\d+)\\s+lines?\\s*(?:->|\u{2192})\\s*(\\d+)\\s+lines?\\)",
+                options: [.caseInsensitive])
+        } catch {
+            assertionFailure("Invalid hardcoded regex – \(error)")
+            do { return try NSRegularExpression(pattern: "", options: []) }
+            catch { preconditionFailure("Empty NSRegularExpression pattern must always compile") }
+        }
+    }()
 
     func replacementSummaryLineCounts(from summary: String) -> (added: Int, removed: Int)? {
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)

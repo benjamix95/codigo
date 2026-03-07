@@ -152,9 +152,9 @@ extension MarkdownContentView {
                 }
             }
             let prevIsList = prev.hasPrefix("- ") || prev.hasPrefix("* ") || prev.hasPrefix("+ ")
-                || numberedLineRegex.firstMatch(in: prev, options: [], range: NSRange(location: 0, length: (prev as NSString).length)) != nil
+                || numberedLineRegex?.firstMatch(in: prev, options: [], range: NSRange(location: 0, length: (prev as NSString).length)) != nil
             let currentIsList = trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ")
-                || numberedLineRegex.firstMatch(in: trimmed, options: [], range: NSRange(location: 0, length: (trimmed as NSString).length)) != nil
+                || numberedLineRegex?.firstMatch(in: trimmed, options: [], range: NSRange(location: 0, length: (trimmed as NSString).length)) != nil
             if prevIsList && !currentIsList && !trimmed.isEmpty && !trimmed.hasPrefix("#") {
                 if !(result.last?.trimmingCharacters(in: .whitespaces).isEmpty ?? false) {
                     result.append("")
@@ -226,7 +226,7 @@ extension MarkdownContentView {
         return rebuilt
     }
 
-    static let sentenceSplitRegex = try! NSRegularExpression(
+    static let sentenceSplitRegex: NSRegularExpression? = try? NSRegularExpression(
         pattern: #"(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Ý0-9])"#, options: [])
 
     static func normalizeDenseLine(_ line: String) -> String {
@@ -242,7 +242,7 @@ extension MarkdownContentView {
             return line
         }
 
-        let regex = sentenceSplitRegex
+        guard let regex = sentenceSplitRegex else { return line }
         let ns = trimmed as NSString
         let matches = regex.matches(in: trimmed, range: NSRange(location: 0, length: ns.length))
         guard !matches.isEmpty else { return line }
@@ -281,7 +281,7 @@ extension MarkdownContentView {
         return chunks.joined(separator: "\n\n")
     }
 
-    static let numberedLineRegex = try! NSRegularExpression(pattern: #"^\d+\.\s+"#, options: [])
+    static let numberedLineRegex: NSRegularExpression? = try? NSRegularExpression(pattern: #"^\d+\.\s+"#, options: [])
 
     static func isStructuredMarkdownLine(_ line: String) -> Bool {
         if line.hasPrefix("#") || line.hasPrefix(">") { return true }
@@ -289,8 +289,9 @@ extension MarkdownContentView {
         if line.hasPrefix("|"), line.hasSuffix("|") { return true }
         if line == "---" || line == "***" || line == "___" { return true }
 
+        guard let regex = numberedLineRegex else { return false }
         let ns = line as NSString
         let range = NSRange(location: 0, length: ns.length)
-        return numberedLineRegex.firstMatch(in: line, options: [], range: range) != nil
+        return regex.firstMatch(in: line, options: [], range: range) != nil
     }
 }

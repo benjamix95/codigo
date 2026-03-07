@@ -216,10 +216,17 @@ extension ProviderToolEventMapper {
         return "invoke-\(String(cleaned.prefix(20)))"
     }
 
-    static let replacementSummaryRegex = try! NSRegularExpression(
-        pattern: "\\((\\d+)\\s+lines?\\s*(?:->|→)\\s*(\\d+)\\s+lines?\\)",
-        options: [.caseInsensitive]
-    )
+    static let replacementSummaryRegex: NSRegularExpression = {
+        do {
+            return try NSRegularExpression(
+                pattern: "\\((\\d+)\\s+lines?\\s*(?:->|→)\\s*(\\d+)\\s+lines?\\)",
+                options: [.caseInsensitive])
+        } catch {
+            assertionFailure("Invalid hardcoded regex – \(error)")
+            do { return try NSRegularExpression(pattern: "", options: []) }
+            catch { preconditionFailure("Empty NSRegularExpression pattern must always compile") }
+        }
+    }()
 
     static func inferReplacementSummaryLineCounters(
         payload: [String: Any],

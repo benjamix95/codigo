@@ -5,51 +5,61 @@ extension ChatStore {
 // MARK: - Cached regex patterns (compiled once, reused on every call)
 
 private enum MarkerRegex {
-    static let coderideMarker = try! NSRegularExpression(
-        pattern: "\\[\\s*CODERIDE\\s*:[^\\]\\n]*\\]", options: .caseInsensitive)
-    static let ideFilesLine = try! NSRegularExpression(
-        pattern: #"^[^\n]*IDE\s*:\s*files\s*=[^\]\n]*\]?\s*"#,
+    private static func regex(_ pattern: String, options: NSRegularExpression.Options = []) -> NSRegularExpression {
+        do {
+            return try NSRegularExpression(pattern: pattern, options: options)
+        } catch {
+            assertionFailure("Invalid hardcoded regex: \(pattern) – \(error)")
+            do { return try NSRegularExpression(pattern: "", options: []) }
+            catch { preconditionFailure("Empty NSRegularExpression pattern must always compile") }
+        }
+    }
+
+    static let coderideMarker = regex(
+        "\\[\\s*CODERIDE\\s*:[^\\]\\n]*\\]", options: .caseInsensitive)
+    static let ideFilesLine = regex(
+        #"^[^\n]*IDE\s*:\s*files\s*=[^\]\n]*\]?\s*"#,
         options: [.caseInsensitive, .anchorsMatchLines])
-    static let opLineIDE = try! NSRegularExpression(
-        pattern: #"^(?:Creating|Generating|Processing|Analyzing|Reading|Writing|Updating)\s+[^\n]*?(?:IDE|CODERIDE|planIDE)[^\n]*$"#,
+    static let opLineIDE = regex(
+        #"^(?:Creating|Generating|Processing|Analyzing|Reading|Writing|Updating)\s+[^\n]*?(?:IDE|CODERIDE|planIDE)[^\n]*$"#,
         options: [.caseInsensitive, .anchorsMatchLines])
-    static let bugReview = try! NSRegularExpression(
-        pattern: #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
+    static let bugReview = regex(
+        #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
         options: [.caseInsensitive, .anchorsMatchLines])
-    static let inlineOpPrefix = try! NSRegularExpression(
-        pattern: #"(?im)^(\s*(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing|Inspecting)\s+(?:initial\s+)?(?:task\s+panel(?:\s+and\s+todo\s+update)?|todo(?:\s+update)?|workflow(?:\s+steps?)?|project\s+analysis|analysis|plan|execution(?:\s+flow)?)(?:\s+and\s+todo\s+update)?\s+)"#,
+    static let inlineOpPrefix = regex(
+        #"(?im)^(\s*(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing|Inspecting)\s+(?:initial\s+)?(?:task\s+panel(?:\s+and\s+todo\s+update)?|todo(?:\s+update)?|workflow(?:\s+steps?)?|project\s+analysis|analysis|plan|execution(?:\s+flow)?)(?:\s+and\s+todo\s+update)?\s+)"#,
         options: [.caseInsensitive, .anchorsMatchLines])
-    static let initBoilerplate = try! NSRegularExpression(
-        pattern: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
+    static let initBoilerplate = regex(
+        #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
         options: [.caseInsensitive, .anchorsMatchLines])
-    static let progressHeading = try! NSRegularExpression(
-        pattern: #"(?im)^(?:\*{1,2}\s*)?(?:Updating|Planning|Reading|Analyzing|Implementing)\b[^\n]{0,140}(?:\*{1,2})?\s*$"#,
+    static let progressHeading = regex(
+        #"(?im)^(?:\*{1,2}\s*)?(?:Updating|Planning|Reading|Analyzing|Implementing)\b[^\n]{0,140}(?:\*{1,2})?\s*$"#,
         options: [.caseInsensitive, .anchorsMatchLines])
-    static let cliTrace = try! NSRegularExpression(
-        pattern: #"(?im)^(?:Explored\s+\d+\s+files?(?:,\s*\d+\s+search(?:es)?)?(?:,\s*\d+\s+list)?|Ran\s+[^\n]+|Inspecting\s+[^\n]+)\s*$"#,
+    static let cliTrace = regex(
+        #"(?im)^(?:Explored\s+\d+\s+files?(?:,\s*\d+\s+search(?:es)?)?(?:,\s*\d+\s+list)?|Ran\s+[^\n]+|Inspecting\s+[^\n]+)\s*$"#,
         options: [.caseInsensitive, .anchorsMatchLines])
-    static let inlineMarkerPrefix = try! NSRegularExpression(
-        pattern: #"(?i)\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|"#, options: [])
-    static let inlineMarkerTypes = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
-    static let inlineMarkerBroken = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
-    static let technicalEvents = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:coderide_show_task_panel|coderide_show_swarm_panel|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|todo_write|todo_read|instant_grep)\b"#, options: [])
-    static let stickyKeyValue = try! NSRegularExpression(
-        pattern: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#, options: [])
-    static let singleKeyValue = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#, options: [])
-    static let keyValueBracket = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^\]\n\r]+\]"#, options: [])
-    static let trailingSpaceNewline = try! NSRegularExpression(pattern: #"\s+\n"#, options: [])
-    static let excessiveNewlines = try! NSRegularExpression(pattern: #"\n{3,}"#, options: [])
-    static let excessiveSpaces = try! NSRegularExpression(pattern: #"[ \t]{2,}"#, options: [])
-    static let missingSpaceAfterPunct = try! NSRegularExpression(
-        pattern: #"([.!?])([A-Za-zÀ-ÖØ-öø-ÿ])"#, options: [])
-    static let tripleNewlines = try! NSRegularExpression(pattern: #"\n\n\n+"#, options: [])
-    static let structuredPayload = try! NSRegularExpression(
-        pattern: #"(?i)(?:\b[a-z_][a-z0-9_]*=[^|\n\r]+(?:\|\s*|\s*$)){2,}"#, options: [])
+    static let inlineMarkerPrefix = regex(
+        #"(?i)\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|"#)
+    static let inlineMarkerTypes = regex(
+        #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#)
+    static let inlineMarkerBroken = regex(
+        #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#)
+    static let technicalEvents = regex(
+        #"(?i)\b(?:coderide_show_task_panel|coderide_show_swarm_panel|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|todo_write|todo_read|instant_grep)\b"#)
+    static let stickyKeyValue = regex(
+        #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#)
+    static let singleKeyValue = regex(
+        #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#)
+    static let keyValueBracket = regex(
+        #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^\]\n\r]+\]"#)
+    static let trailingSpaceNewline = regex(#"\s+\n"#)
+    static let excessiveNewlines = regex(#"\n{3,}"#)
+    static let excessiveSpaces = regex(#"[ \t]{2,}"#)
+    static let missingSpaceAfterPunct = regex(
+        #"([.!?])([A-Za-zÀ-ÖØ-öø-ÿ])"#)
+    static let tripleNewlines = regex(#"\n\n\n+"#)
+    static let structuredPayload = regex(
+        #"(?i)(?:\b[a-z_][a-z0-9_]*=[^|\n\r]+(?:\|\s*|\s*$)){2,}"#)
 }
 
 private enum MarkerStripCache {
