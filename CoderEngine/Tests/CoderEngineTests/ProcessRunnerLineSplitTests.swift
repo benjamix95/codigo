@@ -12,6 +12,31 @@ final class ProcessRunnerLineSplitTests: XCTestCase {
         XCTAssertEqual(result.output, ["alpha", "beta", "gamma"])
     }
 
+    func testRunCollectingTerminatesProcessOnCancellation() async throws {
+        let completion = expectation(description: "cancelled")
+
+        let task = Task {
+            try await ProcessRunner.runCollecting(
+                executable: "/bin/sh",
+                arguments: ["-c", "while true; do echo still-running; sleep 1; done"]
+            )
+        }
+
+        try await Task.sleep(nanoseconds: 300_000_000)
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected CancellationError")
+        } catch is CancellationError {
+            completion.fulfill()
+        } catch {
+            XCTFail("Expected CancellationError, got: \(error)")
+        }
+
+        await fulfillment(of: [completion], timeout: 5.0)
+    }
+
     func testRunSplitsCarriageReturnsAndLineFeeds() async throws {
         let stream = try await ProcessRunner.run(
             executable: "/usr/bin/printf",

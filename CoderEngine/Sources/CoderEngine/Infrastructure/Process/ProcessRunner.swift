@@ -192,23 +192,31 @@ struct ProcessRunner {
 
         executionController?.beginScope(scope)
         executionController?.setCurrentProcess(process)
+        let processBox = ProcessBox(process)
         defer { executionController?.clearCurrentProcess(process) }
 
-        var lines: [String] = []
-        var buffer = [UInt8]()
-        for try await byte in pipe.fileHandleForReading.bytes {
-            consumeLineByte(byte, buffer: &buffer) { line in
+        return try await withTaskCancellationHandler {
+            var lines: [String] = []
+            var buffer = [UInt8]()
+            for try await byte in pipe.fileHandleForReading.bytes {
+                consumeLineByte(byte, buffer: &buffer) { line in
+                    lines.append(line)
+                }
+            }
+            flushLineBuffer(&buffer) { line in
                 lines.append(line)
             }
+            process.waitUntilExit()
+            if Task.isCancelled || executionController?.runState == .stopping {
+                throw CancellationError()
+            }
+            return (lines, process.terminationStatus)
+        } onCancel: {
+            let process = processBox.process
+            if process.isRunning {
+                process.terminate()
+            }
         }
-        flushLineBuffer(&buffer) { line in
-            lines.append(line)
-        }
-        process.waitUntilExit()
-        if executionController?.runState == .stopping {
-            throw CancellationError()
-        }
-        return (lines, process.terminationStatus)
     }
 
     // MARK: - Line Parsing Helpers
