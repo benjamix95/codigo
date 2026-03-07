@@ -92,10 +92,10 @@ struct ReviewPanelChatTab: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
             }
-            .onChange(of: store.chatMessages.count) { _ in
+            .onChange(of: store.chatMessages.count) {
                 scrollToBottom(proxy)
             }
-            .onChange(of: store.chatMessages.last?.content) { _ in
+            .onChange(of: store.chatMessages.last?.content) {
                 scrollToBottom(proxy)
             }
         }

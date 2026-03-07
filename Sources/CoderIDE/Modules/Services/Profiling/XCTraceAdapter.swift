@@ -78,7 +78,7 @@ actor XCTraceAdapter {
                 let lock = NSLock()
                 var didResume = false
 
-                func resumeOnce() {
+                @Sendable func resumeOnce() {
                     lock.lock()
                     defer { lock.unlock() }
                     guard !didResume else { return }
@@ -132,7 +132,7 @@ actor XCTraceAdapter {
             let lock = NSLock()
             var didResume = false
 
-            func resumeOnce(_ value: Bool) {
+            @Sendable func resumeOnce(_ value: Bool) {
                 lock.lock()
                 defer { lock.unlock() }
                 guard !didResume else { return }
@@ -181,7 +181,7 @@ actor XCTraceAdapter {
             let lock = NSLock()
             var didResume = false
 
-            func resumeOnce(_ value: Int32) {
+            @Sendable func resumeOnce(_ value: Int32) {
                 lock.lock()
                 defer { lock.unlock() }
                 guard !didResume else { return }
