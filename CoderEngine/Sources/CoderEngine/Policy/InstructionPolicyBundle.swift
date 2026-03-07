@@ -243,24 +243,24 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
     /// Resolve skill name to full SKILL.md content (markdown body; frontmatter optional).
     public static func skillContent(for name: String) -> String? {
         let home = NSHomeDirectory()
-        let roots: [(label: String, path: String)] = [
-            ("codex", "\(home)/.codex/skills"),
-            ("agents", "\(home)/.agents/skills"),
-            ("claude", "\(home)/.claude/skills"),
+        let roots = [
+            "\(home)/.codex/skills",
+            "\(home)/.agents/skills",
+            "\(home)/.claude/skills",
         ]
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-        guard !normalized.isEmpty else { return nil }
+        guard let normalized = normalizedSkillName(name) else { return nil }
         for root in roots {
+            let rootURL = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL
             let candidates = [
-                "\(root.path)/\(normalized)/SKILL.md",
-                "\(root.path)/.system/\(normalized)/SKILL.md",
+                rootURL.appendingPathComponent(normalized).appendingPathComponent("SKILL.md"),
+                rootURL.appendingPathComponent(".system").appendingPathComponent(normalized).appendingPathComponent("SKILL.md"),
             ]
             for candidate in candidates {
-                let url = URL(fileURLWithPath: candidate)
-                guard FileManager.default.fileExists(atPath: candidate),
-                      let raw = try? String(contentsOf: url, encoding: .utf8) else { continue }
+                let candidateURL = candidate.standardizedFileURL
+                guard isPath(candidateURL.path, insideRoot: rootURL.path),
+                      FileManager.default.fileExists(atPath: candidateURL.path),
+                      let raw = try? String(contentsOf: candidateURL, encoding: .utf8)
+                else { continue }
                 var content = raw
                 if raw.hasPrefix("---") {
                     if let end = raw.range(of: "\n---", range: raw.index(raw.startIndex, offsetBy: 3)..<raw.endIndex) {
@@ -271,5 +271,30 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
             }
         }
         return nil
+    }
+
+    private static func normalizedSkillName(_ name: String) -> String? {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+        guard !normalized.isEmpty,
+              !normalized.contains("/"),
+              !normalized.contains("\\\\"),
+              !normalized.contains("..")
+        else {
+            return nil
+        }
+
+        let allowedCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
+        guard normalized.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
+            return nil
+        }
+        return normalized
+    }
+
+    private static func isPath(_ path: String, insideRoot rootPath: String) -> Bool {
+        let normalizedRoot = URL(fileURLWithPath: rootPath, isDirectory: true).standardizedFileURL.path
+        let rootPrefix = normalizedRoot.hasSuffix("/") ? normalizedRoot : normalizedRoot + "/"
+        return path.hasPrefix(rootPrefix)
     }
 }
