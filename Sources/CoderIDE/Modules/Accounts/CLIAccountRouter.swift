@@ -24,20 +24,25 @@ final class CLIAccountRouter: ObservableObject {
     private let accountsStore: CLIAccountsStore
     private let ledger: CLIAccountUsageLedgerStore
     private var cancellables: Set<AnyCancellable> = []
+    private var bootstrapWorkItem: DispatchWorkItem?
+    private var bootstrapGeneration = 0
 
     init(accountsStore: CLIAccountsStore, ledger: CLIAccountUsageLedgerStore) {
         self.accountsStore = accountsStore
         self.ledger = ledger
         accountsStore.$accounts
             .sink { [weak self] _ in
-                self?.bootstrapActiveSelectionsIfNeeded()
+                self?.scheduleBootstrapActiveSelectionsIfNeeded()
             }
             .store(in: &cancellables)
-        bootstrapActiveSelectionsIfNeeded()
+        scheduleBootstrapActiveSelectionsIfNeeded()
+    }
+
+    deinit {
+        bootstrapWorkItem?.cancel()
     }
 
     func selectAccount(for provider: CLIProviderKind) -> CLIAccount? {
-        bootstrapActiveSelectionsIfNeeded()
         let candidates = availableAccounts(for: provider)
         guard !candidates.isEmpty else { return nil }
         let idx = (roundRobinIndex[provider] ?? 0) % candidates.count
@@ -125,27 +130,7 @@ final class CLIAccountRouter: ObservableObject {
     }
 
     func bootstrapActiveSelectionsIfNeeded() {
-        for provider in CLIProviderKind.allCases {
-            let enabled = accountsStore.accounts(for: provider).filter(\.isEnabled)
-            guard !enabled.isEmpty else {
-                currentActiveAccountByProvider.removeValue(forKey: provider)
-                continue
-            }
-
-            if let selectedId = currentActiveAccountByProvider[provider],
-               enabled.contains(where: { $0.id == selectedId }) {
-                continue
-            }
-
-            let path = providerExecutablePath(for: provider)
-            if let connected = enabled.first(where: {
-                CLIAccountAuthDetector.detect(account: $0, providerPath: path).isLoggedIn
-            }) {
-                currentActiveAccountByProvider[provider] = connected.id
-            } else {
-                currentActiveAccountByProvider[provider] = enabled[0].id
-            }
-        }
+        scheduleBootstrapActiveSelectionsIfNeeded()
     }
 
     private func availableAccounts(for provider: CLIProviderKind) -> [CLIAccount] {
@@ -195,5 +180,66 @@ final class CLIAccountRouter: ObservableObject {
         if let limit = account.quota.weeklyTokenLimit, weekly.tokens >= limit { return true }
         if let limit = account.quota.monthlyTokenLimit, monthly.tokens >= limit { return true }
         return false
+    }
+
+    private func scheduleBootstrapActiveSelectionsIfNeeded() {
+        bootstrapGeneration += 1
+        let generation = bootstrapGeneration
+        let currentSelections = currentActiveAccountByProvider
+        let accountsByProvider = Dictionary(
+            uniqueKeysWithValues: CLIProviderKind.allCases.map { provider in
+                (provider, accountsStore.accounts(for: provider))
+            }
+        )
+        let executablePaths = Dictionary(
+            uniqueKeysWithValues: CLIProviderKind.allCases.map { provider in
+                (provider, providerExecutablePath(for: provider))
+            }
+        )
+
+        bootstrapWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [accountsByProvider, currentSelections, executablePaths] in
+            let selections = Self.resolveBootstrapSelections(
+                accountsByProvider: accountsByProvider,
+                currentSelections: currentSelections,
+                executablePaths: executablePaths
+            )
+            Task { @MainActor [weak self] in
+                guard let self, self.bootstrapGeneration == generation else { return }
+                self.currentActiveAccountByProvider = selections
+            }
+        }
+        bootstrapWorkItem = workItem
+        DispatchQueue.global(qos: .utility).async(execute: workItem)
+    }
+
+    private static func resolveBootstrapSelections(
+        accountsByProvider: [CLIProviderKind: [CLIAccount]],
+        currentSelections: [CLIProviderKind: UUID],
+        executablePaths: [CLIProviderKind: String?]
+    ) -> [CLIProviderKind: UUID] {
+        var selections: [CLIProviderKind: UUID] = [:]
+
+        for provider in CLIProviderKind.allCases {
+            let enabled = (accountsByProvider[provider] ?? []).filter(\.isEnabled)
+            guard !enabled.isEmpty else { continue }
+
+            if let selectedId = currentSelections[provider],
+               enabled.contains(where: { $0.id == selectedId }) {
+                selections[provider] = selectedId
+                continue
+            }
+
+            let path: String? = executablePaths[provider] ?? nil
+            if let connected = enabled.first(where: {
+                CLIAccountAuthDetector.detect(account: $0, providerPath: path).isLoggedIn
+            }) {
+                selections[provider] = connected.id
+            } else {
+                selections[provider] = enabled[0].id
+            }
+        }
+
+        return selections
     }
 }
