@@ -110,7 +110,8 @@ extension MCPSharedState {
         severity: String? = nil,
         status: String? = nil,
         file: String? = nil,
-        limit: Int = 50
+        limit: Int = 50,
+        includeSensitiveDetails: Bool = false
     ) -> [[String: String]] {
         guard let snapshot = readCodeReviewSnapshot(sessionId: sessionId) else {
             return []
@@ -125,7 +126,26 @@ extension MCPSharedState {
         if let file, !file.isEmpty {
             findings = findings.filter { $0.filePath.contains(file) }
         }
-        return Array(findings.prefix(limit)).map { $0.toPayload() }
+
+        return Array(findings.prefix(limit)).map { finding in
+            var payload: [String: String] = [
+                "id": finding.id,
+                "severity": finding.severity.rawValue,
+                "category": finding.category.rawValue,
+                "status": finding.status.rawValue,
+            ]
+            if includeSensitiveDetails {
+                payload["file_path"] = finding.filePath
+                payload["message"] = finding.message
+                if let ln = finding.lineNumber {
+                    payload["line_number"] = String(ln)
+                }
+                if let eln = finding.endLineNumber {
+                    payload["end_line_number"] = String(eln)
+                }
+            }
+            return payload
+        }
     }
 
     public static func readCodeReviewStatus(sessionId: String) -> [String: String]? {
