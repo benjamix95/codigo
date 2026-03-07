@@ -23,7 +23,7 @@ extension CLIProfileProvisioner {
             return true
         }
 
-        guard let sourcePath = mcpServerBinaryPath(),
+        guard let sourcePath = trustedBundledMCPServerSourcePath(),
               sourcePath != targetPath,
               FileManager.default.isExecutableFile(atPath: sourcePath)
         else {
@@ -46,6 +46,20 @@ extension CLIProfileProvisioner {
         } catch {
             return false
         }
+    }
+
+    private static func trustedBundledMCPServerSourcePath() -> String? {
+        guard let bundled = Bundle.main.url(forResource: "coderide-mcp-server", withExtension: nil)?.path else {
+            return nil
+        }
+
+        let sourceURL = URL(fileURLWithPath: bundled).standardizedFileURL
+        let bundleURL = Bundle.main.bundleURL.standardizedFileURL
+        guard sourceURL.path.hasPrefix(bundleURL.path + "/") || sourceURL.path == bundleURL.path else {
+            return nil
+        }
+
+        return bundled
     }
 
     private static func selfHealCodexProfiles() {
