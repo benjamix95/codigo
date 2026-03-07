@@ -167,7 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = .clear
         window.isMovableByWindowBackground = false
         if #available(macOS 11.0, *) {
-            window.toolbarStyle = .unifiedCompact
+            window.titlebarSeparatorStyle = .none
         }
         window.toolbar?.showsBaselineSeparator = false
         WindowSidebarToggleController.installIfNeeded(on: window)

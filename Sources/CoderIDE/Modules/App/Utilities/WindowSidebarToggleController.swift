@@ -75,6 +75,7 @@ final class WindowSidebarToggleController {
                 return
             }
             self.stripAutomaticSidebarToolbarItems(from: window)
+            self.clearTitlebarBackgroundArtifacts(from: window)
             self.hideTitlebarSidebarButtons(from: window)
         }
     }
@@ -131,6 +132,7 @@ final class WindowSidebarToggleController {
             titlebarView.addSubview(button)
         }
         stripAutomaticSidebarToolbarItems(from: window)
+        clearTitlebarBackgroundArtifacts(from: window)
         hideTitlebarSidebarButtons(from: window)
     }
 
@@ -177,6 +179,17 @@ final class WindowSidebarToggleController {
         hideSidebarButtons(in: titlebarView, action: toggleAction, depth: 6)
     }
 
+    private func clearTitlebarBackgroundArtifacts(from window: NSWindow) {
+        guard let titlebarView = window.standardWindowButton(.zoomButton)?.superview else {
+            return
+        }
+
+        clearBackground(in: titlebarView, depth: 5)
+        if let container = titlebarView.superview {
+            clearBackground(in: container, depth: 2)
+        }
+    }
+
     private func hideSidebarButtons(in view: NSView, action: Selector, depth: Int) {
         guard depth > 0 else { return }
         for subview in view.subviews where subview !== button {
@@ -187,6 +200,23 @@ final class WindowSidebarToggleController {
                 continue
             }
             hideSidebarButtons(in: subview, action: action, depth: depth - 1)
+        }
+    }
+
+    private func clearBackground(in view: NSView, depth: Int) {
+        guard depth > 0 else { return }
+
+        if let effectView = view as? NSVisualEffectView {
+            effectView.state = .inactive
+            effectView.blendingMode = .behindWindow
+            effectView.material = .underWindowBackground
+        }
+
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+
+        for subview in view.subviews where subview !== button {
+            clearBackground(in: subview, depth: depth - 1)
         }
     }
 
