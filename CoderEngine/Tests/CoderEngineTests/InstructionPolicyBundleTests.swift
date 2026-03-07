@@ -68,6 +68,42 @@ final class InstructionPolicyBundleTests: XCTestCase {
         XCTAssertNotEqual(reloaded.policyHash, first.policyHash)
     }
 
+
+
+    func testSkillContentRejectsPathTraversalName() throws {
+        let home = NSHomeDirectory()
+        let skillsRoot = URL(fileURLWithPath: home).appendingPathComponent(".codex/skills")
+        try FileManager.default.createDirectory(at: skillsRoot, withIntermediateDirectories: true)
+
+        let escapedSkill = URL(fileURLWithPath: home)
+            .appendingPathComponent("skill-escape-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: escapedSkill, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: escapedSkill) }
+
+        let escapedSkillFile = escapedSkill.appendingPathComponent("SKILL.md")
+        try "top-secret".write(to: escapedSkillFile, atomically: true, encoding: .utf8)
+
+        XCTAssertNil(InstructionPolicyBundle.skillContent(for: "../../\(escapedSkill.lastPathComponent)"))
+    }
+
+    func testSkillContentLoadsValidLocalSkill() throws {
+        let home = NSHomeDirectory()
+        let skillName = "test-skill-\(UUID().uuidString.lowercased())"
+        let skillDir = URL(fileURLWithPath: home)
+            .appendingPathComponent(".codex/skills")
+            .appendingPathComponent(skillName)
+        try FileManager.default.createDirectory(at: skillDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: skillDir) }
+
+        let skillFile = skillDir.appendingPathComponent("SKILL.md")
+        try "---
+name: test
+---
+body-content".write(to: skillFile, atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(InstructionPolicyBundle.skillContent(for: skillName), "body-content")
+    }
+
     private func withEnvironmentVariable(_ key: String, value: String, operation: () throws -> Void) rethrows {
         let previous = getenv(key).map { String(cString: $0) }
         setenv(key, value, 1)
