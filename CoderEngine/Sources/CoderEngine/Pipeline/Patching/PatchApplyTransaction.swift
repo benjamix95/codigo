@@ -151,6 +151,14 @@ public actor PatchApplyTransaction {
             )
         }
 
+        if blastResult.requiresExtraReview {
+            totalFailures += 1
+            return .awaitingApproval(
+                reason: "Blast radius: \(blastResult.totalUniqueFiles) file "
+                    + "(soglia \(BlastRadiusChecker.extraReviewThreshold))"
+            )
+        }
+
         // Step 4: Verify lock ownership
         let allTouchedFiles = Set(patches.flatMap(\.touchedFiles))
         let ownsLock = await lockManager.verifyOwnership(

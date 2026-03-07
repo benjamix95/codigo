@@ -230,6 +230,25 @@ final class PatchApplyTransactionTests: XCTestCase {
         }
     }
 
+    func testBlastRadiusExtraReviewRequiresApproval() async {
+        let (tx, _, _, _) = await makeSystem()
+        let job = makeJob()
+        let mediumPatch = makePatch(
+            files: Array(1...13).map { "f\($0).swift" },
+            riskScore: 0.3
+        )
+
+        let result = await tx.execute(
+            job: job, taskId: "t1", patches: [mediumPatch]
+        )
+
+        if case .awaitingApproval = result {
+            // ok
+        } else {
+            XCTFail("Expected awaitingApproval, got \(result)")
+        }
+    }
+
     // MARK: - Lock violation
 
     func testLockViolation() async {
