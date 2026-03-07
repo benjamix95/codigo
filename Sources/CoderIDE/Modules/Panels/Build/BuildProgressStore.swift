@@ -132,19 +132,38 @@ final class BuildProgressStore: ObservableObject {
             process.standardOutput = outPipe
             process.standardError = errPipe
 
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(returning: nil)
-                return
-            }
+            let lock = NSLock()
+            var didResume = false
 
-            process.terminationHandler = { proc in
+            func readProcessOutput(status: Int32) -> (output: String, terminationStatus: Int32) {
                 let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
                 let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
                 let stdout = String(data: outData, encoding: .utf8) ?? ""
                 let stderr = String(data: errData, encoding: .utf8) ?? ""
-                continuation.resume(returning: (stdout + "\n" + stderr, proc.terminationStatus))
+                return (stdout + "\n" + stderr, status)
+            }
+
+            func resumeOnce(_ value: (output: String, terminationStatus: Int32)?) {
+                lock.lock()
+                defer { lock.unlock() }
+                guard !didResume else { return }
+                didResume = true
+                continuation.resume(returning: value)
+            }
+
+            process.terminationHandler = { proc in
+                resumeOnce(readProcessOutput(status: proc.terminationStatus))
+            }
+
+            do {
+                try process.run()
+            } catch {
+                resumeOnce(nil)
+                return
+            }
+
+            if !process.isRunning {
+                resumeOnce(readProcessOutput(status: process.terminationStatus))
             }
         }
     }
