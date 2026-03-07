@@ -103,7 +103,9 @@ extension AppUpdateCenter {
         }
 
         let os = ProcessInfo.processInfo.operatingSystemVersion
-        let current = AppVersion("\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)") ?? AppVersion("14.0")!
+        guard let current = AppVersion("\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)") else {
+            return true
+        }
         return current >= minimumParsed
     }
 }

@@ -8,8 +8,9 @@ extension PipelineIntegrationService {
     func handleRawEvent(_ p: RawEventPayload, for conversationId: UUID) {
         let rawType = p.rawType
 
-        let providerId = runtime(for: conversationId)?.providerId ?? "pipeline"
-        if let callback = runtime(for: conversationId)?.rawEventHandler {
+        let currentRuntime = runtime(for: conversationId)
+        let providerId = currentRuntime?.providerId ?? "pipeline"
+        if let callback = currentRuntime?.rawEventHandler {
             callback(rawType, p.payload, providerId, conversationId)
         }
         consumeRawPipelineArtifacts(rawType: rawType, payload: p.payload, for: conversationId)
@@ -185,12 +186,13 @@ extension PipelineIntegrationService {
     ) {
         guard let todoStore else { return }
 
+        let agentRuntime = runtime(for: agentConversationId)
         consumePipelineEvents(
             [
                 ChatPipelineEvent(
                     conversationId: agentConversationId,
-                    assistantMessageId: runtime(for: agentConversationId)?.assistantMessageId ?? UUID(),
-                    turnId: runtime(for: agentConversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                    assistantMessageId: agentRuntime?.assistantMessageId ?? UUID(),
+                    turnId: agentRuntime?.chatTurnState.turnId ?? UUID().uuidString,
                     sequence: 0,
                     source: "pipeline",
                     kind: .statusBadge,
@@ -236,13 +238,14 @@ extension PipelineIntegrationService {
     // MARK: - Patch & Rollback
 
     func handlePatchApplied(_ p: PatchAppliedPayload, for conversationId: UUID) {
+        let patchRuntime = runtime(for: conversationId)
         for file in p.touchedFiles {
             consumePipelineEvents(
                 [
                     ChatPipelineEvent(
                         conversationId: conversationId,
-                        assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
-                        turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                        assistantMessageId: patchRuntime?.assistantMessageId ?? UUID(),
+                        turnId: patchRuntime?.chatTurnState.turnId ?? UUID().uuidString,
                         sequence: 0,
                         source: "pipeline",
                         kind: .filesArtifact,
@@ -255,12 +258,13 @@ extension PipelineIntegrationService {
     }
 
     func handleRollback(_ p: RollbackPayload, for conversationId: UUID) {
+        let rollbackRuntime = runtime(for: conversationId)
         consumePipelineEvents(
             [
                 ChatPipelineEvent(
                     conversationId: conversationId,
-                    assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
-                    turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                    assistantMessageId: rollbackRuntime?.assistantMessageId ?? UUID(),
+                    turnId: rollbackRuntime?.chatTurnState.turnId ?? UUID().uuidString,
                     sequence: 0,
                     source: "pipeline",
                     kind: .statusBadge,
@@ -278,12 +282,13 @@ extension PipelineIntegrationService {
     // MARK: - Review & Progress
 
     func handleReviewFinding(_ p: ReviewFindingPayload, for conversationId: UUID) {
+        let reviewRuntime = runtime(for: conversationId)
         consumePipelineEvents(
             [
                 ChatPipelineEvent(
                     conversationId: conversationId,
-                    assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
-                    turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                    assistantMessageId: reviewRuntime?.assistantMessageId ?? UUID(),
+                    turnId: reviewRuntime?.chatTurnState.turnId ?? UUID().uuidString,
                     sequence: 0,
                     source: "pipeline",
                     kind: .toolTraceArtifact,
@@ -342,12 +347,13 @@ extension PipelineIntegrationService {
 
     func handleProviderHealth(_ p: ProviderHealthPayload, for conversationId: UUID) {
         if p.status == .unhealthy {
+            let healthRuntime = runtime(for: conversationId)
             consumePipelineEvents(
                 [
                     ChatPipelineEvent(
                         conversationId: conversationId,
-                        assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
-                        turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                        assistantMessageId: healthRuntime?.assistantMessageId ?? UUID(),
+                        turnId: healthRuntime?.chatTurnState.turnId ?? UUID().uuidString,
                         sequence: 0,
                         source: "pipeline",
                         kind: .statusBadge,
@@ -364,12 +370,13 @@ extension PipelineIntegrationService {
     }
 
     func handleErrorBudget(_ p: ErrorBudgetPayload, for conversationId: UUID) {
+        let budgetRuntime = runtime(for: conversationId)
         consumePipelineEvents(
             [
                 ChatPipelineEvent(
                     conversationId: conversationId,
-                    assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
-                    turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                    assistantMessageId: budgetRuntime?.assistantMessageId ?? UUID(),
+                    turnId: budgetRuntime?.chatTurnState.turnId ?? UUID().uuidString,
                     sequence: 0,
                     source: "pipeline",
                     kind: .statusBadge,

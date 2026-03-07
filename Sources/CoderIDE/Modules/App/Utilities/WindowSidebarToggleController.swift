@@ -38,7 +38,7 @@ final class WindowSidebarToggleController {
     }
 
     deinit {
-        stopPeriodicStrip()
+        periodicStripTimer?.invalidate()
         observers.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
@@ -72,7 +72,7 @@ final class WindowSidebarToggleController {
         guard periodicStripTimer == nil else { return }
 
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
-            self?.runScheduledStripPass()
+            MainActor.assumeIsolated { self?.runScheduledStripPass() }
         }
         timer.tolerance = 0.1
         periodicStripTimer = timer
@@ -115,9 +115,11 @@ final class WindowSidebarToggleController {
 
         observers = windowNotifications.map { name in
             center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                self?.attachButtonIfNeeded()
-                self?.updateLayout()
-                self?.scheduleStripBurst()
+                MainActor.assumeIsolated {
+                    self?.attachButtonIfNeeded()
+                    self?.updateLayout()
+                    self?.scheduleStripBurst()
+                }
             }
         }
 
@@ -127,8 +129,10 @@ final class WindowSidebarToggleController {
                 object: window,
                 queue: .main
             ) { notification in
-                guard let window = notification.object as? NSWindow else { return }
-                Self.remove(for: window)
+                MainActor.assumeIsolated {
+                    guard let window = notification.object as? NSWindow else { return }
+                    Self.remove(for: window)
+                }
             }
         )
     }

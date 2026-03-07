@@ -132,8 +132,6 @@ extension ChatPanelView {
         planToggleEnabled = state.planToggleEnabled
         debugToggleEnabled = state.debugToggleEnabled
 
-        DispatchQueue.main.async {
-            self.isRestoringThreadUIState = false
-        }
+        isRestoringThreadUIState = false
     }
 }

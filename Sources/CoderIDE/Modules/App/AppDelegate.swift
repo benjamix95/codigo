@@ -46,8 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ]
         observers = names.map { name in
             center.addObserver(forName: name, object: nil, queue: .main) { notification in
-                guard let window = notification.object as? NSWindow else { return }
-                Self.applyMainWindowStyle(window)
+                MainActor.assumeIsolated {
+                    guard let window = notification.object as? NSWindow else { return }
+                    Self.applyMainWindowStyle(window)
+                }
             }
         }
     }
@@ -157,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    static func applyMainWindowStyle(_ window: NSWindow) {
+    @MainActor static func applyMainWindowStyle(_ window: NSWindow) {
         window.title = ""
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true

@@ -32,21 +32,21 @@ final class SwarmProgressStore: ObservableObject {
     func setSteps(_ names: [String], conversationId: UUID? = nil) {
         if let scope = normalizedConversationScope(conversationId) {
             let existing = stepsByConversation[scope] ?? []
-            let existingByName = Dictionary(uniqueKeysWithValues: existing.map { ($0.name, $0.status) })
+            let existingByName = Dictionary(existing.map { ($0.name, $0.status) }, uniquingKeysWith: { first, _ in first })
             let newSteps = names.map { name in
                 let preserved = existingByName[name]
-                let status: SwarmStepStatus = (preserved == .completed || preserved == .inProgress) ? preserved! : .pending
+                let status: SwarmStepStatus = preserved ?? .pending
                 return SwarmStep(name: name, status: status)
             }
             stepsByConversation[scope] = newSteps
             return
         }
 
-        let existingByName = Dictionary(uniqueKeysWithValues: steps.map { ($0.name, $0.status) })
+        let existingByName = Dictionary(steps.map { ($0.name, $0.status) }, uniquingKeysWith: { first, _ in first })
         // Build new array then assign once (single @Published notification)
         let newSteps = names.map { name in
             let preserved = existingByName[name]
-            let status: SwarmStepStatus = (preserved == .completed || preserved == .inProgress) ? preserved! : .pending
+            let status: SwarmStepStatus = preserved ?? .pending
             return SwarmStep(name: name, status: status)
         }
         steps = newSteps

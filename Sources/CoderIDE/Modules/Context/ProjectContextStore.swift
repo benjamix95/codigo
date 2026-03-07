@@ -70,7 +70,7 @@ final class ProjectContextStore: ObservableObject {
         contexts.removeAll { $0.id == id }
         if activeContextId == id {
             // Fall back to another context, or nil if none remain.
-            activeContextId = contexts.first?.id ?? nil
+            activeContextId = contexts.first?.id
         }
         clearLastActiveEntries(forContextId: id)
         save()

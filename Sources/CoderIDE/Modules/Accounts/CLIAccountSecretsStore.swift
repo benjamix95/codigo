@@ -1,5 +1,8 @@
 import Foundation
+import os.log
 import Security
+
+private let logger = Logger(subsystem: "app.codigo", category: "CLIAccountSecretsStore")
 
 final class CLIAccountSecretsStore {
     private let service = "app.codigo.cli.accounts"
@@ -13,7 +16,10 @@ final class CLIAccountSecretsStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: key
         ]
-        SecItemDelete(query as CFDictionary)
+        let deleteStatus = SecItemDelete(query as CFDictionary)
+        if deleteStatus != errSecSuccess, deleteStatus != errSecItemNotFound {
+            logger.warning("Keychain delete failed for account \(key, privacy: .public): OSStatus \(deleteStatus)")
+        }
 
         let add: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -21,7 +27,10 @@ final class CLIAccountSecretsStore {
             kSecAttrAccount as String: key,
             kSecValueData as String: data
         ]
-        SecItemAdd(add as CFDictionary, nil)
+        let addStatus = SecItemAdd(add as CFDictionary, nil)
+        if addStatus != errSecSuccess {
+            logger.error("Keychain add failed for account \(key, privacy: .public): OSStatus \(addStatus)")
+        }
     }
 
     func secret(for accountId: UUID) -> String? {
