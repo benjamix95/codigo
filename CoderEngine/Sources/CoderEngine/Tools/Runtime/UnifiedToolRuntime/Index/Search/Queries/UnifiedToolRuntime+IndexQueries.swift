@@ -34,7 +34,7 @@ extension UnifiedToolRuntime {
         default: kindPattern = "(class|struct|enum|protocol|func|function|def|fn|type|trait|interface|const|let|var)\\s+"
         }
         // Search across all source file types, not just Swift
-        let cmd = "rg -n \"\(kindPattern)\(shellEscaped(query))\" --type-add 'src:*.{swift,ts,tsx,js,jsx,py,go,rs,java,kt,rb,cs,php}' --type src . | head -n 200"
+        let cmd = "rg -n '\(shellEscaped(kindPattern + query))' --type-add 'src:*.{swift,ts,tsx,js,jsx,py,go,rs,java,kt,rb,cs,php}' --type src . | head -n 200"
         return await runBash(
             command: cmd,
             cwd: context.workspaceContext.workspacePath,
