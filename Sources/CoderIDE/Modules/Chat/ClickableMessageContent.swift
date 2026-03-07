@@ -78,7 +78,8 @@ struct ClickableMessageContent: View {
             with: "",
             options: .regularExpression
         )
-        if (t as NSString).isAbsolutePath { return t }
+        let parts = t.split(separator: "/", omittingEmptySubsequences: false)
+        if parts.contains("..") { return t }
         if let context {
             switch ContextPathResolver.resolve(reference: t, context: context) {
             case .resolved(let path):

@@ -22,7 +22,7 @@ final class MarkdownFileReferenceLinkingTests: XCTestCase {
         )
     }
 
-    func testFileReferenceLinkingStripsLineAndColumnSuffix() {
+    func testAbsolutePathReferenceIsNotLinked() {
         let view = MarkdownContentView(content: "", context: nil, onFileClicked: { _ in })
         let attributed = view.buildInlineAttributed(
             "Vedi /tmp/demo.swift:10:2",
@@ -32,12 +32,20 @@ final class MarkdownFileReferenceLinkingTests: XCTestCase {
         )
 
         let links = extractedLinks(from: attributed)
-        XCTAssertTrue(
-            links.contains { linked in
-                linked.text.contains("/tmp/demo.swift:10:2")
-                    && linked.url.path == "/tmp/demo.swift"
-            }
+        XCTAssertFalse(links.contains { $0.text.contains("/tmp/demo.swift:10:2") })
+    }
+
+    func testParentTraversalReferenceIsNotLinked() {
+        let view = MarkdownContentView(content: "", context: nil, onFileClicked: { _ in })
+        let attributed = view.buildInlineAttributed(
+            "Vedi src/../Secrets/demo.swift:10:2",
+            fontSize: 12,
+            fontWeight: .regular,
+            color: nil
         )
+
+        let links = extractedLinks(from: attributed)
+        XCTAssertFalse(links.contains { $0.text.contains("src/../Secrets/demo.swift:10:2") })
     }
 
     private func extractedLinks(from attributed: AttributedString) -> [(text: String, url: URL)] {
