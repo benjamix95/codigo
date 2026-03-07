@@ -132,6 +132,18 @@ public final class TerminalSessionStore: ObservableObject {
 // MARK: - TerminalBridge conformance
 
 extension TerminalSessionStore: TerminalBridge {
+    private func agentSession(for id: UUID) -> TerminalSession? {
+        guard let session = session(for: id), session.isAgentOwned else { return nil }
+        return session
+    }
+
+    private var activeAgentSession: TerminalSession? {
+        if let active = activeSession, active.isAgentOwned {
+            return active
+        }
+        return sessions.last(where: { $0.isAgentOwned })
+    }
+
     public func executeInTerminal(command: String, cwd: String?, label: String) async -> (output: String, exitCode: Int32) {
         let session = createSession(label: label, cwd: cwd, isAgent: true)
         let sessionId = session.id
@@ -174,12 +186,21 @@ extension TerminalSessionStore: TerminalBridge {
 
     public func readTerminalOutput(sessionId: String?, lastN: Int) -> String {
         if let idStr = sessionId, let uuid = UUID(uuidString: idStr) {
-            return readOutput(sessionId: uuid, lastN: lastN)
+            return agentSession(for: uuid)?.readOutput(lastN: lastN) ?? ""
         }
-        return readOutput(sessionId: nil, lastN: lastN)
+        return activeAgentSession?.readOutput(lastN: lastN) ?? ""
     }
 
     public func allSessionsSummary(lastN: Int) -> String {
-        readAllSessionsSummary(lastN: lastN)
+        let agentSessions = sessions.filter(\.isAgentOwned)
+        if agentSessions.isEmpty { return "(no agent terminal sessions)" }
+
+        return agentSessions
+            .map { session in
+                let output = session.readOutput(lastN: lastN)
+                let truncated = output.isEmpty ? "(empty)" : output
+                return "[\(session.label) (agent)] cwd: \(session.workingDirectory ?? "~")\n\(truncated)"
+            }
+            .joined(separator: "\n---\n")
     }
 }
