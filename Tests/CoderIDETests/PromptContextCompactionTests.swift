@@ -13,7 +13,7 @@ final class PromptContextCompactionTests: XCTestCase {
         return ChatStore(userDefaults: defaults)
     }
 
-    func testBuildPromptContextIncludesMemoryAndRecentTailOnly() {
+    func testBuildPromptContextExcludesMemoryByDefaultAndKeepsRecentTail() {
         let store = makeStore()
         guard let conversationId = store.conversations.first?.id,
               let idx = store.conversations.firstIndex(where: { $0.id == conversationId }) else {
@@ -34,14 +34,32 @@ final class PromptContextCompactionTests: XCTestCase {
             conversationId: conversationId,
             maxMessages: 2,
             maxCharsPerMessage: 200,
-            includeMemorySummary: true
+            includeMemorySummary: false
         )
 
-        XCTAssertTrue(context.contains("### Conversation memory"))
-        XCTAssertTrue(context.contains("Keep all visible chat messages."))
+        XCTAssertFalse(context.contains("### Conversation memory"))
+        XCTAssertFalse(context.contains("Keep all visible chat messages."))
         XCTAssertFalse(context.contains("old-message-1"))
         XCTAssertFalse(context.contains("old-message-2"))
         XCTAssertTrue(context.contains("recent-message-1"))
         XCTAssertTrue(context.contains("recent-message-2"))
+    }
+
+    func testBuildPromptContextCanIncludeMemoryWhenExplicitlyEnabled() {
+        let store = makeStore()
+        guard let conversationId = store.conversations.first?.id,
+              let idx = store.conversations.firstIndex(where: { $0.id == conversationId }) else {
+            return XCTFail("Missing initial conversation")
+        }
+
+        store.conversations[idx].contextMemorySummaryMarkdown = "## Objectives\nRemember this summary."
+
+        let context = store.buildPromptContext(
+            conversationId: conversationId,
+            includeMemorySummary: true
+        )
+
+        XCTAssertTrue(context.contains("### Conversation memory"))
+        XCTAssertTrue(context.contains("Remember this summary."))
     }
 }

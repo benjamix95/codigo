@@ -162,7 +162,7 @@ extension ChatPanelView {
             conversationId: conversationId,
             maxMessages: maxMessages,
             maxCharsPerMessage: maxCharsPerMessage,
-            includeMemorySummary: true
+            includeMemorySummary: false
         )
     }
 

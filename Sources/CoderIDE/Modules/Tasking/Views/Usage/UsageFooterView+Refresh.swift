@@ -51,7 +51,7 @@ extension UsageFooterView {
             conversationId: conversation.id,
             maxMessages: 20,
             maxCharsPerMessage: 2000,
-            includeMemorySummary: true
+            includeMemorySummary: false
         )
         let scopedContext = effectiveContext
         let openFiles = openFilesStore.openFilesForContext()
