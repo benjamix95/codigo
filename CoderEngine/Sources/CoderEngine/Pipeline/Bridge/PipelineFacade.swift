@@ -65,18 +65,12 @@ public actor PipelineFacade {
                 } catch {
                     let reason = (error as? PipelineValidationError)
                         .map(\.localizedDescription) ?? error.localizedDescription
-                    // #region agent log
-                    Self.debugLog("H2", "Validation FAILED", ["reason": reason, "error": String(describing: error)])
-                    // #endregion
                     continuation.yield(.jobFailed(JobFailedPayload(
                         jobId: jobId, reason: reason, failedTasks: 0
                     )))
                     continuation.finish()
                     return
                 }
-                // #region agent log
-                Self.debugLog("H2", "Validation PASSED, building components", ["jobId": jobId])
-                // #endregion
 
                 let components = await self.buildComponents(
                     job: job,
@@ -98,18 +92,12 @@ public actor PipelineFacade {
                 )))
 
                 let startedAt = Date()
-                // #region agent log
-                Self.debugLog("H3", "orchestrator.run() STARTING", ["jobId": jobId])
-                // #endregion
                 await components.orchestrator.run()
 
                 let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
                 let finalState = await components.stateMachine.currentState
                 let completedCount = await components.scheduler.countByStatus(.completed)
                 let failedCount = await components.scheduler.countByStatus(.failed)
-                // #region agent log
-                Self.debugLog("H3", "orchestrator.run() FINISHED", ["finalState": finalState.rawValue, "completedCount": completedCount, "failedCount": failedCount, "durationMs": durationMs])
-                // #endregion
 
                 if finalState == .finalized {
                     continuation.yield(.jobCompleted(JobCompletedPayload(
@@ -373,26 +361,3 @@ private struct PipelineComponents {
     let backpressure: BackpressureController
     let eventBridge: AgentWorkerEventBridge
 }
-
-// #region agent log
-extension PipelineFacade {
-    static func debugLog(_ hypothesis: String, _ message: String, _ data: [String: Any] = [:]) {
-        let path = NSHomeDirectory() + "/codigo/.cursor/debug-7f5345.log"
-        let ts = Int(Date().timeIntervalSince1970 * 1000)
-        var payload: [String: Any] = [
-            "sessionId": "7f5345", "hypothesisId": hypothesis,
-            "location": "PipelineFacade", "message": message,
-            "timestamp": ts
-        ]
-        if !data.isEmpty { payload["data"] = data }
-        if let json = try? JSONSerialization.data(withJSONObject: payload),
-           let line = String(data: json, encoding: .utf8) {
-            let handle = FileHandle(forWritingAtPath: path)
-                ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path)! }()
-            handle.seekToEndOfFile()
-            handle.write((line + "\n").data(using: .utf8)!)
-            handle.closeFile()
-        }
-    }
-}
-// #endregion

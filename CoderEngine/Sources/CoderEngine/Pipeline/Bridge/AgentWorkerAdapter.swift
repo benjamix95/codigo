@@ -115,17 +115,11 @@ public actor AgentWorkerAdapter {
                     agentName: agentName, jobId: jobId
                 )
 
-                // #region agent log
-                Self.debugLog("H4", "provider.send() CALLING", ["taskId": taskId, "role": role.rawValue, "providerId": provider.id, "promptLen": prompt.count, "delegateNil": delegate == nil])
-                // #endregion
                 let stream = try await provider.send(
                     prompt: prompt,
                     context: context,
                     attachments: nil
                 )
-                // #region agent log
-                Self.debugLog("H4", "provider.send() RETURNED stream", ["taskId": taskId])
-                // #endregion
 
                 let fullText = try await Self.consumeStream(
                     stream: stream,
@@ -165,9 +159,6 @@ public actor AgentWorkerAdapter {
                 Self.logger.error(
                     "Pipeline task \(taskId) failed after \(durationMs)ms — \(String(describing: error))"
                 )
-                // #region agent log
-                Self.debugLog("H4H5", "task FAILED in catch", ["taskId": taskId, "error": String(describing: error), "readable": readable, "durationMs": durationMs, "errorType": String(describing: type(of: error))])
-                // #endregion
                 return WorkerTaskResult(
                     taskId: taskId,
                     agentName: agentName,
@@ -474,26 +465,3 @@ extension AgentWorkerError: LocalizedError {
         }
     }
 }
-
-// #region agent log
-extension AgentWorkerAdapter {
-    static func debugLog(_ hypothesis: String, _ message: String, _ data: [String: Any] = [:]) {
-        let path = NSHomeDirectory() + "/codigo/.cursor/debug-7f5345.log"
-        let ts = Int(Date().timeIntervalSince1970 * 1000)
-        var payload: [String: Any] = [
-            "sessionId": "7f5345", "hypothesisId": hypothesis,
-            "location": "AgentWorkerAdapter", "message": message,
-            "timestamp": ts
-        ]
-        if !data.isEmpty { payload["data"] = data }
-        if let json = try? JSONSerialization.data(withJSONObject: payload),
-           let line = String(data: json, encoding: .utf8) {
-            let handle = FileHandle(forWritingAtPath: path)
-                ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path)! }()
-            handle.seekToEndOfFile()
-            handle.write((line + "\n").data(using: .utf8)!)
-            handle.closeFile()
-        }
-    }
-}
-// #endregion

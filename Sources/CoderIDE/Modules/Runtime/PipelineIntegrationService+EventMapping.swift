@@ -12,26 +12,6 @@ extension PipelineIntegrationService {
     ]
 
     func handleEvent(_ event: PipelineUIEvent, for conversationId: UUID) {
-        // #region agent log
-        Self._eventCounter += 1
-        let eventName: String
-        switch event {
-        case .textDelta: eventName = "textDelta"
-        case .textReplace: eventName = "textReplace"
-        case .rawEvent(let p): eventName = "rawEvent(\(p.rawType))"
-        case .jobStarted: eventName = "jobStarted"
-        case .jobCompleted: eventName = "jobCompleted"
-        case .jobFailed: eventName = "jobFailed"
-        case .taskStarted: eventName = "taskStarted"
-        case .taskCompleted: eventName = "taskCompleted"
-        case .taskFailed: eventName = "taskFailed"
-        default: eventName = "other"
-        }
-        if Self._eventCounter <= 30 {
-            PipelineIntegrationService.debugLog("H6H8", "handleEvent", ["event": eventName, "count": Self._eventCounter])
-        }
-        // #endregion
-
         switch event {
         case .jobStarted(let p):
             handleJobStarted(p, for: conversationId)
@@ -78,9 +58,6 @@ extension PipelineIntegrationService {
         runtime.totalTasks = p.taskCount
         runtime.completedTasks = 0
         persistSnapshot(for: conversationId)
-        // #region agent log
-        PipelineIntegrationService.debugLog("H7", "handleJobStarted — setting streaming=true", ["conversationId": conversationId.uuidString])
-        // #endregion
         chatStore?.setLastAssistantStreaming(true, in: conversationId)
         chatStore?.setTaskStatus(
             "Pipeline started (\(p.taskCount) tasks, mode: \(p.mode.rawValue))",
