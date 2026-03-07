@@ -2,20 +2,37 @@ import Foundation
 
 public enum PathFinder {
     public static func find(executable: String) -> String? {
+        find(
+            executable: executable,
+            pathEnv: ProcessInfo.processInfo.environment["PATH"] ?? "",
+            allowInteractiveShellLookup: true,
+            includeDefaultCandidates: true
+        )
+    }
+
+    public static func find(
+        executable: String,
+        pathEnv: String,
+        allowInteractiveShellLookup: Bool,
+        includeDefaultCandidates: Bool
+    ) -> String? {
         if let fromProcessEnv = findInPath(
             executable: executable,
-            pathEnv: ProcessInfo.processInfo.environment["PATH"] ?? ""
+            pathEnv: pathEnv
         ) {
             return fromProcessEnv
         }
 
-        if let fromShell = findUsingInteractiveShell(executable: executable) {
+        if allowInteractiveShellLookup,
+           let fromShell = findUsingInteractiveShell(executable: executable) {
             return fromShell
         }
 
-        for defaultPath in defaultExecutableCandidates(named: executable) {
-            if FileManager.default.isExecutableFile(atPath: defaultPath) {
-                return defaultPath
+        if includeDefaultCandidates {
+            for defaultPath in defaultExecutableCandidates(named: executable) {
+                if FileManager.default.isExecutableFile(atPath: defaultPath) {
+                    return defaultPath
+                }
             }
         }
         return nil

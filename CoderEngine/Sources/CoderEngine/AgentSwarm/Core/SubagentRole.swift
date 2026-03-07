@@ -214,7 +214,12 @@ public enum SubagentBackendResolver {
     static func discoverAvailableCLIs() -> [String: String] {
         var discovered: [String: String] = [:]
         for providerID in SubagentCLIConfig.knownProviderIDs {
-            if let path = PathFinder.find(executable: providerID) {
+            if let path = PathFinder.find(
+                executable: providerID,
+                pathEnv: SubagentCLIConfig.constrainedPATH,
+                allowInteractiveShellLookup: false,
+                includeDefaultCandidates: false
+            ) {
                 discovered[providerID] = path
             }
         }
