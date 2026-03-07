@@ -214,17 +214,6 @@ public struct ProviderRouter: Sendable {
             return .success(result)
         }
 
-        let reducedCandidates = healthyProviders
-        if let result = rankAndSelect(
-            candidates: reducedCandidates,
-            required: required,
-            reason: .fallbackReduced,
-            latencies: latencies,
-            costScores: costScores
-        ) {
-            return .success(result)
-        }
-
         return .failure(.noCapabilityMatch(role: role))
     }
 
@@ -256,6 +245,10 @@ public struct ProviderRouter: Sendable {
             }
 
             if provider.healthStatus == .unhealthy {
+                continue
+            }
+
+            if !required.isSatisfied(by: provider) {
                 continue
             }
 

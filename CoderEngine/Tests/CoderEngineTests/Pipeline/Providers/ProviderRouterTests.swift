@@ -259,9 +259,9 @@ final class ProviderRouterTests: XCTestCase {
         }
     }
 
-    // MARK: - Select: Fallback to Reduced Capability
+    // MARK: - Select: Capability Enforcement
 
-    func testSelect_noFullMatch_fallbackToReduced() {
+    func testSelect_noFullMatch_returnsNoCapabilityMatch() {
         let readOnly = makeProvider(
             id: "gemini", readonly: true, write: false, sandbox: false
         )
@@ -269,11 +269,10 @@ final class ProviderRouterTests: XCTestCase {
 
         let result = router.select(matrix: matrix, role: .coder)
         switch result {
-        case .success(let selection):
-            XCTAssertEqual(selection.provider.providerId, "gemini")
-            XCTAssertEqual(selection.reason, .fallbackReduced)
+        case .success:
+            XCTFail("Expected failure")
         case .failure(let error):
-            XCTFail("Expected fallback success, got \(error)")
+            XCTAssertEqual(error, .noCapabilityMatch(role: .coder))
         }
     }
 
@@ -447,6 +446,52 @@ final class ProviderRouterTests: XCTestCase {
             role: .coder,
             fallbackChain: ["codex", "claude"],
             failedProviders: ["codex", "claude"]
+        )
+        switch result {
+        case .success:
+            XCTFail("Expected failure")
+        case .failure(let error):
+            if case .fallbackExhausted(let role, _) = error {
+                XCTAssertEqual(role, .coder)
+            } else {
+                XCTFail("Expected fallbackExhausted error")
+            }
+        }
+    }
+
+
+    func testFallbackChain_skipsProviderWithoutRequiredCapabilities() {
+        let weak = makeProvider(
+            id: "weak", write: false, sandbox: false
+        )
+        let strong = makeProvider(
+            id: "strong", write: true, sandbox: true
+        )
+        let matrix = makeMatrix([weak, strong])
+
+        let result = router.selectWithFallback(
+            matrix: matrix,
+            role: .coder,
+            fallbackChain: ["weak", "strong"]
+        )
+        switch result {
+        case .success(let selection):
+            XCTAssertEqual(selection.provider.providerId, "strong")
+        case .failure(let error):
+            XCTFail("Expected success, got \(error)")
+        }
+    }
+
+    func testFallbackChain_allProvidersFailCapabilities_returnsFallbackExhausted() {
+        let weak = makeProvider(
+            id: "weak", write: false, sandbox: false
+        )
+        let matrix = makeMatrix([weak])
+
+        let result = router.selectWithFallback(
+            matrix: matrix,
+            role: .coder,
+            fallbackChain: ["weak"]
         )
         switch result {
         case .success:
