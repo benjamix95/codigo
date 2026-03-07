@@ -16,8 +16,8 @@ extension AppUpdateCenter {
             return
         }
 
-        guard let manifestURL = URL(string: manifestURL), !manifestURL.absoluteString.isEmpty else {
-            lastError = "Manifest URL non valido."
+        guard let manifestURL = Self.validatedHTTPSURL(from: manifestURL) else {
+            lastError = "Manifest URL must be a valid HTTPS URL."
             state = .failed(lastError ?? "")
             availableUpdate = nil
             return
