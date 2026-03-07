@@ -295,6 +295,7 @@ extension CodeReviewPanelStore {
         sourceSnapshot: CodeReviewSessionSnapshot,
         findings: [CodeReviewFinding]
     ) async -> Bool {
+        guard executionController != nil else { return false }
         let cfg = providerFactoryConfigBuilder()
         let sessionConfig = sourceSnapshot.config
         let fixSessionId = makePanelTargetedFixSessionId(sourceSessionId: sourceSnapshot.sessionId)

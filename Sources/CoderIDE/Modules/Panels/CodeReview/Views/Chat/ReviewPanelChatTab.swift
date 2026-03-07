@@ -12,6 +12,10 @@ struct ReviewPanelChatTab: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !todoItems.isEmpty {
+                stickyTodoCard
+                Divider().opacity(0.12)
+            }
             if store.chatMessages.isEmpty {
                 emptyState
             } else {
@@ -84,9 +88,6 @@ struct ReviewPanelChatTab: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: true) {
                 LazyVStack(spacing: 8) {
-                    if !todoItems.isEmpty {
-                        ReviewPanelTodoCardView(items: todoItems)
-                    }
                     ForEach(store.chatMessages) { msg in
                         ReviewPanelChatBubble(
                             message: msg,
@@ -108,6 +109,15 @@ struct ReviewPanelChatTab: View {
                 scrollToBottom(proxy)
             }
         }
+    }
+
+    private var stickyTodoCard: some View {
+        ReviewPanelTodoCardView(items: todoItems)
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+            .background(DesignSystem.Colors.chatPanelSolidBackground)
+            .zIndex(1)
     }
 
     // MARK: - Actions
