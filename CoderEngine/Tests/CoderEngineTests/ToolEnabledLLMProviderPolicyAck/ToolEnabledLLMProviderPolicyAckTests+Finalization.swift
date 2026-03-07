@@ -109,7 +109,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         XCTAssertFalse(sawMissingFinalOutcome)
     }
 
-    func testShellOutputIsPreservedInFollowUpPrompt() {
+    func testShellOutputIsRedactedFromFollowUpPrompt() {
         let provider = ToolEnabledLLMProvider(
             base: SequencedEventProvider(events: []),
             maxToolRounds: 1
@@ -135,7 +135,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             toolResults: [summary ?? [:]]
         )
 
-        XCTAssertEqual(summary?["output"], "FAIL SampleTests.testExample()")
-        XCTAssertTrue(prompt.contains("FAIL SampleTests.testExample()"))
+        XCTAssertNil(summary?["output"])
+        XCTAssertFalse(prompt.contains("FAIL SampleTests.testExample()"))
     }
 }

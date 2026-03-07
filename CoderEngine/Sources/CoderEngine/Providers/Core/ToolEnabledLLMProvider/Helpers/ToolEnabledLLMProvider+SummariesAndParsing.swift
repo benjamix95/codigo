@@ -19,7 +19,10 @@ extension ToolEnabledLLMProvider {
                 // Only accept success if no failure was seen (failure-wins precedence)
                 summary["status"] = "completed"
                 summary["detail"] = payload["detail"] ?? payload["title"] ?? "ok"
-                if let output = payload["output"], !output.isEmpty {
+                let toolName = summary["name"] ?? ""
+                if shouldIncludeToolOutputInFollowUp(toolName: toolName),
+                   let output = payload["output"],
+                   !output.isEmpty {
                     summary["output"] = String(output.prefix(8000))
                 }
                 if let path = payload["path"] ?? payload["file"], !path.isEmpty {
@@ -49,7 +52,12 @@ extension ToolEnabledLLMProvider {
                 let status = result["status"] ?? "unknown"
                 let detail = result["detail"] ?? ""
                 let path = result["path"].map { "\npath: \($0)" } ?? ""
-                let output = result["output"].map { "\noutput:\n\($0)" } ?? ""
+                let output: String
+                if shouldIncludeToolOutputInFollowUp(toolName: name) {
+                    output = result["output"].map { "\noutput:\n\($0)" } ?? ""
+                } else {
+                    output = ""
+                }
                 return "- tool_call id=\(id), name=\(name), status=\(status)\n  detail: \(detail)\(path)\(output)"
             }.joined(separator: "\n")
             resultsSection = """
@@ -74,6 +82,15 @@ extension ToolEnabledLLMProvider {
 
         \(resultsSection)
         """
+    }
+
+    func shouldIncludeToolOutputInFollowUp(toolName: String) -> Bool {
+        switch toolName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "bash", "command_execution", "shell":
+            return false
+        default:
+            return true
+        }
     }
 
     func parseArgsJSON(_ raw: String) -> [String: String]? {
