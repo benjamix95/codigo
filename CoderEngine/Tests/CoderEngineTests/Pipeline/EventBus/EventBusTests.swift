@@ -107,6 +107,60 @@ final class EventBusTests: XCTestCase {
         }
     }
 
+    func testPublish_allowsReusingIdempotencyKeyAfterPrune() async throws {
+        let bus = EventBus(
+            maxDeliveryAttempts: 1,
+            maxTrackedIdempotencyKeys: 100,
+            idempotencyKeyMaxAge: 3600
+        )
+
+        await bus.subscribe(EventSubscription(
+            id: "sub_1",
+            filter: EventSubscriptionFilter()
+        ) { _ in })
+
+        try await bus.publish(makeEvent(eventId: "evt_1", idempotencyKey: "prune_key"))
+        await bus.pruneIdempotencyKeys(olderThan: 0)
+
+        XCTAssertNoThrow(
+            try await bus.publish(
+                makeEvent(eventId: "evt_2", idempotencyKey: "prune_key")
+            )
+        )
+    }
+
+    func testPublish_evictsOldestIdempotencyKeysWhenCapacityReached() async throws {
+        let bus = EventBus(
+            maxDeliveryAttempts: 1,
+            maxTrackedIdempotencyKeys: 2,
+            idempotencyKeyMaxAge: 3600
+        )
+
+        await bus.subscribe(EventSubscription(
+            id: "sub_1",
+            filter: EventSubscriptionFilter()
+        ) { _ in })
+
+        try await bus.publish(makeEvent(eventId: "evt_1", idempotencyKey: "k1"))
+        try await bus.publish(makeEvent(eventId: "evt_2", idempotencyKey: "k2"))
+        try await bus.publish(makeEvent(eventId: "evt_3", idempotencyKey: "k3"))
+
+        XCTAssertNoThrow(
+            try await bus.publish(makeEvent(eventId: "evt_4", idempotencyKey: "k1"))
+        )
+
+        do {
+            try await bus.publish(makeEvent(eventId: "evt_5", idempotencyKey: "k3"))
+            XCTFail("Dovrebbe aver lanciato duplicateIdempotencyKey")
+        } catch let error as EventBusError {
+            if case .duplicateIdempotencyKey(let key) = error {
+                XCTAssertEqual(key, "k3")
+            } else {
+                XCTFail("Errore sbagliato: \(error)")
+            }
+        }
+    }
+
     // MARK: - Sequence Number
 
     func testPublish_incrementsSequenceNumber() async throws {

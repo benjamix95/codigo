@@ -84,29 +84,43 @@ public enum EventBusError: Error, Sendable, Equatable {
 public actor EventBus: EventBusProtocol {
 
     private var subscriptions: [String: EventSubscription] = [:]
-    private var seenIdempotencyKeys: Set<String> = []
+    private var seenIdempotencyKeys: [String: Date] = [:]
+    private var idempotencyKeyOrder: [String] = []
     private var sequenceCounter: UInt64 = 0
     private var isShutdown = false
 
     private let deliveryManager: EventDeliveryManager
     private let deadLetterQueue: DeadLetterQueue
+    private let maxTrackedIdempotencyKeys: Int
+    private let idempotencyKeyMaxAge: TimeInterval
 
     public init(
         deliveryManager: EventDeliveryManager,
-        deadLetterQueue: DeadLetterQueue
+        deadLetterQueue: DeadLetterQueue,
+        maxTrackedIdempotencyKeys: Int = 10_000,
+        idempotencyKeyMaxAge: TimeInterval = 3_600
     ) {
         self.deliveryManager = deliveryManager
         self.deadLetterQueue = deadLetterQueue
+        self.maxTrackedIdempotencyKeys = max(1, maxTrackedIdempotencyKeys)
+        self.idempotencyKeyMaxAge = max(0, idempotencyKeyMaxAge)
     }
 
     /// Convenience init con configurazione di default.
-    public init(maxDeliveryAttempts: Int = 3, dlqCapacity: Int = 1000) {
+    public init(
+        maxDeliveryAttempts: Int = 3,
+        dlqCapacity: Int = 1000,
+        maxTrackedIdempotencyKeys: Int = 10_000,
+        idempotencyKeyMaxAge: TimeInterval = 3_600
+    ) {
         let dlq = DeadLetterQueue(capacity: dlqCapacity)
         self.deadLetterQueue = dlq
         self.deliveryManager = EventDeliveryManager(
             maxAttempts: maxDeliveryAttempts,
             deadLetterQueue: dlq
         )
+        self.maxTrackedIdempotencyKeys = max(1, maxTrackedIdempotencyKeys)
+        self.idempotencyKeyMaxAge = max(0, idempotencyKeyMaxAge)
     }
 
     // MARK: - Publish
@@ -117,12 +131,14 @@ public actor EventBus: EventBusProtocol {
         }
 
         try event.validate()
+        let now = Date()
+        pruneIdempotencyKeysInternal(olderThan: idempotencyKeyMaxAge, now: now)
 
-        if seenIdempotencyKeys.contains(event.idempotencyKey) {
+        if seenIdempotencyKeys[event.idempotencyKey] != nil {
             throw EventBusError.duplicateIdempotencyKey(event.idempotencyKey)
         }
 
-        seenIdempotencyKeys.insert(event.idempotencyKey)
+        registerIdempotencyKey(event.idempotencyKey, at: now)
         sequenceCounter += 1
 
         var enriched = event
@@ -180,21 +196,58 @@ public actor EventBus: EventBusProtocol {
     public func shutdown() async {
         isShutdown = true
         subscriptions.removeAll()
+        seenIdempotencyKeys.removeAll()
+        idempotencyKeyOrder.removeAll()
     }
 
     /// Ripulisce le idempotency key più vecchie di `maxAge`.
     /// Previene crescita illimitata del set in-memory.
     public func pruneIdempotencyKeys(olderThan maxAge: TimeInterval) {
-        // In produzione si userebbe un dizionario con timestamp.
-        // Per ora il set è sufficiente per job di durata limitata.
-        // La pulizia totale avviene allo shutdown.
+        pruneIdempotencyKeysInternal(olderThan: maxAge, now: Date())
     }
 
     /// Reset completo — utile per i test.
     public func reset() {
         subscriptions.removeAll()
         seenIdempotencyKeys.removeAll()
+        idempotencyKeyOrder.removeAll()
         sequenceCounter = 0
         isShutdown = false
+    }
+
+    // MARK: - Idempotency Cache
+
+    private func registerIdempotencyKey(_ key: String, at now: Date) {
+        seenIdempotencyKeys[key] = now
+        idempotencyKeyOrder.append(key)
+
+        while seenIdempotencyKeys.count > maxTrackedIdempotencyKeys {
+            evictOldestTrackedIdempotencyKey()
+        }
+    }
+
+    private func evictOldestTrackedIdempotencyKey() {
+        while !idempotencyKeyOrder.isEmpty {
+            let oldestKey = idempotencyKeyOrder.removeFirst()
+            if seenIdempotencyKeys.removeValue(forKey: oldestKey) != nil {
+                break
+            }
+        }
+    }
+
+    private func pruneIdempotencyKeysInternal(olderThan maxAge: TimeInterval, now: Date) {
+        if maxAge <= 0 {
+            seenIdempotencyKeys.removeAll()
+            idempotencyKeyOrder.removeAll()
+            return
+        }
+
+        let cutoff = now.addingTimeInterval(-maxAge)
+        seenIdempotencyKeys = seenIdempotencyKeys.filter { _, timestamp in
+            timestamp >= cutoff
+        }
+        idempotencyKeyOrder.removeAll { key in
+            seenIdempotencyKeys[key] == nil
+        }
     }
 }
