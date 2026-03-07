@@ -78,26 +78,7 @@ struct ReviewPanelChatBubble: View {
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                 )
             } else {
-                Text(message.content)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.primary.opacity(0.9))
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Color(nsColor: .controlBackgroundColor).opacity(0.5),
-                        in: RoundedRectangle(
-                            cornerRadius: 10, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(
-                            cornerRadius: 10, style: .continuous
-                        )
-                        .strokeBorder(
-                            DesignSystem.Colors.border.opacity(0.2),
-                            lineWidth: 0.5
-                        )
-                    )
+                assistantContentBody
             }
 
             Text(message.timestamp, style: .time)
@@ -117,11 +98,7 @@ struct ReviewPanelChatBubble: View {
                 color: systemBubbleAccent,
                 isTrailing: false
             )
-            Text(message.content)
-                .font(systemBubbleFont)
-                .foregroundStyle(systemBubbleForeground)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            systemContentBody
             actionBar(alignment: .leading)
         }
         .padding(.horizontal, 10)
@@ -207,6 +184,55 @@ struct ReviewPanelChatBubble: View {
             return DesignSystem.Colors.info
         case .statusNote, .plain, .commandInvocation, .reviewRun:
             return .secondary
+        }
+    }
+
+    @ViewBuilder
+    private var assistantContentBody: some View {
+        let sections = ReviewPanelChatStructuredContent.sections(for: message)
+        if !sections.isEmpty {
+            ReviewPanelChatStructuredSectionsView(
+                sections: sections,
+                accent: accent
+            )
+        } else {
+            Text(message.content)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.primary.opacity(0.9))
+                .textSelection(.enabled)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Color(nsColor: .controlBackgroundColor).opacity(0.5),
+                    in: RoundedRectangle(
+                        cornerRadius: 10, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(
+                        cornerRadius: 10, style: .continuous
+                    )
+                    .strokeBorder(
+                        DesignSystem.Colors.border.opacity(0.2),
+                        lineWidth: 0.5
+                    )
+                )
+        }
+    }
+
+    @ViewBuilder
+    private var systemContentBody: some View {
+        let sections = ReviewPanelChatStructuredContent.sections(for: message)
+        if !sections.isEmpty {
+            ReviewPanelChatStructuredSectionsView(
+                sections: sections,
+                accent: systemBubbleAccent
+            )
+        } else {
+            Text(message.content)
+                .font(systemBubbleFont)
+                .foregroundStyle(systemBubbleForeground)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
