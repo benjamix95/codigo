@@ -144,6 +144,7 @@ enum ToolTraceVisibility {
         let type = normalizedType(rawType)
         if type == "policy_ack" { return false }
         if type == "todo_read" || type == "todo_write" { return false }
+        if payload["swarm_id"] != nil || payload["group_id"] != nil { return true }
         if hiddenDisplayTypes.contains(type) { return false }
         if [
             "tool_execution_error", "tool_validation_error", "tool_timeout",

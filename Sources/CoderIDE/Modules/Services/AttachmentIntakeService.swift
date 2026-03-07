@@ -32,7 +32,8 @@ enum AttachmentIntakeService {
     static let maxAttachmentSizeBytes: Int64 = 25 * 1024 * 1024
 
     static var attachmentsDirectory: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let dir = appSupport
             .appendingPathComponent("Codigo", isDirectory: true)
             .appendingPathComponent("Attachments", isDirectory: true)

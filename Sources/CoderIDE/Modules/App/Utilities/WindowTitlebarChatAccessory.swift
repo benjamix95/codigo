@@ -12,7 +12,7 @@ struct WindowTitlebarChatInfo: Equatable {
         self.title = trimmedTitle
 
         let trimmedProjectName = projectName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmedProjectName.isEmpty || projectPath?.isEmpty != false {
+        if trimmedProjectName.isEmpty || projectPath?.isEmpty ?? true {
             self.projectName = nil
             self.projectPath = nil
         } else {

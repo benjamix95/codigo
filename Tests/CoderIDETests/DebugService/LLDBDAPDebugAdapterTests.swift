@@ -72,7 +72,11 @@ final class LLDBDAPDebugAdapterTests: XCTestCase {
 
         let temporaryDirectory = FileManager.default.temporaryDirectory
         let targetURL = temporaryDirectory.appendingPathComponent("lldb-target-\"quoted\"\nline")
-        FileManager.default.createFile(atPath: targetURL.path, contents: Data(), attributes: nil)
+        FileManager.default.createFile(
+            atPath: targetURL.path,
+            contents: Data(),
+            attributes: [.posixPermissions: 0o755]
+        )
         defer { try? FileManager.default.removeItem(at: targetURL) }
 
         _ = await adapter.startSession(

@@ -107,6 +107,7 @@ extension MarkdownContentView {
         let fullRange = NSRange(location: 0, length: nsRenderedText.length)
         for match in regex.matches(in: renderedText, range: fullRange) {
             let fileRef = nsRenderedText.substring(with: match.range)
+            if fileRef.hasPrefix("/") || fileRef.contains("..") { continue }
             guard let stringRange = Range(match.range, in: renderedText) else { continue }
             guard let lower = AttributedString.Index(stringRange.lowerBound, within: attributed),
                   let upper = AttributedString.Index(stringRange.upperBound, within: attributed) else {
@@ -146,7 +147,7 @@ extension MarkdownContentView {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let prev = i > 0 ? lines[i - 1].trimmingCharacters(in: .whitespaces) : ""
             if trimmed.hasPrefix("#") && !prev.isEmpty {
-                if result.last?.trimmingCharacters(in: .whitespaces).isEmpty != true {
+                if !(result.last?.trimmingCharacters(in: .whitespaces).isEmpty ?? false) {
                     result.append("")
                 }
             }
@@ -155,12 +156,12 @@ extension MarkdownContentView {
             let currentIsList = trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ")
                 || numberedLineRegex.firstMatch(in: trimmed, options: [], range: NSRange(location: 0, length: (trimmed as NSString).length)) != nil
             if prevIsList && !currentIsList && !trimmed.isEmpty && !trimmed.hasPrefix("#") {
-                if result.last?.trimmingCharacters(in: .whitespaces).isEmpty != true {
+                if !(result.last?.trimmingCharacters(in: .whitespaces).isEmpty ?? false) {
                     result.append("")
                 }
             }
             if !prevIsList && currentIsList && !prev.isEmpty && !prev.hasPrefix("#") {
-                if result.last?.trimmingCharacters(in: .whitespaces).isEmpty != true {
+                if !(result.last?.trimmingCharacters(in: .whitespaces).isEmpty ?? false) {
                     result.append("")
                 }
             }

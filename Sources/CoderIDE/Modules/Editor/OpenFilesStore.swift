@@ -241,6 +241,9 @@ final class OpenFilesStore: ObservableObject {
 
         if result.count < maxFiles {
             for path in linkedPaths where !seen.contains(path) {
+                if fileContents[path] == nil, FileManager.default.fileExists(atPath: path) {
+                    fileContents[path] = try? String(contentsOfFile: path, encoding: .utf8)
+                }
                 guard let content = fileContents[path] else { continue }
                 result.append(OpenFile(path: path, content: String(content.prefix(maxCharsPerFile))))
                 seen.insert(path)

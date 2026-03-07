@@ -21,7 +21,10 @@ public actor DebugLogServer {
 
     public init(maxEntries: Int = 5000) {
         self.maxEntries = maxEntries
-        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        guard let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            self.logFileURL = FileManager.default.temporaryDirectory.appendingPathComponent("debug_log.jsonl")
+            return
+        }
         let debugDir = cacheDir.appendingPathComponent("com.codigo.debug", isDirectory: true)
         try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
         self.logFileURL = debugDir.appendingPathComponent("debug_log.jsonl")

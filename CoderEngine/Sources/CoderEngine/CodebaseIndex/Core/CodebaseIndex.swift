@@ -150,7 +150,8 @@ public actor CodebaseIndex {
         let hash = pathsString.utf8.reduce(UInt64(5381)) { ($0 &<< 5) &+ $0 &+ UInt64($1) }
         let hashHex = String(hash, radix: 16, uppercase: false)
 
-        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let cacheDir = (FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory)
             .appendingPathComponent("Codigo", isDirectory: true)
             .appendingPathComponent("index", isDirectory: true)
             .appendingPathComponent(hashHex, isDirectory: true)

@@ -4,7 +4,8 @@ import UniformTypeIdentifiers
 
 enum ImageAttachmentHelper {
     static var attachmentsDirectory: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = (FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory)
             .appendingPathComponent("CoderIDE")
             .appendingPathComponent("attachments")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
