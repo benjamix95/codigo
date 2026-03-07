@@ -2,7 +2,7 @@ import XCTest
 @testable import CoderEngine
 
 extension UnifiedToolRuntimeTests {
-    func testReadRangeDoesNotConsumeRoundBudget() async throws {
+    func testReadRangeConsumesRoundBudget() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -42,7 +42,7 @@ extension UnifiedToolRuntimeTests {
         let secondEvents = await runtime.execute(secondCall, context: context)
 
         XCTAssertEqual(extractLastPayload(firstEvents)?["status"], "completed")
-        XCTAssertEqual(extractLastPayload(secondEvents)?["status"], "completed")
-        XCTAssertNotEqual(extractLastPayload(secondEvents)?["error_code"], "budget_exceeded")
+        XCTAssertEqual(extractLastPayload(secondEvents)?["status"], "failed")
+        XCTAssertEqual(extractLastPayload(secondEvents)?["error_code"], "budget_exceeded")
     }
 }

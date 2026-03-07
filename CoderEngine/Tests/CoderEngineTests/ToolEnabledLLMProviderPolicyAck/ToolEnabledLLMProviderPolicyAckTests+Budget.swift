@@ -3,7 +3,7 @@ import XCTest
 @testable import CoderEngine
 
 extension ToolEnabledLLMProviderPolicyAckTests {
-    func testReadSuggestionsCanExceedNominalRoundBudgetWithoutBudgetError() async throws {
+    func testReadSuggestionsRespectRoundBudgetAndEmitBudgetError() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("tool-budget-read-exempt-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
@@ -51,7 +51,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
 
-        XCTAssertEqual(budgetExceededEvents, 0)
-        XCTAssertEqual(completedReadEvents, files.count)
+        XCTAssertEqual(budgetExceededEvents, 1)
+        XCTAssertEqual(completedReadEvents, 1)
     }
 }
