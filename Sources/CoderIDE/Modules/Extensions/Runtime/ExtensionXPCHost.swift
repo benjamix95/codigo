@@ -95,30 +95,61 @@ actor ExtensionXPCHost {
             throw XPCError.serializationFailed(error.localizedDescription)
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: XPCError.connectionFailed(error.localizedDescription))
-            } as? ExtensionXPCPluginProtocol
+        let timeoutNanoseconds = UInt64(max(timeout, 0) * 1_000_000_000)
 
-            guard let proxy else {
-                continuation.resume(throwing: XPCError.connectionFailed("Proxy non disponibile"))
-                return
+        return try await withThrowingTaskGroup(of: ExtensionToolResponse.self) { group in
+            group.addTask {
+                try await withCheckedThrowingContinuation { continuation in
+                    let lock = NSLock()
+                    var didResume = false
+
+                    func resume(_ result: Result<ExtensionToolResponse, Error>) {
+                        lock.lock()
+                        defer { lock.unlock() }
+
+                        guard !didResume else { return }
+                        didResume = true
+                        continuation.resume(with: result)
+                    }
+
+                    let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+                        resume(.failure(XPCError.connectionFailed(error.localizedDescription)))
+                    } as? ExtensionXPCPluginProtocol
+
+                    guard let proxy else {
+                        resume(.failure(XPCError.connectionFailed("Proxy non disponibile")))
+                        return
+                    }
+
+                    proxy.executeTool(name: tool, payloadData: payloadData) { [decoder] resultData, error in
+                        if let error {
+                            resume(.failure(error))
+                            return
+                        }
+
+                        guard let data = resultData,
+                              let result = try? decoder.decode(XPCToolResult.self, from: data) else {
+                            resume(.failure(XPCError.invalidResponse))
+                            return
+                        }
+
+                        resume(.success(result.toToolResponse()))
+                    }
+                }
             }
 
-            proxy.executeTool(name: tool, payloadData: payloadData) { [decoder] resultData, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                guard let data = resultData,
-                      let result = try? decoder.decode(XPCToolResult.self, from: data) else {
-                    continuation.resume(throwing: XPCError.invalidResponse)
-                    return
-                }
-
-                continuation.resume(returning: result.toToolResponse())
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw XPCError.timeout(pluginId: pluginId, seconds: timeout)
             }
+
+            defer { group.cancelAll() }
+
+            guard let firstResult = try await group.next() else {
+                throw XPCError.invalidResponse
+            }
+
+            return firstResult
         }
     }
 
