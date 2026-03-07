@@ -93,7 +93,8 @@ enum MergeConflictParser {
                 case .manual(let text):
                     result.append(text)
                 }
-                i = hunk.endLine
+                // `endLine` è 1-based: allineiamo all'indice 0-based prima dell'incremento finale.
+                i = hunk.endLine - 1
             } else {
                 result.append(lines[i])
             }
