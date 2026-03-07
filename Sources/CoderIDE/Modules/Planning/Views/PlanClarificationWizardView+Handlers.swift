@@ -295,7 +295,7 @@ extension PlanClarificationWizardView {
             let selectedOptions = question.options.filter { selectedIds.contains($0.id) }
             guard !selectedOptions.isEmpty else { return nil }
 
-            let primaryOption = selectedOptions.first!
+            guard let primaryOption = selectedOptions.first else { return nil }
             let customText = customTextByQuestionId[question.id]?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let includesOther = selectedOptions.contains(where: PlanOptionsParser.isOtherLikeClarificationOption)

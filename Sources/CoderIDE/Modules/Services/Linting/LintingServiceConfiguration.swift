@@ -30,7 +30,7 @@ struct LintingServiceConfiguration: Sendable {
             lintingEnabled: enabled,
             lintOnSave: onSave,
             lintOnType: onType,
-            swiftLintPath: (swiftLintPath?.isEmpty == false) ? swiftLintPath! : "swiftlint",
+            swiftLintPath: (swiftLintPath?.isEmpty == false ? swiftLintPath : nil) ?? "swiftlint",
             autoFixEnabled: autoFix
         )
     }

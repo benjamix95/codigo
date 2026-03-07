@@ -72,7 +72,7 @@ extension UsageFooterView {
         if trimmed.isEmpty { return "task" }
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
         let mapped = trimmed.map { char -> Character in
-            let scalar = char.unicodeScalars.first!
+            guard let scalar = char.unicodeScalars.first else { return "-" }
             if allowed.contains(scalar) {
                 return char
             }

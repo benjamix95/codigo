@@ -38,7 +38,7 @@ struct LanguageServiceConfiguration: Sendable {
         return LanguageServiceConfiguration(
             languageServiceEnabled: languageEnabled,
             sourceKitLSPEnabled: sourcekitEnabled,
-            sourceKitLSPPath: (sourcekitPath?.isEmpty == false) ? sourcekitPath! : "sourcekit-lsp"
+            sourceKitLSPPath: (sourcekitPath?.isEmpty == false ? sourcekitPath : nil) ?? "sourcekit-lsp"
         )
     }
 }

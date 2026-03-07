@@ -30,8 +30,8 @@ struct FormattingServiceConfiguration: Sendable {
         return FormattingServiceConfiguration(
             formattingEnabled: enabled,
             formatOnSave: onSave,
-            swiftFormatPath: (swiftFormatPath?.isEmpty == false) ? swiftFormatPath! : "swift-format",
-            prettierPath: (prettierPath?.isEmpty == false) ? prettierPath! : "prettier",
+            swiftFormatPath: (swiftFormatPath?.isEmpty == false ? swiftFormatPath : nil) ?? "swift-format",
+            prettierPath: (prettierPath?.isEmpty == false ? prettierPath : nil) ?? "prettier",
             defaultFormatter: FormatterType(rawValue: defaultFormatterRaw) ?? .swiftFormat
         )
     }
