@@ -47,7 +47,7 @@ extension ChatPanelView {
         conversationId: UUID?
     ) -> Bool {
         guard agentsHardBlockEnabled else { return false }
-        if isSwarmPolicyAckExemptProvider(providerId) || hasSwarmTraceMetadata(payload) {
+        if isSwarmPolicyAckExemptProvider(providerId) {
             return false
         }
         guard ToolTraceVisibility.requiresPolicyAck(type: type, payload: payload) else { return false }
