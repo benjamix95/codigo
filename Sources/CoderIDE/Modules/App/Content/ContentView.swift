@@ -54,28 +54,8 @@ struct ContentView: View {
 
     var body: some View {
         configuredContent
-            .navigationTitle("")
-            .toolbar(removing: .sidebarToggle)
-            .toolbar(.hidden, for: .windowToolbar)
-            .toolbar(.hidden, for: .automatic)
             .onReceive(NotificationCenter.default.publisher(for: .windowSidebarChromeToggleRequested)) { _ in
                 handleWindowSidebarChromeToggle()
-            }
-            .onChange(of: columnVisibility) { _, _ in
-                DispatchQueue.main.async {
-                    for window in NSApplication.shared.windows where window.canBecomeMain {
-                        AppDelegate.applyMainWindowStyle(window)
-                    }
-                }
-                // SwiftUI may re-add the native sidebar toggle after columnVisibility changes;
-                // strip again after layout settles — extended delays for IDE mode transitions.
-                for delay in [0.1, 0.3, 0.6, 1.0, 1.5] {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                        for window in NSApplication.shared.windows where window.canBecomeMain {
-                            AppDelegate.applyMainWindowStyle(window)
-                        }
-                    }
-                }
             }
     }
 }

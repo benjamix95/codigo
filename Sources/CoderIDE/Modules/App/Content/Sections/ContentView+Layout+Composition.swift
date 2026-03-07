@@ -38,8 +38,6 @@ extension ContentView {
             }
             .navigationSplitViewStyle(.prominentDetail)
             .toolbar(removing: .sidebarToggle)
-            .toolbar(.hidden, for: .windowToolbar)
-            .toolbar(.hidden, for: .automatic)
         }
     }
 

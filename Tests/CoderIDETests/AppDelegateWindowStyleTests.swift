@@ -18,10 +18,9 @@ final class AppDelegateWindowStyleTests: XCTestCase {
         AppDelegate.applyMainWindowStyle(window)
 
         XCTAssertEqual(window.title, "")
-        XCTAssertEqual(window.subtitle, "")
         XCTAssertEqual(window.titleVisibility, .hidden)
-        XCTAssertFalse(window.titlebarAppearsTransparent)
-        XCTAssertFalse(window.styleMask.contains(.fullSizeContentView))
+        XCTAssertTrue(window.titlebarAppearsTransparent)
+        XCTAssertTrue(window.styleMask.contains(.fullSizeContentView))
         XCTAssertNotNil(window.toolbar)
         XCTAssertFalse(window.toolbar?.showsBaselineSeparator ?? true)
     }

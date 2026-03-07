@@ -160,11 +160,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static func applyMainWindowStyle(_ window: NSWindow) {
         guard window.canBecomeMain else { return }
         window.title = ""
-        window.subtitle = ""
-        window.representedURL = nil
         window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = false
-        window.styleMask.remove(.fullSizeContentView)
+        window.titlebarAppearsTransparent = true
+        window.styleMask.insert(.fullSizeContentView)
         window.isMovableByWindowBackground = false
         window.toolbar?.showsBaselineSeparator = false
         WindowSidebarToggleController.installIfNeeded(on: window)
