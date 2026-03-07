@@ -111,4 +111,41 @@ extension EventNormalizerPlanLifecycleTests {
             return false
         })
     }
+
+
+    func testPlanRequestUserInputRejectsExcessivelyNestedQuestionStrings() {
+        func nestedEncodedQuestions(depth: Int) -> String {
+            var current = #"[{"id":1,"prompt":"Q","options":["A","B"]}]"#
+            for _ in 0..<depth {
+                let escaped = current
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "\"", with: "\\\"")
+                current = #"{"questions":""# + escaped + #""}"#
+            }
+            return current
+        }
+
+        let events = EventNormalizer.normalize(
+            type: "plan_request_user_input",
+            payload: [
+                "questions": nestedEncodedQuestions(depth: 10),
+            ]
+        )
+
+        XCTAssertFalse(events.contains {
+            if case .planRequestUserInput = $0 {
+                return true
+            }
+            return false
+        })
+
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "plan_request_user_input"
+                    && activity.detail == "Invalid or missing plan payload"
+            }
+            return false
+        })
+    }
+
 }
