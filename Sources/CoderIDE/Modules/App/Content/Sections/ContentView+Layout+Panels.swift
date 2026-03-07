@@ -250,8 +250,5 @@ extension ContentView {
             style: ChatBackgroundStyle.from(raw: chatBackgroundStyle),
             cornerRadius: 14
         )
-        .onAppear { publishTitlebarChatInfo() }
-        .onDisappear { WindowTitlebarChatAccessoryBridge.post(info: nil) }
-        .onChange(of: titlebarChatInfoFingerprint) { _, _ in publishTitlebarChatInfo() }
     }
 }
