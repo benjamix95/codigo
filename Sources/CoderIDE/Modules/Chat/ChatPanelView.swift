@@ -232,6 +232,7 @@ struct ChatPanelView: View {
      static let attachmentPastedNotification = Notification.Name("CoderIDE.AttachmentPasted")
     static let planBuildShortcutNotification = Notification.Name("CoderIDE.PlanBuildShortcutPressed")
     static let debugPanelToggleNotification = Notification.Name("CoderIDE.DebugPanelToggle")
+    static let threadDeletionRequestedNotification = Notification.Name("CoderIDE.ThreadDeletionRequested")
      static let threadSearchAskAINotification = Notification.Name(
         "CoderIDE.ThreadSearchAskAI")
      static let markdownExportContentType = UTType(filenameExtension: "md") ?? .plainText

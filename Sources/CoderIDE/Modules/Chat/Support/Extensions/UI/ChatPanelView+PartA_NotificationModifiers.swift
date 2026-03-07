@@ -59,5 +59,14 @@ extension ChatPanelView {
                 inputText = prompt
                 sendMessage()
             }
+            .onReceive(NotificationCenter.default.publisher(for: Self.threadDeletionRequestedNotification)) {
+                notification in
+                let rawConversationId =
+                    notification.userInfo?["conversationId"] as? String
+                    ?? notification.userInfo?["conversation_id"] as? String
+                guard let rawConversationId,
+                      let conversationId = UUID(uuidString: rawConversationId) else { return }
+                interruptTask(for: conversationId)
+            }
     }
 }

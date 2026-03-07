@@ -4,6 +4,14 @@ import AppKit
 import CoderEngine
 
 extension SidebarView {
+    func requestConversationDeletionInterrupt(_ conversationId: UUID) {
+        NotificationCenter.default.post(
+            name: ChatPanelView.threadDeletionRequestedNotification,
+            object: nil,
+            userInfo: ["conversationId": conversationId.uuidString.lowercased()]
+        )
+    }
+
     func askAIAboutThreadSearch(query: String, hits: [ThreadSearchHit]) {
         let prompt = chatStore.buildThreadSearchAIPrompt(query: query, hits: hits)
         NotificationCenter.default.post(
@@ -14,6 +22,7 @@ extension SidebarView {
     }
 
     func cleanupConversationData(for conversation: Conversation) {
+        requestConversationDeletionInterrupt(conversation.id)
         _ = pipelineIntegrationService.discardConversationRuntime(for: conversation.id)
         let roots = Set(conversation.checkpoints.flatMap { $0.gitStates.map(\.gitRootPath) })
         for root in roots {

@@ -10,25 +10,34 @@ private struct SendableUserDefaults: @unchecked Sendable {
 
 extension ChatStore {
 func loadConversations() {
-    guard let data = userDefaults.data(forKey: conversationsStorageKey) else { return }
+    guard let data = userDefaults.data(forKey: conversationsStorageKey) else {
+        isAsyncConversationLoadPending = false
+        return
+    }
 
     if data.count < Self.asyncLoadThreshold {
         // Small dataset – decode synchronously (fast enough, avoids empty-flash).
         if let decoded = try? JSONDecoder().decode([Conversation].self, from: data) {
             conversations = decoded
         }
+        isAsyncConversationLoadPending = false
         return
     }
 
     // Large dataset – decode on a background queue to avoid blocking the main thread.
+    isAsyncConversationLoadPending = true
     Task.detached(priority: .userInitiated) {
-        guard let decoded = try? JSONDecoder().decode([Conversation].self, from: data) else { return }
+        let decoded = try? JSONDecoder().decode([Conversation].self, from: data)
         await MainActor.run {
             // If a save happened while we were decoding, don't overwrite newer data.
+            defer {
+                self.isAsyncConversationLoadPending = false
+                self.ensureDefaultConversationIfNeeded()
+            }
             guard !self.hasSavedSinceLoad else { return }
-            if self.conversations.isEmpty {
+            if let decoded, self.conversations.isEmpty {
                 self.conversations = decoded
-            } else if !decoded.isEmpty {
+            } else if let decoded, !decoded.isEmpty {
                 // Merge: keep any in-memory conversations (even if empty)
                 // and prepend disk-only conversations that aren't already loaded.
                 let existingIds = Set(self.conversations.map(\.id))

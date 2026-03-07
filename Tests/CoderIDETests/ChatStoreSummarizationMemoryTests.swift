@@ -5,7 +5,18 @@ import CoderEngine
 private struct SummarizationMockProvider: LLMProvider {
     let id: String = "mock-summary"
     let displayName: String = "Mock Summary"
-    let response: String
+    let events: [StreamEvent]
+
+    init(response: String) {
+        self.events = [
+            .textDelta(response),
+            .completed,
+        ]
+    }
+
+    init(events: [StreamEvent]) {
+        self.events = events
+    }
 
     func isAuthenticated() -> Bool { true }
 
@@ -15,8 +26,9 @@ private struct SummarizationMockProvider: LLMProvider {
         imageURLs: [URL]?
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         AsyncThrowingStream { continuation in
-            continuation.yield(.textDelta(response))
-            continuation.yield(.completed)
+            for event in events {
+                continuation.yield(event)
+            }
             continuation.finish()
         }
     }
@@ -82,5 +94,71 @@ final class ChatStoreSummarizationMemoryTests: XCTestCase {
         XCTAssertNotNil(updated.contextMemoryGeneratedAt)
         XCTAssertTrue(updated.contextMemorySummaryMarkdown?.contains("## Objectives") == true)
         XCTAssertTrue(updated.contextMemorySummaryMarkdown?.contains("Use memory summary.") == true)
+    }
+
+    func testSummarizeConversationIgnoresProviderErrorTextInStoredMemory() async throws {
+        let store = makeStore()
+        guard let conversationId = store.conversations.first?.id else {
+            return XCTFail("Missing initial conversation")
+        }
+
+        for idx in 0..<6 {
+            let role: ChatMessage.Role = idx.isMultiple(of: 2) ? .user : .assistant
+            store.addMessage(
+                ChatMessage(role: role, content: "message \(idx)"),
+                to: conversationId
+            )
+        }
+
+        let provider = SummarizationMockProvider(events: [
+            .textDelta("## Objectives\nStable state"),
+            .error("temporary summarizer failure"),
+            .completed,
+        ])
+        let ctx = WorkspaceContext(workspacePath: URL(fileURLWithPath: "/tmp"))
+
+        let didSummarize = try await store.summarizeConversation(
+            id: conversationId,
+            keepLast: 3,
+            provider: provider,
+            context: ctx
+        )
+
+        XCTAssertTrue(didSummarize)
+        let storedSummary = store.conversation(for: conversationId)?.contextMemorySummaryMarkdown ?? ""
+        XCTAssertTrue(storedSummary.contains("## Objectives"))
+        XCTAssertFalse(storedSummary.contains("[Error:"))
+        XCTAssertFalse(storedSummary.contains("temporary summarizer failure"))
+    }
+
+    func testSummarizeConversationReturnsFalseWhenProviderOnlyEmitsError() async throws {
+        let store = makeStore()
+        guard let conversationId = store.conversations.first?.id else {
+            return XCTFail("Missing initial conversation")
+        }
+
+        for idx in 0..<6 {
+            let role: ChatMessage.Role = idx.isMultiple(of: 2) ? .user : .assistant
+            store.addMessage(
+                ChatMessage(role: role, content: "message \(idx)"),
+                to: conversationId
+            )
+        }
+
+        let provider = SummarizationMockProvider(events: [
+            .error("temporary summarizer failure"),
+            .completed,
+        ])
+        let ctx = WorkspaceContext(workspacePath: URL(fileURLWithPath: "/tmp"))
+
+        let didSummarize = try await store.summarizeConversation(
+            id: conversationId,
+            keepLast: 3,
+            provider: provider,
+            context: ctx
+        )
+
+        XCTAssertFalse(didSummarize)
+        XCTAssertNil(store.conversation(for: conversationId)?.contextMemorySummaryMarkdown)
     }
 }

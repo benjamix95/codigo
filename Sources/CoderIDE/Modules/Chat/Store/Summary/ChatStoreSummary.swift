@@ -80,12 +80,16 @@ func summarizeConversation(
     )
     let stream = try await provider.send(prompt: prompt, context: ctx, imageURLs: nil)
     var summary = ""
+    var sawProviderError = false
     for try await ev in stream {
         if case .textDelta(let d) = ev { summary += d }
-        if case .error(let e) = ev { summary += "\n[Error: \(e)]" }
+        if case .error = ev { sawProviderError = true }
     }
-    guard !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
     let cleanedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleanedSummary.isEmpty else { return false }
+    if sawProviderError, cleanedSummary.isEmpty {
+        return false
+    }
     conversations[idx].contextMemorySummaryMarkdown = cleanedSummary
     conversations[idx].contextMemoryGeneratedAt = .now
     conversations[idx].contextMemorySourceMessageCount = toSummarize.count
