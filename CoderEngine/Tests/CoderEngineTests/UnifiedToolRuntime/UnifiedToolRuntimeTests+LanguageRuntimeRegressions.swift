@@ -126,6 +126,76 @@ extension UnifiedToolRuntimeTests {
         XCTAssertTrue(updated.contains("AccountService"))
         XCTAssertFalse(updated.contains("UserService"))
     }
+
+    func testRenameFallbackIgnoresOutOfWorkspaceAbsolutePaths() async throws {
+        let workspace = try makeTmpWorkspace()
+        let external = try makeTmpWorkspace()
+        defer {
+            try? FileManager.default.removeItem(at: workspace)
+            try? FileManager.default.removeItem(at: external)
+        }
+
+        let workspaceFile = workspace.appendingPathComponent("Workspace.swift")
+        try "struct UserService {}\n".write(to: workspaceFile, atomically: true, encoding: .utf8)
+
+        let outsideFile = external.appendingPathComponent("Outside.swift")
+        try "struct UserService {}\n".write(to: outsideFile, atomically: true, encoding: .utf8)
+
+        let index = CodebaseIndex()
+        _ = await index.indexWorkspace(paths: [workspace])
+
+        let languageService = TrackingRuntimeLanguageService(
+            goToDefinitionResults: [],
+            findReferencesResults: [
+                RuntimeLanguageLocation(
+                    filePath: workspaceFile.path,
+                    line: 1,
+                    column: 1,
+                    symbolName: "UserService",
+                    source: .sourceKitLSP
+                ),
+                RuntimeLanguageLocation(
+                    filePath: outsideFile.path,
+                    line: 1,
+                    column: 1,
+                    symbolName: "UserService",
+                    source: .sourceKitLSP
+                ),
+            ],
+            renamePlan: RuntimeLanguageRenamePlan(
+                oldName: "UserService",
+                newName: "AccountService",
+                references: [],
+                source: .sourceKitLSP
+            )
+        )
+
+        let runtime = UnifiedToolRuntime(
+            index: index,
+            workspacePaths: [workspace],
+            languageService: languageService
+        )
+        let (call, ctx) = makeCall(
+            name: "rename_symbol",
+            args: [
+                "query": "UserService",
+                "new_name": "AccountService",
+            ],
+            workspace: workspace
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let payload = extractLastPayload(events)
+
+        XCTAssertEqual(payload?["status"], "completed")
+
+        let updatedWorkspace = try String(contentsOf: workspaceFile, encoding: .utf8)
+        XCTAssertTrue(updatedWorkspace.contains("AccountService"))
+        XCTAssertFalse(updatedWorkspace.contains("UserService"))
+
+        let updatedOutside = try String(contentsOf: outsideFile, encoding: .utf8)
+        XCTAssertTrue(updatedOutside.contains("UserService"))
+        XCTAssertFalse(updatedOutside.contains("AccountService"))
+    }
 }
 
 private actor TrackingRuntimeLanguageService: RuntimeLanguageService {
