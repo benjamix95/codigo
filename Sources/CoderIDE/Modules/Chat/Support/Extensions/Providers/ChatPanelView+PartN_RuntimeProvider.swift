@@ -11,15 +11,45 @@ func shouldUseCodeReviewRuntimeProvider(
 }
 
 extension ChatPanelView {
+    private func resolveReadOnlyPlanRuntimeProvider() -> (any LLMProvider)? {
+        var config = providerFactoryConfig()
+        // Planning must stay strictly read-only, even if the user enabled broader defaults.
+        config.codexSessionFullAccess = false
+        config.codexSandbox = "workspace-read"
+        config.claudeAllowedTools = ["Read", "Glob", "Grep"]
+
+        let resolvedBackend = ProviderFactory.resolveSwarmBackendId(
+            configuredBackendId: config.planModeBackend,
+            agentProviderId: providerRegistry.selectedProviderId
+        )
+
+        guard let provider = ProviderFactory.resolveSwarmBackendProvider(
+            backendId: resolvedBackend,
+            config: config,
+            executionController: executionController,
+            toolPolicyOverride: ProviderFactory.toolRuntimeReadOnlyPolicy(from: config),
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: runtimeWorkspacePaths
+        ) else {
+            appendTechnicalErrorMessage(
+                "[Plan Mode] Failed to create read-only plan provider for backend '\(resolvedBackend)'. Check plan backend settings and authentication.",
+                in: conversationId
+            )
+            return nil
+        }
+
+        return provider
+    }
+
     internal func resolveRuntimeProvider(
         selectedProvider: any LLMProvider,
         shouldRunPlanInline: Bool,
         forcePlanInline: Bool,
         preferCodeReviewRuntimeProvider: Bool? = nil
     ) -> (any LLMProvider)? {
-        // Plan/Swarm use real selected providers, without virtual providers.
+        // Plan mode must run with a dedicated read-only provider.
         if forcePlanInline || shouldRunPlanInline || coderMode == .plan {
-            return selectedProvider
+            return resolveReadOnlyPlanRuntimeProvider()
         }
         // Code Review Multi-Swarm: build dedicated multi-swarm provider
         if shouldUseCodeReviewRuntimeProvider(
