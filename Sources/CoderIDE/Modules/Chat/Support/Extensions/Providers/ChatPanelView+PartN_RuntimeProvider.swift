@@ -107,7 +107,9 @@ extension ChatPanelView {
             let analysisBackend = initialReviewSessionConfig.analysisBackend
             let executionBackend = initialReviewSessionConfig.executionBackend
             let msg = "[Code Review] Failed to create multi-swarm provider (analysis: \(analysisBackend), execution: \(executionBackend)). Check your API keys in Settings."
+            #if DEBUG
             print("[CodeReview] WARNING: \(msg)")
+            #endif
             pendingCodeReviewSessionConfigOverride = nil
             appendTechnicalErrorMessage(msg, in: conversationId)
             return nil

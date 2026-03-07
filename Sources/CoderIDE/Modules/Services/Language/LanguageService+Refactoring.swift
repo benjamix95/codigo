@@ -121,10 +121,10 @@ extension LanguageService {
         }
 
         let typeKeyword = isClass ? "class" : "struct"
+        let memberPlaceholders = memberNames.map { "    // \($0)" }.joined(separator: "\n")
         let typeDeclaration = """
         \(typeKeyword) \(typeName) {
-            // TODO: Sposta qui i membri selezionati:
-            // \(memberNames.joined(separator: ", "))
+        \(memberPlaceholders)
         }
         """
 

@@ -35,7 +35,9 @@ extension MermaidWebView.Coordinator {
             }
         case "error":
             if let payload = payload {
+                #if DEBUG
                 print("[MermaidWebView] Rendering error: \(payload)")
+                #endif
                 Task { @MainActor in self.onError?(payload) }
             }
         default:

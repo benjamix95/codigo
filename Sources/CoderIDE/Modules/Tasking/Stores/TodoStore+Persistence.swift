@@ -10,7 +10,9 @@ extension TodoStore {
                 saveTodos()
             }
         } catch {
+            #if DEBUG
             print("[TodoStore] ⚠️ Failed to decode todos: \(error.localizedDescription)")
+            #endif
         }
     }
 
@@ -20,7 +22,9 @@ extension TodoStore {
             userDefaults.set(data, forKey: storageKey)
             syncToSharedState()
         } catch {
+            #if DEBUG
             print("[TodoStore] ⚠️ Failed to encode todos: \(error.localizedDescription)")
+            #endif
         }
     }
 
