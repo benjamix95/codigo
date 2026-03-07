@@ -2,6 +2,23 @@ import XCTest
 @testable import CoderIDE
 
 final class LLDBDAPDebugAdapterTests: XCTestCase {
+    func testEnhancedBreakpointCommandEscapesLogMessageForPythonAndLLDB() {
+        let modifier = BreakpointModifier(logMessage: "x'); import os\nprint(\"boom\")")
+
+        let commands = LLDBDAPDebugAdapterSupport.makeEnhancedBreakpointCommand(
+            filePath: "Sources/Main.swift",
+            line: 12,
+            condition: nil,
+            modifier: modifier
+        )
+
+        XCTAssertEqual(commands.count, 2)
+        XCTAssertEqual(
+            commands[1],
+            "breakpoint command add -o \"script print('x\\\'); import os\\nprint(\\\"boom\\\")')\""
+        )
+    }
+
     func testStartSessionConfiguraRunArgsELaunchNelBatchLLDB() async {
         let runner = LLDBBatchRunnerSpy(
             queuedResults: [
