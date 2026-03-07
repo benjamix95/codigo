@@ -91,7 +91,7 @@ extension CodeReviewMultiSwarmProvider {
         return true
     }
 
-    static func normalizedAgainstRefInput(_ ref: String) -> String {
+    public static func normalizedAgainstRefInput(_ ref: String) -> String {
         let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return trimmed }
         guard !trimmed.contains("..") else { return trimmed }

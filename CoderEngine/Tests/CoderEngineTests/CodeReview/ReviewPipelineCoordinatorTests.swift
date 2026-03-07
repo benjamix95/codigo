@@ -60,6 +60,29 @@ final class ReviewPipelineCoordinatorTests: XCTestCase {
         XCTAssertNotNil(snapshot.startedAt)
         XCTAssertNotNil(snapshot.completedAt)
     }
+
+    func testNoFilesAgainstRefMessageExplainsSingleCommitReinterpretation() {
+        let message = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "1e72c30",
+            normalizedInput: "1e72c30^..1e72c30",
+            currentHeadRevision: nil,
+            error: nil
+        )
+
+        XCTAssertTrue(message.contains("single-commit range"))
+        XCTAssertTrue(message.contains("1e72c30^..1e72c30"))
+    }
+
+    func testNoFilesAgainstRefMessageMentionsHeadWhenCommitMatchesHead() {
+        let message = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "1e72c30",
+            normalizedInput: "1e72c30^..1e72c30",
+            currentHeadRevision: "1e72c3016738d6e34ad2b79e0c4a1676ded3e234",
+            error: nil
+        )
+
+        XCTAssertTrue(message.contains("current `HEAD` commit"))
+    }
 }
 
 private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {

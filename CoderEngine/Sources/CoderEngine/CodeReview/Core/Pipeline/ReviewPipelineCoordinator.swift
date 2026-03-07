@@ -310,7 +310,14 @@ public actor ReviewPipelineCoordinator {
                 excludedPaths: context.excludedPaths
             )
             if files.isEmpty {
-                continuation.yield(.textDelta("\(error ?? "No changed files") against `\(againstRef)`.\n"))
+                let currentHead = currentHEADRevision(workspacePath: workspacePath)
+                let message = Self.noFilesAgainstRefMessage(
+                    againstRef: againstRef,
+                    normalizedInput: CodeReviewMultiSwarmProvider.normalizedAgainstRefInput(againstRef),
+                    currentHeadRevision: currentHead,
+                    error: error
+                )
+                continuation.yield(.textDelta(message + "\n"))
             }
             return files
         }
@@ -326,6 +333,55 @@ public actor ReviewPipelineCoordinator {
             continuation.yield(.textDelta(message))
         }
         return files
+    }
+
+    static func noFilesAgainstRefMessage(
+        againstRef: String,
+        normalizedInput: String,
+        currentHeadRevision: String?,
+        error: String?
+    ) -> String {
+        if let error, !error.isEmpty {
+            return "\(error) against `\(againstRef)`."
+        }
+
+        let trimmedRef = againstRef.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isSingleCommitRange = normalizedInput != trimmedRef
+        let matchesHeadCommit = currentHeadRevision.map {
+            $0 == trimmedRef || $0.hasPrefix(trimmedRef) || trimmedRef.hasPrefix($0)
+        } ?? false
+
+        if isSingleCommitRange && matchesHeadCommit {
+            return "No changed source files for `\(againstRef)`. The ref resolves to the current `HEAD` commit, so the review was reinterpreted as the single-commit range `\(normalizedInput)`."
+        }
+        if isSingleCommitRange {
+            return "No changed source files for `\(againstRef)`. The review was reinterpreted as the single-commit range `\(normalizedInput)`."
+        }
+        return "No changed source files against `\(againstRef)`."
+    }
+
+    private func currentHEADRevision(workspacePath: URL) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["rev-parse", "HEAD"]
+        process.currentDirectoryURL = workspacePath
+
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return output?.isEmpty == false ? output : nil
     }
 
 }
