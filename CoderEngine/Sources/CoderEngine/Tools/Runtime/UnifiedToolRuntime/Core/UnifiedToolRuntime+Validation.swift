@@ -148,9 +148,8 @@ extension UnifiedToolRuntime {
             }
             for ws in workspacePaths {
                 let wsURL = URL(fileURLWithPath: ws).standardizedFileURL
-                let wsPath = wsURL.path.hasSuffix("/") ? wsURL.path : wsURL.path + "/"
-                if resolvedURL.path == wsURL.path || resolvedURL.path.hasPrefix(wsPath) {
-                    return resolvedURL.path
+                if isPathWithinWorkspace(resolvedURL, workspaceURL: wsURL) {
+                    return resolvedURL.resolvingSymlinksInPath().standardizedFileURL.path
                 }
             }
             return nil
@@ -170,9 +169,8 @@ extension UnifiedToolRuntime {
                 if sandboxMode == "danger-full-access" {
                     return resolvedURL.path
                 }
-                let wsPath = wsURL.path.hasSuffix("/") ? wsURL.path : wsURL.path + "/"
-                if resolvedURL.path == wsURL.path || resolvedURL.path.hasPrefix(wsPath) {
-                    return resolvedURL.path
+                if isPathWithinWorkspace(resolvedURL, workspaceURL: wsURL) {
+                    return resolvedURL.resolvingSymlinksInPath().standardizedFileURL.path
                 }
             }
         }
@@ -182,11 +180,20 @@ extension UnifiedToolRuntime {
         if sandboxMode == "danger-full-access" {
             return resolvedURL.path
         }
-        let primaryPath = primaryURL.path.hasSuffix("/") ? primaryURL.path : primaryURL.path + "/"
-        if resolvedURL.path == primaryURL.path || resolvedURL.path.hasPrefix(primaryPath) {
-            return resolvedURL.path
+        if isPathWithinWorkspace(resolvedURL, workspaceURL: primaryURL) {
+            return resolvedURL.resolvingSymlinksInPath().standardizedFileURL.path
         }
         return nil
+    }
+
+    private func isPathWithinWorkspace(_ candidateURL: URL, workspaceURL: URL) -> Bool {
+        let canonicalWorkspace = workspaceURL.resolvingSymlinksInPath().standardizedFileURL
+        let canonicalCandidate = candidateURL.resolvingSymlinksInPath().standardizedFileURL
+
+        let workspacePath = canonicalWorkspace.path.hasSuffix("/")
+            ? canonicalWorkspace.path
+            : canonicalWorkspace.path + "/"
+        return canonicalCandidate.path == canonicalWorkspace.path || canonicalCandidate.path.hasPrefix(workspacePath)
     }
 
     func validateShell(command: String, policy: ToolRuntimePolicy) throws {

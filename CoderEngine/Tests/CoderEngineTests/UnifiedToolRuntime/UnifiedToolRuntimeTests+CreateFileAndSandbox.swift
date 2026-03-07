@@ -110,4 +110,28 @@ extension UnifiedToolRuntimeTests {
         XCTAssertEqual(completed?["error_code"], "sandbox_violation")
     }
 
+    func testSandboxBlocksReadViaSymlinkEscape() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let outsideDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("outside-dir-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: outsideDir) }
+
+        let outsideFile = outsideDir.appendingPathComponent("secret.txt")
+        try "secret".write(to: outsideFile, atomically: true, encoding: .utf8)
+
+        let symlinkPath = tmp.appendingPathComponent("escape")
+        try FileManager.default.createSymbolicLink(at: symlinkPath, withDestinationURL: outsideDir)
+
+        let (call, ctx) = makeCall(name: "read", args: ["path": "escape/secret.txt"], workspace: tmp)
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "sandbox_violation")
+    }
+
 }
