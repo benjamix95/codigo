@@ -173,7 +173,6 @@ extension ToolEnabledLLMProvider {
                 let effectiveName = resolvedSubagent?.toolName ?? name
 
                 if enforceSubagentFirstRound,
-                   isFirstRound,
                    !localAcceptedSubagentInFirstRound,
                    resolvedSubagent == nil,
                    !legacyInvokeSwarm,
@@ -204,7 +203,7 @@ extension ToolEnabledLLMProvider {
                 toolCallCountByKey[dedupeId] = count + 1
                 sawExecutableSuggestion = true
 
-                if isFirstRound, (legacyInvokeSwarm || resolvedSubagent != nil) {
+                if legacyInvokeSwarm || resolvedSubagent != nil {
                     localAcceptedSubagentInFirstRound = true
                 }
                 if let hash = requiredPolicyHash,
