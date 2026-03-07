@@ -139,24 +139,21 @@ extension CodeReviewPanelStore {
     // MARK: - Finding Mutations
 
     func applyFix(sessionId: String, findingId: String) async {
-        if let liveState = await ReviewSessionRegistry.shared.state(
-            sessionId: sessionId
-        ) {
-            let succeeded = await liveState.applyFix(findingId: findingId)
-            if succeeded {
-                let snapshot = await liveState.snapshot()
-                await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                taskActivityStore.ingestCodeReviewSnapshot(
-                    snapshot, conversationId: conversationId
-                )
-                appendPanelSystemMessage(
-                    "Fix applied to finding \(findingId).",
-                    kind: .findingMutation,
-                    selectChatTab: false
-                )
-            }
+        guard let sourceSnapshot = taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        ), let finding = sourceSnapshot.findings.first(where: { $0.id == findingId }) else {
             return
         }
+
+        let launched = await launchTargetedFixRun(
+            sourceSnapshot: sourceSnapshot,
+            findings: [finding]
+        )
+        if launched {
+            return
+        }
+
         await mutateSnapshot(sessionId: sessionId, findingId: findingId) { finding in
             finding.status = .fixApplied
         } event: {
@@ -205,8 +202,25 @@ extension CodeReviewPanelStore {
     }
 
     func applyAllFixes(sessionId: String, findingIds: [String]) async {
-        for fid in findingIds {
-            await applyFix(sessionId: sessionId, findingId: fid)
+        guard let sourceSnapshot = taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        ) else {
+            return
+        }
+        let findings = sourceSnapshot.findings.filter { findingIds.contains($0.id) }
+        guard !findings.isEmpty else { return }
+
+        let launched = await launchTargetedFixRun(
+            sourceSnapshot: sourceSnapshot,
+            findings: findings
+        )
+        if launched {
+            return
+        }
+
+        for finding in findings {
+            await applyFix(sessionId: sessionId, findingId: finding.id)
         }
     }
 
@@ -275,5 +289,125 @@ extension CodeReviewPanelStore {
             .map(\.displayName)
             .joined(separator: " + ")
         return "Run \(label) on \(scope.displayDescription)"
+    }
+
+    private func launchTargetedFixRun(
+        sourceSnapshot: CodeReviewSessionSnapshot,
+        findings: [CodeReviewFinding]
+    ) async -> Bool {
+        let cfg = providerFactoryConfigBuilder()
+        let sessionConfig = sourceSnapshot.config
+        let fixSessionId = makePanelTargetedFixSessionId(sourceSessionId: sourceSnapshot.sessionId)
+        let fixSessionState = CodeReviewSessionState(
+            sessionId: fixSessionId,
+            conversationId: conversationId ?? sourceSnapshot.conversationId,
+            config: sessionConfig,
+            onStateChange: { [weak self] snapshot in
+                Task { @MainActor in
+                    await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
+                    self?.taskActivityStore.ingestCodeReviewSnapshot(
+                        snapshot,
+                        conversationId: self?.conversationId ?? snapshot.conversationId
+                    )
+                    self?.panelSessionId = snapshot.sessionId
+                }
+            }
+        )
+
+        guard let provider = ProviderFactory.codeReviewMultiSwarmProvider(
+            config: cfg,
+            executionController: executionController,
+            agentProviderId: effectivePanelProviderId,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths,
+            sessionState: fixSessionState,
+            initialSessionConfig: sessionConfig
+        ) else {
+            return false
+        }
+
+        await ReviewSessionRegistry.shared.register(fixSessionState)
+        taskActivityStore.ingestCodeReviewSnapshot(
+            await fixSessionState.snapshot(),
+            conversationId: conversationId ?? sourceSnapshot.conversationId
+        )
+
+        let prompt = CodeReviewPromptBuilder.targetedFixPrompt(
+            snapshot: sourceSnapshot,
+            findings: findings,
+            targetSessionId: fixSessionId
+        )
+        let outputMessageId = beginPanelActionOutput(
+            title: "Apply Fix (\(findings.count))",
+            detail: prompt,
+            selectChatTab: true
+        )
+        appendReviewRunSectionLine(
+            id: outputMessageId,
+            sectionTitle: "Activity",
+            line: "Preparing targeted fix run..."
+        )
+
+        panelSessionId = fixSessionId
+        taskActivityStore.setSelectedCodeReviewSessionId(fixSessionId, for: conversationId)
+        isRunning = true
+        runStartedAt = Date()
+        frozenTimerText = nil
+        lastError = nil
+
+        coordinator.runReview(
+            provider: provider,
+            prompt: prompt,
+            context: buildWorkspaceContext(),
+            sessionState: fixSessionState,
+            onEvent: { [weak self] event in
+                self?.streamPanelActionOutput(id: outputMessageId, event: event)
+            },
+            onStart: { [weak self] in
+                self?.selectedTab = .chat
+            },
+            onComplete: { [weak self] _ in
+                guard let self else { return }
+                self.isRunning = false
+                self.freezeTimer()
+                self.finishPanelActionOutput(
+                    id: outputMessageId,
+                    fallbackContent: "Targeted fix completed."
+                )
+                Task { @MainActor in
+                    for finding in findings {
+                        await self.mutateSnapshot(
+                            sessionId: sourceSnapshot.sessionId,
+                            findingId: finding.id
+                        ) { finding in
+                            finding.status = .fixApplied
+                        } event: {
+                            .findingFixApplied(findingId: finding.id)
+                        }
+                    }
+                    self.appendPanelSystemMessage(
+                        "Applied targeted fix run for \(findings.count) finding(s).",
+                        kind: .findingMutation,
+                        selectChatTab: false
+                    )
+                }
+            },
+            onError: { [weak self] error in
+                self?.isRunning = false
+                self?.lastError = error
+                self?.freezeTimer()
+                self?.failPanelActionOutput(id: outputMessageId, error: error)
+            }
+        )
+        return true
+    }
+
+    private func makePanelTargetedFixSessionId(sourceSessionId: String) -> String {
+        let suffix = String(UUID().uuidString.lowercased().prefix(8))
+        let candidate = "\(sourceSessionId)-fix-\(suffix)"
+        if let sanitized = MCPSharedState.sanitizedCodeReviewSessionId(candidate) {
+            return sanitized
+        }
+        return UUID().uuidString.lowercased()
     }
 }
