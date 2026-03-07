@@ -81,7 +81,7 @@ enum ReviewScopeTarget: Equatable {
         case .branch(let name): return "[AGAINST:\(name)]"
         case .commits(let shas):
             if shas.count == 1 {
-                return "[AGAINST:\(shas[0])]"
+                return "[AGAINST:\(shas[0])^..\(shas[0])]"
             }
             let first = shas.last ?? ""
             let last = shas.first ?? ""

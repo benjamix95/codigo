@@ -35,7 +35,8 @@ enum CodeReviewPromptBuilder {
         case .staged:
             return "[REVIEW_SCOPE:staged]"
         case .againstRef:
-            return "[AGAINST:\(snapshot.scope?.ref ?? "HEAD~1")]"
+            let ref = snapshot.scope?.ref ?? "HEAD~1"
+            return "[AGAINST:\(CodeReviewMultiSwarmProvider.normalizedAgainstRefInput(ref))]"
         case .uncommitted, .none:
             return "[REVIEW_SCOPE:uncommitted]"
         }

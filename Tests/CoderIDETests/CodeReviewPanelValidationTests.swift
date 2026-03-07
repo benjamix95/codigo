@@ -74,6 +74,15 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertTrue(isValidGitRefFormat(rawRef))
     }
 
+    func testSingleCommitScopeTagProducesSingleCommitRangeExpression() {
+        let target = ReviewScopeTarget.commits(["1e72c30"])
+        let rawRef = target.scopeTag
+            .replacingOccurrences(of: "[AGAINST:", with: "")
+            .replacingOccurrences(of: "]", with: "")
+        XCTAssertEqual(rawRef, "1e72c30^..1e72c30")
+        XCTAssertTrue(isValidGitRefFormat(rawRef))
+    }
+
     func testCustomCommandNormalizesLeadingSlashAway() {
         let command = ReviewPanelCustomCommand(
             name: "Deep Review",

@@ -105,6 +105,20 @@ extension CodeReviewMultiSwarmProviderTests {
         )
     }
 
+    func testNormalizedAgainstRefInputExpandsSingleCommitOIDToCommitRange() {
+        XCTAssertEqual(
+            CodeReviewMultiSwarmProvider.normalizedAgainstRefInput("1e72c30"),
+            "1e72c30^..1e72c30"
+        )
+    }
+
+    func testNormalizedAgainstRefRevisionPreservesSingleCommitRangeExpansion() {
+        XCTAssertEqual(
+            CodeReviewMultiSwarmProvider.normalizedAgainstRefRevision("1e72c30"),
+            "1e72c30^..1e72c30"
+        )
+    }
+
     func testNormalizedAgainstRefRevisionPreservesExplicitRange() {
         XCTAssertEqual(
             CodeReviewMultiSwarmProvider.normalizedAgainstRefRevision("main..feature"),

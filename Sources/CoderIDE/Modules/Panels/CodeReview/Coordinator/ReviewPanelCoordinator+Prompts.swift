@@ -169,7 +169,7 @@ extension ReviewPanelCoordinator {
         let shas = commits.joined(separator: ", ")
         let scope: String
         if commits.count == 1 {
-            scope = "[AGAINST:\(commits[0])]"
+            scope = "[AGAINST:\(commits[0])^..\(commits[0])]"
         } else if let first = commits.last, let last = commits.first {
             scope = "[AGAINST:\(first)^..\(last)]"
         } else {

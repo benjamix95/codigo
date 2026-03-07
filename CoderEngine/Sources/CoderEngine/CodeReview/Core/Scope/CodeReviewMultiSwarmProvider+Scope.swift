@@ -91,10 +91,25 @@ extension CodeReviewMultiSwarmProvider {
         return true
     }
 
-    static func normalizedAgainstRefRevision(_ ref: String) -> String {
+    static func normalizedAgainstRefInput(_ ref: String) -> String {
         let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
         guard !trimmed.contains("..") else { return trimmed }
-        return "\(trimmed)...HEAD"
+        guard looksLikeCommitOID(trimmed) else { return trimmed }
+        return "\(trimmed)^..\(trimmed)"
+    }
+
+    static func normalizedAgainstRefRevision(_ ref: String) -> String {
+        let normalized = normalizedAgainstRefInput(ref)
+        guard !normalized.contains("..") else { return normalized }
+        return "\(normalized)...HEAD"
+    }
+
+    private static func looksLikeCommitOID(_ ref: String) -> Bool {
+        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (7...40).contains(trimmed.count) else { return false }
+        let hex = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
+        return trimmed.unicodeScalars.allSatisfy(hex.contains)
     }
 
     /// Get files changed since a commit ref using git diff.
