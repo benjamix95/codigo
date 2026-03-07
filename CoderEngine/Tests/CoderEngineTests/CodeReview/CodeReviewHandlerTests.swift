@@ -60,6 +60,16 @@ final class CodeReviewHandlerTests: XCTestCase {
         XCTAssertEqual(result?.isError, true)
     }
 
+
+    func testReviewStartRejectsTraversalSessionId() {
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_start",
+            args: ["session_id": "../escape"]
+        )
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("invalid session_id"))
+    }
+
     func testReviewStartInvalidMaxWorkers() {
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_start",

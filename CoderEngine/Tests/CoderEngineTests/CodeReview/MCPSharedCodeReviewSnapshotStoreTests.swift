@@ -46,6 +46,16 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(latest, "session-new")
     }
 
+
+    func testWriteSnapshotIgnoresInvalidSessionId() {
+        let snapshot = makeSnapshot(sessionId: "../escape", lastUpdatedAt: Date())
+
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: MCPSharedState.codeReviewSessionFilePath(sessionId: "../escape").path)
+        )
+        XCTAssertTrue(MCPSharedState.readCodeReviewSnapshots().isEmpty)
     func testWriteSnapshotIgnoresOlderMutationSequence() {
         let conversationId = UUID()
         let newer = makeSnapshot(

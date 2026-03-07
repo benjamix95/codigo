@@ -62,6 +62,13 @@ extension CoderIDEMCPServerApp {
             args,
             key: args["session_id"] != nil ? "session_id" : "sessionId"
         )
+        let sessionId: String
+        if requestedSessionId.isEmpty {
+            sessionId = UUID().uuidString.lowercased()
+        } else if let sanitizedSessionId = MCPSharedState.sanitizedCodeReviewSessionId(requestedSessionId) {
+            sessionId = sanitizedSessionId
+        } else {
+            return reviewError("Error: invalid session_id. Use only letters, numbers, hyphen, or underscore")
         if !requestedSessionId.isEmpty,
            let formatError = validateReviewSessionIdFormat(requestedSessionId) {
             return reviewError(formatError)

@@ -33,6 +33,19 @@ public struct MCPSharedCodeReviewIndex: Codable, Sendable {
 }
 
 extension MCPSharedState {
+    private static let allowedCodeReviewSessionIdCharacters = CharacterSet.alphanumerics
+        .union(CharacterSet(charactersIn: "-_"))
+
+    public static func sanitizedCodeReviewSessionId(_ sessionId: String?) -> String? {
+        guard let sessionId else { return nil }
+        let normalized = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, normalized.count <= 128 else { return nil }
+        guard normalized.rangeOfCharacter(from: allowedCodeReviewSessionIdCharacters.inverted) == nil else {
+            return nil
+        }
+        return normalized
+    }
+
     public static var codeReviewDirectoryPath: URL {
         sharedDirectory.appendingPathComponent("code-review")
     }
@@ -47,6 +60,11 @@ extension MCPSharedState {
 
     public static func codeReviewSessionFilePath(sessionId: String) -> URL {
         codeReviewSessionsDirectoryPath.appendingPathComponent("\(sessionId).json")
+    }
+
+    private static func validatedCodeReviewSessionFilePath(sessionId: String) -> URL? {
+        guard let safeSessionId = sanitizedCodeReviewSessionId(sessionId) else { return nil }
+        return codeReviewSessionFilePath(sessionId: safeSessionId)
     }
 
     public static func writeCodeReviewSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
@@ -151,8 +169,8 @@ extension MCPSharedState {
 
     private static func _writeCodeReviewSnapshotUnsafe(_ snapshot: CodeReviewSessionSnapshot) {
         ensureCodeReviewDirectories()
-        if let currentSnapshot = _readCodeReviewSnapshotUnsafe(sessionId: snapshot.sessionId),
-           shouldSkipCodeReviewSnapshotWrite(current: currentSnapshot, incoming: snapshot) {
+        guard let snapshotFilePath = validatedCodeReviewSessionFilePath(sessionId: snapshot.sessionId) else {
+            print("[MCPSharedState] ⚠️ Ignoring code review snapshot with invalid session id")
             return
         }
         let encoder = JSONEncoder()
@@ -164,7 +182,7 @@ extension MCPSharedState {
         }
         do {
             try data.write(
-                to: codeReviewSessionFilePath(sessionId: snapshot.sessionId),
+                to: snapshotFilePath,
                 options: .atomic
             )
             _writeCodeReviewIndexUnsafe(rebuiltCodeReviewIndexUnsafe())
@@ -192,7 +210,8 @@ extension MCPSharedState {
     private static func _readCodeReviewSnapshotUnsafe(
         sessionId: String
     ) -> CodeReviewSessionSnapshot? {
-        guard let data = try? Data(contentsOf: codeReviewSessionFilePath(sessionId: sessionId)) else {
+        guard let snapshotFilePath = validatedCodeReviewSessionFilePath(sessionId: sessionId),
+              let data = try? Data(contentsOf: snapshotFilePath) else {
             return nil
         }
         let decoder = JSONDecoder()
