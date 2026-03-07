@@ -20,6 +20,7 @@ public enum ExecutionRunState: String, Sendable {
 public final class ExecutionController: ObservableObject, @unchecked Sendable {
     private var currentProcess: Process?
     private var currentScope: ExecutionScope?
+    private var suspendedProcessStack: [(process: Process, scope: ExecutionScope?)] = []
     private var _swarmStopRequested = false
     private var _swarmPauseRequested = false
     private var _runState: ExecutionRunState = .idle
@@ -30,6 +31,9 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
     /// Registers the current process (called by ProcessRunner)
     public func setCurrentProcess(_ process: Process) {
         lock.withLock {
+            if let currentProcess {
+                suspendedProcessStack.append((currentProcess, currentScope))
+            }
             currentProcess = process
             _runState = .running
         }
@@ -70,9 +74,15 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
             if let process, let currentProcess, currentProcess !== process {
                 return
             }
-            currentProcess = nil
-            currentScope = nil
-            _runState = .idle
+            if let previous = suspendedProcessStack.popLast() {
+                currentProcess = previous.process
+                currentScope = previous.scope
+                _runState = .running
+            } else {
+                currentProcess = nil
+                currentScope = nil
+                _runState = .idle
+            }
         }
     }
 

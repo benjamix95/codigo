@@ -32,4 +32,25 @@ final class ExecutionControllerTerminationTests: XCTestCase {
         controller.clearCurrentProcess()
         XCTAssertEqual(controller.runState, .idle)
     }
+
+    func testClearCurrentProcessRestoresPreviouslyTrackedProcess() {
+        let controller = ExecutionController()
+        let parentProcess = Process()
+        let nestedProcess = Process()
+
+        controller.beginScope(.agent)
+        controller.setCurrentProcess(parentProcess)
+        controller.beginScope(.review)
+        controller.setCurrentProcess(nestedProcess)
+
+        controller.clearCurrentProcess(nestedProcess)
+
+        XCTAssertEqual(controller.activeScope, .review)
+        XCTAssertEqual(controller.runState, .running)
+
+        controller.clearCurrentProcess(parentProcess)
+        XCTAssertNil(controller.activeScope)
+        XCTAssertEqual(controller.runState, .idle)
+    }
+
 }
