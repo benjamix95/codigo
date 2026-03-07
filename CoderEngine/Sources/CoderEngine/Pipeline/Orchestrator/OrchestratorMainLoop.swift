@@ -257,12 +257,25 @@ public actor OrchestratorMainLoop {
                 )
             }
 
-            try? await workerPool.dispatch(
-                taskId: taskId,
-                agentName: agentName,
-                agentRole: role,
-                work: work
-            )
+            do {
+                try await workerPool.dispatch(
+                    taskId: taskId,
+                    agentName: agentName,
+                    agentRole: role,
+                    work: work
+                )
+            } catch {
+                await scheduler.updateTaskStatus(taskId, status: .pending)
+                await swarmBudget.release(task: task, role: role)
+                await lockManager.release(taskId: taskId)
+
+                await emitEvent(
+                    type: .lockReleased,
+                    jobId: jobId,
+                    taskId: taskId
+                )
+                continue
+            }
 
             await emitEvent(
                 type: .taskStarted,
