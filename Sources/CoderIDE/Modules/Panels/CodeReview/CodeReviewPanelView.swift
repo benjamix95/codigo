@@ -31,6 +31,7 @@ struct CodeReviewPanelView: View {
 
     var body: some View {
         let m = metrics()
+        let selectedSessionId = taskActivityStore.selectedCodeReviewSessionId(for: conversationId)
         VStack(spacing: 0) {
             Color.clear.frame(height: topInteractiveInset).allowsHitTesting(false)
             topBar(m)
@@ -49,5 +50,11 @@ struct CodeReviewPanelView: View {
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+        .onChange(of: selectedSessionId) { _, _ in
+            selectedFindingId = nil
+        }
+        .onChange(of: conversationId) { _, _ in
+            selectedFindingId = nil
+        }
     }
 }

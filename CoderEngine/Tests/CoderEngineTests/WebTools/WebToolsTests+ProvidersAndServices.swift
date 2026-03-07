@@ -162,17 +162,23 @@ extension WebToolsTests {
 
     func testIsBlockedHostBlocksPrivateIPv6AndLocalNames() async {
         let service = WebFetchService()
+        let loopback = await service.isBlockedHost("::1")
+        let ulaFC = await service.isBlockedHost("fc00::1")
+        let ulaFD = await service.isBlockedHost("fd12:3456:789a::1")
+        let linkLocal = await service.isBlockedHost("fe80::1")
+        let localName = await service.isBlockedHost("printer.local")
 
-        XCTAssertTrue(await service.isBlockedHost("::1"))
-        XCTAssertTrue(await service.isBlockedHost("fc00::1"))
-        XCTAssertTrue(await service.isBlockedHost("fd12:3456:789a::1"))
-        XCTAssertTrue(await service.isBlockedHost("fe80::1"))
-        XCTAssertTrue(await service.isBlockedHost("printer.local"))
+        XCTAssertTrue(loopback)
+        XCTAssertTrue(ulaFC)
+        XCTAssertTrue(ulaFD)
+        XCTAssertTrue(linkLocal)
+        XCTAssertTrue(localName)
     }
 
     func testIsBlockedHostAllowsPublicIPv6Literal() async {
         let service = WebFetchService()
-        XCTAssertFalse(await service.isBlockedHost("2606:4700:4700::1111"))
+        let allowed = await service.isBlockedHost("2606:4700:4700::1111")
+        XCTAssertFalse(allowed)
     }
 
     func testFetchPrependsHTTPS() async {

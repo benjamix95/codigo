@@ -87,7 +87,8 @@ extension TaskActivityStore {
     ) -> CodeReviewSessionSnapshot? {
         if let sessionId,
            let snapshot = codeReviewSnapshotsBySession[sessionId] {
-            return snapshot
+            guard let conversationId else { return snapshot }
+            return snapshot.conversationId == conversationId ? snapshot : nil
         }
         guard let selectedId = selectedCodeReviewSessionId(for: conversationId) else {
             return nil

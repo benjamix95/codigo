@@ -22,7 +22,8 @@ extension CoderIDEMCPServerApp {
     static func resolveReviewSessionId(
         args: [String: String],
         requireExplicitWhenAmbiguous: Bool,
-        allowLatestFallback: Bool = true
+        allowLatestFallback: Bool = true,
+        activeOnly: Bool = true
     ) -> (sessionId: String?, error: String?) {
         let explicitSessionId = sanitizedReviewArg(
             args,
@@ -31,7 +32,7 @@ extension CoderIDEMCPServerApp {
         let conversationId = resolveReviewConversationId(args)
         let snapshots = reviewScopedSnapshots(
             conversationId: conversationId,
-            activeOnly: true
+            activeOnly: activeOnly
         )
 
         if !explicitSessionId.isEmpty {
@@ -62,7 +63,7 @@ extension CoderIDEMCPServerApp {
             return (nil, "Error: 'session_id' is required")
         }
         guard !snapshots.isEmpty else {
-            return (nil, "No active review session.")
+            return (nil, activeOnly ? "No active review session." : "No review session found.")
         }
         if requireExplicitWhenAmbiguous && snapshots.count > 1 {
             let ids = snapshots.map(\.sessionId).joined(separator: ", ")

@@ -161,6 +161,7 @@ extension UnifiedToolRuntime {
         } else {
             roots = workspacePaths
         }
+        guard !roots.isEmpty else { return nil }
 
         for ws in roots {
             let wsURL = URL(fileURLWithPath: ws).standardizedFileURL

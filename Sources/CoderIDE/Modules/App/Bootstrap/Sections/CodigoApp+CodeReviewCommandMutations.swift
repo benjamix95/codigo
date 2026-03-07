@@ -36,7 +36,10 @@ extension CodigoApp {
                 : (false, "Unable to update the requested finding")
         }
 
-        return await persistReviewSnapshotMutation(sessionId: sessionId) { snapshot in
+        return await persistReviewSnapshotMutation(
+            sessionId: sessionId,
+            conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
+        ) { snapshot in
             mutateReviewSnapshot(snapshot: snapshot, command: command)
         }
     }
@@ -44,13 +47,16 @@ extension CodigoApp {
     @MainActor
     func persistReviewSnapshotMutation(
         sessionId: String,
+        conversationId: UUID? = nil,
         mutate: (CodeReviewSessionSnapshot) -> CodeReviewSessionSnapshot?
     ) async -> (success: Bool, message: String) {
         guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId),
+              (conversationId == nil || snapshot.conversationId == conversationId),
               let updated = mutate(snapshot) else {
             return (false, "Review session not found")
         }
         MCPSharedState.writeCodeReviewSnapshot(updated)
+        await ReviewSessionRegistry.shared.recordSnapshot(updated)
         taskActivityStore.ingestCodeReviewSnapshot(
             updated,
             conversationId: updated.conversationId
@@ -106,6 +112,7 @@ extension CodigoApp {
         return CodeReviewSessionSnapshot(
             sessionId: snapshot.sessionId,
             conversationId: snapshot.conversationId,
+            mutationSequence: snapshot.mutationSequence + 1,
             phase: snapshot.phase,
             stage: snapshot.stage,
             findings: findings,

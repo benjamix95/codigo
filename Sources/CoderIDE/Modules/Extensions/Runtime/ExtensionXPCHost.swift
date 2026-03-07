@@ -16,7 +16,6 @@ actor ExtensionXPCHost {
 
     private var connections: [String: NSXPCConnection] = [:]
     private var connectionStates: [String: ConnectionState] = [:]
-    private let maxCrashRetries = 3
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -33,6 +32,30 @@ actor ExtensionXPCHost {
         }
 
         let connection = NSXPCConnection(serviceName: serviceName)
+        try await activateConnection(
+            pluginId: pluginId,
+            connection: connection,
+            configuration: configuration
+        ) { host, pluginId, connection, configuration in
+            try await host.initializePlugin(
+                pluginId: pluginId,
+                connection: connection,
+                configuration: configuration
+            )
+        }
+    }
+
+    func activateConnection(
+        pluginId: String,
+        connection: NSXPCConnection,
+        configuration: XPCPluginConfiguration,
+        initializer: @escaping @Sendable (
+            ExtensionXPCHost,
+            String,
+            NSXPCConnection,
+            XPCPluginConfiguration
+        ) async throws -> Void
+    ) async throws {
         connection.remoteObjectInterface = NSXPCInterface(with: ExtensionXPCPluginProtocol.self)
         connection.exportedInterface = NSXPCInterface(with: ExtensionXPCHostProtocol.self)
 
@@ -52,17 +75,22 @@ actor ExtensionXPCHost {
         }
 
         connection.resume()
-        connections[pluginId] = connection
-
-        connectionStates[pluginId] = ConnectionState(
-            pluginId: pluginId,
-            startedAt: Date(),
-            isAlive: true,
-            lastPing: nil,
-            crashCount: 0
-        )
-
-        try await initializePlugin(pluginId: pluginId, configuration: configuration)
+        do {
+            try await initializer(self, pluginId, connection, configuration)
+            connections[pluginId] = connection
+            connectionStates[pluginId] = ConnectionState(
+                pluginId: pluginId,
+                startedAt: Date(),
+                isAlive: true,
+                lastPing: nil,
+                crashCount: 0
+            )
+        } catch {
+            connection.invalidate()
+            connections.removeValue(forKey: pluginId)
+            connectionStates.removeValue(forKey: pluginId)
+            throw error
+        }
     }
 
     /// Disconnette un plugin e rilascia la connessione XPC.
@@ -95,61 +123,39 @@ actor ExtensionXPCHost {
             throw XPCError.serializationFailed(error.localizedDescription)
         }
 
-        let timeoutNanoseconds = UInt64(max(timeout, 0) * 1_000_000_000)
+        return try await executeRequest(
+            pluginId: pluginId,
+            timeout: timeout,
+            timeoutError: {
+                XPCError.timeout(pluginId: pluginId, seconds: timeout)
+            },
+            onTimeout: { [self] in
+                await disconnect(pluginId: pluginId)
+            }
+        ) { completion in
+            let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+                completion(.failure(XPCError.connectionFailed(error.localizedDescription)))
+            } as? ExtensionXPCPluginProtocol
 
-        return try await withThrowingTaskGroup(of: ExtensionToolResponse.self) { group in
-            group.addTask {
-                try await withCheckedThrowingContinuation { continuation in
-                    let lock = NSLock()
-                    var didResume = false
+            guard let proxy else {
+                completion(.failure(XPCError.connectionFailed("Proxy non disponibile")))
+                return
+            }
 
-                    func resume(_ result: Result<ExtensionToolResponse, Error>) {
-                        lock.lock()
-                        defer { lock.unlock() }
-
-                        guard !didResume else { return }
-                        didResume = true
-                        continuation.resume(with: result)
-                    }
-
-                    let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-                        resume(.failure(XPCError.connectionFailed(error.localizedDescription)))
-                    } as? ExtensionXPCPluginProtocol
-
-                    guard let proxy else {
-                        resume(.failure(XPCError.connectionFailed("Proxy non disponibile")))
-                        return
-                    }
-
-                    proxy.executeTool(name: tool, payloadData: payloadData) { [decoder] resultData, error in
-                        if let error {
-                            resume(.failure(error))
-                            return
-                        }
-
-                        guard let data = resultData,
-                              let result = try? decoder.decode(XPCToolResult.self, from: data) else {
-                            resume(.failure(XPCError.invalidResponse))
-                            return
-                        }
-
-                        resume(.success(result.toToolResponse()))
-                    }
+            proxy.executeTool(name: tool, payloadData: payloadData) { [decoder = self.decoder] resultData, error in
+                if let error {
+                    completion(.failure(error))
+                    return
                 }
+
+                guard let data = resultData,
+                      let result = try? decoder.decode(XPCToolResult.self, from: data) else {
+                    completion(.failure(XPCError.invalidResponse))
+                    return
+                }
+
+                completion(.success(result.toToolResponse()))
             }
-
-            group.addTask {
-                try await Task.sleep(nanoseconds: timeoutNanoseconds)
-                throw XPCError.timeout(pluginId: pluginId, seconds: timeout)
-            }
-
-            defer { group.cancelAll() }
-
-            guard let firstResult = try await group.next() else {
-                throw XPCError.invalidResponse
-            }
-
-            return firstResult
         }
     }
 
@@ -158,20 +164,32 @@ actor ExtensionXPCHost {
     /// Verifica che un plugin sia ancora attivo.
     func isAlive(pluginId: String) async -> Bool {
         guard let connection = connections[pluginId] else { return false }
+        do {
+            return try await executeRequest(
+                pluginId: pluginId,
+                timeout: 5,
+                timeoutError: {
+                    XPCError.timeout(pluginId: pluginId, seconds: 5)
+                },
+                onTimeout: { [self] in
+                    await disconnect(pluginId: pluginId)
+                }
+            ) { completion in
+                let proxy = connection.remoteObjectProxyWithErrorHandler { _ in
+                    completion(.success(false))
+                } as? ExtensionXPCPluginProtocol
 
-        return await withCheckedContinuation { continuation in
-            let proxy = connection.remoteObjectProxyWithErrorHandler { _ in
-                continuation.resume(returning: false)
-            } as? ExtensionXPCPluginProtocol
+                guard let proxy else {
+                    completion(.success(false))
+                    return
+                }
 
-            guard let proxy else {
-                continuation.resume(returning: false)
-                return
+                proxy.ping { alive in
+                    completion(.success(alive))
+                }
             }
-
-            proxy.ping { alive in
-                continuation.resume(returning: alive)
-            }
+        } catch {
+            return false
         }
     }
 
@@ -184,12 +202,9 @@ actor ExtensionXPCHost {
 
     private func initializePlugin(
         pluginId: String,
+        connection: NSXPCConnection,
         configuration: XPCPluginConfiguration
     ) async throws {
-        guard let connection = connections[pluginId] else {
-            throw XPCError.connectionFailed("Connessione non trovata")
-        }
-
         let configData: Data
         do {
             configData = try encoder.encode(configuration)
@@ -197,21 +212,30 @@ actor ExtensionXPCHost {
             throw XPCError.serializationFailed(error.localizedDescription)
         }
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        let _: Void = try await executeRequest(
+            pluginId: pluginId,
+            timeout: configuration.timeout,
+            timeoutError: {
+                XPCError.timeout(pluginId: pluginId, seconds: configuration.timeout)
+            },
+            onTimeout: { [self] in
+                await disconnect(pluginId: pluginId)
+            }
+        ) { completion in
             let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: XPCError.connectionFailed(error.localizedDescription))
+                completion(.failure(XPCError.connectionFailed(error.localizedDescription)))
             } as? ExtensionXPCPluginProtocol
 
             guard let proxy else {
-                continuation.resume(throwing: XPCError.connectionFailed("Proxy non disponibile"))
+                completion(.failure(XPCError.connectionFailed("Proxy non disponibile")))
                 return
             }
 
             proxy.initialize(configurationData: configData) { _, error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    completion(.failure(error))
                 } else {
-                    continuation.resume()
+                    completion(.success(()))
                 }
             }
         }

@@ -3,15 +3,21 @@ import Foundation
 
 extension CodeReviewPanelView {
     func metrics() -> CodeReviewMetrics {
-        let activities = scopedTaskActivitiesForConversation(
+        let selectedSessionId = taskActivityStore.selectedCodeReviewSessionId(for: conversationId)
+        let conversationActivities = scopedTaskActivitiesForConversation(
             taskActivityStore.activities,
             conversationId: conversationId
+        )
+        let activities = scopedReviewActivitiesForSession(
+            conversationActivities,
+            sessionId: selectedSessionId
         )
         let cards = taskActivityStore
             .swarmCardStates(for: conversationId)
             .filter {
                 isCodeReviewSwarmCard($0)
                     && reviewCardBelongsToConversation($0, conversationId: conversationId)
+                    && reviewCardBelongsToSession($0, sessionId: selectedSessionId)
             }
         let active = cards.filter { $0.status == .running }.count
 

@@ -57,11 +57,13 @@ extension CodigoApp {
             guard let sessionId = command.sessionId else {
                 return (false, "Missing session_id for configure")
             }
+            let commandConversationId = command.conversationId.flatMap { UUID(uuidString: $0) }
             let snapshot = taskActivityStore.codeReviewSnapshot(
                 sessionId: sessionId,
-                conversationId: command.conversationId.flatMap { UUID(uuidString: $0) }
+                conversationId: commandConversationId
             ) ?? MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId)
-            guard let snapshot else {
+            guard let snapshot,
+                  commandConversationId == nil || snapshot.conversationId == commandConversationId else {
                 return (false, "Review session not found")
             }
             let updatedConfig = SessionConfig(
@@ -85,14 +87,18 @@ extension CodigoApp {
                 await liveState.updateConfig(updatedConfig)
                 await persistLiveReviewState(
                     liveState,
-                    conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
+                    conversationId: commandConversationId
                 )
                 return (true, "Live review configuration updated")
             }
-            return await persistReviewSnapshotMutation(sessionId: sessionId) { snapshot in
+            return await persistReviewSnapshotMutation(
+                sessionId: sessionId,
+                conversationId: commandConversationId
+            ) { snapshot in
                 CodeReviewSessionSnapshot(
                     sessionId: snapshot.sessionId,
                     conversationId: snapshot.conversationId,
+                    mutationSequence: snapshot.mutationSequence + 1,
                     phase: snapshot.phase,
                     stage: snapshot.stage,
                     findings: snapshot.findings,

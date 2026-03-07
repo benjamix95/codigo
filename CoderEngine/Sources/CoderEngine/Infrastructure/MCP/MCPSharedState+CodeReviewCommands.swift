@@ -60,11 +60,10 @@ extension MCPSharedState {
 
     public static func hasQueuedCodeReviewStart(
         sessionId: String,
-        conversationId: UUID?
+        conversationId _: UUID?
     ) -> Bool {
         let normalizedSessionId = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedSessionId.isEmpty else { return false }
-        let normalizedConversationId = conversationId?.uuidString.lowercased()
         return withCodeReviewFileLock {
             _readCodeReviewCommandsUnsafe().contains { command in
                 guard command.action == "start" else { return false }
@@ -72,7 +71,7 @@ extension MCPSharedState {
                 guard command.status == .pending || command.status == .processing else {
                     return false
                 }
-                return command.conversationId == normalizedConversationId
+                return true
             }
         }
     }

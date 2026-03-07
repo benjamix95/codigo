@@ -62,6 +62,7 @@ public actor WorkerPool {
     private let baseMaxWorkers: Int
     private var isShutdown = false
     private var activeTasks: Set<String> = []
+    private var runningWorkerTasks: [String: Task<Void, Never>] = [:]
     private var pendingResults: [WorkerTaskResult] = []
     private let backpressure: BackpressureController?
 
@@ -138,10 +139,11 @@ public actor WorkerPool {
         activeTasks.insert(taskId)
         totalDispatched += 1
 
-        Task { [weak self] in
+        let workerTask = Task { [weak self] in
             let result = await work()
             await self?.handleCompletion(result)
         }
+        runningWorkerTasks[taskId] = workerTask
     }
 
     // MARK: - Completion
@@ -157,10 +159,26 @@ public actor WorkerPool {
 
     public func shutdown() {
         isShutdown = true
+        let workerTasks = runningWorkerTasks.values
+        for task in workerTasks {
+            task.cancel()
+        }
+    }
+
+    public func shutdownAndWait(timeoutMs: Int = 5_000) async {
+        shutdown()
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
+        while !activeTasks.isEmpty && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
     }
 
     public func reset() {
+        for task in runningWorkerTasks.values {
+            task.cancel()
+        }
         activeTasks.removeAll()
+        runningWorkerTasks.removeAll()
         pendingResults.removeAll()
         totalDispatched = 0
         totalCompleted = 0
@@ -172,6 +190,7 @@ public actor WorkerPool {
 
     private func handleCompletion(_ result: WorkerTaskResult) async {
         activeTasks.remove(result.taskId)
+        runningWorkerTasks.removeValue(forKey: result.taskId)
         pendingResults.append(result)
 
         if result.success {

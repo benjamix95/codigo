@@ -193,6 +193,10 @@ extension MCPSharedState {
             print("[MCPSharedState] ⚠️ Ignoring code review snapshot with invalid session id")
             return
         }
+        if let currentSnapshot = _readCodeReviewSnapshotUnsafe(sessionId: snapshot.sessionId),
+           shouldSkipCodeReviewSnapshotWrite(current: currentSnapshot, incoming: snapshot) {
+            return
+        }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

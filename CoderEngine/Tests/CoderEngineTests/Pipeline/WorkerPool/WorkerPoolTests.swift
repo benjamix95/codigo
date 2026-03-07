@@ -152,6 +152,32 @@ final class WorkerPoolTests: XCTestCase {
         }
     }
 
+    func testShutdownAndWaitCancelsInFlightWorkers() async throws {
+        let pool = WorkerPool(maxWorkers: 1)
+
+        try await pool.dispatch(
+            taskId: "T1",
+            agentName: "T1-coder",
+            agentRole: .coder
+        ) {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+            return WorkerTaskResult(
+                taskId: "T1",
+                agentName: "T1-coder",
+                agentRole: .coder,
+                success: false,
+                error: "cancelled"
+            )
+        }
+
+        await pool.shutdownAndWait(timeoutMs: 500)
+
+        let activeCount = await pool.activeCount
+        XCTAssertEqual(activeCount, 0)
+    }
+
     // MARK: - Metrics
 
     func testMetricsTracked() async throws {

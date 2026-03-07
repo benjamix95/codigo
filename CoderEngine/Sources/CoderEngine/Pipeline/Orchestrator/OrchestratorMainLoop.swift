@@ -135,10 +135,17 @@ public actor OrchestratorMainLoop {
         let allDone = await scheduler.allTasksTerminal
         if allDone {
             let failedCount = await scheduler.countByStatus(.failed)
-            if failedCount == 0 {
+            let blockedCount = await scheduler.countByStatus(.blocked)
+            if failedCount == 0 && blockedCount == 0 {
                 await advanceToFinalized()
             } else {
-                _ = try? await stateMachine.transition(to: .failed, reason: "\(failedCount) tasks failed")
+                let reason: String
+                if blockedCount > 0 {
+                    reason = "\(blockedCount) tasks blocked"
+                } else {
+                    reason = "\(failedCount) tasks failed"
+                }
+                _ = try? await stateMachine.transition(to: .failed, reason: reason)
                 _ = try? await stateMachine.transition(to: .aborted, reason: "Job failed with errors")
             }
             return false
@@ -248,7 +255,6 @@ public actor OrchestratorMainLoop {
 
             let agentName = await nameAssigner.assign(task: task, role: role)
 
-            await scheduler.setPreferredAgentRole(task.taskId, role: nil)
             await scheduler.updateTaskStatus(task.taskId, status: .running)
             _ = await swarmBudget.reserve(task: task, role: role)
 
@@ -274,6 +280,7 @@ public actor OrchestratorMainLoop {
                     work: work
                 )
             } catch {
+                await scheduler.setPreferredAgentRole(taskId, role: role)
                 await scheduler.updateTaskStatus(taskId, status: .pending)
                 await swarmBudget.release(task: task, role: role)
                 await lockManager.release(taskId: taskId)
@@ -374,7 +381,7 @@ public actor OrchestratorMainLoop {
             TaskNode(taskId: result.taskId, title: "")
 
         let totalTasks = await scheduler.taskCount
-        let failedCount = await scheduler.countByStatus(.failed)
+        let failedCount = await scheduler.countByStatus(.failed) + 1
 
         let action = completionHandler.handleFailure(
             result: result,
@@ -384,6 +391,9 @@ public actor OrchestratorMainLoop {
             totalTasks: totalTasks,
             failedTaskCount: failedCount
         )
+        if case .retryTask(let taskId, _) = action {
+            await scheduler.setPreferredAgentRole(taskId, role: result.agentRole)
+        }
 
         await applyAction(action, job: job)
     }
@@ -409,7 +419,6 @@ public actor OrchestratorMainLoop {
             await scheduler.updateTaskStatus(taskId, status: .blocked)
 
         case .retryTask(let taskId, _):
-            await scheduler.setPreferredAgentRole(taskId, role: nil)
             await scheduler.scheduleRetry(taskId)
 
         case .failTask(let taskId, _):

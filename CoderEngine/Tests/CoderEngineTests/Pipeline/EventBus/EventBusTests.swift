@@ -122,11 +122,13 @@ final class EventBusTests: XCTestCase {
         try await bus.publish(makeEvent(eventId: "evt_1", idempotencyKey: "prune_key"))
         await bus.pruneIdempotencyKeys(olderThan: 0)
 
-        XCTAssertNoThrow(
+        do {
             try await bus.publish(
                 makeEvent(eventId: "evt_2", idempotencyKey: "prune_key")
             )
-        )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testPublish_evictsOldestIdempotencyKeysWhenCapacityReached() async throws {
@@ -145,9 +147,11 @@ final class EventBusTests: XCTestCase {
         try await bus.publish(makeEvent(eventId: "evt_2", idempotencyKey: "k2"))
         try await bus.publish(makeEvent(eventId: "evt_3", idempotencyKey: "k3"))
 
-        XCTAssertNoThrow(
+        do {
             try await bus.publish(makeEvent(eventId: "evt_4", idempotencyKey: "k1"))
-        )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
 
         do {
             try await bus.publish(makeEvent(eventId: "evt_5", idempotencyKey: "k3"))

@@ -118,6 +118,7 @@ public actor DagScheduler {
     public var allTasksTerminal: Bool {
         tasks.values.allSatisfy { task in
             task.status == .completed ||
+            task.status == .blocked ||
             task.status == .failed ||
             task.status == .cancelled
         }

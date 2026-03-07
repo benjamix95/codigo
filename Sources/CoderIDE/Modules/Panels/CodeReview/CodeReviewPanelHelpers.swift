@@ -41,6 +41,19 @@ func scopedTaskActivitiesForConversation(
     }
 }
 
+func scopedReviewActivitiesForSession(
+    _ activities: [TaskActivity],
+    sessionId: String?
+) -> [TaskActivity] {
+    guard let sessionId, !sessionId.isEmpty else { return activities }
+    return activities.filter { activity in
+        let activitySessionId = activity.payload["session_id"]
+            ?? activity.payload["sessionId"]
+            ?? activity.payload["meta_session_id"]
+        return activitySessionId == sessionId
+    }
+}
+
 func reviewCardBelongsToConversation(
     _ card: SwarmLiveCardState,
     conversationId: UUID?
@@ -50,6 +63,19 @@ func reviewCardBelongsToConversation(
         return card.swarmId.hasPrefix("review-")
     }
     return !scopedTaskActivitiesForConversation(card.recentEvents, conversationId: conversationId).isEmpty
+}
+
+func reviewCardBelongsToSession(
+    _ card: SwarmLiveCardState,
+    sessionId: String?
+) -> Bool {
+    guard let sessionId, !sessionId.isEmpty else { return true }
+    return card.recentEvents.contains { event in
+        let eventSessionId = event.payload["session_id"]
+            ?? event.payload["sessionId"]
+            ?? event.payload["meta_session_id"]
+        return eventSessionId == sessionId
+    }
 }
 
 func isCodeReviewSwarmCard(_ card: SwarmLiveCardState) -> Bool {

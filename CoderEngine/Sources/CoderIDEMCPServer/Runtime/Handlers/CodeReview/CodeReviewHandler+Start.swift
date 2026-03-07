@@ -65,17 +65,17 @@ extension CoderIDEMCPServerApp {
         let sessionId: String
         if requestedSessionId.isEmpty {
             sessionId = UUID().uuidString.lowercased()
-        } else if let sanitizedSessionId = MCPSharedState.sanitizedCodeReviewSessionId(requestedSessionId) {
+        } else if let sanitizedSessionId = MCPSharedState.sanitizedCodeReviewSessionId(
+            requestedSessionId
+        ) {
             sessionId = sanitizedSessionId
-        } else {
-            return reviewError("Error: invalid session_id. Use only letters, numbers, hyphen, or underscore")
-        if !requestedSessionId.isEmpty,
-           let formatError = validateReviewSessionIdFormat(requestedSessionId) {
+        } else if let formatError = validateReviewSessionIdFormat(requestedSessionId) {
             return reviewError(formatError)
+        } else {
+            return reviewError(
+                "Error: invalid session_id. Use only letters, numbers, hyphen, or underscore"
+            )
         }
-        let sessionId = requestedSessionId.isEmpty
-            ? UUID().uuidString.lowercased()
-            : requestedSessionId
         if MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) != nil {
             return reviewError("Error: session_id '\(sessionId)' already exists")
         }

@@ -56,6 +56,8 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
             FileManager.default.fileExists(atPath: MCPSharedState.codeReviewSessionFilePath(sessionId: "../escape").path)
         )
         XCTAssertTrue(MCPSharedState.readCodeReviewSnapshots().isEmpty)
+    }
+
     func testWriteSnapshotIgnoresOlderMutationSequence() {
         let conversationId = UUID()
         let newer = makeSnapshot(

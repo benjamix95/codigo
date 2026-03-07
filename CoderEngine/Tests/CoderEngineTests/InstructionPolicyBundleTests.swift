@@ -128,10 +128,12 @@ final class InstructionPolicyBundleTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: skillDir) }
 
         let skillFile = skillDir.appendingPathComponent("SKILL.md")
-        try "---
-name: test
----
-body-content".write(to: skillFile, atomically: true, encoding: .utf8)
+        try """
+        ---
+        name: test
+        ---
+        body-content
+        """.write(to: skillFile, atomically: true, encoding: .utf8)
 
         XCTAssertEqual(InstructionPolicyBundle.skillContent(for: skillName), "body-content")
     }

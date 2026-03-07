@@ -173,6 +173,28 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertTrue(reviewCardBelongsToConversation(card, conversationId: conversationId))
     }
 
+    func testScopedReviewActivitiesForSession_filtersMismatchedSession() {
+        let activities: [TaskActivity] = [
+            TaskActivity(type: "review-worker-plan", title: "a", payload: ["session_id": "s1"]),
+            TaskActivity(type: "review-worker-plan", title: "b", payload: ["session_id": "s2"]),
+        ]
+
+        let scoped = scopedReviewActivitiesForSession(activities, sessionId: "s1")
+        XCTAssertEqual(scoped.map(\.title), ["a"])
+    }
+
+    func testReviewCardBelongsToSession_filtersMismatchedSession() {
+        let card = SwarmLiveCardState(
+            swarmId: "worker",
+            recentEvents: [
+                TaskActivity(type: "agent", title: "a", payload: ["session_id": "s1"])
+            ]
+        )
+
+        XCTAssertTrue(reviewCardBelongsToSession(card, sessionId: "s1"))
+        XCTAssertFalse(reviewCardBelongsToSession(card, sessionId: "s2"))
+    }
+
     func testShouldDisplayCodeReviewMetricsWhenConversationStillHasReviewArtifacts() {
         XCTAssertTrue(
             shouldDisplayCodeReviewMetrics(

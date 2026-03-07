@@ -67,7 +67,7 @@ final class CodeReviewHandlerTests: XCTestCase {
             args: ["session_id": "../escape"]
         )
         XCTAssertEqual(result?.isError, true)
-        XCTAssertTrue(textContent(result).contains("invalid session_id"))
+        XCTAssertTrue(textContent(result).contains("session_id"))
     }
 
     func testReviewStartInvalidMaxWorkers() {

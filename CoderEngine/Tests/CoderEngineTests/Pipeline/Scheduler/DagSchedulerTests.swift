@@ -167,6 +167,16 @@ final class DagSchedulerTests: XCTestCase {
         XCTAssertTrue(allDone)
     }
 
+    func testBlockedTaskCountsAsTerminal() async throws {
+        let scheduler = DagScheduler()
+        try await scheduler.addTask(TaskNode(taskId: "T1", title: "A"))
+
+        await scheduler.updateTaskStatus("T1", status: .blocked)
+
+        let allTerminal = await scheduler.allTasksTerminal
+        XCTAssertTrue(allTerminal)
+    }
+
     // MARK: - Failure Rate
 
     func testFailureRatePercent() async throws {

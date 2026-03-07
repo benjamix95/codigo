@@ -36,14 +36,18 @@ extension CoderIDEMCPServerApp {
             }
         }
 
-        let resolved = resolveReviewSessionId(args: args, requireExplicitWhenAmbiguous: true)
+        let resolved = resolveReviewSessionId(
+            args: args,
+            requireExplicitWhenAmbiguous: true,
+            activeOnly: false
+        )
         if let message = resolved.error {
-            return message == "No active review session."
+            return message == "No review session found."
                 ? reviewOK(message)
                 : reviewError(message)
         }
         guard let sessionId = resolved.sessionId else {
-            return reviewOK("No active review session.")
+            return reviewOK("No review session found.")
         }
 
         let limitVal = Int(args["limit"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 50
@@ -52,7 +56,8 @@ extension CoderIDEMCPServerApp {
             severity: severity.isEmpty ? nil : severity,
             status: status.isEmpty ? nil : status,
             file: args["file"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-            limit: limitVal
+            limit: limitVal,
+            includeSensitiveDetails: true
         )
         if findings.isEmpty {
             return reviewOK("No findings match the query.")
@@ -62,7 +67,10 @@ extension CoderIDEMCPServerApp {
             let sev = f["severity"] ?? "?"
             let category = f["category"] ?? "unknown"
             let st = f["status"] ?? "open"
-            return "[\(idx + 1)] [\(sev)] category=\(category) (status: \(st), id: \(id))"
+            let file = f["file_path"] ?? "?"
+            let line = f["line_number"].map { ":\($0)" } ?? ""
+            let message = f["message"] ?? ""
+            return "[\(idx + 1)] [\(sev)] \(file)\(line) — \(message) (category: \(category), status: \(st), id: \(id))"
         }
         return reviewOK("Findings (\(findings.count)):\n" + lines.joined(separator: "\n"))
     }

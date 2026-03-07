@@ -96,7 +96,7 @@ extension UnifiedToolRuntime {
         do {
             let renamePlan = try await languageService.rename(oldName: query, newName: newName)
             guard !renamePlan.references.isEmpty else { return nil }
-            let files = renamePlan.references.compactMap { reference in
+            let files: [(path: String, line: Int, content: String)] = renamePlan.references.compactMap { reference in
                 let unresolvedPath = resolveLanguageLocationPath(
                     reference.filePath,
                     workspacePaths: workspacePaths,

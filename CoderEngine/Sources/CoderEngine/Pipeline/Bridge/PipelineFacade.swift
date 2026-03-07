@@ -138,7 +138,7 @@ public actor PipelineFacade {
     public func cancel() async {
         runningTask?.cancel()
         await runningOrchestrator?.stop()
-        await runningWorkerPool?.shutdown()
+        await runningWorkerPool?.shutdownAndWait()
         runningJobId = nil
     }
 
