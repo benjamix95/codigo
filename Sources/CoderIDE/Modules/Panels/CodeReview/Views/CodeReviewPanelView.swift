@@ -200,6 +200,7 @@ struct ReviewPanelHost: View {
             executionController: executionController,
             workspaceStore: workspaceStore,
             openFilesStore: openFilesStore,
+            todoStore: todoStore,
             conversationId: conversationId,
             providerFactoryConfigBuilder: providerFactoryConfigBuilder
         ))

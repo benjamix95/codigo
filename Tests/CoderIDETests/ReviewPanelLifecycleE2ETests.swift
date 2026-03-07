@@ -90,10 +90,10 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         )
         XCTAssertEqual(reviewMessage.kind, .reviewRun)
         XCTAssertFalse(reviewMessage.isStreaming)
-        XCTAssertEqual(
-            reviewMessage.presentation?.sections.map(\.title),
-            ["Run Output", "Verdict"]
-        )
+        XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Thinking") == true)
+        XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Planned Work") == true)
+        XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Activity") == true)
+        XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Verdict") == true)
 
         let snapshot = try XCTUnwrap(
             taskStore.codeReviewSnapshot(
@@ -103,6 +103,8 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         )
         XCTAssertEqual(snapshot.findings.count, 1)
         XCTAssertEqual(snapshot.phase, .completed)
+        XCTAssertFalse(taskStore.swarmCardStates(for: conversationId).isEmpty)
+        XCTAssertFalse(store.todoStore?.displayTodosForChat(for: conversationId).isEmpty ?? true)
 
         store.publishSummaryToChat(sessionId: sessionId)
 
@@ -128,6 +130,7 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
             executionController: nil,
             workspaceStore: WorkspaceStore(),
             openFilesStore: OpenFilesStore(),
+            todoStore: TodoStore(),
             conversationId: conversationId,
             providerFactoryConfigBuilder: { self.makeProviderFactoryConfig() }
         )
@@ -224,12 +227,39 @@ private final class PanelLifecycleMockProvider: LLMProvider, @unchecked Sendable
                     ),
                     workspacePath: context.workspacePath.path
                 )
+                continuation.yield(.raw(type: "reasoning", payload: [
+                    "detail": "Inspecting diff clusters and selecting audit strategy"
+                ]))
+                continuation.yield(.raw(type: "review-worker-plan", payload: [
+                    "worker_id": "worker-1",
+                    "description": "Check Main.swift for regressions",
+                    "severity": "warning",
+                    "fileCount": "1",
+                    "files_raw": "Sources/App/Main.swift",
+                    "files": "Sources/App/Main.swift",
+                ]))
+                continuation.yield(.raw(type: "todo_write", payload: [
+                    "title": "Check Main.swift for regressions",
+                    "status": "in_progress",
+                ]))
+                continuation.yield(.raw(type: "agent", payload: [
+                    "title": "worker-1",
+                    "detail": "started",
+                    "swarm_id": "worker-1",
+                    "group_id": "swarm-worker-1",
+                ]))
                 continuation.yield(.textDelta("worker-1 started\nworker-1 completed\n"))
+                continuation.yield(.raw(type: "agent", payload: [
+                    "title": "worker-1",
+                    "detail": "completed",
+                    "swarm_id": "worker-1",
+                    "group_id": "swarm-worker-1",
+                ]))
                 await sessionState.addFinding(
                     CodeReviewFinding(
                         id: "finding-e2e",
                         severity: .warning,
-                        category: .bug,
+                        category: .correctness,
                         filePath: "Sources/App/Main.swift",
                         message: "E2E finding"
                     )

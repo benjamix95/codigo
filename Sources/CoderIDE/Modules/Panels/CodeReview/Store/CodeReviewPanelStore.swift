@@ -15,6 +15,7 @@ final class CodeReviewPanelStore: ObservableObject {
     let executionController: ExecutionController?
     let workspaceStore: WorkspaceStore
     let openFilesStore: OpenFilesStore
+    let todoStore: TodoStore?
     let conversationId: UUID?
     let chatSessionStore: ReviewPanelChatSessionStore
     let providerFactoryConfigBuilder: () -> ProviderFactoryConfig
@@ -85,6 +86,7 @@ final class CodeReviewPanelStore: ObservableObject {
         executionController: ExecutionController?,
         workspaceStore: WorkspaceStore,
         openFilesStore: OpenFilesStore,
+        todoStore: TodoStore? = nil,
         conversationId: UUID?,
         chatSessionStore: ReviewPanelChatSessionStore? = nil,
         providerFactoryConfigBuilder: @escaping () -> ProviderFactoryConfig
@@ -94,6 +96,7 @@ final class CodeReviewPanelStore: ObservableObject {
         self.executionController = executionController
         self.workspaceStore = workspaceStore
         self.openFilesStore = openFilesStore
+        self.todoStore = todoStore
         self.conversationId = conversationId
         let resolvedChatSessionStore = chatSessionStore ?? ReviewPanelChatSessionStore.shared
         self.chatSessionStore = resolvedChatSessionStore

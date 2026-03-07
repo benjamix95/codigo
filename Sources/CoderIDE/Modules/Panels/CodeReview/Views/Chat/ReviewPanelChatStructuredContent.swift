@@ -105,19 +105,7 @@ enum ReviewPanelChatStructuredContent {
             verdictPart = ""
         }
 
-        var sections: [ReviewPanelChatStructuredSection] = []
-        let logLines = normalizedLines(from: logPart)
-        if !logLines.isEmpty {
-            sections.append(
-                ReviewPanelChatStructuredSection(
-                    id: "log",
-                    title: isStreaming ? "Live Output" : "Run Output",
-                    lines: logLines,
-                    style: .log,
-                    isInitiallyExpanded: isStreaming || logLines.count <= 8
-                )
-            )
-        }
+        var sections = reviewRunLogSections(from: logPart, isStreaming: isStreaming)
 
         let verdictLines = normalizedLines(from: verdictPart)
         if !verdictLines.isEmpty {
@@ -131,6 +119,46 @@ enum ReviewPanelChatStructuredContent {
                 )
             )
         }
+        return sections
+    }
+
+    private static func reviewRunLogSections(
+        from logPart: String,
+        isStreaming: Bool
+    ) -> [ReviewPanelChatStructuredSection] {
+        let logLines = normalizedLines(from: logPart)
+        guard !logLines.isEmpty else { return [] }
+
+        var sections: [ReviewPanelChatStructuredSection] = []
+        var currentTitle: String?
+        var currentLines: [String] = []
+
+        func flushCurrentSection() {
+            guard let currentTitle, !currentLines.isEmpty else { return }
+            sections.append(
+                ReviewPanelChatStructuredSection(
+                    id: currentTitle.lowercased().replacingOccurrences(of: " ", with: "-"),
+                    title: currentTitle,
+                    lines: currentLines,
+                    style: currentTitle == "Planned Work" ? .findings : .log,
+                    isInitiallyExpanded: isStreaming || currentLines.count <= 8
+                )
+            )
+            currentLines = []
+        }
+
+        for line in logLines {
+            if line.hasPrefix("### ") {
+                flushCurrentSection()
+                currentTitle = String(line.dropFirst(4))
+            } else {
+                if currentTitle == nil {
+                    currentTitle = isStreaming ? "Live Output" : "Run Output"
+                }
+                currentLines.append(line)
+            }
+        }
+        flushCurrentSection()
         return sections
     }
 

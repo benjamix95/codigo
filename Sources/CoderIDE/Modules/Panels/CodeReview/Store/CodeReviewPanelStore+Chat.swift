@@ -133,6 +133,8 @@ extension CodeReviewPanelStore {
             updateChatMessage(id: id, content: current + delta)
         case .textReplace(let replacement):
             updateChatMessage(id: id, content: replacement)
+        case .raw(let type, let payload):
+            handleRawReviewRunEvent(id: id, type: type, payload: payload)
         default:
             break
         }
@@ -263,6 +265,175 @@ extension CodeReviewPanelStore {
         isChatProcessing = isProcessing
         chatStartedAt = startedAt
         persistChatState()
+    }
+
+    private func handleRawReviewRunEvent(
+        id: UUID,
+        type: String,
+        payload: [String: String]
+    ) {
+        ingestRawReviewActivity(type: type, payload: payload)
+        syncTodoIfNeeded(type: type, payload: payload)
+
+        guard let formatted = formattedReviewRunEvent(type: type, payload: payload) else {
+            return
+        }
+        appendReviewRunSectionLine(
+            id: id,
+            sectionTitle: formatted.sectionTitle,
+            line: formatted.line
+        )
+    }
+
+    private func ingestRawReviewActivity(
+        type: String,
+        payload: [String: String]
+    ) {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: effectivePanelProviderId ?? "review-panel",
+            type: type,
+            payload: payload
+        )
+        taskActivityStore.addEnvelope(envelope)
+        for event in envelope.events {
+            if case .taskActivity(let activity) = event {
+                taskActivityStore.addActivity(
+                    scopedTaskActivity(activity)
+                )
+            }
+        }
+    }
+
+    private func syncTodoIfNeeded(
+        type: String,
+        payload: [String: String]
+    ) {
+        guard type == "todo_write" || payload.keys.contains(where: { $0.hasPrefix("todo_") }) else {
+            return
+        }
+        guard let todoStore,
+              let parsedTodo = EventNormalizer.parseTodoWrite(payload: payload)
+        else {
+            return
+        }
+
+        todoStore.upsertFromAgent(
+            id: parsedTodo.id,
+            title: parsedTodo.title,
+            status: parsedTodo.status,
+            priority: parsedTodo.priority,
+            notes: parsedTodo.notes,
+            activeForm: parsedTodo.activeForm,
+            linkedFiles: parsedTodo.files,
+            conversationId: conversationId
+        )
+    }
+
+    private func scopedTaskActivity(_ activity: TaskActivity) -> TaskActivity {
+        guard let conversationId else { return activity }
+        var payload = activity.payload
+        payload["conversation_id"] = conversationId.uuidString.lowercased()
+        return TaskActivity(
+            id: activity.id,
+            type: activity.type,
+            title: activity.title,
+            detail: activity.detail,
+            payload: payload,
+            timestamp: activity.timestamp,
+            phase: activity.phase,
+            isRunning: activity.isRunning,
+            groupId: activity.groupId
+        )
+    }
+
+    private func appendReviewRunSectionLine(
+        id: UUID,
+        sectionTitle: String,
+        line: String
+    ) {
+        guard let index = chatMessages.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLine.isEmpty else { return }
+
+        let separator = "\n---\n"
+        let current = chatMessages[index].content
+        let parts = current.components(separatedBy: separator)
+        var logPart = parts.first ?? ""
+        let verdictPart = parts.count > 1 ? parts.dropFirst().joined(separator: separator) : ""
+
+        let heading = "### \(sectionTitle)"
+        if logPart.contains("\n\(trimmedLine)\n")
+            || logPart.hasSuffix("\n\(trimmedLine)")
+            || logPart.contains("\n\(trimmedLine)")
+        {
+            return
+        }
+
+        if !logPart.contains(heading) {
+            if !logPart.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                logPart += "\n\n"
+            }
+            logPart += heading + "\n"
+        } else if !logPart.hasSuffix("\n") {
+            logPart += "\n"
+        }
+
+        logPart += trimmedLine + "\n"
+        let rebuilt = verdictPart.isEmpty
+            ? logPart.trimmingCharacters(in: .whitespacesAndNewlines)
+            : logPart.trimmingCharacters(in: .whitespacesAndNewlines) + separator + verdictPart
+        chatMessages[index].content = rebuilt
+        persistChatState()
+    }
+
+    private func formattedReviewRunEvent(
+        type: String,
+        payload: [String: String]
+    ) -> (sectionTitle: String, line: String)? {
+        switch type {
+        case "reasoning":
+            if let detail = firstNonEmpty([
+                payload["detail"], payload["text"], payload["delta"], payload["content"], payload["summary"],
+            ]) {
+                return ("Thinking", detail)
+            }
+        case "review-worker-plan":
+            let description = firstNonEmpty([payload["description"], payload["title"]]) ?? "Planned worker"
+            let severity = payload["severity"].map { "[\($0)] " } ?? ""
+            let fileCount = payload["fileCount"].map { " (\($0) files)" } ?? ""
+            return ("Planned Work", "- [ ] \(severity)\(description)\(fileCount)")
+        case "review-fix-round":
+            let round = payload["round"] ?? "?"
+            let maxRounds = payload["maxRounds"] ?? "?"
+            return ("Progress", "Round \(round)/\(maxRounds)")
+        case "review-audit-tool":
+            let tool = payload["tool"] ?? "audit"
+            let detail = payload["detail"] ?? "completed"
+            return ("Audit", "\(tool): \(detail)")
+        case "agent":
+            let title = payload["title"] ?? payload["agent_name"] ?? "agent"
+            let detail = payload["detail"] ?? payload["status"] ?? "updated"
+            return ("Activity", "\(title) — \(detail)")
+        case "tool_execution_error", "tool_validation_error":
+            let detail = payload["detail"] ?? payload["title"] ?? "Tool error"
+            return ("Activity", "Error: \(detail)")
+        default:
+            return nil
+        }
+        return nil
+    }
+
+    private func firstNonEmpty(_ values: [String?]) -> String? {
+        for value in values {
+            let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
     }
 
     private func persistChatState() {
