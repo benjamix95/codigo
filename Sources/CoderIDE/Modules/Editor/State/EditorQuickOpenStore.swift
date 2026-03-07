@@ -63,6 +63,11 @@ final class EditorQuickOpenStore: ObservableObject {
         guard let items = try? FileManager.default.contentsOfDirectory(atPath: path) else { return }
         for item in items where !item.hasPrefix(".") && !Self.excludedDirectories.contains(item) {
             let fullPath = (path as NSString).appendingPathComponent(item)
+            let url = URL(fileURLWithPath: fullPath)
+            let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey])
+            if values?.isSymbolicLink == true {
+                continue
+            }
             var isDirectory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: fullPath, isDirectory: &isDirectory) else { continue }
             if isDirectory.boolValue {
