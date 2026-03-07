@@ -26,6 +26,10 @@ extension ToolEnabledLLMProvider {
         arguments: [String: Any],
         timeoutMs: Int = 60_000
     ) async throws -> MCPToolInvocationResult {
+        guard policy.enableMCP else {
+            throw ToolRuntimeError.mcpUnavailable("MCP disabled by policy")
+        }
+
         let result = try await runtime.mcpSessions.callToolRich(
             serverId: serverId,
             toolName: toolName,
