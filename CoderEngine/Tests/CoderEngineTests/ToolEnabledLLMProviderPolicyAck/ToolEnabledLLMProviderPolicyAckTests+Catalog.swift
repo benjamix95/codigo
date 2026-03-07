@@ -251,7 +251,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workspace) }
 
-        // Ensure policy bundle exists so synthetic policy_ack path is exercised too.
+        // Ensure policy bundle exists so policy-gated flows are exercised.
         let policyFile = workspace.appendingPathComponent("AGENTS.md")
         try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
 

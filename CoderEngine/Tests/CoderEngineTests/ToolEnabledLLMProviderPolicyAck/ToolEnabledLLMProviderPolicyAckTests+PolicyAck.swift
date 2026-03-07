@@ -144,7 +144,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
     }
-    func testInjectsSyntheticPolicyAckBeforeOperationalToolEvent() async throws {
+    func testDoesNotInjectPolicyAckBeforeOperationalToolEvent() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("policy-ack-inject-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
@@ -180,11 +180,8 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
 
-        let ackIndex = try XCTUnwrap(rawTypes.firstIndex(of: "policy_ack"))
-        let operationalIndex = try XCTUnwrap(
-            rawTypes.firstIndex(where: { $0 == "read_batch_started" || $0 == "read_batch_completed" })
-        )
-        XCTAssertLessThan(ackIndex, operationalIndex)
+        XCTAssertFalse(rawTypes.contains("policy_ack"))
+        XCTAssertTrue(rawTypes.contains(where: { $0 == "read_batch_started" || $0 == "read_batch_completed" }))
     }
 
     func testDoesNotDuplicatePolicyAckWhenModelAlreadyAcknowledged() async throws {
@@ -272,7 +269,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         XCTAssertTrue((payload["output"] ?? "").contains("let value = 1"))
     }
 
-    func testInjectsSyntheticPolicyAckBeforeOperationalRawEvent() async throws {
+    func testDoesNotInjectPolicyAckBeforeOperationalRawEvent() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("policy-ack-raw-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
@@ -304,9 +301,8 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
 
-        let ackIndex = try XCTUnwrap(rawTypes.firstIndex(of: "policy_ack"))
-        let commandIndex = try XCTUnwrap(rawTypes.firstIndex(of: "command_execution"))
-        XCTAssertLessThan(ackIndex, commandIndex)
+        XCTAssertFalse(rawTypes.contains("policy_ack"))
+        XCTAssertTrue(rawTypes.contains("command_execution"))
     }
 
 }
