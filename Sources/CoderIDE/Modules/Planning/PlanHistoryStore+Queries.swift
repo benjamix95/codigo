@@ -30,10 +30,16 @@ extension PlanHistoryStore {
 
     func save() {
         do {
+            let parentDir = storageURL.deletingLastPathComponent()
+            if !FileManager.default.fileExists(atPath: parentDir.path) {
+                try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
+            }
             let data = try JSONEncoder().encode(entries)
             try data.write(to: storageURL, options: .atomic)
         } catch {
+            #if DEBUG
             print("[PlanHistoryStore] save failed: \(error.localizedDescription)")
+            #endif
         }
     }
 

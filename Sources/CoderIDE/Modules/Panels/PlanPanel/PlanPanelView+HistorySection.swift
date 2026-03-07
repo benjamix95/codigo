@@ -228,7 +228,7 @@ extension PlanPanelView {
         )
         .alert("Delete all history?", isPresented: $showDeleteAllHistoryConfirmation) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete all", role: .destructive) {
+            Button("Delete all", role: .destructive) { [ctxId, ctxPath] in
                 expandedHistoryEntryIds.removeAll()
                 planHistoryStore.deleteAllForContext(contextId: ctxId, contextFolderPath: ctxPath)
             }

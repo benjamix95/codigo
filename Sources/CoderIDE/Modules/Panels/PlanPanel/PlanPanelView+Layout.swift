@@ -154,7 +154,7 @@ extension PlanPanelView {
         }) {
             return firstAuthenticated.id
         }
-        return providerRegistry.selectedProviderId ?? providerRegistry.providers.first?.id ?? "codex-cli"
+        return providerRegistry.selectedProviderId ?? providerRegistry.providers.first?.id ?? ""
     }
 
     var activeProviderLabel: String {
@@ -182,16 +182,11 @@ extension PlanPanelView {
             .filter { isPlanExecutionProviderIdAllowed($0.id) }
             .map(\.id)
         guard !ids.isEmpty else { return }
-        Task.detached(priority: .userInitiated) {
-            var cache: [String: Bool] = [:]
-            for id in ids {
-                if let p = await MainActor.run(body: { providerRegistry.provider(for: id) }) {
-                    cache[id] = p.isAuthenticated()
-                }
-            }
-            let result = cache
-            await MainActor.run { providerAuthCache = result }
+        var cache: [String: Bool] = [:]
+        for id in ids {
+            cache[id] = providerRegistry.provider(for: id)?.isAuthenticated() ?? false
         }
+        providerAuthCache = cache
     }
 
     @ViewBuilder

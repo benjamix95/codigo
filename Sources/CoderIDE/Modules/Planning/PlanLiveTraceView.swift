@@ -120,15 +120,14 @@ private extension PlanLiveTraceView {
         }
 
         loadingPreviewIds.insert(change.id)
-        Task {
+        let changeId = change.id
+        Task { @MainActor in
             let result = await FileChangePreviewResolver.shared.resolvePreview(
                 for: change,
                 workspaceHints: workspaceHints
             )
-            await MainActor.run {
-                filePreviewById[change.id] = result
-                loadingPreviewIds.remove(change.id)
-            }
+            filePreviewById[changeId] = result
+            loadingPreviewIds.remove(changeId)
         }
     }
 

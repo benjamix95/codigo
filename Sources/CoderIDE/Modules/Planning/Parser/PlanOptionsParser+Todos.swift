@@ -136,9 +136,6 @@ extension PlanOptionsParser {
                 appendTodo(item)
             }
         }
-        if !todos.isEmpty {
-            return todos
-        }
         return todos
     }
 }

@@ -154,9 +154,7 @@ func shouldFallbackToPreferredProvider(
     selectedProviderIsAuthenticated: Bool,
     hasPreferredAuthenticatedFallback: Bool
 ) -> Bool {
-    _ = selectedProviderIsAuthenticated
-    _ = hasPreferredAuthenticatedFallback
-    return false
+    !selectedProviderIsAuthenticated && hasPreferredAuthenticatedFallback
 }
 
 func shouldSyncModeOnProviderChange(suppressForUserPicker: Bool) -> Bool {

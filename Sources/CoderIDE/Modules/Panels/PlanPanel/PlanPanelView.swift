@@ -46,14 +46,14 @@ struct PlanPanelView: View {
     @State var planProviderId: String?
     /// Cached auth per provider — populated async to avoid blocking main thread on isAuthenticated().
     @State var providerAuthCache: [String: Bool] = [:]
-    /// Reference-type cache to avoid mutating @State during body evaluation.
-    final class SnapshotCache {
+    /// Value-type cache to avoid redundant snapshot computation during body evaluation.
+    struct SnapshotCache {
         var key: String = ""
         var snapshot: PlanRenderSnapshot?
     }
     @State var snapshotCache = SnapshotCache()
     /// Keeps top controls out of the macOS titlebar non-interactive zone.
-        let topInteractiveInset: CGFloat = 22
+    private static let topInteractiveInset: CGFloat = 22
 
     let planColor = DesignSystem.Colors.planColor
 
@@ -74,7 +74,7 @@ struct PlanPanelView: View {
         let snapshot = resolveSnapshot()
         VStack(spacing: 0) {
             Color.clear
-                .frame(height: topInteractiveInset)
+                .frame(height: Self.topInteractiveInset)
                 .allowsHitTesting(false)
             fixedToolbar
             thinSeparator

@@ -1,5 +1,6 @@
 import AppKit
 import CoderEngine
+import os
 import SwiftUI
 import UniformTypeIdentifiers
 func isPlanExecutionProviderIdAllowed(_ providerId: String) -> Bool {
@@ -114,21 +115,18 @@ extension ChatPanelView {
 }
 
 private enum PlanQuestionToolEpochStore {
-    static let lock = NSLock()
-    static nonisolated(unsafe) var byConversation: [UUID: Int] = [:]
+    static let state = OSAllocatedUnfairLock(initialState: [UUID: Int]())
 
     static func epoch(for conversationId: UUID) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return byConversation[conversationId] ?? 0
+        state.withLock { $0[conversationId] ?? 0 }
     }
 
     static func increment(for conversationId: UUID) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let next = (byConversation[conversationId] ?? 0) + 1
-        byConversation[conversationId] = next
-        return next
+        state.withLock { store in
+            let next = (store[conversationId] ?? 0) + 1
+            store[conversationId] = next
+            return next
+        }
     }
 }
 
@@ -245,15 +243,15 @@ func shouldTreatConversationAsPlanContext(
     if let streamConversationId {
         // A persisted plan board alone must not force plan routing for normal
         // agent chat turns. Route only when an active plan session/build
-        // is in progress.
-        _ = hasPlanBoardForStreamConversation
+        // is in progress or the panel is explicitly open with a board.
         if streamConversationId == activeBuildPlanConversationId { return true }
+        if hasPlanBoardForStreamConversation && showPlanPanel { return true }
         return false
     }
 
     if currentConversationId != nil {
-        _ = hasPlanBoardForCurrentConversation
         if currentConversationId == activeBuildPlanConversationId { return true }
+        if hasPlanBoardForCurrentConversation && showPlanPanel { return true }
     }
 
     return false
@@ -273,7 +271,7 @@ func shouldRoutePlanStreamToPlanPanel(
         if streamConversationId == activeBuildPlanConversationId { return true }
         if streamConversationId == activeBuildAgentConversationId { return true }
     }
-    _ = shouldRoutePlanStreamingToPanel
+    if shouldRoutePlanStreamingToPanel { return true }
     return false
 }
 

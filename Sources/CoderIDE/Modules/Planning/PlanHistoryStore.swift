@@ -26,4 +26,10 @@ final class PlanHistoryStore: ObservableObject {
             }
         }
     }
+
+    deinit {
+        if let observer = userDefaultsObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
 }

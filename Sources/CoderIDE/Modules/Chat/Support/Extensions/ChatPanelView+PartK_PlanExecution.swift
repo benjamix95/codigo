@@ -231,11 +231,7 @@ extension ChatPanelView {
                     )
                     self.activeBuildPlanConversationId = nil
                     self.activeBuildAgentConversationId = nil
-                    if ctx.success {
-                        self.planFlowPhase = .proposalReady
-                    } else {
-                        self.planFlowPhase = .readyToBuild
-                    }
+                    self.planFlowPhase = .readyToBuild
                 }
             }
         )
