@@ -125,7 +125,10 @@ actor CoverageParser {
     }
 
     private func exportCoverageJSON(profDataPath: String, projectPath: String) async -> String? {
-        let outputPath = "\(projectPath)/.build/debug/coverage.json"
+        guard let outputURL = validatedCoverageOutputURL(projectPath: projectPath) else {
+            return nil
+        }
+
         let result = await withCheckedContinuation { (continuation: CheckedContinuation<TestProcessResult, Never>) in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
@@ -152,7 +155,31 @@ actor CoverageParser {
         }
 
         guard result.exitCode == 0, !result.stdout.isEmpty else { return nil }
-        try? result.stdout.write(toFile: outputPath, atomically: true, encoding: .utf8)
-        return outputPath
+        try? result.stdout.write(to: outputURL, atomically: true, encoding: .utf8)
+        return outputURL.path
+    }
+
+    private func validatedCoverageOutputURL(projectPath: String) -> URL? {
+        let fm = FileManager.default
+        let projectURL = URL(fileURLWithPath: projectPath, isDirectory: true)
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+        let outputURL = projectURL
+            .appendingPathComponent(".build", isDirectory: true)
+            .appendingPathComponent("debug", isDirectory: true)
+            .appendingPathComponent("coverage.json", isDirectory: false)
+            .resolvingSymlinksInPath()
+
+        guard outputURL.pathComponents.starts(with: projectURL.pathComponents) else {
+            return nil
+        }
+
+        if fm.fileExists(atPath: outputURL.path),
+           let values = try? outputURL.resourceValues(forKeys: [.isSymbolicLinkKey]),
+           values.isSymbolicLink == true {
+            return nil
+        }
+
+        return outputURL
     }
 }
