@@ -3,7 +3,7 @@ import CoderEngine
 @testable import CoderIDEMCPServer
 
 extension CodeReviewHandlerTests {
-    func testReviewFindingsIncludesSensitiveDetailsAfterAuthorization() {
+    func testReviewFindingsOmitsSensitiveDetailsFromOutput() {
         let snapshot = seedSnapshot()
 
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
@@ -13,13 +13,14 @@ extension CodeReviewHandlerTests {
 
         XCTAssertNil(result?.isError)
         let text = textContent(result)
-        XCTAssertTrue(text.contains("Package.swift"))
-        XCTAssertTrue(text.contains("Test finding"))
+        XCTAssertTrue(text.contains("Findings"))
+        XCTAssertFalse(text.contains("Package.swift"))
+        XCTAssertFalse(text.contains("Test finding"))
     }
 
-    func testReviewFindingsFallsBackToCompletedSessionWhenUnique() {
+    func testReviewFindingsDoesNotFallBackToCompletedSessionWhenNoActiveSessionExists() {
         let conversationId = UUID()
-        let completed = seedSnapshot(
+        _ = seedSnapshot(
             sessionId: "completed-findings",
             conversationId: conversationId,
             phase: .completed
@@ -32,6 +33,6 @@ extension CodeReviewHandlerTests {
 
         XCTAssertNil(result?.isError)
         let text = textContent(result)
-        XCTAssertTrue(text.contains(completed.sessionId) || text.contains("Package.swift"))
+        XCTAssertTrue(text.contains("No review session found.") || text.contains("No active review session."))
     }
 }
