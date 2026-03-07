@@ -93,6 +93,7 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
     func testPanelStoreRestoresCachedChatSessionState() {
         let conversationId = UUID()
         let sessionKey = CodeReviewPanelStore.chatSessionKey(conversationId: conversationId)
+        _ = ReviewPanelChatSessionStore.shared.createThread(for: sessionKey, title: "Cached")
         ReviewPanelChatSessionStore.shared.replaceState(
             ReviewPanelChatSessionState(
                 messages: [
@@ -114,6 +115,7 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertTrue(store.isChatProcessing)
         XCTAssertEqual(store.chatMessages.last?.content, "Streaming...")
         XCTAssertTrue(store.chatMessages.last?.isStreaming == true)
+        XCTAssertEqual(store.chatThreads.count, 1)
     }
 
     func testPanelFallbackApplyFixOnlyMutatesRequestedFinding() async throws {

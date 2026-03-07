@@ -137,7 +137,12 @@ struct CodeReviewPanelView: View {
                 }
             } else {
                 Button {
-                    store.selectTab(.commands)
+                    Task {
+                        await store.startReview(
+                            scope: store.scopeTarget,
+                            modes: store.selectedModes
+                        )
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.right.circle")

@@ -15,6 +15,8 @@ struct ReviewPanelHeader: View {
             Text("Code Review")
                 .font(.system(size: 13, weight: .semibold))
 
+            ReviewPanelChatThreadSwitcher(store: store)
+
             if !store.orderedSelectedModes.isEmpty {
                 modeBadges
             }

@@ -10,6 +10,7 @@ extension CodeReviewPanelStore {
     func sendChatMessage(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isChatProcessing else { return }
+        ensureActiveChatThread()
 
         appendChatMessage(ReviewPanelMessage(
             role: .user,
@@ -95,8 +96,8 @@ extension CodeReviewPanelStore {
 
     /// Clear chat history.
     func clearChatHistory() {
-        applyChatSessionState(.empty)
-        chatSessionStore.clearState(for: chatSessionKey)
+        guard let activeChatThreadId else { return }
+        chatSessionStore.deleteThread(activeChatThreadId, for: chatSessionKey)
     }
 
     func beginPanelActionOutput(
@@ -104,6 +105,7 @@ extension CodeReviewPanelStore {
         detail: String? = nil,
         selectChatTab: Bool = true
     ) -> UUID {
+        ensureActiveChatThread()
         if selectChatTab {
             selectTab(.chat)
         }
@@ -264,7 +266,7 @@ extension CodeReviewPanelStore {
     }
 
     private func persistChatState() {
-        chatSessionStore.replaceState(
+        chatSessionStore.replaceActiveState(
             ReviewPanelChatSessionState(
                 messages: chatMessages,
                 isProcessing: isChatProcessing,
@@ -272,5 +274,11 @@ extension CodeReviewPanelStore {
             ),
             for: chatSessionKey
         )
+    }
+
+    private func ensureActiveChatThread() {
+        if activeChatThreadId == nil {
+            activeChatThreadId = chatSessionStore.createThread(for: chatSessionKey)
+        }
     }
 }

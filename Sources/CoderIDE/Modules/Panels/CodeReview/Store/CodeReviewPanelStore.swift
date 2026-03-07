@@ -41,6 +41,8 @@ final class CodeReviewPanelStore: ObservableObject {
     @Published var chatMessages: [ReviewPanelMessage] = []
     @Published var isChatProcessing: Bool = false
     @Published var chatStartedAt: Date?
+    @Published var chatThreads: [ReviewPanelChatThreadState] = []
+    @Published var activeChatThreadId: String?
 
     // MARK: - Git Context
 
@@ -97,23 +99,21 @@ final class CodeReviewPanelStore: ObservableObject {
         self.providerFactoryConfigBuilder = providerFactoryConfigBuilder
         self.settings = ReviewPanelSettingsPersistence.load()
 
-        let initialChatState = resolvedChatSessionStore.state(
+        let initialConversation = resolvedChatSessionStore.conversation(
             for: Self.chatSessionKey(conversationId: conversationId)
         )
-        self.chatMessages = initialChatState.messages
-        self.isChatProcessing = initialChatState.isProcessing
-        self.chatStartedAt = initialChatState.startedAt
-        if !initialChatState.messages.isEmpty {
+        applyChatConversationState(initialConversation)
+        if !chatMessages.isEmpty {
             self.selectedTab = .chat
         }
 
         let sessionKey = Self.chatSessionKey(conversationId: conversationId)
-        self.chatStateCancellable = resolvedChatSessionStore.$statesByKey
+        self.chatStateCancellable = resolvedChatSessionStore.$conversationsByKey
             .map { $0[sessionKey] ?? .empty }
             .removeDuplicates()
-            .sink { [weak self] state in
+            .sink { [weak self] conversation in
                 guard let self else { return }
-                self.applyChatSessionState(state)
+                self.applyChatConversationState(conversation)
             }
     }
 
@@ -283,9 +283,41 @@ final class CodeReviewPanelStore: ObservableObject {
         Self.chatSessionKey(conversationId: conversationId)
     }
 
+    func createNewChatThread() {
+        let threadId = chatSessionStore.createThread(for: chatSessionKey)
+        activeChatThreadId = threadId
+        selectedTab = .chat
+    }
+
+    func selectChatThread(_ threadId: String) {
+        chatSessionStore.selectThread(threadId, for: chatSessionKey)
+        selectedTab = .chat
+    }
+
+    func archiveChatThread(_ threadId: String) {
+        chatSessionStore.archiveThread(threadId, for: chatSessionKey)
+    }
+
+    func restoreChatThread(_ threadId: String) {
+        chatSessionStore.restoreThread(threadId, for: chatSessionKey)
+    }
+
+    func deleteChatThread(_ threadId: String) {
+        chatSessionStore.deleteThread(threadId, for: chatSessionKey)
+    }
+
     func applyChatSessionState(_ state: ReviewPanelChatSessionState) {
         chatMessages = state.messages
         isChatProcessing = state.isProcessing
         chatStartedAt = state.startedAt
+    }
+
+    func applyChatConversationState(_ conversation: ReviewPanelChatConversationState) {
+        chatThreads = conversation.threads
+        activeChatThreadId = conversation.activeThreadId
+        let activeState = conversation.activeThreadId.flatMap { activeId in
+            conversation.threads.first(where: { $0.id == activeId })?.sessionState
+        } ?? .empty
+        applyChatSessionState(activeState)
     }
 }
