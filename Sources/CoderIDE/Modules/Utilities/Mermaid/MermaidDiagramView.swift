@@ -250,7 +250,9 @@ struct MermaidDiagramView: View {
                 let svgUrl = url.deletingPathExtension().appendingPathExtension("svg")
                 try svgData.write(to: svgUrl, options: .atomic)
             }
-        } catch {}
+        } catch {
+            assertionFailure("Failed to save diagram: \(error)")
+        }
     }
 
     // MARK: - Helpers

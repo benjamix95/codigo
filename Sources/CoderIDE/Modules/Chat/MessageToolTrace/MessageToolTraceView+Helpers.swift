@@ -108,7 +108,13 @@ extension MessageToolTraceView {
         } catch {
             assertionFailure("Invalid hardcoded regex – \(error)")
             do { return try NSRegularExpression(pattern: "", options: []) }
-            catch { preconditionFailure("Empty NSRegularExpression pattern must always compile") }
+            catch {
+                assertionFailure("Empty regex pattern failed unexpectedly: \(error)")
+                guard let fallback = try? NSRegularExpression(pattern: "", options: []) else {
+                    fatalError("NSRegularExpression cannot compile empty pattern")
+                }
+                return fallback
+            }
         }
     }()
 
