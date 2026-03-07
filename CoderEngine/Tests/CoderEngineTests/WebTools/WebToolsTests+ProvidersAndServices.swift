@@ -160,6 +160,21 @@ extension WebToolsTests {
         }
     }
 
+    func testIsBlockedHostBlocksPrivateIPv6AndLocalNames() async {
+        let service = WebFetchService()
+
+        XCTAssertTrue(await service.isBlockedHost("::1"))
+        XCTAssertTrue(await service.isBlockedHost("fc00::1"))
+        XCTAssertTrue(await service.isBlockedHost("fd12:3456:789a::1"))
+        XCTAssertTrue(await service.isBlockedHost("fe80::1"))
+        XCTAssertTrue(await service.isBlockedHost("printer.local"))
+    }
+
+    func testIsBlockedHostAllowsPublicIPv6Literal() async {
+        let service = WebFetchService()
+        XCTAssertFalse(await service.isBlockedHost("2606:4700:4700::1111"))
+    }
+
     func testFetchPrependsHTTPS() async {
         let service = WebFetchService()
         // This will likely fail with a network error (can't reach test domain),
