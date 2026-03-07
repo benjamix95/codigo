@@ -118,6 +118,33 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(store.chatThreads.count, 1)
     }
 
+    func testDeleteSessionRemovesSnapshotAndClearsSelection() async {
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let snapshot = makeSnapshot(
+            sessionId: "session-delete",
+            conversationId: conversationId
+        )
+        taskStore.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+
+        let store = makePanelStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId
+        )
+        store.setSelectedSession("session-delete")
+
+        await store.deleteSession("session-delete")
+
+        XCTAssertTrue(store.availableSnapshots.isEmpty)
+        XCTAssertNil(store.selectedSessionId)
+        XCTAssertNil(
+            taskStore.codeReviewSnapshot(
+                sessionId: "session-delete",
+                conversationId: conversationId
+            )
+        )
+    }
+
     func testPanelFallbackApplyFixOnlyMutatesRequestedFinding() async throws {
         let taskStore = TaskActivityStore()
         let conversationId = UUID()

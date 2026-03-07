@@ -81,6 +81,37 @@ extension TaskActivityStore {
         selectedCodeReviewSessionIdByConversation[conversationScope] = sessionId
     }
 
+    func deleteCodeReviewSession(
+        sessionId: String,
+        conversationId: UUID?
+    ) {
+        codeReviewSnapshotsBySession.removeValue(forKey: sessionId)
+
+        if let conversationScope = codeReviewConversationScope(conversationId) {
+            codeReviewSessionIdsByConversation[conversationScope]?.removeAll { $0 == sessionId }
+            if selectedCodeReviewSessionIdByConversation[conversationScope] == sessionId {
+                selectedCodeReviewSessionIdByConversation[conversationScope] =
+                    codeReviewSessionIdsByConversation[conversationScope]?.first
+            }
+        }
+
+        if codeReviewFindingsByConversation.keys.contains(where: { key in
+            codeReviewConversationScope(conversationId) == key
+        }) {
+            let scopedSnapshot = codeReviewSnapshot(sessionId: nil, conversationId: conversationId)
+            let conversationScope = codeReviewConversationScope(conversationId)
+            if let conversationScope {
+                codeReviewFindingsByConversation[conversationScope] = scopedSnapshot?.findings ?? []
+                codeReviewEventsByConversation[conversationScope] = scopedSnapshot?.events ?? []
+                codeReviewPhaseByConversation[conversationScope] = scopedSnapshot?.phase ?? .idle
+            }
+            codeReviewFindings = scopedSnapshot?.findings ?? []
+            codeReviewEvents = scopedSnapshot?.events ?? []
+            codeReviewPhase = scopedSnapshot?.phase ?? .idle
+            codeReviewStage = scopedSnapshot?.stage ?? .idle
+        }
+    }
+
     func codeReviewSnapshot(
         sessionId: String?,
         conversationId: UUID?

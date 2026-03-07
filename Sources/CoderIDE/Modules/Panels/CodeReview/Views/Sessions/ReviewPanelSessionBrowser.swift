@@ -82,60 +82,74 @@ struct ReviewPanelSessionBrowser: View {
     ) -> some View {
         let isSelected = store.selectedSessionId == snap.sessionId
 
-        return Button {
-            store.setSelectedSession(snap.sessionId)
-        } label: {
-            HStack(spacing: 6) {
-                phaseIndicator(snap.phase)
+        return HStack(spacing: 6) {
+            Button {
+                store.setSelectedSession(snap.sessionId)
+            } label: {
+                HStack(spacing: 6) {
+                    phaseIndicator(snap.phase)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(snap.sessionId.prefix(12))
-                        .font(.system(size: 10, weight: .semibold,
-                                      design: .monospaced))
-                        .foregroundStyle(.primary.opacity(0.9))
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(snap.sessionId.prefix(12))
+                            .font(.system(size: 10, weight: .semibold,
+                                          design: .monospaced))
+                            .foregroundStyle(.primary.opacity(0.9))
+                            .lineLimit(1)
 
-                    HStack(spacing: 4) {
-                        Text(snap.phase.rawValue.capitalized)
-                            .font(.system(size: 8.5, weight: .medium))
-                            .foregroundStyle(.tertiary)
+                        HStack(spacing: 4) {
+                            Text(snap.phase.rawValue.capitalized)
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundStyle(.tertiary)
 
-                        if !snap.findings.isEmpty {
-                            Text("\(snap.findings.count) findings")
-                                .font(.system(size: 8.5, design: .monospaced))
-                                .foregroundStyle(.quaternary)
+                            if !snap.findings.isEmpty {
+                                Text("\(snap.findings.count) findings")
+                                    .font(.system(size: 8.5, design: .monospaced))
+                                    .foregroundStyle(.quaternary)
+                            }
                         }
                     }
-                }
 
-                Spacer()
+                    Spacer()
 
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(store.accent)
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(store.accent)
+                    }
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isSelected
+                            ? store.accent.opacity(0.08)
+                            : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(
+                            isSelected
+                                ? store.accent.opacity(0.25)
+                                : Color.clear,
+                            lineWidth: 0.5
+                        )
+                )
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSelected
-                        ? store.accent.opacity(0.08)
-                        : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(
-                        isSelected
-                            ? store.accent.opacity(0.25)
-                            : Color.clear,
-                        lineWidth: 0.5
-                    )
-            )
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            Button {
+                Task { await store.deleteSession(snap.sessionId) }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .background(Color.primary.opacity(0.05), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Delete session")
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Phase Indicator

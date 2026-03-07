@@ -56,4 +56,15 @@ final class ReviewPanelChatSessionStoreTests: XCTestCase {
         let conversation = store.conversation(for: key)
         XCTAssertEqual(conversation.threads.first?.subtitle, "Live")
     }
+
+    func testCreateThreadUsesProvidedTitleAndSelectsIt() {
+        let key = "panel-chat-custom-title"
+        let store = ReviewPanelChatSessionStore.shared
+
+        let threadId = store.createThread(for: key, title: "panel-123")
+        let conversation = store.conversation(for: key)
+
+        XCTAssertEqual(conversation.activeThreadId, threadId)
+        XCTAssertEqual(conversation.threads.first?.title, "panel-123")
+    }
 }

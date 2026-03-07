@@ -31,8 +31,8 @@ extension CodeReviewPanelStore {
         Self.chatSessionKey(conversationId: conversationId)
     }
 
-    func createNewChatThread() {
-        let threadId = chatSessionStore.createThread(for: chatSessionKey)
+    func createNewChatThread(title: String? = nil) {
+        let threadId = chatSessionStore.createThread(for: chatSessionKey, title: title)
         activeChatThreadId = threadId
         selectedTab = .chat
     }

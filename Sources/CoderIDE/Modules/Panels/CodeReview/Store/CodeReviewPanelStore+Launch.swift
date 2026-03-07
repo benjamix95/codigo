@@ -57,8 +57,10 @@ extension CodeReviewPanelStore {
 
         let prompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
         let context = buildWorkspaceContext()
+        let reviewRunTitle = invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes)
+        createNewChatThread(title: sessionId)
         let outputMessageId = beginPanelActionOutput(
-            title: invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes),
+            title: reviewRunTitle,
             detail: prompt,
             selectChatTab: true
         )

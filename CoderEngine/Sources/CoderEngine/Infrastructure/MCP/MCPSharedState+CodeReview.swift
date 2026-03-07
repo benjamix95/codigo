@@ -230,6 +230,16 @@ extension MCPSharedState {
         return payload
     }
 
+    public static func deleteCodeReviewSession(sessionId: String) {
+        withCodeReviewFileLock {
+            guard let snapshotFilePath = validatedCodeReviewSessionFilePath(sessionId: sessionId) else {
+                return
+            }
+            try? FileManager.default.removeItem(at: snapshotFilePath)
+            _writeCodeReviewIndexUnsafe(rebuiltCodeReviewIndexUnsafe())
+        }
+    }
+
     private static func _writeCodeReviewSnapshotUnsafe(_ snapshot: CodeReviewSessionSnapshot) {
         ensureCodeReviewDirectories()
         guard let snapshotFilePath = validatedCodeReviewSessionFilePath(sessionId: snapshot.sessionId) else {

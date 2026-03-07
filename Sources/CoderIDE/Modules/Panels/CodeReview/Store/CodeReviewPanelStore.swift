@@ -162,6 +162,20 @@ final class CodeReviewPanelStore: ObservableObject {
         selectedFindingId = nil
     }
 
+    func deleteSession(_ sessionId: String) async {
+        await ReviewSessionRegistry.shared.unregister(sessionId: sessionId)
+        MCPSharedState.deleteCodeReviewSession(sessionId: sessionId)
+        taskActivityStore.deleteCodeReviewSession(
+            sessionId: sessionId,
+            conversationId: conversationId
+        )
+
+        if panelSessionId == sessionId {
+            panelSessionId = availableSnapshots.first?.sessionId
+        }
+        selectedFindingId = nil
+    }
+
     func focusFinding(_ findingId: String) {
         guard currentFindings.contains(where: { $0.id == findingId }) else { return }
         selectedFindingId = findingId

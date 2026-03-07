@@ -17,6 +17,18 @@ struct ReviewPanelHeader: View {
 
             ReviewPanelChatThreadSwitcher(store: store)
 
+            Button {
+                store.createNewChatThread()
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(store.accent)
+                    .frame(width: 20, height: 20)
+                    .background(store.accent.opacity(0.10), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help("New review chat")
+
             // Round info
             if let ri = store.computeMetrics().roundInfo, store.isRunning {
                 Text("Round \(ri.round)/\(ri.maxRounds)")
