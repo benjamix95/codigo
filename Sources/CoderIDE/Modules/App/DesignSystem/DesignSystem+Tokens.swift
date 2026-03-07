@@ -261,5 +261,10 @@ struct DesignSystem {
             .windowBackgroundColor,
             NSColor(red: 0.050, green: 0.050, blue: 0.075, alpha: 1)
         )
+        /// Matches sidebar backgroundSecondary; used for window backgroundColor to fill titlebar gap.
+        static let sidebarBackground = codigoAdaptiveNS(
+            .controlBackgroundColor,
+            NSColor(red: 0.118, green: 0.118, blue: 0.128, alpha: 1)
+        )
     }
 }

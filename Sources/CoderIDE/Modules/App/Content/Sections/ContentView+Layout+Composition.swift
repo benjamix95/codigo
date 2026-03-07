@@ -36,7 +36,7 @@ extension ContentView {
             } detail: {
                 configuredDetailContent
             }
-            .navigationSplitViewStyle(.balanced)
+            .navigationSplitViewStyle(.prominentDetail)
             .toolbar(removing: .sidebarToggle)
         }
     }
@@ -193,18 +193,27 @@ extension ContentView {
     }
 
     private var configuredSidebar: some View {
-        SidebarView(
-            selectedConversationId: $selectedConversationId,
-            showSettings: $showSettings,
-            isSelectingProjectFolders: $isSelectingProjectFolders,
-            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
-        )
+        ZStack {
+            DesignSystem.Colors.backgroundSecondary
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea(.all)
+            SidebarMaterialBackground()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea(.all)
+            SidebarView(
+                selectedConversationId: $selectedConversationId,
+                showSettings: $showSettings,
+                isSelectingProjectFolders: $isSelectingProjectFolders,
+                preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+            )
+        }
         .environmentObject(providerRegistry)
         .environmentObject(chatStore)
         .environmentObject(workspaceStore)
         .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
         .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
+        .ignoresSafeArea(.container, edges: [.top, .bottom])
     }
 
     @ViewBuilder
