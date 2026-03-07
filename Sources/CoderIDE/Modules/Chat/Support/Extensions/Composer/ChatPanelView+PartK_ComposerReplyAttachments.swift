@@ -38,14 +38,26 @@ extension ChatPanelView {
     ) -> URL {
         let standardizedSource = sourceURL.standardizedFileURL
         let standardizedWorkspace = workspaceURL.standardizedFileURL
-        if standardizedSource.path.hasPrefix(standardizedWorkspace.path) {
-            return standardizedSource
+        let resolvedSource = standardizedSource.resolvingSymlinksInPath()
+        let resolvedWorkspace = standardizedWorkspace.resolvingSymlinksInPath()
+        if isURL(resolvedSource, inside: resolvedWorkspace) {
+            return resolvedSource
         }
 
-        let runtimeDir = standardizedWorkspace
+        let runtimeRoot = standardizedWorkspace
             .appendingPathComponent(".codigo_attachments", isDirectory: true)
+        if pathContainsSymlink(runtimeRoot) {
+            return resolvedSource
+        }
+
+        let runtimeDir = runtimeRoot
             .appendingPathComponent(turnId.uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: runtimeDir, withIntermediateDirectories: true)
+
+        let resolvedRuntimeDir = runtimeDir.resolvingSymlinksInPath()
+        if !isURL(resolvedRuntimeDir, inside: resolvedWorkspace) {
+            return resolvedSource
+        }
 
         let ext = standardizedSource.pathExtension
         let baseName = standardizedSource.deletingPathExtension().lastPathComponent
@@ -56,9 +68,28 @@ extension ChatPanelView {
             : "\(UUID().uuidString)_\(baseName).\(ext)"
         let runtimeURL = runtimeDir.appendingPathComponent(String(runtimeFileName))
         if !FileManager.default.fileExists(atPath: runtimeURL.path) {
-            try? FileManager.default.copyItem(at: standardizedSource, to: runtimeURL)
+            try? FileManager.default.copyItem(at: resolvedSource, to: runtimeURL)
         }
         return runtimeURL
+    }
+
+    private func isURL(_ candidate: URL, inside directory: URL) -> Bool {
+        let candidatePath = candidate.path
+        let directoryPath = directory.path
+        if candidatePath == directoryPath {
+            return true
+        }
+        let normalizedDirectory = directoryPath.hasSuffix("/") ? directoryPath : "\(directoryPath)/"
+        return candidatePath.hasPrefix(normalizedDirectory)
+    }
+
+    private func pathContainsSymlink(_ url: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return false
+        }
+
+        let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey])
+        return values?.isSymbolicLink == true
     }
 
     internal func buildAttachmentBundle(
