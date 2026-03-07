@@ -68,6 +68,45 @@ final class VoiceInputControllerTests: XCTestCase {
         XCTAssertTrue(message.lowercased().contains("recognizer"))
     }
 
+    func testCancelDuringPermissionRequestPreventsLateListeningState() async {
+        let backend = MockVoiceInputBackend()
+        backend.suspendPermissions = true
+        let controller = VoiceInputController(backend: backend)
+
+        controller.start { _ in
+            XCTFail("Non dovrebbe arrivare trascrizione finale")
+        }
+        await tick()
+        XCTAssertEqual(controller.state, .requestingPermission)
+
+        controller.cancel()
+        backend.resumePermissions()
+        await tick()
+
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertNil(backend.startedLocale)
+    }
+
+    func testEmptyFinalTranscriptionLeavesControllerFailed() async {
+        let backend = MockVoiceInputBackend()
+        let controller = VoiceInputController(backend: backend)
+
+        controller.start { _ in
+            XCTFail("Non dovrebbe arrivare trascrizione finale")
+        }
+        await tick()
+        XCTAssertEqual(controller.state, .listening)
+
+        controller.stop()
+        backend.emitTranscript("   ", isFinal: true)
+        await tick()
+
+        guard case .failed(let message) = controller.state else {
+            return XCTFail("Expected failed state")
+        }
+        XCTAssertTrue(message.lowercased().contains("no speech"))
+    }
+
     private func tick() async {
         await Task.yield()
         try? await Task.sleep(nanoseconds: 30_000_000)
@@ -81,11 +120,18 @@ private final class MockVoiceInputBackend: VoiceInputBackend {
 
     var permissionError: Error?
     var startError: Error?
+    var suspendPermissions = false
     var startedLocale: Locale?
+    private var permissionContinuation: CheckedContinuation<Void, Error>?
 
     func requestPermissions() async throws {
         if let permissionError {
             throw permissionError
+        }
+        if suspendPermissions {
+            try await withCheckedThrowingContinuation { continuation in
+                permissionContinuation = continuation
+            }
         }
     }
 
@@ -105,5 +151,11 @@ private final class MockVoiceInputBackend: VoiceInputBackend {
 
     func emitFailure(_ error: Error) {
         onFailure?(error)
+    }
+
+    func resumePermissions() {
+        permissionContinuation?.resume(returning: ())
+        permissionContinuation = nil
+        suspendPermissions = false
     }
 }

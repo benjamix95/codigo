@@ -16,6 +16,7 @@ extension ChatPanelView {
 
         Task {
             await MainActor.run {
+                discardPendingStreamingState(for: convId)
                 let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: convId)
                 var didCancelTask = didCancelPipeline || cancelRunTask(for: convId)
                 if !didCancelTask,
@@ -148,6 +149,7 @@ extension ChatPanelView {
 
         Task {
             await MainActor.run {
+                discardPendingStreamingState(for: conversationId)
                 let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: conversationId)
                 var didCancelTask = didCancelPipeline || cancelRunTask(for: conversationId)
                 if !didCancelTask,

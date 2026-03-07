@@ -184,11 +184,13 @@ extension ChatPanelView {
                     }
                 } else {
                     traceOutcome = .failed
-                    applyLegacyStreamSnapshot(
-                        content: userFacingStreamError(error),
-                        conversationId: targetConversationId,
-                        providerId: effectiveRuntimeProvider.id
-                    )
+                    if !shouldPreservePartialAssistantContent(after: error) {
+                        applyLegacyStreamSnapshot(
+                            content: userFacingStreamError(error),
+                            conversationId: targetConversationId,
+                            providerId: effectiveRuntimeProvider.id
+                        )
+                    }
                     applyLegacyLifecycleEvent(
                         kind: .turnFailed,
                         conversationId: targetConversationId,

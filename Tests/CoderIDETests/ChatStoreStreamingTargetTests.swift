@@ -3,21 +3,23 @@ import XCTest
 
 @MainActor
 final class ChatStoreStreamingTargetTests: XCTestCase {
-    private let convKey = "CoderIDE.conversations"
-    private let planKey = "CoderIDE.planBoards"
+    private var userDefaults: UserDefaults!
+    private var suiteName = ""
 
-    override func setUp() {
-        super.setUp()
-        clearPersistedState()
+    override func setUpWithError() throws {
+        suiteName = "ChatStoreStreamingTargetTests.\(UUID().uuidString)"
+        userDefaults = UserDefaults(suiteName: suiteName)
+        userDefaults.removePersistentDomain(forName: suiteName)
     }
 
-    override func tearDown() {
-        clearPersistedState()
-        super.tearDown()
+    override func tearDownWithError() throws {
+        userDefaults?.removePersistentDomain(forName: suiteName)
+        userDefaults = nil
+        suiteName = ""
     }
 
     func testUpdateLastAssistantMessageTargetsActiveStreamingAssistant() throws {
-        let store = ChatStore()
+        let store = makeStore()
         let conversationId = try XCTUnwrap(store.conversations.first?.id)
 
         let streamingAssistantId = UUID()
@@ -55,7 +57,7 @@ final class ChatStoreStreamingTargetTests: XCTestCase {
     }
 
     func testSetLastAssistantStreamingTargetsActiveStreamingAssistant() throws {
-        let store = ChatStore()
+        let store = makeStore()
         let conversationId = try XCTUnwrap(store.conversations.first?.id)
 
         let streamingAssistantId = UUID()
@@ -89,7 +91,7 @@ final class ChatStoreStreamingTargetTests: XCTestCase {
     }
 
     func testInsertMessagePlacesEntryBeforeAnchorMessage() throws {
-        let store = ChatStore()
+        let store = makeStore()
         let conversationId = try XCTUnwrap(store.conversations.first?.id)
 
         let streamingAssistantId = UUID()
@@ -123,8 +125,8 @@ final class ChatStoreStreamingTargetTests: XCTestCase {
         XCTAssertEqual(ids[2], streamingAssistantId)
     }
 
-    func testRemoveTrailingEmptyAssistantMessages() throws {
-        let store = ChatStore()
+    func testRemoveTrailingEmptyAssistantMessages() async throws {
+        let store = makeStore()
         let conversationId = try XCTUnwrap(store.conversations.first?.id)
 
         store.addMessage(ChatMessage(role: .user, content: "Hello"), to: conversationId)
@@ -149,10 +151,16 @@ final class ChatStoreStreamingTargetTests: XCTestCase {
         let after = try XCTUnwrap(store.conversation(for: conversationId))
         XCTAssertEqual(after.messages.count, 2)
         XCTAssertEqual(after.messages.last?.content, "Turn 1 response")
+
+        try? await Task.sleep(nanoseconds: 350_000_000)
+        let reloadedStore = makeStore()
+        let reloadedConversation = try XCTUnwrap(reloadedStore.conversation(for: conversationId))
+        XCTAssertEqual(reloadedConversation.messages.count, 2)
+        XCTAssertEqual(reloadedConversation.messages.last?.content, "Turn 1 response")
     }
 
     func testRemoveTrailingEmptyDoesNotRemoveStreamingMessage() throws {
-        let store = ChatStore()
+        let store = makeStore()
         let conversationId = try XCTUnwrap(store.conversations.first?.id)
 
         store.addMessage(ChatMessage(role: .user, content: "Hello"), to: conversationId)
@@ -168,8 +176,7 @@ final class ChatStoreStreamingTargetTests: XCTestCase {
         XCTAssertTrue(after.messages.last?.isStreaming ?? false)
     }
 
-    private func clearPersistedState() {
-        UserDefaults.standard.removeObject(forKey: convKey)
-        UserDefaults.standard.removeObject(forKey: planKey)
+    private func makeStore() -> ChatStore {
+        ChatStore(userDefaults: userDefaults)
     }
 }

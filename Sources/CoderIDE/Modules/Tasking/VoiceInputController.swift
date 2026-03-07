@@ -60,6 +60,8 @@ final class VoiceInputController: ObservableObject {
 
     private let backend: any VoiceInputBackend
     private let localeProvider: () -> Locale
+    private var startTask: Task<Void, Never>?
+    private var activeRequestId: UUID?
     private var onFinalTranscription: ((String) -> Void)?
 
     init(
@@ -73,16 +75,28 @@ final class VoiceInputController: ObservableObject {
 
     func start(onFinalTranscription: @escaping (String) -> Void) {
         guard canStart else { return }
+        let requestId = UUID()
+        startTask?.cancel()
+        activeRequestId = requestId
         self.onFinalTranscription = onFinalTranscription
         transcript = ""
         state = .requestingPermission
 
-        Task { @MainActor in
+        startTask = Task { @MainActor in
             do {
                 try await backend.requestPermissions()
+                guard shouldContinueRequest(requestId) else { return }
                 try backend.start(locale: localeProvider())
+                guard shouldContinueRequest(requestId) else {
+                    backend.cancel()
+                    return
+                }
                 state = .listening
+                startTask = nil
             } catch {
+                guard shouldContinueRequest(requestId) else { return }
+                activeRequestId = nil
+                startTask = nil
                 state = .failed(Self.message(for: error))
             }
         }
@@ -95,6 +109,9 @@ final class VoiceInputController: ObservableObject {
     }
 
     func cancel() {
+        activeRequestId = nil
+        startTask?.cancel()
+        startTask = nil
         backend.cancel()
         transcript = ""
         onFinalTranscription = nil
@@ -114,6 +131,7 @@ final class VoiceInputController: ObservableObject {
         backend.onTranscript = { [weak self] text, isFinal in
             guard let self else { return }
             Task { @MainActor in
+                guard self.activeRequestId != nil else { return }
                 self.transcript = text
                 if isFinal {
                     self.finalizeTranscription(text)
@@ -124,6 +142,10 @@ final class VoiceInputController: ObservableObject {
         backend.onFailure = { [weak self] error in
             guard let self else { return }
             Task { @MainActor in
+                guard self.activeRequestId != nil else { return }
+                self.activeRequestId = nil
+                self.startTask?.cancel()
+                self.startTask = nil
                 self.state = .failed(Self.message(for: error))
                 self.backend.cancel()
             }
@@ -132,18 +154,25 @@ final class VoiceInputController: ObservableObject {
 
     private func finalizeTranscription(_ value: String) {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        activeRequestId = nil
+        startTask?.cancel()
+        startTask = nil
         backend.cancel()
-        defer {
-            transcript = ""
-            onFinalTranscription = nil
-            state = .idle
-        }
 
         guard !normalized.isEmpty else {
+            transcript = ""
+            onFinalTranscription = nil
             state = .failed(Self.message(for: VoiceInputError.noSpeechDetected))
             return
         }
         onFinalTranscription?(normalized)
+        transcript = ""
+        onFinalTranscription = nil
+        state = .idle
+    }
+
+    private func shouldContinueRequest(_ requestId: UUID) -> Bool {
+        !Task.isCancelled && activeRequestId == requestId
     }
 
     private static func message(for error: Error) -> String {

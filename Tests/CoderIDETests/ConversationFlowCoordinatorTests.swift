@@ -126,16 +126,52 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .error)
         XCTAssertEqual(snapshots.last, "partial\n\n[Error: boom]")
     }
+
+    func testRunStreamReusesPendingReadAcrossInitialTimeoutRetries() async throws {
+        let provider = MockStreamingProvider(scheduledEvents: [
+            ScheduledStreamEvent(delayNanoseconds: 1_200_000_000, event: .textDelta("late")),
+            ScheduledStreamEvent(delayNanoseconds: 0, event: .completed),
+        ])
+        let coordinator = ConversationFlowCoordinator(
+            initialEventTimeoutOverride: 1,
+            initialRetryOverride: 2
+        )
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        var snapshots: [String] = []
+        let result = try await coordinator.runStream(
+            provider: provider,
+            prompt: "test",
+            context: ctx,
+            attachments: nil,
+            onText: { snapshots.append($0) },
+            onRaw: { _, _, _ in },
+            onError: { _ in }
+        )
+
+        XCTAssertEqual(snapshots, ["late"])
+        XCTAssertEqual(result, "late")
+        XCTAssertEqual(coordinator.state, .completed)
+    }
+}
+
+private struct ScheduledStreamEvent: Sendable {
+    let delayNanoseconds: UInt64
+    let event: StreamEvent
 }
 
 private final class MockStreamingProvider: LLMProvider, @unchecked Sendable {
     let id: String = "mock-stream"
     let displayName: String = "Mock Stream"
 
-    private let events: [StreamEvent]
+    private let scheduledEvents: [ScheduledStreamEvent]
 
     init(events: [StreamEvent]) {
-        self.events = events
+        self.scheduledEvents = events.map { ScheduledStreamEvent(delayNanoseconds: 0, event: $0) }
+    }
+
+    init(scheduledEvents: [ScheduledStreamEvent]) {
+        self.scheduledEvents = scheduledEvents
     }
 
     func isAuthenticated() -> Bool { true }
@@ -145,11 +181,14 @@ private final class MockStreamingProvider: LLMProvider, @unchecked Sendable {
         context: WorkspaceContext,
         imageURLs: [URL]?
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let events = self.events
+        let scheduledEvents = self.scheduledEvents
         return AsyncThrowingStream { continuation in
             Task {
-                for event in events {
-                    continuation.yield(event)
+                for item in scheduledEvents {
+                    if item.delayNanoseconds > 0 {
+                        try? await Task.sleep(nanoseconds: item.delayNanoseconds)
+                    }
+                    continuation.yield(item.event)
                 }
                 continuation.finish()
             }

@@ -1,7 +1,7 @@
 import Foundation
 import CoderEngine
 
-final class IteratorHolder<Stream: AsyncSequence>: @unchecked Sendable {
+actor IteratorHolder<Stream: AsyncSequence> {
     private var iterator: Stream.AsyncIterator
 
     init(_ stream: Stream) {
@@ -9,7 +9,10 @@ final class IteratorHolder<Stream: AsyncSequence>: @unchecked Sendable {
     }
 
     func next() async throws -> Stream.AsyncIterator.Element? {
-        try await iterator.next()
+        var iterator = self.iterator
+        let value = try await iterator.next()
+        self.iterator = iterator
+        return value
     }
 }
 
@@ -27,20 +30,15 @@ enum StreamWatchdogError: LocalizedError {
     }
 }
 
-private enum StreamIterationState: Error {
-    case ended
-}
-
 extension ConversationFlowCoordinator {
     func nextEvent(
         withinSeconds timeout: Int,
         isInitialPoll: Bool,
-        operation: @escaping @Sendable () async throws -> StreamEvent?
+        pendingTask: Task<StreamEvent?, Error>
     ) async throws -> StreamEvent? {
-        try await withThrowingTaskGroup(of: StreamEvent.self) { group in
+        try await withThrowingTaskGroup(of: StreamEvent?.self) { group in
             group.addTask {
-                guard let value = try await operation() else { throw StreamIterationState.ended }
-                return value
+                try await pendingTask.value
             }
             group.addTask {
                 let safeTimeout = max(1, timeout)
@@ -55,9 +53,6 @@ extension ConversationFlowCoordinator {
                 }
                 group.cancelAll()
                 return value
-            } catch StreamIterationState.ended {
-                group.cancelAll()
-                return nil
             }
         }
     }

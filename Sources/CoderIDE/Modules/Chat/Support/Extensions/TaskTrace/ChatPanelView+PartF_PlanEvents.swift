@@ -44,7 +44,8 @@ extension ChatPanelView {
             goal: goal,
             chosenPath: chosenPath,
             steps: steps,
-            conversationId: eventConversationId
+            conversationId: eventConversationId,
+            fallbackConversationId: fallbackConversationId
         )
         let targetId = resolvePlanMutationConversationId(
             rawConversationId: eventConversationId,

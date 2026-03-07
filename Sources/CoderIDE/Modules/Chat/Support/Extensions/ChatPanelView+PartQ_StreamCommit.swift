@@ -3,7 +3,47 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldDiscardPendingStreamSnapshot(
+    targetConversationId: UUID?,
+    pendingConversationId: UUID?
+) -> Bool {
+    guard let targetConversationId else { return true }
+    return pendingConversationId == targetConversationId
+}
+
 extension ChatPanelView {
+    internal func discardPendingStreamingState(for targetConversationId: UUID?) {
+        streamThrottleTask?.cancel()
+        streamThrottleTask = nil
+        if shouldDiscardPendingStreamSnapshot(
+            targetConversationId: targetConversationId,
+            pendingConversationId: pendingStreamConversationId
+        ) {
+            pendingStreamContent = nil
+            pendingStreamConversationId = nil
+            updateStreamingTextSegment("")
+        }
+
+        planStreamThrottleTask?.cancel()
+        planStreamThrottleTask = nil
+        if shouldDiscardPendingStreamSnapshot(
+            targetConversationId: targetConversationId,
+            pendingConversationId: pendingPlanStreamConversationId
+        ) {
+            pendingPlanStreamingContent = nil
+            pendingPlanStreamConversationId = nil
+        }
+        if let targetConversationId {
+            planStreamingContentByConversation.removeValue(forKey: targetConversationId)
+            if conversationId == targetConversationId {
+                planStreamingContent = ""
+            }
+        } else {
+            planStreamingContentByConversation.removeAll()
+            planStreamingContent = ""
+        }
+    }
+
     internal func stripPlanCheckboxes(_ content: String) -> String {
         content.replacingOccurrences(
             of: #"(?m)^(\s*[-*]\s*)\[\s*[xX ]?\s*\]\s*"#,

@@ -105,12 +105,17 @@ func insertMessage(_ message: ChatMessage, before messageId: UUID, in conversati
 
 func removeTrailingEmptyAssistantMessages(in conversationId: UUID?) {
     guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+    var changed = false
     while let last = conversations[idx].messages.last,
           last.role == .assistant,
           last.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
           !last.isStreaming
     {
         conversations[idx].messages.removeLast()
+        changed = true
+    }
+    if changed {
+        saveConversationsImmediately()
     }
 }
 

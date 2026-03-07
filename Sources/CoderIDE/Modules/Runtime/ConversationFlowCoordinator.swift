@@ -128,17 +128,23 @@ final class ConversationFlowCoordinator: ObservableObject {
         let clampedInactivity = min(3600, max(1, inactivityTimeout))
         let clampedInitialRetries = min(max(0, maxInitialNoEventRetries), 100)
         let clampedStallRetries = min(max(0, maxInactivityStallRetries), 100)
+        var pendingNextTask: Task<StreamEvent?, Error>?
 
         while true {
             let timeout = hasReceivedAnyEvent ? clampedInactivity : clampedFirst
             let maybeEvent: StreamEvent?
             do {
+                if pendingNextTask == nil {
+                    pendingNextTask = Task {
+                        try await iteratorHolder.next()
+                    }
+                }
                 maybeEvent = try await nextEvent(
                     withinSeconds: timeout,
-                    isInitialPoll: !hasReceivedAnyEvent
-                ) {
-                    try await iteratorHolder.next()
-                }
+                    isInitialPoll: !hasReceivedAnyEvent,
+                    pendingTask: pendingNextTask!
+                )
+                pendingNextTask = nil
                 // Reset retry budgets after any successful poll.
                 initialNoEventRetries = 0
                 inactivityStallRetries = 0

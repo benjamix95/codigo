@@ -6,10 +6,13 @@ extension ChatStore {
         goal: String,
         chosenPath: String?,
         steps: [PlanStepUpsertPayload],
-        conversationId rawConversationId: String?
+        conversationId rawConversationId: String?,
+        fallbackConversationId: UUID?
     ) {
         let explicitConversationId = parsedConversationId(rawConversationId)
-        guard let conversationId = resolvePlanConversationId(preferred: explicitConversationId) else { return }
+        guard let conversationId = resolvePlanConversationId(
+            preferred: explicitConversationId ?? fallbackConversationId
+        ) else { return }
         var board = emptyPlanBoard()
         board.goal = normalizeText(goal, fallback: "Operational plan in progress")
         board.chosenPath = normalizeOptionalText(chosenPath)

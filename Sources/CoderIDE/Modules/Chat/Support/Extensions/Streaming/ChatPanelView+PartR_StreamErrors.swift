@@ -3,6 +3,10 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldPreservePartialAssistantContent(after error: Error) -> Bool {
+    error is ConversationFlowCoordinator.StreamExecutionError
+}
+
 extension ChatPanelView {
     internal func appendTechnicalErrorMessage(_ message: String, in conversationId: UUID?) {
         let normalized = normalizeTechnicalErrorMessage(message)

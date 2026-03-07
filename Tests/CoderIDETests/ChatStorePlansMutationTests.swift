@@ -52,7 +52,8 @@ final class ChatStorePlansMutationTests: XCTestCase {
                     conversationId: nil
                 )
             ],
-            conversationId: conversationId.uuidString.lowercased()
+            conversationId: conversationId.uuidString.lowercased(),
+            fallbackConversationId: nil
         )
 
         store.applyPlanStepUpsert(
@@ -93,7 +94,8 @@ final class ChatStorePlansMutationTests: XCTestCase {
                 PlanStepUpsertPayload(stepId: "1", status: .pending, title: "Uno", description: nil, targetFile: nil, linkedFiles: [], dependsOn: [], notes: nil, conversationId: nil),
                 PlanStepUpsertPayload(stepId: "2", status: .pending, title: "Due", description: nil, targetFile: nil, linkedFiles: [], dependsOn: [], notes: nil, conversationId: nil),
             ],
-            conversationId: conversationId.uuidString.lowercased()
+            conversationId: conversationId.uuidString.lowercased(),
+            fallbackConversationId: nil
         )
 
         store.applyPlanStepBatchUpdate(
@@ -160,7 +162,8 @@ final class ChatStorePlansMutationTests: XCTestCase {
             steps: [
                 PlanStepUpsertPayload(stepId: "1", status: .pending, title: "Uno", description: nil, targetFile: nil, linkedFiles: [], dependsOn: [], notes: nil, conversationId: nil)
             ],
-            conversationId: conversationRaw
+            conversationId: conversationRaw,
+            fallbackConversationId: nil
         )
         store.applyPlanCreate(
             goal: "Goal dedup",
@@ -168,7 +171,8 @@ final class ChatStorePlansMutationTests: XCTestCase {
             steps: [
                 PlanStepUpsertPayload(stepId: "1", status: .pending, title: "Uno", description: nil, targetFile: nil, linkedFiles: [], dependsOn: [], notes: nil, conversationId: nil)
             ],
-            conversationId: conversationRaw
+            conversationId: conversationRaw,
+            fallbackConversationId: nil
         )
 
         var history = MCPSharedState.readPlanHistoryJSONObject(conversationId: conversationId, limit: 50)
@@ -191,5 +195,39 @@ final class ChatStorePlansMutationTests: XCTestCase {
 
         history = MCPSharedState.readPlanHistoryJSONObject(conversationId: conversationId, limit: 50)
         XCTAssertEqual(history.count, 2)
+    }
+
+    func testPlanCreateWithoutExplicitConversationUsesFallbackConversation() throws {
+        let store = ChatStore(userDefaults: userDefaults)
+        let firstConversationId = store.createConversation(contextId: nil, contextFolderPath: nil, mode: .agent)
+        let fallbackConversationId = store.createConversation(contextId: nil, contextFolderPath: nil, mode: .plan)
+
+        store.setPlanBoard(
+            PlanBoard(goal: "Existing board", options: [], chosenPath: nil, steps: [], updatedAt: .now),
+            for: firstConversationId
+        )
+
+        store.applyPlanCreate(
+            goal: "Fallback goal",
+            chosenPath: nil,
+            steps: [
+                PlanStepUpsertPayload(
+                    stepId: "1",
+                    status: .pending,
+                    title: "Uno",
+                    description: nil,
+                    targetFile: nil,
+                    linkedFiles: [],
+                    dependsOn: [],
+                    notes: nil,
+                    conversationId: nil
+                )
+            ],
+            conversationId: nil,
+            fallbackConversationId: fallbackConversationId
+        )
+
+        XCTAssertEqual(store.planBoard(for: fallbackConversationId)?.goal, "Fallback goal")
+        XCTAssertEqual(store.planBoard(for: firstConversationId)?.goal, "Existing board")
     }
 }
