@@ -106,7 +106,7 @@ func buildPromptContext(
     conversationId: UUID?,
     maxMessages: Int = 20,
     maxCharsPerMessage: Int = 2000,
-    includeMemorySummary: Bool = true,
+    includeMemorySummary: Bool = false,
     maxSummaryChars: Int = 6_000
 ) -> String {
     guard let conv = conversation(for: conversationId) else { return "" }
