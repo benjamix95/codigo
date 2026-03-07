@@ -2,6 +2,24 @@ import Foundation
 
 @MainActor
 extension AppUpdateCenter {
+    nonisolated static func validatedHTTPSURL(from urlString: String) -> URL? {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              var components = URLComponents(string: trimmed),
+              components.scheme?.lowercased() == "https",
+              let host = components.host,
+              !host.isEmpty,
+              components.user == nil,
+              components.password == nil
+        else {
+            return nil
+        }
+
+        // Canonicalize to avoid accepting equivalent malformed representations.
+        components.scheme = "https"
+        return components.url
+    }
+
     func shouldCheckNow() -> Bool {
         guard let latestDate = lastCheckedAt ?? userDefaults.object(forKey: Self.lastCheckedKey) as? Date else {
             return true
