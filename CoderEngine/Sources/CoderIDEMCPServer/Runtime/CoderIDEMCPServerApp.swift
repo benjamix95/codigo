@@ -70,6 +70,12 @@ struct CoderIDEMCPServerApp {
         // Register tools/call handler
         await server.withMethodHandler(CallTool.self) { params in
             let toolName = CoderIDETools.runtimeToolName(from: params.name)
+            guard CoderIDETools.isAllowedRuntimeToolName(toolName) else {
+                return CallTool.Result(
+                    content: [.text("tool_validation_error: unknown or disallowed tool '\(params.name)'.")],
+                    isError: true
+                )
+            }
             let isEditRuntimeTool = Self.mcpEditRuntimeTools.contains(toolName)
 
             // Convert MCP Value args → [String: String] for UnifiedToolRuntime
