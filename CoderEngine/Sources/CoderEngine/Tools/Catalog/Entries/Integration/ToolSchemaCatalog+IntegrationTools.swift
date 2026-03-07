@@ -244,7 +244,7 @@ extension ToolSchemaCatalog {
             name: "browser_navigate",
             description: "Navigate the integrated browser to a URL. Opens the browser panel if not already visible.",
             properties: [
-                "url": ["type": "string", "description": "URL to navigate to (e.g. http://localhost:3000)"]
+                "url": ["type": "string", "description": "Public HTTP(S) URL to navigate to"]
             ],
             required: ["url"]
         ),
