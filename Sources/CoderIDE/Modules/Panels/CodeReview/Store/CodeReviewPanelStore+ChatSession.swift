@@ -55,11 +55,14 @@ extension CodeReviewPanelStore {
                     $0.content = accumulated
                 }
             },
-            onComplete: {
+            onComplete: { [weak self] in
                 sessionStore.updateMessage(id: assistantId, for: sessionKey) {
                     $0.isStreaming = false
                 }
                 sessionStore.setProcessing(false, startedAt: nil, for: sessionKey)
+                Task { @MainActor in
+                    await self?.syncStructuredFindingsFromChatResponse(messageId: assistantId)
+                }
             },
             onError: { error in
                 sessionStore.updateMessage(id: assistantId, for: sessionKey) {

@@ -207,6 +207,31 @@ extension ReviewPanelCoordinator {
         - Open findings: \(openCount)
 
         Answer concisely and helpfully. If the user asks about specific findings, reference them by file and line.
+        Keep the main answer readable in plain markdown.
+
+        If you identify NEW actionable findings that should appear in the Findings tab, append at the very end a fenced block exactly like this:
+
+        ```review_findings
+        {
+          "findings": [
+            {
+              "severity": "warning",
+              "category": "correctness",
+              "file": "Sources/App/Main.swift",
+              "line": 42,
+              "message": "Short actionable finding",
+              "suggested_fix": "Concrete fix guidance",
+              "confidence": 0.82
+            }
+          ]
+        }
+        ```
+
+        Rules:
+        - Emit the block only when you are introducing or updating actionable findings.
+        - If there are no actionable findings, do not emit the block.
+        - Use categories: correctness, regression, concurrency, security, tests, maintainability, performance, other.
+        - Severity: critical, warning, suggestion, info.
 
         User: \(userMessage)
         """

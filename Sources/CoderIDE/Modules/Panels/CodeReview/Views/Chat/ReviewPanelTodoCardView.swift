@@ -3,6 +3,7 @@ import SwiftUI
 struct ReviewPanelTodoCardView: View {
     let items: [TodoItem]
     @State private var isExpanded = false
+    @State private var lastSignature = ""
 
     var body: some View {
         if !items.isEmpty {
@@ -54,17 +55,33 @@ struct ReviewPanelTodoCardView: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.32))
+                    .fill(Color.black.opacity(0.20))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.14), lineWidth: 0.5)
+                    .strokeBorder(DesignSystem.Colors.planColor.opacity(0.18), lineWidth: 0.7)
             )
+            .shadow(color: Color.black.opacity(0.22), radius: 10, y: 4)
+            .onAppear {
+                lastSignature = itemsSignature
+            }
+            .onChange(of: itemsSignature) { _, newValue in
+                guard !newValue.isEmpty, newValue != lastSignature else { return }
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded = true
+                }
+                lastSignature = newValue
+            }
         }
     }
 
     private var doneCount: Int {
         items.filter { $0.status == .done }.count
+    }
+
+    private var itemsSignature: String {
+        items.map { "\($0.id.uuidString.lowercased()):\($0.status.rawValue)" }
+            .joined(separator: "|")
     }
 
     @ViewBuilder
