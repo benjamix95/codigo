@@ -7,6 +7,7 @@ struct ReviewPanelMessage: Identifiable, Equatable {
     let role: ReviewPanelMessageRole
     let kind: ReviewPanelMessageKind
     var content: String
+    var presentation: ReviewPanelMessagePresentation?
     let timestamp: Date
     var isStreaming: Bool
 
@@ -15,6 +16,7 @@ struct ReviewPanelMessage: Identifiable, Equatable {
         role: ReviewPanelMessageRole,
         kind: ReviewPanelMessageKind = .plain,
         content: String,
+        presentation: ReviewPanelMessagePresentation? = nil,
         timestamp: Date = Date(),
         isStreaming: Bool = false
     ) {
@@ -22,6 +24,7 @@ struct ReviewPanelMessage: Identifiable, Equatable {
         self.role = role
         self.kind = kind
         self.content = content
+        self.presentation = presentation
         self.timestamp = timestamp
         self.isStreaming = isStreaming
     }

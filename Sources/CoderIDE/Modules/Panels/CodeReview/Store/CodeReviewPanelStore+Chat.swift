@@ -107,12 +107,12 @@ extension CodeReviewPanelStore {
         if selectChatTab {
             selectTab(.chat)
         }
-        let commandText = detail.map { "\(title)\n\n\($0)" } ?? title
-        appendChatMessage(ReviewPanelMessage(
-            role: .user,
-            kind: .commandInvocation,
-            content: commandText
-        ))
+        appendChatMessage(
+            ReviewPanelChatMessageFactory.commandInvocation(
+                title: title,
+                detail: detail
+            )
+        )
         let assistantId = UUID()
         appendChatMessage(ReviewPanelMessage(
             id: assistantId,
@@ -146,6 +146,7 @@ extension CodeReviewPanelStore {
             return
         }
         chatMessages[index].isStreaming = false
+        ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[index])
         persistChatState()
     }
 
@@ -155,6 +156,7 @@ extension CodeReviewPanelStore {
         }
         chatMessages[index].content = "Error: \(error)"
         chatMessages[index].isStreaming = false
+        ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[index])
         persistChatState()
     }
 
@@ -166,11 +168,18 @@ extension CodeReviewPanelStore {
         if selectChatTab {
             selectTab(.chat)
         }
-        appendChatMessage(ReviewPanelMessage(
-            role: .system,
-            kind: kind,
-            content: text
-        ))
+        let message: ReviewPanelMessage
+        switch kind {
+        case .findingMutation:
+            message = ReviewPanelChatMessageFactory.findingUpdate(text: text)
+        default:
+            message = ReviewPanelMessage(
+                role: .system,
+                kind: kind,
+                content: text
+            )
+        }
+        appendChatMessage(message)
     }
 
     // MARK: - Private
@@ -243,7 +252,7 @@ extension CodeReviewPanelStore {
         persistChatState()
     }
 
-    private func appendChatMessage(_ message: ReviewPanelMessage) {
+    func appendChatMessage(_ message: ReviewPanelMessage) {
         chatMessages.append(message)
         persistChatState()
     }

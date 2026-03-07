@@ -231,35 +231,6 @@ extension CodeReviewPanelStore {
         }
     }
 
-    // MARK: - Export
-
-    func exportSummary(sessionId: String) -> String {
-        guard let snapshot = taskActivityStore.codeReviewSnapshot(
-            sessionId: sessionId, conversationId: conversationId
-        ) else { return "No session found" }
-
-        let header = """
-        ## Code Review Summary
-        - session_id: \(snapshot.sessionId)
-        - phase: \(snapshot.phase.rawValue)
-        - stage: \(snapshot.stage.rawValue)
-        - scope: \(snapshot.scope?.description ?? "unknown")
-        - findings: \(snapshot.findings.count)
-        """
-
-        let findings = snapshot.findings.map { finding in
-            let line = finding.lineNumber.map { ":\($0)" } ?? ""
-            return "- [\(finding.severity.rawValue)] \(finding.filePath)\(line) — \(finding.message)"
-        }
-
-        return ([header] + findings).joined(separator: "\n")
-    }
-
-    func publishSummaryToChat(sessionId: String) {
-        let summary = exportSummary(sessionId: sessionId)
-        appendPanelSystemMessage(summary, kind: .summary, selectChatTab: true)
-    }
-
     // MARK: - Private Helpers
 
     private func buildSessionConfig() -> SessionConfig {
@@ -318,44 +289,5 @@ extension CodeReviewPanelStore {
         mode: CodeReviewPanelMode
     ) -> String {
         "Run \(mode.displayName) on \(scope.displayDescription)"
-    }
-
-    private func mutateSnapshot(
-        sessionId: String,
-        findingId: String,
-        mutate: (inout CodeReviewFinding) -> Void,
-        event: () -> CodeReviewSessionEvent
-    ) async {
-        // Fallback mutation for snapshots without live state
-        guard let snapshot = taskActivityStore.codeReviewSnapshot(
-            sessionId: sessionId, conversationId: conversationId
-        ) else { return }
-
-        var findings = snapshot.findings
-        guard let index = findings.firstIndex(where: { $0.id == findingId }) else { return }
-        mutate(&findings[index])
-        // Re-ingest the mutated snapshot
-        let updated = CodeReviewSessionSnapshot(
-            sessionId: snapshot.sessionId,
-            conversationId: snapshot.conversationId,
-            mutationSequence: snapshot.mutationSequence + 1,
-            phase: snapshot.phase,
-            stage: snapshot.stage,
-            findings: findings,
-            events: snapshot.events + [event()],
-            config: snapshot.config,
-            scope: snapshot.scope,
-            workspacePath: snapshot.workspacePath,
-            currentRound: snapshot.currentRound,
-            activeWorkerCount: snapshot.activeWorkerCount,
-            startedAt: snapshot.startedAt,
-            completedAt: snapshot.completedAt,
-            analysisCompletedAt: snapshot.analysisCompletedAt,
-            lastError: snapshot.lastError,
-            currentJobId: snapshot.currentJobId,
-            lastTestStatus: snapshot.lastTestStatus,
-            lastUpdatedAt: Date()
-        )
-        taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
     }
 }

@@ -77,7 +77,8 @@ extension ReviewPanelChatBubble {
 
     @ViewBuilder
     var assistantContentBody: some View {
-        let sections = ReviewPanelChatStructuredContent.sections(for: message)
+        let sections = message.presentation?.sections
+            ?? ReviewPanelChatStructuredContent.sections(for: message)
         if !sections.isEmpty {
             ReviewPanelChatStructuredSectionsView(
                 sections: sections,
@@ -109,7 +110,8 @@ extension ReviewPanelChatBubble {
 
     @ViewBuilder
     var systemContentBody: some View {
-        let sections = ReviewPanelChatStructuredContent.sections(for: message)
+        let sections = message.presentation?.sections
+            ?? ReviewPanelChatStructuredContent.sections(for: message)
         if !sections.isEmpty {
             ReviewPanelChatStructuredSectionsView(
                 sections: sections,
