@@ -50,9 +50,10 @@ extension ToolEnabledLLMProvider {
         }
         let knownMutatingTools: Set<String> = [
             "create_file", "delete_file", "apply_patch",
-            "str_replace", "edit", "multi_edit", "regex_replace",
-            "write", "parallel_apply", "find_and_replace_all",
+            "str_replace", "edit", "multi_edit", "multiedit", "regex_replace",
+            "write", "write_file", "parallel_apply", "find_and_replace_all",
             "rename_symbol", "undo_edit", "apply_diff",
+            "notebook_edit", "notebook_write",
             "coderide_str_replace", "coderide_write", "coderide_create_file",
             "coderide_regex_replace",
         ]
