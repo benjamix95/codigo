@@ -36,9 +36,6 @@ struct SidebarView: View {
     var body: some View {
         sidebarContent
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                SidebarMaterialBackground()
-                    .ignoresSafeArea()
-            )
+            .background(SidebarMaterialBackground())
     }
 }
