@@ -72,7 +72,7 @@ extension CodigoApp {
                 analysisOnly: parseBoolValue(command.payload["analysis_only"]) ?? snapshot.config.analysisOnly
             )
             let cfg = providerFactoryConfig()
-            guard ProviderFactory.codeReviewMultiSwarmProvider(
+            guard CodeReviewCommandRuntimeHooks.makeProvider(
                 config: cfg,
                 executionController: executionController,
                 agentProviderId: providerRegistry.selectedProviderId,
@@ -135,7 +135,8 @@ extension CodigoApp {
         let sessionId = MCPSharedState.sanitizedCodeReviewSessionId(command.sessionId)
             ?? UUID().uuidString.lowercased()
         let cfg = providerFactoryConfig()
-        guard !workspaceStore.activeWorkspacePaths.isEmpty else {
+        let context = codeReviewCommandContext()
+        guard !context.workspacePaths.isEmpty else {
             return .immediate(success: false, message: "No active workspace is available for code review")
         }
         let sessionConfig = SessionConfig(
@@ -151,12 +152,12 @@ extension CodigoApp {
             config: sessionConfig
         )
 
-        guard let provider = ProviderFactory.codeReviewMultiSwarmProvider(
+        guard let provider = CodeReviewCommandRuntimeHooks.makeProvider(
             config: cfg,
             executionController: executionController,
             agentProviderId: providerRegistry.selectedProviderId,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: context.workspacePaths,
             sessionState: sessionState,
             initialSessionConfig: sessionConfig
         ) else {
@@ -176,7 +177,7 @@ extension CodigoApp {
             provider: provider,
             sessionState: sessionState,
             prompt: prompt,
-            context: codeReviewCommandContext()
+            context: context
         )
         return .deferred(message: "Review session \(sessionId) started")
     }
@@ -210,12 +211,13 @@ extension CodigoApp {
             config: sourceSnapshot.config
         )
         let cfg = providerFactoryConfig()
-        guard let provider = ProviderFactory.codeReviewMultiSwarmProvider(
+        let context = codeReviewCommandContext()
+        guard let provider = CodeReviewCommandRuntimeHooks.makeProvider(
             config: cfg,
             executionController: executionController,
             agentProviderId: providerRegistry.selectedProviderId,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: context.workspacePaths,
             sessionState: fixSessionState,
             initialSessionConfig: sourceSnapshot.config
         ) else {
@@ -237,7 +239,7 @@ extension CodigoApp {
                 findings: [finding],
                 targetSessionId: fixSessionId
             ),
-            context: codeReviewCommandContext(),
+            context: context,
             onSuccess: {
                 await markFindingFixApplied(
                     sessionId: sourceSessionId,

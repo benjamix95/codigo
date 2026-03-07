@@ -98,13 +98,7 @@ extension CodigoApp {
 
     @MainActor
     func codeReviewCommandContext() -> WorkspaceContext {
-        WorkspaceContext(
-            workspacePaths: workspaceStore.activeWorkspacePaths,
-            excludedPaths: workspaceStore.activeExcludedPaths,
-            openFiles: openFilesStore.openFilesForContext(),
-            activeFilePath: openFilesStore.openFilePath,
-            activeRootPath: workspaceStore.activeWorkspacePaths.first?.path
-        )
+        CodeReviewCommandRuntimeHooks.workspaceContext(for: self)
     }
 
     @MainActor

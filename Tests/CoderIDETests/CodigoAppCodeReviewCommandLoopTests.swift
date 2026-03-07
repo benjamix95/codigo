@@ -1,0 +1,300 @@
+import XCTest
+import CoderEngine
+@testable import CoderIDE
+
+@MainActor
+final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
+    private var workspaceURL: URL!
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = nil
+        CodeReviewCommandRuntimeHooks.workspaceContextOverride = nil
+        workspaceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codigo-review-command-loop-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: workspaceURL, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = nil
+        CodeReviewCommandRuntimeHooks.workspaceContextOverride = nil
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        if let workspaceURL {
+            try? FileManager.default.removeItem(at: workspaceURL)
+        }
+        workspaceURL = nil
+        try super.tearDownWithError()
+    }
+
+    func testStartCommandRemainsProcessingUntilDeferredReviewCompletes() async throws {
+        let app = makeApp()
+        let gate = ReviewProviderGate()
+        CodeReviewCommandRuntimeHooks.workspaceContextOverride = { [workspaceURL] _ in
+            WorkspaceContext(workspacePaths: [workspaceURL].compactMap { $0 })
+        }
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, sessionState, _ in
+            DeferredCodeReviewProvider(
+                sessionState: sessionState,
+                gate: gate,
+                scopeFiles: ["Sources/File.swift"]
+            )
+        }
+
+        let command = try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
+            sessionId: "review-start-deferred",
+            conversationId: nil,
+            payload: [
+                "scope": "uncommitted",
+                "session_id": "review-start-deferred",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        let current = try currentCommand(id: command.id)
+        XCTAssertEqual(current?.status, .processing, current?.resultMessage ?? "missing result message")
+        let inFlightSnapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: "review-start-deferred")
+        XCTAssertNotNil(inFlightSnapshot)
+
+        await gate.finishSuccessfully()
+        try await waitForCommand(id: command.id, expectedStatus: .completed)
+
+        let completedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: "review-start-deferred")
+        )
+        XCTAssertEqual(completedSnapshot.phase, .completed)
+    }
+
+    func testApplyFixCommandRunsDeferredFixSessionBeforeMarkingSourceFinding() async throws {
+        let app = makeApp()
+        let gate = ReviewProviderGate()
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, sessionState, _ in
+            DeferredCodeReviewProvider(
+                sessionState: sessionState,
+                gate: gate,
+                scopeFiles: ["Sources/File.swift"]
+            )
+        }
+
+        let sourceSnapshot = makeSnapshot(
+            sessionId: "source-review",
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-1",
+                    severity: .warning,
+                    category: .bug,
+                    filePath: "Sources/File.swift",
+                    message: "Needs a real fix"
+                )
+            ]
+        )
+        MCPSharedState.writeCodeReviewSnapshot(sourceSnapshot)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "apply_fix",
+            sessionId: sourceSnapshot.sessionId,
+            conversationId: nil,
+            payload: [
+                "finding_id": "finding-1",
+                "session_id": sourceSnapshot.sessionId,
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .processing)
+        let unchangedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: sourceSnapshot.sessionId)
+        )
+        XCTAssertEqual(unchangedSnapshot.findings.first?.status, .open)
+
+        await gate.finishSuccessfully()
+        try await waitForCommand(id: command.id, expectedStatus: .completed)
+
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: sourceSnapshot.sessionId)
+        )
+        XCTAssertEqual(updatedSnapshot.findings.first?.status, .fixApplied)
+        XCTAssertTrue(
+            MCPSharedState.readCodeReviewSnapshots().contains {
+                $0.sessionId.hasPrefix("\(sourceSnapshot.sessionId)-fix-") && $0.phase == .completed
+            }
+        )
+    }
+
+    func testConfigureCommandUpdatesLiveSessionThroughCommandLoop() async throws {
+        let app = makeApp()
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, _, _ in
+            ValidationOnlyProvider()
+        }
+
+        let liveState = app.makeCommandReviewSessionState(
+            sessionId: "live-config-session",
+            conversationId: nil,
+            config: .default
+        )
+        await ReviewSessionRegistry.shared.register(liveState)
+        await app.persistLiveReviewState(liveState, conversationId: nil)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "configure",
+            sessionId: "live-config-session",
+            conversationId: nil,
+            payload: [
+                "session_id": "live-config-session",
+                "max_workers": "4",
+                "analysis_only": "true",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .completed)
+        let snapshot = await liveState.snapshot()
+        XCTAssertEqual(snapshot.config.maxWorkers, 4)
+        XCTAssertTrue(snapshot.config.analysisOnly)
+    }
+
+    private func makeApp() -> CodigoApp {
+        let app = CodigoApp()
+        return app
+    }
+
+    private func makeSnapshot(
+        sessionId: String,
+        findings: [CodeReviewFinding]
+    ) -> CodeReviewSessionSnapshot {
+        CodeReviewSessionSnapshot(
+            sessionId: sessionId,
+            conversationId: nil,
+            phase: .fixing,
+            stage: .fixing,
+            findings: findings,
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .uncommitted, files: findings.map(\.filePath)),
+            workspacePath: workspaceURL.path,
+            currentRound: 1,
+            activeWorkerCount: 1,
+            startedAt: Date(),
+            completedAt: nil,
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: "job-1",
+            lastTestStatus: nil,
+            lastUpdatedAt: Date()
+        )
+    }
+
+    private func currentCommand(id: String) throws -> MCPSharedCodeReviewCommand? {
+        guard let data = try? Data(contentsOf: MCPSharedState.codeReviewCommandsFilePath) else {
+            return nil
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let commands = try decoder.decode([MCPSharedCodeReviewCommand].self, from: data)
+        return commands.first(where: { $0.id == id })
+    }
+
+    private func waitForCommand(
+        id: String,
+        expectedStatus: MCPSharedCodeReviewCommand.Status,
+        timeoutNanoseconds: UInt64 = 2_000_000_000
+    ) async throws {
+        let start = DispatchTime.now().uptimeNanoseconds
+        while DispatchTime.now().uptimeNanoseconds - start < timeoutNanoseconds {
+            if try currentCommand(id: id)?.status == expectedStatus {
+                return
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Timed out waiting for command \(id) to reach \(expectedStatus.rawValue)")
+    }
+}
+
+private actor ReviewProviderGate {
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+    private var completed = false
+
+    func wait() async {
+        if completed { return }
+        await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    func finishSuccessfully() {
+        completed = true
+        let current = continuations
+        continuations.removeAll()
+        current.forEach { $0.resume() }
+    }
+}
+
+private final class DeferredCodeReviewProvider: LLMProvider, @unchecked Sendable {
+    let id = "deferred-code-review-provider"
+    let displayName = "DeferredCodeReviewProvider"
+    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
+
+    private let sessionState: CodeReviewSessionState?
+    private let gate: ReviewProviderGate
+    private let scopeFiles: [String]
+
+    init(
+        sessionState: CodeReviewSessionState?,
+        gate: ReviewProviderGate,
+        scopeFiles: [String]
+    ) {
+        self.sessionState = sessionState
+        self.gate = gate
+        self.scopeFiles = scopeFiles
+    }
+
+    func isAuthenticated() -> Bool { true }
+
+    func send(
+        prompt: String,
+        context: WorkspaceContext,
+        imageURLs: [URL]?
+    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        let sessionState = self.sessionState
+        let gate = self.gate
+        let scopeFiles = self.scopeFiles
+        return AsyncThrowingStream { continuation in
+            Task {
+                continuation.yield(.started)
+                if let sessionState {
+                    await sessionState.start(
+                        scope: ReviewSessionScope(type: .uncommitted, files: scopeFiles),
+                        workspacePath: context.workspacePath.path
+                    )
+                }
+                await gate.wait()
+                if let sessionState {
+                    await sessionState.complete()
+                }
+                continuation.yield(.completed)
+                continuation.finish()
+            }
+        }
+    }
+}
+
+private final class ValidationOnlyProvider: LLMProvider, @unchecked Sendable {
+    let id = "validation-only-provider"
+    let displayName = "ValidationOnlyProvider"
+    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
+
+    func isAuthenticated() -> Bool { true }
+
+    func send(
+        prompt: String,
+        context: WorkspaceContext,
+        imageURLs: [URL]?
+    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
