@@ -3,10 +3,20 @@ import Foundation
 
 extension CodigoApp {
     @MainActor
-    func processCodeReviewCommandLoop() async {
-        while true {
-            await processPendingCodeReviewCommandsOnce()
-            try? await Task.sleep(nanoseconds: 350_000_000)
+    func startCodeReviewCommandLoopIfNeeded() {
+        guard !didStartCodeReviewCommandLoop else { return }
+        didStartCodeReviewCommandLoop = true
+
+        let driver = CodeReviewCommandLoopDriver(
+            claimPendingCommands: {
+                MCPSharedState.claimPendingCodeReviewCommands()
+            }
+        ) { [self] commands in
+            await processClaimedCodeReviewCommands(commands)
+        }
+
+        Task.detached(priority: .utility) {
+            await driver.run()
         }
     }
 
@@ -14,7 +24,13 @@ extension CodigoApp {
     func processPendingCodeReviewCommandsOnce() async {
         let commands = MCPSharedState.claimPendingCodeReviewCommands()
         guard !commands.isEmpty else { return }
+        await processClaimedCodeReviewCommands(commands)
+    }
 
+    @MainActor
+    private func processClaimedCodeReviewCommands(
+        _ commands: [MCPSharedCodeReviewCommand]
+    ) async {
         for command in commands {
             let outcome = await handleCodeReviewCommand(command)
             guard !outcome.deferred else { continue }

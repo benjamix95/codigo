@@ -94,6 +94,7 @@ extension CodigoApp {
             config: config,
             onStateChange: { snapshot in
                 Task { @MainActor in
+                    MCPSharedState.writeCodeReviewSnapshot(snapshot)
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
                     self.taskActivityStore.ingestCodeReviewSnapshot(
                         snapshot,

@@ -67,7 +67,7 @@ public struct TaskCompletionHandler: Sendable {
         case .coder, .debugger:
             baseAction = .scheduleNextAgent(taskId: task.taskId, role: .reviewer)
 
-        case .reviewer:
+        case .reviewer, .bugHunter:
             if hasCriticalFindings {
                 baseAction = .scheduleFixRound(
                     taskId: task.taskId,

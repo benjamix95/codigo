@@ -8,6 +8,7 @@ extension CodigoApp {
         conversationId: UUID?
     ) async {
         let snapshot = await state.snapshot()
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
         await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
         taskActivityStore.ingestCodeReviewSnapshot(
             snapshot,

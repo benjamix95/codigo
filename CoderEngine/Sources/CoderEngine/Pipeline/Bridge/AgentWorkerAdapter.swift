@@ -308,6 +308,12 @@ public actor AgentWorkerAdapter {
             If you find critical issues, include "critical" in your summary.
             If all looks good, confirm the code is ready for testing.
             """
+        case .bugHunter:
+            return """
+            Hunt for regressions, crash risks, concurrency bugs, and missing edge-case coverage.
+            Report concrete findings with file paths and remediation guidance.
+            If you find critical issues, include "critical" in your summary.
+            """
         case .testWriter:
             return """
             Write tests covering the changed functionality.

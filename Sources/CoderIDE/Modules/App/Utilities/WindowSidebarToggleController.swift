@@ -2,6 +2,7 @@ import AppKit
 
 final class WindowSidebarToggleController {
     private static var controllers: [ObjectIdentifier: WindowSidebarToggleController] = [:]
+    private static let stripBurstPassCount = 4
 
     static func installIfNeeded(on window: NSWindow) {
         let key = ObjectIdentifier(window)
@@ -24,13 +25,15 @@ final class WindowSidebarToggleController {
     private let button = NSButton()
     private var observers: [NSObjectProtocol] = []
     private var periodicStripTimer: Timer?
+    private var stripPassesRemaining = 0
+    private var consecutiveUnchangedStripPasses = 0
     private init(window: NSWindow) {
         self.window = window
         configureButton()
         installObservers(for: window)
         attachButtonIfNeeded()
         updateLayout()
-        startPeriodicStrip()
+        scheduleStripBurst()
     }
 
     deinit {
@@ -63,24 +66,38 @@ final class WindowSidebarToggleController {
 
     // MARK: - Periodic strip
 
-    private func startPeriodicStrip() {
+    private func scheduleStripBurst() {
+        stripPassesRemaining = max(stripPassesRemaining, Self.stripBurstPassCount)
         guard periodicStripTimer == nil else { return }
-        periodicStripTimer = Timer.scheduledTimer(
-            withTimeInterval: 0.3,
-            repeats: true
-        ) { [weak self] _ in
-            guard let self, let window = self.window else {
-                self?.stopPeriodicStrip()
-                return
-            }
-            self.stripAutomaticSidebarToolbarItems(from: window)
-            self.hideTitlebarSidebarButtons(from: window)
+
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            self?.runScheduledStripPass()
+        }
+        timer.tolerance = 0.1
+        periodicStripTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func runScheduledStripPass() {
+        guard let window else {
+            stopPeriodicStrip()
+            return
+        }
+
+        let didChange = performStripPass(on: window)
+        stripPassesRemaining -= 1
+        consecutiveUnchangedStripPasses = didChange ? 0 : consecutiveUnchangedStripPasses + 1
+
+        if stripPassesRemaining <= 0 || consecutiveUnchangedStripPasses >= 2 {
+            stopPeriodicStrip()
         }
     }
 
     private func stopPeriodicStrip() {
         periodicStripTimer?.invalidate()
         periodicStripTimer = nil
+        stripPassesRemaining = 0
+        consecutiveUnchangedStripPasses = 0
     }
 
     // MARK: - Observers
@@ -99,6 +116,7 @@ final class WindowSidebarToggleController {
             center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
                 self?.attachButtonIfNeeded()
                 self?.updateLayout()
+                self?.scheduleStripBurst()
             }
         }
 
@@ -129,8 +147,8 @@ final class WindowSidebarToggleController {
             button.removeFromSuperview()
             titlebarView.addSubview(button)
         }
-        stripAutomaticSidebarToolbarItems(from: window)
-        hideTitlebarSidebarButtons(from: window)
+        _ = performStripPass(on: window)
+        scheduleStripBurst()
     }
 
     private func updateLayout() {
@@ -149,8 +167,16 @@ final class WindowSidebarToggleController {
 
     // MARK: - Strip native sidebar controls
 
-    private func stripAutomaticSidebarToolbarItems(from window: NSWindow) {
-        guard let toolbar = window.toolbar else { return }
+    @discardableResult
+    private func performStripPass(on window: NSWindow) -> Bool {
+        let strippedToolbarItems = stripAutomaticSidebarToolbarItems(from: window)
+        let hidSidebarButtons = hideTitlebarSidebarButtons(from: window)
+        return strippedToolbarItems || hidSidebarButtons
+    }
+
+    @discardableResult
+    private func stripAutomaticSidebarToolbarItems(from window: NSWindow) -> Bool {
+        guard let toolbar = window.toolbar else { return false }
 
         let indices = toolbar.items.enumerated().compactMap { index, item -> Int? in
             let raw = item.itemIdentifier.rawValue
@@ -164,29 +190,45 @@ final class WindowSidebarToggleController {
         for index in indices.reversed() {
             toolbar.removeItem(at: index)
         }
+        return !indices.isEmpty
     }
 
     /// Walk the titlebar view hierarchy and hide any native sidebar toggle
     /// buttons that SwiftUI or AppKit inserts outside the toolbar.
-    private func hideTitlebarSidebarButtons(from window: NSWindow) {
+    @discardableResult
+    private func hideTitlebarSidebarButtons(from window: NSWindow) -> Bool {
         let toggleAction = NSSelectorFromString("toggleSidebar:")
         guard let titlebarView = window.standardWindowButton(.zoomButton)?.superview else {
-            return
+            return false
         }
-        hideSidebarButtons(in: titlebarView, action: toggleAction, depth: 6)
+        return hideSidebarButtons(in: titlebarView, action: toggleAction, depth: 6)
     }
 
-    private func hideSidebarButtons(in view: NSView, action: Selector, depth: Int) {
-        guard depth > 0 else { return }
+    @discardableResult
+    private func hideSidebarButtons(in view: NSView, action: Selector, depth: Int) -> Bool {
+        guard depth > 0 else { return false }
+        var didChange = false
         for subview in view.subviews where subview !== button {
             if let btn = subview as? NSButton, isSidebarToggleButton(btn, action: action) {
-                subview.isHidden = true
-                subview.alphaValue = 0
-                subview.setFrameSize(.zero)
+                if !subview.isHidden {
+                    subview.isHidden = true
+                    didChange = true
+                }
+                if subview.alphaValue != 0 {
+                    subview.alphaValue = 0
+                    didChange = true
+                }
+                if subview.frame.size != .zero {
+                    subview.setFrameSize(.zero)
+                    didChange = true
+                }
                 continue
             }
-            hideSidebarButtons(in: subview, action: action, depth: depth - 1)
+            if hideSidebarButtons(in: subview, action: action, depth: depth - 1) {
+                didChange = true
+            }
         }
+        return didChange
     }
 
     private func isSidebarToggleButton(_ btn: NSButton, action: Selector) -> Bool {
