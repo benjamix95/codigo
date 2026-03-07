@@ -205,8 +205,6 @@ extension ContentView {
         .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
         .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
-        .background(SidebarMaterialBackground().ignoresSafeArea())
-        .ignoresSafeArea(.container)
     }
 
     @ViewBuilder
