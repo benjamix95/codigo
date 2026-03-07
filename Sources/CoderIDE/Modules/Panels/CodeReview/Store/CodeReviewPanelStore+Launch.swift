@@ -64,8 +64,6 @@ extension CodeReviewPanelStore {
             detail: prompt,
             selectChatTab: true
         )
-        let sessionStore = chatSessionStore
-        let sessionKey = chatSessionKey
 
         panelSessionId = sessionId
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
@@ -75,17 +73,8 @@ extension CodeReviewPanelStore {
             prompt: prompt,
             context: context,
             sessionState: sessionState,
-            onEvent: { event in
-                sessionStore.updateMessage(id: outputMessageId, for: sessionKey) { message in
-                    switch event {
-                    case .textDelta(let delta):
-                        message.content += delta
-                    case .textReplace(let replacement):
-                        message.content = replacement
-                    default:
-                        break
-                    }
-                }
+            onEvent: { [weak self] event in
+                self?.streamPanelActionOutput(id: outputMessageId, event: event)
             },
             onStart: { [weak self] in
                 self?.selectedTab = .chat
@@ -93,21 +82,16 @@ extension CodeReviewPanelStore {
             onComplete: { [weak self] _ in
                 self?.isRunning = false
                 self?.freezeTimer()
-                sessionStore.updateMessage(id: outputMessageId, for: sessionKey) { message in
-                    if message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        message.content = "Review completed."
-                    }
-                    message.isStreaming = false
-                }
+                self?.finishPanelActionOutput(
+                    id: outputMessageId,
+                    fallbackContent: "Review completed."
+                )
             },
             onError: { [weak self] error in
                 self?.isRunning = false
                 self?.lastError = error
                 self?.freezeTimer()
-                sessionStore.updateMessage(id: outputMessageId, for: sessionKey) { message in
-                    message.content = "Error: \(error)"
-                    message.isStreaming = false
-                }
+                self?.failPanelActionOutput(id: outputMessageId, error: error)
             }
         )
     }
@@ -236,11 +220,12 @@ extension CodeReviewPanelStore {
     // MARK: - Private Helpers
 
     private func buildSessionConfig() -> SessionConfig {
-        SessionConfig(
+        let selectedBackend = selectedProviderOverrideId ?? ""
+        return SessionConfig(
             maxWorkers: settings.maxWorkers,
             maxRounds: settings.maxRounds,
-            analysisBackend: settings.analysisBackend,
-            executionBackend: settings.executionBackend,
+            analysisBackend: selectedBackend.isEmpty ? settings.analysisBackend : selectedBackend,
+            executionBackend: selectedBackend.isEmpty ? settings.executionBackend : selectedBackend,
             analysisOnly: settings.analysisOnly
         )
     }
