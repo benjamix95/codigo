@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class TaskCompletionNotificationPayloadTests: XCTestCase {
-    func testBuildExtractsLastUserQuestionAndFinalAssistantAnswer() {
+    func testBuildUsesPrivacyPreservingNotificationText() {
         let conversation = makeConversation(messages: [
             ChatMessage(role: .user, content: "Prima domanda"),
             ChatMessage(role: .assistant, content: "Prima risposta"),
@@ -13,11 +13,11 @@ final class TaskCompletionNotificationPayloadTests: XCTestCase {
 
         let payload = TaskCompletionNotificationPayload.build(from: conversation)
 
-        XCTAssertEqual(payload?.title, "Domanda finale")
-        XCTAssertEqual(payload?.body, "Risposta finale")
+        XCTAssertEqual(payload?.title, "Task completato")
+        XCTAssertEqual(payload?.body, "Apri CoderIDE per vedere i dettagli.")
     }
 
-    func testBuildIgnoresStreamingOrEmptyAssistantMessages() {
+    func testBuildStillResolvesLastFinalAssistantMessage() {
         let conversation = makeConversation(messages: [
             ChatMessage(role: .user, content: "Q"),
             ChatMessage(role: .assistant, content: "Parziale", isStreaming: true),
@@ -27,11 +27,11 @@ final class TaskCompletionNotificationPayloadTests: XCTestCase {
 
         let payload = TaskCompletionNotificationPayload.build(from: conversation)
 
-        XCTAssertEqual(payload?.title, "Q")
-        XCTAssertEqual(payload?.body, "Risultato finale")
+        XCTAssertEqual(payload?.title, "Task completato")
+        XCTAssertEqual(payload?.body, "Apri CoderIDE per vedere i dettagli.")
     }
 
-    func testBuildFallsBackToDefaultTitleWhenNoUserQuestionExists() {
+    func testBuildUsesPrivacyTextWithoutUserQuestion() {
         let conversation = makeConversation(messages: [
             ChatMessage(role: .assistant, content: "Solo output finale")
         ])
@@ -39,7 +39,7 @@ final class TaskCompletionNotificationPayloadTests: XCTestCase {
         let payload = TaskCompletionNotificationPayload.build(from: conversation)
 
         XCTAssertEqual(payload?.title, "Task completato")
-        XCTAssertEqual(payload?.body, "Solo output finale")
+        XCTAssertEqual(payload?.body, "Apri CoderIDE per vedere i dettagli.")
     }
 
     func testBuildReturnsNilWhenAssistantAnswerIsMissingOrSanitizedToEmpty() {
@@ -53,23 +53,26 @@ final class TaskCompletionNotificationPayloadTests: XCTestCase {
         XCTAssertNil(payload)
     }
 
-    func testBuildAppliesConfiguredTruncationLimits() {
-        let longQuestion = String(repeating: "Q", count: 200)
-        let longAnswer = String(repeating: "A", count: 400)
+    func testBuildUsesConfiguredPrivacyText() {
         let conversation = makeConversation(messages: [
-            ChatMessage(role: .user, content: longQuestion),
-            ChatMessage(role: .assistant, content: longAnswer)
+            ChatMessage(role: .user, content: "Domanda"),
+            ChatMessage(role: .assistant, content: "Risposta")
         ])
+        let formatter = TaskCompletionNotificationFormatter(
+            titleMaxChars: 4,
+            bodyMaxChars: 5,
+            fallbackTitle: "Completato",
+            fallbackBody: "Apri per i dettagli",
+            ellipsis: "…"
+        )
 
-        let payload = TaskCompletionNotificationPayload.build(from: conversation)
+        let payload = TaskCompletionNotificationPayload.build(from: conversation, formatter: formatter)
 
-        XCTAssertEqual(payload?.title.count, 120)
-        XCTAssertEqual(payload?.body.count, 240)
-        XCTAssertTrue(payload?.title.hasSuffix("…") == true)
-        XCTAssertTrue(payload?.body.hasSuffix("…") == true)
+        XCTAssertEqual(payload?.title, "Com…")
+        XCTAssertEqual(payload?.body, "Apri…")
     }
 
-    func testBuildSanitizesWhitespaceAndCollapsesNewlines() {
+    func testBuildSanitizesMessagesBeforeEmittingPrivacyText() {
         let conversation = makeConversation(messages: [
             ChatMessage(role: .user, content: "   Quale   domanda?  \n\n"),
             ChatMessage(role: .assistant, content: "Riga 1\n\n\nRiga   2   con   spazi")
@@ -77,8 +80,8 @@ final class TaskCompletionNotificationPayloadTests: XCTestCase {
 
         let payload = TaskCompletionNotificationPayload.build(from: conversation)
 
-        XCTAssertEqual(payload?.title, "Quale domanda?")
-        XCTAssertEqual(payload?.body, "Riga 1\nRiga 2 con spazi")
+        XCTAssertEqual(payload?.title, "Task completato")
+        XCTAssertEqual(payload?.body, "Apri CoderIDE per vedere i dettagli.")
     }
 
     private func makeConversation(messages: [ChatMessage]) -> Conversation {
