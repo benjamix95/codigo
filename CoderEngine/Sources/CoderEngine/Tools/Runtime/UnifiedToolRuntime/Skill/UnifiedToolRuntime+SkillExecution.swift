@@ -37,6 +37,7 @@ extension UnifiedToolRuntime {
 
         let workspacePath = context.workspaceContext.workspacePath.path
         let sandboxMode = context.policy.sandboxMode
+        let askForApproval = context.policy.askForApproval
         let userTask = task.isEmpty
             ? "Execute this skill according to its instructions. If the user's request is in the conversation context, use that."
             : task
@@ -57,6 +58,7 @@ extension UnifiedToolRuntime {
         } else {
             args.append("--full-auto")
         }
+        args += ["-c", "approval_policy=\"\(askForApproval)\""]
         args += ["--sandbox", sandboxMode, "--cd", workspacePath, fullPrompt]
 
         do {
