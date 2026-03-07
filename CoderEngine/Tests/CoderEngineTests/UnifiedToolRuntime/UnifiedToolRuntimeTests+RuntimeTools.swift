@@ -19,6 +19,20 @@ extension UnifiedToolRuntimeTests {
         XCTAssertTrue(stderr.contains("Timeout on /bin/zsh"), "Expected coherent timeout error, got: \(stderr)")
     }
 
+
+    func testShellExecLargeTimeoutDoesNotOverflow() async {
+        let runtime = UnifiedToolRuntime()
+        let (stdout, stderr, exitCode) = await runtime.shellExec(
+            args: ["/bin/echo", "ok"],
+            cwd: FileManager.default.currentDirectoryPath,
+            timeout: Int.max
+        )
+
+        XCTAssertEqual(exitCode, 0)
+        XCTAssertEqual(stdout.trimmingCharacters(in: .whitespacesAndNewlines), "ok")
+        XCTAssertEqual(stderr, "")
+    }
+
     func testBashTimeoutReturnsTimeoutCode() async {
         let runtime = UnifiedToolRuntime()
         let workspace = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
