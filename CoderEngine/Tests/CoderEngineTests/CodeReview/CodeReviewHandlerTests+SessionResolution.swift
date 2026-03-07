@@ -25,7 +25,11 @@ extension CodeReviewHandlerTests {
         )
 
         XCTAssertNil(result?.isError)
-        XCTAssertTrue(textContent(result).contains(snapshot.findings[0].message))
+        let text = textContent(result)
+        XCTAssertTrue(text.contains("Findings"))
+        XCTAssertFalse(text.contains("No active review session."))
+        XCTAssertFalse(text.contains(snapshot.findings[0].message))
+        XCTAssertFalse(text.contains(snapshot.findings[0].filePath))
     }
 
     func testReviewDiffSummaryFallsBackToConversationScopedSessionWhenConversationIdIsOmitted() {

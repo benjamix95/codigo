@@ -42,12 +42,12 @@ extension CoderIDEMCPServerApp {
             activeOnly: true
         )
         if let message = resolved.error {
-            return message == "No review session found."
+            return message == "No review session found." || message == "No active review session."
                 ? reviewOK(message)
                 : reviewError(message)
         }
         guard let sessionId = resolved.sessionId else {
-            return reviewOK("No review session found.")
+            return reviewOK("No active review session.")
         }
 
         let limitVal = Int(args["limit"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 50
