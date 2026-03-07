@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class WindowSidebarToggleController {
     private static var controllers: [ObjectIdentifier: WindowSidebarToggleController] = [:]
     private static let stripBurstPassCount = 4
