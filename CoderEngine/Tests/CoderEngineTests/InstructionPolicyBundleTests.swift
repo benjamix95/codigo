@@ -68,6 +68,74 @@ final class InstructionPolicyBundleTests: XCTestCase {
         XCTAssertNotEqual(reloaded.policyHash, first.policyHash)
     }
 
+    func testLoadIgnoresProjectPoliciesOutsideWorkspaceRoot() throws {
+        let parentRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("instruction-policy-parent-\(UUID().uuidString)")
+        let workspace = parentRoot.appendingPathComponent("workspace")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parentRoot) }
+
+        let parentAgents = parentRoot.appendingPathComponent("AGENTS.md")
+        try "outside-workspace-policy".write(to: parentAgents, atomically: true, encoding: .utf8)
+
+        InstructionPolicyBundle.invalidateCache()
+        let bundle = InstructionPolicyBundle.load(workspacePaths: [workspace.path])
+        XCTAssertFalse(bundle.policyText.contains("outside-workspace-policy"))
+    }
+
+    func testLoadRejectsSymlinkedProjectPolicyFile() throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("instruction-policy-symlink-\(UUID().uuidString)")
+        let workspace = tempRoot.appendingPathComponent("workspace")
+        let secretFile = tempRoot.appendingPathComponent("secret.txt")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        try "do-not-leak".write(to: secretFile, atomically: true, encoding: .utf8)
+        let agentsPath = workspace.appendingPathComponent("AGENTS.md").path
+        XCTAssertEqual(symlink(secretFile.path, agentsPath), 0)
+
+        InstructionPolicyBundle.invalidateCache()
+        let bundle = InstructionPolicyBundle.load(workspacePaths: [workspace.path])
+        XCTAssertFalse(bundle.policyText.contains("do-not-leak"))
+    }
+
+
+
+    func testSkillContentRejectsPathTraversalName() throws {
+        let home = NSHomeDirectory()
+        let skillsRoot = URL(fileURLWithPath: home).appendingPathComponent(".codex/skills")
+        try FileManager.default.createDirectory(at: skillsRoot, withIntermediateDirectories: true)
+
+        let escapedSkill = URL(fileURLWithPath: home)
+            .appendingPathComponent("skill-escape-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: escapedSkill, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: escapedSkill) }
+
+        let escapedSkillFile = escapedSkill.appendingPathComponent("SKILL.md")
+        try "top-secret".write(to: escapedSkillFile, atomically: true, encoding: .utf8)
+
+        XCTAssertNil(InstructionPolicyBundle.skillContent(for: "../../\(escapedSkill.lastPathComponent)"))
+    }
+
+    func testSkillContentLoadsValidLocalSkill() throws {
+        let home = NSHomeDirectory()
+        let skillName = "test-skill-\(UUID().uuidString.lowercased())"
+        let skillDir = URL(fileURLWithPath: home)
+            .appendingPathComponent(".codex/skills")
+            .appendingPathComponent(skillName)
+        try FileManager.default.createDirectory(at: skillDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: skillDir) }
+
+        let skillFile = skillDir.appendingPathComponent("SKILL.md")
+        try "---
+name: test
+---
+body-content".write(to: skillFile, atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(InstructionPolicyBundle.skillContent(for: skillName), "body-content")
+    }
+
     private func withEnvironmentVariable(_ key: String, value: String, operation: () throws -> Void) rethrows {
         let previous = getenv(key).map { String(cString: $0) }
         setenv(key, value, 1)

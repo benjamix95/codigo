@@ -3,9 +3,13 @@ import SwiftUI
 extension ContentView {
     func handleWindowSidebarChromeToggle() {
         switch coderMode {
-        case .ide, .browser:
+        case .ide:
             withAnimation(.snappy(duration: 0.2)) {
-                showChatPanel.toggle()
+                showIDEWorkbenchSidebar.toggle()
+            }
+        case .browser:
+            withAnimation(.snappy(duration: 0.2)) {
+                showBrowserPanel.toggle()
             }
         default:
             withAnimation(.snappy(duration: 0.2)) {

@@ -23,8 +23,13 @@ extension CodeReviewSessionState {
         notifyChange()
     }
 
-    public func replaceOpenFindings(with newFindings: [CodeReviewFinding]) {
-        findings.removeAll { $0.status == .open }
+    public func replaceOpenFindings(
+        in reviewedFiles: Set<String>,
+        with newFindings: [CodeReviewFinding]
+    ) {
+        findings.removeAll {
+            $0.status == .open && reviewedFiles.contains($0.filePath)
+        }
         for finding in newFindings {
             findings.append(finding)
             events.append(.findingAdded(
@@ -34,6 +39,13 @@ extension CodeReviewSessionState {
             ))
         }
         notifyChange()
+    }
+
+    public func replaceOpenFindings(with newFindings: [CodeReviewFinding]) {
+        replaceOpenFindings(
+            in: Set(newFindings.map(\.filePath)),
+            with: newFindings
+        )
     }
 
     public func applyFix(findingId: String) -> Bool {
@@ -98,6 +110,22 @@ extension CodeReviewSessionState {
     public func markAllOpenFindingsAsFixApplied() {
         var changedFindingIDs: [String] = []
         for index in findings.indices where findings[index].status == .open {
+            findings[index].status = .fixApplied
+            changedFindingIDs.append(findings[index].id)
+        }
+        for findingId in changedFindingIDs {
+            events.append(.findingFixApplied(findingId: findingId))
+        }
+        if !changedFindingIDs.isEmpty {
+            notifyChange()
+        }
+    }
+
+    public func markOpenFindingsAsFixApplied(in files: Set<String>) {
+        guard !files.isEmpty else { return }
+        var changedFindingIDs: [String] = []
+        for index in findings.indices
+        where findings[index].status == .open && files.contains(findings[index].filePath) {
             findings[index].status = .fixApplied
             changedFindingIDs.append(findings[index].id)
         }

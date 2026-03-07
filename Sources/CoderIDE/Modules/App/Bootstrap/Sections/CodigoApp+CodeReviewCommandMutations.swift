@@ -3,6 +3,19 @@ import Foundation
 
 extension CodigoApp {
     @MainActor
+    func persistLiveReviewState(
+        _ state: CodeReviewSessionState,
+        conversationId: UUID?
+    ) async {
+        let snapshot = await state.snapshot()
+        await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
+        taskActivityStore.ingestCodeReviewSnapshot(
+            snapshot,
+            conversationId: conversationId ?? snapshot.conversationId
+        )
+    }
+
+    @MainActor
     func applyReviewMutation(
         _ command: MCPSharedCodeReviewCommand,
         apply: @escaping (CodeReviewSessionState, [String: String]) async -> Bool
@@ -12,6 +25,12 @@ extension CodigoApp {
         }
         if let liveState = await ReviewSessionRegistry.shared.state(sessionId: sessionId) {
             let succeeded = await apply(liveState, command.payload)
+            if succeeded {
+                await persistLiveReviewState(
+                    liveState,
+                    conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
+                )
+            }
             return succeeded
                 ? (true, "Command applied to live session")
                 : (false, "Unable to update the requested finding")

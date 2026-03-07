@@ -182,6 +182,12 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertEqual(config, expectedCodexConfig(using: fakeMCP.path))
     }
 
+
+    func testCodexMCPFallbackBinaryPathIsAbsolute() {
+        XCTAssertEqual(CLIProfileProvisioner.codexProfileMCPFallbackBinaryPath, "/usr/bin/coderide-mcp-server")
+        XCTAssertTrue(CLIProfileProvisioner.codexProfileMCPFallbackBinaryPath.hasPrefix("/"))
+    }
+
     func testClaudeEnvironmentOverridesIsolateHomePerProfile() throws {
         let profile = try makeTemporaryProfileDirectory()
 

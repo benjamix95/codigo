@@ -8,6 +8,7 @@ extension ReviewPipelineCoordinator {
         config: MultiSwarmReviewConfig,
         againstRef: String?,
         resolvedScope: CodeReviewMultiSwarmProvider.ReviewFileScope,
+        fileLockCoordinator: FileLockCoordinator,
         round: Int,
         sessionState: CodeReviewSessionState,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation,
@@ -18,63 +19,85 @@ extension ReviewPipelineCoordinator {
             ? .againstRef
             : (resolvedScope == .staged ? .staged : .uncommitted)
         let sessionId = await sessionState.snapshot().sessionId
-        let (job, pipelineTasks) = PipelineJobFactory.fromCodeReviewTasks(
-            scope: pipelineScope,
-            reviewTasks: tasks,
-            workspace: context.workspacePath.path,
-            providerId: executionProvider.id,
-            sessionId: sessionId,
-            round: round,
-            maxWorkers: config.maxWorkers
-        )
-
-        await sessionState.setCurrentJobId(job.jobId)
-        let facade = PipelineFacade()
-        let adapter = AgentWorkerAdapter(
-            provider: executionProvider,
-            context: context,
-            jobId: job.jobId
-        )
-
+        let taskBatches = nonOverlappingReviewTaskBatches(tasks)
         var activeWorkers = 0
-        var failureReason: String?
-        let stream = await facade.executeJob(job, tasks: pipelineTasks, workerAdapter: adapter)
-        for await event in stream {
-            if isCancelled() {
-                await facade.cancel()
-                break
-            }
-            await waitWhilePaused()
-            switch event {
-            case .taskStarted(let payload):
-                activeWorkers += 1
-                await sessionState.setActiveWorkerCount(activeWorkers)
-                await sessionState.markWorkerSpawned(workerId: payload.taskId, title: payload.title)
-            case .taskCompleted(let payload):
-                activeWorkers = max(0, activeWorkers - 1)
-                await sessionState.setActiveWorkerCount(activeWorkers)
-                await sessionState.markWorkerCompleted(workerId: payload.taskId, title: payload.title)
-            case .taskFailed(let payload):
-                activeWorkers = max(0, activeWorkers - 1)
-                await sessionState.setActiveWorkerCount(activeWorkers)
-                await sessionState.markWorkerCompleted(workerId: payload.taskId, title: payload.error)
-            case .jobFailed(let payload):
-                failureReason = payload.reason
-            default:
-                break
-            }
-            bridgePipelineEvent(
-                event,
-                sessionId: sessionId,
-                continuation: continuation
-            )
-        }
 
-        await sessionState.setActiveWorkerCount(0)
-        if let failureReason {
-            await sessionState.fail(error: failureReason)
-            return false
+        for batch in taskBatches {
+            if isCancelled() {
+                await sessionState.setActiveWorkerCount(0)
+                return false
+            }
+            let reservedLocks = await reserveReviewTaskLocks(
+                batch,
+                coordinator: fileLockCoordinator,
+                isCancelled: isCancelled
+            )
+            guard reservedLocks else {
+                await sessionState.fail(error: "Unable to acquire review file locks for fix stage.")
+                await sessionState.setActiveWorkerCount(0)
+                return false
+            }
+
+            let (job, pipelineTasks) = PipelineJobFactory.fromCodeReviewTasks(
+                scope: pipelineScope,
+                reviewTasks: batch,
+                workspace: context.workspacePath.path,
+                providerId: executionProvider.id,
+                sessionId: sessionId,
+                round: round,
+                maxWorkers: min(config.maxWorkers, max(batch.count, 1))
+            )
+            await sessionState.setCurrentJobId(job.jobId)
+            let facade = PipelineFacade()
+            let adapter = AgentWorkerAdapter(
+                provider: executionProvider,
+                context: context,
+                jobId: job.jobId
+            )
+
+            var failureReason: String?
+            let stream = await facade.executeJob(job, tasks: pipelineTasks, workerAdapter: adapter)
+            for await event in stream {
+                if isCancelled() {
+                    await facade.cancel()
+                    failureReason = "Review cancelled."
+                    break
+                }
+                await waitWhilePaused()
+                switch event {
+                case .taskStarted(let payload):
+                    activeWorkers += 1
+                    await sessionState.setActiveWorkerCount(activeWorkers)
+                    await sessionState.markWorkerSpawned(workerId: payload.taskId, title: payload.title)
+                case .taskCompleted(let payload):
+                    activeWorkers = max(0, activeWorkers - 1)
+                    await sessionState.setActiveWorkerCount(activeWorkers)
+                    await sessionState.markWorkerCompleted(workerId: payload.taskId, title: payload.title)
+                case .taskFailed(let payload):
+                    activeWorkers = max(0, activeWorkers - 1)
+                    await sessionState.setActiveWorkerCount(activeWorkers)
+                    await sessionState.markWorkerCompleted(workerId: payload.taskId, title: payload.error)
+                case .jobFailed(let payload):
+                    failureReason = payload.reason
+                default:
+                    break
+                }
+                bridgePipelineEvent(
+                    event,
+                    sessionId: sessionId,
+                    continuation: continuation
+                )
+            }
+
+            if let failureReason {
+                await releaseReviewTaskLocks(batch, coordinator: fileLockCoordinator)
+                await sessionState.setActiveWorkerCount(0)
+                await sessionState.fail(error: failureReason)
+                return false
+            }
+            await releaseReviewTaskLocks(batch, coordinator: fileLockCoordinator)
         }
+        await sessionState.setActiveWorkerCount(0)
         return true
     }
 
@@ -116,6 +139,53 @@ extension ReviewPipelineCoordinator {
             continuation.yield(.textReplace(payload.replacement))
         default:
             break
+        }
+    }
+
+    private func nonOverlappingReviewTaskBatches(
+        _ tasks: [CodeReviewMultiSwarmProvider.ReviewTask]
+    ) -> [[CodeReviewMultiSwarmProvider.ReviewTask]] {
+        var batches: [[CodeReviewMultiSwarmProvider.ReviewTask]] = []
+
+        for task in tasks {
+            let fileSet = Set(task.files)
+            if let batchIndex = batches.firstIndex(where: { batch in
+                batch.allSatisfy { Set($0.files).isDisjoint(with: fileSet) }
+            }) {
+                batches[batchIndex].append(task)
+            } else {
+                batches.append([task])
+            }
+        }
+
+        return batches
+    }
+
+    private func reserveReviewTaskLocks(
+        _ tasks: [CodeReviewMultiSwarmProvider.ReviewTask],
+        coordinator: FileLockCoordinator,
+        isCancelled: @escaping @Sendable () -> Bool
+    ) async -> Bool {
+        for task in tasks {
+            let acquired = await coordinator.acquireLock(
+                files: Set(task.files),
+                swarmId: task.id,
+                isCancelled: isCancelled
+            )
+            guard acquired else {
+                await releaseReviewTaskLocks(tasks, coordinator: coordinator)
+                return false
+            }
+        }
+        return true
+    }
+
+    private func releaseReviewTaskLocks(
+        _ tasks: [CodeReviewMultiSwarmProvider.ReviewTask],
+        coordinator: FileLockCoordinator
+    ) async {
+        for task in tasks {
+            await coordinator.releaseLock(files: Set(task.files), swarmId: task.id)
         }
     }
 }

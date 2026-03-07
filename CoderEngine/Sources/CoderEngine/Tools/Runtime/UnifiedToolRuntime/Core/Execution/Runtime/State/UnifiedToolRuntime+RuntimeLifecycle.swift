@@ -51,7 +51,9 @@ extension UnifiedToolRuntime {
         guard !args.isEmpty else { return ("", "argument list is empty", 1) }
         let executable = args[0]
         let arguments = Array(args.dropFirst())
-        let timeoutMs = max(1, timeout)
+        let maxTimeoutMsForSleep = Int(UInt64.max / 1_000_000)
+        let timeoutMs = min(max(1, timeout), maxTimeoutMsForSleep)
+        let timeoutNanoseconds = UInt64(timeoutMs) * 1_000_000
         let controller = self.executionController ?? ExecutionController()
         let scope = self.executionScope
         let timeoutFlag = TimeoutFlag()
@@ -69,7 +71,7 @@ extension UnifiedToolRuntime {
                     )
                 }
                 group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(timeoutMs) * 1_000_000)
+                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
                     await timeoutFlag.markTimedOut()
                     controller.terminate(scope: scope)
                     throw ToolRuntimeError.timeout(tool: executable, ms: timeoutMs)
@@ -113,16 +115,12 @@ extension UnifiedToolRuntime {
         "apply_diff", "debug_mark", "debug_clean",
     ]
 
-    /// Read-only file tools that should not consume the per-round tool budget.
-    /// Large inspections often require many `read` / `read_range` calls in a single round.
-    static let readOnlyFileToolsExemptFromRoundBudget: Set<String> = [
+    /// Read-only file tools exempt from per-round repetition limit.
+    /// Allows parallel reads of many files without hitting maxRepeatedSameToolPerRound.
+    static let readOnlyFileToolsExemptFromRepetitionLimit: Set<String> = [
         "read", "read_range", "read_json", "batch_read",
         "coderide_read", "coderide/read", "coderide_read_range", "coderide/read_range",
     ]
-
-    /// Read-only file tools exempt from per-round repetition limit.
-    /// Allows parallel reads of many files without hitting maxRepeatedSameToolPerRound.
-    static let readOnlyFileToolsExemptFromRepetitionLimit = readOnlyFileToolsExemptFromRoundBudget
 
     /// Resets per-round budget counters. Call at the beginning of each tool round.
     public func resetRoundCounters() {

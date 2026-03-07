@@ -155,8 +155,8 @@ final class ToolTraceVisibilityTests: XCTestCase {
         XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: activity))
     }
 
-    func testSwarmScopedEventDoesNotRequirePolicyAckWithSwarmId() {
-        XCTAssertFalse(
+    func testSwarmScopedEventRequiresPolicyAckWithSwarmId() {
+        XCTAssertTrue(
             ToolTraceVisibility.requiresPolicyAck(
                 type: "agent",
                 payload: [
@@ -168,8 +168,8 @@ final class ToolTraceVisibilityTests: XCTestCase {
         )
     }
 
-    func testSwarmScopedEventDoesNotRequirePolicyAckWithGroupId() {
-        XCTAssertFalse(
+    func testSwarmScopedEventRequiresPolicyAckWithGroupId() {
+        XCTAssertTrue(
             ToolTraceVisibility.requiresPolicyAck(
                 type: "agent",
                 payload: [

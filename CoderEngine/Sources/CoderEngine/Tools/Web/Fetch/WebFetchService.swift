@@ -28,7 +28,7 @@ public actor WebFetchService {
 
         // Block localhost / private IPs
         if let host = url.host?.lowercased() {
-            if isBlockedHost(host) {
+            if isBlockedHostOrResolvedPrivate(host) {
                 throw WebToolsError.invalidURL("Cannot fetch localhost or private network addresses")
             }
         }

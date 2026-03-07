@@ -13,7 +13,7 @@ final class TerminalBridgeIntegrationTests: XCTestCase {
 
     func testReadTerminalOutputViaProtocol() {
         let store = TerminalSessionStore()
-        let session = store.createSession(label: "Test", cwd: "/tmp", isAgent: false)
+        let session = store.createSession(label: "Test", cwd: "/tmp", isAgent: true)
         store.appendOutput(sessionId: session.id, text: "hello from terminal")
 
         let bridge: any TerminalBridge = store
@@ -23,7 +23,8 @@ final class TerminalBridgeIntegrationTests: XCTestCase {
 
     func testReadTerminalOutputNilSessionUsesActive() {
         let store = TerminalSessionStore()
-        let session = store.createSession(label: "Active", cwd: nil, isAgent: false)
+        _ = store.createSession(label: "User", cwd: nil, isAgent: false)
+        let session = store.createSession(label: "Active", cwd: nil, isAgent: true)
         store.appendOutput(sessionId: session.id, text: "active content")
 
         let bridge: any TerminalBridge = store
@@ -33,13 +34,35 @@ final class TerminalBridgeIntegrationTests: XCTestCase {
 
     func testAllSessionsSummaryViaProtocol() {
         let store = TerminalSessionStore()
-        let s1 = store.createSession(label: "Shell", cwd: "/home", isAgent: false)
+        _ = store.createSession(label: "User shell", cwd: "/home", isAgent: false)
+        let s1 = store.createSession(label: "Agent shell", cwd: "/home", isAgent: true)
         store.appendOutput(sessionId: s1.id, text: "user data")
 
         let bridge: any TerminalBridge = store
         let summary = bridge.allSessionsSummary(lastN: 2000)
-        XCTAssertTrue(summary.contains("Shell"))
+        XCTAssertTrue(summary.contains("Agent shell"))
+        XCTAssertFalse(summary.contains("User shell"))
         XCTAssertTrue(summary.contains("user data"))
+    }
+
+    func testReadTerminalOutputRejectsUserOwnedSession() {
+        let store = TerminalSessionStore()
+        let userSession = store.createSession(label: "User", cwd: "/tmp", isAgent: false)
+        store.appendOutput(sessionId: userSession.id, text: "sensitive user output")
+
+        let bridge: any TerminalBridge = store
+        let output = bridge.readTerminalOutput(sessionId: userSession.id.uuidString, lastN: 8000)
+        XCTAssertEqual(output, "")
+    }
+
+    func testAllSessionsSummaryWhenNoAgentSessions() {
+        let store = TerminalSessionStore()
+        let userSession = store.createSession(label: "User", cwd: "/tmp", isAgent: false)
+        store.appendOutput(sessionId: userSession.id, text: "sensitive user output")
+
+        let bridge: any TerminalBridge = store
+        let summary = bridge.allSessionsSummary(lastN: 2000)
+        XCTAssertEqual(summary, "(no agent terminal sessions)")
     }
 
     func testLongRunningCommandDetection() {

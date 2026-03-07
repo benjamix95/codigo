@@ -39,7 +39,7 @@ extension CoderIDETools {
                     ]),
                     "session_id": .object([
                         "type": "string",
-                        "description": "Optional session id to reuse for this review start request.",
+                        "description": "Optional custom session id for a new review session. Must be unique.",
                     ]),
                     "conversation_id": .object([
                         "type": "string",
@@ -51,7 +51,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_list_sessions",
-            description: "List code review sessions for the current conversation or across the workspace.",
+            description: "List code review sessions for the current conversation or across the workspace, including completed sessions.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

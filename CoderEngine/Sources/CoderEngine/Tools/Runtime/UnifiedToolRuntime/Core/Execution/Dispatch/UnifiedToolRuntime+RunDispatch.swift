@@ -5,10 +5,8 @@ extension UnifiedToolRuntime {
         let normalizedName = normalizeToolName(call.name)
         let policy = context.policy
 
-        let exemptFromRoundBudget = Self.readOnlyFileToolsExemptFromRoundBudget.contains(normalizedName)
-
         // Budget enforcement (defense-in-depth — ToolEnabledLLMProvider also enforces)
-        if !exemptFromRoundBudget, toolCallsInCurrentRound >= policy.maxToolCallsPerRound {
+        if toolCallsInCurrentRound >= policy.maxToolCallsPerRound {
             return [.raw(type: "tool_execution_error", payload: [
                 "tool_call_id": call.id,
                 "tool": normalizedName,
@@ -30,9 +28,7 @@ extension UnifiedToolRuntime {
                 "error_code": "repetition_exceeded"
             ])]
         }
-        if !exemptFromRoundBudget {
-            toolCallsInCurrentRound += 1
-        }
+        toolCallsInCurrentRound += 1
         if !exemptFromRepetitionLimit {
             toolCallCountByName[normalizedName, default: 0] += 1
         }

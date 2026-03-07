@@ -58,6 +58,30 @@ final class WorktreeMergeAIServiceTests: XCTestCase {
         )
     }
 
+    func testQualityGateBlocksAutomaticExecutionWithoutManagedRunner() async throws {
+        let projectDir = try makeNodeProject(named: "blocked-default-runner")
+        let registry = ProviderRegistry()
+        registry.register(MockWorktreeProvider(id: "codex-cli", authenticated: true))
+        let service = WorktreeMergeAIService()
+
+        do {
+            _ = try await service.enforceQualityGate(
+                gitRoot: projectDir.path,
+                stage: "pre-commit",
+                preferredProviderId: "codex-cli",
+                providerRegistry: registry,
+                maxAttempts: 1
+            )
+            XCTFail("Expected automatic quality-gate execution to be blocked")
+        } catch let error as WorktreeMergeAIServiceError {
+            guard case .automaticTestExecutionBlocked = error else {
+                return XCTFail("Unexpected worktree error: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testQualityGateRetriesAndPassesAfterFixRound() async throws {
         let projectDir = try makeNodeProject(named: "retry-pass")
         let processCounter = LockedCounter()

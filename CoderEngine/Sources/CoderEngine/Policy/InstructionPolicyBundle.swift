@@ -198,31 +198,65 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
     private static func firstProjectFile(named fileName: String, workspacePaths: [String]) -> String? {
         for workspacePath in workspacePaths {
             guard !workspacePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-            if let found = nearestUpwardFile(named: fileName, startingAt: workspacePath) {
+            guard let workspaceRoot = workspaceDirectoryURL(for: workspacePath) else { continue }
+            if let found = nearestUpwardFile(named: fileName, startingAt: workspacePath, workspaceRoot: workspaceRoot) {
                 return found
             }
         }
         return nil
     }
 
-    private static func nearestUpwardFile(named fileName: String, startingAt rawPath: String) -> String? {
+    private static func nearestUpwardFile(named fileName: String, startingAt rawPath: String, workspaceRoot: URL) -> String? {
         let fm = FileManager.default
-        var current = URL(fileURLWithPath: rawPath)
+        var current = URL(fileURLWithPath: rawPath).resolvingSymlinksInPath().standardizedFileURL
         var isDir: ObjCBool = false
         if fm.fileExists(atPath: current.path, isDirectory: &isDir), !isDir.boolValue {
             current = current.deletingLastPathComponent()
         }
 
+        guard isPath(current.path, insideRoot: workspaceRoot.path) else { return nil }
+
         while true {
-            let candidate = current.appendingPathComponent(fileName).path
-            if fm.fileExists(atPath: candidate) {
-                return candidate
+            let candidate = current.appendingPathComponent(fileName)
+            if let trustedPath = trustedProjectPolicyPath(candidate, workspaceRoot: workspaceRoot) {
+                return trustedPath
             }
+            if current.path == workspaceRoot.path { break }
             let parent = current.deletingLastPathComponent()
             if parent.path == current.path { break }
             current = parent
         }
         return nil
+    }
+
+    private static func workspaceDirectoryURL(for rawPath: String) -> URL? {
+        let fm = FileManager.default
+        var url = URL(fileURLWithPath: rawPath).resolvingSymlinksInPath().standardizedFileURL
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue {
+            url = url.deletingLastPathComponent()
+        }
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else { return nil }
+        return url
+    }
+
+    private static func trustedProjectPolicyPath(_ candidate: URL, workspaceRoot: URL) -> String? {
+        let fm = FileManager.default
+        guard !isSymlink(candidate) else { return nil }
+
+        let resolved = candidate.resolvingSymlinksInPath().standardizedFileURL
+        guard isPath(resolved.path, insideRoot: workspaceRoot.path) else { return nil }
+
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: resolved.path, isDirectory: &isDir), !isDir.boolValue else {
+            return nil
+        }
+        return resolved.path
+    }
+
+    private static func isSymlink(_ url: URL) -> Bool {
+        guard let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey]) else { return false }
+        return values.isSymbolicLink ?? false
     }
 
     private static func readPolicyFile(_ path: String) -> String? {
@@ -243,24 +277,24 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
     /// Resolve skill name to full SKILL.md content (markdown body; frontmatter optional).
     public static func skillContent(for name: String) -> String? {
         let home = NSHomeDirectory()
-        let roots: [(label: String, path: String)] = [
-            ("codex", "\(home)/.codex/skills"),
-            ("agents", "\(home)/.agents/skills"),
-            ("claude", "\(home)/.claude/skills"),
+        let roots = [
+            "\(home)/.codex/skills",
+            "\(home)/.agents/skills",
+            "\(home)/.claude/skills",
         ]
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-        guard !normalized.isEmpty else { return nil }
+        guard let normalized = normalizedSkillName(name) else { return nil }
         for root in roots {
+            let rootURL = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL
             let candidates = [
-                "\(root.path)/\(normalized)/SKILL.md",
-                "\(root.path)/.system/\(normalized)/SKILL.md",
+                rootURL.appendingPathComponent(normalized).appendingPathComponent("SKILL.md"),
+                rootURL.appendingPathComponent(".system").appendingPathComponent(normalized).appendingPathComponent("SKILL.md"),
             ]
             for candidate in candidates {
-                let url = URL(fileURLWithPath: candidate)
-                guard FileManager.default.fileExists(atPath: candidate),
-                      let raw = try? String(contentsOf: url, encoding: .utf8) else { continue }
+                let candidateURL = candidate.standardizedFileURL
+                guard isPath(candidateURL.path, insideRoot: rootURL.path),
+                      FileManager.default.fileExists(atPath: candidateURL.path),
+                      let raw = try? String(contentsOf: candidateURL, encoding: .utf8)
+                else { continue }
                 var content = raw
                 if raw.hasPrefix("---") {
                     if let end = raw.range(of: "\n---", range: raw.index(raw.startIndex, offsetBy: 3)..<raw.endIndex) {
@@ -271,5 +305,30 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
             }
         }
         return nil
+    }
+
+    private static func normalizedSkillName(_ name: String) -> String? {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+        guard !normalized.isEmpty,
+              !normalized.contains("/"),
+              !normalized.contains("\\\\"),
+              !normalized.contains("..")
+        else {
+            return nil
+        }
+
+        let allowedCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
+        guard normalized.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
+            return nil
+        }
+        return normalized
+    }
+
+    private static func isPath(_ path: String, insideRoot rootPath: String) -> Bool {
+        let normalizedRoot = URL(fileURLWithPath: rootPath, isDirectory: true).standardizedFileURL.path
+        let rootPrefix = normalizedRoot.hasSuffix("/") ? normalizedRoot : normalizedRoot + "/"
+        return path.hasPrefix(rootPrefix)
     }
 }

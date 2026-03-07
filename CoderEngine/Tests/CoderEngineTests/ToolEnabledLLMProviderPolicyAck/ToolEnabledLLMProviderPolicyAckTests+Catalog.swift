@@ -201,6 +201,50 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         XCTAssertEqual(validationPayload?["tool"], "write")
     }
 
+    func testEnforcedMCPEditBlocksDeleteFileWhenMCPDisabled() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp-edit-policy-delete-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let target = workspace.appendingPathComponent("Sample.swift")
+        try "let value = 1\n".write(to: target, atomically: true, encoding: .utf8)
+
+        let args = #"{"path":"\#(target.path)"}"#
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-mcp-enforce-delete",
+                "name": "delete_file",
+                "args": args,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            policy: ToolRuntimePolicy(enableMCP: false, enforceMCPEditOnly: true),
+            maxToolRounds: 1
+        )
+        let stream = try await provider.send(
+            prompt: "Elimina il file",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var validationPayload: [String: String]?
+        for try await event in stream {
+            if case .raw(let type, let payload) = event,
+               type == "tool_validation_error",
+               payload["error_code"] == "mcp_edit_required" {
+                validationPayload = payload
+            }
+        }
+
+        XCTAssertEqual(validationPayload?["error_code"], "mcp_edit_required")
+        XCTAssertEqual(validationPayload?["tool"], "delete_file")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
+    }
+
     func testSubagentTestWriterSuggestionIsAcceptedAndExecuted() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("subagent-testwriter-\(UUID().uuidString)", isDirectory: true)

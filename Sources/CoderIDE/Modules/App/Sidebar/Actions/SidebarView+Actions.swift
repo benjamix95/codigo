@@ -3,7 +3,24 @@ import SwiftUI
 import AppKit
 import CoderEngine
 
+func shouldReselectAfterArchivingThread(
+    wasSelected: Bool,
+    archived: Bool,
+    showArchived: Bool,
+    isFavorite: Bool
+) -> Bool {
+    wasSelected && archived && !showArchived && !isFavorite
+}
+
 extension SidebarView {
+    func requestConversationDeletionInterrupt(_ conversationId: UUID) {
+        NotificationCenter.default.post(
+            name: ChatPanelView.threadDeletionRequestedNotification,
+            object: nil,
+            userInfo: ["conversationId": conversationId.uuidString.lowercased()]
+        )
+    }
+
     func askAIAboutThreadSearch(query: String, hits: [ThreadSearchHit]) {
         let prompt = chatStore.buildThreadSearchAIPrompt(query: query, hits: hits)
         NotificationCenter.default.post(
@@ -14,6 +31,7 @@ extension SidebarView {
     }
 
     func cleanupConversationData(for conversation: Conversation) {
+        requestConversationDeletionInterrupt(conversation.id)
         _ = pipelineIntegrationService.discardConversationRuntime(for: conversation.id)
         let roots = Set(conversation.checkpoints.flatMap { $0.gitStates.map(\.gitRootPath) })
         for root in roots {
@@ -21,6 +39,14 @@ extension SidebarView {
         }
         projectContextStore.clearLastActiveConversation(conversationId: conversation.id)
         todoStore.clearTodos(forConversationId: conversation.id)
+    }
+
+    func prepareConversationForArchive(_ conversation: Conversation) {
+        guard chatStore.isTaskActive(for: conversation.id)
+                || pipelineIntegrationService.isRunning(for: conversation.id)
+        else { return }
+        requestConversationDeletionInterrupt(conversation.id)
+        _ = pipelineIntegrationService.discardConversationRuntime(for: conversation.id)
     }
 
     func deleteAllVisibleThreads() {
@@ -56,6 +82,19 @@ extension SidebarView {
             fallbackContextId: deletedConversation.contextId,
             fallbackFolderPath: deletedConversation.contextFolderPath,
             autoCreatedConversationId: autoCreatedConversationId
+        )
+    }
+
+    func nextConversationSelectionAfterArchive(
+        archivedConversation: Conversation
+    ) -> UUID? {
+        if let replacement = visibleThreads.first(where: { $0.id != archivedConversation.id }) {
+            return replacement.id
+        }
+        return resolveAndApplySidebarThreadDeletionFallback(
+            fallbackContextId: archivedConversation.contextId,
+            fallbackFolderPath: archivedConversation.contextFolderPath,
+            autoCreatedConversationId: nil
         )
     }
 

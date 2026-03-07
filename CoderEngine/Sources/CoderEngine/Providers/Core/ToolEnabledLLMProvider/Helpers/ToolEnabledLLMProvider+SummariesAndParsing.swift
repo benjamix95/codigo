@@ -19,7 +19,10 @@ extension ToolEnabledLLMProvider {
                 // Only accept success if no failure was seen (failure-wins precedence)
                 summary["status"] = "completed"
                 summary["detail"] = payload["detail"] ?? payload["title"] ?? "ok"
-                if let output = payload["output"], !output.isEmpty {
+                let toolName = summary["name"] ?? ""
+                if shouldIncludeToolOutputInFollowUp(toolName: toolName),
+                   let output = payload["output"],
+                   !output.isEmpty {
                     summary["output"] = String(output.prefix(8000))
                 }
                 if let path = payload["path"] ?? payload["file"], !path.isEmpty {
@@ -49,7 +52,12 @@ extension ToolEnabledLLMProvider {
                 let status = result["status"] ?? "unknown"
                 let detail = result["detail"] ?? ""
                 let path = result["path"].map { "\npath: \($0)" } ?? ""
-                let output = result["output"].map { "\noutput:\n\($0)" } ?? ""
+                let output: String
+                if shouldIncludeToolOutputInFollowUp(toolName: name) {
+                    output = result["output"].map { "\noutput:\n\($0)" } ?? ""
+                } else {
+                    output = ""
+                }
                 return "- tool_call id=\(id), name=\(name), status=\(status)\n  detail: \(detail)\(path)\(output)"
             }.joined(separator: "\n")
             resultsSection = """
@@ -74,6 +82,15 @@ extension ToolEnabledLLMProvider {
 
         \(resultsSection)
         """
+    }
+
+    func shouldIncludeToolOutputInFollowUp(toolName: String) -> Bool {
+        switch toolName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "bash", "command_execution", "shell":
+            return false
+        default:
+            return true
+        }
     }
 
     func parseArgsJSON(_ raw: String) -> [String: String]? {
@@ -115,68 +132,6 @@ extension ToolEnabledLLMProvider {
             .sorted()
             .joined(separator: "|")
         return "\(marker.kind)|\(stablePayload)"
-    }
-
-    func shouldEmitSyntheticPolicyAck(
-        for marker: CoderIDEMarker,
-        requiredHash: String,
-        didEmitPolicyAck: Bool
-    ) -> Bool {
-        guard !didEmitPolicyAck else { return false }
-        guard markerRequiresPolicyAck(marker) else { return false }
-        return !requiredHash.isEmpty
-    }
-
-    func markerRequiresPolicyAck(_ marker: CoderIDEMarker) -> Bool {
-        switch marker.kind {
-        case "policy_ack", "todo_read", "todo_write", "plan_step",
-             "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
-             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-             "plan_history_read", "plan_diff", "plan_request_user_input":
-            return false
-        case "tool_call":
-            let toolName = inferredToolName(from: marker.payload)
-            if [
-                "todo_read", "todo_write", "plan_step_update", "mermaid_render",
-                "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
-                "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-                "plan_history_read", "plan_diff", "plan_request_user_input",
-                "debug_set_phase", "debug_request_user", "debug_resolve",
-                "policy_ack", "activate_plan_mode", "activate_debug_mode",
-                "show_task_panel", "invoke_swarm", "show_swarm_panel",
-            ].contains(toolName) {
-                return false
-            }
-            return true
-        default:
-            return true
-        }
-    }
-
-    func shouldEmitSyntheticPolicyAck(
-        forRawEventType type: String,
-        requiredHash: String,
-        didEmitPolicyAck: Bool
-    ) -> Bool {
-        guard !didEmitPolicyAck, !requiredHash.isEmpty else { return false }
-        return rawEventRequiresPolicyAck(type)
-    }
-
-    func rawEventRequiresPolicyAck(_ type: String) -> Bool {
-        switch type {
-        case "policy_ack", "turn_started", "turn_completed", "usage", "reasoning",
-            "todo_read", "todo_write", "plan_step_update", "context_compacted",
-            "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
-            "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-            "plan_history_read", "plan_diff", "plan_request_user_input",
-            "debug_phase_update", "debug_user_request", "debug_resolved",
-            "activate_plan_mode", "activate_debug_mode",
-            "coderide_show_task_panel", "coderide_invoke_swarm", "coderide_show_swarm_panel",
-            "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied":
-            return false
-        default:
-            return true
-        }
     }
 
 }

@@ -3,7 +3,6 @@ import Foundation
 extension ReviewPipelineCoordinator {
     func runRounds(
         initialTasks: [CodeReviewMultiSwarmProvider.ReviewTask],
-        extractionInconclusiveReason: String?,
         context: WorkspaceContext,
         config: MultiSwarmReviewConfig,
         againstRef: String?,
@@ -17,14 +16,8 @@ extension ReviewPipelineCoordinator {
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation,
         isCancelled: @escaping @Sendable () -> Bool,
         waitWhilePaused: @escaping @Sendable () async -> Void
-    ) async -> Bool {
+    ) async -> CodeReviewMultiSwarmProvider.ReviewPipelineRunOutcome {
         if initialTasks.isEmpty {
-            if let extractionInconclusiveReason {
-                continuation.yield(.textDelta("\n**Review complete (inconclusive).** Structured fix tasks were not produced: \(extractionInconclusiveReason)\n"))
-                continuation.yield(.completed)
-                continuation.finish()
-                return true
-            }
             return await runTerminalTestOnly(
                 context: context,
                 staticConfig: config,
@@ -41,6 +34,7 @@ extension ReviewPipelineCoordinator {
         var currentTasks = initialTasks
         var reviewRound = 0
         var finalReviewState: CodeReviewMultiSwarmProvider.ReviewFindingsState?
+        var finalFailureReason: String?
         var lastTestResult: CodeReviewMultiSwarmProvider.TestExecutionResult = .inconclusive(
             reason: "No test rounds executed."
         )
@@ -87,13 +81,16 @@ extension ReviewPipelineCoordinator {
                 config: runtimeConfig,
                 againstRef: againstRef,
                 resolvedScope: resolvedScope,
+                fileLockCoordinator: fileLockCoordinator,
                 round: reviewRound,
                 sessionState: sessionState,
                 continuation: continuation,
                 isCancelled: isCancelled,
                 waitWhilePaused: waitWhilePaused
             )
-            guard fixSucceeded else { return false }
+            guard fixSucceeded else {
+                return .failed(reason: "Review fix stage failed.")
+            }
 
             await sessionState.markRoundCompleted(reviewRound)
             await sessionState.markTestingStarted()
@@ -121,8 +118,8 @@ extension ReviewPipelineCoordinator {
                 allowedScopeFiles: allowedScopeFiles
             )
             if modifiedFiles.isEmpty {
-                await sessionState.markAllOpenFindingsAsFixApplied()
-                finalReviewState = .clean
+                finalFailureReason = "Fix stage completed without producing any in-scope workspace changes."
+                finalReviewState = .issues
                 break reviewLoop
             }
 
@@ -140,8 +137,15 @@ extension ReviewPipelineCoordinator {
 
             switch reReviewOutcome.findings {
             case .clean:
-                await sessionState.markAllOpenFindingsAsFixApplied()
-                finalReviewState = .clean
+                await sessionState.markOpenFindingsAsFixApplied(
+                    in: Set(modifiedFiles)
+                )
+                let hasRemainingOpenFindings = !(await sessionState.snapshot()).openFindings.isEmpty
+                finalReviewState = hasRemainingOpenFindings ? .issues : .clean
+                if !hasRemainingOpenFindings {
+                    break reviewLoop
+                }
+                finalFailureReason = "Some review findings remain open outside the files modified in the current round."
                 break reviewLoop
             case .inconclusive(let reason):
                 finalReviewState = .inconclusive(reason: reason)
@@ -170,15 +174,21 @@ extension ReviewPipelineCoordinator {
                         filePath: task.files.first
                     )
                 }
-                await sessionState.replaceOpenFindings(with: findings)
+                await sessionState.replaceOpenFindings(
+                    in: Set(modifiedFiles),
+                    with: findings
+                )
             default:
+                finalFailureReason = "Re-review reported issues but produced no actionable follow-up tasks."
                 break reviewLoop
             }
         }
 
         if isCancelled() {
-            await sessionState.fail(error: "Review cancelled.")
             continuation.yield(.textDelta("\n**Review cancelled.**\n"))
+            continuation.yield(.completed)
+            continuation.finish()
+            return .cancelled
         } else {
             let testVerdict: String = switch lastTestResult {
             case .passed: "Tests passing."
@@ -191,11 +201,36 @@ extension ReviewPipelineCoordinator {
             case .inconclusive(let reason): "Re-review inconclusive (\(reason))."
             case nil: "Re-review not executed."
             }
-            continuation.yield(.textDelta("\n---\n**Multi-swarm code review complete.** \(testVerdict) \(reviewVerdict)\n"))
+            let failureSuffix = finalFailureReason.map { " Failure: \($0)." } ?? ""
+            continuation.yield(.textDelta("\n---\n**Multi-swarm code review complete.** \(testVerdict) \(reviewVerdict)\(failureSuffix)\n"))
         }
         continuation.yield(.completed)
         continuation.finish()
-        return true
+        if let finalFailureReason {
+            return .failed(reason: finalFailureReason)
+        }
+        switch finalReviewState {
+        case .clean?:
+            switch lastTestResult {
+            case .passed:
+                return .completed
+            case .failed, .inconclusive:
+                return .failed(reason: "Review finished with unresolved test failures or inconclusive tests.")
+            }
+        case .issues?:
+            return .failed(reason: "Review finished with remaining open findings.")
+        case .inconclusive(let reason)?:
+            return .failed(reason: "Review ended inconclusively: \(reason)")
+        case nil:
+            switch lastTestResult {
+            case .passed:
+                return .completed
+            case .failed:
+                return .failed(reason: "Tests failed.")
+            case .inconclusive(let reason):
+                return .failed(reason: "Tests were inconclusive: \(reason)")
+            }
+        }
     }
 
     func runTerminalTestOnly(
@@ -208,7 +243,7 @@ extension ReviewPipelineCoordinator {
         sessionState: CodeReviewSessionState,
         isCancelled: @escaping @Sendable () -> Bool,
         waitWhilePaused: @escaping @Sendable () async -> Void
-    ) async -> Bool {
+    ) async -> CodeReviewMultiSwarmProvider.ReviewPipelineRunOutcome {
         let runtimeResources = await currentRuntimeResources(
             staticConfig: staticConfig,
             staticAnalysisProvider: staticExecutionProvider,
@@ -235,7 +270,14 @@ extension ReviewPipelineCoordinator {
         }
         continuation.yield(.completed)
         continuation.finish()
-        return true
+        switch testResult {
+        case .passed:
+            return .completed
+        case .failed:
+            return .failed(reason: "Tests failed.")
+        case .inconclusive(let reason):
+            return .failed(reason: "Tests were inconclusive: \(reason)")
+        }
     }
 
     private func scopedModifiedFilesForReReview(

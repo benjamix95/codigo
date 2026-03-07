@@ -23,9 +23,14 @@ extension UnifiedToolRuntime {
             return failure("file1 and file2 are required", errorCode: "validation", startDate: startDate)
         }
 
-        let workspace = context.workspaceContext.workspacePaths.first?.path ?? "."
-        let abs1 = (file1 as NSString).isAbsolutePath ? file1 : (workspace as NSString).appendingPathComponent(file1)
-        let abs2 = (file2 as NSString).isAbsolutePath ? file2 : (workspace as NSString).appendingPathComponent(file2)
+        let abs1: String
+        let abs2: String
+        do {
+            abs1 = try resolveRequiredPath(file1, context: context)
+            abs2 = try resolveRequiredPath(file2, context: context)
+        } catch {
+            return failure("Path is not allowed by sandbox policy", errorCode: "sandbox", startDate: startDate)
+        }
 
         let contextLines = min(Int(call.args["context"] ?? "3") ?? 3, 10)
         let result = await runShellCommand(

@@ -16,6 +16,7 @@ struct WorktreeConflictResolutionReport: Equatable {
 enum WorktreeMergeAIServiceError: LocalizedError {
     case providerUnavailable
     case testCommandUnavailable(String)
+    case automaticTestExecutionBlocked
     case qualityGateFailed(String)
     case conflictResolutionFailed(String)
     case runtimeFailed(String)
@@ -26,6 +27,8 @@ enum WorktreeMergeAIServiceError: LocalizedError {
             return "Nessun provider agent compatibile autenticato disponibile per il merge assistito."
         case .testCommandUnavailable(let path):
             return "Impossibile rilevare un comando test standard in \(path)."
+        case .automaticTestExecutionBlocked:
+            return "Esecuzione automatica dei test bloccata per sicurezza: esegui i test manualmente prima del merge."
         case .qualityGateFailed(let output):
             return "Quality gate fallito: \(output)"
         case .conflictResolutionFailed(let details):
@@ -114,6 +117,10 @@ class WorktreeMergeAIService {
         providerRegistry: ProviderRegistry,
         maxAttempts: Int = 3
     ) async throws -> WorktreeQualityGateReport {
+        guard processRunner != nil else {
+            throw WorktreeMergeAIServiceError.automaticTestExecutionBlocked
+        }
+
         guard let cmd = TestProjectDetector.testCommand(
             workspacePath: URL(fileURLWithPath: gitRoot)
         ) else {

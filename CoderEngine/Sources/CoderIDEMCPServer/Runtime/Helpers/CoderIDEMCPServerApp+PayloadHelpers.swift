@@ -29,12 +29,6 @@ extension CoderIDEMCPServerApp {
         if let removed = firstNonEmpty(payload: payload, keys: ["linesRemoved", "deletions", "removed", "deletions_count"]) {
             structured["linesRemoved"] = removed
         }
-        if let diff = firstNonEmpty(
-            payload: payload,
-            keys: ["diffPreview", "diff", "patch", "unified_diff", "changes_preview"]
-        ) {
-            structured["diffPreview"] = String(diff.prefix(12_000))
-        }
         if let detail = firstNonEmpty(payload: payload, keys: ["detail"]) {
             structured["detail"] = detail
         }

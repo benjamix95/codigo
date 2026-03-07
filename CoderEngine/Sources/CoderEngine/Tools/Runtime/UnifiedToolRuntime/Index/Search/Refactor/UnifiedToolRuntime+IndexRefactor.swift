@@ -14,12 +14,14 @@ extension UnifiedToolRuntime {
             query: query,
             newName: newName,
             workspacePaths: allWorkspacePaths,
-            primaryWorkspace: primaryWorkspace
+            primaryWorkspace: primaryWorkspace,
+            sandboxMode: context.policy.sandboxMode
         ) {
             let applied = applyRename(
                 query: query,
                 newName: newName,
-                files: languagePlan.files
+                files: languagePlan.files,
+                workspacePaths: allWorkspacePaths
             )
             let detail = "Renamed '\(query)' → '\(newName)' in \(applied.replaced) files (\(languagePlan.referenceCount) references) [\(languagePlan.source.rawValue)]"
             let ms = Int(Date().timeIntervalSince(startDate) * 1000)
@@ -67,7 +69,12 @@ extension UnifiedToolRuntime {
             return ToolResult(ok: false, payload: ["detail": "Symbol '\(query)' not found in codebase"], durationMs: Int(Date().timeIntervalSince(startDate) * 1000))
         }
 
-        let applied = applyRename(query: query, newName: newName, files: files)
+        let applied = applyRename(
+            query: query,
+            newName: newName,
+            files: files,
+            workspacePaths: allWorkspacePaths
+        )
 
         let detail = "Renamed '\(query)' → '\(newName)' in \(applied.replaced) files (\(files.count) references)"
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
@@ -82,21 +89,31 @@ extension UnifiedToolRuntime {
         query: String,
         newName: String,
         workspacePaths: [String],
-        primaryWorkspace: String
+        primaryWorkspace: String,
+        sandboxMode: String
     ) async -> (files: [(path: String, line: Int, content: String)], referenceCount: Int, source: RuntimeLanguageSource)? {
         guard let languageService else { return nil }
         do {
             let renamePlan = try await languageService.rename(oldName: query, newName: newName)
             guard !renamePlan.references.isEmpty else { return nil }
-            let files = renamePlan.references.map { reference in
-                let path = resolveLanguageLocationPath(
+            let files = renamePlan.references.compactMap { reference in
+                let unresolvedPath = resolveLanguageLocationPath(
                     reference.filePath,
                     workspacePaths: workspacePaths,
                     primaryWorkspace: primaryWorkspace
                 )
+                guard let path = resolvePath(
+                    unresolvedPath,
+                    workspacePaths: workspacePaths,
+                    preferredRoot: primaryWorkspace,
+                    sandboxMode: sandboxMode
+                ) else {
+                    return nil
+                }
                 let content = "\(path):\(reference.line): \(reference.symbolName)"
                 return (path: path, line: reference.line, content: content)
             }
+            guard !files.isEmpty else { return nil }
             return (files: files, referenceCount: renamePlan.references.count, source: renamePlan.source)
         } catch {
             return nil
@@ -138,13 +155,15 @@ extension UnifiedToolRuntime {
     private func applyRename(
         query: String,
         newName: String,
-        files: [(path: String, line: Int, content: String)]
+        files: [(path: String, line: Int, content: String)],
+        workspacePaths: [String]
     ) -> (replaced: Int, errors: [String]) {
         let uniquePaths = Set(files.map { $0.path })
         var replaced = 0
         var errors: [String] = []
 
         for filePath in uniquePaths {
+            guard isPathWithinWorkspaces(filePath, workspacePaths: workspacePaths) else { continue }
             guard FileManager.default.fileExists(atPath: filePath) else { continue }
             do {
                 var content = try String(contentsOfFile: filePath, encoding: .utf8)
@@ -168,6 +187,21 @@ extension UnifiedToolRuntime {
         }
 
         return (replaced: replaced, errors: errors)
+    }
+
+    private func isPathWithinWorkspaces(_ path: String, workspacePaths: [String]) -> Bool {
+        let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        for workspacePath in workspacePaths {
+            let standardizedWorkspace = URL(fileURLWithPath: workspacePath).standardizedFileURL.path
+            if standardizedPath == standardizedWorkspace { return true }
+            let workspacePrefix = standardizedWorkspace.hasSuffix("/")
+                ? standardizedWorkspace
+                : standardizedWorkspace + "/"
+            if standardizedPath.hasPrefix(workspacePrefix) {
+                return true
+            }
+        }
+        return false
     }
 
     func executeFindAndReplaceAll(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {

@@ -45,6 +45,7 @@ struct ContentView: View {
     @State var coderMode: CoderMode = .agent
 
     @AppStorage("chat_background_style") var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
+    @AppStorage("ide_workbench_sidebar_visible") var showIDEWorkbenchSidebar = true
     @AppStorage("git_panel_width") var gitPanelWidth: Double = 380
     @AppStorage("chat_panel_width") var chatPanelWidth: Double = 380
     @AppStorage("side_panel_width") var sidePanelWidth: Double = 240
@@ -54,6 +55,8 @@ struct ContentView: View {
 
     var body: some View {
         configuredContent
+            .navigationTitle("")
+            .toolbar(removing: .sidebarToggle)
             .onReceive(NotificationCenter.default.publisher(for: .windowSidebarChromeToggleRequested)) { _ in
                 handleWindowSidebarChromeToggle()
             }

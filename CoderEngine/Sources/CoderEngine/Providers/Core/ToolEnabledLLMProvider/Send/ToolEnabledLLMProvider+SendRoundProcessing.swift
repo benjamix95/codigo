@@ -94,16 +94,6 @@ extension ToolEnabledLLMProvider {
                     continue
                 }
 
-                if let hash = requiredPolicyHash,
-                   shouldEmitSyntheticPolicyAck(
-                    forRawEventType: type,
-                    requiredHash: hash,
-                    didEmitPolicyAck: didEmitPolicyAck
-                   ) {
-                    continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
-                    didEmitPolicyAck = true
-                }
-
                 guard type == "tool_call_suggested" else {
                     continuation.yield(event)
                     continue
@@ -114,10 +104,9 @@ extension ToolEnabledLLMProvider {
                 let name = inferredToolName(from: payload)
                 if name.isEmpty { continue }
 
-                let exemptFromRoundBudget = UnifiedToolRuntime.readOnlyFileToolsExemptFromRoundBudget.contains(name)
                 let exemptFromRepetitionLimit = UnifiedToolRuntime.readOnlyFileToolsExemptFromRepetitionLimit.contains(name)
 
-                if !exemptFromRoundBudget, toolCallsThisRound >= policy.maxToolCallsPerRound {
+                if toolCallsThisRound >= policy.maxToolCallsPerRound {
                     if !didEmitToolBudgetExceededThisRound {
                         didEmitToolBudgetExceededThisRound = true
                         continuation.yield(.raw(type: "tool_execution_error", payload: [
@@ -173,7 +162,6 @@ extension ToolEnabledLLMProvider {
                 let effectiveName = resolvedSubagent?.toolName ?? name
 
                 if enforceSubagentFirstRound,
-                   isFirstRound,
                    !localAcceptedSubagentInFirstRound,
                    resolvedSubagent == nil,
                    !legacyInvokeSwarm,
@@ -204,19 +192,9 @@ extension ToolEnabledLLMProvider {
                 toolCallCountByKey[dedupeId] = count + 1
                 sawExecutableSuggestion = true
 
-                if isFirstRound, (legacyInvokeSwarm || resolvedSubagent != nil) {
+                if legacyInvokeSwarm || resolvedSubagent != nil {
                     localAcceptedSubagentInFirstRound = true
                 }
-                if let hash = requiredPolicyHash,
-                   shouldEmitSyntheticPolicyAck(
-                    for: marker,
-                    requiredHash: hash,
-                    didEmitPolicyAck: didEmitPolicyAck
-                   ) {
-                    continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
-                    didEmitPolicyAck = true
-                }
-
                 if let resolvedSubagent {
                     pendingSubagentCalls.append((marker: effectiveMarker, name: effectiveName))
                     let toolCallId = effectiveMarker.payload["id"] ?? UUID().uuidString
@@ -232,9 +210,7 @@ extension ToolEnabledLLMProvider {
                         "status": "queued"
                     ]))
                 } else {
-                    if !exemptFromRoundBudget {
-                        toolCallsThisRound += 1
-                    }
+                    toolCallsThisRound += 1
                     let produced = await events(for: effectiveMarker, context: context)
                     for e in produced {
                         if Self.streamEventIndicatesCodeMutation(e, originatingToolName: name) {

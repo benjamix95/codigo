@@ -56,6 +56,41 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
             FileManager.default.fileExists(atPath: MCPSharedState.codeReviewSessionFilePath(sessionId: "../escape").path)
         )
         XCTAssertTrue(MCPSharedState.readCodeReviewSnapshots().isEmpty)
+    func testWriteSnapshotIgnoresOlderMutationSequence() {
+        let conversationId = UUID()
+        let newer = makeSnapshot(
+            sessionId: "session-ordered",
+            conversationId: conversationId,
+            lastUpdatedAt: Date()
+        )
+        let older = CodeReviewSessionSnapshot(
+            sessionId: newer.sessionId,
+            conversationId: newer.conversationId,
+            mutationSequence: newer.mutationSequence - 1,
+            phase: .failed,
+            stage: .failed,
+            findings: [],
+            events: [],
+            config: .default,
+            scope: newer.scope,
+            workspacePath: newer.workspacePath,
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: newer.startedAt,
+            completedAt: Date(),
+            analysisCompletedAt: newer.analysisCompletedAt,
+            lastError: "stale",
+            currentJobId: nil,
+            lastTestStatus: nil,
+            lastUpdatedAt: Date(timeIntervalSinceNow: 60)
+        )
+
+        MCPSharedState.writeCodeReviewSnapshot(newer)
+        MCPSharedState.writeCodeReviewSnapshot(older)
+
+        let loaded = MCPSharedState.readCodeReviewSnapshot(sessionId: newer.sessionId)
+        XCTAssertEqual(loaded?.phase, .fixing)
+        XCTAssertEqual(loaded?.mutationSequence, newer.mutationSequence)
     }
 
     private func makeSnapshot(
@@ -66,6 +101,7 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
         return CodeReviewSessionSnapshot(
             sessionId: sessionId,
             conversationId: conversationId,
+            mutationSequence: 3,
             phase: .fixing,
             stage: .fixing,
             findings: [

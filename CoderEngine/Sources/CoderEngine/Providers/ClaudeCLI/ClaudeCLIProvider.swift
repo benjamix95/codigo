@@ -2,6 +2,8 @@ import Foundation
 
 /// Provider che usa Claude Code CLI (`claude -p`)
 public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
+    private static let defaultAllowedTools = ["Read", "Edit", "Bash", "Write", "Search", "Task"]
+
     public let id = "claude-cli"
     public let displayName = "Claude Code CLI"
     public let attachmentCapabilities = ProviderAttachmentCapabilities(
@@ -20,7 +22,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     public init(
         claudePath: String? = nil,
         model: String? = nil,
-        allowedTools: [String] = [],
+        allowedTools: [String] = ClaudeCLIProvider.defaultAllowedTools,
         executionController: ExecutionController? = nil,
         executionScope: ExecutionScope = .agent,
         environmentOverride: [String: String]? = nil
@@ -128,9 +130,9 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                 result.append(trimmed)
             }
         }
-        // Empty = no restriction → Claude CLI uses ALL available tools
-        // (Read, Edit, Write, Bash, Glob, Grep, WebSearch, WebFetch,
-        //  Task, TodoWrite, Skill, MCP, NotebookEdit, etc.)
+        if result.isEmpty {
+            return defaultAllowedTools
+        }
         return result
     }
 

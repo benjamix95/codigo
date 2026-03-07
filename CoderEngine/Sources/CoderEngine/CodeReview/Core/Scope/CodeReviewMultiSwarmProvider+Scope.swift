@@ -74,7 +74,7 @@ extension CodeReviewMultiSwarmProvider {
 
     /// Validation for AGAINST revision expressions.
     /// Supports common syntaxes like `HEAD~1` and `main..feature`.
-    static func isValidAgainstRefFormat(_ ref: String) -> Bool {
+    public static func isValidAgainstRefFormat(_ ref: String) -> Bool {
         let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         guard !trimmed.hasPrefix("-") else { return false }

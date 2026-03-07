@@ -159,7 +159,9 @@ extension ToolEnabledLLMProvider {
     }
 
     static let mcpEditLikeTools: Set<String> = [
-        "edit", "write", "str_replace", "regex_replace", "create_file",
+        "edit", "write", "str_replace", "regex_replace", "create_file", "delete_file",
+        "parallel_apply", "rename_symbol", "find_and_replace_all", "undo_edit",
+        "apply_patch", "multi_edit", "multiedit", "apply_diff", "write_json",
     ]
 
     static func rerouteEditToolToMCP(toolName: String, args: [String: String]) -> MCPEditReroute? {

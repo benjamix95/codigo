@@ -280,11 +280,33 @@ extension ToolEnabledLLMProvider {
         guard !modifiedPaths.isEmpty else {
             return "Code mutations were detected."
         }
-        let sorted = modifiedPaths.sorted()
+        let sorted = modifiedPaths.sorted().map(Self.sanitizePathForPrompt)
         let preview = sorted.prefix(20).joined(separator: ", ")
         if sorted.count > 20 {
             return "Code mutations were detected in files (partial): \(preview), +\(sorted.count - 20) more."
         }
         return "Code mutations were detected in files: \(preview)."
     }
+
+    private static func sanitizePathForPrompt(_ rawPath: String) -> String {
+        var sanitized = ""
+        sanitized.reserveCapacity(rawPath.count)
+        for scalar in rawPath.unicodeScalars {
+            if allowedPromptPathScalars.contains(scalar) {
+                sanitized.unicodeScalars.append(scalar)
+            } else {
+                let hex = String(scalar.value, radix: 16, uppercase: true)
+                sanitized.append("\\u{")
+                sanitized.append(hex)
+                sanitized.append("}")
+            }
+        }
+        return sanitized
+    }
+
+    private static let allowedPromptPathScalars: CharacterSet = {
+        var set = CharacterSet.alphanumerics
+        set.insert(charactersIn: "._-/\\")
+        return set
+    }()
 }

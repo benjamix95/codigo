@@ -78,6 +78,14 @@ extension UnifiedToolRuntime {
         guard !url.isEmpty else {
             return failure("url is required", errorCode: "validation", startDate: startDate)
         }
+        guard isAllowedBrowserURL(url) else {
+            return failure(
+                "Navigation to localhost or private network addresses is not allowed",
+                errorCode: "validation",
+                startDate: startDate,
+                payload: ["url": url, "title": "Navigation blocked"]
+            )
+        }
         await bridge.navigate(to: url)
         try? await Task.sleep(for: .milliseconds(500))
         let currentURL = await bridge.getCurrentURL() ?? url
@@ -88,6 +96,38 @@ extension UnifiedToolRuntime {
             "url": currentURL,
             "output": "Successfully navigated to \(currentURL)\(title.isEmpty ? "" : "\nPage title: \(title)")"
         ], startDate: startDate)
+    }
+
+    private func isAllowedBrowserURL(_ rawURL: String) -> Bool {
+        guard let url = URL(string: rawURL),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              let host = url.host?.lowercased() else {
+            return false
+        }
+
+        if host == "localhost" || host == "::1" || host == "0.0.0.0" {
+            return false
+        }
+
+        if let ipv4 = parseIPv4(host) {
+            let a = ipv4.0
+            let b = ipv4.1
+            if a == 10 || a == 127 || (a == 192 && b == 168) || (a == 172 && (16...31).contains(b)) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func parseIPv4(_ host: String) -> (Int, Int, Int, Int)? {
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return nil }
+        let octets = parts.compactMap { Int($0) }
+        guard octets.count == 4 else { return nil }
+        guard octets.allSatisfy({ (0...255).contains($0) }) else { return nil }
+        return (octets[0], octets[1], octets[2], octets[3])
     }
 
     func executeBrowserScreenshot(call: ToolCall, startDate: Date) async -> ToolResult {

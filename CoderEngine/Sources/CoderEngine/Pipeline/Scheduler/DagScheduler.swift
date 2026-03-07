@@ -68,6 +68,10 @@ public actor DagScheduler {
         tasks[taskId]?.contextEnriched = true
     }
 
+    public func setPreferredAgentRole(_ taskId: String, role: AgentRole?) {
+        tasks[taskId]?.preferredAgentRole = role
+    }
+
     // MARK: - Ready Tasks
 
     /// Restituisce i task pronti per l'esecuzione:

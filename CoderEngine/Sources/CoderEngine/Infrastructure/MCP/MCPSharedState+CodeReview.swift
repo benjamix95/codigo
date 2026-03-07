@@ -283,9 +283,22 @@ extension MCPSharedState {
         _ lhs: CodeReviewSessionSnapshot,
         _ rhs: CodeReviewSessionSnapshot
     ) -> Bool {
+        if lhs.mutationSequence != rhs.mutationSequence {
+            return lhs.mutationSequence > rhs.mutationSequence
+        }
         if lhs.lastUpdatedAt != rhs.lastUpdatedAt {
             return lhs.lastUpdatedAt > rhs.lastUpdatedAt
         }
         return lhs.sessionId > rhs.sessionId
+    }
+
+    private static func shouldSkipCodeReviewSnapshotWrite(
+        current: CodeReviewSessionSnapshot,
+        incoming: CodeReviewSessionSnapshot
+    ) -> Bool {
+        if incoming.mutationSequence != current.mutationSequence {
+            return incoming.mutationSequence < current.mutationSequence
+        }
+        return incoming.lastUpdatedAt < current.lastUpdatedAt
     }
 }

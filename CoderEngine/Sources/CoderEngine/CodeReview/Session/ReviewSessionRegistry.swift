@@ -29,6 +29,10 @@ public actor ReviewSessionRegistry {
     }
 
     public func recordSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
+        if let current = snapshotsBySessionId[snapshot.sessionId],
+           shouldSkipSnapshotUpdate(current: current, incoming: snapshot) {
+            return
+        }
         snapshotsBySessionId[snapshot.sessionId] = snapshot
         guard let key = conversationKey(snapshot.conversationId) else { return }
         var ids = sessionIdsByConversation[key] ?? []
@@ -123,9 +127,22 @@ public actor ReviewSessionRegistry {
         _ lhs: CodeReviewSessionSnapshot,
         _ rhs: CodeReviewSessionSnapshot
     ) -> Bool {
+        if lhs.mutationSequence != rhs.mutationSequence {
+            return lhs.mutationSequence > rhs.mutationSequence
+        }
         if lhs.lastUpdatedAt != rhs.lastUpdatedAt {
             return lhs.lastUpdatedAt > rhs.lastUpdatedAt
         }
         return lhs.sessionId > rhs.sessionId
+    }
+
+    private func shouldSkipSnapshotUpdate(
+        current: CodeReviewSessionSnapshot,
+        incoming: CodeReviewSessionSnapshot
+    ) -> Bool {
+        if incoming.mutationSequence != current.mutationSequence {
+            return incoming.mutationSequence < current.mutationSequence
+        }
+        return incoming.lastUpdatedAt < current.lastUpdatedAt
     }
 }

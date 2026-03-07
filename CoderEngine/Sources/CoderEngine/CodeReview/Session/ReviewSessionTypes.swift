@@ -86,6 +86,7 @@ public struct SessionConfig: Sendable, Codable {
 public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let sessionId: String
     public let conversationId: UUID?
+    public let mutationSequence: UInt64
     public let phase: ReviewSessionPhase
     public let stage: ReviewSessionStage
     public let findings: [CodeReviewFinding]
@@ -106,6 +107,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public init(
         sessionId: String,
         conversationId: UUID?,
+        mutationSequence: UInt64 = 0,
         phase: ReviewSessionPhase,
         stage: ReviewSessionStage,
         findings: [CodeReviewFinding],
@@ -125,6 +127,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     ) {
         self.sessionId = sessionId
         self.conversationId = conversationId
+        self.mutationSequence = mutationSequence
         self.phase = phase
         self.stage = stage
         self.findings = findings
@@ -141,6 +144,57 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         self.currentJobId = currentJobId
         self.lastTestStatus = lastTestStatus
         self.lastUpdatedAt = lastUpdatedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId
+        case conversationId
+        case mutationSequence
+        case phase
+        case stage
+        case findings
+        case events
+        case config
+        case scope
+        case workspacePath
+        case currentRound
+        case activeWorkerCount
+        case startedAt
+        case completedAt
+        case analysisCompletedAt
+        case lastError
+        case currentJobId
+        case lastTestStatus
+        case lastUpdatedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        conversationId = try container.decodeIfPresent(UUID.self, forKey: .conversationId)
+        mutationSequence = try container.decodeIfPresent(
+            UInt64.self,
+            forKey: .mutationSequence
+        ) ?? 0
+        phase = try container.decode(ReviewSessionPhase.self, forKey: .phase)
+        stage = try container.decode(ReviewSessionStage.self, forKey: .stage)
+        findings = try container.decode([CodeReviewFinding].self, forKey: .findings)
+        events = try container.decode([CodeReviewSessionEvent].self, forKey: .events)
+        config = try container.decode(SessionConfig.self, forKey: .config)
+        scope = try container.decodeIfPresent(ReviewSessionScope.self, forKey: .scope)
+        workspacePath = try container.decodeIfPresent(String.self, forKey: .workspacePath)
+        currentRound = try container.decode(Int.self, forKey: .currentRound)
+        activeWorkerCount = try container.decode(Int.self, forKey: .activeWorkerCount)
+        startedAt = try container.decodeIfPresent(Date.self, forKey: .startedAt)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
+        analysisCompletedAt = try container.decodeIfPresent(Date.self, forKey: .analysisCompletedAt)
+        lastError = try container.decodeIfPresent(String.self, forKey: .lastError)
+        currentJobId = try container.decodeIfPresent(String.self, forKey: .currentJobId)
+        lastTestStatus = try container.decodeIfPresent(
+            ReviewSessionTestStatus.self,
+            forKey: .lastTestStatus
+        )
+        lastUpdatedAt = try container.decode(Date.self, forKey: .lastUpdatedAt)
     }
 
     public var findingsByFile: [String: [CodeReviewFinding]] {

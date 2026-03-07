@@ -195,7 +195,7 @@ final class WorkerPoolTests: XCTestCase {
     func testMaxWorkersClamped() async {
         let pool = WorkerPool(maxWorkers: 100)
         let max = await pool.maxWorkers
-        XCTAssertLessThanOrEqual(max, 8)
+        XCTAssertLessThanOrEqual(max, 12)
     }
 
     func testMaxWorkersMinimumOne() async {

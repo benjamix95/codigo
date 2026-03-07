@@ -77,7 +77,7 @@ public actor WorkerPool {
         maxWorkers: Int = 4,
         backpressure: BackpressureController? = nil
     ) {
-        self.baseMaxWorkers = min(max(1, maxWorkers), 8)
+        self.baseMaxWorkers = min(max(1, maxWorkers), 12)
         self.backpressure = backpressure
     }
 

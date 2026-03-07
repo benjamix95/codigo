@@ -13,7 +13,7 @@ extension ChatPanelView {
     internal var rootLayout: some View {
         HStack(spacing: 6) {
             VStack(spacing: 0) {
-                // Keep out of macOS titlebar hit-test zone while still using full-height content.
+                // Keep a non-interactive drag-safe band under the transparent titlebar.
                 Color.clear
                     .frame(height: topInteractiveInset)
                     .allowsHitTesting(false)

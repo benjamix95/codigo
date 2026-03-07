@@ -45,6 +45,7 @@ extension SidebarView {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
         .background(.clear)
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsToAccounts)) { _ in
             showSettings = true

@@ -10,7 +10,7 @@ extension CodeReviewPanelView {
         let cards = taskActivityStore
             .swarmCardStates(for: conversationId)
             .filter {
-                $0.swarmId.hasPrefix("review-")
+                isCodeReviewSwarmCard($0)
                     && reviewCardBelongsToConversation($0, conversationId: conversationId)
             }
         let active = cards.filter { $0.status == .running }.count

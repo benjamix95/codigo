@@ -97,6 +97,10 @@ extension SidebarView {
 
     var sidebarContent: some View {
         VStack(spacing: 0) {
+            Color.clear
+                .frame(height: 28)
+                .allowsHitTesting(false)
+
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     quickActions

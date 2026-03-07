@@ -83,7 +83,16 @@ actor ProjectTemplateService {
                 .replacingOccurrences(of: "{{PROJECT_NAME}}", with: projectName)
                 .replacingOccurrences(of: "{{DATE}}", with: dateString())
 
-            let filePath = (projectPath as NSString).appendingPathComponent(file.relativePath)
+            guard let safeRelativePath = safeRelativePath(file.relativePath) else {
+                return CreationResult(
+                    projectPath: projectPath,
+                    templateId: templateId,
+                    filesCreated: filesCreated,
+                    error: "Percorso file non valido: \(file.relativePath)"
+                )
+            }
+
+            let filePath = (projectPath as NSString).appendingPathComponent(safeRelativePath)
             let fileDir = (filePath as NSString).deletingLastPathComponent
 
             do {
@@ -133,5 +142,16 @@ actor ProjectTemplateService {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: Date())
+    }
+
+    private func safeRelativePath(_ path: String) -> String? {
+        guard !path.isEmpty else { return nil }
+        guard !(path as NSString).isAbsolutePath else { return nil }
+
+        let normalized = (path as NSString).standardizingPath
+        guard !normalized.isEmpty, normalized != "." else { return nil }
+        guard !normalized.hasPrefix("../"), normalized != ".." else { return nil }
+
+        return normalized
     }
 }

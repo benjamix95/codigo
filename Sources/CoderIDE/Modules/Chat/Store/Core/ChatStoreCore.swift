@@ -21,6 +21,8 @@ var pendingPlanSaveTask: Task<Void, Never>?
 var planSharedSyncSignatureByConversation: [UUID: String] = [:]
 /// Guards against async load overwriting more recent saves.
 var hasSavedSinceLoad = false
+/// True while large conversation history is hydrating asynchronously from disk.
+var isAsyncConversationLoadPending = false
 /// Background queue for serialization + UserDefaults writes.
 static let persistQueue = DispatchQueue(label: "com.codigo.chatstore.persist", qos: .utility)
 /// Tracks the last time we persisted during a streaming session (to coalesce saves).
@@ -84,10 +86,14 @@ init(userDefaults: UserDefaults = .standard) {
     self.userDefaults = userDefaults
     loadConversations()
     loadPlanBoards()
-    if conversations.isEmpty {
-        createConversation(contextId: nil, contextFolderPath: nil, mode: nil)
-    }
+    ensureDefaultConversationIfNeeded()
 }
     static let asyncLoadThreshold = 100_000 // 100 KB
+
+func ensureDefaultConversationIfNeeded() {
+    guard !isAsyncConversationLoadPending else { return }
+    guard conversations.isEmpty else { return }
+    createConversation(contextId: nil, contextFolderPath: nil, mode: nil)
+}
 
 }

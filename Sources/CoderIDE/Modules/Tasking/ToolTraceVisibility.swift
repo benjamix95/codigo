@@ -144,7 +144,6 @@ enum ToolTraceVisibility {
         let type = normalizedType(rawType)
         if type == "policy_ack" { return false }
         if type == "todo_read" || type == "todo_write" { return false }
-        if isSwarmPayload(payload) { return false }
         if hiddenDisplayTypes.contains(type) { return false }
         if [
             "tool_execution_error", "tool_validation_error", "tool_timeout",
@@ -193,4 +192,5 @@ enum ToolTraceVisibility {
     private static func isSwarmPayload(_ payload: [String: String]) -> Bool {
         return SwarmMetadata.isSwarmEvent(payload)
     }
+
 }

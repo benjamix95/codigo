@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 final class WindowSidebarToggleController {
     private static var controllers: [ObjectIdentifier: WindowSidebarToggleController] = [:]
@@ -7,7 +6,7 @@ final class WindowSidebarToggleController {
     static func installIfNeeded(on window: NSWindow) {
         let key = ObjectIdentifier(window)
         if let controller = controllers[key] {
-            controller.attachChromeIfNeeded()
+            controller.attachButtonIfNeeded()
             controller.updateLayout()
             return
         }
@@ -16,26 +15,26 @@ final class WindowSidebarToggleController {
     }
 
     static func remove(for window: NSWindow) {
-        controllers.removeValue(forKey: ObjectIdentifier(window))
+        let key = ObjectIdentifier(window)
+        controllers[key]?.stopPeriodicStrip()
+        controllers.removeValue(forKey: key)
     }
 
     private weak var window: NSWindow?
     private let button = NSButton()
-    private let accessoryHost = NSHostingView(rootView: AnyView(EmptyView()))
     private var observers: [NSObjectProtocol] = []
-    private var chatInfo: WindowTitlebarChatInfo?
-
+    private var periodicStripTimer: Timer?
     private init(window: NSWindow) {
         self.window = window
         configureButton()
-        configureAccessoryHost()
         installObservers(for: window)
-        attachChromeIfNeeded()
-        updateAccessoryContent(maxWidth: 0)
+        attachButtonIfNeeded()
         updateLayout()
+        startPeriodicStrip()
     }
 
     deinit {
+        stopPeriodicStrip()
         observers.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
@@ -59,12 +58,32 @@ final class WindowSidebarToggleController {
             systemSymbolName: "sidebar.leading",
             accessibilityDescription: "Toggle Sidebar"
         )?.withSymbolConfiguration(.init(pointSize: 15, weight: .medium))
+        button.contentTintColor = NSColor.white.withAlphaComponent(0.88)
     }
 
-    private func configureAccessoryHost() {
-        accessoryHost.isHidden = true
-        accessoryHost.setFrameSize(.zero)
+    // MARK: - Periodic strip
+
+    private func startPeriodicStrip() {
+        guard periodicStripTimer == nil else { return }
+        periodicStripTimer = Timer.scheduledTimer(
+            withTimeInterval: 0.3,
+            repeats: true
+        ) { [weak self] _ in
+            guard let self, let window = self.window else {
+                self?.stopPeriodicStrip()
+                return
+            }
+            self.stripAutomaticSidebarToolbarItems(from: window)
+            self.hideTitlebarSidebarButtons(from: window)
+        }
     }
+
+    private func stopPeriodicStrip() {
+        periodicStripTimer?.invalidate()
+        periodicStripTimer = nil
+    }
+
+    // MARK: - Observers
 
     private func installObservers(for window: NSWindow) {
         let center = NotificationCenter.default
@@ -78,23 +97,10 @@ final class WindowSidebarToggleController {
 
         observers = windowNotifications.map { name in
             center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                self?.attachChromeIfNeeded()
+                self?.attachButtonIfNeeded()
                 self?.updateLayout()
             }
         }
-
-        observers.append(
-            center.addObserver(
-                forName: .windowTitlebarChatInfoDidChange,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                guard let self else { return }
-                self.chatInfo = WindowTitlebarChatInfo(userInfo: notification.userInfo)
-                self.attachChromeIfNeeded()
-                self.updateLayout()
-            }
-        )
 
         observers.append(
             center.addObserver(
@@ -108,7 +114,9 @@ final class WindowSidebarToggleController {
         )
     }
 
-    private func attachChromeIfNeeded() {
+    // MARK: - Button attachment
+
+    private func attachButtonIfNeeded() {
         guard
             let window,
             let zoomButton = window.standardWindowButton(.zoomButton),
@@ -121,24 +129,14 @@ final class WindowSidebarToggleController {
             button.removeFromSuperview()
             titlebarView.addSubview(button)
         }
-        if accessoryHost.superview !== titlebarView {
-            accessoryHost.removeFromSuperview()
-            titlebarView.addSubview(accessoryHost)
-        }
         stripAutomaticSidebarToolbarItems(from: window)
-        for delay in [0.0, 0.2, 0.6] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak window] in
-                guard let self, let window else { return }
-                self.stripAutomaticSidebarToolbarItems(from: window)
-            }
-        }
+        hideTitlebarSidebarButtons(from: window)
     }
 
     private func updateLayout() {
         guard
             let window,
-            let zoomButton = window.standardWindowButton(.zoomButton),
-            let titlebarView = zoomButton.superview
+            let zoomButton = window.standardWindowButton(.zoomButton)
         else {
             return
         }
@@ -147,66 +145,63 @@ final class WindowSidebarToggleController {
         let buttonX = zoomButton.frame.maxX + 12
         let buttonY = round(zoomButton.frame.midY - (buttonSize.height / 2))
         button.frame = NSRect(origin: NSPoint(x: buttonX, y: buttonY), size: buttonSize)
-
-        let accessoryLeadingX = button.frame.maxX + 10
-        let accessoryWidth = max(
-            0,
-            min(titlebarView.bounds.width * 0.42, titlebarView.bounds.width - accessoryLeadingX - 20)
-        )
-        updateAccessoryContent(maxWidth: accessoryWidth)
-        let accessoryHeight = max(20, accessoryHost.fittingSize.height)
-        let accessoryY = round(zoomButton.frame.midY - (accessoryHeight / 2))
-        accessoryHost.frame = NSRect(
-            x: accessoryLeadingX,
-            y: accessoryY,
-            width: accessoryWidth,
-            height: accessoryHeight
-        )
-        stripAutomaticSidebarToolbarItems(from: window)
     }
 
-    private func updateAccessoryContent(maxWidth: CGFloat) {
-        guard let chatInfo, maxWidth > 0 else {
-            accessoryHost.rootView = AnyView(EmptyView())
-            accessoryHost.isHidden = true
-            return
-        }
-
-        accessoryHost.rootView = AnyView(
-            WindowTitlebarChatAccessoryView(
-                info: chatInfo,
-                openProject: { [weak self] in
-                    guard let path = self?.chatInfo?.projectPath else { return }
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
-                }
-            )
-            .frame(width: maxWidth, alignment: .leading)
-        )
-        accessoryHost.isHidden = false
-        accessoryHost.layoutSubtreeIfNeeded()
-    }
+    // MARK: - Strip native sidebar controls
 
     private func stripAutomaticSidebarToolbarItems(from window: NSWindow) {
         guard let toolbar = window.toolbar else { return }
 
-        let removableIdentifiers: [NSToolbarItem.Identifier] = [
-            .toggleSidebar,
-            .sidebarTrackingSeparator,
-            .init("com.apple.SwiftUI.navigationSplitView.toggleSidebar"),
-            .init("com.apple.SwiftUI.splitViewSeparator-0"),
-        ]
-
         let indices = toolbar.items.enumerated().compactMap { index, item -> Int? in
-            let identifier = item.itemIdentifier
-            let rawValue = identifier.rawValue
-            if removableIdentifiers.contains(identifier) { return index }
-            if rawValue.hasPrefix("com.apple.SwiftUI.splitViewSeparator-") { return index }
-            if rawValue.contains("navigationSplitView.toggleSidebar") { return index }
+            let raw = item.itemIdentifier.rawValue
+            if item.itemIdentifier == .toggleSidebar { return index }
+            if item.itemIdentifier == .sidebarTrackingSeparator { return index }
+            if raw.contains("toggleSidebar") { return index }
+            if raw.hasPrefix("com.apple.SwiftUI.splitViewSeparator-") { return index }
             return nil
         }
 
         for index in indices.reversed() {
             toolbar.removeItem(at: index)
         }
+    }
+
+    /// Walk the titlebar view hierarchy and hide any native sidebar toggle
+    /// buttons that SwiftUI or AppKit inserts outside the toolbar.
+    private func hideTitlebarSidebarButtons(from window: NSWindow) {
+        let toggleAction = NSSelectorFromString("toggleSidebar:")
+        guard let titlebarView = window.standardWindowButton(.zoomButton)?.superview else {
+            return
+        }
+        hideSidebarButtons(in: titlebarView, action: toggleAction, depth: 6)
+    }
+
+    private func hideSidebarButtons(in view: NSView, action: Selector, depth: Int) {
+        guard depth > 0 else { return }
+        for subview in view.subviews where subview !== button {
+            if let btn = subview as? NSButton, isSidebarToggleButton(btn, action: action) {
+                subview.isHidden = true
+                subview.alphaValue = 0
+                subview.setFrameSize(.zero)
+                continue
+            }
+            hideSidebarButtons(in: subview, action: action, depth: depth - 1)
+        }
+    }
+
+    private func isSidebarToggleButton(_ btn: NSButton, action: Selector) -> Bool {
+        if btn.action == action { return true }
+        if let a = btn.action, NSStringFromSelector(a).contains("toggleSidebar") {
+            return true
+        }
+        let cls = NSStringFromClass(type(of: btn)).lowercased()
+        if cls.contains("sidebartoggle") || cls.contains("columntoggle") {
+            return true
+        }
+        if let imgName = btn.image?.name()?.lowercased(),
+           imgName.contains("sidebar") {
+            return true
+        }
+        return false
     }
 }

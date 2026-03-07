@@ -100,6 +100,10 @@ public actor OrchestratorMainLoop {
         guard !currentState.isTerminal else {
             return false
         }
+        if Task.isCancelled {
+            try? await stateMachine.abort(reason: "Pipeline task cancelled")
+            return false
+        }
 
         tickCount += 1
 
@@ -150,6 +154,10 @@ public actor OrchestratorMainLoop {
         await advanceToExecution()
 
         while isRunning {
+            if Task.isCancelled {
+                try? await stateMachine.abort(reason: "Pipeline task cancelled")
+                break
+            }
             let shouldContinue = await tick()
             guard shouldContinue else { break }
 
@@ -240,6 +248,7 @@ public actor OrchestratorMainLoop {
 
             let agentName = await nameAssigner.assign(task: task, role: role)
 
+            await scheduler.setPreferredAgentRole(task.taskId, role: nil)
             await scheduler.updateTaskStatus(task.taskId, status: .running)
             _ = await swarmBudget.reserve(task: task, role: role)
 
@@ -370,22 +379,28 @@ public actor OrchestratorMainLoop {
 
     private func applyAction(_ action: CompletionAction, job: PipelineJob) async {
         switch action {
-        case .scheduleNextAgent(let taskId, _):
+        case .scheduleNextAgent(let taskId, let role):
+            await scheduler.setPreferredAgentRole(taskId, role: role)
             await scheduler.updateTaskStatus(taskId, status: .pending)
 
         case .scheduleFixRound(let taskId, _):
+            await scheduler.setPreferredAgentRole(taskId, role: nil)
             await scheduler.scheduleRetry(taskId)
 
         case .transitionToValidation(let taskId):
+            await scheduler.setPreferredAgentRole(taskId, role: nil)
             await scheduler.updateTaskStatus(taskId, status: .completed)
 
         case .blockTask(let taskId, _):
+            await scheduler.setPreferredAgentRole(taskId, role: nil)
             await scheduler.updateTaskStatus(taskId, status: .blocked)
 
         case .retryTask(let taskId, _):
+            await scheduler.setPreferredAgentRole(taskId, role: nil)
             await scheduler.scheduleRetry(taskId)
 
         case .failTask(let taskId, _):
+            await scheduler.setPreferredAgentRole(taskId, role: nil)
             await scheduler.updateTaskStatus(taskId, status: .failed)
 
         case .abortJob(let reason):
