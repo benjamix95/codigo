@@ -87,7 +87,11 @@ extension MermaidWebView {
                 const setError = (message) => {
                     const container = document.getElementById('mermaid-container');
                     if (container) {
-                        container.innerHTML = `<div class=\"error\">${message}</div>`;
+                        container.replaceChildren();
+                        const errorMessage = document.createElement('div');
+                        errorMessage.className = 'error';
+                        errorMessage.textContent = message;
+                        container.appendChild(errorMessage);
                     }
                     postToHost('height', '120');
                     postToHost('error', message);
