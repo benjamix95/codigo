@@ -52,6 +52,67 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         XCTAssertFalse(sawReadExecution)
     }
 
+
+    func testExemptFirstRoundDoesNotBypassSubagentRequirementInLaterRounds() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("subagent-first-exempt-bypass-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let sourceFile = workspace.appendingPathComponent("Sample.swift")
+        try "let value = 1\n".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let args = #"{"path":"\#(sourceFile.path)"}"#
+        let base = RoundSequencedEventProvider(rounds: [
+            [
+                .raw(type: "tool_call_suggested", payload: [
+                    "id": "tc-exempt-1",
+                    "name": "policy_ack",
+                    "hash": "test-hash",
+                    "is_partial": "false",
+                ]),
+            ],
+            [
+                .raw(type: "tool_call_suggested", payload: [
+                    "id": "tc-direct-2",
+                    "name": "read",
+                    "args": args,
+                    "is_partial": "false",
+                ]),
+            ],
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 2,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Analizza il file",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawSubagentPolicyError = false
+        var sawReadExecution = false
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "tool_validation_error", payload["error_code"] == "subagent_first_required" {
+                sawSubagentPolicyError = true
+            }
+            if type == "read_batch_started" || type == "read_batch_completed" {
+                sawReadExecution = true
+            }
+        }
+
+        XCTAssertTrue(sawSubagentPolicyError)
+        XCTAssertFalse(sawReadExecution)
+    }
+
+
     func testAutoInjectsReviewerAndTestWriterAfterCoderMutation() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("subagent-auto-review-\(UUID().uuidString)", isDirectory: true)
