@@ -36,7 +36,7 @@ extension ContentView {
             } detail: {
                 configuredDetailContent
             }
-            .navigationSplitViewStyle(.prominentDetail)
+            .navigationSplitViewStyle(.balanced)
             .toolbar(removing: .sidebarToggle)
         }
     }
