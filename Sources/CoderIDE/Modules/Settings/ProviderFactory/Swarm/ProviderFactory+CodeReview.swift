@@ -88,21 +88,30 @@ extension ProviderFactory {
             workspacePaths: workspacePaths
         ) else { return nil }
 
-        guard let executionProvider = resolveSwarmBackendProvider(
-            backendId: resolvedExecutionId,
-            config: effectiveConfig,
-            executionController: executionController,
-            executionScope: .review,
-            codebaseIndex: codebaseIndex,
-            workspacePaths: workspacePaths
-        ) else { return nil }
+        let executionProvider: any LLMProvider
+        let effectiveExecutionBackendId: String
+        if sessionConfig.analysisOnly {
+            executionProvider = analysisProvider
+            effectiveExecutionBackendId = resolvedAnalysisId
+        } else {
+            guard let resolvedExecutionProvider = resolveSwarmBackendProvider(
+                backendId: resolvedExecutionId,
+                config: effectiveConfig,
+                executionController: executionController,
+                executionScope: .review,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            ) else { return nil }
+            executionProvider = resolvedExecutionProvider
+            effectiveExecutionBackendId = resolvedExecutionId
+        }
 
         let reviewConfig = MultiSwarmReviewConfig(
             maxWorkers: effectiveConfig.codeReviewPartitions,
             enabledPhases: codeReviewEnabledPhases(sessionConfig: sessionConfig),
             maxReviewRounds: effectiveConfig.codeReviewMaxRounds,
             analysisBackend: resolvedAnalysisId,
-            executionBackend: resolvedExecutionId
+            executionBackend: effectiveExecutionBackendId
         )
 
         return CodeReviewRuntimeResources(

@@ -51,47 +51,51 @@ public enum ReviewDiffSummaryService {
         workspacePath: URL,
         targetFiles: [String]
     ) -> [FileSummary] {
-        let args = diffArguments(snapshot: snapshot, targetFiles: targetFiles)
+        let args = diffArguments(snapshot: snapshot)
         guard !args.isEmpty else { return [] }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = args
-        process.currentDirectoryURL = workspacePath
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        do {
-            try process.run()
-        } catch {
+        guard let text = runGit(arguments: args, workspacePath: workspacePath) else {
             return []
         }
 
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            return []
+        let targetFileSet = Set(targetFiles)
+        var summariesByFile: [String: FileSummary] = [:]
+        for rawLine in text.split(separator: "\n") {
+            guard let parsed = parseNumstatLine(rawLine) else { continue }
+            let matches = parsed.candidatePaths.filter { targetFileSet.contains($0) }
+            for filePath in matches {
+                let current = summariesByFile[filePath] ?? FileSummary(
+                    filePath: filePath,
+                    additions: 0,
+                    deletions: 0
+                )
+                summariesByFile[filePath] = FileSummary(
+                    filePath: filePath,
+                    additions: current.additions + parsed.additions,
+                    deletions: current.deletions + parsed.deletions
+                )
+            }
         }
 
-        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        guard let text = String(data: data, encoding: .utf8) else {
-            return []
+        let untracked = untrackedFiles(workspacePath: workspacePath, targetFiles: targetFiles)
+        for filePath in untracked where summariesByFile[filePath] == nil {
+            summariesByFile[filePath] = FileSummary(
+                filePath: filePath,
+                additions: lineCount(
+                    at: workspacePath.appendingPathComponent(filePath)
+                ),
+                deletions: 0
+            )
         }
 
-        return text
-            .split(separator: "\n")
-            .compactMap(parseNumstatLine(_:))
+        return targetFiles.compactMap { summariesByFile[$0] }
     }
 
     private static func diffArguments(
-        snapshot: CodeReviewSessionSnapshot,
-        targetFiles: [String]
+        snapshot: CodeReviewSessionSnapshot
     ) -> [String] {
         guard let scope = snapshot.scope else { return [] }
 
-        var args = ["diff", "--numstat"]
+        var args = ["diff", "--numstat", "-M", "-C"]
         switch scope.type {
         case .staged:
             args.append("--cached")
@@ -102,21 +106,154 @@ public enum ReviewDiffSummaryService {
         case .uncommitted:
             break
         }
-        args.append("--")
-        args.append(contentsOf: targetFiles)
         return args
     }
 
-    private static func parseNumstatLine(_ rawLine: Substring) -> FileSummary? {
+    private static func parseNumstatLine(
+        _ rawLine: Substring
+    ) -> (additions: Int, deletions: Int, candidatePaths: [String])? {
         let parts = rawLine.split(separator: "\t")
         guard parts.count >= 3 else { return nil }
         let additions = Int(parts[0]) ?? 0
         let deletions = Int(parts[1]) ?? 0
-        let filePath = String(parts[2])
-        return FileSummary(
-            filePath: filePath,
-            additions: additions,
-            deletions: deletions
+        let rawPath = String(parts[2])
+        let candidatePaths = renameAwarePaths(from: rawPath)
+        guard !candidatePaths.isEmpty else { return nil }
+        return (
+            additions: max(0, additions),
+            deletions: max(0, deletions),
+            candidatePaths: candidatePaths
         )
+    }
+
+    private static func renameAwarePaths(from rawPath: String) -> [String] {
+        var candidates = Set<String>()
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        candidates.insert(trimmed)
+        if let expanded = expandedBraceRenamePaths(from: trimmed) {
+            candidates.formUnion(expanded)
+        } else if trimmed.contains(" => ") {
+            let parts = trimmed.components(separatedBy: " => ")
+            if parts.count == 2 {
+                candidates.insert(parts[0].trimmingCharacters(in: .whitespacesAndNewlines))
+                candidates.insert(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+        }
+
+        return candidates
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted()
+    }
+
+    private static func expandedBraceRenamePaths(from rawPath: String) -> [String]? {
+        guard let openBrace = rawPath.firstIndex(of: "{"),
+              let closeBrace = rawPath[openBrace...].firstIndex(of: "}"),
+              openBrace < closeBrace
+        else {
+            return nil
+        }
+
+        let prefix = String(rawPath[..<openBrace])
+        let body = String(rawPath[rawPath.index(after: openBrace)..<closeBrace])
+        let suffix = String(rawPath[rawPath.index(after: closeBrace)...])
+        let bodyParts = body.components(separatedBy: " => ")
+        guard bodyParts.count == 2 else { return nil }
+        return [
+            prefix + bodyParts[0] + suffix,
+            prefix + bodyParts[1] + suffix,
+        ]
+    }
+
+    private static func runGit(
+        arguments: [String],
+        workspacePath: URL
+    ) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = arguments
+        process.currentDirectoryURL = workspacePath
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        let outputState = StreamCaptureState()
+        let errorState = StreamCaptureState()
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            outputState.append(handle.availableData)
+        }
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            errorState.append(handle.availableData)
+        }
+
+        do {
+            try process.run()
+        } catch {
+            outputPipe.fileHandleForReading.readabilityHandler = nil
+            errorPipe.fileHandleForReading.readabilityHandler = nil
+            return nil
+        }
+
+        process.waitUntilExit()
+        outputPipe.fileHandleForReading.readabilityHandler = nil
+        errorPipe.fileHandleForReading.readabilityHandler = nil
+        outputState.append(outputPipe.fileHandleForReading.readDataToEndOfFile())
+        errorState.append(errorPipe.fileHandleForReading.readDataToEndOfFile())
+
+        guard process.terminationStatus == 0 else {
+            return nil
+        }
+        return String(data: outputState.data, encoding: .utf8)
+    }
+
+    private static func untrackedFiles(
+        workspacePath: URL,
+        targetFiles: [String]
+    ) -> Set<String> {
+        guard !targetFiles.isEmpty else { return [] }
+        let args = ["ls-files", "--others", "--exclude-standard", "--"] + targetFiles
+        guard let output = runGit(arguments: args, workspacePath: workspacePath) else {
+            return []
+        }
+        return Set(
+            output
+                .split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    private static func lineCount(at fileURL: URL) -> Int {
+        guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            return 0
+        }
+        if text.isEmpty {
+            return 0
+        }
+
+        var lineCount = 0
+        text.enumerateLines { _, _ in
+            lineCount += 1
+        }
+        if text.hasSuffix("\n") {
+            return lineCount
+        }
+        return max(1, lineCount)
+    }
+}
+
+private final class StreamCaptureState: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var data = Data()
+
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock()
+        data.append(chunk)
+        lock.unlock()
     }
 }
