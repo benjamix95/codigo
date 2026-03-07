@@ -58,10 +58,9 @@ extension CoderIDEMCPServerApp {
         let lines = findings.enumerated().map { idx, f in
             let id = f["id"] ?? "?"
             let sev = f["severity"] ?? "?"
-            let file = f["file_path"] ?? "?"
-            let msg = f["message"] ?? ""
+            let category = f["category"] ?? "unknown"
             let st = f["status"] ?? "open"
-            return "[\(idx + 1)] [\(sev)] \(file) — \(msg) (status: \(st), id: \(id))"
+            return "[\(idx + 1)] [\(sev)] category=\(category) (status: \(st), id: \(id))"
         }
         return reviewOK("Findings (\(findings.count)):\n" + lines.joined(separator: "\n"))
     }
