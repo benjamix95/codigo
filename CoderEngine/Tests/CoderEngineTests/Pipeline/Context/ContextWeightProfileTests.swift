@@ -22,7 +22,10 @@ final class ContextWeightProfileTests: XCTestCase {
     }
 
     func testFeatureProfile_correctValues() {
-        let w = ContextWeightProfile.defaultProfiles[.feature]!
+        guard let w = ContextWeightProfile.defaultProfiles[.feature] else {
+            XCTFail("Missing profile for .feature")
+            return
+        }
         XCTAssertEqual(w.semantic, 0.40, accuracy: 0.001)
         XCTAssertEqual(w.callGraph, 0.25, accuracy: 0.001)
         XCTAssertEqual(w.dependency, 0.25, accuracy: 0.001)
@@ -30,7 +33,10 @@ final class ContextWeightProfileTests: XCTestCase {
     }
 
     func testBugfixProfile_correctValues() {
-        let w = ContextWeightProfile.defaultProfiles[.bugfix]!
+        guard let w = ContextWeightProfile.defaultProfiles[.bugfix] else {
+            XCTFail("Missing profile for .bugfix")
+            return
+        }
         XCTAssertEqual(w.semantic, 0.20, accuracy: 0.001)
         XCTAssertEqual(w.callGraph, 0.40, accuracy: 0.001)
         XCTAssertEqual(w.dependency, 0.15, accuracy: 0.001)
@@ -38,7 +44,10 @@ final class ContextWeightProfileTests: XCTestCase {
     }
 
     func testDocsProfile_semanticDominant() {
-        let w = ContextWeightProfile.defaultProfiles[.docs]!
+        guard let w = ContextWeightProfile.defaultProfiles[.docs] else {
+            XCTFail("Missing profile for .docs")
+            return
+        }
         XCTAssertEqual(w.semantic, 0.50, accuracy: 0.001)
     }
 

@@ -12,7 +12,7 @@ final class TerminalSessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions.count, 1)
         XCTAssertEqual(store.sessions.first?.id, session.id)
         XCTAssertEqual(store.sessions.first?.label, "Shell 1")
-        XCTAssertFalse(store.sessions.first!.isAgentOwned)
+        XCTAssertEqual(store.sessions.first?.isAgentOwned, false)
     }
 
     func testCreateMultipleSessions() {
@@ -119,7 +119,7 @@ final class TerminalSessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions.count, 1)
         XCTAssertEqual(store.sessions.first?.label, "Shell")
         XCTAssertEqual(store.sessions.first?.workingDirectory, "/workspace")
-        XCTAssertFalse(store.sessions.first!.isAgentOwned)
+        XCTAssertEqual(store.sessions.first?.isAgentOwned, false)
     }
 
     func testEnsureDefaultSessionDoesNotDuplicate() {

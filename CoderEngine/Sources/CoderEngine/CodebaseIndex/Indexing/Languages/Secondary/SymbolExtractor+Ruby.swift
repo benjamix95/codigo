@@ -56,7 +56,7 @@ extension SymbolExtractor {
             if let groups = matchGroupsFull(pattern: defPattern, in: line),
                 let name = groups[safe: 2], !name.isEmpty
             {
-                let isSelf = groups[safe: 1] != nil && !(groups[safe: 1]!.isEmpty)
+                let isSelf = groups[safe: 1]?.isEmpty == false
                 let isPriv =
                     lineIndex > 0
                     && lines[lineIndex - 1].trimmingCharacters(in: .whitespaces) == "private"
