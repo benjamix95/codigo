@@ -170,6 +170,16 @@ extension CoderIDEMCPServerApp {
             updates.append("execution_backend=\(backend.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
 
+        if let analysisOnly = args["analysis_only"],
+           !analysisOnly.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let normalized = analysisOnly.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let validValues = ["1", "0", "true", "false", "yes", "no", "y", "n"]
+            guard validValues.contains(normalized) else {
+                return reviewError("Error: analysis_only must be a boolean value")
+            }
+            updates.append("analysis_only=\(normalized)")
+        }
+
         if updates.isEmpty {
             return reviewError("Error: at least one configuration parameter is required")
         }

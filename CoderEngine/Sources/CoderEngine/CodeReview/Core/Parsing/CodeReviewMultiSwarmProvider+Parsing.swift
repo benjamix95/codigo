@@ -60,7 +60,7 @@ extension CodeReviewMultiSwarmProvider {
         - Maximum \(maxWorkers) tasks — group smaller fixes together
         """
 
-        var textChunks: [String] = []
+        var accumulator = CodeReviewStreamTextAccumulator()
         do {
             let stream = try await analysisProvider.send(
                 prompt: analysisPrompt,
@@ -71,16 +71,14 @@ extension CodeReviewMultiSwarmProvider {
                 await waitWhilePaused()
                 if isCancelled() { break }
                 continuation.yield(event)
-                if case .textDelta(let delta) = event {
-                    textChunks.append(delta)
-                }
+                accumulator.consume(event)
             }
         } catch {
             continuation.yield(.textDelta("\n**Analysis error:** \(error.localizedDescription)\n"))
             throw ReviewPipelineError.analysisTransportFailed(error.localizedDescription)
         }
 
-        let fullText = textChunks.joined()
+        let fullText = accumulator.text
         let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw ReviewPipelineError.analysisReturnedNoData

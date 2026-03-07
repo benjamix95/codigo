@@ -46,6 +46,15 @@ extension CoderIDEMCPServerApp {
             }
         }
 
+        if let analysisOnly = args["analysis_only"],
+           !analysisOnly.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let normalized = analysisOnly.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let validValues = ["1", "0", "true", "false", "yes", "no", "y", "n"]
+            if !validValues.contains(normalized) {
+                return reviewError("Error: analysis_only must be a boolean value")
+            }
+        }
+
         if let backend = args["analysis_backend"],
            !backend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            !validateReviewBackend(backend.trimmingCharacters(in: .whitespacesAndNewlines)) {

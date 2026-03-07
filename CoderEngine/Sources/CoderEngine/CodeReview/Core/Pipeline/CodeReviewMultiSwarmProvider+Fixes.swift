@@ -207,7 +207,7 @@ extension CodeReviewMultiSwarmProvider {
         Maximum \(maxWorkers) tasks. Group related fixes together.
         """
 
-        var reReviewChunks: [String] = []
+        var accumulator = CodeReviewStreamTextAccumulator()
         do {
             let stream = try await analysisProvider.send(
                 prompt: reReviewPrompt,
@@ -218,12 +218,10 @@ extension CodeReviewMultiSwarmProvider {
                 await waitWhilePaused()
                 if isCancelled() { break }
                 continuation.yield(event)
-                if case .textDelta(let delta) = event {
-                    reReviewChunks.append(delta)
-                }
+                accumulator.consume(event)
             }
         } catch {
-            let partialText = reReviewChunks.joined()
+            let partialText = accumulator.text
             continuation.yield(.textDelta("\n**Re-review error:** \(error.localizedDescription)\n"))
             return ReReviewOutcome(
                 text: partialText,
@@ -231,7 +229,7 @@ extension CodeReviewMultiSwarmProvider {
             )
         }
 
-        let fullText = reReviewChunks.joined()
+        let fullText = accumulator.text
         let findings = findingsContainIssues(fullText)
         switch findings {
         case .issues:

@@ -29,6 +29,16 @@ extension CodeReviewHandlerTests {
         XCTAssertTrue(textContent(result).contains("queued start"))
     }
 
+    func testReviewStartRejectsInvalidAnalysisOnlyValue() {
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_start",
+            args: ["analysis_only": "sometimes"]
+        )
+
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("analysis_only"))
+    }
+
     func testReviewStatusFallsBackToOnlyActiveSessions() {
         let conversationId = UUID()
         _ = seedSnapshot(
@@ -88,5 +98,17 @@ extension CodeReviewHandlerTests {
 
         XCTAssertNil(result?.isError)
         XCTAssertTrue(textContent(result).contains(snapshot.sessionId))
+    }
+
+    func testReviewConfigureAcceptsAnalysisOnlyWithoutOtherFields() {
+        let snapshot = seedSnapshot()
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_configure",
+            args: reviewSessionArgs(snapshot, extras: ["analysis_only": "true"])
+        )
+
+        XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains("queued"))
     }
 }

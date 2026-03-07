@@ -73,7 +73,7 @@ extension ChatPanelView {
     }
 }
 
-private extension ChatPanelView {
+extension ChatPanelView {
     @MainActor
     func dispatchCodeReviewPrompt(
         _ prompt: String,
@@ -107,41 +107,6 @@ private extension ChatPanelView {
             Focus on unresolved findings, regressions from previous fixes, and any remaining high-risk issues.
             """
         }
-    }
-
-    func targetedFixPrompt(
-        for snapshot: CodeReviewSessionSnapshot,
-        findings: [CodeReviewFinding]
-    ) -> String {
-        let files = Array(Set(findings.map(\.filePath))).sorted()
-        let findingsList = findings.map { finding in
-            let line = finding.lineNumber.map { ":\($0)" } ?? ""
-            return "- \(finding.filePath)\(line) [\(finding.severity.rawValue)] \(finding.message)"
-        }.joined(separator: "\n")
-        let scopePrefix: String = {
-            switch snapshot.scope?.type {
-            case .staged:
-                return "[REVIEW_SCOPE:staged]"
-            case .againstRef:
-                return "[AGAINST:\(snapshot.scope?.ref ?? "HEAD~1")]"
-            case .uncommitted, .none:
-                return "[REVIEW_SCOPE:uncommitted]"
-            }
-        }()
-        return """
-        \(scopePrefix) Apply targeted fixes for the selected code review findings in session \(snapshot.sessionId).
-        Files in scope:
-        \(files.joined(separator: "\n"))
-
-        Findings to fix:
-        \(findingsList)
-
-        Requirements:
-        - fix only the listed findings,
-        - keep changes minimal and localized,
-        - run relevant verification after changes,
-        - report what was fixed and any residual risks.
-        """
     }
 
     @MainActor

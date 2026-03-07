@@ -29,6 +29,10 @@ extension CoderIDETools {
                         "type": "integer",
                         "description": "Max review rounds (1-10, default 3)",
                     ]),
+                    "analysis_only": .object([
+                        "type": "boolean",
+                        "description": "Run analysis only without fix/test rounds.",
+                    ]),
                     "analysis_backend": .object([
                         "type": "string",
                         "description": "Backend for analysis phase (default: codex)",
@@ -186,6 +190,10 @@ extension CoderIDETools {
                     "execution_backend": .object([
                         "type": "string",
                         "description": "Backend for execution phase",
+                    ]),
+                    "analysis_only": .object([
+                        "type": "boolean",
+                        "description": "Toggle analysis-only mode for this review session.",
                     ]),
                     "session_id": .object([
                         "type": "string",

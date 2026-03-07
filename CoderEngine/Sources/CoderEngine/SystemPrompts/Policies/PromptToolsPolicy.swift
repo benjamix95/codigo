@@ -133,13 +133,13 @@ enum PromptToolsPolicy {
     - Format: emit a raw event with type "activate_plan_mode" or "activate_debug_mode" and payload {"reason": "brief explanation"}.
 
     Code Review MCP tools — use these to interact with the code review system:
-    - `coderide_review_start` — Start a code review session. Args: scope (uncommitted/staged/against_ref), ref, max_workers (1-12), max_rounds (1-10), analysis_backend, execution_backend, optional unique session_id, optional conversation_id.
+    - `coderide_review_start` — Start a code review session. Args: scope (uncommitted/staged/against_ref), ref, max_workers (1-12), max_rounds (1-10), analysis_only, analysis_backend, execution_backend, optional unique session_id, optional conversation_id.
     - `coderide_review_list_sessions` — List review sessions for the current conversation or across the workspace. Pass conversation_id to scope the list when needed.
     - `coderide_review_status` — Get current review session status: phase, progress, findings count, active workers, round info. Pass `conversation_id` for conversation-scoped sessions.
     - `coderide_review_findings` — List findings with optional filters. Args: severity (critical/warning/suggestion/info), file (substring match), status (open/fix_applied/dismissed/wont_fix), limit (integer, default 50). Pass `conversation_id` for conversation-scoped sessions.
     - `coderide_review_apply_fix` — Apply the suggested fix for a finding. Args: finding_id (required), session_id (required), conversation_id (required for conversation-scoped sessions).
     - `coderide_review_dismiss` — Dismiss a finding. Args: finding_id (required), session_id (required), reason (false_positive/wont_fix/by_design/duplicate), conversation_id (required for conversation-scoped sessions).
-    - `coderide_review_configure` — Update runtime config. Args: session_id (required), max_workers, max_rounds, analysis_backend, execution_backend, conversation_id (required for conversation-scoped sessions).
+    - `coderide_review_configure` — Update runtime config. Args: session_id (required), max_workers, max_rounds, analysis_only, analysis_backend, execution_backend, conversation_id (required for conversation-scoped sessions).
     - `coderide_review_diff_summary` — Get diff summary for files in scope. Args: file (optional). Pass `conversation_id` for conversation-scoped sessions.
     - `coderide_review_comment` — Add a comment to a finding. Args: finding_id (required), content (required), author (default: agent), session_id (required), conversation_id (required for conversation-scoped sessions).
     """
