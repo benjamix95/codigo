@@ -6,9 +6,10 @@ extension ContentView {
         HStack(spacing: 0) {
             ActivityBarView(
                 selectedItem: $activeActivityItem,
-                showSettings: $showSettings
+                showSettings: $showSettings,
+                workspaceTitle: ctx.displayLabel
             )
-            .frame(width: 60)
+            .frame(width: 84)
             .padding(.horizontal, 6)
             .padding(.vertical, 10)
 

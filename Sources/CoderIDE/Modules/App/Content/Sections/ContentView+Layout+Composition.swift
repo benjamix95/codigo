@@ -252,7 +252,7 @@ extension ContentView {
             fraction: 0.55
         )
         let maxBrowserW = ContentPanelWidthPolicy.maxWidth(detailWidth: detailWidth, fraction: 0.55)
-        let clampedSidePanelW = max(220, min(CGFloat(sidePanelWidth), 320))
+        let clampedSidePanelW = max(240, min(CGFloat(sidePanelWidth), 380))
 
         ZStack {
             ideBackdrop

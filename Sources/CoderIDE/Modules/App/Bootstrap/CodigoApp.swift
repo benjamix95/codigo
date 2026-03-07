@@ -140,6 +140,5 @@ struct CodigoApp: App {
                 Image(systemName: "chart.bar.fill")
             }
         }
-        .windowStyle(.hiddenTitleBar)
     }
 }

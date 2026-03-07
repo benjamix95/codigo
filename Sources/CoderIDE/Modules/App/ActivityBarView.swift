@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum ActivityBarItem: String, CaseIterable, Identifiable {
@@ -48,57 +49,94 @@ enum ActivityBarItem: String, CaseIterable, Identifiable {
 struct ActivityBarView: View {
     @Binding var selectedItem: ActivityBarItem?
     @Binding var showSettings: Bool
+    let workspaceTitle: String
 
-    private let barWidth: CGFloat = 60
+    private let barWidth: CGFloat = 84
+    private static let cachedBrandLogo: NSImage? = {
+        guard let url = RuntimeResourceLocator.appLogoURL() else { return nil }
+        return NSImage(contentsOf: url)
+    }()
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             railBrand
 
-            VStack(spacing: 6) {
+            VStack(spacing: 10) {
                 ForEach(ActivityBarItem.allCases.filter { $0 != .settings }) { item in
                     activityButton(item)
                 }
             }
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.86))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+            )
 
             Spacer()
 
             footerButton
         }
-        .padding(.vertical, 10)
         .frame(width: barWidth)
     }
 
     private var railBrand: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(0.06),
-                                Color.white.opacity(0.015)
+                                Color.white.opacity(0.08),
+                                Color.white.opacity(0.02)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 42, height: 42)
-                Image(systemName: "square.stack.3d.up.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.43, green: 0.71, blue: 0.98),
-                                Color(red: 0.38, green: 0.86, blue: 0.74)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                    .frame(width: 52, height: 52)
+
+                if let brandLogo {
+                    Image(nsImage: brandLogo)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                } else {
+                    Image(systemName: "square.stack.3d.up.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.43, green: 0.71, blue: 0.98),
+                                    Color(red: 0.38, green: 0.86, blue: 0.74)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
+                }
+            }
+
+            VStack(spacing: 3) {
+                Text(workspaceTitle)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+
+                Text("WORKBENCH")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(1.0)
             }
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
     }
 
     private func activityButton(_ item: ActivityBarItem) -> some View {
@@ -113,24 +151,31 @@ struct ActivityBarView: View {
                 }
             }
         } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isActive ? item.tint.opacity(0.16) : Color.clear)
-                    .frame(width: 44, height: 44)
+            VStack(spacing: 7) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(
+                            isActive
+                            ? item.tint.opacity(0.18)
+                            : Color.white.opacity(0.02)
+                        )
+                        .frame(width: 44, height: 38)
 
-                if isActive {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(item.tint)
-                        .frame(width: 3, height: 18)
-                        .offset(x: -22)
+                    Image(systemName: item.icon)
+                        .font(.system(size: 15, weight: isActive ? .semibold : .medium))
+                        .foregroundStyle(isActive ? item.tint : Color.secondary.opacity(0.78))
                 }
 
-                Image(systemName: item.icon)
-                    .font(.system(size: 15, weight: isActive ? .semibold : .medium))
-                    .foregroundStyle(isActive ? item.tint : Color.secondary.opacity(0.78))
+                Text(item.shortTitle)
+                    .font(.system(size: 9.5, weight: isActive ? .semibold : .medium))
+                    .foregroundStyle(isActive ? .primary : .secondary)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 46)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isActive ? Color.white.opacity(0.04) : Color.clear)
+            )
         }
         .buttonStyle(.plain)
         .help(item.tooltip)
@@ -140,18 +185,27 @@ struct ActivityBarView: View {
         Button {
             showSettings = true
         } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.03))
-                    .frame(width: 44, height: 44)
-                Image(systemName: ActivityBarItem.settings.icon)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Color.secondary.opacity(0.78))
+            VStack(spacing: 7) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.white.opacity(0.03))
+                        .frame(width: 44, height: 38)
+                    Image(systemName: ActivityBarItem.settings.icon)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.secondary.opacity(0.78))
+                }
+                Text(ActivityBarItem.settings.shortTitle)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 46)
+            .padding(.vertical, 6)
         }
         .buttonStyle(.plain)
         .help(ActivityBarItem.settings.tooltip)
+    }
+
+    private var brandLogo: NSImage? {
+        Self.cachedBrandLogo
     }
 }

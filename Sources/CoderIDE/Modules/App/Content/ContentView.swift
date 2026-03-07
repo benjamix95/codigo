@@ -58,6 +58,9 @@ struct ContentView: View {
             .toolbar(removing: .sidebarToggle)
             .toolbar(.hidden, for: .windowToolbar)
             .toolbar(.hidden, for: .automatic)
+            .onReceive(NotificationCenter.default.publisher(for: .windowSidebarChromeToggleRequested)) { _ in
+                handleWindowSidebarChromeToggle()
+            }
             .onChange(of: columnVisibility) { _, _ in
                 DispatchQueue.main.async {
                     for window in NSApplication.shared.windows where window.canBecomeMain {

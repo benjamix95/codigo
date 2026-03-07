@@ -37,8 +37,8 @@ extension ContentView {
                 get: { CGFloat(sidePanelWidth) },
                 set: { sidePanelWidth = Double($0) }
             ),
-            minWidth: 180,
-            maxWidth: 400,
+            minWidth: 240,
+            maxWidth: 380,
             leadingEdge: false
         )
     }
