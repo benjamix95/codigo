@@ -3,6 +3,8 @@ import SwiftUI
 /// Card for selecting the review scope: uncommitted, staged, against ref, branch, or commits.
 struct ReviewPanelScopeCard: View {
     @ObservedObject var store: CodeReviewPanelStore
+    @State private var showCommitPicker = false
+    @State private var showBranchPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -31,48 +33,11 @@ struct ReviewPanelScopeCard: View {
             }
 
             if case .commits = store.scopeTarget {
-                ReviewPanelCommitPicker(store: store, showsReviewButton: false)
+                commitSelectorRow
             }
 
             if case .branch = store.scopeTarget {
-                ReviewPanelBranchSelector(store: store, showsReviewButton: false)
-            }
-
-            // Branch/Commit info
-            if case .branch(let name) = store.scopeTarget {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 9))
-                        .foregroundStyle(store.accent)
-                    Text(name)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(store.accent)
-                    Spacer()
-                    Button { store.clearBranchSelection() } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.quaternary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            if case .commits(let shas) = store.scopeTarget, !shas.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "number")
-                        .font(.system(size: 9))
-                        .foregroundStyle(store.accent)
-                    Text("\(shas.count) commits selected")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(store.accent)
-                    Spacer()
-                    Button { store.clearCommitSelection() } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.quaternary)
-                    }
-                    .buttonStyle(.plain)
-                }
+                branchSelectorRow
             }
 
             // Autofix toggle
@@ -104,6 +69,7 @@ struct ReviewPanelScopeCard: View {
                 if store.selectedCommits.isEmpty {
                     store.scopeTarget = .commits([])
                 }
+                showCommitPicker = true
             case .branch:
                 store.selectedCommits.removeAll()
                 if let branch = store.selectedBranch?.name {
@@ -111,9 +77,12 @@ struct ReviewPanelScopeCard: View {
                 } else {
                     store.scopeTarget = .branch("")
                 }
+                showBranchPicker = true
             default:
                 store.selectedBranch = nil
                 store.selectedCommits.removeAll()
+                showCommitPicker = false
+                showBranchPicker = false
             }
         } label: {
             Text(label)
@@ -148,6 +117,89 @@ struct ReviewPanelScopeCard: View {
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 11, design: .monospaced))
                 .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var commitSelectorRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "number")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(store.accent)
+                Text(commitSelectionLabel)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(store.selectedCommits.isEmpty ? .secondary : store.accent)
+                Spacer()
+                if !store.selectedCommits.isEmpty {
+                    Button("Clear") {
+                        store.clearCommitSelection()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+                }
+                Button("Select Commits") {
+                    showCommitPicker = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(store.accent)
+                .popover(isPresented: $showCommitPicker, arrowEdge: .bottom) {
+                    ReviewPanelCommitPicker(store: store, showsReviewButton: false)
+                        .frame(width: 420, height: 320)
+                        .padding(10)
+                }
+            }
+            if !store.selectedCommits.isEmpty {
+                selectedCommitTokens
+            }
+        }
+    }
+
+    private var branchSelectorRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(store.accent)
+            Text(store.selectedBranch?.name ?? "No branch selected")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(store.selectedBranch == nil ? .secondary : store.accent)
+                .lineLimit(1)
+            Spacer()
+            if store.selectedBranch != nil {
+                Button("Clear") {
+                    store.clearBranchSelection()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+            }
+            Button("Select Branch") {
+                showBranchPicker = true
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .tint(store.accent)
+            .popover(isPresented: $showBranchPicker, arrowEdge: .bottom) {
+                ReviewPanelBranchSelector(store: store, showsReviewButton: false)
+                    .frame(width: 420, height: 320)
+                    .padding(10)
+            }
+        }
+    }
+
+    private var selectedCommitTokens: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                ForEach(selectedCommitDisplayShas, id: \.self) { sha in
+                    Text(sha)
+                        .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(store.accent)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(store.accent.opacity(0.12), in: Capsule())
+                }
+            }
         }
     }
 
@@ -222,5 +274,15 @@ struct ReviewPanelScopeCard: View {
         store.gitCommitLog
             .filter { store.selectedCommits.contains($0.sha) }
             .map(\.sha)
+    }
+
+    private var selectedCommitDisplayShas: [String] {
+        currentCommitScope.map { String($0.prefix(8)) }
+    }
+
+    private var commitSelectionLabel: String {
+        let count = store.selectedCommits.count
+        if count == 0 { return "No commits selected" }
+        return count == 1 ? "1 commit selected" : "\(count) commits selected"
     }
 }
