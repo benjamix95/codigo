@@ -34,11 +34,13 @@ struct SidebarView: View {
     let checkpointGitStore = ConversationCheckpointGitStore()
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
             SidebarMaterialBackground()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
 
             sidebarContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
