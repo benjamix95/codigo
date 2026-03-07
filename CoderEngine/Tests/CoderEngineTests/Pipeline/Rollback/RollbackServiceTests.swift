@@ -391,4 +391,69 @@ final class RollbackServiceTests: XCTestCase {
 
         XCTAssertTrue(point.checksums.isEmpty)
     }
+
+    func testCreateRollbackPoint_filesystemSnapshot_rejectsTraversalPatchId() async {
+        let (service, _) = makeService()
+
+        do {
+            _ = try await service.createRollbackPoint(
+                patchId: "../evil", strategy: .filesystemSnapshot,
+                files: ["a.swift"]
+            )
+            XCTFail("Should have thrown")
+        } catch let error as RollbackError {
+            guard case .executionFailed(let reason) = error else {
+                return XCTFail("Wrong error type: \(error)")
+            }
+            XCTAssertTrue(reason.contains("Invalid patchId"))
+        } catch {
+            XCTFail("Wrong error type: \(error)")
+        }
+    }
+
+    func testCreateRollbackPoint_rejectsTraversalFilePath() async {
+        let (service, _) = makeService()
+
+        do {
+            _ = try await service.createRollbackPoint(
+                patchId: "p1", strategy: .filesystemSnapshot,
+                files: ["../outside.txt"]
+            )
+            XCTFail("Should have thrown")
+        } catch let error as RollbackError {
+            guard case .executionFailed(let reason) = error else {
+                return XCTFail("Wrong error type: \(error)")
+            }
+            XCTAssertTrue(reason.contains("Invalid file path"))
+        } catch {
+            XCTFail("Wrong error type: \(error)")
+        }
+    }
+
+    func testExecute_filesystemSnapshot_rejectsTraversalFilePath() async {
+        let (service, _) = makeService()
+
+        let point = RollbackPoint(
+            rollbackId: "rb_test",
+            patchId: "p1",
+            strategy: .filesystemSnapshot,
+            files: ["../outside.txt"],
+            checksums: [:],
+            snapshotDir: "artifacts/rollback/p1"
+        )
+
+        do {
+            _ = try await service.execute(
+                rollbackPoint: point, jobId: "j1", taskId: "t1"
+            )
+            XCTFail("Should have thrown")
+        } catch let error as RollbackError {
+            guard case .executionFailed(let reason) = error else {
+                return XCTFail("Wrong error type: \(error)")
+            }
+            XCTAssertTrue(reason.contains("Invalid file path"))
+        } catch {
+            XCTFail("Wrong error type: \(error)")
+        }
+    }
 }

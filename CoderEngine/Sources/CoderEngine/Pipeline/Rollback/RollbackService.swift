@@ -103,10 +103,19 @@ public actor RollbackService {
         strategy: RollbackStrategy,
         files: [String]
     ) async throws -> RollbackPoint {
-        let rollbackId = "rb_\(patchId)_\(UUID().uuidString.prefix(8))"
+        let validatedFiles = try files.map { try validatedRelativeFilePath($0) }
+
+        let validatedPatchId: String
+        if strategy == .filesystemSnapshot {
+            validatedPatchId = try validatedPatchIdComponent(patchId)
+        } else {
+            validatedPatchId = patchId
+        }
+
+        let rollbackId = "rb_\(validatedPatchId)_\(UUID().uuidString.prefix(8))"
 
         var checksums: [String: String] = [:]
-        for file in files {
+        for file in validatedFiles {
             if await delegate.fileExists(path: file) {
                 checksums[file] = try await delegate.computeChecksum(file: file)
             }
@@ -118,28 +127,28 @@ public actor RollbackService {
 
         switch strategy {
         case .gitBranch:
-            let name = "rollback_\(patchId)"
+            let name = "rollback_\(validatedPatchId)"
             try await delegate.createBranch(name: name)
             branchName = name
 
         case .gitStash:
             let sid = try await delegate.stashPush(
                 message: "rollback_\(patchId)",
-                files: files
+                files: validatedFiles
             )
             stashId = sid
 
         case .filesystemSnapshot:
-            let dir = "artifacts/rollback/\(patchId)"
-            try await delegate.copyFilesToSnapshot(files: files, dir: dir)
+            let dir = "artifacts/rollback/\(validatedPatchId)"
+            try await delegate.copyFilesToSnapshot(files: validatedFiles, dir: dir)
             snapshotDir = dir
         }
 
         let point = RollbackPoint(
             rollbackId: rollbackId,
-            patchId: patchId,
+            patchId: validatedPatchId,
             strategy: strategy,
-            files: files,
+            files: validatedFiles,
             checksums: checksums,
             branchName: branchName,
             stashId: stashId,
@@ -187,12 +196,18 @@ public actor RollbackService {
                 guard let dir = rollbackPoint.snapshotDir else {
                     throw RollbackError.snapshotDirNotFound("nil")
                 }
-                for file in rollbackPoint.files {
+
+                let validatedDir = try validatedSnapshotDirectory(dir)
+                let validatedFiles = try rollbackPoint.files.map {
+                    try validatedRelativeFilePath($0)
+                }
+
+                for file in validatedFiles {
                     try await delegate.restoreFileFromSnapshot(
-                        snapshotDir: dir, file: file
+                        snapshotDir: validatedDir, file: file
                     )
                 }
-                try await delegate.deleteDirectory(dir: dir)
+                try await delegate.deleteDirectory(dir: validatedDir)
             }
 
             let verificationPassed = try await verifyChecksums(
@@ -308,5 +323,45 @@ public actor RollbackService {
     /// Numero di rollback point attivi.
     public var activePointCount: Int {
         activePoints.count
+    }
+
+    // MARK: - Path Validation
+
+    private func validatedPatchIdComponent(_ patchId: String) throws -> String {
+        if patchId.isEmpty || patchId == "." || patchId == ".."
+            || patchId.contains("/") || patchId.contains("\\")
+        {
+            throw RollbackError.executionFailed(
+                "Invalid patchId for filesystem snapshot"
+            )
+        }
+        return patchId
+    }
+
+    private func validatedRelativeFilePath(_ path: String) throws -> String {
+        if path.isEmpty || path.hasPrefix("/") || path.contains("\\") {
+            throw RollbackError.executionFailed(
+                "Invalid file path for rollback: \(path)"
+            )
+        }
+
+        let components = NSString(string: path).pathComponents
+        if components.contains("..") || components.contains(".") {
+            throw RollbackError.executionFailed(
+                "Invalid file path for rollback: \(path)"
+            )
+        }
+
+        return path
+    }
+
+    private func validatedSnapshotDirectory(_ dir: String) throws -> String {
+        let validated = try validatedRelativeFilePath(dir)
+        guard validated.hasPrefix("artifacts/rollback/") else {
+            throw RollbackError.executionFailed(
+                "Invalid snapshot directory for rollback"
+            )
+        }
+        return validated
     }
 }
