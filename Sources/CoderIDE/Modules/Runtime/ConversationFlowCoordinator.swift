@@ -139,10 +139,13 @@ final class ConversationFlowCoordinator: ObservableObject {
                         try await iteratorHolder.next()
                     }
                 }
+                guard let activeTask = pendingNextTask else {
+                    break
+                }
                 maybeEvent = try await nextEvent(
                     withinSeconds: timeout,
                     isInitialPoll: !hasReceivedAnyEvent,
-                    pendingTask: pendingNextTask!
+                    pendingTask: activeTask
                 )
                 pendingNextTask = nil
                 // Reset retry budgets after any successful poll.

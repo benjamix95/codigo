@@ -10,14 +10,7 @@ private enum MarkerRegex {
             return try NSRegularExpression(pattern: pattern, options: options)
         } catch {
             assertionFailure("Invalid hardcoded regex: \(pattern) – \(error)")
-            do { return try NSRegularExpression(pattern: "", options: []) }
-            catch {
-                assertionFailure("Empty regex pattern failed unexpectedly: \(error)")
-                guard let fallback = try? NSRegularExpression(pattern: "", options: []) else {
-                    fatalError("NSRegularExpression cannot compile empty pattern")
-                }
-                return fallback
-            }
+            return (try? NSRegularExpression(pattern: "", options: [])) ?? NSRegularExpression()
         }
     }
 
