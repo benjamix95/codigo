@@ -16,7 +16,8 @@ extension CodeReviewAuditService {
 
         var findings: [CodeReviewFinding] = []
         for file in scopeFiles {
-            guard let lines = loadLines(for: file, workspacePath: workspacePath) else { continue }
+            guard !isAuditSourceFile(file),
+                  let lines = loadLines(for: file, workspacePath: workspacePath) else { continue }
             for (index, line) in lines.enumerated() {
                 let lower = line.lowercased()
                 for pattern in patterns where lower.contains(pattern.needle.lowercased()) {
@@ -59,7 +60,8 @@ extension CodeReviewAuditService {
 
         var findings: [CodeReviewFinding] = []
         for file in scopeFiles {
-            guard let lines = loadLines(for: file, workspacePath: workspacePath) else { continue }
+            guard !isAuditSourceFile(file),
+                  let lines = loadLines(for: file, workspacePath: workspacePath) else { continue }
             for (index, line) in lines.enumerated() {
                 for pattern in patterns where line.contains(pattern.needle) {
                     findings.append(

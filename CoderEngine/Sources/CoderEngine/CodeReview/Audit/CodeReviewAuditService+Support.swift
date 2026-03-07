@@ -23,6 +23,21 @@ extension CodeReviewAuditService {
         return value
     }
 
+    /// Files that belong to the audit service itself and should be excluded
+    /// from pattern scanning to avoid false positives (the audit source contains
+    /// the very pattern strings it searches for).
+    static let auditSelfExclusionSuffixes: [String] = [
+        "CodeReviewAuditService+Bug.swift",
+        "CodeReviewAuditService+Security.swift",
+        "CodeReviewAuditService+Support.swift",
+        "CodeReviewAuditService.swift",
+        "CodeReviewAuditModels.swift",
+    ]
+
+    static func isAuditSourceFile(_ path: String) -> Bool {
+        auditSelfExclusionSuffixes.contains { path.hasSuffix($0) }
+    }
+
     static func loadLines(
         for relativePath: String,
         workspacePath: URL
@@ -143,7 +158,7 @@ extension CodeReviewAuditService {
     ) -> [String: Int] {
         guard let result = commandOutput(
             executable: "/usr/bin/git",
-            arguments: ["log", "--since=90.days", "--name-only", "--pretty=format:"],
+            arguments: ["log", "--since=90.days.ago", "--name-only", "--pretty=format:"],
             currentDirectoryURL: workspacePath
         ), result.status == 0 else {
             return [:]
@@ -161,12 +176,16 @@ extension CodeReviewAuditService {
 
 private final class StreamCaptureState: @unchecked Sendable {
     private let lock = NSLock()
-    private(set) var data = Data()
+    private var _data = Data()
+
+    var data: Data {
+        lock.withLock { _data }
+    }
 
     func append(_ chunk: Data) {
         guard !chunk.isEmpty else { return }
-        lock.lock()
-        data.append(chunk)
-        lock.unlock()
+        lock.withLock {
+            _data.append(chunk)
+        }
     }
 }

@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "com.coderIDE", category: "ReviewPanelChatSessionStore")
 
 @MainActor
 final class ReviewPanelChatSessionStore: ObservableObject {
@@ -161,9 +164,7 @@ final class ReviewPanelChatSessionStore: ObservableObject {
     private func normalizeActiveThread(for key: String) {
         var conversation = conversation(for: key)
         if let activeThreadId = conversation.activeThreadId,
-           let thread = conversation.threads.first(where: { $0.id == activeThreadId }),
-           !thread.archived {
-            conversationsByKey[key] = conversation
+           conversation.threads.contains(where: { $0.id == activeThreadId && !$0.archived }) {
             return
         }
         conversation.activeThreadId = conversation.threads.first(where: { !$0.archived })?.id
@@ -184,16 +185,25 @@ final class ReviewPanelChatSessionStore: ObservableObject {
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        conversationsByKey =
-            (try? decoder.decode([String: ReviewPanelChatConversationState].self, from: data))
-            ?? [:]
+        do {
+            conversationsByKey = try decoder.decode(
+                [String: ReviewPanelChatConversationState].self, from: data
+            )
+        } catch {
+            logger.error("Failed to decode chat sessions: \(error.localizedDescription)")
+            conversationsByKey = [:]
+        }
     }
 
     private func save() {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(conversationsByKey) else { return }
-        UserDefaults.standard.set(data, forKey: Self.storageKey)
+        do {
+            let data = try encoder.encode(conversationsByKey)
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        } catch {
+            logger.error("Failed to encode chat sessions: \(error.localizedDescription)")
+        }
     }
 }
 

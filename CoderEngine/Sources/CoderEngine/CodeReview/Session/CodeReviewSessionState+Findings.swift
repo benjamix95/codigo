@@ -12,6 +12,7 @@ extension CodeReviewSessionState {
     }
 
     public func addFindings(_ newFindings: [CodeReviewFinding]) {
+        guard !newFindings.isEmpty else { return }
         for finding in newFindings {
             findings.append(finding)
             events.append(.findingAdded(
@@ -29,7 +30,6 @@ extension CodeReviewSessionState {
     ) {
         findings.removeAll {
             $0.status == .open
-                && $0.origin == .reviewer
                 && reviewedFiles.contains($0.filePath)
         }
         for finding in newFindings {
