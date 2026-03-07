@@ -100,6 +100,15 @@ extension PipelineIntegrationService {
         guard let runtime = runtime(for: conversationId) else { return }
         runtime.jobState = .executing
         persistSnapshot(for: conversationId)
+        consumePipelineUIEvent(.taskStarted(p), for: conversationId)
+        recordStructuredPipelineTaskActivity(
+            type: "pipeline_task_started",
+            title: p.title,
+            detail: "\(p.role.displayName): \(p.title)",
+            conversationId: conversationId,
+            isRunning: true,
+            taskId: p.taskId
+        )
         swarmProgressStore?.markStarted(
             name: p.title,
             conversationId: conversationId
@@ -114,6 +123,15 @@ extension PipelineIntegrationService {
         guard let runtime = runtime(for: conversationId) else { return }
         runtime.completedTasks += 1
         persistSnapshot(for: conversationId)
+        consumePipelineUIEvent(.taskCompleted(p), for: conversationId)
+        recordStructuredPipelineTaskActivity(
+            type: "pipeline_task_completed",
+            title: p.title,
+            detail: "\(p.role.displayName): \(p.title) completed in \(p.durationMs)ms",
+            conversationId: conversationId,
+            isRunning: false,
+            taskId: p.taskId
+        )
 
         swarmProgressStore?.markCompleted(
             name: p.title,
@@ -186,6 +204,14 @@ extension PipelineIntegrationService {
 
     private func handleTaskFailed(_ p: TaskFailedPayload, for conversationId: UUID) {
         consumePipelineUIEvent(.taskFailed(p), for: conversationId)
+        recordStructuredPipelineTaskActivity(
+            type: "pipeline_task_failed",
+            title: "Task failed",
+            detail: p.error,
+            conversationId: conversationId,
+            isRunning: false,
+            taskId: p.taskId
+        )
     }
 
     // MARK: - Streaming Events
@@ -196,5 +222,33 @@ extension PipelineIntegrationService {
 
     private func handleTextReplace(_ p: TextReplacePayload, for conversationId: UUID) {
         consumePipelineUIEvent(.textReplace(p), for: conversationId)
+    }
+
+    private func recordStructuredPipelineTaskActivity(
+        type: String,
+        title: String,
+        detail: String,
+        conversationId: UUID,
+        isRunning: Bool,
+        taskId: String
+    ) {
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let payload: [String: String] = [
+            "conversation_id": conversationId.uuidString.lowercased(),
+            "task_id": taskId,
+            "group_id": taskId,
+            "status": isRunning ? "running" : "completed",
+        ]
+        taskActivityStore?.addActivity(
+            TaskActivity(
+                type: type,
+                title: normalizedTitle.isEmpty ? "Pipeline task" : normalizedTitle,
+                detail: detail,
+                payload: payload,
+                phase: .executing,
+                isRunning: isRunning,
+                groupId: taskId
+            )
+        )
     }
 }

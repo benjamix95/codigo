@@ -137,6 +137,30 @@ final class PipelineIntegrationService: ObservableObject {
         return true
     }
 
+    @discardableResult
+    func discardConversationRuntime(for conversationId: UUID?) -> Bool {
+        guard let conversationId else { return false }
+        guard let runtime = runtimesByConversation.removeValue(forKey: conversationId) else {
+            snapshotsByConversation.removeValue(forKey: conversationId)
+            return false
+        }
+
+        runtime.wasCancelled = true
+        runtime.activeStreamTask?.cancel()
+        runtime.activeStreamTask = nil
+        snapshotsByConversation.removeValue(forKey: conversationId)
+        swarmProgressStore?.clear(conversationId: conversationId)
+        chatStore?.endTask(conversationId: conversationId)
+        unregisterDebugStore(for: conversationId)
+        pendingDebugEventsByConversation.removeValue(forKey: conversationId)
+        suppressedDebugProjectionConversationIds.remove(conversationId)
+
+        Task { @MainActor in
+            await runtime.facade.cancel()
+        }
+        return true
+    }
+
     // MARK: - Finalize
 
     func finalizeExecution(for conversationId: UUID) {

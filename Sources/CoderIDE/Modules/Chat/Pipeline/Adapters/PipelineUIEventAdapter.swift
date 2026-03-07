@@ -16,6 +16,42 @@ enum PipelineUIEventAdapter {
             return [lifecycle(.turnCompleted, conversationId, assistantMessageId, turnId, providerId, "completed", "Pipeline completed: \(payload.completedTasks)/\(payload.totalTasks) tasks in \(payload.durationMs)ms")]
         case .jobFailed(let payload):
             return [lifecycle(.turnFailed, conversationId, assistantMessageId, turnId, providerId, "failed", payload.reason)]
+        case .taskStarted(let payload):
+            return [
+                ChatPipelineEvent(
+                    conversationId: conversationId,
+                    assistantMessageId: assistantMessageId,
+                    turnId: turnId,
+                    sequence: 0,
+                    source: providerId,
+                    kind: .statusBadge,
+                    payload: [
+                        "artifact_id": "task-started-\(payload.taskId)",
+                        "title": payload.title.isEmpty ? payload.agentName : payload.title,
+                        "detail": "\(payload.role.displayName): in progress",
+                        "status": "running",
+                        "provider_id": providerId,
+                    ]
+                ),
+            ]
+        case .taskCompleted(let payload):
+            return [
+                ChatPipelineEvent(
+                    conversationId: conversationId,
+                    assistantMessageId: assistantMessageId,
+                    turnId: turnId,
+                    sequence: 0,
+                    source: providerId,
+                    kind: .statusBadge,
+                    payload: [
+                        "artifact_id": "task-completed-\(payload.taskId)",
+                        "title": payload.title.isEmpty ? payload.agentName : payload.title,
+                        "detail": "\(payload.role.displayName): completed in \(payload.durationMs)ms",
+                        "status": "completed",
+                        "provider_id": providerId,
+                    ]
+                ),
+            ]
         case .taskFailed(let payload):
             return [
                 ChatPipelineEvent(

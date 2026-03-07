@@ -11,6 +11,7 @@ struct SidebarView: View {
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var codexState: CodexStateStore
     @EnvironmentObject var todoStore: TodoStore
+    @EnvironmentObject var pipelineIntegrationService: PipelineIntegrationService
 
     @Binding var selectedConversationId: UUID?
     @Binding var showSettings: Bool

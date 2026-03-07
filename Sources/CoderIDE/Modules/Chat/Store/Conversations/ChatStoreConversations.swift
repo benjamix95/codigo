@@ -6,11 +6,16 @@ extension ChatStore {
         conversation.messages.contains(where: { $0.role == .user })
     }
 
-    func reusableEmptyConversation(contextId: UUID?, contextFolderPath: String?) -> Conversation? {
+    func reusableEmptyConversation(
+        contextId: UUID?,
+        contextFolderPath: String?,
+        mode: CoderMode? = nil
+    ) -> Conversation? {
         conversations.first { conv in
             !conv.isArchived
                 && conv.contextId == contextId
                 && conv.contextFolderPath == contextFolderPath
+                && conv.mode == mode
                 && !hasUserMessages(conv)
         }
     }

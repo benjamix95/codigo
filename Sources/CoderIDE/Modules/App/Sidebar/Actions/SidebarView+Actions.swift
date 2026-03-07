@@ -14,6 +14,7 @@ extension SidebarView {
     }
 
     func cleanupConversationData(for conversation: Conversation) {
+        _ = pipelineIntegrationService.discardConversationRuntime(for: conversation.id)
         let roots = Set(conversation.checkpoints.flatMap { $0.gitStates.map(\.gitRootPath) })
         for root in roots {
             try? checkpointGitStore.deleteSnapshotBranch(conversationId: conversation.id, gitRoot: root)
@@ -119,7 +120,8 @@ extension SidebarView {
         // instead of creating duplicate blank threads.
         if let existing = chatStore.reusableEmptyConversation(
             contextId: effectiveContextId,
-            contextFolderPath: folderScope
+            contextFolderPath: folderScope,
+            mode: nil
         ) {
             selectedConversationId = existing.id
             if let effectiveContextId {
