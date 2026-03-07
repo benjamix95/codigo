@@ -51,7 +51,9 @@ extension UnifiedToolRuntime {
         guard !args.isEmpty else { return ("", "argument list is empty", 1) }
         let executable = args[0]
         let arguments = Array(args.dropFirst())
-        let timeoutMs = max(1, timeout)
+        let maxTimeoutMsForSleep = Int(UInt64.max / 1_000_000)
+        let timeoutMs = min(max(1, timeout), maxTimeoutMsForSleep)
+        let timeoutNanoseconds = UInt64(timeoutMs) * 1_000_000
         let controller = self.executionController ?? ExecutionController()
         let scope = self.executionScope
         let timeoutFlag = TimeoutFlag()
@@ -69,7 +71,7 @@ extension UnifiedToolRuntime {
                     )
                 }
                 group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(timeoutMs) * 1_000_000)
+                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
                     await timeoutFlag.markTimedOut()
                     controller.terminate(scope: scope)
                     throw ToolRuntimeError.timeout(tool: executable, ms: timeoutMs)
