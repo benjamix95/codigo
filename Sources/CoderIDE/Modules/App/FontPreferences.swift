@@ -23,6 +23,7 @@ struct FontPreferences {
         "Geist Mono", "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code",
     ]
 
+    private static let fontRegistrationLock = NSLock()
     private static var didRegisterBundledFonts = false
     private static let postScriptMissingSentinel = "__missing__"
     private static let postScriptCache: NSCache<NSString, NSString> = {
@@ -32,6 +33,8 @@ struct FontPreferences {
     }()
 
     static func registerBundledFonts() {
+        fontRegistrationLock.lock()
+        defer { fontRegistrationLock.unlock() }
         guard !didRegisterBundledFonts else { return }
         didRegisterBundledFonts = true
         guard let fontDir = RuntimeResourceLocator.fontsDirectoryURL() else {
