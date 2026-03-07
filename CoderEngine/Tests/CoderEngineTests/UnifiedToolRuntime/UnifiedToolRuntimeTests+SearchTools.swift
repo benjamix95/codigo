@@ -95,6 +95,31 @@ extension UnifiedToolRuntimeTests {
         XCTAssertGreaterThan(Int(completed?["count"] ?? "0") ?? 0, 0)
     }
 
+    func testGrepSandboxBlocksOutsideWorkspacePathScope() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let outsideDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("outside-grep-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: outsideDir) }
+
+        let outsideFile = outsideDir.appendingPathComponent("leak.txt")
+        try "outside-secret".write(to: outsideFile, atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "grep",
+            args: ["query": "outside-secret", "pathScope": outsideDir.path],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "sandbox_violation")
+    }
+
     func testGlobPathScopeAliasProducesCountAndPreview() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()

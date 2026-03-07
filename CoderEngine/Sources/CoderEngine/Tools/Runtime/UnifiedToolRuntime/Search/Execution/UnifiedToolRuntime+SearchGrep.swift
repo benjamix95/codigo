@@ -10,6 +10,7 @@ extension UnifiedToolRuntime {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         let allWorkspacePaths = context.workspaceContext.workspacePaths.map(\.path)
+        let preferredRoot = context.workspaceContext.activeRootPath
         let primaryWorkspace = context.workspaceContext.workspacePath.path
         let scopes: [String] = {
             if scopeParts.isEmpty || (scopeParts.count == 1 && scopeParts[0] == ".") {
@@ -18,13 +19,13 @@ extension UnifiedToolRuntime {
             var out: [String] = []
             var seen = Set<String>()
             for item in scopeParts where seen.insert(item).inserted {
-                let isAbsolute = (item as NSString).isAbsolutePath
-                if isAbsolute {
-                    out.append(item)
-                } else {
-                    for root in allWorkspacePaths {
-                        out.append((root as NSString).appendingPathComponent(item))
-                    }
+                if let resolvedPath = resolvePath(
+                    item,
+                    workspacePaths: allWorkspacePaths,
+                    preferredRoot: preferredRoot,
+                    sandboxMode: context.policy.sandboxMode
+                ) {
+                    out.append(resolvedPath)
                 }
             }
             return out
@@ -55,6 +56,19 @@ extension UnifiedToolRuntime {
                 "title": "Grep",
                 "detail": "query is required — provide a non-empty search pattern",
             ], durationMs: 0)
+        }
+
+        if scopes.isEmpty {
+            return failure(
+                "Path is not allowed by sandbox policy",
+                errorCode: "sandbox_violation",
+                startDate: startDate,
+                payload: [
+                    "title": "Grep \(query)",
+                    "query": query,
+                    "pathScope": rawScope,
+                ]
+            )
         }
 
         // If query looks like a symbol name (no regex chars) and index is available, try index first.
