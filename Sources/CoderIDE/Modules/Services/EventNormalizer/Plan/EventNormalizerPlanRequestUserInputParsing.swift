@@ -79,6 +79,27 @@ extension EventNormalizer {
     }
 
     private static func parsePlanRequestQuestionObjects(from raw: String) -> [[String: Any]]? {
+        let maxQuestionPayloadLength = 1_000_000
+        let maxNestedQuestionDepth = 8
+        return parsePlanRequestQuestionObjects(
+            from: raw,
+            depth: 0,
+            maxQuestionPayloadLength: maxQuestionPayloadLength,
+            maxNestedQuestionDepth: maxNestedQuestionDepth
+        )
+    }
+
+    private static func parsePlanRequestQuestionObjects(
+        from raw: String,
+        depth: Int,
+        maxQuestionPayloadLength: Int,
+        maxNestedQuestionDepth: Int
+    ) -> [[String: Any]]? {
+        guard depth <= maxNestedQuestionDepth,
+              raw.utf8.count <= maxQuestionPayloadLength else {
+            return nil
+        }
+
         guard let data = raw.data(using: .utf8),
               let parsed = try? JSONSerialization.jsonObject(with: data) else {
             return nil
@@ -99,14 +120,20 @@ extension EventNormalizer {
             }
             if let nestedQuestionsRaw = wrapper["questions"] as? String {
                 return parsePlanRequestQuestionObjects(
-                    from: normalizePlanRequestQuestionsRaw(nestedQuestionsRaw)
+                    from: normalizePlanRequestQuestionsRaw(nestedQuestionsRaw),
+                    depth: depth + 1,
+                    maxQuestionPayloadLength: maxQuestionPayloadLength,
+                    maxNestedQuestionDepth: maxNestedQuestionDepth
                 )
             }
         }
         // Double-encoded JSON string case.
         if let rawString = parsed as? String {
             return parsePlanRequestQuestionObjects(
-                from: normalizePlanRequestQuestionsRaw(rawString)
+                from: normalizePlanRequestQuestionsRaw(rawString),
+                depth: depth + 1,
+                maxQuestionPayloadLength: maxQuestionPayloadLength,
+                maxNestedQuestionDepth: maxNestedQuestionDepth
             )
         }
         return nil
