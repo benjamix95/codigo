@@ -159,23 +159,15 @@ extension ChatPanelView {
     }
 
     internal var codeReviewPanelSidebar: some View {
-        CodeReviewPanelView(
+        ReviewPanelHost(
             taskActivityStore: taskActivityStore,
-            conversationId: conversationId,
-            isTaskRunning: isLoadingForCurrentConversation,
-            coderMode: coderMode,
-            codeReviewPartitions: $codeReviewPartitions,
-            codeReviewAnalysisOnly: $codeReviewAnalysisOnly,
-            codeReviewMaxRounds: $codeReviewMaxRounds,
-            codeReviewAnalysisBackend: $codeReviewAnalysisBackend,
-            codeReviewExecutionBackend: $codeReviewExecutionBackend,
-            onClose: {
-                showCodeReviewPanel = false
-            },
-            onOpenFile: { openFilesStore.openFile($0) },
-            onDispatchAction: { action in
-                handleCodeReviewPanelAction(action)
-            }
+            providerRegistry: providerRegistry,
+            executionController: executionController,
+            workspaceStore: workspaceStore,
+            openFilesStore: openFilesStore,
+            providerFactoryConfigBuilder: { [self] in providerFactoryConfig() },
+            onClose: { showCodeReviewPanel = false },
+            onOpenFile: { openFilesStore.openFile($0) }
         )
         .frame(width: CGFloat(codeReviewPanelWidthStorage))
     }
