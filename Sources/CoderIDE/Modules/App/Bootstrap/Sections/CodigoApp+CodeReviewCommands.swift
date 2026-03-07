@@ -83,6 +83,10 @@ extension CodigoApp {
             }
             if let liveState = await ReviewSessionRegistry.shared.state(sessionId: sessionId) {
                 await liveState.updateConfig(updatedConfig)
+                await persistLiveReviewState(
+                    liveState,
+                    conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
+                )
                 return (true, "Live review configuration updated")
             }
             return await persistReviewSnapshotMutation(sessionId: sessionId) { snapshot in
@@ -135,14 +139,9 @@ extension CodigoApp {
             conversationId: conversationId,
             config: sessionConfig,
             onStateChange: { snapshot in
-                Task {
-                    await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                }
                 Task { @MainActor in
-                    taskActivityStore.ingestCodeReviewSnapshot(
-                        snapshot,
-                        conversationId: conversationId
-                    )
+                    await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
+                    taskActivityStore.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
                 }
             }
         )
@@ -159,7 +158,13 @@ extension CodigoApp {
             return (false, "Unable to create code review provider")
         }
 
+        if await ReviewSessionRegistry.shared.state(sessionId: sessionId) != nil
+            || MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) != nil {
+            return (false, "Review session \(sessionId) already exists")
+        }
+
         await ReviewSessionRegistry.shared.register(sessionState)
+        await persistLiveReviewState(sessionState, conversationId: conversationId)
         let prompt = reviewPrompt(for: command, sessionId: sessionId)
         let context = WorkspaceContext(
             workspacePaths: workspaceStore.activeWorkspacePaths,

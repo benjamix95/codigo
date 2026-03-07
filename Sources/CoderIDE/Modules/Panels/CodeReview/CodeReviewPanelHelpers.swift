@@ -46,8 +46,23 @@ func reviewCardBelongsToConversation(
     conversationId: UUID?
 ) -> Bool {
     guard conversationId != nil else { return true }
-    guard !card.recentEvents.isEmpty else { return card.swarmId.hasPrefix("review-") }
+    guard !card.recentEvents.isEmpty else {
+        return card.swarmId.hasPrefix("review-")
+    }
     return !scopedTaskActivitiesForConversation(card.recentEvents, conversationId: conversationId).isEmpty
+}
+
+func isCodeReviewSwarmCard(_ card: SwarmLiveCardState) -> Bool {
+    if card.swarmId.hasPrefix("review-") {
+        return true
+    }
+    return card.recentEvents.contains { event in
+        let groupId = event.groupId ?? event.payload["group_id"] ?? event.payload["groupId"] ?? ""
+        return groupId.hasPrefix("review-")
+            || event.payload["session_id"] != nil
+            || event.type == "review-worker-plan"
+            || event.type == "review-fix-round"
+    }
 }
 
 func sortedReviewWorkerPlanActivitiesForDisplay(_ activities: [TaskActivity]) -> [TaskActivity] {

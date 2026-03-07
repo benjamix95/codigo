@@ -38,6 +38,9 @@ public actor PipelineFacade {
 
     private let config: PipelineFacadeConfig
     private var runningJobId: String?
+    private var runningTask: Task<Void, Never>?
+    private var runningOrchestrator: OrchestratorMainLoop?
+    private var runningWorkerPool: WorkerPool?
 
     public init(config: PipelineFacadeConfig = PipelineFacadeConfig()) {
         self.config = config
@@ -78,6 +81,10 @@ public actor PipelineFacade {
                     facadeConfig: facadeConfig,
                     workerAdapter: workerAdapter
                 )
+                await self.registerRunningComponents(
+                    orchestrator: components.orchestrator,
+                    workerPool: components.workerPool
+                )
 
                 await self.subscribeUIBridge(
                     eventBus: components.eventBus,
@@ -116,16 +123,22 @@ public actor PipelineFacade {
                 await self.clearRunning(jobId: jobId)
                 continuation.finish()
             }
+            Task { await self.registerRunningTask(task) }
 
             continuation.onTermination = { _ in
-                task.cancel()
+                Task {
+                    await self.cancel()
+                }
             }
         }
     }
 
     // MARK: - Cancel
 
-    public func cancel() {
+    public func cancel() async {
+        runningTask?.cancel()
+        await runningOrchestrator?.stop()
+        await runningWorkerPool?.shutdown()
         runningJobId = nil
     }
 
@@ -140,6 +153,21 @@ public actor PipelineFacade {
 
     private func clearRunning(jobId: String) async {
         if runningJobId == jobId { runningJobId = nil }
+        runningTask = nil
+        runningOrchestrator = nil
+        runningWorkerPool = nil
+    }
+
+    private func registerRunningTask(_ task: Task<Void, Never>) async {
+        runningTask = task
+    }
+
+    private func registerRunningComponents(
+        orchestrator: OrchestratorMainLoop,
+        workerPool: WorkerPool
+    ) async {
+        runningOrchestrator = orchestrator
+        runningWorkerPool = workerPool
     }
 
     // MARK: - Component Assembly

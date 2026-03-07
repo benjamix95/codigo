@@ -3,6 +3,7 @@ import Foundation
 import MCP
 
 extension CoderIDEMCPServerApp {
+    static let reviewSessionIdPattern = #"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"#
     static let validReviewBackends: Set<String> = [
         "auto", "codex", "claude", "gemini",
         "codex-cli", "claude-cli", "gemini-cli",
@@ -28,9 +29,15 @@ extension CoderIDEMCPServerApp {
             key: args["session_id"] != nil ? "session_id" : "sessionId"
         )
         let conversationId = resolveReviewConversationId(args)
-        let snapshots = reviewScopedSnapshots(conversationId: conversationId)
+        let snapshots = reviewScopedSnapshots(
+            conversationId: conversationId,
+            activeOnly: true
+        )
 
         if !explicitSessionId.isEmpty {
+            if let formatError = validateReviewSessionIdFormat(explicitSessionId) {
+                return (nil, formatError)
+            }
             guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: explicitSessionId) else {
                 return (nil, "Error: session_id '\(explicitSessionId)' was not found")
             }
@@ -86,10 +93,27 @@ extension CoderIDEMCPServerApp {
         validReviewBackends.contains(backend.lowercased())
     }
 
+    static func validateReviewSessionIdFormat(_ sessionId: String) -> String? {
+        let trimmed = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return "Error: 'session_id' must not be empty"
+        }
+        guard trimmed.range(
+            of: reviewSessionIdPattern,
+            options: .regularExpression
+        ) != nil else {
+            return "Error: 'session_id' may contain only letters, digits, '_' or '-' and must not start with punctuation"
+        }
+        return nil
+    }
+
     static func validateReviewSessionAccess(
         sessionId: String,
         args: [String: String]
     ) -> String? {
+        if let formatError = validateReviewSessionIdFormat(sessionId) {
+            return formatError
+        }
         guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
             return "Error: session_id '\(sessionId)' was not found"
         }
@@ -104,11 +128,33 @@ extension CoderIDEMCPServerApp {
         return nil
     }
 
+    static func validateFindingOwnership(
+        sessionId: String,
+        findingId: String,
+        args: [String: String]
+    ) -> String? {
+        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
+            return accessError
+        }
+        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
+            return "Error: session_id '\(sessionId)' was not found"
+        }
+        guard snapshot.findings.contains(where: { $0.id == findingId }) else {
+            return "Error: finding_id '\(findingId)' does not belong to session_id '\(sessionId)'"
+        }
+        return nil
+    }
+
     private static func reviewScopedSnapshots(
-        conversationId: UUID?
+        conversationId: UUID?,
+        activeOnly: Bool
     ) -> [CodeReviewSessionSnapshot] {
-        let snapshots = MCPSharedState.readCodeReviewSnapshots(conversationId: conversationId)
-        guard conversationId == nil else { return snapshots }
-        return snapshots.filter { $0.conversationId == nil }
+        let snapshots = MCPSharedState.readCodeReviewSnapshots(
+            conversationId: conversationId
+        ).filter { snapshot in
+            (!activeOnly || snapshot.isActive)
+                && (conversationId != nil || snapshot.conversationId == nil)
+        }
+        return snapshots
     }
 }

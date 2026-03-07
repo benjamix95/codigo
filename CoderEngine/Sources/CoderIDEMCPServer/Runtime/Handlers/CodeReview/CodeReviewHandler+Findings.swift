@@ -38,10 +38,12 @@ extension CoderIDEMCPServerApp {
 
         let resolved = resolveReviewSessionId(args: args, requireExplicitWhenAmbiguous: true)
         if let message = resolved.error {
-            return reviewError(message)
+            return message == "No active review session."
+                ? reviewOK(message)
+                : reviewError(message)
         }
         guard let sessionId = resolved.sessionId else {
-            return reviewError("No active review session.")
+            return reviewOK("No active review session.")
         }
 
         let limitVal = Int(args["limit"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 50
@@ -78,8 +80,12 @@ extension CoderIDEMCPServerApp {
         guard !sessionId.isEmpty else {
             return reviewError("Error: 'session_id' parameter is required")
         }
-        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
-            return reviewError(accessError)
+        if let ownershipError = validateFindingOwnership(
+            sessionId: sessionId,
+            findingId: findingId,
+            args: args
+        ) {
+            return reviewError(ownershipError)
         }
         return reviewCommandQueued(action: "apply_fix", sessionId: sessionId, args: args)
     }
@@ -110,8 +116,12 @@ extension CoderIDEMCPServerApp {
         }
         var payload = args
         payload["reason"] = effectiveReason
-        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: payload) {
-            return reviewError(accessError)
+        if let ownershipError = validateFindingOwnership(
+            sessionId: sessionId,
+            findingId: findingId,
+            args: payload
+        ) {
+            return reviewError(ownershipError)
         }
         return reviewCommandQueued(action: "dismiss", sessionId: sessionId, args: payload)
     }
@@ -189,8 +199,12 @@ extension CoderIDEMCPServerApp {
         guard !sessionId.isEmpty else {
             return reviewError("Error: 'session_id' parameter is required")
         }
-        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
-            return reviewError(accessError)
+        if let ownershipError = validateFindingOwnership(
+            sessionId: sessionId,
+            findingId: findingId,
+            args: args
+        ) {
+            return reviewError(ownershipError)
         }
 
         return reviewCommandQueued(action: "comment", sessionId: sessionId, args: args)

@@ -16,6 +16,7 @@ public actor CodeReviewSessionState {
     var findings: [CodeReviewFinding] = []
     var events: [CodeReviewSessionEvent] = []
     var config: SessionConfig
+    var mutationSequence: UInt64 = 0
     var scope: ReviewSessionScope?
     var workspacePath: String?
     var currentRound: Int = 0
@@ -58,6 +59,7 @@ public actor CodeReviewSessionState {
         CodeReviewSessionSnapshot(
             sessionId: sessionId,
             conversationId: conversationId,
+            mutationSequence: mutationSequence,
             phase: phase,
             stage: stage,
             findings: findings,
@@ -85,6 +87,7 @@ public actor CodeReviewSessionState {
         if events.count > eventsHardCap {
             events = Array(events.suffix(eventsHardCap))
         }
+        mutationSequence &+= 1
         let snap = snapshot()
         if let handler = onStateChange {
             Task { @MainActor in handler(snap) }

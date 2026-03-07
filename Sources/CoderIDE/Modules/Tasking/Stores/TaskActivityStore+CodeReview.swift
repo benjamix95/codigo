@@ -10,6 +10,15 @@ extension TaskActivityStore {
         _ snapshot: CodeReviewSessionSnapshot,
         conversationId: UUID? = nil
     ) {
+        if let current = codeReviewSnapshotsBySession[snapshot.sessionId] {
+            if snapshot.mutationSequence < current.mutationSequence {
+                return
+            }
+            if snapshot.mutationSequence == current.mutationSequence,
+               snapshot.lastUpdatedAt < current.lastUpdatedAt {
+                return
+            }
+        }
         codeReviewSnapshotsBySession[snapshot.sessionId] = snapshot
 
         let resolvedConversationId = conversationId ?? snapshot.conversationId

@@ -24,6 +24,9 @@ extension CoderIDEMCPServerApp {
                     "Error: 'ref' parameter is required when scope=against_ref"
                 )
             }
+            guard CodeReviewMultiSwarmProvider.isValidAgainstRefFormat(ref) else {
+                return reviewError("Error: invalid ref '\(ref)'")
+            }
         }
 
         // Validate optional numeric parameters
@@ -59,9 +62,22 @@ extension CoderIDEMCPServerApp {
             args,
             key: args["session_id"] != nil ? "session_id" : "sessionId"
         )
+        if !requestedSessionId.isEmpty,
+           let formatError = validateReviewSessionIdFormat(requestedSessionId) {
+            return reviewError(formatError)
+        }
         let sessionId = requestedSessionId.isEmpty
             ? UUID().uuidString.lowercased()
             : requestedSessionId
+        if MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) != nil {
+            return reviewError("Error: session_id '\(sessionId)' already exists")
+        }
+        if MCPSharedState.hasQueuedCodeReviewStart(
+            sessionId: sessionId,
+            conversationId: resolveReviewConversationId(args)
+        ) {
+            return reviewError("Error: session_id '\(sessionId)' already has a queued start command")
+        }
         var commandPayload = args
         commandPayload["scope"] = effectiveScope
         commandPayload["session_id"] = sessionId
@@ -79,6 +95,14 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewStatus(args: [String: String]) -> CallTool.Result {
+        let explicitSessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        if !explicitSessionId.isEmpty,
+           let formatError = validateReviewSessionIdFormat(explicitSessionId) {
+            return reviewError(formatError)
+        }
         let resolved = resolveReviewSessionId(
             args: args,
             requireExplicitWhenAmbiguous: true
@@ -97,6 +121,14 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewDiffSummary(args: [String: String]) -> CallTool.Result {
+        let explicitSessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        if !explicitSessionId.isEmpty,
+           let formatError = validateReviewSessionIdFormat(explicitSessionId) {
+            return reviewError(formatError)
+        }
         let resolved = resolveReviewSessionId(
             args: args,
             requireExplicitWhenAmbiguous: true
@@ -125,13 +157,10 @@ extension CoderIDEMCPServerApp {
         let snapshots = MCPSharedState.readCodeReviewSnapshots(
             conversationId: resolveReviewConversationId(args)
         )
-        let filteredSnapshots = resolveReviewConversationId(args) == nil
-            ? snapshots.filter { $0.conversationId == nil }
-            : snapshots
-        guard !filteredSnapshots.isEmpty else {
+        guard !snapshots.isEmpty else {
             return reviewOK("No review sessions found.")
         }
-        let lines = filteredSnapshots.map { snapshot in
+        let lines = snapshots.map { snapshot in
             let scope = snapshot.scope?.type.rawValue ?? "unknown"
             return "\(snapshot.sessionId) | phase=\(snapshot.phase.rawValue) | stage=\(snapshot.stage.rawValue) | scope=\(scope) | findings=\(snapshot.findings.count)"
         }

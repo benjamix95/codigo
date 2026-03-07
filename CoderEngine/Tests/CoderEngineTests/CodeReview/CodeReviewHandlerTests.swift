@@ -142,7 +142,7 @@ final class CodeReviewHandlerTests: XCTestCase {
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_dismiss",
             args: reviewSessionArgs(snapshot, extras: [
-                "finding_id": "f1",
+                "finding_id": "f123",
                 "reason": "false_positive",
             ])
         )
@@ -212,7 +212,7 @@ final class CodeReviewHandlerTests: XCTestCase {
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_comment",
             args: reviewSessionArgs(snapshot, extras: [
-                "finding_id": "f1",
+                "finding_id": "f123",
                 "content": "Looks good",
             ])
         )
@@ -237,73 +237,5 @@ final class CodeReviewHandlerTests: XCTestCase {
         )
         XCTAssertNil(result?.isError)
         XCTAssertTrue(textContent(result).contains(snapshot.sessionId))
-    }
-
-    // MARK: - Unknown tool
-
-    func testUnknownToolReturnsNil() {
-        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
-            name: "nonexistent_tool",
-            args: [:]
-        )
-        XCTAssertNil(result)
-    }
-
-    // MARK: - Helpers
-
-    private func textContent(_ result: MCP.CallTool.Result?) -> String {
-        guard let content = result?.content.first else { return "" }
-        if case .text(let text) = content {
-            return text
-        }
-        return ""
-    }
-
-    private func reviewSessionArgs(
-        _ snapshot: CodeReviewSessionSnapshot,
-        extras: [String: String] = [:]
-    ) -> [String: String] {
-        var args = extras
-        args["session_id"] = snapshot.sessionId
-        if let conversationId = snapshot.conversationId?.uuidString.lowercased() {
-            args["conversation_id"] = conversationId
-        }
-        return args
-    }
-
-    private func seedSnapshot() -> CodeReviewSessionSnapshot {
-        let conversationId = UUID()
-        let snapshot = CodeReviewSessionSnapshot(
-            sessionId: "session-1",
-            conversationId: conversationId,
-            phase: .fixing,
-            stage: .fixing,
-            findings: [
-                CodeReviewFinding(
-                    id: "f123",
-                    severity: .warning,
-                    category: .bug,
-                    filePath: "Package.swift",
-                    message: "Test finding"
-                )
-            ],
-            events: [
-                .sessionStarted(scope: "uncommitted changes", fileCount: 1)
-            ],
-            config: .default,
-            scope: ReviewSessionScope(type: .uncommitted, files: ["Package.swift"]),
-            workspacePath: FileManager.default.currentDirectoryPath,
-            currentRound: 1,
-            activeWorkerCount: 1,
-            startedAt: Date(),
-            completedAt: nil,
-            analysisCompletedAt: Date(),
-            lastError: nil,
-            currentJobId: "job-1",
-            lastTestStatus: .passed,
-            lastUpdatedAt: Date()
-        )
-        MCPSharedState.writeCodeReviewSnapshot(snapshot)
-        return snapshot
     }
 }

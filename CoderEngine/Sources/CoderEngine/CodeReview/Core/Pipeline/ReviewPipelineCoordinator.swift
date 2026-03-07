@@ -106,22 +106,22 @@ public actor ReviewPipelineCoordinator {
         )
 
         let initialTasks: [CodeReviewMultiSwarmProvider.ReviewTask]
-        let extractionInconclusiveReason: String?
+        let extractionFailureReason: String?
         switch taskExtraction {
         case .noFixes:
             initialTasks = []
-            extractionInconclusiveReason = nil
+            extractionFailureReason = nil
         case .noPayload(let reason):
-            continuation.yield(.textDelta("\n**Review task extraction inconclusive:** \(reason)\n"))
+            continuation.yield(.textDelta("\n**Review task extraction failed:** \(reason)\n"))
             initialTasks = []
-            extractionInconclusiveReason = reason
+            extractionFailureReason = reason
         case .invalidJSON(let reason):
-            continuation.yield(.textDelta("\n**Review task extraction inconclusive:** Could not parse task JSON: \(reason)\n"))
+            continuation.yield(.textDelta("\n**Review task extraction failed:** Could not parse task JSON: \(reason)\n"))
             initialTasks = []
-            extractionInconclusiveReason = reason
+            extractionFailureReason = "Could not parse task JSON: \(reason)"
         case .tasks(let tasks):
             initialTasks = tasks
-            extractionInconclusiveReason = nil
+            extractionFailureReason = nil
         }
 
         if !initialTasks.isEmpty {
@@ -136,6 +136,19 @@ public actor ReviewPipelineCoordinator {
             }
             await sessionState.addFindings(findings)
         }
+        if let extractionFailureReason {
+            let fallbackFile = filesToReview.first ?? "review-scope"
+            await sessionState.addFinding(CodeReviewFinding(
+                severity: .warning,
+                category: .other,
+                filePath: fallbackFile,
+                message: "Structured review task extraction failed: \(extractionFailureReason)"
+            ))
+            await sessionState.fail(error: "Review task extraction failed: \(extractionFailureReason)")
+            continuation.yield(.completed)
+            continuation.finish()
+            return
+        }
 
         if config.enabledPhases == .analysisOnly {
             continuation.yield(.textDelta("\n---\n**Analysis complete.** (Analysis-only mode)\n"))
@@ -145,9 +158,8 @@ public actor ReviewPipelineCoordinator {
             return
         }
 
-        let completed = await runRounds(
+        let outcome = await runRounds(
             initialTasks: initialTasks,
-            extractionInconclusiveReason: extractionInconclusiveReason,
             context: context,
             config: config,
             againstRef: againstRef,
@@ -163,10 +175,15 @@ public actor ReviewPipelineCoordinator {
             waitWhilePaused: waitWhilePaused
         )
 
-        if completed {
+        switch outcome {
+        case .completed:
             await sessionState.complete()
-        } else if (await sessionState.snapshot()).phase != .failed {
-            await sessionState.fail(error: "Review pipeline did not complete successfully.")
+        case .cancelled:
+            await sessionState.fail(error: "Review cancelled.")
+        case .failed(let reason):
+            if (await sessionState.snapshot()).phase != .failed {
+                await sessionState.fail(error: reason)
+            }
         }
     }
 

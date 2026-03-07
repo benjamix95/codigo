@@ -1,0 +1,92 @@
+import XCTest
+import CoderEngine
+@testable import CoderIDEMCPServer
+
+extension CodeReviewHandlerTests {
+    func testReviewStartRejectsInvalidSessionIdFormat() {
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_start",
+            args: ["session_id": "../../tmp/pwn"]
+        )
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("session_id"))
+    }
+
+    func testReviewStartRejectsQueuedDuplicateSessionId() {
+        _ = MCPSharedState.enqueueCodeReviewCommand(
+            action: "start",
+            sessionId: "session-dup",
+            conversationId: nil,
+            payload: ["scope": "uncommitted", "session_id": "session-dup"]
+        )
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_start",
+            args: ["session_id": "session-dup"]
+        )
+
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("queued start"))
+    }
+
+    func testReviewStatusFallsBackToOnlyActiveSessions() {
+        let conversationId = UUID()
+        _ = seedSnapshot(
+            sessionId: "completed-session",
+            conversationId: conversationId,
+            phase: .completed
+        )
+        let active = seedSnapshot(
+            sessionId: "active-session",
+            conversationId: conversationId,
+            phase: .fixing
+        )
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_status",
+            args: ["conversation_id": conversationId.uuidString.lowercased()]
+        )
+
+        XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains(active.sessionId))
+    }
+
+    func testReviewApplyFixRejectsFindingOutsideSession() {
+        let snapshot = seedSnapshot()
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_apply_fix",
+            args: reviewSessionArgs(snapshot, extras: ["finding_id": "missing-finding"])
+        )
+
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("does not belong"))
+    }
+
+    func testReviewCommentRejectsFindingOutsideSession() {
+        let snapshot = seedSnapshot()
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_comment",
+            args: reviewSessionArgs(snapshot, extras: [
+                "finding_id": "missing-finding",
+                "content": "not valid"
+            ])
+        )
+
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("does not belong"))
+    }
+
+    func testReviewListSessionsWithoutConversationIncludesConversationScopedSessions() {
+        let snapshot = seedSnapshot()
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_list_sessions",
+            args: [:]
+        )
+
+        XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains(snapshot.sessionId))
+    }
+}

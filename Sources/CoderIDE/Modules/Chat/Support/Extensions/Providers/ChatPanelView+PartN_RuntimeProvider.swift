@@ -40,10 +40,8 @@ extension ChatPanelView {
                 conversationId: reviewConversationId,
                 config: initialReviewSessionConfig,
                 onStateChange: { snapshot in
-                    Task {
-                        await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                    }
                     Task { @MainActor in
+                        await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
                         store.ingestCodeReviewSnapshot(
                             snapshot,
                             conversationId: reviewConversationId
@@ -63,6 +61,13 @@ extension ChatPanelView {
                 pendingCodeReviewSessionConfigOverride = nil
                 Task {
                     await ReviewSessionRegistry.shared.register(sessionState)
+                    let snapshot = await sessionState.snapshot()
+                    await MainActor.run {
+                        taskActivityStore.ingestCodeReviewSnapshot(
+                            snapshot,
+                            conversationId: reviewConversationId
+                        )
+                    }
                 }
                 return multiSwarm
             }

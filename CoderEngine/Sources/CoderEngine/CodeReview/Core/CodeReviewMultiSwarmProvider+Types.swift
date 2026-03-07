@@ -60,4 +60,10 @@ extension CodeReviewMultiSwarmProvider {
         let text: String
         let findings: ReviewFindingsState
     }
+
+    enum ReviewPipelineRunOutcome: Sendable, Equatable {
+        case completed
+        case failed(reason: String)
+        case cancelled
+    }
 }
