@@ -80,7 +80,8 @@ private extension ChatStore {
                 files,
                 dependencies,
                 step.notes,
-            ].joined(separator: "|")
+            ].map { $0.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? $0 }
+             .joined(separator: "|")
         }.joined(separator: "||")
 
         return [
@@ -90,6 +91,7 @@ private extension ChatStore {
             board.walkthroughMarkdown ?? "",
             board.walkthroughSummary ?? "",
             board.walkthroughOutcome ?? "",
-        ].joined(separator: "###")
+        ].map { $0.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? $0 }
+         .joined(separator: "###")
     }
 }

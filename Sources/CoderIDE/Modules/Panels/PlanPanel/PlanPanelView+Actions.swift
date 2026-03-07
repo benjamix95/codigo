@@ -13,7 +13,17 @@ extension PlanPanelView {
             do {
                 try content.write(to: url, atomically: true, encoding: .utf8)
             } catch {
+                #if DEBUG
                 print("[PlanPanel] Failed to save plan: \(error.localizedDescription)")
+                #endif
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.messageText = "Failed to save plan"
+                    alert.informativeText = error.localizedDescription
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
             }
         }
     }
