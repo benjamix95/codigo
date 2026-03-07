@@ -39,7 +39,7 @@ extension CoderIDEMCPServerApp {
         let resolved = resolveReviewSessionId(
             args: args,
             requireExplicitWhenAmbiguous: true,
-            activeOnly: false
+            activeOnly: true
         )
         if let message = resolved.error {
             return message == "No review session found."
@@ -57,7 +57,7 @@ extension CoderIDEMCPServerApp {
             status: status.isEmpty ? nil : status,
             file: args["file"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             limit: limitVal,
-            includeSensitiveDetails: true
+            includeSensitiveDetails: false
         )
         if findings.isEmpty {
             return reviewOK("No findings match the query.")
