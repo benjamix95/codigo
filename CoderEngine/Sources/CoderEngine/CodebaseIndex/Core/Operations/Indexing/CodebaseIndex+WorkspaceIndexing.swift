@@ -42,10 +42,8 @@ extension CodebaseIndex {
         let indexingProgressTotal = max(1, filesToIndex.count + 1) // + semantic phase
         _indexingProgress = (current: 0, total: indexingProgressTotal)
 
-        // Parallelize symbol extraction: SymbolExtractor.indexFileWithContent is a
+        // Parallelize symbol extraction: SymbolExtractor.indexFile is a
         // pure static function (file read + regex), safe to run concurrently.
-        // We capture file content here to avoid double I/O in the semantic index phase.
-        var contentCache: [String: String] = [:]
         let batchSize = 64
         for batchStart in stride(from: 0, to: filesToIndex.count, by: batchSize) {
             if Task.isCancelled {
@@ -54,32 +52,31 @@ extension CodebaseIndex {
             let batchEnd = min(batchStart + batchSize, filesToIndex.count)
             let batch = filesToIndex[batchStart..<batchEnd]
 
-            let results: [(IndexedFile, String)] = await withTaskGroup(
-                of: (IndexedFile, String)?.self,
-                returning: [(IndexedFile, String)].self
+            let results: [IndexedFile] = await withTaskGroup(
+                of: IndexedFile?.self,
+                returning: [IndexedFile].self
             ) { group in
                 for node in batch {
                     group.addTask {
-                        SymbolExtractor.indexFileWithContent(
+                        SymbolExtractor.indexFile(
                             absolutePath: node.absolutePath,
                             relativePath: node.relativePath,
                             language: node.language
                         )
                     }
                 }
-                var collected: [(IndexedFile, String)] = []
+                var collected: [IndexedFile] = []
                 for await result in group {
-                    if let pair = result {
-                        collected.append(pair)
+                    if let indexed = result {
+                        collected.append(indexed)
                     }
                 }
                 return collected
             }
 
             // Merge results sequentially (actor-isolated mutations)
-            for (indexed, content) in results {
+            for indexed in results {
                 addIndexedFile(indexed)
-                contentCache[indexed.absolutePath] = content
                 totalFilesScanned += 1
             }
             _indexingProgress = (current: batchEnd, total: indexingProgressTotal)
@@ -112,10 +109,10 @@ extension CodebaseIndex {
                     Self.logger.info("indexWorkspace: reusing persisted semantic index (\(loadedStatus.totalChunks) chunks, simHash match)")
                 } else {
                     Self.logger.info("indexWorkspace: persisted semantic index stale, rebuilding")
-                    await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot, contentCache: contentCache)
+                    await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot)
                 }
             } else {
-                await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot, contentCache: contentCache)
+                await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot)
             }
         }
         _indexingProgress = (current: indexingProgressTotal, total: indexingProgressTotal)
