@@ -94,16 +94,6 @@ extension ToolEnabledLLMProvider {
                     continue
                 }
 
-                if let hash = requiredPolicyHash,
-                   shouldEmitSyntheticPolicyAck(
-                    forRawEventType: type,
-                    requiredHash: hash,
-                    didEmitPolicyAck: didEmitPolicyAck
-                   ) {
-                    continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
-                    didEmitPolicyAck = true
-                }
-
                 guard type == "tool_call_suggested" else {
                     continuation.yield(event)
                     continue
@@ -206,16 +196,6 @@ extension ToolEnabledLLMProvider {
                 if legacyInvokeSwarm || resolvedSubagent != nil {
                     localAcceptedSubagentInFirstRound = true
                 }
-                if let hash = requiredPolicyHash,
-                   shouldEmitSyntheticPolicyAck(
-                    for: marker,
-                    requiredHash: hash,
-                    didEmitPolicyAck: didEmitPolicyAck
-                   ) {
-                    continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
-                    didEmitPolicyAck = true
-                }
-
                 if let resolvedSubagent {
                     pendingSubagentCalls.append((marker: effectiveMarker, name: effectiveName))
                     let toolCallId = effectiveMarker.payload["id"] ?? UUID().uuidString
