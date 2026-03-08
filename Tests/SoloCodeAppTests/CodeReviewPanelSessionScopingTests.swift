@@ -206,6 +206,117 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertTrue(store.hasSelectedMode(.bugFinder))
     }
 
+    func testStructuredChatFindingsSyncsIntoFindingsTimelineAndDeduplicates() async throws {
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!
+        let sessionId = "review-session-chat"
+        taskStore.ingestCodeReviewSnapshot(
+            makeSnapshot(sessionId: sessionId, conversationId: conversationId),
+            conversationId: conversationId
+        )
+
+        let store = makePanelStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId
+        )
+        store.setSelectedSession(sessionId)
+
+        let firstMessageId = UUID()
+        store.appendChatMessage(
+            ReviewPanelMessage(
+                id: firstMessageId,
+                role: .assistant,
+                kind: .reviewRun,
+                content: """
+                ## Findings
+                - Ho trovato un bug reale.
+
+                ```review_findings
+                {
+                  "findings": [
+                    {
+                      "severity": "warning",
+                      "category": "correctness",
+                      "file": "Sources/App/Main.swift",
+                      "line": 42,
+                      "message": "Missing guard before dereferencing the session",
+                      "suggested_fix": "Add a guard for the active session before reading the snapshot.",
+                      "confidence": 0.91
+                    }
+                  ]
+                }
+                ```
+                """
+            )
+        )
+
+        await store.syncStructuredFindingsFromChatResponse(messageId: firstMessageId)
+
+        let firstSnapshot = try XCTUnwrap(
+            taskStore.codeReviewSnapshot(
+                sessionId: sessionId,
+                conversationId: conversationId
+            )
+        )
+        XCTAssertEqual(firstSnapshot.findings.count, 1)
+        XCTAssertEqual(firstSnapshot.candidates.count, 0)
+        XCTAssertEqual(firstSnapshot.findings.first?.filePath, "Sources/App/Main.swift")
+        XCTAssertEqual(firstSnapshot.findings.first?.lineNumber, 42)
+        XCTAssertEqual(
+            firstSnapshot.findings.first?.suggestedFix,
+            "Add a guard for the active session before reading the snapshot."
+        )
+        XCTAssertEqual(firstSnapshot.events.count, 1)
+        XCTAssertEqual(firstSnapshot.events.first?.type, .findingAdded)
+        XCTAssertEqual(firstSnapshot.events.first?.metadata["file_path"], "Sources/App/Main.swift")
+        XCTAssertFalse(
+            store.chatMessages.first(where: { $0.id == firstMessageId })?.content.contains("```review_findings") ?? true
+        )
+
+        let duplicateMessageId = UUID()
+        store.appendChatMessage(
+            ReviewPanelMessage(
+                id: duplicateMessageId,
+                role: .assistant,
+                kind: .reviewRun,
+                content: """
+                ## Findings
+                - Ripeto lo stesso finding.
+
+                ```review_findings
+                {
+                  "findings": [
+                    {
+                      "severity": "warning",
+                      "category": "correctness",
+                      "file": "Sources/App/Main.swift",
+                      "line": 42,
+                      "message": "Missing guard before dereferencing the session",
+                      "suggested_fix": "Add a guard for the active session before reading the snapshot.",
+                      "confidence": 0.91
+                    }
+                  ]
+                }
+                ```
+                """
+            )
+        )
+
+        await store.syncStructuredFindingsFromChatResponse(messageId: duplicateMessageId)
+
+        let deduplicatedSnapshot = try XCTUnwrap(
+            taskStore.codeReviewSnapshot(
+                sessionId: sessionId,
+                conversationId: conversationId
+            )
+        )
+        XCTAssertEqual(deduplicatedSnapshot.findings.count, 1)
+        XCTAssertEqual(
+            deduplicatedSnapshot.events.filter { $0.type == .findingAdded }.count,
+            1
+        )
+    }
+
     private func makePanelStore(
         taskActivityStore: TaskActivityStore,
         conversationId: UUID?

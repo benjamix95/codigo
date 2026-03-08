@@ -196,15 +196,23 @@ extension ReviewPanelCoordinator {
         userMessage: String,
         sessionSummary: String,
         findingsCount: Int,
-        openCount: Int
+        openCount: Int,
+        activeSessionId: String?,
+        conversationId: UUID?
     ) -> String {
-        """
+        let sessionLine = activeSessionId.map { "- Active review session: \($0)" }
+            ?? "- Active review session: unavailable"
+        let conversationLine = conversationId.map { "- Conversation scope: \($0.uuidString)" }
+            ?? "- Conversation scope: none"
+        return """
         You are the dedicated chat for an active code review session.
         Your primary focus is bug hunting, regression detection, security review, and test gaps.
         You have access to the full tool-enabled review environment exposed by the runtime. When a tool can materially improve accuracy, use it instead of guessing.
         Prefer bug-hunter and security-auditor behaviour: verify before asserting, prioritize concrete risks, and surface only actionable findings.
 
         Current review state:
+        \(sessionLine)
+        \(conversationLine)
         \(sessionSummary)
         - Total findings: \(findingsCount)
         - Open findings: \(openCount)
@@ -237,6 +245,9 @@ extension ReviewPanelCoordinator {
         ```
 
         Rules:
+        - Reuse the current active review session for review tools and findings updates.
+        - Do not call `review_start` unless the user explicitly asks to start a new review session.
+        - When a review tool accepts them, always pass `session_id` and `conversation_id` for the active session above.
         - Emit the block only when you are introducing or updating actionable findings.
         - If there are no actionable findings, do not emit the block.
         - Use categories: correctness, regression, concurrency, security, tests, maintainability, performance, other.

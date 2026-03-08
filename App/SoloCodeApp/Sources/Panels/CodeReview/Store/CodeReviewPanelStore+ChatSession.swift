@@ -142,7 +142,9 @@ extension CodeReviewPanelStore {
             userMessage: userMessage,
             sessionSummary: summary + findingsContext,
             findingsCount: findingsCount,
-            openCount: openCount
+            openCount: openCount,
+            activeSessionId: selectedSessionId,
+            conversationId: conversationId
         )
     }
 

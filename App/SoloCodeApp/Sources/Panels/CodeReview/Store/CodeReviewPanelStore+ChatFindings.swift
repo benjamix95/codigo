@@ -21,47 +21,33 @@ extension CodeReviewPanelStore {
             return
         }
 
-        let merged = mergeChatFindings(
-            existing: snapshot.candidates,
+        let merge = mergeChatFindings(
+            existing: snapshot.findings,
             incoming: extraction.findings
         )
-        let updated = CodeReviewSessionSnapshot(
-            sessionId: snapshot.sessionId,
-            conversationId: snapshot.conversationId,
-            mutationSequence: snapshot.mutationSequence + 1,
-            phase: snapshot.phase,
-            stage: snapshot.stage,
-            findings: snapshot.findings,
-            candidates: merged,
-            patches: snapshot.patches,
-            events: snapshot.events + [
-                CodeReviewSessionEvent(
-                    type: .candidateAdded,
-                    detail: "Chat response synced \(extraction.findings.count) candidate(s)",
-                    metadata: ["source": "review-panel-chat"]
-                ),
-            ],
-            config: snapshot.config,
-            scope: snapshot.scope,
-            workspacePath: snapshot.workspacePath,
-            currentRound: snapshot.currentRound,
-            activeWorkerCount: snapshot.activeWorkerCount,
-            startedAt: snapshot.startedAt,
-            completedAt: snapshot.completedAt,
-            analysisCompletedAt: snapshot.analysisCompletedAt,
-            lastError: snapshot.lastError,
-            currentJobId: snapshot.currentJobId,
-            lastTestStatus: snapshot.lastTestStatus,
-            audit: snapshot.audit,
-            outcome: snapshot.copying(candidates: merged).buildOutcomeSummary(),
-            lastUpdatedAt: Date()
+
+        guard !merge.inserted.isEmpty else {
+            return
+        }
+
+        let events = merge.inserted.map {
+            CodeReviewSessionEvent.findingAdded(
+                findingId: $0.id,
+                severity: $0.severity.rawValue,
+                filePath: $0.filePath
+            )
+        }
+        let updated = snapshot.copying(
+            findings: merge.all,
+            events: snapshot.events + events,
+            outcome: snapshot.copying(findings: merge.all).buildOutcomeSummary()
         )
         taskActivityStore.ingestCodeReviewSnapshot(
             updated,
             conversationId: conversationId
         )
         appendPanelSystemMessage(
-            "Synced \(extraction.findings.count) candidate(s) from chat into the review workflow.",
+            "Synced \(merge.inserted.count) finding(s) from chat into the Findings tab.",
             kind: .statusNote,
             selectChatTab: false
         )
@@ -69,7 +55,7 @@ extension CodeReviewPanelStore {
 
     private func extractChatFindingsPayload(
         from content: String
-    ) -> (visibleContent: String, findings: [ReviewCandidate])? {
+    ) -> (visibleContent: String, findings: [CodeReviewFinding])? {
         let pattern = #"```review_findings\s*(?:\r?\n)(\{[\s\S]*?\})\s*(?:\r?\n)```"#
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(
@@ -99,7 +85,7 @@ extension CodeReviewPanelStore {
         return (visible, findings)
     }
 
-    private func parseChatFinding(_ raw: [String: Any]) -> ReviewCandidate? {
+    private func parseChatFinding(_ raw: [String: Any]) -> CodeReviewFinding? {
         guard let file = raw["file"] as? String,
               let message = raw["message"] as? String else {
             return nil
@@ -109,7 +95,7 @@ extension CodeReviewPanelStore {
         let line = raw["line"] as? Int
         let confidence = raw["confidence"] as? Double
         let suggestedFix = raw["suggested_fix"] as? String
-        let finding = CodeReviewFinding.fromRawTask(
+        let baseFinding = CodeReviewFinding.fromRawTask(
             id: "chat-\(UUID().uuidString.prefix(8))",
             description: message,
             files: [file],
@@ -123,41 +109,41 @@ extension CodeReviewPanelStore {
             sourceTool: "review-panel-chat",
             blocking: nil
         )
-        return ReviewCandidateVerificationService.candidate(
-            from: CodeReviewFinding(
-                id: finding.id,
-                severity: finding.severity,
-                category: finding.category,
-                origin: finding.origin,
-                filePath: finding.filePath,
-                lineNumber: finding.lineNumber,
-                endLineNumber: finding.endLineNumber,
-                message: finding.message,
-                suggestedFix: suggestedFix,
-                confidence: finding.confidence,
-                evidence: finding.evidence,
-                sourceTool: finding.sourceTool
-            ),
-            signalType: .manual
+        return CodeReviewFinding(
+            id: baseFinding.id,
+            severity: baseFinding.severity,
+            category: baseFinding.category,
+            origin: baseFinding.origin,
+            filePath: baseFinding.filePath,
+            lineNumber: baseFinding.lineNumber,
+            endLineNumber: baseFinding.endLineNumber,
+            message: baseFinding.message,
+            suggestedFix: suggestedFix,
+            confidence: baseFinding.confidence,
+            evidence: baseFinding.evidence,
+            sourceTool: baseFinding.sourceTool,
+            blocking: baseFinding.blocking
         )
     }
 
     private func mergeChatFindings(
-        existing: [ReviewCandidate],
-        incoming: [ReviewCandidate]
-    ) -> [ReviewCandidate] {
+        existing: [CodeReviewFinding],
+        incoming: [CodeReviewFinding]
+    ) -> (all: [CodeReviewFinding], inserted: [CodeReviewFinding]) {
         var seen = Set(existing.map(chatFindingKey))
         var merged = existing
+        var inserted: [CodeReviewFinding] = []
         for finding in incoming {
             let key = chatFindingKey(finding)
             if seen.insert(key).inserted {
                 merged.append(finding)
+                inserted.append(finding)
             }
         }
-        return merged
+        return (merged, inserted)
     }
 
-    private func chatFindingKey(_ finding: ReviewCandidate) -> String {
+    private func chatFindingKey(_ finding: CodeReviewFinding) -> String {
         [
             finding.filePath.lowercased(),
             String(finding.lineNumber ?? 0),

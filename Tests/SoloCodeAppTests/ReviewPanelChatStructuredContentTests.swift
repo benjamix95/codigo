@@ -44,11 +44,14 @@ final class ReviewPanelChatStructuredContentTests: XCTestCase {
     }
 
     func testChatContextPromptEnforcesBugSecurityAndMarkdownStructure() {
+        let conversationId = UUID(uuidString: "11111111-2222-3333-4444-555555555555")
         let prompt = ReviewPanelCoordinator.chatContextPrompt(
             userMessage: "controlla la sessione corrente",
             sessionSummary: "Phase: running\nScope: uncommitted",
             findingsCount: 3,
-            openCount: 2
+            openCount: 2,
+            activeSessionId: "review-session-1",
+            conversationId: conversationId
         )
 
         XCTAssertTrue(prompt.contains("primary focus is bug hunting"))
@@ -57,5 +60,10 @@ final class ReviewPanelChatStructuredContentTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Use well-structured markdown"))
         XCTAssertTrue(prompt.contains("## Findings"))
         XCTAssertTrue(prompt.contains("review_findings"))
+        XCTAssertTrue(prompt.contains("review-session-1"))
+        XCTAssertTrue(prompt.contains(conversationId?.uuidString ?? ""))
+        XCTAssertTrue(prompt.contains("Reuse the current active review session"))
+        XCTAssertTrue(prompt.contains("Do not call `review_start` unless the user explicitly asks"))
+        XCTAssertTrue(prompt.contains("always pass `session_id` and `conversation_id`"))
     }
 }

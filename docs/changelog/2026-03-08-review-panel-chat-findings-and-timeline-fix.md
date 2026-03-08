@@ -1,0 +1,8 @@
+# 2026-03-08 - Review panel chat findings e timeline sync
+
+- Documentato il bug in [P1-2026-03-08-review-panel-chat-findings-and-timeline-desync.md](/Users/benjaminstoica/SoloCode/docs/bugs/P1-2026-03-08-review-panel-chat-findings-and-timeline-desync.md).
+- Aggiornato [CodeReviewPanelStore+ChatFindings.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+ChatFindings.swift) per convertire i blocchi `review_findings` della chat in `CodeReviewFinding`, salvarli nei findings verificati del pannello, deduplicarli e generare eventi timeline `finding_added`.
+- Aggiornato [CodeReviewPanelStore+ChatSession.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+ChatSession.swift) per passare al prompt della chat l'`activeSessionId` e il `conversationId` correnti.
+- Rafforzato [ReviewPanelCoordinator+Prompts.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Panels/CodeReview/Coordinator/ReviewPanelCoordinator+Prompts.swift) con regole esplicite di riuso della sessione review attiva, divieto di `review_start` implicito e obbligo di passare `session_id` e `conversation_id` ai tool review quando supportati.
+- Estesi [CodeReviewPanelSessionScopingTests.swift](/Users/benjaminstoica/SoloCode/Tests/SoloCodeAppTests/CodeReviewPanelSessionScopingTests.swift) con una regressione che verifica sync verso Findings, evento timeline e deduplica dei finding della chat.
+- Estesi [ReviewPanelChatStructuredContentTests.swift](/Users/benjaminstoica/SoloCode/Tests/SoloCodeAppTests/ReviewPanelChatStructuredContentTests.swift) per verificare che il prompt chat includa sessione attiva, conversation scope e vincoli sul riuso della review session.
