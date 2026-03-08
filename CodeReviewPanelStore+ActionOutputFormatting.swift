@@ -18,9 +18,11 @@ extension CodeReviewPanelStore {
                 return ("Thinking", detail)
             }
         case "assistant_update":
+            // Prefer "output" (up to 6k chars) over "detail" (truncated to 240 chars)
             if let detail = firstNonEmpty([
-                payload["detail"], payload["text"],
-                payload["content"], payload["summary"],
+                payload["output"], payload["content"],
+                payload["text"], payload["detail"],
+                payload["summary"],
             ]) {
                 return ("Response", detail)
             }
