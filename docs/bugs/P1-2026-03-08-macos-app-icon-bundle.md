@@ -12,7 +12,7 @@
   3. Confrontare l'icona mostrata con quella vista nel Dock.
 - Risultato attuale: il Dock può mostrare l'icona corretta grazie a un override runtime, mentre il sistema non dispone di una bundle icon stabile.
 - Risultato atteso: tutte le superfici macOS devono usare la stessa icona bundle (`.icns`) dichiarata nel pacchetto applicazione.
-- Causa probabile: l'app impostava `applicationIconImage` a runtime da `AppLogo.png`, ma il bundle non dichiarava né installava correttamente un file icona `.icns` in `Contents/Resources` e mancava `CFBundleExecutable`.
+- Causa probabile: combinazione di metadata bundle incompleti, asset icona degradati e firma bundle locale incoerente. L'app impostava `applicationIconImage` a runtime da `AppLogo.png`, ma il bundle non dichiarava né installava correttamente un file icona `.icns`, mancava `CFBundleExecutable`, i PNG in `AppIcon.appiconset` non erano coerenti con il sorgente principale e il bundle rilanciato non veniva rifirmato dopo la copia delle risorse.
 - Scope consentito: `Info.plist`, packaging app macOS, installer icona bundle, test di regressione packaging.
 - Non-scope: redesign grafico dell'icona, refactor UI, modifiche ai flussi notifiche.
 - Moduli confinanti da verificare: bootstrap app, creazione `Codigo.app`, risoluzione risorse SwiftPM.

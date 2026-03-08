@@ -138,9 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             try fileManager.copyItem(at: plistURL, to: bundledInfoURL)
         }
-
-        // During local SwiftPM runs we avoid blocking the main thread on codesign.
-        // Gatekeeper signing is handled by the packaging workflow.
+        try AppBundleSigner.signAdHocIfPossible(appURL: appURL)
     }
 
     private func copySiblingExecutableIfPresent(named name: String, from sourceDir: URL, to targetDir: URL) throws {
