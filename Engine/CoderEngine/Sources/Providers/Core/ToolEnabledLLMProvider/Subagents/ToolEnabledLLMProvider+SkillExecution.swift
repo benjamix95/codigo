@@ -1,6 +1,10 @@
 import Foundation
 
 extension ToolEnabledLLMProvider {
+    private struct SkillExecutionStreamCapture: Sendable {
+        let forwardedEvents: [StreamEvent]
+        let output: String
+    }
 
     /// Execute the skill tool by spawning a subagent with the skill's SKILL.md instructions.
     func executeSkillTool(marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
@@ -62,37 +66,56 @@ extension ToolEnabledLLMProvider {
                 subagentProviderFactory: nil
             )
             let systemPrompt = """
-            You are executing the **\(skillName)** skill. Follow these instructions exactly:
-
-            \(skillContent)
-
-            Execute the user's task using the tools available to you (read, grep, bash, etc.).
+            \(SkillExecutionPolicy.buildPrompt(
+                skillName: skillName,
+                skillContent: skillContent,
+                userTask: userPrompt
+            ))
             """
-            let fullPrompt = "\(systemPrompt)\n\n---\n\n**Task:** \(userPrompt)"
+            let fullPrompt = systemPrompt
 
-            var fullTextParts: [String] = []
-            var fullTextLength = 0
-            let stream = try await subagentProvider.send(
-                prompt: fullPrompt, context: context, imageURLs: nil
-            )
-            for try await event in stream {
-                switch event {
-                case .textDelta(let delta):
-                    if fullTextLength + delta.count <= 50_000 {
-                        fullTextParts.append(delta)
-                        fullTextLength += delta.count
+            let capture = try await AsyncTimeout.run(
+                seconds: SkillExecutionPolicy.maxExecutionSeconds,
+                operationName: "skill \(skillName)"
+            ) {
+                var forwardedEvents: [StreamEvent] = []
+                var fullTextParts: [String] = []
+                var fullTextLength = 0
+                let stream = try await subagentProvider.send(
+                    prompt: fullPrompt,
+                    context: context,
+                    imageURLs: nil
+                )
+                for try await event in stream {
+                    switch event {
+                    case .textDelta(let delta):
+                        if fullTextLength + delta.count <= SkillExecutionPolicy.maxBufferedProviderCharacters {
+                            fullTextParts.append(delta)
+                            fullTextLength += delta.count
+                        }
+                    case .raw(let type, var payload):
+                        payload["swarm_id"] = skillId
+                        payload["group_id"] = "swarm-\(skillId)"
+                        forwardedEvents.append(.raw(type: type, payload: payload))
+                    default:
+                        break
                     }
-                case .raw(let type, var payload):
-                    payload["swarm_id"] = skillId
-                    payload["group_id"] = "swarm-\(skillId)"
-                    events.append(.raw(type: type, payload: payload))
-                default:
-                    break
                 }
+
+                return SkillExecutionStreamCapture(
+                    forwardedEvents: forwardedEvents,
+                    output: String(
+                        fullTextParts
+                            .joined()
+                            .prefix(SkillExecutionPolicy.maxProviderOutputCharacters)
+                    )
+                )
             }
 
+            events.append(contentsOf: capture.forwardedEvents)
+
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
-            let output = String(fullTextParts.joined().prefix(12000))
+            let output = capture.output
 
             events.append(.raw(type: "agent", payload: [
                 "title": "Skill: \(skillName)",

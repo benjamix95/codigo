@@ -42,15 +42,11 @@ extension UnifiedToolRuntime {
             ? "Execute this skill according to its instructions. If the user's request is in the conversation context, use that."
             : task
 
-        let fullPrompt = """
-        You are executing the **\(skillName)** skill. Follow these instructions exactly:
-
-        \(skillContent)
-
-        ---
-
-        **Task:** \(userTask)
-        """
+        let fullPrompt = SkillExecutionPolicy.buildPrompt(
+            skillName: skillName,
+            skillContent: skillContent,
+            userTask: userTask
+        )
 
         var args = ["exec", "--json"]
         if sandboxMode == "danger-full-access" {
@@ -62,13 +58,18 @@ extension UnifiedToolRuntime {
         args += ["--sandbox", sandboxMode, "--cd", workspacePath, fullPrompt]
 
         do {
-            let (outputLines, status) = try await ProcessRunner.runCollecting(
-                executable: codexPath,
-                arguments: args,
-                workingDirectory: URL(fileURLWithPath: workspacePath),
-                executionController: nil,
-                scope: .agent
-            )
+            let (outputLines, status) = try await AsyncTimeout.run(
+                seconds: SkillExecutionPolicy.maxExecutionSeconds,
+                operationName: "skill \(skillName)"
+            ) {
+                try await ProcessRunner.runCollecting(
+                    executable: codexPath,
+                    arguments: args,
+                    workingDirectory: URL(fileURLWithPath: workspacePath),
+                    executionController: nil,
+                    scope: .agent
+                )
+            }
 
             let extractedText = Self.extractTextFromCodexOutput(outputLines)
             let output = extractedText.isEmpty
@@ -77,7 +78,7 @@ extension UnifiedToolRuntime {
 
             let ok = status == 0
             var payload: [String: String] = [
-                "output": String(output.prefix(100_000)),
+                "output": String(output.prefix(SkillExecutionPolicy.maxRuntimeOutputCharacters)),
                 "skill": skillName,
             ]
             if !ok {
@@ -126,4 +127,5 @@ extension UnifiedToolRuntime {
         }
         return textParts.joined()
     }
+
 }

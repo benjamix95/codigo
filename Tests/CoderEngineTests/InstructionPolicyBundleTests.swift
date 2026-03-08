@@ -137,7 +137,6 @@ final class InstructionPolicyBundleTests: XCTestCase {
 
         XCTAssertEqual(InstructionPolicyBundle.skillContent(for: skillName), "body-content")
     }
-
     private func withEnvironmentVariable(_ key: String, value: String, operation: () throws -> Void) rethrows {
         let previous = getenv(key).map { String(cString: $0) }
         setenv(key, value, 1)
