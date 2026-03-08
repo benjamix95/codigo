@@ -50,7 +50,15 @@ extension PlanPanelView {
     }
 
     var planFileName: String {
-        let selectedHistoryTitle = selectedHistoryEntryForConversation()?.title
+        let selectedHistoryTitle: String? = {
+            guard !shouldPreferLivePlanBoardOverHistory(
+                phase: planFlowPhase,
+                planningState: planningState
+            ) else {
+                return nil
+            }
+            return selectedHistoryEntryForConversation()?.title
+        }()
         let boardGoal = chatStore.planBoard(for: conversationId)?
             .goal
             .trimmingCharacters(in: .whitespacesAndNewlines)

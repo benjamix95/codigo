@@ -72,6 +72,21 @@ func shouldMirrorAssistantContentInPlanWorkspace(hasPlanContext: Bool) -> Bool {
     hasPlanContext
 }
 
+func shouldPreferLivePlanBoardOverHistory(
+    phase: PlanFlowPhase,
+    planningState: PlanningState
+) -> Bool {
+    if planningState != .idle {
+        return true
+    }
+    switch phase {
+    case .proposalReady, .readyToBuild, .building:
+        return true
+    case .idle, .analyzing, .questioning, .generating:
+        return false
+    }
+}
+
 func clarificationWizardIdentityKey(
     for questionsMarkdown: String,
     seed: Int = 0

@@ -241,4 +241,43 @@ final class PlanPanelWorkspacePolicyTests: XCTestCase {
             clarificationWizardIdentityKey(for: questions, seed: 2)
         )
     }
+
+    func testLivePlanBoardPreferredOverHistoryDuringActivePlanPhases() {
+        XCTAssertTrue(
+            shouldPreferLivePlanBoardOverHistory(
+                phase: .proposalReady,
+                planningState: .idle
+            )
+        )
+        XCTAssertTrue(
+            shouldPreferLivePlanBoardOverHistory(
+                phase: .readyToBuild,
+                planningState: .idle
+            )
+        )
+        XCTAssertTrue(
+            shouldPreferLivePlanBoardOverHistory(
+                phase: .building,
+                planningState: .idle
+            )
+        )
+    }
+
+    func testHistoryMayBePreferredWhenPlanPanelIsIdle() {
+        XCTAssertFalse(
+            shouldPreferLivePlanBoardOverHistory(
+                phase: .idle,
+                planningState: .idle
+            )
+        )
+    }
+
+    func testLivePlanBoardPreferredWhenPlanningStateIsActive() {
+        XCTAssertTrue(
+            shouldPreferLivePlanBoardOverHistory(
+                phase: .idle,
+                planningState: .awaitingChoice(planContent: "content", options: [])
+            )
+        )
+    }
 }

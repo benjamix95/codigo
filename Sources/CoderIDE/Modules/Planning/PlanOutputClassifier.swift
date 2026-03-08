@@ -37,16 +37,6 @@ enum PlanOutputClassifier {
             )
         }
 
-        if hasNoQuestionsNeededSignal(fullText) {
-            return PlanOutputClassification(
-                hasClarificationQuestions: false,
-                hasStrictOptions: false,
-                nextPhase: .generating,
-                planningState: .idle,
-                isConfident: true
-            )
-        }
-
         let clarifications = PlanOptionsParser.parseClarificationQuestions(from: fullText) ?? []
         let hasClarificationQuestions = !clarifications.isEmpty
 
@@ -90,6 +80,16 @@ enum PlanOutputClassifier {
                     isConfident: true
                 )
             }
+        }
+
+        if hasNoQuestionsNeededSignal(fullText) {
+            return PlanOutputClassification(
+                hasClarificationQuestions: false,
+                hasStrictOptions: false,
+                nextPhase: .generating,
+                planningState: .idle,
+                isConfident: true
+            )
         }
 
         return PlanOutputClassification(

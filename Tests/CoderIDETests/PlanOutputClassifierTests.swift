@@ -71,4 +71,29 @@ final class PlanOutputClassifierTests: XCTestCase {
         XCTAssertEqual(result.nextPhase, .analyzing)
         XCTAssertNil(result.planningState)
     }
+
+    func testClassifyNoQuestionsSignalDoesNotOverrideTodoCompliantOptions() {
+        let input = """
+        NO_QUESTIONS_NEEDED
+
+        ## Option 1: Refactor
+        ## Todo
+        - [ ] Step 1
+        - [ ] Step 2
+        """
+
+        let result = PlanOutputClassifier.classify(
+            fullText: input,
+            current: .questioning,
+            coderMode: .plan,
+            shouldRunPlanInline: false
+        )
+
+        XCTAssertTrue(result.isConfident)
+        XCTAssertEqual(result.nextPhase, .proposalReady)
+        guard case .awaitingChoice(_, let options) = result.planningState else {
+            return XCTFail("planningState should be awaitingChoice")
+        }
+        XCTAssertEqual(options.count, 1)
+    }
 }

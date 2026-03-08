@@ -190,6 +190,12 @@ struct PlanPanelView: View {
         }
         .onChange(of: providerRegistry.selectedProviderId) { _, _ in refreshProviderAuthCache() }
         .onChange(of: planProviderId) { _, _ in refreshProviderAuthCache() }
+        .onReceive(providerRegistry.objectWillChange) { _ in
+            refreshProviderAuthCache()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .providersDidRegister)) { _ in
+            refreshProviderAuthCache()
+        }
         .onChange(of: conversationId) { _, _ in
             // New conversation => plan panel should immediately reflect the new context.
             planText = ""

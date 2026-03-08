@@ -44,7 +44,7 @@ final class PlanQuestionPhaseDecisionTests: XCTestCase {
         XCTAssertEqual(decision, .proceedToGeneration)
     }
 
-    func testClassifierPrioritizesNoQuestionsSignalOverQuestionsBlock() {
+    func testClassifierPrefersQuestionsBlockOverNoQuestionsSignal() {
         let text = """
         NO_QUESTIONS_NEEDED
 
@@ -60,7 +60,9 @@ final class PlanQuestionPhaseDecisionTests: XCTestCase {
             shouldRunPlanInline: false
         )
         XCTAssertTrue(classification.isConfident)
-        XCTAssertEqual(classification.nextPhase, .generating)
-        XCTAssertEqual(classification.planningState, .idle)
+        XCTAssertEqual(classification.nextPhase, .questioning)
+        guard case .awaitingClarification = classification.planningState else {
+            return XCTFail("Expected clarification state to win over marker text")
+        }
     }
 }

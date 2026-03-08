@@ -41,9 +41,6 @@ func decidePlanQuestionPhaseOutput(
     coderMode: CoderMode,
     shouldRunPlanInline: Bool
 ) -> PlanQuestionPhaseDecision {
-    if hasNoQuestionsNeededSignal(text) {
-        return .proceedToGeneration
-    }
     let classification = PlanOutputClassifier.classify(
         fullText: text,
         current: .questioning,

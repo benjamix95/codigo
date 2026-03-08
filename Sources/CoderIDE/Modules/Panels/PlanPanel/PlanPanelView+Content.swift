@@ -5,6 +5,10 @@ extension PlanPanelView {
     /// During multi-turn plan phases, prefer planStreamingContent which is routed directly from the flow.
     var displayPlanContent: String {
         if isEditing { return planText }
+        let preferLiveBoard = shouldPreferLivePlanBoardOverHistory(
+            phase: planFlowPhase,
+            planningState: planningState
+        )
 
         if isPreBuildPlanState {
             if !planStreamingContent.isEmpty {
@@ -14,10 +18,6 @@ extension PlanPanelView {
                 return questions
             }
             return ""
-        }
-
-        if let selected = latestPlanHistoryEntry() {
-            return resolvedPreviewContent(for: selected)
         }
 
         if let board = chatStore.planBoard(for: conversationId) {
@@ -35,6 +35,10 @@ extension PlanPanelView {
             if let first = firstOption(byId: board.options) {
                 return first.fullText
             }
+        }
+
+        if !preferLiveBoard, let selected = latestPlanHistoryEntry() {
+            return resolvedPreviewContent(for: selected)
         }
 
         let hasBoard = chatStore.planBoard(for: conversationId) != nil
