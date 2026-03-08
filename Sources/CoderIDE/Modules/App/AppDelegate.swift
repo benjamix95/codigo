@@ -11,16 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApplication.shared.setActivationPolicy(.regular)
 
-        // Set the app icon asynchronously to avoid blocking launch
-        DispatchQueue.global(qos: .userInitiated).async {
-            if let url = RuntimeResourceLocator.appLogoURL(),
-               let icon = NSImage(contentsOf: url) {
-                DispatchQueue.main.async {
-                    NSApplication.shared.applicationIconImage = icon
-                }
-            }
-        }
-
         installWindowStyleObservers()
 
         DispatchQueue.main.async {
@@ -119,6 +109,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try copyResourceBundles(
             from: executableURL.deletingLastPathComponent(),
             to: resourcesURL
+        )
+        try AppBundleIconInstaller.installIfAvailable(
+            into: resourcesURL,
+            workingDirectoryURL: workingDirectoryURL
         )
 
         let plistCandidates = [

@@ -5,6 +5,10 @@ enum RuntimeResourceLocator {
         resourceURL(named: "AppLogo", withExtension: "png")
     }
 
+    static func appIconURL() -> URL? {
+        resourceURL(named: "Codigo", withExtension: "icns")
+    }
+
     static func fontsDirectoryURL() -> URL? {
         directoryURL(named: "Fonts")
     }

@@ -117,8 +117,10 @@ popd >/dev/null
 OUTPUT="Codigo.app"
 CONTENTS="$OUTPUT/Contents"
 MACOS="$CONTENTS/MacOS"
+RESOURCES="$CONTENTS/Resources"
 INFO_PLIST_SOURCE="Package/Codigo.app/Contents/Info.plist"
 ENTITLEMENTS_SOURCE="Package/Codigo.app/Contents/Entitlements.plist"
+ICON_SOURCE="Sources/CoderIDE/Resources/Codigo.icns"
 
 if [[ ! -f "$INFO_PLIST_SOURCE" ]]; then
   INFO_PLIST_SOURCE="Sources/CoderIDE/Info.plist"
@@ -136,10 +138,15 @@ fi
 echo "Creating $OUTPUT bundle..."
 rm -rf "$OUTPUT"
 mkdir -p "$MACOS"
+mkdir -p "$RESOURCES"
 cp "$EXE" "$MACOS/Codigo"
 cp "$MCP_EXE" "$MACOS/coderide-mcp-server"
 chmod +x "$MACOS/coderide-mcp-server"
 cp "$INFO_PLIST_SOURCE" "$CONTENTS/Info.plist"
+if [[ -f "$ICON_SOURCE" ]]; then
+  cp "$ICON_SOURCE" "$RESOURCES/Codigo.icns"
+fi
+find "$BIN_DIR" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$RESOURCES/" \;
 
 echo "Signing app with: $effective_sign_identity"
 if [[ "$effective_sign_identity" == "-" ]]; then

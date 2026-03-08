@@ -26,6 +26,7 @@ let package = Package(
             ],
             resources: [
                 .process("Resources/AppLogo.png"),
+                .process("Resources/Codigo.icns"),
                 .process("Resources/Assets.xcassets"),
                 .process("Resources/Fonts"),
                 .process("Resources/browser-bridge.js"),
