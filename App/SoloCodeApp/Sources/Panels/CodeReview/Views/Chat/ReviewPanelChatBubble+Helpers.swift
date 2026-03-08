@@ -121,26 +121,10 @@ extension ReviewPanelChatBubble {
                 accent: accent
             )
         } else {
-            Text(message.content)
-                .font(.system(size: 10.5))
-                .foregroundStyle(.white.opacity(0.92))
-                .textSelection(.enabled)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Color.black.opacity(0.28),
-                    in: RoundedRectangle(
-                        cornerRadius: 10,
-                        style: .continuous
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(
-                            DesignSystem.Colors.border.opacity(0.28),
-                            lineWidth: 0.5
-                        )
-                )
+            markdownFallbackBubble(
+                content: message.content,
+                accentColor: accent
+            )
         }
     }
 
@@ -154,11 +138,10 @@ extension ReviewPanelChatBubble {
                 accent: systemBubbleAccent
             )
         } else {
-            Text(message.content)
-                .font(systemBubbleFont)
-                .foregroundStyle(systemBubbleForeground)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            markdownFallbackBubble(
+                content: message.content,
+                accentColor: systemBubbleAccent
+            )
         }
     }
 
@@ -234,6 +217,41 @@ extension ReviewPanelChatBubble {
         .overlay(
             Capsule()
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.18), lineWidth: 0.5)
+        )
+    }
+
+    func markdownFallbackBubble(
+        content: String,
+        accentColor: Color
+    ) -> some View {
+        MarkdownContentView(
+            content: content,
+            context: context,
+            onFileClicked: { path in
+                if let onOpenFileAtLocation {
+                    onOpenFileAtLocation(path, nil)
+                } else {
+                    onOpenFile?(path)
+                }
+            },
+            textAlignment: .leading,
+            isStreaming: message.isStreaming
+        )
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Color.black.opacity(0.28),
+            in: RoundedRectangle(
+                cornerRadius: 10,
+                style: .continuous
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(
+                    accentColor.opacity(0.22),
+                    lineWidth: 0.5
+                )
         )
     }
 }

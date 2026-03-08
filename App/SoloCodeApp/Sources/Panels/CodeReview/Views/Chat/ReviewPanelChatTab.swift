@@ -43,7 +43,7 @@ struct ReviewPanelChatTab: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            Text("Ask anything about the current review,\nfindings, or code quality.")
+            Text("Focus automatico su bug, security, regressioni\ne qualità del codice della review corrente.")
                 .font(.system(size: 10))
                 .foregroundStyle(.quaternary)
                 .multilineTextAlignment(.center)
@@ -92,6 +92,7 @@ struct ReviewPanelChatTab: View {
                         ReviewPanelChatBubble(
                             message: msg,
                             accent: store.accent,
+                            context: projectContext,
                             onOpenFile: onOpenFile,
                             onOpenFileAtLocation: onOpenFileAtLocation,
                             onSelectFinding: { store.focusFinding($0) }
@@ -138,5 +139,10 @@ struct ReviewPanelChatTab: View {
 
     private var todoItems: [TodoItem] {
         todoStore.displayTodosForChat(for: store.conversationId)
+    }
+
+    private var projectContext: ProjectContext? {
+        guard let workspace = store.workspaceStore.activeWorkspace else { return nil }
+        return ProjectContext.fromWorkspace(workspace)
     }
 }

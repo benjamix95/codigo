@@ -5,6 +5,7 @@ import SwiftUI
 struct ReviewPanelChatBubble: View {
     let message: ReviewPanelMessage
     let accent: Color
+    let context: ProjectContext?
     let onOpenFile: ((String) -> Void)?
     let onOpenFileAtLocation: ((String, Int?) -> Void)?
     let onSelectFinding: ((String) -> Void)?

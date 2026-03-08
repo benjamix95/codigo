@@ -1,6 +1,7 @@
 import XCTest
 @testable import CoderIDE
 
+@MainActor
 final class ReviewPanelChatStructuredContentTests: XCTestCase {
     func testSummarySectionsSplitMetadataAndFindings() {
         let message = ReviewPanelMessage(
@@ -40,5 +41,21 @@ final class ReviewPanelChatStructuredContentTests: XCTestCase {
         XCTAssertEqual(sections.map(\.title), ["Run Output", "Verdict"])
         XCTAssertEqual(sections.first?.style, .log)
         XCTAssertEqual(sections.last?.style, .prose)
+    }
+
+    func testChatContextPromptEnforcesBugSecurityAndMarkdownStructure() {
+        let prompt = ReviewPanelCoordinator.chatContextPrompt(
+            userMessage: "controlla la sessione corrente",
+            sessionSummary: "Phase: running\nScope: uncommitted",
+            findingsCount: 3,
+            openCount: 2
+        )
+
+        XCTAssertTrue(prompt.contains("primary focus is bug hunting"))
+        XCTAssertTrue(prompt.contains("security review"))
+        XCTAssertTrue(prompt.contains("full tool-enabled review environment"))
+        XCTAssertTrue(prompt.contains("Use well-structured markdown"))
+        XCTAssertTrue(prompt.contains("## Findings"))
+        XCTAssertTrue(prompt.contains("review_findings"))
     }
 }
