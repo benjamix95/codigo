@@ -13,6 +13,20 @@ struct ReviewPanelChatStructuredSection: Identifiable, Equatable, Codable {
     let lines: [String]
     let style: ReviewPanelChatStructuredSectionStyle
     let isInitiallyExpanded: Bool
+
+    var displayLines: [ReviewPanelChatStructuredDisplayLine] {
+        lines.enumerated().map { index, line in
+            ReviewPanelChatStructuredDisplayLine(
+                id: "\(id)-line-\(index)",
+                text: line
+            )
+        }
+    }
+}
+
+struct ReviewPanelChatStructuredDisplayLine: Identifiable, Equatable, Codable {
+    let id: String
+    let text: String
 }
 
 enum ReviewPanelChatStructuredContent {
@@ -135,9 +149,13 @@ enum ReviewPanelChatStructuredContent {
 
         func flushCurrentSection() {
             guard let currentTitle, !currentLines.isEmpty else { return }
+            let sectionId = uniqueSectionID(
+                for: currentTitle,
+                existingCount: sections.count
+            )
             sections.append(
                 ReviewPanelChatStructuredSection(
-                    id: currentTitle.lowercased().replacingOccurrences(of: " ", with: "-"),
+                    id: sectionId,
                     title: currentTitle,
                     lines: currentLines,
                     style: currentTitle == "Planned Work" ? .findings : .log,
@@ -173,5 +191,15 @@ enum ReviewPanelChatStructuredContent {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("- ") else { return trimmed }
         return String(trimmed.dropFirst(2))
+    }
+
+    private static func uniqueSectionID(
+        for title: String,
+        existingCount: Int
+    ) -> String {
+        let normalizedTitle = title
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+        return "\(normalizedTitle)-\(existingCount)"
     }
 }

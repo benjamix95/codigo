@@ -43,6 +43,49 @@ final class ReviewPanelChatStructuredContentTests: XCTestCase {
         XCTAssertEqual(sections.last?.style, .prose)
     }
 
+    func testReviewRunSectionsAssignUniqueSectionIDsWhenHeadersRepeat() {
+        let message = ReviewPanelMessage(
+            role: .assistant,
+            kind: .reviewRun,
+            content: """
+            ### Planned Work
+            - [ ] Check Main.swift for regressions
+            ### Planned Work
+            - [ ] Check Main.swift for regressions
+            """
+        )
+
+        let sections = ReviewPanelChatStructuredContent.sections(for: message)
+
+        XCTAssertEqual(sections.map(\.id), ["planned-work-0", "planned-work-1"])
+    }
+
+    func testStructuredSectionsExposeUniqueDisplayLineIDsForDuplicateLines() {
+        let section = ReviewPanelChatStructuredSection(
+            id: "metadata",
+            title: "Session",
+            lines: [
+                "mcp_tool_call: 1│import Foundation",
+                "mcp_tool_call: 1│import Foundation",
+                "3│## Bug Fix Record",
+                "3│## Bug Fix Record",
+            ],
+            style: .metadata,
+            isInitiallyExpanded: true
+        )
+
+        let displayLines = section.displayLines
+
+        XCTAssertEqual(displayLines.map(\.text), section.lines)
+        XCTAssertEqual(Set(displayLines.map(\.id)).count, section.lines.count)
+        XCTAssertEqual(displayLines.map(\.id), [
+            "metadata-line-0",
+            "metadata-line-1",
+            "metadata-line-2",
+            "metadata-line-3",
+        ])
+    }
+
     func testChatContextPromptEnforcesBugSecurityAndMarkdownStructure() {
         let conversationId = UUID(uuidString: "11111111-2222-3333-4444-555555555555")
         let prompt = ReviewPanelCoordinator.chatContextPrompt(

@@ -9,13 +9,13 @@ struct ReviewPanelChatStructuredLogView: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(section.lines.enumerated()), id: \.offset) { index, line in
-                        Text(line)
+                    ForEach(section.displayLines) { line in
+                        Text(line.text)
                             .font(.system(size: 9.5, design: .monospaced))
                             .foregroundStyle(.white.opacity(0.78))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .id(logLineId(for: index))
+                            .id(line.id)
                     }
 
                     Color.clear
@@ -39,7 +39,4 @@ struct ReviewPanelChatStructuredLogView: View {
         }
     }
 
-    private func logLineId(for index: Int) -> String {
-        "\(section.id)-line-\(index)"
-    }
 }

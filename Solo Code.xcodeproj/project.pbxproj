@@ -329,6 +329,9 @@
 		338CA34B7055DBB05B04F491 /* CodeReviewAuditService+Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133C7756647DF156EECD89F5 /* CodeReviewAuditService+Support.swift */; };
 		3391620A3A92B0F0ED7ED3C6 /* ChatPanelView+PartN_ClarificationHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23BC7C802B01EA59D851F5ED /* ChatPanelView+PartN_ClarificationHeuristics.swift */; };
 		33939FD3FA51FC5774B36B7F /* ReviewPanelChatStructuredSectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2929C31E23A3C24422B9FA /* ReviewPanelChatStructuredSectionsView.swift */; };
+		A1D0C0F0A1D0C0F0A1D0C001 /* ReviewPanelChatAutoscroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F001 /* ReviewPanelChatAutoscroll.swift */; };
+		A1D0C0F0A1D0C0F0A1D0C002 /* ReviewPanelChatStructuredLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F002 /* ReviewPanelChatStructuredLogView.swift */; };
+		A1D0C0F0A1D0C0F0A1D0C003 /* ReviewPanelChatAutoscrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F003 /* ReviewPanelChatAutoscrollTests.swift */; };
 		33B03FBCC94F03E922B850D9 /* ExtensionRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A65D8F885C7753D6E73F145 /* ExtensionRuntime.swift */; };
 		33B9A0DBE2A9F3F75A073274 /* SidebarView+Sections+Rows.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0EC0337BDCCE523E7A710F /* SidebarView+Sections+Rows.swift */; };
 		346478EDED2AED770E6F91E3 /* SymbolExtractor+Kotlin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F8BD118FFECFBB58E00AD0 /* SymbolExtractor+Kotlin.swift */; };
@@ -2458,6 +2461,9 @@
 		8A68CF0CB1ED6A9324FFDFD5 /* ProviderSupportTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderSupportTests.swift; path = Tests/SoloCodeAppTests/ProviderSupportTests.swift; sourceTree = "<group>"; };
 		8A95471101563A076635E347 /* MinimapRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MinimapRenderer.swift; path = App/SoloCodeApp/Sources/Panels/Navigation/MinimapRenderer.swift; sourceTree = "<group>"; };
 		8A98325326313B7A6FF8539B /* ReviewPanelChatStructuredContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatStructuredContent.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatStructuredContent.swift; sourceTree = "<group>"; };
+		A1D0C0F0A1D0C0F0A1D0F001 /* ReviewPanelChatAutoscroll.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatAutoscroll.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatAutoscroll.swift; sourceTree = "<group>"; };
+		A1D0C0F0A1D0C0F0A1D0F002 /* ReviewPanelChatStructuredLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatStructuredLogView.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatStructuredLogView.swift; sourceTree = "<group>"; };
+		A1D0C0F0A1D0C0F0A1D0F003 /* ReviewPanelChatAutoscrollTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatAutoscrollTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelChatAutoscrollTests.swift; sourceTree = "<group>"; };
 		8AF17E38EF2E8FC8E6A36BAF /* ChatPanelSupport+AutoTodo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelSupport+AutoTodo.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+AutoTodo.swift"; sourceTree = "<group>"; };
 		8B18A41855A66525861E05D2 /* CLIProfileProvisioner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIProfileProvisioner.swift; path = App/SoloCodeApp/Sources/Accounts/Provisioning/CLIProfileProvisioner.swift; sourceTree = "<group>"; };
 		8B3317CFF4FC1837EC88F50B /* PromptProfiles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PromptProfiles.swift; path = Engine/CoderEngine/Sources/SystemPrompts/Dimensions/PromptProfiles.swift; sourceTree = "<group>"; };
@@ -3705,7 +3711,9 @@
 				992CFA17FDB558837F48D8F0 /* ReviewPanelChatMessageContext.swift */,
 				EEEBF52CEBD408A26EDF65FD /* ReviewPanelChatMessageFactory.swift */,
 				7EEB794C1ED432C96C3A07F9 /* ReviewPanelChatProviderPicker.swift */,
+				A1D0C0F0A1D0C0F0A1D0F001 /* ReviewPanelChatAutoscroll.swift */,
 				8A98325326313B7A6FF8539B /* ReviewPanelChatStructuredContent.swift */,
+				A1D0C0F0A1D0C0F0A1D0F002 /* ReviewPanelChatStructuredLogView.swift */,
 				8F2929C31E23A3C24422B9FA /* ReviewPanelChatStructuredSectionsView.swift */,
 				B32A0EA47FB110CF8CF20F96 /* ReviewPanelChatTab.swift */,
 				DD8D672873AA435AAF9A2A3D /* ReviewPanelChatThreadSwitcher.swift */,
@@ -4559,6 +4567,7 @@
 				8A68CF0CB1ED6A9324FFDFD5 /* ProviderSupportTests.swift */,
 				E67B0D83B46F4CBABF637220 /* ReviewPanelChatMessageContextTests.swift */,
 				03952E1935ACE04BBA1A5608 /* ReviewPanelChatMessageFactoryTests.swift */,
+				A1D0C0F0A1D0C0F0A1D0F003 /* ReviewPanelChatAutoscrollTests.swift */,
 				B556DF40E519CA703383CB89 /* ReviewPanelChatSessionStoreTests.swift */,
 				E6817F9D7DB3B601C9CFFD0A /* ReviewPanelChatStructuredContentTests.swift */,
 				992DE5067820D2ECC4AC6DFE /* ReviewPanelLifecycleE2ETests.swift */,
@@ -5636,7 +5645,9 @@
 				0EE85C48237BA4A5F2D27D0D /* ReviewPanelChatMessageContext.swift in Sources */,
 				670A1C98836B38B3A387C4AE /* ReviewPanelChatMessageFactory.swift in Sources */,
 				0F6BEA7696ABFEBBAF228FE2 /* ReviewPanelChatProviderPicker.swift in Sources */,
+				A1D0C0F0A1D0C0F0A1D0C001 /* ReviewPanelChatAutoscroll.swift in Sources */,
 				D699EB87200165E0ACA6F950 /* ReviewPanelChatStructuredContent.swift in Sources */,
+				A1D0C0F0A1D0C0F0A1D0C002 /* ReviewPanelChatStructuredLogView.swift in Sources */,
 				33939FD3FA51FC5774B36B7F /* ReviewPanelChatStructuredSectionsView.swift in Sources */,
 				C71D46A5898D5D79C62D1C06 /* ReviewPanelChatTab.swift in Sources */,
 				E2A39E252EBF85062DE07795 /* ReviewPanelChatThreadSwitcher.swift in Sources */,
@@ -6517,6 +6528,7 @@
 				7B7CBA7D177829E2DFD49D55 /* ProviderSupportTests.swift in Sources */,
 				796D84B9998FB149C019375E /* ReviewPanelChatMessageContextTests.swift in Sources */,
 				891F848F75DEABA6E788DB9B /* ReviewPanelChatMessageFactoryTests.swift in Sources */,
+				A1D0C0F0A1D0C0F0A1D0C003 /* ReviewPanelChatAutoscrollTests.swift in Sources */,
 				3303CEAE109B9071394F31CF /* ReviewPanelChatSessionStoreTests.swift in Sources */,
 				1A7C64C523A2C269FB22B092 /* ReviewPanelChatStructuredContentTests.swift in Sources */,
 				79755DB76AE3FC5FD561BD64 /* ReviewPanelLifecycleE2ETests.swift in Sources */,

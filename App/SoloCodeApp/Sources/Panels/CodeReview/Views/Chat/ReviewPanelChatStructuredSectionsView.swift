@@ -77,8 +77,8 @@ private struct ReviewPanelChatStructuredSectionView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .metadata:
             VStack(alignment: .leading, spacing: 4) {
-                ForEach(section.lines, id: \.self) { line in
-                    Text(line)
+                ForEach(section.displayLines) { line in
+                    Text(line.text)
                         .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.80))
                         .textSelection(.enabled)
@@ -87,13 +87,13 @@ private struct ReviewPanelChatStructuredSectionView: View {
             }
         case .findings:
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(section.lines, id: \.self) { line in
+                ForEach(section.displayLines) { line in
                     HStack(alignment: .top, spacing: 6) {
                         Circle()
                             .fill(accent.opacity(0.55))
                             .frame(width: 5, height: 5)
                             .padding(.top, 4)
-                        Text(line)
+                        Text(line.text)
                             .font(.system(size: 9.5))
                             .foregroundStyle(.white.opacity(0.90))
                             .textSelection(.enabled)
