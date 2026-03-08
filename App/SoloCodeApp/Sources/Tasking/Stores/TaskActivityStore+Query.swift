@@ -86,8 +86,7 @@ extension TaskActivityStore {
             )
             return SwarmLiveReducer.sorted(states: Array(reduced.values))
         }
-        refreshSortedSwarmCardsCacheIfNeeded()
-        return sortedSwarmCardsCache
+        return currentSortedSwarmCardsSnapshot()
     }
 
     func recentActivities(limit: Int) -> [TaskActivity] {

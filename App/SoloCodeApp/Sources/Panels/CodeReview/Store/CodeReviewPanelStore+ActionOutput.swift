@@ -115,12 +115,16 @@ extension CodeReviewPanelStore {
             type: type,
             payload: enrichedPayload
         )
-        taskActivityStore.addEnvelope(envelope)
-        for event in envelope.events {
-            if case .taskActivity(let activity) = event {
-                taskActivityStore.addActivity(
-                    scopedTaskActivity(activity)
-                )
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            self.taskActivityStore.addEnvelope(envelope)
+            for event in envelope.events {
+                if case .taskActivity(let activity) = event {
+                    self.taskActivityStore.addActivity(
+                        self.scopedTaskActivity(activity)
+                    )
+                }
             }
         }
     }

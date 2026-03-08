@@ -62,6 +62,7 @@ final class AccountUsageDashboardStore: ObservableObject {
 
     func refresh() async {
         if isRefreshing { return }
+        await Task.yield()
         isRefreshing = true
         defer { isRefreshing = false }
 

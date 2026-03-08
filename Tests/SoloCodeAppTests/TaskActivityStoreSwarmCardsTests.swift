@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import CoderIDE
 
@@ -169,5 +170,32 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         XCTAssertTrue(scopedA[0].recentEvents.allSatisfy {
             canonicalConversationScope(from: $0.payload) == conversationA.uuidString.lowercased()
         })
+    }
+
+    func testSwarmCardStatesDoesNotPublishWhenReadFromView() {
+        let store = TaskActivityStore()
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner",
+                detail: "started",
+                payload: ["swarm_id": "planner", "group_id": "swarm-planner"],
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner"
+            )
+        )
+        store.flushPending()
+
+        var publishCount = 0
+        let cancellable = store.objectWillChange.sink {
+            publishCount += 1
+        }
+        defer { cancellable.cancel() }
+
+        _ = store.swarmCardStates()
+
+        XCTAssertEqual(publishCount, 0)
+        XCTAssertTrue(store.isSortedSwarmCardsCacheDirty)
     }
 }

@@ -2,6 +2,13 @@ import Foundation
 
 @MainActor
 extension TaskActivityStore {
+    private func sortedSwarmCardsSnapshot() -> [SwarmLiveCardState] {
+        if isSortedSwarmCardsCacheDirty {
+            return SwarmLiveReducer.sorted(states: Array(swarmCards.values))
+        }
+        return sortedSwarmCardsCache
+    }
+
     func shouldPreserveSwarmCriticalEvent(_ activity: TaskActivity) -> Bool {
         guard SwarmLiveReducer.ownerSwarmId(for: activity, includeOrchestratorFallback: false) != nil
         else {
@@ -49,7 +56,11 @@ extension TaskActivityStore {
 
     func refreshSortedSwarmCardsCacheIfNeeded() {
         guard isSortedSwarmCardsCacheDirty else { return }
-        sortedSwarmCardsCache = SwarmLiveReducer.sorted(states: Array(swarmCards.values))
+        sortedSwarmCardsCache = sortedSwarmCardsSnapshot()
         isSortedSwarmCardsCacheDirty = false
+    }
+
+    func currentSortedSwarmCardsSnapshot() -> [SwarmLiveCardState] {
+        sortedSwarmCardsSnapshot()
     }
 }

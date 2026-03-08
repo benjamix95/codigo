@@ -70,6 +70,7 @@ final class ProviderUsageStore: ObservableObject {
             scope: environmentOverride?["CODEX_HOME"]
         )
         guard shouldRefresh(providerId: refreshId) else { return }
+        await Task.yield()
         guard !codexPath.isEmpty, FileManager.default.fileExists(atPath: codexPath) else {
             codexUsage = nil
             codexUsageMessage = "Codex CLI not found"
@@ -116,6 +117,7 @@ final class ProviderUsageStore: ObservableObject {
             scope: environmentOverride?["CLAUDE_HOME"]
         )
         guard shouldRefresh(providerId: refreshId) else { return }
+        await Task.yield()
         guard !claudePath.isEmpty, FileManager.default.fileExists(atPath: claudePath) else {
             claudeUsage = nil
             claudeUsageMessage = "Claude CLI not found"
@@ -178,6 +180,7 @@ final class ProviderUsageStore: ObservableObject {
             scope: environmentOverride?["GEMINI_CONFIG_DIR"]
         )
         guard shouldRefresh(providerId: refreshId) else { return }
+        await Task.yield()
         guard !geminiPath.isEmpty, FileManager.default.fileExists(atPath: geminiPath) else {
             geminiUsage = nil
             geminiUsageMessage = "Gemini CLI not found"
