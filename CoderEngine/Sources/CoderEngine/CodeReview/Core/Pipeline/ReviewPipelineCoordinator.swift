@@ -259,6 +259,11 @@ public actor ReviewPipelineCoordinator {
             return aggregated
         }
 
+        let correlated = CodeReviewAuditService.correlateResults(
+            results,
+            summaryPrefix: "review_audit_mesh"
+        )
+
         var findings: [CodeReviewFinding] = []
         for result in results.sorted(by: { $0.toolName < $1.toolName }) {
             let sessionId = await sessionState.snapshot().sessionId
@@ -275,6 +280,16 @@ public actor ReviewPipelineCoordinator {
             ]))
         }
 
+        let sessionId = await sessionState.snapshot().sessionId
+        continuation.yield(.raw(type: "review-audit-tool", payload: [
+            "tool": ReviewAuditToolName.correlateFindings,
+            "session_id": sessionId,
+            "findings_count": String(correlated.findings.count),
+            "coverage": correlated.coverageAvailable ? "true" : "false",
+            "detail": correlated.summary,
+        ]))
+
+        findings.append(contentsOf: correlated.findings)
         return CodeReviewAuditService.deduplicate(findings)
     }
 

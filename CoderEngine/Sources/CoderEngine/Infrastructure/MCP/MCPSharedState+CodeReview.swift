@@ -258,6 +258,14 @@ extension MCPSharedState {
                 .map { "\($0.key)=\($0.value)" }
                 .sorted()
                 .joined(separator: ",")
+            payload["audit_findings_counts"] = snapshot.audit.toolFindingsCounts
+                .map { "\($0.key)=\($0.value)" }
+                .sorted()
+                .joined(separator: ",")
+            payload["audit_adapters"] = snapshot.audit.toolAdapters
+                .map { "\($0.key)=\($0.value.joined(separator: "+"))" }
+                .sorted()
+                .joined(separator: ",")
         }
         if let conversationId = snapshot.conversationId {
             payload["conversation_id"] = conversationId.uuidString.lowercased()

@@ -129,9 +129,9 @@ public struct SubagentPromptBuilder {
             case .reviewer:
                 roleSpecificTools = "Preferred review tools: review_findings, review_diff_summary."
             case .bugHunter:
-                roleSpecificTools = "Preferred bug-hunting tools: audit_bug_diff_risks, audit_bug_test_gaps, audit_bug_hotspots, diagnostics, read_lints, and matching debugging/testing skills."
+                roleSpecificTools = "Preferred bug-hunting tools: audit_run_profile(profile=bug_hunt_deep), audit_bug_nil_crash_paths, audit_bug_state_machine, audit_bug_concurrency, audit_bug_error_handling, audit_bug_api_contracts, audit_bug_test_impact, audit_bug_dependency_drift, audit_bug_diff_semantics, audit_correlate_findings, diagnostics, read_lints, and matching debugging/testing skills."
             case .securityAuditor:
-                roleSpecificTools = "Preferred security tools: audit_security_secrets, audit_security_dependencies, audit_security_patterns, dependency_audit, and matching security skills."
+                roleSpecificTools = "Preferred security tools: audit_run_profile(profile=security_deep), audit_security_dataflow, audit_security_authz, audit_security_crypto, audit_security_deserialization, audit_security_surface, audit_security_supply_chain, audit_verify_bundle, dependency_audit, and matching security skills."
             default:
                 roleSpecificTools = ""
             }

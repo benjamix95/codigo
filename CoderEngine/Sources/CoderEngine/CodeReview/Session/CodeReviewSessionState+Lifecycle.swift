@@ -121,9 +121,17 @@ extension CodeReviewSessionState {
         var durations = audit.toolDurationsMs
         durations[result.toolName] = result.durationMs
 
+        var findingsCounts = audit.toolFindingsCounts
+        findingsCounts[result.toolName] = result.findings.count
+
+        var adapters = audit.toolAdapters
+        adapters[result.toolName] = result.adaptersUsed
+
         audit = ReviewAuditSnapshot(
             toolCoverage: coverage,
-            toolDurationsMs: durations
+            toolDurationsMs: durations,
+            toolFindingsCounts: findingsCounts,
+            toolAdapters: adapters
         )
 
         events.append(CodeReviewSessionEvent(

@@ -109,15 +109,21 @@ public struct SessionConfig: Sendable, Codable {
 public struct ReviewAuditSnapshot: Sendable, Codable, Equatable {
     public let toolCoverage: [String: Bool]
     public let toolDurationsMs: [String: Int]
+    public let toolFindingsCounts: [String: Int]
+    public let toolAdapters: [String: [String]]
 
     public static let empty = ReviewAuditSnapshot()
 
     public init(
         toolCoverage: [String: Bool] = [:],
-        toolDurationsMs: [String: Int] = [:]
+        toolDurationsMs: [String: Int] = [:],
+        toolFindingsCounts: [String: Int] = [:],
+        toolAdapters: [String: [String]] = [:]
     ) {
         self.toolCoverage = toolCoverage
         self.toolDurationsMs = toolDurationsMs
+        self.toolFindingsCounts = toolFindingsCounts
+        self.toolAdapters = toolAdapters
     }
 }
 
