@@ -102,18 +102,7 @@ private struct ReviewPanelChatStructuredSectionView: View {
                 }
             }
         case .log:
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(section.lines, id: \.self) { line in
-                        Text(line)
-                            .font(.system(size: 9.5, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.78))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-            .frame(maxHeight: 180)
+            ReviewPanelChatStructuredLogView(section: section)
         }
     }
 }

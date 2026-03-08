@@ -99,14 +99,18 @@ struct ReviewPanelChatTab: View {
                         )
                         .id(msg.id)
                     }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id(ReviewPanelChatAutoscroll.bottomAnchorId)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
             }
-            .onChange(of: store.chatMessages.count) { _ in
+            .onAppear {
                 scrollToBottom(proxy)
             }
-            .onChange(of: store.chatMessages.last?.content) { _ in
+            .onChange(of: ReviewPanelChatAutoscroll.messageListFingerprint(store.chatMessages)) { _ in
                 scrollToBottom(proxy)
             }
         }
@@ -130,9 +134,9 @@ struct ReviewPanelChatTab: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        if let lastId = store.chatMessages.last?.id {
+        if !store.chatMessages.isEmpty {
             withAnimation(.easeOut(duration: 0.15)) {
-                proxy.scrollTo(lastId, anchor: .bottom)
+                proxy.scrollTo(ReviewPanelChatAutoscroll.bottomAnchorId, anchor: .bottom)
             }
         }
     }
