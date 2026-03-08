@@ -135,6 +135,46 @@ final class MCPSessionManagerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(metrics[0].totalCalls, 1)
     }
 
+    func testSubagentExplorerToolReturnsImmediateAck() async throws {
+        guard let binaryPath = locateCoderideMCPServerBinary() else {
+            throw XCTSkip("coderide-mcp-server binary not found in .build")
+        }
+
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp-subagent-ack-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-subagent-ack.json",
+            name: "coderide-subagent-ack",
+            command: binaryPath,
+            args: ["--workspace", workspace.path]
+        )
+        let manager = MCPSessionManager(serverResolver: { [server] })
+        defer {
+            Task {
+                await manager.shutdownAll()
+            }
+        }
+
+        let startedAt = Date()
+        let result = try await manager.callToolRich(
+            serverId: server.id,
+            toolName: "coderide_subagent_explorer",
+            arguments: ["task": "Inspect the review chat pipeline"],
+            timeoutMs: 3_000,
+            idleTTLSeconds: 60
+        )
+        let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+
+        XCTAssertFalse(result.isError)
+        XCTAssertEqual(result.content, "OK — subagent Explorer launched")
+        XCTAssertLessThan(elapsedMs, 3_000, "Subagent MCP tools should acknowledge before the client timeout")
+    }
+
     func testReconnectClearsNativeToolRegistry() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
             throw XCTSkip("coderide-mcp-server binary not found in .build")
@@ -273,4 +313,5 @@ final class MCPSessionManagerTests: XCTestCase {
         }
         return nil
     }
+
 }

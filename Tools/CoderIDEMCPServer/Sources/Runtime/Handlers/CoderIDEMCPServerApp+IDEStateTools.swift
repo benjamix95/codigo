@@ -7,7 +7,7 @@ extension CoderIDEMCPServerApp {
         "edit", "write", "str_replace", "regex_replace", "create_file",
     ]
 
-    static let ideStateTools: Set<String> = [
+    static let ideStateTools: Set<String> = Set([
         "todo_write", "todo_read", "plan_step_update", "mermaid_render",
         "debug_set_phase", "debug_request_user", "debug_resolve",
         "policy_ack", "activate_plan_mode", "activate_debug_mode",
@@ -26,7 +26,7 @@ extension CoderIDEMCPServerApp {
         "bughunter_autofix_preview", "bughunter_autofix_apply", "bughunter_autofix_commit",
         "bughunter_commit_window", "bughunter_install_hook", "bughunter_uninstall_hook",
         "bughunter_run_history", "bughunter_explain_cluster",
-    ]
+    ]).union(Set(SubagentRole.allToolNames))
 
     /// IDE state tools are pass-through. The MCP server acknowledges the call
     /// and returns a confirmation. The actual state update happens when the host
@@ -237,6 +237,19 @@ extension CoderIDEMCPServerApp {
 
         case "show_swarm_panel":
             return CallTool.Result(content: [.text("OK — swarm panel opened")], isError: nil)
+
+        case let toolName where SubagentRole.fromToolName(toolName) != nil:
+            let task = (args["task"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !task.isEmpty, let role = SubagentRole.fromToolName(toolName) else {
+                return CallTool.Result(
+                    content: [.text("Error: 'task' parameter is required")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(
+                content: [.text("OK — subagent \(role.displayName) launched")],
+                isError: nil
+            )
 
         default:
             return CallTool.Result(content: [.text("Unknown IDE state tool: \(name)")], isError: true)
