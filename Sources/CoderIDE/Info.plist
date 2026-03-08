@@ -9,7 +9,9 @@
 	<key>CFBundleExecutable</key>
 	<string>Codigo</string>
 	<key>CFBundleIconFile</key>
-	<string>Codigo</string>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleName</key>
 	<string>Codigo</string>
 	<key>CFBundlePackageType</key>

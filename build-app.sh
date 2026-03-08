@@ -121,6 +121,7 @@ RESOURCES="$CONTENTS/Resources"
 INFO_PLIST_SOURCE="Package/Codigo.app/Contents/Info.plist"
 ENTITLEMENTS_SOURCE="Package/Codigo.app/Contents/Entitlements.plist"
 ICON_SOURCE="Sources/CoderIDE/Resources/Codigo.icns"
+ASSETCATALOG_SOURCE="Sources/CoderIDE/Resources/Assets.xcassets"
 
 if [[ ! -f "$INFO_PLIST_SOURCE" ]]; then
   INFO_PLIST_SOURCE="Sources/CoderIDE/Info.plist"
@@ -145,6 +146,9 @@ chmod +x "$MACOS/coderide-mcp-server"
 cp "$INFO_PLIST_SOURCE" "$CONTENTS/Info.plist"
 if [[ -f "$ICON_SOURCE" ]]; then
   cp "$ICON_SOURCE" "$RESOURCES/Codigo.icns"
+fi
+if [[ -d "$ASSETCATALOG_SOURCE" ]]; then
+  xcrun actool "$ASSETCATALOG_SOURCE" --compile "$RESOURCES" --platform macosx --minimum-deployment-target 14.0 --app-icon AppIcon --output-partial-info-plist /tmp/codigo-actool-partial.plist
 fi
 find "$BIN_DIR" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$RESOURCES/" \;
 

@@ -6,8 +6,9 @@
 - Rifinito [Info.plist](/Users/benjaminstoica/codigo/Sources/CoderIDE/Info.plist) con `CFBundleExecutable = Codigo` e `CFBundleIconFile = Codigo` per aderire meglio ai metadata attesi da macOS.
 - Aggiunto [AppBundleIconInstaller.swift](/Users/benjaminstoica/codigo/Sources/CoderIDE/Modules/App/Packaging/AppBundleIconInstaller.swift) per copiare l'icona nel bundle generato localmente.
 - Aggiunto [AppBundleSigner.swift](/Users/benjaminstoica/codigo/Sources/CoderIDE/Modules/App/Packaging/AppBundleSigner.swift) per rifirmare ad-hoc il bundle locale dopo l'aggiornamento di plist e risorse.
+- Aggiunto [AppAssetCatalogInstaller.swift](/Users/benjaminstoica/codigo/Sources/CoderIDE/Modules/App/Packaging/AppAssetCatalogInstaller.swift) per compilare `Assets.xcassets` in `Assets.car` e `AppIcon.icns` nel bundle principale.
 - Aggiornato [AppDelegate.swift](/Users/benjaminstoica/codigo/Sources/CoderIDE/Modules/App/AppDelegate.swift) per installare l'icona nel bundle rilanciato e usare un fallback runtime dal file `.icns` per il Dock.
 - Esteso [RuntimeResourceLocator.swift](/Users/benjaminstoica/codigo/Sources/CoderIDE/Modules/Utilities/RuntimeResourceLocator.swift) con il resolver dell'icona `.icns`.
 - Aggiornato [build-app.sh](/Users/benjaminstoica/codigo/build-app.sh) per copiare `Codigo.icns` e i resource bundle SwiftPM dentro `Codigo.app`.
 - Rigenerati i PNG in [AppIcon.appiconset](/Users/benjaminstoica/codigo/Sources/CoderIDE/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json) e [Codigo.icns](/Users/benjaminstoica/codigo/Sources/CoderIDE/Resources/Codigo.icns) dal sorgente principale.
-- Esteso [AppBundleIconInstallerTests.swift](/Users/benjaminstoica/codigo/Tests/CoderIDETests/AppBundleIconInstallerTests.swift) come copertura di regressione per sorgente icona, copia nel bundle, chiavi plist e rappresentazioni standard della `.icns`.
+- Esteso [AppBundleIconInstallerTests.swift](/Users/benjaminstoica/codigo/Tests/CoderIDETests/AppBundleIconInstallerTests.swift) come copertura di regressione per sorgente icona, copia nel bundle, chiavi plist, argomenti `actool` e rappresentazioni standard della `.icns`.

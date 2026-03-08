@@ -123,6 +123,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             from: executableURL.deletingLastPathComponent(),
             to: resourcesURL
         )
+        try AppAssetCatalogInstaller.installIfAvailable(
+            into: resourcesURL,
+            workingDirectoryURL: workingDirectoryURL
+        )
         try AppBundleIconInstaller.installIfAvailable(
             into: resourcesURL,
             workingDirectoryURL: workingDirectoryURL

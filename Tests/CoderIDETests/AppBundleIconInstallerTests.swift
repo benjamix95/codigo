@@ -71,7 +71,8 @@ struct AppBundleIconInstallerTests {
             PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any]
         )
 
-        #expect(plist["CFBundleIconFile"] as? String == "Codigo")
+        #expect(plist["CFBundleIconName"] as? String == "AppIcon")
+        #expect(plist["CFBundleIconFile"] as? String == "AppIcon")
         #expect(plist["CFBundleExecutable"] as? String == "Codigo")
     }
 
@@ -125,6 +126,25 @@ struct AppBundleIconInstallerTests {
         #expect(
             AppBundleSigner.codesignArguments(appPath: "/tmp/Codigo.app")
                 == ["--force", "--deep", "-s", "-", "/tmp/Codigo.app"]
+        )
+    }
+
+    @Test
+    func assetCatalogInstallerUsesMacOSAppIconArguments() {
+        #expect(
+            AppAssetCatalogInstaller.actoolArguments(
+                sourcePath: "/tmp/Assets.xcassets",
+                outputPath: "/tmp/out",
+                partialPlistPath: "/tmp/partial.plist"
+            ) == [
+                "actool",
+                "/tmp/Assets.xcassets",
+                "--compile", "/tmp/out",
+                "--platform", "macosx",
+                "--minimum-deployment-target", "14.0",
+                "--app-icon", "AppIcon",
+                "--output-partial-info-plist", "/tmp/partial.plist",
+            ]
         )
     }
 
