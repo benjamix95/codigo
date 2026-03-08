@@ -51,3 +51,15 @@
 ## Note
 - Il timeout di default resta `20s`.
 - Per test e diagnosi è supportato `CODEX_SKILL_TIMEOUT_SECONDS` con valore intero positivo.
+
+## Aggiornamento 2026-03-08 21:00 CET
+- Hardening follow-up confinato al solo path `ToolEnabledLLMProvider+SkillExecution`: gli eventi live inoltrati da skill/subagent ora ripopolano `tool_call_id` e `conversation_id` quando mancanti nel payload originale.
+- Gli eventi lifecycle locali `started`, `completed` e `failed` ora espongono in modo coerente `conversation_id` e `subagent_stage`, senza inserire valori opzionali in payload `[String: String]`.
+- Regressione coperta in `ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift` con uno scenario che verifica:
+  - fallback di `tool_call_id` e `conversation_id` sugli eventi raw inoltrati
+  - riscrittura dell'identità `swarm_id` / `group_id` sul wrapper skill
+  - presenza di `conversation_id` e `subagent_stage` sugli eventi lifecycle `started` e `completed`
+- Verifica eseguibile:
+  - `xcodebuild test -project '/Users/benjaminstoica/SoloCode/Solo Code.xcodeproj' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:'CoderEngineTests/ToolEnabledLLMProviderPolicyAckTests/testExecuteSkillToolFailsFastWhenSubagentStreamStalls' -only-testing:'CoderEngineTests/ToolEnabledLLMProviderPolicyAckTests/testExecuteSkillToolPreservesLiveEventScopeWhileRewritingSkillSwarmIdentity'`
+  - build del modulo fixata, ma esecuzione finale bloccata da errori app fuori scope: simboli mancanti `ReviewPanelChatStructuredLogView` e `ReviewPanelChatAutoscroll` nel target `Solo Code`
+  - build isolata di `CoderEngineTests` non affidabile nel workspace attuale per un ciclo di build dei package dinamici durante `xcodebuild build -target CoderEngineTests`

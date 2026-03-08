@@ -12,6 +12,7 @@ extension ToolEnabledLLMProvider {
         let task = marker.payload["task"] ?? marker.payload["prompt"] ?? marker.payload["args"] ?? ""
         let toolCallId = marker.payload["id"] ?? UUID().uuidString
         let skillId = "skill-\(skillName)-\(UUID().uuidString.prefix(8))"
+        let conversationId = Self.conversationScope(from: marker.payload)
         var events: [StreamEvent] = []
 
         guard !skillName.isEmpty else {
@@ -36,14 +37,19 @@ extension ToolEnabledLLMProvider {
             ])]
         }
 
-        events.append(.raw(type: "agent", payload: [
+        var startedPayload: [String: String] = [
             "title": "Skill: \(skillName)",
             "detail": "started",
             "swarm_id": skillId,
             "group_id": "swarm-\(skillId)",
             "tool_call_id": toolCallId,
+            "subagent_stage": "launching_backend",
             "status": "started"
-        ]))
+        ]
+        if let conversationId, !conversationId.isEmpty {
+            startedPayload["conversation_id"] = conversationId
+        }
+        events.append(.raw(type: "agent", payload: startedPayload))
 
         let startDate = Date()
         let userPrompt = task.isEmpty
@@ -94,6 +100,8 @@ extension ToolEnabledLLMProvider {
                             fullTextLength += delta.count
                         }
                     case .raw(let type, var payload):
+                        payload["tool_call_id"] = payload["tool_call_id"] ?? toolCallId
+                        payload["conversation_id"] = payload["conversation_id"] ?? conversationId
                         payload["swarm_id"] = skillId
                         payload["group_id"] = "swarm-\(skillId)"
                         forwardedEvents.append(.raw(type: type, payload: payload))
@@ -117,15 +125,20 @@ extension ToolEnabledLLMProvider {
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
             let output = capture.output
 
-            events.append(.raw(type: "agent", payload: [
+            var completedPayload: [String: String] = [
                 "title": "Skill: \(skillName)",
                 "detail": "completed",
                 "swarm_id": skillId,
                 "group_id": "swarm-\(skillId)",
                 "tool_call_id": toolCallId,
+                "subagent_stage": "completed",
                 "status": "completed",
                 "duration_ms": "\(durationMs)"
-            ]))
+            ]
+            if let conversationId, !conversationId.isEmpty {
+                completedPayload["conversation_id"] = conversationId
+            }
+            events.append(.raw(type: "agent", payload: completedPayload))
             events.append(.raw(type: "tool_result", payload: [
                 "id": toolCallId,
                 "name": "skill",
@@ -138,14 +151,19 @@ extension ToolEnabledLLMProvider {
             ]))
         } catch {
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
-            events.append(.raw(type: "agent", payload: [
+            var failedPayload: [String: String] = [
                 "title": "Skill: \(skillName)",
                 "detail": "failed",
                 "swarm_id": skillId,
                 "group_id": "swarm-\(skillId)",
                 "tool_call_id": toolCallId,
+                "subagent_stage": "failed",
                 "status": "failed"
-            ]))
+            ]
+            if let conversationId, !conversationId.isEmpty {
+                failedPayload["conversation_id"] = conversationId
+            }
+            events.append(.raw(type: "agent", payload: failedPayload))
             events.append(.raw(type: "tool_result", payload: [
                 "id": toolCallId,
                 "name": "skill",

@@ -17,3 +17,18 @@
 - aggiunti `Tests/CoderEngineTests/SkillExecutionPolicyTests.swift`
 - aggiunto `Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift`
 - verifica eseguita sui test nuovi e specifici della fix; nella run più ampia è emerso un failure già presente in `InstructionPolicyBundleTests`, non introdotto da questa modifica
+
+## Aggiornamento follow-up
+- hardening mirato del path `Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/Subagents/ToolEnabledLLMProvider+SkillExecution.swift`
+- gli eventi raw inoltrati da skill ora ripopolano `tool_call_id` e `conversation_id` se il provider backend non li emette
+- gli eventi lifecycle wrapper `started`, `completed` e `failed` ora mantengono `conversation_id` e dichiarano `subagent_stage` coerente
+- esteso `Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift` con una regressione che verifica fallback metadata e riscrittura dell'identità swarm/group
+
+## Verifica follow-up
+- compilazione del file fixata dopo la correzione del payload opzionale `conversation_id`
+- comando eseguito:
+  - `xcodebuild test -project '/Users/benjaminstoica/SoloCode/Solo Code.xcodeproj' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:'CoderEngineTests/ToolEnabledLLMProviderPolicyAckTests/testExecuteSkillToolFailsFastWhenSubagentStreamStalls' -only-testing:'CoderEngineTests/ToolEnabledLLMProviderPolicyAckTests/testExecuteSkillToolPreservesLiveEventScopeWhileRewritingSkillSwarmIdentity'`
+- stato finale della verifica:
+  - target `CoderEngine` compila rispetto al diff toccato
+  - esecuzione test bloccata da errori preesistenti fuori scope nel target app `Solo Code`: `ReviewPanelChatStructuredLogView` e `ReviewPanelChatAutoscroll` non trovati in scope
+  - build isolata con `xcodebuild build -project '/Users/benjaminstoica/SoloCode/Solo Code.xcodeproj' -target 'CoderEngineTests'` fallita per un ciclo di build dei package dinamici nel workspace corrente
