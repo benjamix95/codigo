@@ -135,11 +135,10 @@ extension SidebarView {
                 .environmentObject(chatStore)
         }
         .onAppear {
-            projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
-            workspaceStore.syncActiveWorkspace(with: currentContext)
+            scheduleSidebarWorkspaceSync(currentContextId: currentContext?.id)
         }
         .onChange(of: currentContextSyncFingerprint) { _ in
-            workspaceStore.syncActiveWorkspace(with: currentContext)
+            scheduleSidebarWorkspaceSync(currentContextId: currentContext?.id)
         }
     }
 
@@ -192,4 +191,15 @@ extension SidebarView {
     }
 
 
+}
+
+private extension SidebarView {
+    func scheduleSidebarWorkspaceSync(currentContextId: UUID?) {
+        // Defer store mutations until after the current SwiftUI layout pass.
+        DispatchQueue.main.async {
+            projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+            let context = projectContextStore.context(id: currentContextId)
+            workspaceStore.syncActiveWorkspace(with: context)
+        }
+    }
 }
