@@ -150,9 +150,29 @@ extension MCPSharedState {
 
     static func signature(for snapshot: MCPSharedPlanSnapshot) -> String {
         let steps = snapshot.steps.map {
-            "\($0.id)|\($0.title)|\($0.status)|\($0.description)|\($0.targetFile ?? "")|\($0.linkedFiles.joined(separator: ","))|\($0.dependsOn.joined(separator: ","))|\($0.notes)"
+            [
+                $0.id,
+                $0.title,
+                $0.status,
+                $0.description,
+                $0.targetFile ?? "",
+                $0.linkedFiles.sorted().joined(separator: ","),
+                $0.dependsOn.sorted().joined(separator: ","),
+                $0.notes,
+            ]
+                .map(signatureField)
+                .joined(separator: "|")
         }.joined(separator: "||")
-        return "\(snapshot.goal)|\(snapshot.chosenPath ?? "")|\(steps)|\(snapshot.walkthroughMarkdown ?? "")|\(snapshot.summary ?? "")|\(snapshot.outcome ?? "")"
+        return [
+            snapshot.goal,
+            snapshot.chosenPath ?? "",
+            steps,
+            snapshot.walkthroughMarkdown ?? "",
+            snapshot.summary ?? "",
+            snapshot.outcome ?? "",
+        ]
+            .map(signatureField)
+            .joined(separator: "###")
     }
 
     static func normalizedConversationId(_ conversationId: UUID) -> String {
@@ -178,6 +198,10 @@ extension MCPSharedState {
 
     static func sanitizedText(_ raw: String?, fallback: String) -> String {
         optionalSanitizedText(raw) ?? fallback
+    }
+
+    private static func signatureField(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? value
     }
 
     static func jsonObject<T: Encodable>(_ value: T) -> [String: Any]? {

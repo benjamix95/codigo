@@ -1,0 +1,237 @@
+import Foundation
+import MCP
+import CoderEngine
+
+extension CoderIDEMCPServerApp {
+    struct ParsedBool {
+        let value: Bool
+        let isInvalid: Bool
+    }
+
+    struct ParsedStringList {
+        let values: [String]
+        let isInvalid: Bool
+    }
+
+    struct MutablePlanSnapshot {
+        var conversationId: UUID
+        var goal: String
+        var chosenPath: String?
+        var steps: [[String: Any]]
+        var walkthroughMarkdown: String?
+        var summary: String?
+        var outcome: String?
+    }
+
+    static func parsePlanStepStatus(_ raw: String?) -> String? {
+        let normalized = (raw ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        switch normalized {
+        case "pending", "queued", "todo", "open":
+            return "pending"
+        case "running", "started", "active", "in_progress":
+            return "running"
+        case "done", "completed", "complete", "finished", "success":
+            return "done"
+        case "failed", "error", "blocked", "stuck":
+            return "failed"
+        default:
+            return nil
+        }
+    }
+
+    static func parseOutcome(_ raw: String?) -> String {
+        let normalized = (raw ?? "done")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        switch normalized {
+        case "done", "failed", "cancelled":
+            return normalized
+        default:
+            return "done"
+        }
+    }
+
+    static func parseJSONStringArray(_ raw: String?) -> [String]? {
+        guard let raw else { return [] }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return [] }
+        if let data = trimmed.data(using: .utf8),
+           let array = try? JSONSerialization.jsonObject(with: data) as? [String] {
+            return array
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+        return nil
+    }
+
+    static func parseJSONObjectArray(_ raw: String?) -> [[String: Any]]? {
+        guard let raw else { return [] }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return [] }
+        guard let data = trimmed.data(using: .utf8),
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return nil
+        }
+        return array
+    }
+
+    static func parseStringList(_ raw: Any?) -> ParsedStringList {
+        guard let raw else { return ParsedStringList(values: [], isInvalid: false) }
+        if let array = raw as? [String] {
+            return ParsedStringList(
+                values: array
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty },
+                isInvalid: false
+            )
+        }
+        if let array = raw as? [Any] {
+            var normalized: [String] = []
+            for value in array {
+                guard let stringValue = value as? String else {
+                    return ParsedStringList(values: [], isInvalid: true)
+                }
+                let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    normalized.append(trimmed)
+                }
+            }
+            return ParsedStringList(values: normalized, isInvalid: false)
+        }
+        if let rawString = raw as? String {
+            guard let parsed = parseJSONStringArray(rawString) else {
+                return ParsedStringList(values: [], isInvalid: true)
+            }
+            return ParsedStringList(values: parsed, isInvalid: false)
+        }
+        return ParsedStringList(values: [], isInvalid: true)
+    }
+
+    static func parseBool(_ raw: String?, defaultValue: Bool) -> ParsedBool {
+        let normalized = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.isEmpty {
+            return ParsedBool(value: defaultValue, isInvalid: false)
+        }
+        if ["1", "true", "yes", "y"].contains(normalized) {
+            return ParsedBool(value: true, isInvalid: false)
+        }
+        if ["0", "false", "no", "n"].contains(normalized) {
+            return ParsedBool(value: false, isInvalid: false)
+        }
+        return ParsedBool(value: defaultValue, isInvalid: true)
+    }
+
+    static func parseInt(_ raw: String?, defaultValue: Int) -> Int {
+        guard let raw,
+              let value = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return defaultValue
+        }
+        return value
+    }
+
+    static func parseConversationId(_ raw: String?) -> UUID? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return UUID(uuidString: trimmed)
+    }
+
+    static func hasInvalidConversationIdArgument(_ raw: String?) -> Bool {
+        guard let raw else { return false }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return UUID(uuidString: trimmed) == nil
+    }
+
+    static func resolveConversationId(
+        from args: [String: String],
+        createIfMissing: Bool,
+        allowLatestFallback: Bool = true
+    ) -> UUID? {
+        let explicitRaw = args["conversation_id"] ?? args["conversationId"]
+        if let explicit = parseConversationId(explicitRaw) {
+            return explicit
+        }
+        if allowLatestFallback {
+            if let latest = latestPlanConversationId() {
+                return latest
+            }
+            return createIfMissing ? UUID() : nil
+        }
+        let available = availablePlanConversationIds()
+        if available.count == 1 {
+            return available[0]
+        }
+        if available.isEmpty, createIfMissing {
+            return UUID()
+        }
+        return nil
+    }
+
+    static func latestPlanConversationId() -> UUID? {
+        guard let latest = MCPSharedState.readLatestPlanSnapshotJSONObject(conversationId: nil),
+              let id = latest["conversation_id"] as? String else {
+            return nil
+        }
+        return UUID(uuidString: id)
+    }
+
+    static func availablePlanConversationIds() -> [UUID] {
+        guard let data = try? Data(contentsOf: MCPSharedState.planStateFilePath),
+              let document = try? JSONDecoder().decode(MCPSharedPlanStateDocument.self, from: data) else {
+            return []
+        }
+
+        let ids = document.snapshotsByConversation.keys.compactMap { UUID(uuidString: $0) }
+        var seen = Set<UUID>()
+        return ids.filter { seen.insert($0).inserted }
+    }
+
+    static func loadMutableSnapshot(
+        conversationId: UUID?,
+        createIfMissing: Bool
+    ) -> MutablePlanSnapshot? {
+        if let conversationId,
+           let latest = MCPSharedState.readLatestPlanSnapshotJSONObject(conversationId: conversationId),
+           let snapshot = latest["snapshot"] as? [String: Any] {
+            return MutablePlanSnapshot(
+                conversationId: conversationId,
+                goal: (snapshot["goal"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ?? "Operational plan in progress",
+                chosenPath: (snapshot["chosenPath"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                steps: (snapshot["steps"] as? [[String: Any]]) ?? [],
+                walkthroughMarkdown: snapshot["walkthroughMarkdown"] as? String,
+                summary: snapshot["summary"] as? String,
+                outcome: snapshot["outcome"] as? String
+            )
+        }
+
+        guard createIfMissing, let conversationId else { return nil }
+        return MutablePlanSnapshot(
+            conversationId: conversationId,
+            goal: "Operational plan in progress",
+            chosenPath: nil,
+            steps: [],
+            walkthroughMarkdown: nil,
+            summary: nil,
+            outcome: nil
+        )
+    }
+
+    static func sanitizedText(_ raw: String?, fallback: String? = nil) -> String? {
+        let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return fallback }
+        return trimmed
+    }
+
+    static func normalizedConversationArgs(_ args: [String: String]) -> [String: String] {
+        var normalized = args
+        if normalized["conversation_id"] == nil, let conversationId = normalized["conversationId"] {
+            normalized["conversation_id"] = conversationId
+        }
+        return normalized
+    }
+}

@@ -358,6 +358,45 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         XCTAssertTrue(extractText(from: result).contains("queued 1 clarification question"))
     }
 
+    func testPlanStepUpsertRejectsInvalidStepIdentifierCharacters() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_upsert",
+            args: [
+                "conversation_id": UUID().uuidString.lowercased(),
+                "step_id": "bad/id",
+                "status": "running",
+            ]
+        )
+
+        XCTAssertEqual(result.isError, true)
+        XCTAssertTrue(extractText(from: result).contains("letters, numbers"))
+    }
+
+    func testPlanCreateMergeReportsZeroNewStepsWhenIdsAlreadyExist() {
+        let conversationId = UUID().uuidString.lowercased()
+        _ = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_create",
+            args: [
+                "conversation_id": conversationId,
+                "goal": "Merge base",
+                "steps": #"[{"step_id":"1","title":"Audit","status":"pending"}]"#,
+            ]
+        )
+
+        let merged = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_create",
+            args: [
+                "conversation_id": conversationId,
+                "goal": "Merge base",
+                "replace_existing": "false",
+                "steps": #"[{"step_id":"1","title":"Audit","status":"pending"}]"#,
+            ]
+        )
+
+        XCTAssertNil(merged.isError)
+        XCTAssertTrue(extractText(from: merged).contains("0 new step(s) merged"))
+    }
+
     func testPlanDiffReturnsStatusChange() throws {
         let conversationId = UUID().uuidString.lowercased()
         _ = CoderIDEMCPServerApp.handleIDEStateTool(
@@ -405,6 +444,21 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         XCTAssertEqual(statusChanges.first?["stepId"] as? String, "1")
         XCTAssertEqual(statusChanges.first?["fromStatus"] as? String, "pending")
         XCTAssertEqual(statusChanges.first?["toStatus"] as? String, "done")
+    }
+
+    func testPlanDiffErrorMentionsRequestedSnapshotIdentifiers() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_diff",
+            args: [
+                "from_snapshot_id": "missing-from",
+                "to_snapshot_id": "missing-to",
+            ]
+        )
+
+        XCTAssertEqual(result.isError, true)
+        let text = extractText(from: result)
+        XCTAssertTrue(text.contains("missing-from"))
+        XCTAssertTrue(text.contains("missing-to"))
     }
 }
 
