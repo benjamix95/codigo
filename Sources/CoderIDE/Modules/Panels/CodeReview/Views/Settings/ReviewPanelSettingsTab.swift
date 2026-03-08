@@ -12,6 +12,7 @@ struct ReviewPanelSettingsTab: View {
             VStack(alignment: .leading, spacing: 16) {
                 pipelineSection
                 workflowSection
+                bugHunterSection
                 backendsSection
                 instructionsSection
                 customCommandsSection
@@ -80,6 +81,70 @@ struct ReviewPanelSettingsTab: View {
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .labelsHidden()
+            }
+        }
+    }
+
+    private var bugHunterSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("BUGHUNTER", icon: "ant")
+
+            settingsRow("Enabled") {
+                Toggle("", isOn: Binding(
+                    get: { store.bugHunterSettings.enabled },
+                    set: { store.updateBugHunterSettings(enabled: $0) }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+            }
+
+            settingsRow("Trigger") {
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { store.bugHunterSettings.triggerMode },
+                        set: { store.updateBugHunterSettings(triggerMode: $0) }
+                    )
+                ) {
+                    ForEach(BugHunterTriggerMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .controlSize(.mini)
+                .frame(width: 140)
+            }
+
+            settingsRow("Autofix") {
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { store.bugHunterSettings.autofixMode },
+                        set: { store.updateBugHunterSettings(autofixMode: $0) }
+                    )
+                ) {
+                    ForEach(BugHunterAutofixMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .controlSize(.mini)
+                .frame(width: 160)
+            }
+
+            settingsRow("Commit Window") {
+                Stepper(
+                    value: Binding(
+                        get: { store.bugHunterSettings.maxCommitWindow },
+                        set: { store.updateBugHunterSettings(maxCommitWindow: $0) }
+                    ),
+                    in: 1...10
+                ) {
+                    Text("\(store.bugHunterSettings.maxCommitWindow)")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                }
+                .controlSize(.mini)
             }
         }
     }

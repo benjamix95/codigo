@@ -195,6 +195,10 @@ extension CodigoApp {
         for command: MCPSharedCodeReviewCommand,
         sessionId: String
     ) -> String {
+        if let overridePrompt = command.payload["bughunter_prompt_override"],
+           !overridePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return overridePrompt
+        }
         let scope = (command.payload["scope"] ?? "uncommitted")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()

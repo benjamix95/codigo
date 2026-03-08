@@ -142,6 +142,22 @@ enum PromptToolsPolicy {
     - `coderide_review_configure` — Update runtime config. Args: session_id (required), max_workers, max_rounds, analysis_only, analysis_backend, execution_backend, conversation_id (required for conversation-scoped sessions).
     - `coderide_review_diff_summary` — Get diff summary for files in scope. Args: file (optional), origin (optional), category (optional). Pass `conversation_id` for conversation-scoped sessions.
     - `coderide_review_comment` — Add a comment to a finding. Args: finding_id (required), content (required), author (default: agent), session_id (required), conversation_id (required for conversation-scoped sessions).
+    BugHunter MCP tools — use these for deep proactive bug hunting on uncommitted work, fresh commits, and correlated commit windows:
+    - `coderide_bughunter_start`
+    - `coderide_bughunter_status`
+    - `coderide_bughunter_findings`
+    - `coderide_bughunter_autofix_preview`
+    - `coderide_bughunter_autofix_apply`
+    - `coderide_bughunter_autofix_commit`
+    - `coderide_bughunter_commit_window`
+    - `coderide_bughunter_install_hook`
+    - `coderide_bughunter_uninstall_hook`
+    - `coderide_bughunter_run_history`
+    - `coderide_bughunter_explain_cluster`
+    BugHunter policy:
+    - Prefer BugHunter for post-commit bug scans, uncommitted bug scans, and correlated regression hunting.
+    - Keep BugHunter findings strict: verified bugs need strong evidence or multi-signal confirmation.
+    - Default autofix path is preview first; only apply or commit when the workflow or user explicitly requests it.
     Audit MCP tools — use these for deterministic read-only security/bug hunting, and combine them with `skill` when a matching skill exists:
     - `coderide_audit_security_secrets`
     - `coderide_audit_security_dependencies`

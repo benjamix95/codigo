@@ -22,6 +22,10 @@ extension CoderIDEMCPServerApp {
         "review_verify_finding", "review_prepare_patch", "review_preview_patch",
         "review_apply_patch", "review_verify_patch", "review_open_pr",
         "review_merge_pr", "review_resolve_conflicts", "review_get_outcome",
+        "bughunter_start", "bughunter_status", "bughunter_findings",
+        "bughunter_autofix_preview", "bughunter_autofix_apply", "bughunter_autofix_commit",
+        "bughunter_commit_window", "bughunter_install_hook", "bughunter_uninstall_hook",
+        "bughunter_run_history", "bughunter_explain_cluster",
     ]
 
     /// IDE state tools are pass-through. The MCP server acknowledges the call
@@ -38,6 +42,9 @@ extension CoderIDEMCPServerApp {
         }
         if let reviewResult = handleCodeReviewTool(name: name, args: args) {
             return reviewResult
+        }
+        if let bugHunterResult = handleBugHunterTool(name: name, args: args) {
+            return bugHunterResult
         }
 
         switch name {

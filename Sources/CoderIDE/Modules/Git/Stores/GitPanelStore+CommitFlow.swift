@@ -30,6 +30,7 @@ extension GitPanelStore {
 
                 let commit = try gitService.commit(
                     gitRoot: gitRoot, message: message, includeUnstaged: includeUnstaged)
+                notifyBugHunterForCommit(commit, gitRoot: gitRoot)
 
                 if nextStep == .commitAndPush || nextStep == .commitAndCreatePR {
                     try gitService.push(gitRoot: gitRoot, branch: currentBranch)

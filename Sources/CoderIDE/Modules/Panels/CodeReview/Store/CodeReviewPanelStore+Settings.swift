@@ -79,6 +79,26 @@ extension CodeReviewPanelStore {
         settings = ReviewPanelSettingsPersistence.load()
     }
 
+    var bugHunterSettings: BugHunterSettings {
+        BugHunterSettingsPersistence.load()
+    }
+
+    func updateBugHunterSettings(
+        enabled: Bool? = nil,
+        triggerMode: BugHunterTriggerMode? = nil,
+        autofixMode: BugHunterAutofixMode? = nil,
+        maxCommitWindow: Int? = nil,
+        installGitHook: Bool? = nil
+    ) {
+        var bugHunter = BugHunterSettingsPersistence.load()
+        if let enabled { bugHunter.enabled = enabled }
+        if let triggerMode { bugHunter.triggerMode = triggerMode }
+        if let autofixMode { bugHunter.autofixMode = autofixMode }
+        if let maxCommitWindow { bugHunter.maxCommitWindow = maxCommitWindow }
+        if let installGitHook { bugHunter.installGitHook = installGitHook }
+        BugHunterSettingsPersistence.save(bugHunter)
+    }
+
     /// Combined slash commands: built-in + custom.
     var allSlashCommands: [ReviewPanelSlashCommand] {
         let builtIn = CodeReviewQuickCommands.defaults.map {

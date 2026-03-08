@@ -177,7 +177,7 @@ final class MCPSubagentPipelineTests: XCTestCase {
     func testTimeout_readOnlyRolesStayUnderMCPDeadline() {
         XCTAssertEqual(SubagentCLIConfig.timeout(for: .explorer), 95)
         XCTAssertEqual(SubagentCLIConfig.timeout(for: .reviewer), 95)
-        XCTAssertEqual(SubagentCLIConfig.timeout(for: .bugHunter), 95)
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .bugHunter), 3600)
         XCTAssertEqual(SubagentCLIConfig.timeout(for: .securityAuditor), 95)
     }
 

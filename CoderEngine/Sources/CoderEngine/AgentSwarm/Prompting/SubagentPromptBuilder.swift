@@ -82,10 +82,14 @@ public struct SubagentPromptBuilder {
             boundary-condition bugs, dead branches, and mismatches between code changes and tests.
 
             - Prioritize correctness and regression risk over style
+            - You are allowed to run for a long time if needed to validate a bug properly
             - Focus on nil/optional misuse, force unwraps, try!, fatalError/precondition misuse, race conditions
+            - Always reason in terms of bug clusters, commit impact, regression surface, proof level, and fixability
+            - Prefer strict verification over speculative findings
             - Flag suspicious diffs with missing test coverage or risky control-flow changes
             - When helpful, use the `skill` tool with debugging/testing-oriented skills before falling back to generic exploration
-            - Report concrete findings with file paths, line numbers, confidence, and remediation guidance
+            - Use audit_run_profile(profile=bug_hunt_deep), audit_correlate_findings, and audit_verify_bundle before final conclusions when available
+            - Report concrete findings with file paths, line numbers, confidence, remediation guidance, and whether they are autofixable
             - Do NOT auto-fix. If no issues are found, say "No issues found."
             """
         case .testWriter:
