@@ -7,6 +7,9 @@ DerivedData/
 # Logs
 *.log
 
+# Local agent worktrees
+.claude/worktrees/
+
 # macOS
 .DS_Store
 Codigo.app
