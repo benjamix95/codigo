@@ -79,30 +79,90 @@ extension CodeReviewPanelStore {
         let current = chatMessages[index].content
         let parts = current.components(separatedBy: separator)
         var logPart = parts.first ?? ""
-        let verdictPart = parts.count > 1 ? parts.dropFirst().joined(separator: separator) : ""
+        let verdictPart = parts.count > 1
+            ? parts.dropFirst().joined(separator: separator)
+            : ""
 
         let heading = "### \(sectionTitle)"
-        if logPart.contains("\n\(trimmedLine)\n")
-            || logPart.hasSuffix("\n\(trimmedLine)")
-            || logPart.contains("\n\(trimmedLine)")
-        {
+
+        // Deduplicate: skip if this exact line already exists in the section
+        if isDuplicateLine(trimmedLine, inSection: sectionTitle, ofLog: logPart) {
             return
         }
 
         if !logPart.contains(heading) {
+            // Section doesn't exist — append new section at end of logPart
             if !logPart.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 logPart += "\n\n"
             }
-            logPart += heading + "\n"
-        } else if !logPart.hasSuffix("\n") {
-            logPart += "\n"
+            logPart += heading + "\n" + trimmedLine + "\n"
+        } else {
+            // Section exists — insert line at end of this specific section
+            logPart = insertLineInSection(
+                logPart: logPart,
+                heading: heading,
+                line: trimmedLine
+            )
         }
 
-        logPart += trimmedLine + "\n"
         let rebuilt = verdictPart.isEmpty
             ? logPart.trimmingCharacters(in: .whitespacesAndNewlines)
-            : logPart.trimmingCharacters(in: .whitespacesAndNewlines) + separator + verdictPart
+            : logPart.trimmingCharacters(in: .whitespacesAndNewlines)
+                + separator + verdictPart
         chatMessages[index].content = rebuilt
         persistChatState()
+    }
+
+    /// Insert a line at the end of a specific ### section,
+    /// before the next ### heading or end of logPart.
+    private func insertLineInSection(
+        logPart: String,
+        heading: String,
+        line: String
+    ) -> String {
+        guard let headingRange = logPart.range(of: heading) else {
+            return logPart + "\n" + line + "\n"
+        }
+
+        // Find the end of this section: the next ### heading
+        let afterHeading = logPart[headingRange.upperBound...]
+        if let nextHeadingRange = afterHeading.range(of: "\n### ") {
+            // Insert before the next section
+            let insertPoint = nextHeadingRange.lowerBound
+            var result = String(logPart[..<insertPoint])
+            if !result.hasSuffix("\n") { result += "\n" }
+            result += line + "\n"
+            result += String(logPart[insertPoint...])
+            return result
+        } else {
+            // This is the last section — append at end
+            var result = logPart
+            if !result.hasSuffix("\n") { result += "\n" }
+            result += line + "\n"
+            return result
+        }
+    }
+
+    /// Check if a line already exists within a specific section.
+    private func isDuplicateLine(
+        _ line: String,
+        inSection sectionTitle: String,
+        ofLog logPart: String
+    ) -> Bool {
+        let heading = "### \(sectionTitle)"
+        guard let headingRange = logPart.range(of: heading) else {
+            return false
+        }
+        let afterHeading = logPart[headingRange.upperBound...]
+
+        // Find the section content (up to next heading or end)
+        let sectionContent: Substring
+        if let nextRange = afterHeading.range(of: "\n### ") {
+            sectionContent = afterHeading[..<nextRange.lowerBound]
+        } else {
+            sectionContent = afterHeading
+        }
+
+        return sectionContent.contains(line)
     }
 }

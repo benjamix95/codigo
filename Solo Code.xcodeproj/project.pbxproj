@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -292,6 +292,14 @@
 		2ED61ECCBAB98B20659BB6C3 /* CodeReviewMultiSwarmProviderTests+Parsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538FD05EEE74C8F3F7EEF2D5 /* CodeReviewMultiSwarmProviderTests+Parsing.swift */; };
 		2F1BA181F0478D7DB79964B4 /* GitCommitMessageGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B203E76042CFF29F63C1B5 /* GitCommitMessageGeneratorTests.swift */; };
 		2F2E18AB4AD3BFA69C4F5E53 /* MCPSharedState+Plan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C96E03CEFF09CEFC657FD86 /* MCPSharedState+Plan.swift */; };
+		2F5ECC6C2F5E12B000F0A76B /* ReviewPanelChatThinkingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5ECC6B2F5E12B000F0A76B /* ReviewPanelChatThinkingView.swift */; };
+		2F5ECC6E2F5E12C500F0A76B /* ReviewPanelChatActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5ECC6D2F5E12C500F0A76B /* ReviewPanelChatActivityView.swift */; };
+		2F5ECC702F5E12EA00F0A76B /* ReviewPanelChatOutcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5ECC6F2F5E12EA00F0A76B /* ReviewPanelChatOutcomeView.swift */; };
+		2F5ECC722F5E138800F0A76B /* ReviewPanelChatStructuredContent+Parsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5ECC712F5E138800F0A76B /* ReviewPanelChatStructuredContent+Parsing.swift */; };
+		2F5ECC742F5E139400F0A76B /* ReviewPanelChatStructuredContent+Summary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5ECC732F5E139400F0A76B /* ReviewPanelChatStructuredContent+Summary.swift */; };
+		2F5ECC762F5E13A100F0A76B /* ReviewPanelChatStructuredContent+ReviewRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5ECC752F5E13A100F0A76B /* ReviewPanelChatStructuredContent+ReviewRun.swift */; };
+		2F5ECC782F5E13AD00F0A76B /* ReviewPanelChatStructuredContent+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5ECC772F5E13AD00F0A76B /* ReviewPanelChatStructuredContent+Helpers.swift */; };
+		2F5ECC7A2F5E173500F0A76B /* CodeReviewPanelStore+ActionOutputFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5ECC792F5E173500F0A76B /* CodeReviewPanelStore+ActionOutputFormatting.swift */; };
 		2F655ACBB2C1084F552B1485 /* UnifiedToolRuntimeTests+SearchTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = C531110F6142E8F7B7BAED2E /* UnifiedToolRuntimeTests+SearchTools.swift */; };
 		2F6F813FBBA73FCC63D17F3D /* ReviewPipelineCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581097DA3CB558D543EE5722 /* ReviewPipelineCoordinator.swift */; };
 		2F732FB2FDAD8191381A08D0 /* PromptContextCompactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18EEE65187FF2C197DDBFC13 /* PromptContextCompactionTests.swift */; };
@@ -315,7 +323,6 @@
 		31C3D69D7F0E61EC70147272 /* CodexFastModeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A798E2C661ADEFDE7EE0A36 /* CodexFastModeStore.swift */; };
 		31EC75C0F3141D69D4FBA288 /* CodexCustomModelProfileSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1972AB292198F1E98B23D679 /* CodexCustomModelProfileSync.swift */; };
 		31FAD81633E5238354B29565 /* InstructionPolicyBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7687343565D3089CA34BC847 /* InstructionPolicyBundleTests.swift */; };
-		A1B2C3D40102030405060703 /* AsyncTimeoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060713 /* AsyncTimeoutTests.swift */; };
 		32031A7A376314905B69F5C2 /* VoiceInputControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F614415721634D57EAE577A /* VoiceInputControllerTests.swift */; };
 		323FD84617C2C41C719971F1 /* PromptPersonas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C3C6196845AB5CE532F5FD /* PromptPersonas.swift */; };
 		3251D698D06B37ABC985C489 /* SwarmProgressStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01F1B638798A0F7C12454B /* SwarmProgressStoreTests.swift */; };
@@ -329,9 +336,6 @@
 		338CA34B7055DBB05B04F491 /* CodeReviewAuditService+Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133C7756647DF156EECD89F5 /* CodeReviewAuditService+Support.swift */; };
 		3391620A3A92B0F0ED7ED3C6 /* ChatPanelView+PartN_ClarificationHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23BC7C802B01EA59D851F5ED /* ChatPanelView+PartN_ClarificationHeuristics.swift */; };
 		33939FD3FA51FC5774B36B7F /* ReviewPanelChatStructuredSectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2929C31E23A3C24422B9FA /* ReviewPanelChatStructuredSectionsView.swift */; };
-		A1D0C0F0A1D0C0F0A1D0C001 /* ReviewPanelChatAutoscroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F001 /* ReviewPanelChatAutoscroll.swift */; };
-		A1D0C0F0A1D0C0F0A1D0C002 /* ReviewPanelChatStructuredLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F002 /* ReviewPanelChatStructuredLogView.swift */; };
-		A1D0C0F0A1D0C0F0A1D0C003 /* ReviewPanelChatAutoscrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F003 /* ReviewPanelChatAutoscrollTests.swift */; };
 		33B03FBCC94F03E922B850D9 /* ExtensionRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A65D8F885C7753D6E73F145 /* ExtensionRuntime.swift */; };
 		33B9A0DBE2A9F3F75A073274 /* SidebarView+Sections+Rows.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0EC0337BDCCE523E7A710F /* SidebarView+Sections+Rows.swift */; };
 		346478EDED2AED770E6F91E3 /* SymbolExtractor+Kotlin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F8BD118FFECFBB58E00AD0 /* SymbolExtractor+Kotlin.swift */; };
@@ -784,12 +788,11 @@
 		7D2E9D169D7D189B71ADED26 /* SwarmBudgetManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35C9C38A141739E8AB4B4AD /* SwarmBudgetManager.swift */; };
 		7D7C8A6C88D67DBD936A6F69 /* EventNormalizer+TypeMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A87D552498052644046BD51 /* EventNormalizer+TypeMetadata.swift */; };
 		7DA22F6167197F47F217AE0A /* ProviderFactory+CodeReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3C082B5F10659109481891C /* ProviderFactory+CodeReview.swift */; };
-		7DA5234CD003B5D7358EA4A1 /* CoderIDEMCPServerExecutable in Embed Helper */ = {isa = PBXBuildFile; fileRef = 97ABB62548F03CB05E6E3635 /* CoderIDEMCPServerExecutable */; };
+		7DA5234CD003B5D7358EA4A1 /* coderide-mcp-server in Embed Helper */ = {isa = PBXBuildFile; fileRef = 97ABB62548F03CB05E6E3635 /* coderide-mcp-server */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		7DB635A80482207F51F5D6C8 /* SubagentChatCard+Snapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C759ACFE995DE77136C405D /* SubagentChatCard+Snapshot.swift */; };
 		7DECBA8CB215E1EA854104B5 /* WorktreeSessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F140E871C8DFCE92BDEDC4D3 /* WorktreeSessionModels.swift */; };
 		7E08257C23A717472CC7A72C /* ProviderRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95FC7FF741D8801A752A0F6 /* ProviderRouterTests.swift */; };
 		7E1D64BA2CF6AE5C86B85243 /* ErrorBudgetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D0A08444A25F25D5941559 /* ErrorBudgetTrackerTests.swift */; };
-		A1B2C3D40102030405060702 /* SkillExecutionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060712 /* SkillExecutionPolicy.swift */; };
 		7E6A93B09CC32F234CA01F61 /* SettingsView+Accounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC05A97F4E2395E47958AAFA /* SettingsView+Accounts.swift */; };
 		7E9B16881ADBC2F180C0AAA2 /* EventNormalizerPlanLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E560E227601BFE89812018B /* EventNormalizerPlanLifecycle.swift */; };
 		7EB4D81DEA6E644D4C0108DA /* DebugStore+Cleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 028E3FFF1C07D1BB26771271 /* DebugStore+Cleanup.swift */; };
@@ -797,7 +800,6 @@
 		7F1BEBB4E57477E98D1DA011 /* CoderIDEMCPServerApp+ValueConversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93FA0E2CE1D5F0F63EE0CC26 /* CoderIDEMCPServerApp+ValueConversion.swift */; };
 		7F3D91EC898067CC9A630E7F /* PlanShortcutAndCommandTests+PlanClarificationRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFB67C68AA980A06CCA80F0 /* PlanShortcutAndCommandTests+PlanClarificationRouting.swift */; };
 		7F7083283788179AA1577F96 /* ToolEnabledLLMProvider+SkillExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49E3C68E9F35428CE86B5F6 /* ToolEnabledLLMProvider+SkillExecution.swift */; };
-		A1B2C3D40102030405060701 /* AsyncTimeout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060711 /* AsyncTimeout.swift */; };
 		7F8FDDF853AAC47016AE326B /* BreadcrumbComponentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EDD77E39AD7459B438D6D16 /* BreadcrumbComponentTests.swift */; };
 		7FA1F7685E1091F7AE253C92 /* SubagentChatCardHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51703172CB53E8042E847F3D /* SubagentChatCardHelpers.swift */; };
 		7FF69556165C03CA4A57432B /* DebugNativePipelineBackends.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C261C35038CB78DF21F9D1 /* DebugNativePipelineBackends.swift */; };
@@ -980,6 +982,14 @@
 		A1782388B05931B8A593554E /* ChatPanelView+PartF_PlanEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA8DE7743666644193595A3 /* ChatPanelView+PartF_PlanEvents.swift */; };
 		A1A6B47099F7E60C0B8E75DD /* ProviderToolEventMapper+Predicates.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF3719C29013876E6CAAEAD4 /* ProviderToolEventMapper+Predicates.swift */; };
 		A1AEBF47097B71CCD6EC1786 /* ProviderToolEventMapper+MapMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB220A29950370D9FCA4875D /* ProviderToolEventMapper+MapMCP.swift */; };
+		A1B2C3D40102030405060701 /* AsyncTimeout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060711 /* AsyncTimeout.swift */; };
+		A1B2C3D40102030405060702 /* SkillExecutionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060712 /* SkillExecutionPolicy.swift */; };
+		A1B2C3D40102030405060703 /* AsyncTimeoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060713 /* AsyncTimeoutTests.swift */; };
+		A1B2C3D40102030405060704 /* SkillExecutionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060714 /* SkillExecutionPolicyTests.swift */; };
+		A1B2C3D40102030405060705 /* ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060715 /* ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift */; };
+		A1D0C0F0A1D0C0F0A1D0C001 /* ReviewPanelChatAutoscroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F001 /* ReviewPanelChatAutoscroll.swift */; };
+		A1D0C0F0A1D0C0F0A1D0C002 /* ReviewPanelChatStructuredLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F002 /* ReviewPanelChatStructuredLogView.swift */; };
+		A1D0C0F0A1D0C0F0A1D0C003 /* ReviewPanelChatAutoscrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D0C0F0A1D0C0F0A1D0F003 /* ReviewPanelChatAutoscrollTests.swift */; };
 		A202626E34209D51A6E5EFCF /* TaskActivityPanelScopingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF08D015343968F23DB8A2FB /* TaskActivityPanelScopingTests.swift */; };
 		A221C288A3034F28BB77B3FD /* ChangedFilesSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBE700F0682A11D453CAEF6 /* ChangedFilesSummaryCard.swift */; };
 		A28A05893297C64BCBD08497 /* CodexCLIProvider+SyntheticEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F7AABECFF8855EEFCCD01A6 /* CodexCLIProvider+SyntheticEvents.swift */; };
@@ -1160,8 +1170,6 @@
 		C0FE20FEA6DCD5337B908251 /* CodebaseIndex+PatternHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 345EBC96798AF40DAE0F8C6E /* CodebaseIndex+PatternHelpers.swift */; };
 		C156B2E5C077218BCB3C77CB /* SkillScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08B7EDEED649E41563E921D /* SkillScanner.swift */; };
 		C17F2F3EFE6AEA243E4342A2 /* ToolEnabledLLMProviderPolicyAckTests+Budget.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD54E1FD0F34FEF3429A8B87 /* ToolEnabledLLMProviderPolicyAckTests+Budget.swift */; };
-		A1B2C3D40102030405060705 /* ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060715 /* ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift */; };
-		A1B2C3D40102030405060704 /* SkillExecutionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40102030405060714 /* SkillExecutionPolicyTests.swift */; };
 		C1D77F3B2626ACE0D8F124ED /* MemoryLeakDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C9229CD5EC2012CAF856E17 /* MemoryLeakDetector.swift */; };
 		C246862943999657A8EEB0F6 /* ContextPathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29AB7AADCD4BAE7C3E957938 /* ContextPathResolver.swift */; };
 		C24A202848761CA50C5F8E2F /* MCPSharedPlanStateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E7EE5F356C2E93417D11B46 /* MCPSharedPlanStateModels.swift */; };
@@ -1625,7 +1633,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
-				7DA5234CD003B5D7358EA4A1 /* CoderIDEMCPServerExecutable in Embed Helper */,
+				7DA5234CD003B5D7358EA4A1 /* coderide-mcp-server in Embed Helper */,
 			);
 			name = "Embed Helper";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1688,7 +1696,7 @@
 		076A51DA7A72902340224060 /* CodexCLIProvider+GitFallback.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProvider+GitFallback.swift"; path = "Engine/CoderEngine/Sources/Providers/CodexCLI/StreamSupport/CodexCLIProvider+GitFallback.swift"; sourceTree = "<group>"; };
 		07CC58973BA2B783C4F081E0 /* ProjectContextStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProjectContextStore.swift; path = App/SoloCodeApp/Sources/Context/ProjectContextStore.swift; sourceTree = "<group>"; };
 		0832F13D98DFFA42F8C1F1B1 /* EventNormalizerModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventNormalizerModels.swift; path = App/SoloCodeApp/Sources/Services/EventNormalizer/Core/EventNormalizerModels.swift; sourceTree = "<group>"; };
-		0847D79ECD85DB6E9E6CF1C5 /* Fonts */ = {isa = PBXFileReference; includeInIndex = 1; name = Fonts; path = App/SoloCodeApp/Resources/Fonts; sourceTree = "<group>"; };
+		0847D79ECD85DB6E9E6CF1C5 /* Fonts */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = Fonts; path = App/SoloCodeApp/Resources/Fonts; sourceTree = "<group>"; };
 		08919141A89C45B9A62D8CD0 /* CodeReviewPanelStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPanelStore.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore.swift; sourceTree = "<group>"; };
 		08B8A183374481AE26F5D199 /* BrowserTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserTab.swift; path = App/SoloCodeApp/Sources/Services/BrowserSessionStore/Tab/BrowserTab.swift; sourceTree = "<group>"; };
 		09016838D8295DCC47E18D50 /* CodeReviewMultiSwarmProvider+Pipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProvider+Pipeline.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/CodeReviewMultiSwarmProvider+Pipeline.swift"; sourceTree = "<group>"; };
@@ -1926,6 +1934,14 @@
 		2EC540EFA64DE35E6BF045C2 /* DesignSystem+ViewHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DesignSystem+ViewHelpers.swift"; path = "App/SoloCodeApp/Sources/App/DesignSystem/DesignSystem+ViewHelpers.swift"; sourceTree = "<group>"; };
 		2EFCA96C75C52CA717465210 /* DesignSystem+Components.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DesignSystem+Components.swift"; path = "App/SoloCodeApp/Sources/App/DesignSystem/DesignSystem+Components.swift"; sourceTree = "<group>"; };
 		2F0DA8DA2140788885CF3EBD /* WindowSidebarToggleEvents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WindowSidebarToggleEvents.swift; path = App/SoloCodeApp/Sources/App/Utilities/WindowSidebarToggleEvents.swift; sourceTree = "<group>"; };
+		2F5ECC6B2F5E12B000F0A76B /* ReviewPanelChatThinkingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPanelChatThinkingView.swift; sourceTree = "<group>"; };
+		2F5ECC6D2F5E12C500F0A76B /* ReviewPanelChatActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPanelChatActivityView.swift; sourceTree = "<group>"; };
+		2F5ECC6F2F5E12EA00F0A76B /* ReviewPanelChatOutcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPanelChatOutcomeView.swift; sourceTree = "<group>"; };
+		2F5ECC712F5E138800F0A76B /* ReviewPanelChatStructuredContent+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReviewPanelChatStructuredContent+Parsing.swift"; sourceTree = "<group>"; };
+		2F5ECC732F5E139400F0A76B /* ReviewPanelChatStructuredContent+Summary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReviewPanelChatStructuredContent+Summary.swift"; sourceTree = "<group>"; };
+		2F5ECC752F5E13A100F0A76B /* ReviewPanelChatStructuredContent+ReviewRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReviewPanelChatStructuredContent+ReviewRun.swift"; sourceTree = "<group>"; };
+		2F5ECC772F5E13AD00F0A76B /* ReviewPanelChatStructuredContent+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReviewPanelChatStructuredContent+Helpers.swift"; sourceTree = "<group>"; };
+		2F5ECC792F5E173500F0A76B /* CodeReviewPanelStore+ActionOutputFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodeReviewPanelStore+ActionOutputFormatting.swift"; sourceTree = "<group>"; };
 		2F767F0226AC3DDAF34A514B /* ChatPanelView+PartH_ComposerMode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartH_ComposerMode.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ComposerUI/ChatPanelView+PartH_ComposerMode.swift"; sourceTree = "<group>"; };
 		2F7AABECFF8855EEFCCD01A6 /* CodexCLIProvider+SyntheticEvents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProvider+SyntheticEvents.swift"; path = "Engine/CoderEngine/Sources/Providers/CodexCLI/StreamSupport/CodexCLIProvider+SyntheticEvents.swift"; sourceTree = "<group>"; };
 		2F868D1B1E0E6C07181083D3 /* TodoStore+Mutations+Lifecycle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "TodoStore+Mutations+Lifecycle.swift"; path = "App/SoloCodeApp/Sources/Tasking/Stores/TodoStore+Mutations+Lifecycle.swift"; sourceTree = "<group>"; };
@@ -2020,7 +2036,6 @@
 		3F7B82B43D609A72F1535E9A /* ReviewPipelineCoordinator+FixStage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ReviewPipelineCoordinator+FixStage.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/ReviewPipelineCoordinator+FixStage.swift"; sourceTree = "<group>"; };
 		3F9D61EB7F4A0E7AE980156F /* CodeReviewPanelModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPanelModels.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Models/CodeReviewPanelModels.swift; sourceTree = "<group>"; };
 		404AEC261F96C5B0E167BBB2 /* ProcessRunner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProcessRunner.swift; path = Engine/CoderEngine/Sources/Infrastructure/Process/ProcessRunner.swift; sourceTree = "<group>"; };
-		A1B2C3D40102030405060711 /* AsyncTimeout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AsyncTimeout.swift; path = Engine/CoderEngine/Sources/Infrastructure/Async/AsyncTimeout.swift; sourceTree = "<group>"; };
 		406299EE4350B434D972E895 /* PlanOutputClassifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanOutputClassifier.swift; path = App/SoloCodeApp/Sources/Planning/PlanOutputClassifier.swift; sourceTree = "<group>"; };
 		40F6E4B40703305A4B6F7590 /* BrowserPanelView+Console.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "BrowserPanelView+Console.swift"; path = "App/SoloCodeApp/Sources/Panels/Browser/BrowserPanelView+Console.swift"; sourceTree = "<group>"; };
 		41CA4E95E94F7C042B49E178 /* PipelineEventLoggerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineEventLoggerTests.swift; path = Tests/CoderEngineTests/Pipeline/Observability/PipelineEventLoggerTests.swift; sourceTree = "<group>"; };
@@ -2240,7 +2255,7 @@
 		64B718AF982E1DF93DB41141 /* ChatPanelView+PartI_RuntimeHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartI_RuntimeHelpers.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/Providers/ChatPanelView+PartI_RuntimeHelpers.swift"; sourceTree = "<group>"; };
 		64C66EE1D27AF4C1BC903355 /* StreamEvent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = StreamEvent.swift; path = Engine/CoderEngine/Sources/Providers/Core/StreamEvent.swift; sourceTree = "<group>"; };
 		64D93D50620408ED7CBB4642 /* ProviderFactoryClaudeAllowedToolsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderFactoryClaudeAllowedToolsTests.swift; path = Tests/SoloCodeAppTests/ProviderFactoryClaudeAllowedToolsTests.swift; sourceTree = "<group>"; };
-		64F05E80E703F3A2087697B5 /* browser-bridge.js */ = {isa = PBXFileReference; includeInIndex = 1; name = "browser-bridge.js"; path = "App/SoloCodeApp/Resources/browser-bridge.js"; sourceTree = "<group>"; };
+		64F05E80E703F3A2087697B5 /* browser-bridge.js */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; name = "browser-bridge.js"; path = "App/SoloCodeApp/Resources/browser-bridge.js"; sourceTree = "<group>"; };
 		64F62DF97B0BE782EE51DFD3 /* CodexCLIProvider+ToolMapping.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProvider+ToolMapping.swift"; path = "Engine/CoderEngine/Sources/Providers/CodexCLI/StreamSupport/CodexCLIProvider+ToolMapping.swift"; sourceTree = "<group>"; };
 		64FAFC263199AA8B12A8ED38 /* UnifiedToolRuntime+MCPCallsIDEStateHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+MCPCallsIDEStateHelpers.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Calls/UnifiedToolRuntime+MCPCallsIDEStateHelpers.swift"; sourceTree = "<group>"; };
 		6518D50669C6FEC707503ADD /* SidePanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SidePanelView.swift; path = App/SoloCodeApp/Sources/App/SidePanel/SidePanelView.swift; sourceTree = "<group>"; };
@@ -2357,7 +2372,6 @@
 		7647237806220D6363ADBD5F /* RollbackRecord.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RollbackRecord.swift; path = Engine/CoderEngine/Sources/Pipeline/Contracts/RollbackRecord.swift; sourceTree = "<group>"; };
 		76841AA2B9E7ACA7C9F92379 /* WorktreeSessionStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorktreeSessionStoreTests.swift; path = Tests/SoloCodeAppTests/WorktreeSessionStoreTests.swift; sourceTree = "<group>"; };
 		7687343565D3089CA34BC847 /* InstructionPolicyBundleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InstructionPolicyBundleTests.swift; path = Tests/CoderEngineTests/InstructionPolicyBundleTests.swift; sourceTree = "<group>"; };
-		A1B2C3D40102030405060713 /* AsyncTimeoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AsyncTimeoutTests.swift; path = Tests/CoderEngineTests/AsyncTimeoutTests.swift; sourceTree = "<group>"; };
 		769939C11DB99C0F2A4FF044 /* UsageFooterView+Formatters.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UsageFooterView+Formatters.swift"; path = "App/SoloCodeApp/Sources/Tasking/Views/Usage/UsageFooterView+Formatters.swift"; sourceTree = "<group>"; };
 		7723369F2679DAAB71FCFB55 /* ChatPanelView+PartF_CodeReviewMutations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartF_CodeReviewMutations.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_CodeReviewMutations.swift"; sourceTree = "<group>"; };
 		77278C44DE077AEFECE230AF /* ChangedFilesStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChangedFilesStore.swift; path = App/SoloCodeApp/Sources/Editor/ChangedFilesStore.swift; sourceTree = "<group>"; };
@@ -2461,9 +2475,6 @@
 		8A68CF0CB1ED6A9324FFDFD5 /* ProviderSupportTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderSupportTests.swift; path = Tests/SoloCodeAppTests/ProviderSupportTests.swift; sourceTree = "<group>"; };
 		8A95471101563A076635E347 /* MinimapRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MinimapRenderer.swift; path = App/SoloCodeApp/Sources/Panels/Navigation/MinimapRenderer.swift; sourceTree = "<group>"; };
 		8A98325326313B7A6FF8539B /* ReviewPanelChatStructuredContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatStructuredContent.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatStructuredContent.swift; sourceTree = "<group>"; };
-		A1D0C0F0A1D0C0F0A1D0F001 /* ReviewPanelChatAutoscroll.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatAutoscroll.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatAutoscroll.swift; sourceTree = "<group>"; };
-		A1D0C0F0A1D0C0F0A1D0F002 /* ReviewPanelChatStructuredLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatStructuredLogView.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatStructuredLogView.swift; sourceTree = "<group>"; };
-		A1D0C0F0A1D0C0F0A1D0F003 /* ReviewPanelChatAutoscrollTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatAutoscrollTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelChatAutoscrollTests.swift; sourceTree = "<group>"; };
 		8AF17E38EF2E8FC8E6A36BAF /* ChatPanelSupport+AutoTodo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelSupport+AutoTodo.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+AutoTodo.swift"; sourceTree = "<group>"; };
 		8B18A41855A66525861E05D2 /* CLIProfileProvisioner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIProfileProvisioner.swift; path = App/SoloCodeApp/Sources/Accounts/Provisioning/CLIProfileProvisioner.swift; sourceTree = "<group>"; };
 		8B3317CFF4FC1837EC88F50B /* PromptProfiles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PromptProfiles.swift; path = Engine/CoderEngine/Sources/SystemPrompts/Dimensions/PromptProfiles.swift; sourceTree = "<group>"; };
@@ -2534,7 +2545,7 @@
 		9781F52465E7B0106478363F /* UnifiedToolRuntime+RunDispatch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+RunDispatch.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Core/Execution/Dispatch/UnifiedToolRuntime+RunDispatch.swift"; sourceTree = "<group>"; };
 		978C10F0430813C08251078B /* EditorCommandNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorCommandNotifications.swift; path = App/SoloCodeApp/Sources/Editor/Commands/EditorCommandNotifications.swift; sourceTree = "<group>"; };
 		97A0A42B533D05C6BD0BF606 /* AgentWorkerAdapterDirectExecutionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AgentWorkerAdapterDirectExecutionTests.swift; path = Tests/CoderEngineTests/Pipeline/Bridge/AgentWorkerAdapterDirectExecutionTests.swift; sourceTree = "<group>"; };
-		97ABB62548F03CB05E6E3635 /* CoderIDEMCPServerExecutable */ = {isa = PBXFileReference; includeInIndex = 0; path = CoderIDEMCPServerExecutable; sourceTree = BUILT_PRODUCTS_DIR; };
+		97ABB62548F03CB05E6E3635 /* coderide-mcp-server */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "coderide-mcp-server"; sourceTree = BUILT_PRODUCTS_DIR; };
 		97ECEC181E2945F1B183919D /* WebFetchService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebFetchService.swift; path = Engine/CoderEngine/Sources/Tools/Web/Fetch/WebFetchService.swift; sourceTree = "<group>"; };
 		97EDD3F5F4E45A2E598DCD72 /* CodeReviewMultiSwarmProviderTests+Outcomes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProviderTests+Outcomes.swift"; path = "Tests/CoderEngineTests/CodeReview/CodeReviewMultiSwarmProviderTests+Outcomes.swift"; sourceTree = "<group>"; };
 		9818C381D2829D18DE6542FA /* EditorPlaceholderView+QuickOpen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "EditorPlaceholderView+QuickOpen.swift"; path = "App/SoloCodeApp/Sources/App/Placeholder/Sections/EditorPlaceholderView+QuickOpen.swift"; sourceTree = "<group>"; };
@@ -2552,8 +2563,6 @@
 		992DE5067820D2ECC4AC6DFE /* ReviewPanelLifecycleE2ETests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelLifecycleE2ETests.swift; path = Tests/SoloCodeAppTests/ReviewPanelLifecycleE2ETests.swift; sourceTree = "<group>"; };
 		997E49150D63F71132E26973 /* UnifiedToolRuntime+MCPCallsPrimary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+MCPCallsPrimary.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Calls/UnifiedToolRuntime+MCPCallsPrimary.swift"; sourceTree = "<group>"; };
 		999C5E9DCF2B3D3DEAC93D4E /* ToolEnabledLLMProviderPolicyAckTests+Finalization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProviderPolicyAckTests+Finalization.swift"; path = "Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+Finalization.swift"; sourceTree = "<group>"; };
-		A1B2C3D40102030405060714 /* SkillExecutionPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SkillExecutionPolicyTests.swift; path = Tests/CoderEngineTests/SkillExecutionPolicyTests.swift; sourceTree = "<group>"; };
-		A1B2C3D40102030405060715 /* ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift"; path = "Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift"; sourceTree = "<group>"; };
 		99C2A336001F3BADFFCCBE29 /* ReviewPanelOutcomeCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelOutcomeCard.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Findings/ReviewPanelOutcomeCard.swift; sourceTree = "<group>"; };
 		99E58FA25247ECC0A203FA4A /* ContextEstimator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContextEstimator.swift; path = App/SoloCodeApp/Sources/Context/ContextEstimator.swift; sourceTree = "<group>"; };
 		99F27C40993D93D668512480 /* ReviewPanelChatModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatModels.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Models/ReviewPanelChatModels.swift; sourceTree = "<group>"; };
@@ -2604,6 +2613,14 @@
 		A1542E6952E4F848FCB7E1DB /* MCPSharedStateTodoTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MCPSharedStateTodoTests.swift; path = Tests/CoderEngineTests/MCPSharedStateTodoTests.swift; sourceTree = "<group>"; };
 		A16A7F86260034166EE1A9AB /* PlanOptionsHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanOptionsHelpers.swift; path = App/SoloCodeApp/Sources/Planning/Views/PlanOptionsHelpers.swift; sourceTree = "<group>"; };
 		A19F3D578BB5ECBF978B50D9 /* ProviderSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderSupport.swift; path = App/SoloCodeApp/Sources/Settings/ProviderSupport.swift; sourceTree = "<group>"; };
+		A1B2C3D40102030405060711 /* AsyncTimeout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AsyncTimeout.swift; path = Engine/CoderEngine/Sources/Infrastructure/Async/AsyncTimeout.swift; sourceTree = "<group>"; };
+		A1B2C3D40102030405060712 /* SkillExecutionPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SkillExecutionPolicy.swift; path = Engine/CoderEngine/Sources/Skills/SkillExecutionPolicy.swift; sourceTree = "<group>"; };
+		A1B2C3D40102030405060713 /* AsyncTimeoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AsyncTimeoutTests.swift; path = Tests/CoderEngineTests/AsyncTimeoutTests.swift; sourceTree = "<group>"; };
+		A1B2C3D40102030405060714 /* SkillExecutionPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SkillExecutionPolicyTests.swift; path = Tests/CoderEngineTests/SkillExecutionPolicyTests.swift; sourceTree = "<group>"; };
+		A1B2C3D40102030405060715 /* ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift"; path = "Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+SkillExecution.swift"; sourceTree = "<group>"; };
+		A1D0C0F0A1D0C0F0A1D0F001 /* ReviewPanelChatAutoscroll.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatAutoscroll.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatAutoscroll.swift; sourceTree = "<group>"; };
+		A1D0C0F0A1D0C0F0A1D0F002 /* ReviewPanelChatStructuredLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatStructuredLogView.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatStructuredLogView.swift; sourceTree = "<group>"; };
+		A1D0C0F0A1D0C0F0A1D0F003 /* ReviewPanelChatAutoscrollTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatAutoscrollTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelChatAutoscrollTests.swift; sourceTree = "<group>"; };
 		A2203A4AF611F5C1D16A320E /* CodeReviewHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewHandler.swift; path = Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview/CodeReviewHandler.swift; sourceTree = "<group>"; };
 		A2443C33711E56E0095D071D /* ChatPanelTraceBindingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPanelTraceBindingTests.swift; path = Tests/SoloCodeAppTests/ChatPanelTraceBindingTests.swift; sourceTree = "<group>"; };
 		A299D53C2F8612ED6EA62A9E /* PlanOptionsParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanOptionsParser.swift; path = App/SoloCodeApp/Sources/Planning/Parser/PlanOptionsParser.swift; sourceTree = "<group>"; };
@@ -2728,7 +2745,7 @@
 		B72EDAAC2D934817BDDD0B9C /* ContextPathResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContextPathResolverTests.swift; path = Tests/SoloCodeAppTests/ContextPathResolverTests.swift; sourceTree = "<group>"; };
 		B7478A2A3057D418DCF62905 /* ChatStoreSummarizationMemoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreSummarizationMemoryTests.swift; path = Tests/SoloCodeAppTests/ChatStoreSummarizationMemoryTests.swift; sourceTree = "<group>"; };
 		B76A5DB9A22387F72FCAA979 /* PlanOptionModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanOptionModels.swift; path = App/SoloCodeApp/Sources/Planning/Models/PlanOptionModels.swift; sourceTree = "<group>"; };
-		B78EA8BC7CFA7D34BE9C365A /* monaco */ = {isa = PBXFileReference; includeInIndex = 1; name = monaco; path = App/SoloCodeApp/Resources/monaco; sourceTree = "<group>"; };
+		B78EA8BC7CFA7D34BE9C365A /* monaco */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = monaco; path = App/SoloCodeApp/Resources/monaco; sourceTree = "<group>"; };
 		B7A9277F66382C593F2D0D44 /* WindowSidebarToggleController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WindowSidebarToggleController.swift; path = App/SoloCodeApp/Sources/App/Utilities/WindowSidebarToggleController.swift; sourceTree = "<group>"; };
 		B7DF669019F67252304AC1C1 /* ReviewPanelTimelineTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelTimelineTab.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Timeline/ReviewPanelTimelineTab.swift; sourceTree = "<group>"; };
 		B84CB7A294C9B7F59333CDD5 /* PromptModes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PromptModes.swift; path = Engine/CoderEngine/Sources/SystemPrompts/Dimensions/PromptModes.swift; sourceTree = "<group>"; };
@@ -2780,7 +2797,7 @@
 		BFC2D92BF5EC2600B7A2912E /* SwarmLiveBoardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwarmLiveBoardStateTests.swift; path = Tests/SoloCodeAppTests/SwarmLiveBoardStateTests.swift; sourceTree = "<group>"; };
 		BFD941D34E009FD5C63FBEE4 /* LLDBDAPDebugAdapter+ExpressionEval.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "LLDBDAPDebugAdapter+ExpressionEval.swift"; path = "App/SoloCodeApp/Sources/Debug/Services/Adapter/LLDBDAPDebugAdapter+ExpressionEval.swift"; sourceTree = "<group>"; };
 		BFED1036D588E1F718B26767 /* DebugPanelView+Actions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugPanelView+Actions.swift"; path = "App/SoloCodeApp/Sources/Panels/DebugPanel/DebugPanelView+Actions.swift"; sourceTree = "<group>"; };
-		BFFC4E41E837A4DDBCDC0562 /* Codigo.icns */ = {isa = PBXFileReference; includeInIndex = 1; name = Codigo.icns; path = App/SoloCodeApp/Resources/Codigo.icns; sourceTree = "<group>"; };
+		BFFC4E41E837A4DDBCDC0562 /* Codigo.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = Codigo.icns; path = App/SoloCodeApp/Resources/Codigo.icns; sourceTree = "<group>"; };
 		C03BB85CC60907D626B19F8F /* ChatPanelSupport+PlanQuestionnaire.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelSupport+PlanQuestionnaire.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+PlanQuestionnaire.swift"; sourceTree = "<group>"; };
 		C09C0AA4268638D1542AD7AA /* PipelineJobFactory+DebugNative.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PipelineJobFactory+DebugNative.swift"; path = "Engine/CoderEngine/Sources/Pipeline/Debug/Factory/PipelineJobFactory+DebugNative.swift"; sourceTree = "<group>"; };
 		C0A3E99C3BC6F2EAAE626D28 /* PlanOptionsParserTests+Parsing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlanOptionsParserTests+Parsing.swift"; path = "Tests/SoloCodeAppTests/PlanOptionsParser/PlanOptionsParserTests+Parsing.swift"; sourceTree = "<group>"; };
@@ -2952,7 +2969,6 @@
 		DCA0AE133D594A59FFA2C816 /* GitService+CommandRunner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitService+CommandRunner.swift"; path = "App/SoloCodeApp/Sources/Git/Services/GitService+CommandRunner.swift"; sourceTree = "<group>"; };
 		DD415EFE9E8FEC5227D9ACBD /* UnifiedToolRuntimeTests+DebugLifecycle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntimeTests+DebugLifecycle.swift"; path = "Tests/CoderEngineTests/UnifiedToolRuntime/UnifiedToolRuntimeTests+DebugLifecycle.swift"; sourceTree = "<group>"; };
 		DD54E1FD0F34FEF3429A8B87 /* ToolEnabledLLMProviderPolicyAckTests+Budget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProviderPolicyAckTests+Budget.swift"; path = "Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+Budget.swift"; sourceTree = "<group>"; };
-		A1B2C3D40102030405060712 /* SkillExecutionPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SkillExecutionPolicy.swift; path = Engine/CoderEngine/Sources/Skills/SkillExecutionPolicy.swift; sourceTree = "<group>"; };
 		DD7C4A7FFD6428BF66C8306D /* SidebarThreadDeletionFallback.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SidebarThreadDeletionFallback.swift; path = App/SoloCodeApp/Sources/App/Sidebar/Support/SidebarThreadDeletionFallback.swift; sourceTree = "<group>"; };
 		DD7C9C9C3065857F03284D10 /* MessageToolTraceView+FileChanges.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MessageToolTraceView+FileChanges.swift"; path = "App/SoloCodeApp/Sources/Chat/MessageToolTrace/MessageToolTraceView+FileChanges.swift"; sourceTree = "<group>"; };
 		DD8D672873AA435AAF9A2A3D /* ReviewPanelChatThreadSwitcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatThreadSwitcher.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatThreadSwitcher.swift; sourceTree = "<group>"; };
@@ -3267,7 +3283,7 @@
 				59F818E3481102D0D0F3A633 /* Solo Code.app */,
 				2B9A33E22EA8134F4F65CA30 /* CoderEngine.framework */,
 				373477AE3BE7ABEAE93426F1 /* CoderIDEMCPServer.framework */,
-				97ABB62548F03CB05E6E3635 /* CoderIDEMCPServerExecutable */,
+				97ABB62548F03CB05E6E3635 /* coderide-mcp-server */,
 				9A419DB11C08B3F72AB7887C /* SoloCodeAppTests.xctest */,
 				29693A81CCF77044CD810D8A /* CoderEngineTests.xctest */,
 				C78271228A27581A0F875AD5 /* SoloCodeIntegrationTests.xctest */,
@@ -4015,6 +4031,14 @@
 				64F05E80E703F3A2087697B5 /* browser-bridge.js */,
 				0847D79ECD85DB6E9E6CF1C5 /* Fonts */,
 				B78EA8BC7CFA7D34BE9C365A /* monaco */,
+				2F5ECC6B2F5E12B000F0A76B /* ReviewPanelChatThinkingView.swift */,
+				2F5ECC6D2F5E12C500F0A76B /* ReviewPanelChatActivityView.swift */,
+				2F5ECC6F2F5E12EA00F0A76B /* ReviewPanelChatOutcomeView.swift */,
+				2F5ECC712F5E138800F0A76B /* ReviewPanelChatStructuredContent+Parsing.swift */,
+				2F5ECC732F5E139400F0A76B /* ReviewPanelChatStructuredContent+Summary.swift */,
+				2F5ECC752F5E13A100F0A76B /* ReviewPanelChatStructuredContent+ReviewRun.swift */,
+				2F5ECC772F5E13AD00F0A76B /* ReviewPanelChatStructuredContent+Helpers.swift */,
+				2F5ECC792F5E173500F0A76B /* CodeReviewPanelStore+ActionOutputFormatting.swift */,
 			);
 			name = App;
 			sourceTree = "<group>";
@@ -4917,7 +4941,7 @@
 				BBCF80A2DC92EA0926F11185 /* MCP */,
 			);
 			productName = CoderIDEMCPServerExecutable;
-			productReference = 97ABB62548F03CB05E6E3635 /* CoderIDEMCPServerExecutable */;
+			productReference = 97ABB62548F03CB05E6E3635 /* coderide-mcp-server */;
 			productType = "com.apple.product-type.tool";
 		};
 		FA1E1C6031D6E5D4603F0B7F /* SoloCodeAppTests */ = {
@@ -4944,8 +4968,9 @@
 		011A0E346816DE0A2C781439 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 1700;
+				LastUpgradeCheck = 2630;
 			};
 			buildConfigurationList = BA4AF87E628D6979F8C89661 /* Build configuration list for PBXProject "Solo Code" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -4956,13 +4981,11 @@
 				Base,
 			);
 			mainGroup = 7631D70A97EA5DAF8234F5BC;
-			minimizedProjectReferenceProxies = 0;
 			packageReferences = (
 				FB546C8975EAD7F26A93B9F1 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				CE0B1C85BA7E5BE06550E70B /* XCRemoteSwiftPackageReference "swift-sdk" */,
 				A9E28EB12412889165BF38EC /* XCRemoteSwiftPackageReference "swift-log" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = 6C35B0949FC53CF4A8338768 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -5310,6 +5333,7 @@
 				57B5D102A8E7AEB6B1F06DB3 /* OpenRouterModelPickerStore.swift in Sources */,
 				9D082DC46C42998DC8A57238 /* EditorPlaceholderView.swift in Sources */,
 				BB8460F7DDAFE658DD179241 /* EditorPlaceholderView+BottomPanel.swift in Sources */,
+				2F5ECC702F5E12EA00F0A76B /* ReviewPanelChatOutcomeView.swift in Sources */,
 				5351168A015929EB25CBE1DD /* EditorPlaceholderView+Diff.swift in Sources */,
 				18B841784E0B8C8FC0D3FC9B /* EditorPlaceholderView+Footer.swift in Sources */,
 				1359110B2EBDEF0A8AE79194 /* EditorPlaceholderView+Notifications.swift in Sources */,
@@ -5455,7 +5479,9 @@
 				F5AF4A0BD250A01CD91C2468 /* ChatPanelView+PartF_CodeReviewActions.swift in Sources */,
 				2AE559915D7647D8AC5A53CB /* ChatPanelView+PartF_CodeReviewMutations.swift in Sources */,
 				88C2760B707D46E0E825B7BC /* ChatPanelView+PartF_DebugTodoEvents+Helpers.swift in Sources */,
+				2F5ECC722F5E138800F0A76B /* ReviewPanelChatStructuredContent+Parsing.swift in Sources */,
 				943DA4C23499B45DEC4EDCE5 /* ChatPanelView+PartF_DebugTodoEvents.swift in Sources */,
+				2F5ECC762F5E13A100F0A76B /* ReviewPanelChatStructuredContent+ReviewRun.swift in Sources */,
 				D3570160538A85199210F568 /* ChatPanelView+PartF_DebugTodoLifecycle.swift in Sources */,
 				A1782388B05931B8A593554E /* ChatPanelView+PartF_PlanEvents.swift in Sources */,
 				D553C2711ACF1F751F5AE50F /* ChatPanelView+PartF_TodoEvents.swift in Sources */,
@@ -5476,6 +5502,7 @@
 				9BE5E361F7AB54D1C5AAF09B /* TaskStatusModifiers.swift in Sources */,
 				DF467975B28FFEE3A18E6F3E /* ArtifactCardView.swift in Sources */,
 				3298DABBBCFED9B920E91F38 /* ChatTodoExecutionCardMetrics.swift in Sources */,
+				2F5ECC782F5E13AD00F0A76B /* ReviewPanelChatStructuredContent+Helpers.swift in Sources */,
 				73EF8AFD2B4245532474793F /* ChatTodoExecutionCardView.swift in Sources */,
 				75F341A942B23B7704E32308 /* PrimaryTextBlockView.swift in Sources */,
 				7A1BEC3FC92A1C894159AD4F /* TodoCenterCardView.swift in Sources */,
@@ -5619,7 +5646,9 @@
 				1F69F7FF6C840BAD70DC6E9D /* BuildSystemPanel.swift in Sources */,
 				8E66B4F49B27EC6601E96CD8 /* ReviewPanelCoordinator+Prompts.swift in Sources */,
 				738C78E9EE31DB4FA1D6E78D /* ReviewPanelCoordinator.swift in Sources */,
+				2F5ECC6C2F5E12B000F0A76B /* ReviewPanelChatThinkingView.swift in Sources */,
 				D3CBE714047E8A0B1378F599 /* CodeReviewPanelModels.swift in Sources */,
+				2F5ECC7A2F5E173500F0A76B /* CodeReviewPanelStore+ActionOutputFormatting.swift in Sources */,
 				C8FD80F8B38C6955843DBC21 /* ReviewPanelChatModels.swift in Sources */,
 				821C4976C0CCB5F47C872223 /* ReviewPanelChatPresentationModels.swift in Sources */,
 				64EA31EB2381901476EBCD66 /* ReviewPanelSettingsModel.swift in Sources */,
@@ -5699,6 +5728,7 @@
 				32BA2CC424EC878C97E43A5F /* PlanPanelView+BuildBar.swift in Sources */,
 				81E8673B596E055D61CF3C14 /* PlanPanelView+Content.swift in Sources */,
 				A81C77C48E07F4BDA5DD8CF9 /* PlanPanelView+HistoryHelpers.swift in Sources */,
+				2F5ECC742F5E139400F0A76B /* ReviewPanelChatStructuredContent+Summary.swift in Sources */,
 				DDDEEF93F04E06F796B3C5C1 /* PlanPanelView+HistorySection.swift in Sources */,
 				5D8211E917251D4A85C114AE /* PlanPanelView+Layout.swift in Sources */,
 				8F68D37A426987F07787E0AF /* PlanPanelView+Policy.swift in Sources */,
@@ -5844,6 +5874,7 @@
 				A35F801638595AE15A6A804A /* ProviderFactory+API.swift in Sources */,
 				C2EBAD67F9105EA0EBD98988 /* ProviderFactory+CLI.swift in Sources */,
 				4F225DC6FC55D97697B5456D /* ProviderFactory+Runtime.swift in Sources */,
+				2F5ECC6E2F5E12C500F0A76B /* ReviewPanelChatActivityView.swift in Sources */,
 				7DA22F6167197F47F217AE0A /* ProviderFactory+CodeReview.swift in Sources */,
 				F7E2490312500660FA1ED83F /* ProviderFactory+Lightweight.swift in Sources */,
 				30C4901684CB515833379752 /* ProviderFactory+Swarm.swift in Sources */,
@@ -6656,6 +6687,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E2D86E23F273420E73050C5C /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.app;
 				SDKROOT = macosx;
@@ -6669,13 +6701,20 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -6691,7 +6730,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				DEAD_CODE_STRIPPING = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Solo Code";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				SDKROOT = macosx;
 			};
@@ -6703,13 +6748,20 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver.framework;
 				PRODUCT_MODULE_NAME = CoderIDEMCPServer;
 				PRODUCT_NAME = CoderIDEMCPServer;
@@ -6724,6 +6776,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E2D86E23F273420E73050C5C /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.integration;
 				SDKROOT = macosx;
@@ -6735,6 +6788,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E2D86E23F273420E73050C5C /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.integration;
 				SDKROOT = macosx;
@@ -6748,13 +6802,20 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -6767,6 +6828,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 2029FE3EDE063F9E76E1563B /* Tool.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				EXECUTABLE_NAME = "coderide-mcp-server";
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver;
@@ -6780,6 +6842,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -6810,9 +6873,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -6824,6 +6889,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -6834,6 +6900,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E2D86E23F273420E73050C5C /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.app;
 				SDKROOT = macosx;
@@ -6845,6 +6912,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E2D86E23F273420E73050C5C /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.engine;
 				SDKROOT = macosx;
@@ -6858,7 +6926,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				DEAD_CODE_STRIPPING = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Solo Code";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				SDKROOT = macosx;
 			};
@@ -6868,6 +6942,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -6898,9 +6973,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -6919,6 +6996,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -6929,6 +7007,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E2D86E23F273420E73050C5C /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.engine;
 				SDKROOT = macosx;
@@ -6941,13 +7020,20 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver.framework;
 				PRODUCT_MODULE_NAME = CoderIDEMCPServer;
 				PRODUCT_NAME = CoderIDEMCPServer;
@@ -6962,6 +7048,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 2029FE3EDE063F9E76E1563B /* Tool.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				EXECUTABLE_NAME = "coderide-mcp-server";
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver;

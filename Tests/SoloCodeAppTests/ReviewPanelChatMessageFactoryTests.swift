@@ -36,7 +36,7 @@ final class ReviewPanelChatMessageFactoryTests: XCTestCase {
         let message = ReviewPanelChatMessageFactory.summary(snapshot: snapshot)
 
         XCTAssertEqual(message.kind, .summary)
-        XCTAssertEqual(message.presentation?.sections.map(\.title), ["Session", "Findings"])
+        XCTAssertEqual(message.presentation?.sections.map(\.title), ["Outcome", "Findings"])
     }
 
     func testFindingUpdateFactoryBuildsDedicatedSection() {

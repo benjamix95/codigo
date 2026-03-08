@@ -3,15 +3,52 @@ import SwiftUI
 struct ReviewPanelChatStructuredSectionsView: View {
     let sections: [ReviewPanelChatStructuredSection]
     let accent: Color
+    var isStreaming: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(sections) { section in
-                ReviewPanelChatStructuredSectionView(
-                    section: section,
-                    accent: accent
-                )
+                sectionView(for: section)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionView(
+        for section: ReviewPanelChatStructuredSection
+    ) -> some View {
+        switch section.style {
+        case .thinking:
+            ReviewPanelChatThinkingView(
+                section: section,
+                isStreaming: isStreaming
+            )
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        case .activity:
+            ReviewPanelChatActivityView(
+                section: section,
+                accent: accent
+            )
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        case .mermaid:
+            MermaidDiagramView(
+                mermaidCode: section.lines.joined(separator: "\n"),
+                accentColor: accent
+            )
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+        case .outcome:
+            ReviewPanelChatOutcomeView(
+                section: section,
+                accent: accent
+            )
+        default:
+            ReviewPanelChatStructuredSectionView(
+                section: section,
+                accent: accent
+            )
         }
     }
 }
@@ -103,6 +140,9 @@ private struct ReviewPanelChatStructuredSectionView: View {
             }
         case .log:
             ReviewPanelChatStructuredLogView(section: section)
+        case .thinking, .activity, .mermaid, .outcome:
+            // Handled by dedicated views in the parent
+            EmptyView()
         }
     }
 }

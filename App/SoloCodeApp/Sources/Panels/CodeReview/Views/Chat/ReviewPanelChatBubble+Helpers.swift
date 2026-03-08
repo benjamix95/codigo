@@ -118,7 +118,8 @@ extension ReviewPanelChatBubble {
         if !sections.isEmpty {
             ReviewPanelChatStructuredSectionsView(
                 sections: sections,
-                accent: accent
+                accent: accent,
+                isStreaming: message.isStreaming
             )
         } else {
             markdownFallbackBubble(
@@ -135,7 +136,8 @@ extension ReviewPanelChatBubble {
         if !sections.isEmpty {
             ReviewPanelChatStructuredSectionsView(
                 sections: sections,
-                accent: systemBubbleAccent
+                accent: systemBubbleAccent,
+                isStreaming: message.isStreaming
             )
         } else {
             markdownFallbackBubble(

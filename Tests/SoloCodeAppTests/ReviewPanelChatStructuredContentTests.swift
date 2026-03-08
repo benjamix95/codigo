@@ -40,7 +40,7 @@ final class ReviewPanelChatStructuredContentTests: XCTestCase {
 
         XCTAssertEqual(sections.map(\.title), ["Run Output", "Verdict"])
         XCTAssertEqual(sections.first?.style, .log)
-        XCTAssertEqual(sections.last?.style, .prose)
+        XCTAssertEqual(sections.last?.style, .outcome)
     }
 
     func testReviewRunSectionsAssignUniqueSectionIDsWhenHeadersRepeat() {

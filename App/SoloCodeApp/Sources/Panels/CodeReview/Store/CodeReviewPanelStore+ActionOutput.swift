@@ -46,10 +46,9 @@ extension CodeReviewPanelStore {
                 line: "Review stream completed"
             )
         case .textDelta(let delta):
-            let current = chatMessages.first(where: { $0.id == id })?.content ?? ""
-            updateChatMessage(id: id, content: current + delta)
+            appendTextDelta(id: id, delta: delta)
         case .textReplace(let replacement):
-            updateChatMessage(id: id, content: replacement)
+            replaceResponseSection(id: id, replacement: replacement)
         case .raw(let type, let payload):
             handleRawReviewRunEvent(id: id, type: type, payload: payload)
         case .error(let message):
@@ -59,6 +58,95 @@ extension CodeReviewPanelStore {
                 line: "Error: \(message)"
             )
         }
+    }
+
+    /// Appends a text delta to the Response section without
+    /// destroying other accumulated sections (Activity, Thinking, etc).
+    private func appendTextDelta(id: UUID, delta: String) {
+        guard let index = chatMessages.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let current = chatMessages[index].content
+        let responseHeading = "### Response"
+
+        if let headingRange = current.range(of: responseHeading) {
+            // Find the boundary of the Response section
+            let afterHeading = current[headingRange.upperBound...]
+            if let nextSection = afterHeading.range(of: "\n### ") {
+                // Insert delta before the next section heading
+                let before = String(current[..<nextSection.lowerBound])
+                let after = String(current[nextSection.lowerBound...])
+                chatMessages[index].content = before + delta + after
+            } else {
+                // Response is the last section — safe to append
+                chatMessages[index].content = current + delta
+            }
+        } else {
+            // Create a new Response section
+            var updated = current
+            if !updated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                updated += "\n\n"
+            }
+            updated += responseHeading + "\n" + delta
+            chatMessages[index].content = updated
+        }
+        persistChatState()
+    }
+
+    /// Replaces only the Response section content, preserving
+    /// Activity, Thinking, and other accumulated sections.
+    private func replaceResponseSection(id: UUID, replacement: String) {
+        guard let index = chatMessages.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let current = chatMessages[index].content
+        let responseHeading = "### Response"
+
+        guard current.contains(responseHeading) else {
+            // No response section yet — append as new section
+            appendTextDelta(id: id, delta: replacement)
+            return
+        }
+
+        let separator = "\n---\n"
+
+        // Split into logPart and verdictPart
+        let parts = current.components(separatedBy: separator)
+        let verdictPart = parts.count > 1
+            ? parts.dropFirst().joined(separator: separator)
+            : ""
+
+        let logPart = parts.first ?? current
+
+        // Find the response heading in the logPart and replace everything after it
+        guard let logHeadingRange = logPart.range(of: responseHeading) else {
+            appendTextDelta(id: id, delta: replacement)
+            return
+        }
+
+        // Check if there's another ### section after the Response section
+        let afterLogHeading = logPart[logHeadingRange.upperBound...]
+        let nextHeadingOffset = afterLogHeading.range(of: "\n### ")
+
+        var newLogPart: String
+        if let nextRange = nextHeadingOffset {
+            // Preserve sections after Response
+            let beforeResponse = String(logPart[..<logHeadingRange.lowerBound])
+            let afterResponse = String(afterLogHeading[nextRange.lowerBound...])
+            newLogPart = beforeResponse + responseHeading + "\n"
+                + replacement + afterResponse
+        } else {
+            // Response is the last section in logPart
+            let beforeResponse = String(logPart[..<logHeadingRange.lowerBound])
+            newLogPart = beforeResponse + responseHeading + "\n" + replacement
+        }
+
+        let rebuilt = verdictPart.isEmpty
+            ? newLogPart.trimmingCharacters(in: .whitespacesAndNewlines)
+            : newLogPart.trimmingCharacters(in: .whitespacesAndNewlines)
+                + separator + verdictPart
+        chatMessages[index].content = rebuilt
+        persistChatState()
     }
 
     func finishPanelActionOutput(id: UUID, fallbackContent: String? = nil) {
@@ -109,9 +197,12 @@ extension CodeReviewPanelStore {
         type: String,
         payload: [String: String]
     ) {
-        let enrichedPayload = enrichedReviewRawPayload(type: type, payload: payload)
+        let enrichedPayload = enrichedReviewRawPayload(
+            type: type, payload: payload
+        )
         let envelope = EventNormalizer.normalizeEnvelope(
-            sourceProvider: effectivePanelProviderId ?? "review-panel",
+            sourceProvider: effectivePanelProviderId
+                ?? "review-panel",
             type: type,
             payload: enrichedPayload
         )
@@ -129,53 +220,20 @@ extension CodeReviewPanelStore {
         }
     }
 
-    func enrichedReviewRawPayload(
-        type: String,
-        payload: [String: String]
-    ) -> [String: String] {
-        var enriched = payload
-        switch type {
-        case "review-worker-plan":
-            if let workerId = firstNonEmpty([payload["worker_id"], payload["id"]]) {
-                enriched["swarm_id"] = workerId
-                enriched["group_id"] = payload["group_id"] ?? "swarm-\(workerId)"
-                enriched["agent_name"] = payload["agent_name"] ?? workerId
-                enriched["title"] = payload["title"] ?? payload["description"] ?? workerId
-                if enriched["detail"] == nil {
-                    enriched["detail"] = "planned"
-                }
-            }
-        case "review-audit-tool":
-            if let tool = firstNonEmpty([payload["tool"]]) {
-                let swarmId = "audit-\(tool)"
-                enriched["swarm_id"] = swarmId
-                enriched["group_id"] = payload["group_id"] ?? "swarm-\(swarmId)"
-                enriched["agent_name"] = payload["agent_name"] ?? tool
-                enriched["title"] = payload["title"] ?? tool
-            }
-        case "agent":
-            if let swarmId = firstNonEmpty([payload["swarm_id"], payload["swarmId"]]) {
-                enriched["group_id"] = payload["group_id"] ?? "swarm-\(swarmId)"
-                enriched["agent_name"] = payload["agent_name"] ?? payload["title"] ?? swarmId
-            }
-        default:
-            break
-        }
-        return enriched
-    }
-
     func syncTodoIfNeeded(
         type: String,
         payload: [String: String]
     ) {
-        guard type == "todo_write" || payload.keys.contains(where: { $0.hasPrefix("todo_") }) else {
-            return
-        }
+        guard type == "todo_write"
+            || payload.keys.contains(where: {
+                $0.hasPrefix("todo_")
+            })
+        else { return }
         guard let todoStore,
-              let parsedTodo = EventNormalizer.parseTodoWrite(payload: payload)
-        else {
-            return
-        }
+              let parsedTodo = EventNormalizer.parseTodoWrite(
+                  payload: payload
+              )
+        else { return }
 
         todoStore.upsertFromAgent(
             id: parsedTodo.id,
@@ -187,69 +245,5 @@ extension CodeReviewPanelStore {
             linkedFiles: parsedTodo.files,
             conversationId: conversationId
         )
-    }
-
-    func scopedTaskActivity(_ activity: TaskActivity) -> TaskActivity {
-        guard let conversationId else { return activity }
-        var payload = activity.payload
-        payload["conversation_id"] = conversationId.uuidString.lowercased()
-        return TaskActivity(
-            id: activity.id,
-            type: activity.type,
-            title: activity.title,
-            detail: activity.detail,
-            payload: payload,
-            timestamp: activity.timestamp,
-            phase: activity.phase,
-            isRunning: activity.isRunning,
-            groupId: activity.groupId
-        )
-    }
-
-    func formattedReviewRunEvent(
-        type: String,
-        payload: [String: String]
-    ) -> (sectionTitle: String, line: String)? {
-        switch type {
-        case "reasoning":
-            if let detail = firstNonEmpty([
-                payload["detail"], payload["text"], payload["delta"], payload["content"], payload["summary"],
-            ]) {
-                return ("Thinking", detail)
-            }
-        case "review-worker-plan":
-            let description = firstNonEmpty([payload["description"], payload["title"]]) ?? "Planned worker"
-            let severity = payload["severity"].map { "[\($0)] " } ?? ""
-            let fileCount = payload["fileCount"].map { " (\($0) files)" } ?? ""
-            return ("Planned Work", "- [ ] \(severity)\(description)\(fileCount)")
-        case "review-fix-round":
-            let round = payload["round"] ?? "?"
-            let maxRounds = payload["maxRounds"] ?? "?"
-            return ("Progress", "Round \(round)/\(maxRounds)")
-        case "review-audit-tool":
-            let tool = payload["tool"] ?? "audit"
-            let detail = payload["detail"] ?? "completed"
-            return ("Audit", "\(tool): \(detail)")
-        case "agent":
-            let title = payload["title"] ?? payload["agent_name"] ?? "agent"
-            let detail = payload["detail"] ?? payload["status"] ?? "updated"
-            return ("Activity", "\(title) — \(detail)")
-        case "tool_execution_error", "tool_validation_error":
-            let detail = payload["detail"] ?? payload["title"] ?? "Tool error"
-            return ("Activity", "Error: \(detail)")
-        default:
-            if let detail = firstNonEmpty([
-                payload["detail"],
-                payload["title"],
-                payload["summary"],
-                payload["status"],
-                payload["tool"],
-                payload["type"],
-            ]) {
-                return ("Activity", "\(type): \(detail)")
-            }
-            return ("Activity", type)
-        }
-        return nil
     }
 }

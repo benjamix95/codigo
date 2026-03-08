@@ -196,6 +196,9 @@ extension ReviewPanelChatStructuredContent {
         if lower == "planned work" {
             return .findings
         }
+        if lower == "response" {
+            return .prose
+        }
         return .log
     }
 

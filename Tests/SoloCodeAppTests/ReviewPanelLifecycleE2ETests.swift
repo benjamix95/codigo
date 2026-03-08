@@ -111,7 +111,7 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         let summaryMessage = try XCTUnwrap(
             store.chatMessages.last(where: { $0.kind == .summary })
         )
-        XCTAssertEqual(summaryMessage.presentation?.sections.map(\.title), ["Session", "Findings"])
+        XCTAssertEqual(summaryMessage.presentation?.sections.map(\.title), ["Outcome", "Findings"])
 
         let storedState = ReviewPanelChatSessionStore.shared.state(
             for: CodeReviewPanelStore.chatSessionKey(conversationId: conversationId)
