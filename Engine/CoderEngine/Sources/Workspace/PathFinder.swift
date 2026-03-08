@@ -50,6 +50,10 @@ public enum PathFinder {
     }
 
     private static func findUsingInteractiveShell(executable: String) -> String? {
+        // Never block the main thread with Process.waitUntilExit(). During app
+        // startup SwiftUI/AttributeGraph can pump the run loop and abort.
+        guard !Thread.isMainThread else { return nil }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-lc", "command -v \(shellEscape(executable)) 2>/dev/null | head -n 1"]

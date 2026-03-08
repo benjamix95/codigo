@@ -51,4 +51,35 @@ final class PathFinderTests: XCTestCase {
 
         XCTAssertNil(resolved)
     }
+
+    @MainActor
+    func testFindSkipsInteractiveShellLookupOnMainThread() throws {
+        let fileManager = FileManager.default
+        let executableName = "codex-main-thread-\(UUID().uuidString)"
+        let executableURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(executableName)
+
+        try fileManager.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        XCTAssertTrue(fileManager.createFile(
+            atPath: executableURL.path,
+            contents: Data("#!/bin/sh\nexit 0\n".utf8)
+        ))
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
+        defer { try? fileManager.removeItem(at: executableURL.deletingLastPathComponent()) }
+
+        XCTAssertTrue(Thread.isMainThread)
+
+        let resolved = PathFinder.find(
+            executable: executableName,
+            pathEnv: "",
+            allowInteractiveShellLookup: true,
+            includeDefaultCandidates: false
+        )
+
+        XCTAssertNil(resolved)
+    }
 }
