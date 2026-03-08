@@ -23,7 +23,7 @@ extension CodeReviewPanelStore {
         appendChatMessage(ReviewPanelMessage(
             id: assistantId,
             role: .assistant,
-            kind: .plain,
+            kind: .reviewRun,
             content: "",
             isStreaming: true
         ))
@@ -43,33 +43,25 @@ extension CodeReviewPanelStore {
         // Build contextual prompt
         let prompt = buildChatPrompt(userMessage: trimmed)
         let context = buildWorkspaceContext()
-        let sessionStore = chatSessionStore
-        let sessionKey = chatSessionKey
 
         coordinator.runChatStream(
             provider: provider,
             prompt: prompt,
             context: context,
-            onToken: { accumulated in
-                sessionStore.updateMessage(id: assistantId, for: sessionKey) {
-                    $0.content = accumulated
-                }
+            onEvent: { [weak self] event in
+                self?.streamPanelActionOutput(id: assistantId, event: event)
             },
             onComplete: { [weak self] in
-                sessionStore.updateMessage(id: assistantId, for: sessionKey) {
-                    $0.isStreaming = false
-                }
-                sessionStore.setProcessing(false, startedAt: nil, for: sessionKey)
-                Task { @MainActor in
-                    await self?.syncStructuredFindingsFromChatResponse(messageId: assistantId)
-                }
+                self?.finishPanelActionOutput(
+                    id: assistantId,
+                    fallbackContent: "Chat response completed."
+                )
+                self?.setChatProcessing(false, startedAt: nil)
+                Task { @MainActor in await self?.syncStructuredFindingsFromChatResponse(messageId: assistantId) }
             },
-            onError: { error in
-                sessionStore.updateMessage(id: assistantId, for: sessionKey) {
-                    $0.content = "Error: \(error)"
-                    $0.isStreaming = false
-                }
-                sessionStore.setProcessing(false, startedAt: nil, for: sessionKey)
+            onError: { [weak self] error in
+                self?.failPanelActionOutput(id: assistantId, error: error)
+                self?.setChatProcessing(false, startedAt: nil)
             }
         )
     }
@@ -92,6 +84,9 @@ extension CodeReviewPanelStore {
             chatMessages[lastIndex].isStreaming = false
             if chatMessages[lastIndex].content.isEmpty {
                 chatMessages[lastIndex].content = "Cancelled."
+            }
+            if chatMessages[lastIndex].kind == .reviewRun {
+                ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[lastIndex])
             }
             persistChatState()
         }
