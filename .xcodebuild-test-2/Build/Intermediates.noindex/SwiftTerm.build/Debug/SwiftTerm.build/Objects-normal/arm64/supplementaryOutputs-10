@@ -1,0 +1,30 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Mac/MacLocalTerminalView.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacLocalTerminalView.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacLocalTerminalView.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacLocalTerminalView.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacLocalTerminalView.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacLocalTerminalView.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Mac/MacTerminalView.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacTerminalView.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacTerminalView.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacTerminalView.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacTerminalView.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacTerminalView.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Position.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Position.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Position.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Position.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Position.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Position.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Pty.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Pty.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Pty.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Pty.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Pty.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Pty.swiftdeps"
+  }
+}

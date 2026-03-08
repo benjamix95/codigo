@@ -1,0 +1,30 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/SelectableChannel.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableChannel.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableChannel.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableChannel.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableChannel.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableChannel.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/SelectableEventLoop.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableEventLoop.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableEventLoop.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableEventLoop.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableEventLoop.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectableEventLoop.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/SelectorEpoll.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorEpoll.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorEpoll.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorEpoll.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorEpoll.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorEpoll.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/SelectorGeneric.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorGeneric.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorGeneric.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorGeneric.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorGeneric.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/SelectorGeneric.swiftdeps"
+  }
+}

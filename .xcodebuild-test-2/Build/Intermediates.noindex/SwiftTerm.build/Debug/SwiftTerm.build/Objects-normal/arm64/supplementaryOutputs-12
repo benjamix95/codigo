@@ -1,0 +1,30 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/SearchState.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SearchState.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SearchState.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SearchState.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SearchState.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SearchState.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/SelectionService.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SelectionService.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SelectionService.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SelectionService.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SelectionService.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SelectionService.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/SixelDcsHandler.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SixelDcsHandler.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SixelDcsHandler.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SixelDcsHandler.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SixelDcsHandler.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/SixelDcsHandler.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Terminal.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Terminal.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Terminal.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Terminal.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Terminal.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/Terminal.swiftdeps"
+  }
+}

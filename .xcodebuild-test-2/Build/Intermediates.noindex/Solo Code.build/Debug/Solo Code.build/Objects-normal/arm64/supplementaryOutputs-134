@@ -1,0 +1,177 @@
+{
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+Commands.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Commands.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Commands.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Commands.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Commands.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Commands.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+Providers.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Providers.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Providers.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Providers.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Providers.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Providers.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+Window.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Window.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Window.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Window.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Window.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/CodigoApp+Window.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Bootstrap/WindowLaunchIntentStore.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/WindowLaunchIntentStore.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/WindowLaunchIntentStore.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/WindowLaunchIntentStore.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/WindowLaunchIntentStore.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/WindowLaunchIntentStore.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/ContentPanelWidthPolicy.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentPanelWidthPolicy.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentPanelWidthPolicy.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentPanelWidthPolicy.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentPanelWidthPolicy.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentPanelWidthPolicy.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/ContentView.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Handlers.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Handlers.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Handlers.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Handlers.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Handlers.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Handlers.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+Composition.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Composition.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Composition.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Composition.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Composition.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Composition.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+Editor.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Editor.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Editor.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Editor.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Editor.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Editor.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+IDEChrome.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+IDEChrome.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+IDEChrome.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+IDEChrome.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+IDEChrome.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+IDEChrome.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+ModePanels.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+ModePanels.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+ModePanels.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+ModePanels.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+ModePanels.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+ModePanels.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+PanelComponents.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+PanelComponents.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+PanelComponents.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+PanelComponents.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+PanelComponents.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+PanelComponents.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+Panels.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Panels.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Panels.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Panels.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Panels.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+Layout+Panels.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+ProviderSelection.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+ProviderSelection.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+ProviderSelection.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+ProviderSelection.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+ProviderSelection.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+ProviderSelection.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+SidebarChrome.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+SidebarChrome.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+SidebarChrome.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+SidebarChrome.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+SidebarChrome.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ContentView+SidebarChrome.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/DesignSystem/DesignSystem+Components.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Components.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Components.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Components.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Components.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Components.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/DesignSystem/DesignSystem+Tokens.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Tokens.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Tokens.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Tokens.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Tokens.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+Tokens.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/DesignSystem/DesignSystem+ViewHelpers.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+ViewHelpers.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+ViewHelpers.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+ViewHelpers.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+ViewHelpers.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/DesignSystem+ViewHelpers.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/DesignSystem/ElapsedTimerView.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ElapsedTimerView.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ElapsedTimerView.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ElapsedTimerView.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ElapsedTimerView.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ElapsedTimerView.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/FontPreferences.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/FontPreferences.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/FontPreferences.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/FontPreferences.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/FontPreferences.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/FontPreferences.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/ModeControls/ModeControlsBarView.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/ModeControls/Sections/ModeControlsBarView+Buttons.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Buttons.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Buttons.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Buttons.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Buttons.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Buttons.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/ModeControls/Sections/Picker/ModeControlsBarView+CodexPicker.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+CodexPicker.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+CodexPicker.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+CodexPicker.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+CodexPicker.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+CodexPicker.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/ModeControls/Sections/Picker/ModeControlsBarView+ModelPickers.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+ModelPickers.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+ModelPickers.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+ModelPickers.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+ModelPickers.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+ModelPickers.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/App/SoloCodeApp/Sources/App/ModeControls/Sections/Picker/ModeControlsBarView+Policies.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Policies.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Policies.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Policies.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Policies.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/Solo Code.build/Objects-normal/arm64/ModeControlsBarView+Policies.swiftdeps"
+  }
+}

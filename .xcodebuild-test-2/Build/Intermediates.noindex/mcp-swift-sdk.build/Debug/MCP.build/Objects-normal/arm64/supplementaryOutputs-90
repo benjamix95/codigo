@@ -1,0 +1,23 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-sdk/Sources/MCP/Base/Transports/HTTPServer/StatefulHTTPServerTransport.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatefulHTTPServerTransport.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatefulHTTPServerTransport.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatefulHTTPServerTransport.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatefulHTTPServerTransport.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatefulHTTPServerTransport.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-sdk/Sources/MCP/Base/Transports/HTTPServer/StatelessHTTPServerTransport.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatelessHTTPServerTransport.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatelessHTTPServerTransport.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatelessHTTPServerTransport.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatelessHTTPServerTransport.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/StatelessHTTPServerTransport.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-sdk/Sources/MCP/Base/Transports/InMemoryTransport.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/InMemoryTransport.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/InMemoryTransport.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/InMemoryTransport.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/InMemoryTransport.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/InMemoryTransport.swiftdeps"
+  }
+}

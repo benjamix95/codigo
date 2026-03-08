@@ -1,0 +1,39 @@
+{
+  "" : {
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_NIODataStructures-primary.dia",
+    "emit-module-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_NIODataStructures-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_NIODataStructures-primary-emit-module.dia",
+    "pch" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_NIODataStructures-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_NIODataStructures-primary.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/_NIODataStructures/Heap.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/Heap.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/Heap.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/Heap.dia",
+    "index-unit-output-path" : "/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/Heap.o",
+    "llvm-bc" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/Heap.bc",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/Heap.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/Heap.swiftdeps",
+    "swiftmodule" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/Heap~partial.swiftmodule"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/_NIODataStructures/PriorityQueue.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/PriorityQueue.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/PriorityQueue.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/PriorityQueue.dia",
+    "index-unit-output-path" : "/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/PriorityQueue.o",
+    "llvm-bc" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/PriorityQueue.bc",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/PriorityQueue.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/PriorityQueue.swiftdeps",
+    "swiftmodule" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/PriorityQueue~partial.swiftmodule"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/_NIODataStructures/_TinyArray.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_TinyArray.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_TinyArray.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_TinyArray.dia",
+    "index-unit-output-path" : "/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_TinyArray.o",
+    "llvm-bc" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_TinyArray.bc",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_TinyArray.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_TinyArray.swiftdeps",
+    "swiftmodule" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/_NIODataStructures.build/Objects-normal/arm64/_TinyArray~partial.swiftmodule"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-collections/Sources/DequeModule/RigidDeque/RigidDeque+Append.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Append.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Append.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Append.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Append.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Append.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-collections/Sources/DequeModule/RigidDeque/RigidDeque+Consumption.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Consumption.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Consumption.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Consumption.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Consumption.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Consumption.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-collections/Sources/DequeModule/RigidDeque/RigidDeque+Container.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Container.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Container.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Container.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Container.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-collections.build/Debug/DequeModule.build/Objects-normal/arm64/RigidDeque+Container.swiftdeps"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Mac/MacCaretView.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacCaretView.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacCaretView.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacCaretView.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacCaretView.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacCaretView.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Mac/MacDebugView.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacDebugView.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacDebugView.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacDebugView.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacDebugView.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacDebugView.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Mac/MacExtensions.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacExtensions.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacExtensions.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacExtensions.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacExtensions.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacExtensions.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/SwiftTerm/Sources/SwiftTerm/Mac/MacFindBarView.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacFindBarView.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacFindBarView.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacFindBarView.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacFindBarView.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/SwiftTerm.build/Debug/SwiftTerm.build/Objects-normal/arm64/MacFindBarView.swiftdeps"
+  }
+}

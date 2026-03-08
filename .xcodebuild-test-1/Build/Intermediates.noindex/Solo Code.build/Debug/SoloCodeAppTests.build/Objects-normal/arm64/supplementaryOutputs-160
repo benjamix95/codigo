@@ -1,0 +1,93 @@
+{
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EditorPanelsStoreTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPanelsStoreTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPanelsStoreTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPanelsStoreTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPanelsStoreTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPanelsStoreTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EditorPathResolverTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPathResolverTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPathResolverTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPathResolverTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPathResolverTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorPathResolverTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EditorQuickOpenStoreTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorQuickOpenStoreTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorQuickOpenStoreTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorQuickOpenStoreTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorQuickOpenStoreTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorQuickOpenStoreTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EditorSplitStoreTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorSplitStoreTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorSplitStoreTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorSplitStoreTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorSplitStoreTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorSplitStoreTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EditorTabIconTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorTabIconTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorTabIconTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorTabIconTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorTabIconTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EditorTabIconTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests+Activities.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Activities.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Activities.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Activities.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Activities.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Activities.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests+Commands.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Commands.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Commands.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Commands.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Commands.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+Commands.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests+FileOperations.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+FileOperations.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+FileOperations.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+FileOperations.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+FileOperations.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+FileOperations.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests+PayloadKeyFallbacks.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PayloadKeyFallbacks.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PayloadKeyFallbacks.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PayloadKeyFallbacks.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PayloadKeyFallbacks.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PayloadKeyFallbacks.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests+PlanStepTimestamp.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PlanStepTimestamp.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PlanStepTimestamp.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PlanStepTimestamp.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PlanStepTimestamp.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests+PlanStepTimestamp.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerLiveStateTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerPlanLifecycleEdgeCaseTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerPlanLifecycleEdgeCaseTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerPlanLifecycleEdgeCaseTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerPlanLifecycleEdgeCaseTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerPlanLifecycleEdgeCaseTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/EventNormalizerPlanLifecycleEdgeCaseTests.swiftdeps"
+  }
+}

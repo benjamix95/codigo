@@ -1,0 +1,23 @@
+{
+  "/Users/benjaminstoica/codigo/Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CoderIDEMCPServerApp+IDEStatePlanQuestionTool.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanQuestionTool.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanQuestionTool.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanQuestionTool.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanQuestionTool.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanQuestionTool.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CoderIDEMCPServerApp+IDEStatePlanTools.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanTools.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanTools.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanTools.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanTools.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanTools.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CoderIDEMCPServerApp+IDEStatePlanValidation.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanValidation.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanValidation.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanValidation.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanValidation.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp+IDEStatePlanValidation.swiftdeps"
+  }
+}

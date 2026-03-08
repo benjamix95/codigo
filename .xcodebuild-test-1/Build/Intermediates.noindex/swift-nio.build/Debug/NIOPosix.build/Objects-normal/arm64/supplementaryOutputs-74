@@ -1,0 +1,30 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/BaseSocket.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocket.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocket.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocket.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocket.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocket.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/BaseSocketChannel+AccessibleTransport.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+AccessibleTransport.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+AccessibleTransport.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+AccessibleTransport.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+AccessibleTransport.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+AccessibleTransport.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/BaseSocketChannel+SocketOptionProvider.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+SocketOptionProvider.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+SocketOptionProvider.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+SocketOptionProvider.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+SocketOptionProvider.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel+SocketOptionProvider.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/BaseSocketChannel.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/BaseSocketChannel.swiftdeps"
+  }
+}

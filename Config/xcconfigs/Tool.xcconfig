@@ -1,0 +1,7 @@
+#include "Common.xcconfig"
+GENERATE_INFOPLIST_FILE = YES
+PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver
+PRODUCT_NAME = coderide-mcp-server
+PRODUCT_MODULE_NAME = CoderIDEMCPServer
+EXECUTABLE_NAME = coderide-mcp-server
+SKIP_INSTALL = YES

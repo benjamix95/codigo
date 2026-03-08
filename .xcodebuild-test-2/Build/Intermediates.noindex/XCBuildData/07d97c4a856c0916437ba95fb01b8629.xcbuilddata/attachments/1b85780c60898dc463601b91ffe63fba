@@ -1,0 +1,4 @@
+framework module CoderEngine {
+  header "CoderEngine-Swift.h"
+  requires objc
+}

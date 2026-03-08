@@ -1,0 +1,30 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/PosixSingletons.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/PosixSingletons.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/PosixSingletons.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/PosixSingletons.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/PosixSingletons.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/PosixSingletons.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/RawSocketBootstrap.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/RawSocketBootstrap.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/RawSocketBootstrap.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/RawSocketBootstrap.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/RawSocketBootstrap.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/RawSocketBootstrap.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/Resolver.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Resolver.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Resolver.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Resolver.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Resolver.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Resolver.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOPosix/Selectable.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Selectable.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Selectable.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Selectable.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Selectable.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOPosix.build/Objects-normal/arm64/Selectable.swiftdeps"
+  }
+}

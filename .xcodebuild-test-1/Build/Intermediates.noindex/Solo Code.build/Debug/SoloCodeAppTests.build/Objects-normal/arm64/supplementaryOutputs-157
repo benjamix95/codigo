@@ -1,0 +1,93 @@
+{
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatPanelTraceBindingTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPanelTraceBindingTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPanelTraceBindingTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPanelTraceBindingTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPanelTraceBindingTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPanelTraceBindingTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatPipelineReducerTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPipelineReducerTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPipelineReducerTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPipelineReducerTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPipelineReducerTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatPipelineReducerTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatReasoningStreamReducerTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatReasoningStreamReducerTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatReasoningStreamReducerTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatReasoningStreamReducerTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatReasoningStreamReducerTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatReasoningStreamReducerTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatSessionProcessingOrderTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatSessionProcessingOrderTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatSessionProcessingOrderTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatSessionProcessingOrderTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatSessionProcessingOrderTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatSessionProcessingOrderTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStoreAsyncHydrationTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAsyncHydrationTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAsyncHydrationTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAsyncHydrationTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAsyncHydrationTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAsyncHydrationTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStoreAttachmentMigrationTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAttachmentMigrationTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAttachmentMigrationTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAttachmentMigrationTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAttachmentMigrationTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreAttachmentMigrationTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStoreCheckpointTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreCheckpointTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreCheckpointTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreCheckpointTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreCheckpointTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreCheckpointTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStoreConversationReuseTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreConversationReuseTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreConversationReuseTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreConversationReuseTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreConversationReuseTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreConversationReuseTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStoreExportMarkdownTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreExportMarkdownTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreExportMarkdownTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreExportMarkdownTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreExportMarkdownTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreExportMarkdownTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStoreForkTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreForkTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreForkTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreForkTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreForkTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreForkTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStoreMarkerSanitizationTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMarkerSanitizationTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMarkerSanitizationTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMarkerSanitizationTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMarkerSanitizationTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMarkerSanitizationTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStoreMigrationTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMigrationTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMigrationTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMigrationTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMigrationTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStoreMigrationTests.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tests/SoloCodeAppTests/ChatStorePlanAttachmentTests.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStorePlanAttachmentTests.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStorePlanAttachmentTests.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStorePlanAttachmentTests.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStorePlanAttachmentTests.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/Solo Code.build/Debug/SoloCodeAppTests.build/Objects-normal/arm64/ChatStorePlanAttachmentTests.swiftdeps"
+  }
+}

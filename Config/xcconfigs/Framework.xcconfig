@@ -1,0 +1,7 @@
+#include "Common.xcconfig"
+GENERATE_INFOPLIST_FILE = YES
+PRODUCT_BUNDLE_IDENTIFIER = com.solocode.engine
+PRODUCT_NAME = CoderEngine
+PRODUCT_MODULE_NAME = CoderEngine
+DEFINES_MODULE = YES
+SKIP_INSTALL = YES

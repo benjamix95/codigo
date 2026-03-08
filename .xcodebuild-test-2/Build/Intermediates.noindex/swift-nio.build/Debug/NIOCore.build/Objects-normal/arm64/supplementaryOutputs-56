@@ -1,0 +1,37 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/NIOLoopBound.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOLoopBound.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOLoopBound.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOLoopBound.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOLoopBound.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOLoopBound.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/NIOPooledRecvBufferAllocator.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOPooledRecvBufferAllocator.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOPooledRecvBufferAllocator.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOPooledRecvBufferAllocator.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOPooledRecvBufferAllocator.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOPooledRecvBufferAllocator.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/NIOScheduledCallback.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOScheduledCallback.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOScheduledCallback.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOScheduledCallback.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOScheduledCallback.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOScheduledCallback.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/NIOSendable.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSendable.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSendable.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSendable.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSendable.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSendable.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/NIOSplitLinesMessageDecoder.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSplitLinesMessageDecoder.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSplitLinesMessageDecoder.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSplitLinesMessageDecoder.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSplitLinesMessageDecoder.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/NIOSplitLinesMessageDecoder.swiftdeps"
+  }
+}

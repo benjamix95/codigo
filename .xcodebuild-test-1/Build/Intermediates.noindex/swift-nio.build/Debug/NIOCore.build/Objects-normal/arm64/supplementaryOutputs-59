@@ -1,0 +1,44 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/AddressedEnvelope.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AddressedEnvelope.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AddressedEnvelope.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AddressedEnvelope.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AddressedEnvelope.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AddressedEnvelope.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/AsyncAwaitSupport.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncAwaitSupport.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncAwaitSupport.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncAwaitSupport.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncAwaitSupport.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncAwaitSupport.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/AsyncChannel/AsyncChannel.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannel.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannel.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannel.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannel.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannel.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/AsyncChannel/AsyncChannelHandler.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelHandler.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelHandler.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelHandler.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelHandler.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelHandler.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/AsyncChannel/AsyncChannelInboundStream.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelInboundStream.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelInboundStream.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelInboundStream.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelInboundStream.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelInboundStream.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/AsyncChannel/AsyncChannelOutboundWriter.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelOutboundWriter.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelOutboundWriter.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelOutboundWriter.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelOutboundWriter.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/AsyncChannelOutboundWriter.swiftdeps"
+  }
+}

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INFO_PLIST="$REPO_ROOT/Sources/CoderIDE/Info.plist"
+INFO_PLIST="$REPO_ROOT/App/SoloCodeApp/Sources/Info.plist"
 MANIFEST_FILE="$REPO_ROOT/docs/update/manifest.json"
 RELEASE_NOTES_DIR="$REPO_ROOT/docs/release-notes"
 VERSION=""
@@ -197,7 +197,7 @@ if [[ -n "$NOTARY_TEAM_ID" ]]; then
   build_env+=(NOTARY_TEAM_ID="$NOTARY_TEAM_ID")
 fi
 
-env "${build_env[@]}" ./build-app.sh
+env "${build_env[@]}" ./Scripts/build-app.sh
 mkdir -p "$REPO_ROOT/dist"
 zip -qr "$REPO_ROOT/dist/Codigo-$VERSION.app.zip" Codigo.app
 echo "Release package ready at $REPO_ROOT/dist/Codigo-$VERSION.app.zip"

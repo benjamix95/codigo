@@ -1,0 +1,23 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-sdk/Sources/MCP/Base/Transports/HTTPClientTransport.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPClientTransport.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPClientTransport.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPClientTransport.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPClientTransport.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPClientTransport.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-sdk/Sources/MCP/Base/Transports/HTTPServer/HTTPRequestValidation.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPRequestValidation.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPRequestValidation.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPRequestValidation.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPRequestValidation.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPRequestValidation.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-sdk/Sources/MCP/Base/Transports/HTTPServer/HTTPServerTypes.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPServerTypes.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPServerTypes.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPServerTypes.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPServerTypes.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/mcp-swift-sdk.build/Debug/MCP.build/Objects-normal/arm64/HTTPServerTypes.swiftdeps"
+  }
+}

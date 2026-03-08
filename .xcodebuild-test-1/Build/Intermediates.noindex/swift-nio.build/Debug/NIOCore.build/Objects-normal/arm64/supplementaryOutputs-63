@@ -1,0 +1,37 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/Channel.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/Channel.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/Channel.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/Channel.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/Channel.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/Channel.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/ChannelHandler.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandler.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandler.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandler.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandler.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandler.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/ChannelHandlers.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandlers.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandlers.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandlers.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandlers.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelHandlers.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/ChannelInvoker.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelInvoker.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelInvoker.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelInvoker.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelInvoker.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelInvoker.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/NIOCore/ChannelOption.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelOption.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelOption.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelOption.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelOption.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-1/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/ChannelOption.swiftdeps"
+  }
+}

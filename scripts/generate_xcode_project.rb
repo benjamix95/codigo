@@ -1,0 +1,213 @@
+#!/usr/bin/env ruby
+require 'fileutils'
+require 'json'
+require 'securerandom'
+require 'xcodeproj'
+
+ROOT = File.expand_path('..', __dir__)
+PROJECT_NAME = 'Solo Code'
+PROJECT_PATH = File.join(ROOT, "#{PROJECT_NAME}.xcodeproj")
+WORKSPACE_PATH = File.join(ROOT, "#{PROJECT_NAME}.xcworkspace")
+TESTPLAN_PATH = File.join(ROOT, 'Config/TestPlans/Solo Code.xctestplan')
+
+APP_TARGET = 'Solo Code'
+ENGINE_TARGET = 'CoderEngine'
+HELPER_FRAMEWORK_TARGET = 'CoderIDEMCPServer'
+HELPER_EXECUTABLE_TARGET = 'CoderIDEMCPServerExecutable'
+APP_TESTS = 'SoloCodeAppTests'
+ENGINE_TESTS = 'CoderEngineTests'
+INTEGRATION_TESTS = 'SoloCodeIntegrationTests'
+
+def add_sources(project, group, target, root_path)
+  Dir.glob(File.join(root_path, '**/*.swift')).sort.each do |path|
+    rel = path.sub("#{ROOT}/", '')
+    ref = group.find_file_by_path(rel) || group.new_file(rel)
+    target.source_build_phase.add_file_reference(ref, true)
+  end
+end
+
+def add_resources(project, group, target)
+  %w[
+    App/SoloCodeApp/Resources/Assets.xcassets
+    App/SoloCodeApp/Resources/AppLogo.png
+    App/SoloCodeApp/Resources/Codigo.icns
+    App/SoloCodeApp/Resources/browser-bridge.js
+    App/SoloCodeApp/Resources/Fonts
+    App/SoloCodeApp/Resources/monaco
+  ].each do |rel|
+    ref = group.find_file_by_path(rel) || group.new_file(rel)
+    target.resources_build_phase.add_file_reference(ref, true)
+  end
+end
+
+def add_remote_package(project, url, minimum_version)
+  ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+  ref.repositoryURL = url
+  ref.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => minimum_version }
+  project.root_object.package_references << ref
+  ref
+end
+
+def link_package_product(project, target, package_ref, product_name)
+  dep = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+  dep.package = package_ref
+  dep.product_name = product_name
+  target.package_product_dependencies << dep
+  build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+  build_file.product_ref = dep
+  target.frameworks_build_phase.files << build_file
+end
+
+def assign_xcconfig(project, target, path)
+  ref = project.files.find { |f| f.path == path } || project.main_group.new_file(path)
+  target.build_configurations.each { |cfg| cfg.base_configuration_reference = ref }
+end
+
+FileUtils.rm_rf(PROJECT_PATH)
+FileUtils.rm_rf(WORKSPACE_PATH)
+FileUtils.mkdir_p(File.dirname(TESTPLAN_PATH))
+
+project = Xcodeproj::Project.new(PROJECT_PATH)
+project.root_object.attributes['LastUpgradeCheck'] = '1700'
+
+main = project.main_group
+app_group = main.find_subpath('App', true)
+engine_group = main.find_subpath('Engine', true)
+tools_group = main.find_subpath('Tools', true)
+tests_group = main.find_subpath('Tests', true)
+config_group = main.find_subpath('Config', true)
+scripts_group = main.find_subpath('Scripts', true)
+
+app_target = project.new_target(:application, APP_TARGET, :osx, '13.0')
+engine_target = project.new_target(:framework, ENGINE_TARGET, :osx, '13.0')
+helper_framework_target = project.new_target(:framework, HELPER_FRAMEWORK_TARGET, :osx, '13.0')
+helper_executable_target = project.new_target(:command_line_tool, HELPER_EXECUTABLE_TARGET, :osx, '13.0')
+app_tests_target = project.new_target(:unit_test_bundle, APP_TESTS, :osx, '13.0')
+engine_tests_target = project.new_target(:unit_test_bundle, ENGINE_TESTS, :osx, '13.0')
+integration_tests_target = project.new_target(:unit_test_bundle, INTEGRATION_TESTS, :osx, '13.0')
+
+assign_xcconfig(project, app_target, 'Config/xcconfigs/App.xcconfig')
+assign_xcconfig(project, engine_target, 'Config/xcconfigs/Framework.xcconfig')
+assign_xcconfig(project, helper_framework_target, 'Config/xcconfigs/Framework.xcconfig')
+assign_xcconfig(project, helper_executable_target, 'Config/xcconfigs/Tool.xcconfig')
+[app_tests_target, engine_tests_target, integration_tests_target].each do |target|
+  assign_xcconfig(project, target, 'Config/xcconfigs/Tests.xcconfig')
+end
+
+app_tests_target.build_configurations.each do |cfg|
+  cfg.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.solocode.tests.app'
+  cfg.build_settings['TEST_HOST'] = '$(BUILT_PRODUCTS_DIR)/Solo Code.app/Contents/MacOS/Solo Code'
+end
+integration_tests_target.build_configurations.each do |cfg|
+  cfg.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.solocode.tests.integration'
+  cfg.build_settings['TEST_HOST'] = '$(BUILT_PRODUCTS_DIR)/Solo Code.app/Contents/MacOS/Solo Code'
+end
+engine_tests_target.build_configurations.each do |cfg|
+  cfg.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.solocode.tests.engine'
+end
+helper_framework_target.build_configurations.each do |cfg|
+  cfg.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.solocode.coderidemcpserver.framework'
+  cfg.build_settings['PRODUCT_NAME'] = 'CoderIDEMCPServer'
+  cfg.build_settings['PRODUCT_MODULE_NAME'] = 'CoderIDEMCPServer'
+end
+helper_executable_target.build_configurations.each do |cfg|
+  cfg.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.solocode.coderidemcpserver'
+  cfg.build_settings['PRODUCT_NAME'] = 'coderide-mcp-server'
+  cfg.build_settings['PRODUCT_MODULE_NAME'] = 'CoderIDEMCPServerExecutable'
+  cfg.build_settings['EXECUTABLE_NAME'] = 'coderide-mcp-server'
+end
+
+add_sources(project, app_group, app_target, File.join(ROOT, 'App/SoloCodeApp/Sources'))
+add_sources(project, engine_group, engine_target, File.join(ROOT, 'Engine/CoderEngine/Sources'))
+add_sources(project, tools_group, helper_framework_target, File.join(ROOT, 'Tools/CoderIDEMCPServer/Sources'))
+add_sources(project, tools_group, helper_executable_target, File.join(ROOT, 'Tools/CoderIDEMCPServer/Sources'))
+add_sources(project, tools_group, helper_executable_target, File.join(ROOT, 'Tools/CoderIDEMCPServerExecutable/Sources'))
+add_sources(project, tests_group, app_tests_target, File.join(ROOT, 'Tests/SoloCodeAppTests'))
+add_sources(project, tests_group, engine_tests_target, File.join(ROOT, 'Tests/CoderEngineTests'))
+add_sources(project, tests_group, integration_tests_target, File.join(ROOT, 'Tests/SoloCodeIntegrationTests'))
+add_resources(project, app_group, app_target)
+
+swift_term_pkg = add_remote_package(project, 'https://github.com/migueldeicaza/SwiftTerm.git', '1.2.0')
+mcp_pkg = add_remote_package(project, 'https://github.com/modelcontextprotocol/swift-sdk.git', '0.10.0')
+logging_pkg = add_remote_package(project, 'https://github.com/apple/swift-log.git', '1.10.1')
+link_package_product(project, app_target, swift_term_pkg, 'SwiftTerm')
+link_package_product(project, engine_target, mcp_pkg, 'MCP')
+link_package_product(project, helper_framework_target, mcp_pkg, 'MCP')
+link_package_product(project, helper_executable_target, mcp_pkg, 'MCP')
+link_package_product(project, engine_target, logging_pkg, 'Logging')
+link_package_product(project, engine_tests_target, mcp_pkg, 'MCP')
+
+app_target.add_dependency(engine_target)
+app_target.frameworks_build_phase.add_file_reference(engine_target.product_reference, true)
+app_target.add_dependency(helper_framework_target)
+app_target.add_dependency(helper_executable_target)
+helper_framework_target.add_dependency(engine_target)
+helper_framework_target.frameworks_build_phase.add_file_reference(engine_target.product_reference, true)
+helper_executable_target.add_dependency(engine_target)
+helper_executable_target.frameworks_build_phase.add_file_reference(engine_target.product_reference, true)
+helper_executable_target.add_dependency(helper_framework_target)
+helper_executable_target.frameworks_build_phase.add_file_reference(helper_framework_target.product_reference, true)
+app_tests_target.add_dependency(app_target)
+engine_tests_target.add_dependency(engine_target)
+engine_tests_target.add_dependency(helper_framework_target)
+integration_tests_target.add_dependency(app_target)
+integration_tests_target.add_dependency(engine_target)
+engine_tests_target.frameworks_build_phase.add_file_reference(engine_target.product_reference, true)
+engine_tests_target.frameworks_build_phase.add_file_reference(helper_framework_target.product_reference, true)
+
+embed_fw = app_target.new_copy_files_build_phase('Embed Frameworks')
+embed_fw.dst_subfolder_spec = Xcodeproj::Constants::COPY_FILES_BUILD_PHASE_DESTINATIONS[:frameworks]
+fw_build = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+fw_build.file_ref = engine_target.product_reference
+fw_build.settings = { 'ATTRIBUTES' => %w[CodeSignOnCopy RemoveHeadersOnCopy] }
+embed_fw.files << fw_build
+helper_fw_build = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+helper_fw_build.file_ref = helper_framework_target.product_reference
+helper_fw_build.settings = { 'ATTRIBUTES' => %w[CodeSignOnCopy RemoveHeadersOnCopy] }
+embed_fw.files << helper_fw_build
+
+embed_helper = app_target.new_copy_files_build_phase('Embed Helper')
+embed_helper.dst_subfolder_spec = Xcodeproj::Constants::COPY_FILES_BUILD_PHASE_DESTINATIONS[:executables]
+helper_build = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+helper_build.file_ref = helper_executable_target.product_reference
+embed_helper.files << helper_build
+
+scheme = Xcodeproj::XCScheme.new
+scheme.configure_with_targets(app_target, app_tests_target, launch_target: true)
+scheme.add_build_target(engine_tests_target, false)
+scheme.add_build_target(integration_tests_target, false)
+scheme.add_test_target(engine_tests_target)
+scheme.add_test_target(integration_tests_target)
+scheme.save_as(PROJECT_PATH, 'Solo Code-Debug', true)
+
+release_scheme = Xcodeproj::XCScheme.new
+release_scheme.configure_with_targets(app_target, nil, launch_target: true)
+release_scheme.save_as(PROJECT_PATH, 'Solo Code-Release', true)
+
+integration_scheme = Xcodeproj::XCScheme.new
+integration_scheme.configure_with_targets(app_target, integration_tests_target, launch_target: true)
+integration_scheme.save_as(PROJECT_PATH, 'Solo Code-IntegrationTests', true)
+
+FileUtils.mkdir_p(WORKSPACE_PATH)
+File.write(File.join(WORKSPACE_PATH, 'contents.xcworkspacedata'), <<~XML)
+  <?xml version="1.0" encoding="UTF-8"?>
+  <Workspace version = "1.0">
+    <FileRef location = "group:#{PROJECT_NAME}.xcodeproj"></FileRef>
+  </Workspace>
+XML
+
+test_plan = {
+  'configurations' => [{ 'id' => SecureRandom.uuid.upcase, 'name' => 'Default', 'options' => {} }],
+  'defaultOptions' => { 'codeCoverage' => true },
+  'testTargets' => [
+    app_tests_target,
+    engine_tests_target,
+    integration_tests_target,
+  ].map do |target|
+    { 'target' => { 'containerPath' => "container:#{PROJECT_NAME}.xcodeproj", 'identifier' => target.uuid, 'name' => target.name } }
+  end,
+  'version' => 1,
+}
+File.write(TESTPLAN_PATH, JSON.pretty_generate(test_plan))
+
+project.save

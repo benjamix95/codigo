@@ -1,0 +1,4 @@
+#include "Common.xcconfig"
+GENERATE_INFOPLIST_FILE = YES
+BUNDLE_LOADER = $(TEST_HOST)
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @loader_path/../Frameworks @executable_path/../Frameworks

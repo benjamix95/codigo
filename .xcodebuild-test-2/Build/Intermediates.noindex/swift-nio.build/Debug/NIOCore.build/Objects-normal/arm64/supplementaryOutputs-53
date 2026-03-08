@@ -1,0 +1,37 @@
+{
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/FileRegion.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/FileRegion.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/FileRegion.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/FileRegion.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/FileRegion.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/FileRegion.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/GlobalSingletons.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/GlobalSingletons.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/GlobalSingletons.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/GlobalSingletons.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/GlobalSingletons.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/GlobalSingletons.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/IO.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IO.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IO.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IO.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IO.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IO.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/IOData.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IOData.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IOData.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IOData.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IOData.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IOData.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/.xcodebuild-test-2/SourcePackages/checkouts/swift-nio/Sources/NIOCore/IPProtocol.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IPProtocol.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IPProtocol.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IPProtocol.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IPProtocol.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/swift-nio.build/Debug/NIOCore.build/Objects-normal/arm64/IPProtocol.swiftdeps"
+  }
+}

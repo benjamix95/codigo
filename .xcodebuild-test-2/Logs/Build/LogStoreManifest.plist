@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>12</integer>
+	<key>logs</key>
+	<dict>
+		<key>BD3C7756-6364-4242-B0EF-E1B11E4D1C5F</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>BD3C7756-6364-4242-B0EF-E1B11E4D1C5F.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>228</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Solo Code project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Solo Code-Debug</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Testing project Solo Code with scheme Solo Code-Debug</string>
+			<key>timeStartedRecording</key>
+			<real>794684895.58907199</real>
+			<key>timeStoppedRecording</key>
+			<real>794684935.72899997</real>
+			<key>title</key>
+			<string>Testing project Solo Code with scheme Solo Code-Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>BD3C7756-6364-4242-B0EF-E1B11E4D1C5F</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

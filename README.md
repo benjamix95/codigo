@@ -26,7 +26,7 @@ swift run Codigo
 **Voice input (microphone):** Speech recognition TCC requires an app bundle. Use:
 
 ```bash
-./build-app.sh
+./Scripts/build-app.sh
 open Codigo.app
 ```
 
@@ -40,7 +40,7 @@ open Codigo.app
 
 La prima versione pubblicata è `1.0.0`.
 
-- Versione app: `CFBundleShortVersionString` + `CFBundleVersion` in `Sources/CoderIDE/Info.plist`
+- Versione app: `CFBundleShortVersionString` + `CFBundleVersion` in `App/SoloCodeApp/Sources/Info.plist`
 - Manifest aggiornamenti: `docs/update/manifest.json`
 - Note tecniche per versione: `docs/release-notes/<version>.md`
 
@@ -80,12 +80,12 @@ Note:
 Lanciando lo script verranno aggiornati automaticamente:
 - Info.plist con versione/build
 - `docs/update/manifest.json`
-- pacchetto `.app` e zip in `dist/Codigo-<version>.app.zip` (tramite `./build-app.sh`)
+- pacchetto `.app` e zip in `dist/Codigo-<version>.app.zip` (tramite `./Scripts/build-app.sh`)
 
 ## Structure
 
 - `CoderEngine/`: library with LLM providers, MCP, and shared protocols
-- `Sources/CoderIDE/`: macOS SwiftUI app
+- `App/SoloCodeApp/Sources/`: macOS SwiftUI app
 
 ## Providers
 

@@ -8,7 +8,7 @@ TARGETS=(
   "$ROOT_DIR/CoderEngine/Sources"
   "$ROOT_DIR/Sources/CoderIDE"
   "$ROOT_DIR/CoderEngine/Tests"
-  "$ROOT_DIR/Tests/CoderIDETests"
+  "$ROOT_DIR/Tests/SoloCodeAppTests"
 )
 
 # High-signal Italian words and accented vowels that should not appear

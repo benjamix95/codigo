@@ -1,0 +1,170 @@
+{
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Bridge/PipelineJobFactory.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJobFactory.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJobFactory.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJobFactory.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJobFactory.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJobFactory.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Bridge/PipelineUIEvent.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineUIEvent.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineUIEvent.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineUIEvent.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineUIEvent.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineUIEvent.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/CircuitBreaker/CircuitBreaker.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreaker.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreaker.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreaker.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreaker.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreaker.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/CircuitBreaker/ErrorBudgetTracker.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ErrorBudgetTracker.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ErrorBudgetTracker.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ErrorBudgetTracker.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ErrorBudgetTracker.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ErrorBudgetTracker.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Context/ContextCache.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCache.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCache.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCache.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCache.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCache.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Context/ContextCompressor.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCompressor.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCompressor.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCompressor.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCompressor.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextCompressor.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Context/ContextRankingEngine.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextRankingEngine.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextRankingEngine.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextRankingEngine.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextRankingEngine.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextRankingEngine.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Context/ContextWeightProfile.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextWeightProfile.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextWeightProfile.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextWeightProfile.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextWeightProfile.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ContextWeightProfile.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/AgentActionEnvelope.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/AgentActionEnvelope.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/AgentActionEnvelope.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/AgentActionEnvelope.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/AgentActionEnvelope.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/AgentActionEnvelope.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/CircuitBreakerState.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreakerState.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreakerState.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreakerState.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreakerState.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/CircuitBreakerState.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/EventBusEvent.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventBusEvent.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventBusEvent.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventBusEvent.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventBusEvent.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventBusEvent.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/EventLogEntry.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventLogEntry.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventLogEntry.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventLogEntry.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventLogEntry.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/EventLogEntry.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/PatchManifest.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PatchManifest.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PatchManifest.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PatchManifest.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PatchManifest.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PatchManifest.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/PipelineEnums.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineEnums.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineEnums.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineEnums.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineEnums.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineEnums.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/PipelineExecutionContracts.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineExecutionContracts.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineExecutionContracts.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineExecutionContracts.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineExecutionContracts.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineExecutionContracts.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/PipelineJob.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJob.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJob.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJob.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJob.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineJob.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/PipelineValidation.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineValidation.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineValidation.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineValidation.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineValidation.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/PipelineValidation.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/ProjectMemory.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProjectMemory.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProjectMemory.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProjectMemory.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProjectMemory.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProjectMemory.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/ProviderCapability.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProviderCapability.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProviderCapability.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProviderCapability.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProviderCapability.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ProviderCapability.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/ReplaySnapshot.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReplaySnapshot.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReplaySnapshot.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReplaySnapshot.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReplaySnapshot.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReplaySnapshot.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/ReviewSession.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReviewSession.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReviewSession.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReviewSession.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReviewSession.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/ReviewSession.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/RollbackRecord.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/RollbackRecord.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/RollbackRecord.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/RollbackRecord.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/RollbackRecord.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/RollbackRecord.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Contracts/TaskNode.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/TaskNode.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/TaskNode.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/TaskNode.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/TaskNode.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/TaskNode.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Engine/CoderEngine/Sources/Pipeline/Debug/Contracts/DebugPipelineContracts.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/DebugPipelineContracts.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/DebugPipelineContracts.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/DebugPipelineContracts.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/DebugPipelineContracts.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderEngine.build/Objects-normal/arm64/DebugPipelineContracts.swiftdeps"
+  }
+}

@@ -1,0 +1,1 @@
+@rpath/Solo Code.debug.dylib

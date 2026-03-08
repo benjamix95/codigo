@@ -1,0 +1,23 @@
+{
+  "/Users/benjaminstoica/codigo/Tools/CoderIDEMCPServer/Sources/Runtime/CoderIDEMCPServerApp.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/CoderIDEMCPServerApp.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/BugHunter/BugHunterHandler+Commands.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Commands.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Commands.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Commands.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Commands.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Commands.swiftdeps"
+  },
+  "/Users/benjaminstoica/codigo/Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/BugHunter/BugHunterHandler+Reads.swift" : {
+    "const-values" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Reads.swiftconstvalues",
+    "dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Reads.d",
+    "diagnostics" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Reads.dia",
+    "object" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Reads.o",
+    "swift-dependencies" : "/Users/benjaminstoica/codigo/.xcodebuild-test-2/Build/Intermediates.noindex/Solo Code.build/Debug/CoderIDEMCPServer.build/Objects-normal/arm64/BugHunterHandler+Reads.swiftdeps"
+  }
+}

@@ -20,7 +20,7 @@
 - Strategia di fix minimo: installare `Codigo.icns`, dichiararla nel plist, usarla nel packaging locale e rimuovere la dipendenza dall'override runtime del Dock.
 - Verifica post-fix:
   1. `swift test --filter AppBundleIconInstallerTests`
-  2. `./build-app.sh`
+  2. `./Scripts/build-app.sh`
   3. Verifica manuale di `Codigo.app/Contents/Resources/Codigo.icns`
   4. Smoke manuale su Dock, notifiche e Stage Manager
 - Commit previsto: `fix(packaging): install stable macos app icon`
