@@ -34,7 +34,7 @@ final class SubagentRoleTests: XCTestCase {
     func testMaxToolRoundsAreRoleSpecific() {
         XCTAssertEqual(SubagentRole.explorer.maxToolRounds, 40)
         XCTAssertEqual(SubagentRole.reviewer.maxToolRounds, 50)
-        XCTAssertEqual(SubagentRole.bugHunter.maxToolRounds, 50)
+        XCTAssertEqual(SubagentRole.bugHunter.maxToolRounds, 240)
         XCTAssertEqual(SubagentRole.securityAuditor.maxToolRounds, 50)
         XCTAssertEqual(SubagentRole.testWriter.maxToolRounds, 100)
         XCTAssertEqual(SubagentRole.coder.maxToolRounds, 80)

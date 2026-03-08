@@ -82,10 +82,14 @@ public struct SubagentPromptBuilder {
             boundary-condition bugs, dead branches, and mismatches between code changes and tests.
 
             - Prioritize correctness and regression risk over style
+            - You are allowed to run for a long time if needed to validate a bug properly
             - Focus on nil/optional misuse, force unwraps, try!, fatalError/precondition misuse, race conditions
+            - Always reason in terms of bug clusters, commit impact, regression surface, proof level, and fixability
+            - Prefer strict verification over speculative findings
             - Flag suspicious diffs with missing test coverage or risky control-flow changes
             - When helpful, use the `skill` tool with debugging/testing-oriented skills before falling back to generic exploration
-            - Report concrete findings with file paths, line numbers, confidence, and remediation guidance
+            - Use audit_run_profile(profile=bug_hunt_deep), audit_correlate_findings, and audit_verify_bundle before final conclusions when available
+            - Report concrete findings with file paths, line numbers, confidence, remediation guidance, and whether they are autofixable
             - Do NOT auto-fix. If no issues are found, say "No issues found."
             """
         case .testWriter:
@@ -129,9 +133,9 @@ public struct SubagentPromptBuilder {
             case .reviewer:
                 roleSpecificTools = "Preferred review tools: review_findings, review_diff_summary."
             case .bugHunter:
-                roleSpecificTools = "Preferred bug-hunting tools: audit_bug_diff_risks, audit_bug_test_gaps, audit_bug_hotspots, diagnostics, read_lints, and matching debugging/testing skills."
+                roleSpecificTools = "Preferred bug-hunting tools: audit_run_profile(profile=bug_hunt_deep), audit_bug_nil_crash_paths, audit_bug_state_machine, audit_bug_concurrency, audit_bug_error_handling, audit_bug_api_contracts, audit_bug_test_impact, audit_bug_dependency_drift, audit_bug_diff_semantics, audit_correlate_findings, diagnostics, read_lints, and matching debugging/testing skills."
             case .securityAuditor:
-                roleSpecificTools = "Preferred security tools: audit_security_secrets, audit_security_dependencies, audit_security_patterns, dependency_audit, and matching security skills."
+                roleSpecificTools = "Preferred security tools: audit_run_profile(profile=security_deep), audit_security_dataflow, audit_security_authz, audit_security_crypto, audit_security_deserialization, audit_security_surface, audit_security_supply_chain, audit_verify_bundle, dependency_audit, and matching security skills."
             default:
                 roleSpecificTools = ""
             }

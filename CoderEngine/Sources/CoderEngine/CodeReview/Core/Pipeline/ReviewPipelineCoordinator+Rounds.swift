@@ -165,20 +165,21 @@ extension ReviewPipelineCoordinator {
             switch nextRoundTasks {
             case .tasks(let tasks) where !tasks.isEmpty:
                 currentTasks = tasks
-                let findings = tasks.map { task in
-                    CodeReviewFinding.fromRawTask(
-                        id: nextFindingID(taskID: task.id, round: reviewRound),
-                        description: task.description,
-                        files: task.files,
-                        severity: task.severity,
-                        category: task.category,
-                        origin: task.origin,
-                        filePath: task.files.first,
-                        confidence: task.confidence,
-                        evidence: task.evidence,
-                        sourceTool: task.sourceTool,
-                        blocking: task.blocking
+                let candidates = tasks.map {
+                    reviewCandidate(
+                        from: $0,
+                        prefix: "r\(reviewRound)-"
                     )
+                }
+                await sessionState.addCandidates(candidates)
+                await verifyCandidates(
+                    candidates,
+                    workspacePath: context.workspacePath,
+                    filesToReview: modifiedFiles,
+                    sessionState: sessionState
+                )
+                let findings = (await sessionState.snapshot()).findings.filter {
+                    Set(modifiedFiles).contains($0.filePath) && $0.status != .dismissed && $0.status != .wontFix
                 }
                 await sessionState.replaceOpenFindings(
                     in: Set(modifiedFiles),

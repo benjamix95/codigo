@@ -140,7 +140,9 @@ extension CoderIDEMCPServerApp {
         guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
             return "Error: session_id '\(sessionId)' was not found"
         }
-        guard snapshot.findings.contains(where: { $0.id == findingId }) else {
+        guard snapshot.findings.contains(where: { $0.id == findingId })
+            || snapshot.candidates.contains(where: { $0.id == findingId })
+        else {
             return "Error: finding_id '\(findingId)' does not belong to session_id '\(sessionId)'"
         }
         return nil

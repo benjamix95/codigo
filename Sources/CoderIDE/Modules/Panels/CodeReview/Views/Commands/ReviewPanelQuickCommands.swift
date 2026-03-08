@@ -25,6 +25,44 @@ struct ReviewPanelQuickCommands: View {
                 .buttonStyle(.plain)
                 .disabled(store.isRunning)
             }
+
+            bugHunterButtons
+        }
+    }
+
+    private var bugHunterButtons: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                store.startBugHunterUncommitted()
+            } label: {
+                commandRow(
+                    ReviewPanelSlashCommand(
+                        id: "bughunter-uncommitted",
+                        slash: "bughunter-uncommitted",
+                        label: "BugHunter on uncommitted",
+                        prompt: "",
+                        isCustom: false
+                    )
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(store.isRunning)
+
+            Button {
+                store.startBugHunterCommitWindow()
+            } label: {
+                commandRow(
+                    ReviewPanelSlashCommand(
+                        id: "bughunter-window",
+                        slash: "bughunter-window",
+                        label: "BugHunter on commit window",
+                        prompt: "",
+                        isCustom: false
+                    )
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(store.isRunning || (store.selectedCommits.isEmpty && store.gitCommitLog.isEmpty))
         }
     }
 

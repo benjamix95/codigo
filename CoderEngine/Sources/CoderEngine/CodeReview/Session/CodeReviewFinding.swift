@@ -18,6 +18,11 @@ public struct CodeReviewFinding: Sendable, Identifiable, Codable {
     public let sourceTool: String?
     public let blocking: Bool
     public var status: FindingStatus
+    public let verificationReport: String?
+    public let verifiedAt: Date?
+    public let verificationMethod: String?
+    public let falsePositiveReason: String?
+    public var patchArtifactId: String?
     public var comments: [FindingComment]
     public let createdAt: Date
 
@@ -36,6 +41,11 @@ public struct CodeReviewFinding: Sendable, Identifiable, Codable {
         sourceTool: String? = nil,
         blocking: Bool? = nil,
         status: FindingStatus = .open,
+        verificationReport: String? = nil,
+        verifiedAt: Date? = nil,
+        verificationMethod: String? = nil,
+        falsePositiveReason: String? = nil,
+        patchArtifactId: String? = nil,
         comments: [FindingComment] = [],
         createdAt: Date = Date()
     ) {
@@ -53,6 +63,11 @@ public struct CodeReviewFinding: Sendable, Identifiable, Codable {
         self.sourceTool = sourceTool
         self.blocking = blocking ?? (severity == .critical)
         self.status = status
+        self.verificationReport = verificationReport
+        self.verifiedAt = verifiedAt
+        self.verificationMethod = verificationMethod
+        self.falsePositiveReason = falsePositiveReason
+        self.patchArtifactId = patchArtifactId
         self.comments = comments
         self.createdAt = createdAt
     }
@@ -104,6 +119,14 @@ public enum FindingOrigin: String, Sendable, Codable, CaseIterable {
 public enum FindingStatus: String, Sendable, Codable, CaseIterable {
     case open
     case fixApplied = "fix_applied"
+    case patchPreparing = "patch_preparing"
+    case patchReady = "patch_ready"
+    case patchApplying = "patch_applying"
+    case patchApplied = "patch_applied"
+    case patchFailed = "patch_failed"
+    case prOpened = "pr_opened"
+    case merged
+    case blocked
     case dismissed
     case wontFix = "wont_fix"
 }
@@ -126,135 +149,6 @@ public struct FindingComment: Sendable, Identifiable, Codable {
         self.author = author
         self.content = content
         self.createdAt = createdAt
-    }
-}
-
-// MARK: - Parsing from Raw Review Data
-
-extension CodeReviewFinding {
-    /// Creates a finding from raw review task data (bridge from legacy pipeline).
-    public static func fromRawTask(
-        id: String,
-        description: String,
-        files: [String],
-        severity severityStr: String,
-        category categoryStr: String? = nil,
-        origin: FindingOrigin = .reviewer,
-        filePath: String? = nil,
-        lineNumber: Int? = nil,
-        confidence: Double? = nil,
-        evidence: String? = nil,
-        sourceTool: String? = nil,
-        blocking: Bool? = nil
-    ) -> CodeReviewFinding {
-        let severity: FindingSeverity
-        switch severityStr.lowercased() {
-        case "critical", "error", "high":
-            severity = .critical
-        case "warning", "medium":
-            severity = .warning
-        case "suggestion", "low", "info":
-            severity = .suggestion
-        default:
-            severity = .warning
-        }
-
-        let category: FindingCategory
-        if let raw = categoryStr?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !raw.isEmpty {
-            category = FindingCategory.fromStoredValue(raw)
-        } else {
-            category = Self.inferCategory(from: description)
-        }
-
-        return CodeReviewFinding(
-            id: id,
-            severity: severity,
-            category: category,
-            origin: origin,
-            filePath: filePath ?? files.first ?? "unknown",
-            lineNumber: lineNumber,
-            message: description,
-            suggestedFix: nil,
-            confidence: confidence,
-            evidence: evidence,
-            sourceTool: sourceTool,
-            blocking: blocking
-        )
-    }
-
-    /// Infers finding category from the description text when no explicit category is provided.
-    private static func inferCategory(from description: String) -> FindingCategory {
-        let lower = description.lowercased()
-        if lower.contains("security") || lower.contains("vulnerability") || lower.contains("injection") {
-            return .security
-        }
-        if lower.contains("race") || lower.contains("deadlock") || lower.contains("thread") || lower.contains("concurrency") {
-            return .concurrency
-        }
-        if lower.contains("regression") || lower.contains("crash") || lower.contains("fatal") || lower.contains("force unwrap") {
-            return .regression
-        }
-        if lower.contains("performance") || lower.contains("slow") || lower.contains("O(n") {
-            return .performance
-        }
-        if lower.contains("test") || lower.contains("coverage") {
-            return .tests
-        }
-        if lower.contains("style") || lower.contains("naming") || lower.contains("format")
-            || lower.contains("architecture") || lower.contains("coupling") || lower.contains("refactor")
-            || lower.contains("doc") || lower.contains("comment") {
-            return .maintainability
-        }
-        return .correctness
-    }
-}
-
-extension FindingCategory {
-    public static func fromStoredValue(_ raw: String) -> FindingCategory {
-        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "correctness", "bug":
-            return .correctness
-        case "regression":
-            return .regression
-        case "concurrency":
-            return .concurrency
-        case "security":
-            return .security
-        case "performance":
-            return .performance
-        case "tests", "testing":
-            return .tests
-        case "maintainability", "style", "architecture", "documentation":
-            return .maintainability
-        default:
-            return .other
-        }
-    }
-}
-
-// MARK: - JSON Serialization Helpers
-
-extension CodeReviewFinding {
-    public func toPayload() -> [String: String] {
-        var payload: [String: String] = [
-            "id": id,
-            "severity": severity.rawValue,
-            "category": category.rawValue,
-            "origin": origin.rawValue,
-            "file_path": filePath,
-            "message": message,
-            "status": status.rawValue,
-            "blocking": blocking ? "true" : "false",
-        ]
-        if let ln = lineNumber { payload["line_number"] = String(ln) }
-        if let eln = endLineNumber { payload["end_line_number"] = String(eln) }
-        if let fix = suggestedFix { payload["suggested_fix"] = fix }
-        if let confidence { payload["confidence"] = String(format: "%.2f", confidence) }
-        if let evidence, !evidence.isEmpty { payload["evidence"] = evidence }
-        if let sourceTool, !sourceTool.isEmpty { payload["source_tool"] = sourceTool }
-        if !comments.isEmpty { payload["comment_count"] = String(comments.count) }
-        return payload
     }
 }
 

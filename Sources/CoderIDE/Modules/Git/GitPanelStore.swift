@@ -40,6 +40,7 @@ final class GitPanelStore: ObservableObject {
     let commitMessageGenerator = GitCommitMessageGenerator()
     let refreshQueue = DispatchQueue(label: "com.codigo.git-panel.refresh", qos: .utility)
     var pendingRefreshWorkItem: DispatchWorkItem?
+    var postCommitBugHunterObserver: ((GitCommitResult, String) -> Void)?
 
     // Monotonic counter used to discard stale refresh results.
     var refreshGeneration: Int = 0

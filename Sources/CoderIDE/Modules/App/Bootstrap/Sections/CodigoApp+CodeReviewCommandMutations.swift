@@ -110,25 +110,10 @@ extension CodigoApp {
             return nil
         }
 
-        return CodeReviewSessionSnapshot(
-            sessionId: snapshot.sessionId,
-            conversationId: snapshot.conversationId,
-            mutationSequence: snapshot.mutationSequence + 1,
-            phase: snapshot.phase,
-            stage: snapshot.stage,
+        return snapshot.copying(
             findings: findings,
             events: events,
-            config: snapshot.config,
-            scope: snapshot.scope,
-            workspacePath: snapshot.workspacePath,
-            currentRound: snapshot.currentRound,
-            activeWorkerCount: snapshot.activeWorkerCount,
-            startedAt: snapshot.startedAt,
-            completedAt: snapshot.completedAt,
-            analysisCompletedAt: snapshot.analysisCompletedAt,
-            lastError: snapshot.lastError,
-            currentJobId: snapshot.currentJobId,
-            lastTestStatus: snapshot.lastTestStatus,
+            outcome: snapshot.copying(findings: findings).buildOutcomeSummary(),
             lastUpdatedAt: updatedAt
         )
     }

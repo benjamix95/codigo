@@ -10,6 +10,8 @@ extension CodeReviewSessionState {
         self.scope = scope
         self.workspacePath = workspacePath
         self.findings = []
+        self.candidates = []
+        self.patches = []
         self.events = []
         self.currentRound = 0
         self.activeWorkerCount = 0
@@ -20,6 +22,7 @@ extension CodeReviewSessionState {
         self.currentJobId = nil
         self.lastTestStatus = nil
         self.audit = .empty
+        self.outcome = .empty
 
         events.append(.sessionStarted(scope: scope.description, fileCount: scope.files.count))
         notifyChange()
@@ -31,6 +34,7 @@ extension CodeReviewSessionState {
         completedAt = Date()
         activeWorkerCount = 0
         currentJobId = nil
+        outcome = snapshot().buildOutcomeSummary()
         events.append(CodeReviewSessionEvent(
             type: .sessionCompleted,
             detail: "Review completed with \(findings.count) findings"
@@ -45,6 +49,7 @@ extension CodeReviewSessionState {
         completedAt = Date()
         activeWorkerCount = 0
         currentJobId = nil
+        outcome = snapshot().buildOutcomeSummary(summaryOverride: "Review failed: \(error)")
         events.append(.error(error))
         notifyChange()
     }
@@ -53,6 +58,8 @@ extension CodeReviewSessionState {
         phase = .idle
         stage = .idle
         findings = []
+        candidates = []
+        patches = []
         events = []
         scope = nil
         workspacePath = nil
@@ -65,6 +72,7 @@ extension CodeReviewSessionState {
         currentJobId = nil
         lastTestStatus = nil
         audit = .empty
+        outcome = .empty
         notifyChange()
     }
 
@@ -113,9 +121,17 @@ extension CodeReviewSessionState {
         var durations = audit.toolDurationsMs
         durations[result.toolName] = result.durationMs
 
+        var findingsCounts = audit.toolFindingsCounts
+        findingsCounts[result.toolName] = result.findings.count
+
+        var adapters = audit.toolAdapters
+        adapters[result.toolName] = result.adaptersUsed
+
         audit = ReviewAuditSnapshot(
             toolCoverage: coverage,
-            toolDurationsMs: durations
+            toolDurationsMs: durations,
+            toolFindingsCounts: findingsCounts,
+            toolAdapters: adapters
         )
 
         events.append(CodeReviewSessionEvent(

@@ -20,12 +20,22 @@ extension CoderIDEMCPServerApp {
 
         let status = sanitizedReviewArg(args, key: "status").lowercased()
         if !status.isEmpty {
-            let validStatuses: Set<String> = ["open", "fix_applied", "dismissed", "wont_fix"]
+            let validStatuses: Set<String> = [
+                "open", "fix_applied", "patch_preparing", "patch_ready", "patch_applying",
+                "patch_applied", "patch_failed", "pr_opened", "merged", "blocked",
+                "dismissed", "wont_fix", "new", "verifying", "verified",
+                "rejected_false_positive", "inconclusive",
+            ]
             if !validStatuses.contains(status) {
                 return reviewError(
-                    "Error: invalid status '\(status)'. Use: open, fix_applied, dismissed, wont_fix"
+                    "Error: invalid status '\(status)' for code review items"
                 )
             }
+        }
+
+        let kind = sanitizedReviewArg(args, key: "kind").lowercased()
+        if !kind.isEmpty && !["verified", "candidate", "candidates", "all"].contains(kind) {
+            return reviewError("Error: invalid kind '\(kind)'. Use: verified, candidate, all")
         }
 
         let origin = sanitizedReviewArg(args, key: "origin")
@@ -77,6 +87,7 @@ extension CoderIDEMCPServerApp {
         let limitVal = Int(args["limit"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 50
         let findings = MCPSharedState.readCodeReviewFindings(
             sessionId: sessionId,
+            kind: kind.isEmpty ? "verified" : kind,
             severity: severity.isEmpty ? nil : severity,
             status: status.isEmpty ? nil : status,
             origin: origin.isEmpty ? nil : origin,
@@ -94,12 +105,13 @@ extension CoderIDEMCPServerApp {
             let category = f["category"] ?? "unknown"
             let origin = f["origin"] ?? "reviewer"
             let st = f["status"] ?? "open"
+            let kind = f["kind"] ?? "verified"
             let file = f["file_path"] ?? f["file_label"] ?? "redacted-file"
             let line = f["line_number"].map { ":\($0)" } ?? ""
             let message = f["message"] ?? f["message_summary"] ?? "Redacted finding details"
             let blocking = f["blocking"] == "true" ? ", blocking: true" : ""
             let confidence = f["confidence"].map { ", confidence: \($0)" } ?? ""
-            return "[\(idx + 1)] [\(sev)] \(file)\(line) — \(message) (origin: \(origin), category: \(category), status: \(st)\(blocking)\(confidence), id: \(id))"
+            return "[\(idx + 1)] [\(kind)] [\(sev)] \(file)\(line) — \(message) (origin: \(origin), category: \(category), status: \(st)\(blocking)\(confidence), id: \(id))"
         }
         return reviewOK("Findings (\(findings.count)):\n" + lines.joined(separator: "\n"))
     }

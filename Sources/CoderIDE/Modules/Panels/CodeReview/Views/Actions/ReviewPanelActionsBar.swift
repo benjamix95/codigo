@@ -8,7 +8,7 @@ struct ReviewPanelActionsBar: View {
     var body: some View {
         let findings = store.currentFindings
         let openCount = findings.filter { $0.status == .open }.count
-        let fixedCount = findings.filter { $0.status == .fixApplied }.count
+        let fixedCount = findings.filter { $0.status.isAppliedState }.count
 
         HStack(spacing: 8) {
             // Stats

@@ -141,6 +141,18 @@ final class CodeReviewPanelStore: ObservableObject {
         currentSnapshot?.findings ?? []
     }
 
+    var currentCandidates: [ReviewCandidate] {
+        currentSnapshot?.candidates ?? []
+    }
+
+    var currentPatches: [ReviewPatchArtifact] {
+        currentSnapshot?.patches ?? []
+    }
+
+    var currentOutcome: ReviewSessionOutcome {
+        currentSnapshot?.outcome ?? .empty
+    }
+
     var currentEvents: [CodeReviewSessionEvent] {
         currentSnapshot?.events ?? []
     }

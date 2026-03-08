@@ -206,10 +206,14 @@ extension TaskActivityStore {
         var payload: [String: String] = [
             "phase": snapshot.phase.rawValue,
             "findings_count": String(snapshot.findings.count),
+            "candidates_count": String(snapshot.candidates.count),
+            "patches_count": String(snapshot.patches.count),
             "open_count": String(snapshot.openFindings.count),
             "round": String(snapshot.currentRound),
             "active_workers": String(snapshot.activeWorkerCount),
         ]
+        payload["patches_applied"] = String(snapshot.outcome.patchesApplied)
+        payload["prs_opened"] = String(snapshot.outcome.prsOpened)
         if let scope = snapshot.scope {
             payload["scope"] = scope.type.rawValue
             payload["scope_files"] = String(scope.files.count)
@@ -249,10 +253,20 @@ extension TaskActivityStore {
         case .analysisCompleted: return "Analysis Completed"
         case .auditStarted: return "Audit Started"
         case .auditCompleted: return "Audit Completed"
+        case .candidateAdded: return "Candidate Added"
+        case .candidateVerified: return "Candidate Verified"
+        case .candidateRejected: return "Candidate Rejected"
         case .findingAdded: return "Finding Added"
         case .findingFixApplied: return "Fix Applied"
         case .findingDismissed: return "Finding Dismissed"
         case .findingCommented: return "Comment Added"
+        case .patchPrepared: return "Patch Prepared"
+        case .patchVerified: return "Patch Verified"
+        case .patchApplyFailed: return "Patch Apply Failed"
+        case .prOpened: return "PR Opened"
+        case .prMerged: return "PR Merged"
+        case .conflictDetected: return "Conflict Detected"
+        case .outcomePublished: return "Outcome Published"
         case .roundStarted: return "Round Started"
         case .roundCompleted: return "Round Completed"
         case .workerSpawned: return "Worker Spawned"

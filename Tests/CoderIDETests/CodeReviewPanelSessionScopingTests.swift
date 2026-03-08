@@ -145,7 +145,7 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         )
     }
 
-    func testPanelFallbackApplyFixOnlyMutatesRequestedFinding() async throws {
+    func testPanelApplyFixFailsClosedWithoutWorkspaceAndDoesNotTouchOtherFindings() async throws {
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
         let snapshot = makeSnapshot(
@@ -183,7 +183,7 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
                 conversationId: conversationId
             )
         )
-        XCTAssertEqual(updated.findings.first(where: { $0.id == "f-1" })?.status, .fixApplied)
+        XCTAssertEqual(updated.findings.first(where: { $0.id == "f-1" })?.status, .patchFailed)
         XCTAssertEqual(updated.findings.first(where: { $0.id == "f-2" })?.status, .open)
     }
 

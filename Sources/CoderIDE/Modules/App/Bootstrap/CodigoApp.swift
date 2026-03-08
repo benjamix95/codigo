@@ -23,6 +23,7 @@ struct CodigoApp: App {
     @StateObject var appUpdateCenter = AppUpdateCenter()
     @StateObject var pipelineIntegrationService = PipelineIntegrationService()
     @State var didStartCodeReviewCommandLoop = false
+    @State var didStartBugHunterCommandLoop = false
 
     @AppStorage("openai_api_key") var apiKey = ""
     @AppStorage("openai_model") var model = "gpt-4o-mini"
@@ -118,7 +119,17 @@ struct CodigoApp: App {
                             todoStore: todoStore,
                             executionController: executionController
                         )
+                        gitPanelStore.postCommitBugHunterObserver = { commit, gitRoot in
+                            Task { @MainActor in
+                                self.enqueueBugHunterPostCommit(
+                                    commit: commit,
+                                    gitRoot: gitRoot,
+                                    triggerKind: .appCommit
+                                )
+                            }
+                        }
                         startCodeReviewCommandLoopIfNeeded()
+                        startBugHunterCommandLoopIfNeeded()
                     }
                 }
         }

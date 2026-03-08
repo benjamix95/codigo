@@ -7,9 +7,13 @@ extension CodeReviewMultiSwarmProvider {
         let files: [String]
         let severity: String
         let category: String?
+        let lineNumber: Int?
+        let endLineNumber: Int?
         let origin: FindingOrigin
         let confidence: Double?
         let evidence: String?
+        let expectedInvariant: String?
+        let reproOrReasoning: String?
         let sourceTool: String?
         let blocking: Bool?
     }

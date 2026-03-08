@@ -77,7 +77,7 @@ final class ReviewPanelCoordinator {
         provider: any LLMProvider,
         prompt: String,
         context: WorkspaceContext,
-        onToken: @escaping @MainActor (String) -> Void,
+        onEvent: @escaping @MainActor (StreamEvent) -> Void,
         onComplete: @escaping @MainActor () -> Void,
         onError: @escaping @MainActor (String) -> Void
     ) {
@@ -90,13 +90,9 @@ final class ReviewPanelCoordinator {
                     context: context,
                     imageURLs: nil
                 )
-                var accumulated = ""
                 for try await event in stream {
                     if Task.isCancelled { break }
-                    if case .textDelta(let text) = event {
-                        accumulated += text
-                        onToken(accumulated)
-                    }
+                    onEvent(event)
                 }
                 if !Task.isCancelled {
                     onComplete()

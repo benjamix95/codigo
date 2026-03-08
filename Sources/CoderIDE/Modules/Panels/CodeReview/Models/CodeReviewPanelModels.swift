@@ -141,7 +141,14 @@ func reviewSeverityColor(_ severity: FindingSeverity) -> Color {
 func reviewStatusLabel(_ status: FindingStatus) -> (String, Color) {
     switch status {
     case .open: return ("Open", DesignSystem.Colors.reviewColor)
-    case .fixApplied: return ("Fixed", DesignSystem.Colors.success)
+    case .fixApplied, .patchApplied: return ("Applied", DesignSystem.Colors.success)
+    case .patchPreparing: return ("Preparing", DesignSystem.Colors.info)
+    case .patchReady: return ("Patch Ready", DesignSystem.Colors.info)
+    case .patchApplying: return ("Applying", DesignSystem.Colors.info)
+    case .patchFailed: return ("Patch Failed", DesignSystem.Colors.error)
+    case .prOpened: return ("PR Open", DesignSystem.Colors.info)
+    case .merged: return ("Merged", DesignSystem.Colors.success)
+    case .blocked: return ("Blocked", DesignSystem.Colors.error)
     case .dismissed: return ("Dismissed", .secondary)
     case .wontFix: return ("Won't Fix", .secondary)
     }

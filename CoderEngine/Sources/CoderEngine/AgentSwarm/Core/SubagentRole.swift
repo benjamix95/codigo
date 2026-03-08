@@ -45,8 +45,10 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
         switch self {
         case .explorer:
             return 40
-        case .reviewer, .bugHunter, .securityAuditor:
+        case .reviewer, .securityAuditor:
             return 50
+        case .bugHunter:
+            return 240
         case .testWriter:
             return 100
         case .coder, .debugger, .docWriter:

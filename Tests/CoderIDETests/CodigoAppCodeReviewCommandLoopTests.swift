@@ -66,16 +66,8 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertEqual(completedSnapshot.phase, .completed)
     }
 
-    func testApplyFixCommandRunsDeferredFixSessionBeforeMarkingSourceFinding() async throws {
+    func testApplyFixCommandFailsClosedWhenPatchWorkflowCannotRun() async throws {
         let app = makeApp()
-        let gate = ReviewProviderGate()
-        CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, sessionState, _ in
-            DeferredCodeReviewProvider(
-                sessionState: sessionState,
-                gate: gate,
-                scopeFiles: ["Sources/File.swift"]
-            )
-        }
 
         let sourceSnapshot = makeSnapshot(
             sessionId: "source-review",
@@ -103,24 +95,11 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
 
         await app.processPendingCodeReviewCommandsOnce()
 
-        XCTAssertEqual(try currentCommand(id: command.id)?.status, .processing)
-        let unchangedSnapshot = try XCTUnwrap(
-            MCPSharedState.readCodeReviewSnapshot(sessionId: sourceSnapshot.sessionId)
-        )
-        XCTAssertEqual(unchangedSnapshot.findings.first?.status, .open)
-
-        await gate.finishSuccessfully()
-        try await waitForCommand(id: command.id, expectedStatus: .completed)
-
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .failed)
         let updatedSnapshot = try XCTUnwrap(
             MCPSharedState.readCodeReviewSnapshot(sessionId: sourceSnapshot.sessionId)
         )
-        XCTAssertEqual(updatedSnapshot.findings.first?.status, .fixApplied)
-        XCTAssertTrue(
-            MCPSharedState.readCodeReviewSnapshots().contains {
-                $0.sessionId.hasPrefix("\(sourceSnapshot.sessionId)-fix-") && $0.phase == .completed
-            }
-        )
+        XCTAssertEqual(updatedSnapshot.findings.first?.status, .open)
     }
 
     func testConfigureCommandUpdatesLiveSessionThroughCommandLoop() async throws {

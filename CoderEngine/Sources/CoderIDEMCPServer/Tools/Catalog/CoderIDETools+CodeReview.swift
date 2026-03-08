@@ -2,7 +2,9 @@ import Foundation
 import MCP
 
 extension CoderIDETools {
-    static let codeReviewTools: [Tool] = [
+    static let codeReviewTools: [Tool] = codeReviewCoreTools + codeReviewWorkflowTools
+
+    static let codeReviewCoreTools: [Tool] = [
         // --- Code Review Tools ---
         Tool(
             name: "coderide_review_start",
@@ -94,6 +96,10 @@ extension CoderIDETools {
                     "severity": .object([
                         "type": "string",
                         "description": "Filter by severity: critical, warning, suggestion, info",
+                    ]),
+                    "kind": .object([
+                        "type": "string",
+                        "description": "Filter by kind: verified (default) or candidate",
                     ]),
                     "file": .object([
                         "type": "string",

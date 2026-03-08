@@ -40,15 +40,21 @@ extension CodeReviewMultiSwarmProvider {
         First, provide your detailed analysis with findings.
 
         Then, at the very end of your response, output a JSON block wrapped in ```json fences.
-        This JSON is an array of fix tasks for parallel workers. Each task groups related files:
+        This JSON is an array of candidate findings for parallel workers. Each task groups related files:
 
         ```json
         [
           {
             "id": "review-0",
-            "description": "Brief description of what to fix",
+            "description": "Brief description of what is wrong",
             "files": ["path/to/file1.swift", "path/to/file2.swift"],
-            "severity": "critical"
+            "severity": "critical",
+            "line": 42,
+            "end_line": 44,
+            "category": "correctness",
+            "evidence": "Exact code excerpt or concrete proof from the file",
+            "expected_invariant": "What invariant is violated",
+            "repro_or_reasoning": "How the issue manifests or why it is real"
           }
         ]
         ```
@@ -57,6 +63,7 @@ extension CodeReviewMultiSwarmProvider {
         - Group related fixes into the same task (same area/module)
         - Each file should appear in at most ONE task
         - severity: "critical", "warning", or "suggestion"
+        - `line`, `evidence`, `expected_invariant`, and `repro_or_reasoning` are strongly recommended and should be included whenever possible
         - If no fixes are needed, output an empty array: ```json\n[]\n```
         - Maximum \(maxWorkers) tasks — group smaller fixes together
         """
@@ -203,11 +210,17 @@ extension CodeReviewMultiSwarmProvider {
             let severity = allowedSeverities.contains(severityRaw) ? severityRaw : "warning"
             let category = (dict["category"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            let lineNumber = dict["line"] as? Int
+            let endLineNumber = dict["end_line"] as? Int
             let originRaw = ((dict["origin"] as? String) ?? "reviewer")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let origin = FindingOrigin(rawValue: originRaw) ?? .reviewer
             let confidence = dict["confidence"] as? Double
             let evidence = (dict["evidence"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let expectedInvariant = (dict["expected_invariant"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let reproOrReasoning = (dict["repro_or_reasoning"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let sourceTool = (dict["source_tool"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -219,9 +232,13 @@ extension CodeReviewMultiSwarmProvider {
                     files: scopedFiles,
                     severity: severity,
                     category: category,
+                    lineNumber: lineNumber,
+                    endLineNumber: endLineNumber,
                     origin: origin,
                     confidence: confidence,
                     evidence: evidence,
+                    expectedInvariant: expectedInvariant,
+                    reproOrReasoning: reproOrReasoning,
                     sourceTool: sourceTool,
                     blocking: blocking
                 )

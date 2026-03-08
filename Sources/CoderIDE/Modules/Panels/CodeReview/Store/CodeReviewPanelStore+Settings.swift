@@ -37,13 +37,29 @@ extension CodeReviewPanelStore {
         maxRounds: Int? = nil,
         analysisOnly: Bool? = nil,
         analysisBackend: String? = nil,
-        executionBackend: String? = nil
+        executionBackend: String? = nil,
+        patchDeliveryMode: ReviewPatchDeliveryMode? = nil,
+        autoPreparePatchForVerifiedFindings: Bool? = nil,
+        autoApplyVerifiedPatch: Bool? = nil,
+        autoOpenPRAfterApply: Bool? = nil,
+        autoMergeAfterGreen: Bool? = nil,
+        autoResolveConflicts: ReviewConflictAutomation? = nil,
+        showCandidatesInMainFindings: Bool? = nil,
+        publishOutcomeToChat: Bool? = nil
     ) {
         if let v = maxWorkers { settings.maxWorkers = v }
         if let v = maxRounds { settings.maxRounds = v }
         if let v = analysisOnly { settings.analysisOnly = v }
         if let v = analysisBackend { settings.analysisBackend = v }
         if let v = executionBackend { settings.executionBackend = v }
+        if let v = patchDeliveryMode { settings.patchDeliveryMode = v }
+        if let v = autoPreparePatchForVerifiedFindings { settings.autoPreparePatchForVerifiedFindings = v }
+        if let v = autoApplyVerifiedPatch { settings.autoApplyVerifiedPatch = v }
+        if let v = autoOpenPRAfterApply { settings.autoOpenPRAfterApply = v }
+        if let v = autoMergeAfterGreen { settings.autoMergeAfterGreen = v }
+        if let v = autoResolveConflicts { settings.autoResolveConflicts = v }
+        if let v = showCandidatesInMainFindings { settings.showCandidatesInMainFindings = v }
+        if let v = publishOutcomeToChat { settings.publishOutcomeToChat = v }
         saveSettings()
     }
 
@@ -61,6 +77,26 @@ extension CodeReviewPanelStore {
     /// Reload settings from UserDefaults.
     func reloadSettings() {
         settings = ReviewPanelSettingsPersistence.load()
+    }
+
+    var bugHunterSettings: BugHunterSettings {
+        BugHunterSettingsPersistence.load()
+    }
+
+    func updateBugHunterSettings(
+        enabled: Bool? = nil,
+        triggerMode: BugHunterTriggerMode? = nil,
+        autofixMode: BugHunterAutofixMode? = nil,
+        maxCommitWindow: Int? = nil,
+        installGitHook: Bool? = nil
+    ) {
+        var bugHunter = BugHunterSettingsPersistence.load()
+        if let enabled { bugHunter.enabled = enabled }
+        if let triggerMode { bugHunter.triggerMode = triggerMode }
+        if let autofixMode { bugHunter.autofixMode = autofixMode }
+        if let maxCommitWindow { bugHunter.maxCommitWindow = maxCommitWindow }
+        if let installGitHook { bugHunter.installGitHook = installGitHook }
+        BugHunterSettingsPersistence.save(bugHunter)
     }
 
     /// Combined slash commands: built-in + custom.

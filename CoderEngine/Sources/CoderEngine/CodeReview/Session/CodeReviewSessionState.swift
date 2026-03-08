@@ -14,6 +14,8 @@ public actor CodeReviewSessionState {
     var phase: ReviewSessionPhase = .idle
     var stage: ReviewSessionStage = .idle
     var findings: [CodeReviewFinding] = []
+    var candidates: [ReviewCandidate] = []
+    var patches: [ReviewPatchArtifact] = []
     var events: [CodeReviewSessionEvent] = []
     var config: SessionConfig
     var mutationSequence: UInt64 = 0
@@ -28,6 +30,7 @@ public actor CodeReviewSessionState {
     var currentJobId: String?
     var lastTestStatus: ReviewSessionTestStatus?
     var audit: ReviewAuditSnapshot = .empty
+    var outcome: ReviewSessionOutcome = .empty
 
     /// Callback fired on every state mutation (for bridging to @MainActor stores).
     private var onStateChange: (@Sendable (CodeReviewSessionSnapshot) -> Void)?
@@ -64,6 +67,8 @@ public actor CodeReviewSessionState {
             phase: phase,
             stage: stage,
             findings: findings,
+            candidates: candidates,
+            patches: patches,
             events: events,
             config: config,
             scope: scope,
@@ -77,6 +82,7 @@ public actor CodeReviewSessionState {
             currentJobId: currentJobId,
             lastTestStatus: lastTestStatus,
             audit: audit,
+            outcome: outcome,
             lastUpdatedAt: Date()
         )
     }

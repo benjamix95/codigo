@@ -7,6 +7,15 @@ extension UnifiedToolRuntime {
         context: ToolExecutionContext,
         startDate: Date
     ) async -> ToolResult {
+        if let metaResult = executeMetaAuditToolIfNeeded(
+            name: name,
+            call: call,
+            context: context,
+            startDate: startDate
+        ) {
+            return metaResult
+        }
+
         let scopeFiles = resolveAuditScopeFiles(call: call, context: context)
         let result = CodeReviewAuditService.runTool(
             named: name,
@@ -33,6 +42,97 @@ extension UnifiedToolRuntime {
             "findings_count": String(result.findings.count),
             "blocking_findings": String(result.blockingFindingsCount),
             "coverage_available": result.coverageAvailable ? "true" : "false",
+            "adapters_used": result.adaptersUsed.joined(separator: ","),
+            "clusters_count": String(result.clusters.count),
+        ], startDate: startDate)
+    }
+
+    private func executeMetaAuditToolIfNeeded(
+        name: String,
+        call: ToolCall,
+        context: ToolExecutionContext,
+        startDate: Date
+    ) -> ToolResult? {
+        switch name {
+        case ReviewAuditToolName.runProfile:
+            let profile = ReviewAuditProfile(rawValue: (call.args["profile"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) ?? .quick
+            let scopeFiles = resolveAuditScopeFiles(call: call, context: context)
+            let results = CodeReviewAuditService.runProfile(named: profile, scopeFiles: scopeFiles, workspacePath: context.workspaceContext.workspacePath)
+            return encodedAuditResult(
+                CodeReviewAuditService.correlateResults(results, summaryPrefix: "audit_run_profile.\(profile.rawValue)"),
+                startDate: startDate
+            )
+        case ReviewAuditToolName.correlateFindings:
+            let scopeFiles = resolveAuditScopeFiles(call: call, context: context)
+            let results = CodeReviewAuditService.runProfile(named: .securityDeep, scopeFiles: scopeFiles, workspacePath: context.workspaceContext.workspacePath)
+                + CodeReviewAuditService.runProfile(named: .bugHuntDeep, scopeFiles: scopeFiles, workspacePath: context.workspaceContext.workspacePath)
+            return encodedAuditResult(
+                CodeReviewAuditService.correlateResults(results, summaryPrefix: "audit_correlate_findings"),
+                startDate: startDate
+            )
+        case ReviewAuditToolName.verifyBundle:
+            let scopeFiles = resolveAuditScopeFiles(call: call, context: context)
+            let correlated = CodeReviewAuditService.correlateResults(
+                CodeReviewAuditService.runProfile(named: .securityDeep, scopeFiles: scopeFiles, workspacePath: context.workspaceContext.workspacePath)
+                    + CodeReviewAuditService.runProfile(named: .bugHuntDeep, scopeFiles: scopeFiles, workspacePath: context.workspaceContext.workspacePath),
+                summaryPrefix: "audit_verify_bundle"
+            )
+            let strict = ReviewAuditToolResult(
+                toolName: ReviewAuditToolName.verifyBundle,
+                findings: correlated.findings.filter { ($0.confidence ?? 0) >= 0.75 || $0.blocking },
+                durationMs: correlated.durationMs,
+                coverageAvailable: correlated.coverageAvailable,
+                summary: correlated.summary,
+                adaptersUsed: correlated.adaptersUsed,
+                verificationHints: correlated.verificationHints,
+                metadata: correlated.metadata,
+                clusters: correlated.clusters
+            )
+            return encodedAuditResult(strict, startDate: startDate)
+        case ReviewAuditToolName.explainFinding:
+            let file = (call.args["file"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = (call.args["message"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !file.isEmpty, !message.isEmpty else {
+                return failure("file and message are required", errorCode: "validation", startDate: startDate)
+            }
+            let evidence = (call.args["evidence"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let line = (call.args["line"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let summary = """
+            file: \(file)
+            line: \(line.isEmpty ? "n/a" : line)
+            message: \(message)
+            evidence: \(evidence.isEmpty ? "n/a" : evidence)
+            gate: strict_verified
+            """
+            let result = ReviewAuditToolResult(
+                toolName: ReviewAuditToolName.explainFinding,
+                findings: [],
+                durationMs: 1,
+                coverageAvailable: true,
+                summary: summary,
+                metadata: ["signal_type": "manual", "verification_hint": "explanation_only", "promotion_gate": "none"]
+            )
+            return encodedAuditResult(result, startDate: startDate)
+        default:
+            return nil
+        }
+    }
+
+    private func encodedAuditResult(
+        _ result: ReviewAuditToolResult,
+        startDate: Date
+    ) -> ToolResult {
+        let payloadData = (try? JSONEncoder().encode(result.payload)) ?? Data("{}".utf8)
+        let output = String(data: payloadData, encoding: .utf8) ?? "{}"
+        return success([
+            "title": result.toolName,
+            "detail": result.summary,
+            "output": output,
+            "findings_count": String(result.findings.count),
+            "blocking_findings": String(result.blockingFindingsCount),
+            "coverage_available": result.coverageAvailable ? "true" : "false",
+            "adapters_used": result.adaptersUsed.joined(separator: ","),
+            "clusters_count": String(result.clusters.count),
         ], startDate: startDate)
     }
 

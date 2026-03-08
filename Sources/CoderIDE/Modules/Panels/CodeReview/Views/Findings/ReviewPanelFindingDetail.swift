@@ -5,7 +5,7 @@ import SwiftUI
 struct ReviewPanelFindingDetail: View {
     @ObservedObject var store: CodeReviewPanelStore
     let finding: CodeReviewFinding
-    let onOpenFile: (String) -> Void
+    let onOpenFileAtLocation: (String, Int?) -> Void
     let onBack: () -> Void
 
     var body: some View {
@@ -18,6 +18,9 @@ struct ReviewPanelFindingDetail: View {
                     messageSection
                     if let fix = finding.suggestedFix, !fix.isEmpty {
                         suggestedFixSection(fix)
+                    }
+                    if let patch = store.currentPatches.first(where: { $0.findingId == finding.id }) {
+                        patchSection(patch)
                     }
                     if !finding.comments.isEmpty {
                         commentsSection
@@ -64,7 +67,7 @@ struct ReviewPanelFindingDetail: View {
         VStack(alignment: .leading, spacing: 4) {
             sectionLabel("LOCATION")
             Button {
-                onOpenFile(finding.filePath)
+                onOpenFileAtLocation(finding.filePath, finding.lineNumber)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text")
@@ -124,6 +127,28 @@ struct ReviewPanelFindingDetail: View {
 
     // MARK: - Comments
 
+    private func patchSection(_ patch: ReviewPatchArtifact) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            sectionLabel("PATCH PREVIEW")
+            Text(patch.diffPreview)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.primary.opacity(0.8))
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                )
+            HStack(spacing: 8) {
+                Text("Verify: \(patch.verifyStatus.rawValue)")
+                Text("PR: \(patch.prStatus.rawValue)")
+                Text("Merge: \(patch.mergeStatus.rawValue)")
+            }
+            .font(.system(size: 8.5, weight: .medium, design: .monospaced))
+            .foregroundStyle(.quaternary)
+        }
+    }
+
     private var commentsSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             sectionLabel("COMMENTS (\(finding.comments.count))")
@@ -155,11 +180,20 @@ struct ReviewPanelFindingDetail: View {
 
     private var actionsSection: some View {
         HStack(spacing: 8) {
-            if finding.status == .open, let sessionId = store.selectedSessionId {
+            if finding.status.isOpenState, let sessionId = store.selectedSessionId {
                 Button {
-                    Task { await store.applyFix(sessionId: sessionId, findingId: finding.id) }
+                    Task { await store.preparePatch(sessionId: sessionId, findingId: finding.id) }
                 } label: {
-                    Label("Apply Fix", systemImage: "wrench.and.screwdriver")
+                    Label("Prepare Patch", systemImage: "wand.and.stars")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button {
+                    Task { await store.applyPatch(sessionId: sessionId, findingId: finding.id) }
+                } label: {
+                    Label("Apply Patch", systemImage: "wrench.and.screwdriver")
                         .font(.system(size: 10, weight: .semibold))
                 }
                 .buttonStyle(.borderedProminent)
@@ -178,6 +212,28 @@ struct ReviewPanelFindingDetail: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+            }
+            if let sessionId = store.selectedSessionId,
+               store.currentPatches.contains(where: { $0.findingId == finding.id }) {
+                Button {
+                    Task { await store.openPatchPullRequest(sessionId: sessionId, findingId: finding.id) }
+                } label: {
+                    Label("Open PR", systemImage: "arrow.up.right.square")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                if store.currentPatches.contains(where: { $0.findingId == finding.id && $0.prURL != nil }) {
+                    Button {
+                        Task { await store.mergePatchPullRequest(sessionId: sessionId, findingId: finding.id) }
+                    } label: {
+                        Label("Merge PR", systemImage: "arrow.triangle.merge")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             }
             Spacer()
         }

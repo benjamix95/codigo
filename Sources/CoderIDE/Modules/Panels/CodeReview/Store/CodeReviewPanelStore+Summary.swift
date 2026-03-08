@@ -11,6 +11,7 @@ extension CodeReviewPanelStore {
     }
 
     func publishSummaryToChat(sessionId: String) {
+        guard settings.publishOutcomeToChat else { return }
         guard let snapshot = taskActivityStore.codeReviewSnapshot(
             sessionId: sessionId,
             conversationId: conversationId
