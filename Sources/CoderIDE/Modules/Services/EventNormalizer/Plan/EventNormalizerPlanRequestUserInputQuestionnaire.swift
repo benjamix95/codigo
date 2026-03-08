@@ -1,0 +1,290 @@
+import Foundation
+
+extension EventNormalizer {
+    static func parsePlanRequestQuestionnaire(raw: String) -> PlanClarificationQuestionnaire? {
+        let normalizedRaw = normalizePlanRequestQuestionsRaw(raw)
+        guard !normalizedRaw.isEmpty else { return nil }
+        if let objects = parsePlanRequestQuestionObjects(from: normalizedRaw), !objects.isEmpty {
+            var questions: [PlanClarificationQuestion] = []
+            var usedQuestionIds = Set<Int>()
+            for (index, object) in objects.enumerated() {
+                guard let parsed = parsePlanRequestQuestionItem(object, fallbackIndex: index + 1) else {
+                    continue
+                }
+                let uniqueId = nextAvailableQuestionId(preferred: parsed.id, used: &usedQuestionIds)
+                questions.append(
+                    PlanClarificationQuestion(
+                        id: uniqueId,
+                        prompt: parsed.prompt,
+                        options: parsed.options,
+                        isMultiSelect: parsed.isMultiSelect
+                    )
+                )
+            }
+
+            guard !questions.isEmpty else { return nil }
+            return PlanClarificationQuestionnaire(questions: questions)
+        }
+
+        if let markdownQuestionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: normalizedRaw),
+           !markdownQuestionnaire.questions.isEmpty {
+            return markdownQuestionnaire
+        }
+
+        return nil
+    }
+
+    static func normalizePlanRequestQuestionsRaw(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        if trimmed.hasPrefix("```"), trimmed.hasSuffix("```") {
+            var lines = trimmed.components(separatedBy: .newlines)
+            if !lines.isEmpty {
+                lines.removeFirst()
+            }
+            if !lines.isEmpty {
+                lines.removeLast()
+            }
+            return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
+    }
+
+    static func parsePlanRequestQuestionObjects(from raw: String) -> [[String: Any]]? {
+        let maxQuestionPayloadLength = 1_000_000
+        let maxNestedQuestionDepth = 8
+        return parsePlanRequestQuestionObjects(
+            from: raw,
+            depth: 0,
+            maxQuestionPayloadLength: maxQuestionPayloadLength,
+            maxNestedQuestionDepth: maxNestedQuestionDepth
+        )
+    }
+
+    static func parsePlanRequestQuestionObjects(
+        from raw: String,
+        depth: Int,
+        maxQuestionPayloadLength: Int,
+        maxNestedQuestionDepth: Int
+    ) -> [[String: Any]]? {
+        guard depth <= maxNestedQuestionDepth,
+              raw.utf8.count <= maxQuestionPayloadLength else {
+            return nil
+        }
+
+        guard let data = raw.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+
+        if let objects = parsed as? [[String: Any]], !objects.isEmpty {
+            return objects
+        }
+        if let wrapper = parsed as? [String: Any] {
+            if let objects = wrapper["questions"] as? [[String: Any]], !objects.isEmpty {
+                return objects
+            }
+            if let objectArray = wrapper["questions"] as? [Any] {
+                let compacted = objectArray.compactMap { $0 as? [String: Any] }
+                if !compacted.isEmpty {
+                    return compacted
+                }
+            }
+            if let nestedQuestionsRaw = wrapper["questions"] as? String {
+                return parsePlanRequestQuestionObjects(
+                    from: normalizePlanRequestQuestionsRaw(nestedQuestionsRaw),
+                    depth: depth + 1,
+                    maxQuestionPayloadLength: maxQuestionPayloadLength,
+                    maxNestedQuestionDepth: maxNestedQuestionDepth
+                )
+            }
+        }
+        if let rawString = parsed as? String {
+            return parsePlanRequestQuestionObjects(
+                from: normalizePlanRequestQuestionsRaw(rawString),
+                depth: depth + 1,
+                maxQuestionPayloadLength: maxQuestionPayloadLength,
+                maxNestedQuestionDepth: maxNestedQuestionDepth
+            )
+        }
+        return nil
+    }
+
+    static func parsePlanRequestQuestionItem(
+        _ object: [String: Any],
+        fallbackIndex: Int
+    ) -> PlanClarificationQuestion? {
+        let rawPrompt = (
+            (object["prompt"] as? String)
+                ?? (object["question"] as? String)
+                ?? (object["title"] as? String)
+                ?? ""
+        )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawPrompt.isEmpty else { return nil }
+
+        let questionId: Int = {
+            if let idInt = object["id"] as? Int, idInt > 0 { return idInt }
+            if let idString = object["id"] as? String,
+               let parsed = Int(idString.trimmingCharacters(in: .whitespacesAndNewlines)),
+               parsed > 0 {
+                return parsed
+            }
+            return fallbackIndex
+        }()
+
+        let isMultiSelect = parseFlexibleBool(
+            object["multi_select"]
+                ?? object["multiSelect"]
+                ?? object["allow_multiple"]
+                ?? object["allowMultiple"]
+                ?? object["is_multi_select"]
+                ?? object["isMultiSelect"]
+        )
+
+        let parsedOptions = parsePlanRequestOptions(object["options"])
+        guard parsedOptions.count >= 2 else { return nil }
+
+        return PlanClarificationQuestion(
+            id: questionId,
+            prompt: rawPrompt,
+            options: parsedOptions,
+            isMultiSelect: isMultiSelect
+        )
+    }
+
+    static func parsePlanRequestOptions(_ raw: Any?) -> [PlanClarificationOption] {
+        if let textOptions = raw as? [String] {
+            var used = Set<String>()
+            return textOptions.enumerated().compactMap { idx, optionText in
+                let trimmed = optionText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                return PlanClarificationOption(
+                    id: nextAvailableOptionIdentifier(preferred: nil, fallbackIndex: idx, used: &used),
+                    text: trimmed
+                )
+            }
+        }
+
+        guard let objectOptions = raw as? [[String: Any]], !objectOptions.isEmpty else {
+            return []
+        }
+
+        var parsedOptions: [PlanClarificationOption] = []
+        var usedOptionIds = Set<String>()
+        for (idx, option) in objectOptions.enumerated() {
+            var text = (
+                (option["label"] as? String)
+                    ?? (option["text"] as? String)
+                    ?? (option["title"] as? String)
+                    ?? (option["content"] as? String)
+                    ?? ""
+            )
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let description = (option["description"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !description.isEmpty, !text.isEmpty {
+                text = "\(text) (\(description))"
+            }
+            guard !text.isEmpty else { continue }
+
+            let recommended = parseFlexibleBool(option["recommended"])
+                || text.lowercased().contains("(recommended)")
+
+            let cleanText = text.replacingOccurrences(
+                of: #"\s*\((?i:recommended)\)\s*$"#,
+                with: "",
+                options: .regularExpression
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            let explicitId = parsePlanRequestIdentifier(
+                option["id"] ?? option["option_id"] ?? option["optionId"] ?? option["key"]
+            )
+            parsedOptions.append(
+                PlanClarificationOption(
+                    id: nextAvailableOptionIdentifier(
+                        preferred: explicitId,
+                        fallbackIndex: idx,
+                        used: &usedOptionIds
+                    ),
+                    text: cleanText,
+                    isRecommended: recommended
+                )
+            )
+        }
+        return parsedOptions
+    }
+
+    static func parsePlanRequestIdentifier(_ raw: Any?) -> String? {
+        if let value = raw as? String {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        if let number = raw as? NSNumber {
+            let normalized = number.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalized.isEmpty ? nil : normalized
+        }
+        if let intValue = raw as? Int {
+            return String(intValue)
+        }
+        return nil
+    }
+
+    static func nextAvailableQuestionId(preferred: Int, used: inout Set<Int>) -> Int {
+        var candidate = max(1, preferred)
+        while used.contains(candidate) {
+            candidate += 1
+        }
+        used.insert(candidate)
+        return candidate
+    }
+
+    static func nextAvailableOptionIdentifier(
+        preferred: String?,
+        fallbackIndex: Int,
+        used: inout Set<String>
+    ) -> String {
+        if let preferred {
+            let normalized = preferred.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            if !normalized.isEmpty && !used.contains(normalized) {
+                used.insert(normalized)
+                return normalized
+            }
+        }
+        var candidate = optionLetter(for: fallbackIndex).uppercased()
+        var numericFallback = max(1, fallbackIndex + 1)
+        while used.contains(candidate) {
+            candidate = String(numericFallback)
+            numericFallback += 1
+        }
+        used.insert(candidate)
+        return candidate
+    }
+
+    static func optionLetter(for index: Int) -> String {
+        let normalizedIndex = max(0, min(index, 25))
+        let base: UInt32 = 65
+        let scalarValue = base + UInt32(normalizedIndex)
+        guard let scalar = UnicodeScalar(scalarValue) else {
+            return "A"
+        }
+        return String(Character(scalar))
+    }
+
+    static func parseFlexibleBool(_ raw: Any?) -> Bool {
+        if let boolValue = raw as? Bool {
+            return boolValue
+        }
+        if let intValue = raw as? Int {
+            return intValue != 0
+        }
+        if let number = raw as? NSNumber {
+            return number.boolValue
+        }
+        if let stringValue = raw as? String {
+            let normalized = stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return normalized == "true" || normalized == "1" || normalized == "yes" || normalized == "y"
+        }
+        return false
+    }
+}
