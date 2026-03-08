@@ -7,8 +7,9 @@ extension SidebarView {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Context")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Spacer()
                 Menu {
                     ForEach(ContextScopeMode.allCases, id: \.self) { mode in
@@ -25,8 +26,8 @@ extension SidebarView {
                     }
                 } label: {
                     Text((ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto).label)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
                 }
                 .menuStyle(.borderlessButton)
                 .help((ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto).helpText)
@@ -41,7 +42,7 @@ extension SidebarView {
                     }
                 } label: {
                     Image(systemName: "rectangle.on.rectangle")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
                 .menuStyle(.borderlessButton)
@@ -52,7 +53,7 @@ extension SidebarView {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Image(systemName: "folder")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(context.name)
@@ -68,7 +69,7 @@ extension SidebarView {
                             isSelectingAddFolder = true
                         } label: {
                             Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)

@@ -194,9 +194,6 @@ extension ContentView {
 
     private var configuredSidebar: some View {
         ZStack {
-            DesignSystem.Colors.backgroundSecondary
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea(.all)
             SidebarMaterialBackground()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(.all)

@@ -27,12 +27,12 @@ struct SidebarSectionHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
             Spacer()
             trailing
         }
-        .padding(.horizontal, 4)
     }
 }
 
@@ -116,7 +116,7 @@ struct SidebarPinnedIconButton: View {
     var body: some View {
         Button(action: onUnpin) {
             Image(systemName: "pin.fill")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(isHovering ? Color.white : Color.secondary.opacity(0.9))
         }
         .buttonStyle(.plain)

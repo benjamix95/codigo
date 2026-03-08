@@ -97,12 +97,10 @@ extension SidebarView {
 
     var sidebarContent: some View {
         VStack(spacing: 0) {
-            Color.clear
-                .frame(height: 28)
-                .allowsHitTesting(false)
+            sidebarTitlebarHeader
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 12) {
                     quickActions
                     Divider().opacity(0.4)
                     contextSection
@@ -115,13 +113,13 @@ extension SidebarView {
                     }
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
             }
 
             Divider().opacity(0.4)
             taskCloudSection
                 .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+                .padding(.vertical, 10)
         }
         .safeAreaInset(edge: .bottom) { footer }
         .fileImporter(isPresented: $isSelectingAddFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleAddFolderSelection)
@@ -142,8 +140,14 @@ extension SidebarView {
         }
     }
 
+    var sidebarTitlebarHeader: some View {
+        Color.clear
+            .frame(height: 28)
+            .allowsHitTesting(false)
+    }
+
     var quickActions: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             actionRow("New thread", icon: "plus.message.fill") {
                 createThread(contextId: currentContext?.id)
             }
@@ -155,31 +159,31 @@ extension SidebarView {
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                 TextField("Search", text: $sidebarQuery)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                 if !sidebarQuery.isEmpty {
                     Button { sidebarQuery = "" } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear search")
                 }
             }
-            .padding(.top, 6)
+            .padding(.top, 4)
         }
     }
 
     func actionRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .frame(width: 18)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 16)
                     .foregroundStyle(.secondary)
                 Text(title)
                     .font(.system(size: 12, weight: .medium))

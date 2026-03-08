@@ -4,17 +4,19 @@ import CoderEngine
 
 extension SidebarView {
     var taskCloudSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Task Cloud")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Spacer()
                 Button {
                     loadCodexTasks()
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -22,7 +24,7 @@ extension SidebarView {
             if isLoadingTasks {
                 Text("Loading...")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
             } else if let first = codexTasks.first {
                 Text(first.title ?? first.id)
                     .font(.system(size: 11, weight: .medium))
@@ -38,13 +40,14 @@ extension SidebarView {
             Spacer()
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Settings")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .background(.clear)
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsToAccounts)) { _ in

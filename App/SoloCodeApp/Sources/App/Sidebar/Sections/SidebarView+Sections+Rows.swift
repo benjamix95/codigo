@@ -11,14 +11,15 @@ extension SidebarView {
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Threads")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Spacer()
                 Button {
                     favoritesOnly.toggle()
                 } label: {
                     Image(systemName: favoritesOnly ? "star.fill" : "star")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(favoritesOnly ? .yellow : .secondary)
                 }
                 .buttonStyle(.plain)
@@ -27,7 +28,7 @@ extension SidebarView {
                     showArchived.toggle()
                 } label: {
                     Image(systemName: showArchived ? "archivebox.fill" : "archivebox")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -36,7 +37,7 @@ extension SidebarView {
                     createThread(contextId: currentContext?.id)
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -57,7 +58,7 @@ extension SidebarView {
                     } label: {
                         Image(systemName: "ellipsis")
                             .rotationEffect(.degrees(90))
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                     }
                     .menuStyle(.borderlessButton)
@@ -67,11 +68,11 @@ extension SidebarView {
 
             if let context = currentContext {
                 Text("Context: \(context.name)")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
             } else {
                 Text("Global threads")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
             }
 
@@ -96,7 +97,7 @@ extension SidebarView {
                     if let context = currentContext, context.folderPaths.count > 1 {
                         ForEach(groupedThreadsByFolder(from: regularThreads), id: \.folder) { group in
                             Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "General")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(.tertiary)
                                 .padding(.horizontal, 6)
                                 .padding(.top, 4)
@@ -118,17 +119,17 @@ extension SidebarView {
                         Button {
                             askAIAboutThreadSearch(query: query, hits: hits)
                         } label: {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 6) {
                                 Image(systemName: "sparkles")
                                 Text("Ask AI about \(hits.count) threads found")
                                     .lineLimit(1)
                                 Spacer()
                             }
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(Color.accentColor)
                         }
                         .buttonStyle(.plain)
-                        .padding(.top, 6)
+                        .padding(.top, 4)
                     }
                 }
             }
@@ -152,16 +153,16 @@ extension SidebarView {
                     .opacity(0.9)
             } else if hasDraft {
                 Image(systemName: "pencil.line")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.orange)
             } else {
                 Image(systemName: selected ? "message.fill" : "message")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(selected ? Color.accentColor : .secondary)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(conv.title)
-                    .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                    .font(.system(size: 11, weight: selected ? .semibold : .regular))
                     .lineLimit(1)
                 if isActive, let status = statusText, !status.isEmpty {
                     Text(status)
@@ -179,7 +180,7 @@ extension SidebarView {
             }
             if !isActive {
                 Text(relativeDate(conv.createdAt, relativeTo: referenceDate))
-                    .font(.system(size: 11))
+                    .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
             if let context = currentContext, context.folderPaths.count > 1 {
@@ -240,8 +241,8 @@ extension SidebarView {
             .buttonStyle(.plain)
             .help("Delete thread")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(selected ? Color.white.opacity(0.08) : (isActive ? Color.accentColor.opacity(0.04) : Color.clear))
@@ -303,8 +304,9 @@ extension SidebarView {
 
     func threadSubsectionTitle(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.tertiary)
+            .textCase(.uppercase)
             .padding(.horizontal, 6)
             .padding(.top, 4)
     }

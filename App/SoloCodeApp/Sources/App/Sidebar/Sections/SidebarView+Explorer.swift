@@ -3,10 +3,11 @@ import AppKit
 
 extension SidebarView {
     func explorerSection(context: ProjectContext) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Explorer")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
 
             if context.folderPaths.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
