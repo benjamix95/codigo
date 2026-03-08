@@ -37,13 +37,19 @@ final class WorktreeSessionStore: ObservableObject {
     func isInWorktree(conversationId: UUID?, currentPath: String?) -> Bool {
         guard let session = session(for: conversationId),
               let currentPath else { return false }
-        return normalized(currentPath).hasPrefix(normalized(session.worktreePath))
+        return pathIsEqualOrInside(
+            normalized(currentPath),
+            rootPath: normalized(session.worktreePath)
+        )
     }
 
     func isInLocal(conversationId: UUID?, currentPath: String?) -> Bool {
         guard let session = session(for: conversationId),
               let currentPath else { return false }
-        return normalized(currentPath).hasPrefix(normalized(session.localRootPath))
+        return pathIsEqualOrInside(
+            normalized(currentPath),
+            rootPath: normalized(session.localRootPath)
+        )
     }
 
     private func load() {
@@ -67,5 +73,10 @@ final class WorktreeSessionStore: ObservableObject {
         let url = URL(fileURLWithPath: path).standardizedFileURL
         let value = url.path(percentEncoded: false)
         return value.hasSuffix("/") ? String(value.dropLast()) : value
+    }
+
+    private func pathIsEqualOrInside(_ candidatePath: String, rootPath: String) -> Bool {
+        guard !candidatePath.isEmpty, !rootPath.isEmpty else { return false }
+        return candidatePath == rootPath || candidatePath.hasPrefix(rootPath + "/")
     }
 }

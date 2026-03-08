@@ -1,6 +1,6 @@
 import Foundation
 
-struct WorktreeSession: Codable, Equatable, Identifiable {
+struct WorktreeSession: Codable, Equatable, Identifiable, Sendable {
     var id: UUID { conversationId }
     let conversationId: UUID
     var localRootPath: String

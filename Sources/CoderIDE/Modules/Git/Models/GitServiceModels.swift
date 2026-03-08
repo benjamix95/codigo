@@ -1,13 +1,13 @@
 import Foundation
 
-struct GitBranch: Identifiable, Equatable {
+struct GitBranch: Identifiable, Equatable, Sendable {
     let id = UUID()
     let name: String
     let isCurrent: Bool
     let isRemoteTracking: Bool
 }
 
-struct GitStatusSummary: Equatable {
+struct GitStatusSummary: Equatable, Sendable {
     let changedFiles: Int
     let added: Int
     let removed: Int
@@ -17,17 +17,17 @@ struct GitStatusSummary: Equatable {
     let hasRemote: Bool
 }
 
-struct GitCommitResult: Equatable {
+struct GitCommitResult: Equatable, Sendable {
     let sha: String
     let shortSha: String
     let subject: String
 }
 
-struct GitPRResult: Equatable {
+struct GitPRResult: Equatable, Sendable {
     let url: String
 }
 
-struct GitChangedFile: Identifiable, Equatable {
+struct GitChangedFile: Identifiable, Equatable, Sendable {
     let id = UUID()
     let path: String
     let added: Int
@@ -36,31 +36,31 @@ struct GitChangedFile: Identifiable, Equatable {
     let isStaged: Bool
 }
 
-struct GitStashEntry: Identifiable, Equatable {
+struct GitStashEntry: Identifiable, Equatable, Sendable {
     var id: Int { index }
     let index: Int
     let message: String
 }
 
-struct GitFileDiffChunk: Equatable {
+struct GitFileDiffChunk: Equatable, Sendable {
     let header: String
     let lines: [String]
 }
 
-struct GitFileDiff: Equatable {
+struct GitFileDiff: Equatable, Sendable {
     let path: String
     let chunks: [GitFileDiffChunk]
     let isBinary: Bool
 }
 
-struct GitWorktreeCreateRequest: Equatable {
+struct GitWorktreeCreateRequest: Equatable, Sendable {
     let gitRoot: String
     let branchName: String
     let fromBranch: String
     let worktreePath: String
 }
 
-struct GitAutoMergeReport: Equatable {
+struct GitAutoMergeReport: Equatable, Sendable {
     let localRootPath: String
     let worktreePath: String
     let worktreeBranch: String
@@ -70,17 +70,17 @@ struct GitAutoMergeReport: Equatable {
     let deletedBranch: Bool
 }
 
-struct GitMergeStartResult: Equatable {
+struct GitMergeStartResult: Equatable, Sendable {
     let hadConflicts: Bool
     let output: String
 }
 
-enum GitDiffBaseline: Equatable {
+enum GitDiffBaseline: Equatable, Sendable {
     case head
     case worktree
 }
 
-struct GitLogEntry: Identifiable, Equatable {
+struct GitLogEntry: Identifiable, Equatable, Sendable {
     let id = UUID()
     let sha: String
     let shortSha: String
@@ -89,7 +89,7 @@ struct GitLogEntry: Identifiable, Equatable {
     let relativeDate: String
 }
 
-enum GitServiceError: LocalizedError {
+enum GitServiceError: LocalizedError, Sendable {
     case missingWorkingDirectory
     case notGitRepository
     case branchNotFound(String)

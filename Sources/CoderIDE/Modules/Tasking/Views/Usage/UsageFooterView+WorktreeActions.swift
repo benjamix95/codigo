@@ -2,132 +2,16 @@ import Foundation
 
 @MainActor
 extension UsageFooterView {
-    func prepareWorktreeSheetState() {
-        clearWorktreeFeedback()
-        guard let localRoot = resolvedGitRoot(from: effectiveContext.primaryPath) else {
-            worktreeErrorMessage = "Apri un repository Git valido prima di creare un worktree."
-            return
-        }
-        pendingWorktreeLocalRoot = localRoot
-
-        let gitService = GitService()
-        do {
-            let localBranches = try gitService.listLocalBranches(gitRoot: localRoot)
-            availableLocalBranches = localBranches
-            let currentBranch = try gitService.currentBranch(gitRoot: localRoot)
-            worktreeBaseBranchDraft = currentBranch
-            if localBranches.contains(where: { $0.name == currentBranch }) {
-                worktreeMergeTargetDraft = currentBranch
-            } else {
-                worktreeMergeTargetDraft = localBranches.first?.name ?? currentBranch
-            }
-            worktreeBranchDraft = defaultWorktreeBranchName(baseBranch: currentBranch)
-            worktreeAutoMergeOnReturn = true
-            worktreeDeleteBranchAfterMerge = false
-        } catch {
-            availableLocalBranches = []
-            worktreeErrorMessage = error.localizedDescription
-        }
-    }
-
-    func handleWorktreeToggleTap() {
-        clearWorktreeFeedback()
-        guard !isWorktreeActionInFlight else { return }
-        guard selectedConversationId != nil else {
-            worktreeErrorMessage = "Seleziona una conversazione prima di usare i worktree."
-            return
-        }
-        guard resolvedGitRoot(from: effectiveContext.primaryPath) != nil else {
-            worktreeErrorMessage = "Nessun repository Git valido nel contesto corrente."
-            return
-        }
-
-        if let session = activeWorktreeSession {
-            if isCurrentlyInWorktree {
-                returnConversationToLocal(session: session)
-            } else {
-                switchConversationToWorktree(session: session)
-            }
-            return
-        }
-        prepareWorktreeSheetState()
-        showWorktreeSheet = true
-    }
-
-    func startWorktreeCreationFromSheet() {
-        clearWorktreeFeedback()
-        guard !isWorktreeActionInFlight else { return }
-        guard let conversationId = selectedConversationId else {
-            worktreeErrorMessage = "Nessuna conversazione selezionata."
-            return
-        }
-        guard let localRoot = pendingWorktreeLocalRoot else {
-            worktreeErrorMessage = "Root locale non disponibile."
-            return
-        }
-
-        let branch = worktreeBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let mergeTarget = worktreeMergeTargetDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let baseBranch = worktreeBaseBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !branch.isEmpty, !mergeTarget.isEmpty, !baseBranch.isEmpty else {
-            worktreeErrorMessage = "Compila branch worktree, base e target merge."
-            return
-        }
-        let worktreePath = suggestedWorktreePath(localRoot: localRoot, worktreeBranch: branch)
-
-        isWorktreeActionInFlight = true
-        worktreeStatusMessage = "Creazione worktree in corso..."
-        worktreeActionTask?.cancel()
-        worktreeActionTask = Task { @MainActor in
-            defer {
-                isWorktreeActionInFlight = false
-                worktreeActionTask = nil
-            }
-            do {
-                try GitService().createWorktree(
-                    request: GitWorktreeCreateRequest(
-                        gitRoot: localRoot,
-                        branchName: branch,
-                        fromBranch: baseBranch,
-                        worktreePath: worktreePath
-                    )
-                )
-                let session = WorktreeSession(
-                    conversationId: conversationId,
-                    localRootPath: localRoot,
-                    worktreePath: worktreePath,
-                    worktreeBranch: branch,
-                    baseBranch: baseBranch,
-                    mergeTargetBranch: mergeTarget,
-                    autoMergeOnReturn: worktreeAutoMergeOnReturn,
-                    deleteBranchAfterMerge: worktreeDeleteBranchAfterMerge
-                )
-                worktreeSessionStore.upsert(session)
-                try WorktreeContextRouter.switchConversation(
-                    conversationId: conversationId,
-                    toProjectPath: worktreePath,
-                    chatStore: chatStore,
-                    projectContextStore: projectContextStore,
-                    workspaceStore: workspaceStore
-                )
-                showWorktreeSheet = false
-                worktreeStatusMessage = "Worktree attivo su \(branch)."
-            } catch {
-                worktreeErrorMessage = error.localizedDescription
-            }
-        }
-    }
-
     func switchConversationToWorktree(session: WorktreeSession) {
         guard let conversationId = selectedConversationId else { return }
-        guard FileManager.default.fileExists(atPath: session.worktreePath) else {
-            worktreeErrorMessage = "Il percorso worktree non esiste più: \(session.worktreePath)"
-            return
-        }
         do {
+            let switchPath = try validatedRepositorySwitchPath(
+                session.worktreePath,
+                missingMessage: "Il percorso worktree non esiste più: \(session.worktreePath)"
+            )
             try WorktreeContextRouter.switchConversation(
                 conversationId: conversationId,
-                toProjectPath: session.worktreePath,
+                toProjectPath: switchPath,
                 chatStore: chatStore,
                 projectContextStore: projectContextStore,
                 workspaceStore: workspaceStore
@@ -139,12 +23,16 @@ extension UsageFooterView {
     }
 
     func returnConversationToLocal(session: WorktreeSession) {
-        guard selectedConversationId != nil else { return }
+        guard let conversationId = selectedConversationId else { return }
         if !session.autoMergeOnReturn {
             do {
+                let switchPath = try validatedRepositorySwitchPath(
+                    session.localRootPath,
+                    missingMessage: "Il repository locale non è più disponibile: \(session.localRootPath)"
+                )
                 try WorktreeContextRouter.switchConversation(
-                    conversationId: selectedConversationId,
-                    toProjectPath: session.localRootPath,
+                    conversationId: conversationId,
+                    toProjectPath: switchPath,
                     chatStore: chatStore,
                     projectContextStore: projectContextStore,
                     workspaceStore: workspaceStore
@@ -166,15 +54,19 @@ extension UsageFooterView {
             }
             do {
                 let report = try await performAutoMergePipeline(session: session)
+                let switchPath = try validatedRepositorySwitchPath(
+                    session.localRootPath,
+                    missingMessage: "Il repository locale non è più disponibile: \(session.localRootPath)"
+                )
                 try WorktreeContextRouter.switchConversation(
-                    conversationId: selectedConversationId,
-                    toProjectPath: session.localRootPath,
+                    conversationId: conversationId,
+                    toProjectPath: switchPath,
                     chatStore: chatStore,
                     projectContextStore: projectContextStore,
                     workspaceStore: workspaceStore
                 )
                 if report.deletedWorktree && report.deletedBranch {
-                    worktreeSessionStore.remove(conversationId: selectedConversationId)
+                    worktreeSessionStore.remove(conversationId: conversationId)
                 } else {
                     var updated = session
                     updated.lastUpdatedAt = .now
@@ -288,5 +180,29 @@ extension UsageFooterView {
             deletedWorktree: deletedWorktree,
             deletedBranch: deletedBranch
         )
+    }
+
+    private func validatedRepositorySwitchPath(
+        _ path: String,
+        missingMessage: String
+    ) throws -> String {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw GitServiceError.commandFailed(missingMessage)
+        }
+        let resolvedRoot = try GitService().resolveGitRoot(from: path)
+        let normalizedRoot = URL(fileURLWithPath: resolvedRoot)
+            .standardizedFileURL
+            .path(percentEncoded: false)
+        let normalizedPath = URL(fileURLWithPath: path)
+            .standardizedFileURL
+            .path(percentEncoded: false)
+        guard normalizedRoot == normalizedPath else {
+            throw GitServiceError.commandFailed(
+                "Il percorso selezionato non punta alla root del repository Git."
+            )
+        }
+        return normalizedRoot
     }
 }

@@ -1,6 +1,13 @@
 import Foundation
 
 extension GitService {
+    struct GitWorktreePreflightResult: Equatable, Sendable {
+        let gitRoot: String
+        let branchName: String
+        let fromBranch: String
+        let worktreePath: String
+    }
+
     func createWorktree(request: GitWorktreeCreateRequest) throws {
         try createWorktree(
             gitRoot: request.gitRoot,
@@ -16,14 +23,14 @@ extension GitService {
         fromBranch: String,
         worktreePath: String
     ) throws {
-        let trimmedBranch = branchName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedBase = fromBranch.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedPath = worktreePath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedBranch.isEmpty, !trimmedBase.isEmpty, !trimmedPath.isEmpty else {
-            throw GitServiceError.commandFailed("Parametri worktree non validi.")
-        }
-        try ensureBranchAbsent(name: trimmedBranch, gitRoot: gitRoot)
-        let parent = (trimmedPath as NSString).deletingLastPathComponent
+        let preflight = try preflightCreateWorktree(
+            gitRoot: gitRoot,
+            branchName: branchName,
+            fromBranch: fromBranch,
+            worktreePath: worktreePath
+        )
+
+        let parent = (preflight.worktreePath as NSString).deletingLastPathComponent
         if !parent.isEmpty {
             try FileManager.default.createDirectory(
                 atPath: parent,
@@ -31,8 +38,36 @@ extension GitService {
             )
         }
         _ = try runGit(
-            ["worktree", "add", "-b", trimmedBranch, trimmedPath, trimmedBase],
-            gitRoot: gitRoot
+            ["worktree", "add", "-b", preflight.branchName, preflight.worktreePath, preflight.fromBranch],
+            gitRoot: preflight.gitRoot
+        )
+    }
+
+    func preflightCreateWorktree(
+        gitRoot: String,
+        branchName: String,
+        fromBranch: String,
+        worktreePath: String
+    ) throws -> GitWorktreePreflightResult {
+        let resolvedRoot = try resolveGitRoot(from: gitRoot)
+        let trimmedPath = worktreePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else {
+            throw GitServiceError.commandFailed("Percorso worktree non valido.")
+        }
+
+        let validatedBranch = try validatedGitRef(branchName, label: "branch worktree")
+        let validatedBase = try validatedGitRef(fromBranch, label: "branch base")
+        let normalizedPath = normalizeWorktreePath(trimmedPath)
+
+        try ensureBranchExists(name: validatedBase, gitRoot: resolvedRoot)
+        try ensureBranchAbsent(name: validatedBranch, gitRoot: resolvedRoot)
+        try ensureWorktreePathAvailable(normalizedPath, gitRoot: resolvedRoot)
+
+        return GitWorktreePreflightResult(
+            gitRoot: resolvedRoot,
+            branchName: validatedBranch,
+            fromBranch: validatedBase,
+            worktreePath: normalizedPath
         )
     }
 
@@ -77,5 +112,33 @@ extension GitService {
     func branchExists(name: String, gitRoot: String) throws -> Bool {
         let branches = try listLocalBranches(gitRoot: gitRoot).map(\.name)
         return branches.contains(name)
+    }
+
+    func listWorktreePaths(gitRoot: String) throws -> [String] {
+        let out = try runGit(["worktree", "list", "--porcelain"], gitRoot: gitRoot)
+        return out
+            .split(separator: "\n")
+            .compactMap { line -> String? in
+                let row = String(line)
+                guard row.hasPrefix("worktree ") else { return nil }
+                return normalizeWorktreePath(String(row.dropFirst("worktree ".count)))
+            }
+    }
+
+    private func ensureWorktreePathAvailable(_ worktreePath: String, gitRoot: String) throws {
+        let existingWorktrees = try listWorktreePaths(gitRoot: gitRoot)
+        if existingWorktrees.contains(worktreePath) {
+            throw GitServiceError.commandFailed("Esiste già un worktree registrato per \(worktreePath).")
+        }
+
+        if FileManager.default.fileExists(atPath: worktreePath) {
+            throw GitServiceError.commandFailed("Il percorso worktree è già occupato: \(worktreePath)")
+        }
+    }
+
+    private func normalizeWorktreePath(_ path: String) -> String {
+        URL(fileURLWithPath: path)
+            .standardizedFileURL
+            .path(percentEncoded: false)
     }
 }

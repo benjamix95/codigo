@@ -36,9 +36,68 @@ extension UsageFooterView {
         availableLocalBranches.map(\.name)
     }
 
+    var worktreeSheetIsLoading: Bool {
+        if case .loading = worktreeSheetLoadState {
+            return true
+        }
+        return false
+    }
+
+    var isWorktreeSheetReady: Bool {
+        if case .ready = worktreeSheetLoadState {
+            return true
+        }
+        return false
+    }
+
+    var isWorktreeSheetSubmissionDisabled: Bool {
+        isWorktreeActionInFlight
+            || worktreeSheetIsLoading
+            || !isWorktreeSheetReady
+            || worktreeBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || worktreeBaseBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || worktreeMergeTargetDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var worktreeFlowCoordinator: WorktreeFlowCoordinator {
+        WorktreeFlowCoordinator()
+    }
+
     func clearWorktreeFeedback() {
         worktreeStatusMessage = nil
         worktreeErrorMessage = nil
+    }
+
+    func resetWorktreeSheetDrafts() {
+        availableLocalBranches = []
+        pendingWorktreeLocalRoot = nil
+        worktreeBranchDraft = ""
+        worktreeBaseBranchDraft = ""
+        worktreeMergeTargetDraft = ""
+        worktreeAutoMergeOnReturn = true
+        worktreeDeleteBranchAfterMerge = false
+        worktreeSheetLoadState = .idle
+    }
+
+    func applyWorktreeSheetBootstrap(_ bootstrap: WorktreeSheetBootstrap) {
+        pendingWorktreeLocalRoot = bootstrap.localRootPath
+        availableLocalBranches = bootstrap.localBranches
+        worktreeBaseBranchDraft = bootstrap.suggestedBaseBranch
+        worktreeMergeTargetDraft = bootstrap.suggestedMergeTargetBranch
+        worktreeBranchDraft = bootstrap.suggestedWorktreeBranch
+        worktreeAutoMergeOnReturn = true
+        worktreeDeleteBranchAfterMerge = false
+        worktreeSheetLoadState = .ready
+    }
+
+    func cancelWorktreeSheetPreparation(resetSheetState: Bool) {
+        worktreeSheetTask?.cancel()
+        worktreeSheetTask = nil
+        if resetSheetState {
+            resetWorktreeSheetDrafts()
+        } else if worktreeSheetIsLoading {
+            worktreeSheetLoadState = .idle
+        }
     }
 
     func resolvedGitRoot(from path: String?) -> String? {
@@ -50,9 +109,7 @@ extension UsageFooterView {
     }
 
     func defaultWorktreeBranchName(baseBranch: String) -> String {
-        let base = sanitizeBranchComponent(baseBranch.isEmpty ? "task" : baseBranch)
-        let suffix = String(UUID().uuidString.lowercased().prefix(6))
-        return "solocode/\(base)-\(suffix)"
+        makeDefaultWorktreeBranchName(baseBranch: baseBranch)
     }
 
     func suggestedWorktreePath(localRoot: String, worktreeBranch: String) -> String {
@@ -68,20 +125,6 @@ extension UsageFooterView {
     }
 
     func sanitizeBranchComponent(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if trimmed.isEmpty { return "task" }
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
-        let mapped = trimmed.map { char -> Character in
-            guard let scalar = char.unicodeScalars.first else { return "-" }
-            if allowed.contains(scalar) {
-                return char
-            }
-            return "-"
-        }
-        var collapsed = String(mapped)
-        while collapsed.contains("--") {
-            collapsed = collapsed.replacingOccurrences(of: "--", with: "-")
-        }
-        return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        sanitizeWorktreeBranchComponent(raw)
     }
 }

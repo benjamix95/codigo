@@ -131,6 +131,50 @@ final class GitServiceTests: XCTestCase {
         XCTAssertTrue(try git.listConflictedFiles(gitRoot: root).isEmpty)
     }
 
+    func testPreflightCreateWorktreeRejectsMissingBaseBranch() throws {
+        let repo = try XCTUnwrap(repoURL)
+        let root = try git.resolveGitRoot(from: repo.path)
+        let branch = "solocode/worktree-\(UUID().uuidString.prefix(6))"
+        let worktreePath = repo
+            .deletingLastPathComponent()
+            .appendingPathComponent("repo-worktrees")
+            .appendingPathComponent("missing-base")
+
+        XCTAssertThrowsError(
+            try git.preflightCreateWorktree(
+                gitRoot: root,
+                branchName: branch,
+                fromBranch: "missing-base",
+                worktreePath: worktreePath.path
+            )
+        )
+    }
+
+    func testPreflightCreateWorktreeRejectsOccupiedPath() throws {
+        let repo = try XCTUnwrap(repoURL)
+        let root = try git.resolveGitRoot(from: repo.path)
+        let branch = "solocode/worktree-\(UUID().uuidString.prefix(6))"
+        let baseBranch = try git.currentBranch(gitRoot: root)
+        let worktreePath = repo
+            .deletingLastPathComponent()
+            .appendingPathComponent("repo-worktrees")
+            .appendingPathComponent("occupied-path")
+
+        try FileManager.default.createDirectory(
+            at: worktreePath,
+            withIntermediateDirectories: true
+        )
+
+        XCTAssertThrowsError(
+            try git.preflightCreateWorktree(
+                gitRoot: root,
+                branchName: branch,
+                fromBranch: baseBranch,
+                worktreePath: worktreePath.path
+            )
+        )
+    }
+
     private func countAddedLines(in diff: GitFileDiff) -> Int {
         diff.chunks
             .flatMap(\.lines)

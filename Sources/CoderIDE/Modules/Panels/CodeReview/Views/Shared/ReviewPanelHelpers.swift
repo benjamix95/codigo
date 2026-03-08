@@ -1,27 +1,6 @@
 import CoderEngine
 import Foundation
 
-// MARK: - Git Ref Validation
-
-/// Validates a git ref format string for safe use in commands.
-func isValidGitRefFormat(_ ref: String) -> Bool {
-    let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return false }
-    guard !trimmed.hasPrefix("-") else { return false }
-    guard !trimmed.hasSuffix(".lock") else { return false }
-    guard !trimmed.hasSuffix(".") else { return false }
-    let invalidChars = CharacterSet.whitespacesAndNewlines
-        .union(.controlCharacters)
-    guard trimmed.unicodeScalars.allSatisfy({
-        !invalidChars.contains($0)
-    }) else { return false }
-    let forbidden = [":", "?", "*", "[", "\\", "@{"]
-    for seq in forbidden {
-        if trimmed.contains(seq) { return false }
-    }
-    return true
-}
-
 // MARK: - Scoped Review Activities
 
 /// Filter activities that belong to a specific review session.

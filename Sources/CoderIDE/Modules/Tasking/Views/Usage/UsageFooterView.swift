@@ -48,9 +48,11 @@ struct UsageFooterView: View {
     @State var worktreeAutoMergeOnReturn = true
     @State var worktreeDeleteBranchAfterMerge = false
     @State var pendingWorktreeLocalRoot: String?
+    @State var worktreeSheetLoadState: WorktreeSheetLoadState = .idle
     @State var worktreeStatusMessage: String?
     @State var worktreeErrorMessage: String?
     @State var isWorktreeActionInFlight = false
+    @State var worktreeSheetTask: Task<Void, Never>?
     @State var worktreeActionTask: Task<Void, Never>?
     static let contextEstimateQueue = DispatchQueue(
         label: "com.codigo.context-estimate",
@@ -123,13 +125,14 @@ struct UsageFooterView: View {
             scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
             clearWorktreeFeedback()
+            cancelWorktreeSheetPreparation(resetSheetState: true)
         }
         .onChange(of: cliAccountRouter.currentActiveAccountByProvider) { _, _ in
             scheduleRefresh()
         }
         .onChange(of: showWorktreeSheet) { _, isPresented in
-            if isPresented {
-                prepareWorktreeSheetState()
+            if !isPresented {
+                cancelWorktreeSheetPreparation(resetSheetState: true)
             }
         }
         .onDisappear {
@@ -137,6 +140,8 @@ struct UsageFooterView: View {
             usageRefreshTask = nil
             contextEstimateWorkItem?.cancel()
             contextEstimateWorkItem = nil
+            worktreeSheetTask?.cancel()
+            worktreeSheetTask = nil
             worktreeActionTask?.cancel()
             worktreeActionTask = nil
         }

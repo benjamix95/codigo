@@ -9,6 +9,7 @@ extension UsageFooterView {
                 Spacer()
                 Button {
                     showWorktreeSheet = false
+                    cancelWorktreeSheetPreparation(resetSheetState: true)
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .semibold))
@@ -27,6 +28,20 @@ extension UsageFooterView {
                 TextField("solocode/feature-x", text: $worktreeBranchDraft)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13, weight: .medium))
+                    .disabled(worktreeSheetIsLoading || isWorktreeActionInFlight)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Branch base")
+                    .font(.system(size: 12, weight: .semibold))
+                Picker("Branch base", selection: $worktreeBaseBranchDraft) {
+                    ForEach(availableBranchNames, id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .disabled(worktreeSheetIsLoading || availableBranchNames.isEmpty || isWorktreeActionInFlight)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -39,6 +54,7 @@ extension UsageFooterView {
                 }
                 .labelsHidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .disabled(worktreeSheetIsLoading || availableBranchNames.isEmpty || isWorktreeActionInFlight)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -60,7 +76,15 @@ extension UsageFooterView {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
 
-            if let error = worktreeErrorMessage, !error.isEmpty {
+            if worktreeSheetIsLoading {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Caricamento configurazione worktree...")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            } else if let error = worktreeErrorMessage, !error.isEmpty {
                 Text(error)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.error)
@@ -74,17 +98,14 @@ extension UsageFooterView {
                 Spacer()
                 Button("Annulla") {
                     showWorktreeSheet = false
+                    cancelWorktreeSheetPreparation(resetSheetState: true)
                 }
                 .disabled(isWorktreeActionInFlight)
                 Button("Continua") {
                     startWorktreeCreationFromSheet()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(
-                    isWorktreeActionInFlight
-                        || worktreeBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || worktreeMergeTargetDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                )
+                .disabled(isWorktreeSheetSubmissionDisabled)
             }
         }
         .padding(18)

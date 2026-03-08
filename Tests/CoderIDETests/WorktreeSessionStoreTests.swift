@@ -71,4 +71,34 @@ final class WorktreeSessionStoreTests: XCTestCase {
             store.isInLocal(conversationId: conversationId, currentPath: "/tmp/repo")
         )
     }
+
+    func testIsInWorktreeRequiresDirectoryBoundaryMatch() {
+        let store = WorktreeSessionStore(userDefaults: defaults)
+        let conversationId = UUID()
+        store.upsert(
+            WorktreeSession(
+                conversationId: conversationId,
+                localRootPath: "/tmp/repo",
+                worktreePath: "/tmp/repo-worktrees/solocode-abc",
+                worktreeBranch: "solocode/abc",
+                baseBranch: "main",
+                mergeTargetBranch: "main",
+                autoMergeOnReturn: true,
+                deleteBranchAfterMerge: false
+            )
+        )
+
+        XCTAssertFalse(
+            store.isInWorktree(
+                conversationId: conversationId,
+                currentPath: "/tmp/repo-worktrees/solocode-abc-extra"
+            )
+        )
+        XCTAssertFalse(
+            store.isInLocal(
+                conversationId: conversationId,
+                currentPath: "/tmp/repository"
+            )
+        )
+    }
 }

@@ -1,5 +1,5 @@
 import Foundation
 
-struct GitService {
+struct GitService: Sendable {
     let gitPath = "/usr/bin/git"
 }
