@@ -111,12 +111,13 @@ struct ReviewPanelChatOutcomeView: View {
     // MARK: - Summary
 
     private var summaryBlock: some View {
-        Text(summaryLines.joined(separator: "\n"))
-            .font(.system(size: 10))
-            .foregroundStyle(.white.opacity(0.78))
-            .lineSpacing(3)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        MarkdownContentView(
+            content: summaryLines.joined(separator: "\n"),
+            context: nil,
+            onFileClicked: { _ in },
+            isStreaming: false,
+            normalizeDisplayLayout: false
+        )
     }
 
     // MARK: - Metrics

@@ -60,92 +60,52 @@ extension CodeReviewPanelStore {
         }
     }
 
-    /// Appends a text delta to the Response section without
-    /// destroying other accumulated sections (Activity, Thinking, etc).
-    private func appendTextDelta(id: UUID, delta: String) {
-        guard let index = chatMessages.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        let current = chatMessages[index].content
-        let responseHeading = "### Response"
+    // MARK: - Response Message (separate bubble)
 
-        if let headingRange = current.range(of: responseHeading) {
-            // Find the boundary of the Response section
-            let afterHeading = current[headingRange.upperBound...]
-            if let nextSection = afterHeading.range(of: "\n### ") {
-                // Insert delta before the next section heading
-                let before = String(current[..<nextSection.lowerBound])
-                let after = String(current[nextSection.lowerBound...])
-                chatMessages[index].content = before + delta + after
-            } else {
-                // Response is the last section — safe to append
-                chatMessages[index].content = current + delta
+    /// Finds or creates a dedicated response message that follows
+    /// the review-run activity message. The response is rendered
+    /// as its own chat bubble with full markdown support.
+    private func responseMessageIndex(
+        for activityId: UUID
+    ) -> Int {
+        // Look for an existing response message right after the activity
+        if let activityIndex = chatMessages.firstIndex(
+            where: { $0.id == activityId }
+        ) {
+            let nextIndex = activityIndex + 1
+            if nextIndex < chatMessages.count,
+               chatMessages[nextIndex].role == .assistant,
+               chatMessages[nextIndex].kind == .plain
+            {
+                return nextIndex
             }
-        } else {
-            // Create a new Response section
-            var updated = current
-            if !updated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                updated += "\n\n"
-            }
-            updated += responseHeading + "\n" + delta
-            chatMessages[index].content = updated
+            // Create a new response message
+            let responseMessage = ReviewPanelMessage(
+                role: .assistant,
+                kind: .plain,
+                content: "",
+                isStreaming: true
+            )
+            chatMessages.insert(responseMessage, at: nextIndex)
+            return nextIndex
         }
+        return chatMessages.count - 1
+    }
+
+    /// Appends a text delta to the separate response message.
+    private func appendTextDelta(id: UUID, delta: String) {
+        let index = responseMessageIndex(for: id)
+        chatMessages[index].content += delta
         persistChatState()
     }
 
-    /// Replaces only the Response section content, preserving
-    /// Activity, Thinking, and other accumulated sections.
-    private func replaceResponseSection(id: UUID, replacement: String) {
-        guard let index = chatMessages.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        let current = chatMessages[index].content
-        let responseHeading = "### Response"
-
-        guard current.contains(responseHeading) else {
-            // No response section yet — append as new section
-            appendTextDelta(id: id, delta: replacement)
-            return
-        }
-
-        let separator = "\n---\n"
-
-        // Split into logPart and verdictPart
-        let parts = current.components(separatedBy: separator)
-        let verdictPart = parts.count > 1
-            ? parts.dropFirst().joined(separator: separator)
-            : ""
-
-        let logPart = parts.first ?? current
-
-        // Find the response heading in the logPart and replace everything after it
-        guard let logHeadingRange = logPart.range(of: responseHeading) else {
-            appendTextDelta(id: id, delta: replacement)
-            return
-        }
-
-        // Check if there's another ### section after the Response section
-        let afterLogHeading = logPart[logHeadingRange.upperBound...]
-        let nextHeadingOffset = afterLogHeading.range(of: "\n### ")
-
-        var newLogPart: String
-        if let nextRange = nextHeadingOffset {
-            // Preserve sections after Response
-            let beforeResponse = String(logPart[..<logHeadingRange.lowerBound])
-            let afterResponse = String(afterLogHeading[nextRange.lowerBound...])
-            newLogPart = beforeResponse + responseHeading + "\n"
-                + replacement + afterResponse
-        } else {
-            // Response is the last section in logPart
-            let beforeResponse = String(logPart[..<logHeadingRange.lowerBound])
-            newLogPart = beforeResponse + responseHeading + "\n" + replacement
-        }
-
-        let rebuilt = verdictPart.isEmpty
-            ? newLogPart.trimmingCharacters(in: .whitespacesAndNewlines)
-            : newLogPart.trimmingCharacters(in: .whitespacesAndNewlines)
-                + separator + verdictPart
-        chatMessages[index].content = rebuilt
+    /// Replaces the content of the separate response message.
+    private func replaceResponseSection(
+        id: UUID,
+        replacement: String
+    ) {
+        let index = responseMessageIndex(for: id)
+        chatMessages[index].content = replacement
         persistChatState()
     }
 
@@ -160,6 +120,15 @@ extension CodeReviewPanelStore {
         }
         chatMessages[index].isStreaming = false
         ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[index])
+
+        // Also finalize the separate response message if it exists
+        let nextIndex = index + 1
+        if nextIndex < chatMessages.count,
+           chatMessages[nextIndex].role == .assistant,
+           chatMessages[nextIndex].kind == .plain
+        {
+            chatMessages[nextIndex].isStreaming = false
+        }
         persistChatState()
     }
 
@@ -170,6 +139,15 @@ extension CodeReviewPanelStore {
         chatMessages[index].content = "Error: \(error)"
         chatMessages[index].isStreaming = false
         ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[index])
+
+        // Also finalize the separate response message if it exists
+        let nextIndex = index + 1
+        if nextIndex < chatMessages.count,
+           chatMessages[nextIndex].role == .assistant,
+           chatMessages[nextIndex].kind == .plain
+        {
+            chatMessages[nextIndex].isStreaming = false
+        }
         persistChatState()
     }
 
@@ -186,11 +164,17 @@ extension CodeReviewPanelStore {
         guard let formatted = formattedReviewRunEvent(type: type, payload: payload) else {
             return
         }
-        appendReviewRunSectionLine(
-            id: id,
-            sectionTitle: formatted.sectionTitle,
-            line: formatted.line
-        )
+
+        if formatted.sectionTitle == "Response" {
+            // Response content goes into the separate response message
+            appendTextDelta(id: id, delta: formatted.line + "\n")
+        } else {
+            appendReviewRunSectionLine(
+                id: id,
+                sectionTitle: formatted.sectionTitle,
+                line: formatted.line
+            )
+        }
     }
 
     func ingestRawReviewActivity(

@@ -107,11 +107,13 @@ private struct ReviewPanelChatStructuredSectionView: View {
     private var sectionBody: some View {
         switch section.style {
         case .prose:
-            Text(section.lines.joined(separator: "\n"))
-                .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.92))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            MarkdownContentView(
+                content: section.lines.joined(separator: "\n"),
+                context: nil,
+                onFileClicked: { _ in },
+                isStreaming: false,
+                normalizeDisplayLayout: false
+            )
         case .metadata:
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(section.displayLines) { line in

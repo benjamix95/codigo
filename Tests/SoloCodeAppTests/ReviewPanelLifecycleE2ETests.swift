@@ -93,7 +93,13 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Thinking") == true)
         XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Planned Work") == true)
         XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Activity") == true)
-        XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Verdict") == true)
+
+        // Response/verdict content now lives in a separate plain message
+        let responseMessage = try XCTUnwrap(
+            store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .plain })
+        )
+        XCTAssertFalse(responseMessage.isStreaming)
+        XCTAssertFalse(responseMessage.content.isEmpty)
 
         let snapshot = try XCTUnwrap(
             taskStore.codeReviewSnapshot(
@@ -143,11 +149,20 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
             store.isChatProcessing == false && store.chatMessages.count >= 2
         }
 
-        let assistant = try XCTUnwrap(store.chatMessages.last(where: { $0.role == .assistant }))
-        XCTAssertEqual(assistant.kind, .reviewRun)
-        XCTAssertFalse(assistant.isStreaming)
-        XCTAssertTrue(assistant.presentation?.sections.map(\.title).contains("Thinking") == true)
-        XCTAssertTrue(assistant.presentation?.sections.map(\.title).contains("Activity") == true)
+        // The reviewRun message contains Activity/Thinking sections
+        let reviewRun = try XCTUnwrap(
+            store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .reviewRun })
+        )
+        XCTAssertFalse(reviewRun.isStreaming)
+        XCTAssertTrue(reviewRun.presentation?.sections.map(\.title).contains("Thinking") == true)
+        XCTAssertTrue(reviewRun.presentation?.sections.map(\.title).contains("Activity") == true)
+
+        // The response content lives in a separate plain message
+        let response = try XCTUnwrap(
+            store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .plain })
+        )
+        XCTAssertFalse(response.isStreaming)
+        XCTAssertFalse(response.content.isEmpty)
         XCTAssertFalse(taskStore.activities.isEmpty)
         XCTAssertFalse(store.todoStore?.displayTodosForChat(for: conversationId).isEmpty ?? true)
     }
