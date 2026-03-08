@@ -53,9 +53,9 @@ extension CodeReviewPanelStore {
             )
             return
         }
-        guard let artifact = currentPatches.first(where: { $0.findingId == findingId }) else {
+        guard let artifact = patchesForSession(sessionId).first(where: { $0.findingId == findingId }) else {
             await preparePatch(sessionId: sessionId, findingId: findingId)
-            guard let prepared = currentPatches.first(where: { $0.findingId == findingId }) else { return }
+            guard let prepared = patchesForSession(sessionId).first(where: { $0.findingId == findingId }) else { return }
             await applyPreparedPatch(sessionId: sessionId, artifact: prepared, workspaceRoot: workspaceRoot)
             return
         }
@@ -185,6 +185,13 @@ extension CodeReviewPanelStore {
             outcome: snapshot.copying(findings: findings, patches: patches).buildOutcomeSummary()
         )
         taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
+    }
+
+    private func patchesForSession(_ sessionId: String) -> [ReviewPatchArtifact] {
+        taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        )?.patches ?? []
     }
 
     private func markPatchFailure(

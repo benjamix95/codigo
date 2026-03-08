@@ -22,22 +22,22 @@ public enum CodeReviewAuditService {
             result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary)
         case ReviewAuditToolName.securityDataflow:
             let raw = runSecurityDataflowAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.securityAuthz:
             let raw = runSecurityAuthzAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.securityCrypto:
             let raw = runSecurityCryptoAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.securityDeserialization:
             let raw = runSecurityDeserializationAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.securitySurface:
             let raw = runSecuritySurfaceAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.securitySupplyChain:
             let raw = runSecuritySupplyChainAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.bugDiffRisks:
             let raw = runBugDiffRisksAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
             result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary)
@@ -49,28 +49,28 @@ public enum CodeReviewAuditService {
             result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary)
         case ReviewAuditToolName.bugNilCrashPaths:
             let raw = runBugNilCrashPathsAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.bugStateMachine:
             let raw = runBugStateMachineAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.bugConcurrency:
             let raw = runBugConcurrencyAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.bugErrorHandling:
             let raw = runBugErrorHandlingAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.bugAPIContracts:
             let raw = runBugAPIContractsAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.bugTestImpact:
             let raw = runBugTestImpactAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.bugDependencyDrift:
             let raw = runBugDependencyDriftAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.bugDiffSemantics:
             let raw = runBugDiffSemanticsAudit(scopeFiles: scopedFiles, workspacePath: workspacePath)
-            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: [raw.metadata["verification_hint"] ?? ""], metadata: raw.metadata)
+            result = ReviewAuditToolResult(toolName: toolName, findings: raw.findings, durationMs: 0, coverageAvailable: raw.coverageAvailable, summary: raw.summary, adaptersUsed: raw.adapters, verificationHints: hintsFromMetadata(raw.metadata), metadata: raw.metadata)
         case ReviewAuditToolName.runProfile:
             let profileName = ReviewAuditProfile(rawValue: scopeFiles.first ?? "") ?? .quick
             let profileResults = runProfile(named: profileName, scopeFiles: scopedFiles.dropFirst().map { $0 }, workspacePath: workspacePath)
@@ -126,10 +126,17 @@ public enum CodeReviewAuditService {
             coverageAvailable: result.coverageAvailable,
             summary: result.summary,
             adaptersUsed: result.adaptersUsed,
-            verificationHints: result.verificationHints,
+            verificationHints: result.verificationHints.filter { !$0.isEmpty },
             metadata: result.metadata,
             clusters: result.clusters
         )
+    }
+
+    private static func hintsFromMetadata(_ metadata: [String: String]) -> [String] {
+        if let hint = metadata["verification_hint"], !hint.isEmpty {
+            return [hint]
+        }
+        return []
     }
 
     public static func runSecuritySuite(

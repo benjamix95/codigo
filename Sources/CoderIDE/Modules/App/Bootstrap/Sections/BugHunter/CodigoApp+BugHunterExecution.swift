@@ -131,7 +131,7 @@ extension CodigoApp {
         }
 
         let autofixable = reviewSnapshot.findings
-            .filter { ($0.confidence ?? 0) >= 0.9 && $0.patchArtifactId != nil || ($0.confidence ?? 0) >= 0.9 }
+            .filter { ($0.confidence ?? 0) >= 0.9 && $0.patchArtifactId != nil }
             .sorted { ($0.confidence ?? 0) > ($1.confidence ?? 0) }
 
         guard let finding = autofixable.first else {

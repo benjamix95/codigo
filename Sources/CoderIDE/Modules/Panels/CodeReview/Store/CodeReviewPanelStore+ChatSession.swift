@@ -56,8 +56,10 @@ extension CodeReviewPanelStore {
                     id: assistantId,
                     fallbackContent: "Chat response completed."
                 )
-                self?.setChatProcessing(false, startedAt: nil)
-                Task { @MainActor in await self?.syncStructuredFindingsFromChatResponse(messageId: assistantId) }
+                Task { @MainActor [weak self] in
+                    await self?.syncStructuredFindingsFromChatResponse(messageId: assistantId)
+                    self?.setChatProcessing(false, startedAt: nil)
+                }
             },
             onError: { [weak self] error in
                 self?.failPanelActionOutput(id: assistantId, error: error)

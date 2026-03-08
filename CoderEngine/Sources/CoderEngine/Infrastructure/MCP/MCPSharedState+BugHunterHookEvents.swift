@@ -1,4 +1,7 @@
 import Foundation
+import OSLog
+
+private let bugHunterHookEventsLogger = Logger(subsystem: "com.codigo.CoderEngine", category: "BugHunterHookEventsIO")
 
 extension MCPSharedState {
     public static func enqueueBugHunterHookEvent(
@@ -38,13 +41,27 @@ extension MCPSharedState {
     }
 
     private static func readBugHunterHookEventsUnsafe() -> [MCPSharedBugHunterHookEvent] {
-        guard let data = try? Data(contentsOf: bugHunterHookEventsFilePath) else { return [] }
+        let data: Data
+        do {
+            data = try Data(contentsOf: bugHunterHookEventsFilePath)
+        } catch {
+            if !FileManager.default.fileExists(atPath: bugHunterHookEventsFilePath.path) {
+                return []
+            }
+            bugHunterHookEventsLogger.error("Failed to read BugHunter hook events file: \(error.localizedDescription)")
+            return []
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        if let decoded = try? decoder.decode([MCPSharedBugHunterHookEvent].self, from: data) {
-            return decoded
+        do {
+            return try decoder.decode([MCPSharedBugHunterHookEvent].self, from: data)
+        } catch {
+            bugHunterHookEventsLogger.warning("JSON decode failed for hook events, trying legacy format: \(error.localizedDescription)")
         }
-        guard let raw = String(data: data, encoding: .utf8) else { return [] }
+        guard let raw = String(data: data, encoding: .utf8) else {
+            bugHunterHookEventsLogger.error("Failed to read BugHunter hook events as UTF-8 string")
+            return []
+        }
         return raw
             .components(separatedBy: .newlines)
             .compactMap { line in
@@ -65,7 +82,17 @@ extension MCPSharedState {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(events) else { return }
-        try? data.write(to: bugHunterHookEventsFilePath, options: .atomic)
+        let data: Data
+        do {
+            data = try encoder.encode(events)
+        } catch {
+            bugHunterHookEventsLogger.error("Failed to encode BugHunter hook events: \(error.localizedDescription)")
+            return
+        }
+        do {
+            try data.write(to: bugHunterHookEventsFilePath, options: .atomic)
+        } catch {
+            bugHunterHookEventsLogger.error("Failed to write BugHunter hook events: \(error.localizedDescription)")
+        }
     }
 }

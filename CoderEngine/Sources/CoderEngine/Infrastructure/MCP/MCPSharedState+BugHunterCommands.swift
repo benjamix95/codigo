@@ -1,4 +1,7 @@
 import Foundation
+import OSLog
+
+private let bugHunterCommandsLogger = Logger(subsystem: "com.codigo.CoderEngine", category: "BugHunterCommandsIO")
 
 extension MCPSharedState {
     private static let staleBugHunterCommandTimeout: TimeInterval = 3605
@@ -83,10 +86,24 @@ extension MCPSharedState {
     }
 
     private static func readBugHunterCommandsUnsafe() -> [MCPSharedBugHunterCommand] {
-        guard let data = try? Data(contentsOf: bugHunterCommandsFilePath) else { return [] }
+        let data: Data
+        do {
+            data = try Data(contentsOf: bugHunterCommandsFilePath)
+        } catch {
+            if !FileManager.default.fileExists(atPath: bugHunterCommandsFilePath.path) {
+                return []
+            }
+            bugHunterCommandsLogger.error("Failed to read BugHunter commands file: \(error.localizedDescription)")
+            return []
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode([MCPSharedBugHunterCommand].self, from: data)) ?? []
+        do {
+            return try decoder.decode([MCPSharedBugHunterCommand].self, from: data)
+        } catch {
+            bugHunterCommandsLogger.error("Failed to decode BugHunter commands: \(error.localizedDescription)")
+            return []
+        }
     }
 
     private static func writeBugHunterCommandsUnsafe(_ commands: [MCPSharedBugHunterCommand]) {
@@ -94,7 +111,17 @@ extension MCPSharedState {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(commands) else { return }
-        try? data.write(to: bugHunterCommandsFilePath, options: .atomic)
+        let data: Data
+        do {
+            data = try encoder.encode(commands)
+        } catch {
+            bugHunterCommandsLogger.error("Failed to encode BugHunter commands: \(error.localizedDescription)")
+            return
+        }
+        do {
+            try data.write(to: bugHunterCommandsFilePath, options: .atomic)
+        } catch {
+            bugHunterCommandsLogger.error("Failed to write BugHunter commands: \(error.localizedDescription)")
+        }
     }
 }

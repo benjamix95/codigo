@@ -8,6 +8,10 @@ extension GitService {
         let worktreePath: String
     }
 
+    /// Serializes worktree creation to prevent TOCTOU races between
+    /// preflight checks and the actual `git worktree add` command.
+    private static let worktreeCreationLock = NSLock()
+
     func createWorktree(request: GitWorktreeCreateRequest) throws {
         try createWorktree(
             gitRoot: request.gitRoot,
@@ -23,6 +27,9 @@ extension GitService {
         fromBranch: String,
         worktreePath: String
     ) throws {
+        Self.worktreeCreationLock.lock()
+        defer { Self.worktreeCreationLock.unlock() }
+
         let preflight = try preflightCreateWorktree(
             gitRoot: gitRoot,
             branchName: branchName,
