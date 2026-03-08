@@ -758,6 +758,7 @@
 		7952DA80B964FD4925907A8E /* SemanticChunk.swift in Sources */ = {isa = PBXBuildFile; fileRef = B573CE42A52124F3EF1EDEDB /* SemanticChunk.swift */; };
 		796D84B9998FB149C019375E /* ReviewPanelChatMessageContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E67B0D83B46F4CBABF637220 /* ReviewPanelChatMessageContextTests.swift */; };
 		79755DB76AE3FC5FD561BD64 /* ReviewPanelLifecycleE2ETests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992DE5067820D2ECC4AC6DFE /* ReviewPanelLifecycleE2ETests.swift */; };
+		A7C0E8D1B2F34A8C9D0E1122 /* CodeReviewPanelChatStateDeferralTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C0E8D1B2F34A8C9D0E1123 /* CodeReviewPanelChatStateDeferralTests.swift */; };
 		7979A8925733E3390F641E29 /* DebugPanelView+Markers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1773D931BD497E1E825EF4 /* DebugPanelView+Markers.swift */; };
 		798463A3276040A4DA516C7F /* CodexStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6257769DC96FA3BCAB5E1BE4 /* CodexStateStore.swift */; };
 		79B2BD2576ACA2C55F77DDD5 /* CodebaseIndexTools+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D1ECF245A5D665CDCF6B5B /* CodebaseIndexTools+Helpers.swift */; };
@@ -2561,6 +2562,7 @@
 		992CFA17FDB558837F48D8F0 /* ReviewPanelChatMessageContext.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatMessageContext.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatMessageContext.swift; sourceTree = "<group>"; };
 		992D6E0D79366524DF1A17BA /* ErrorBudgetTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ErrorBudgetTracker.swift; path = Engine/CoderEngine/Sources/Pipeline/CircuitBreaker/ErrorBudgetTracker.swift; sourceTree = "<group>"; };
 		992DE5067820D2ECC4AC6DFE /* ReviewPanelLifecycleE2ETests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelLifecycleE2ETests.swift; path = Tests/SoloCodeAppTests/ReviewPanelLifecycleE2ETests.swift; sourceTree = "<group>"; };
+		A7C0E8D1B2F34A8C9D0E1123 /* CodeReviewPanelChatStateDeferralTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPanelChatStateDeferralTests.swift; path = Tests/SoloCodeAppTests/CodeReviewPanelChatStateDeferralTests.swift; sourceTree = "<group>"; };
 		997E49150D63F71132E26973 /* UnifiedToolRuntime+MCPCallsPrimary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+MCPCallsPrimary.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Calls/UnifiedToolRuntime+MCPCallsPrimary.swift"; sourceTree = "<group>"; };
 		999C5E9DCF2B3D3DEAC93D4E /* ToolEnabledLLMProviderPolicyAckTests+Finalization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProviderPolicyAckTests+Finalization.swift"; path = "Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+Finalization.swift"; sourceTree = "<group>"; };
 		99C2A336001F3BADFFCCBE29 /* ReviewPanelOutcomeCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelOutcomeCard.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Findings/ReviewPanelOutcomeCard.swift; sourceTree = "<group>"; };
@@ -4595,6 +4597,7 @@
 				B556DF40E519CA703383CB89 /* ReviewPanelChatSessionStoreTests.swift */,
 				E6817F9D7DB3B601C9CFFD0A /* ReviewPanelChatStructuredContentTests.swift */,
 				992DE5067820D2ECC4AC6DFE /* ReviewPanelLifecycleE2ETests.swift */,
+				A7C0E8D1B2F34A8C9D0E1123 /* CodeReviewPanelChatStateDeferralTests.swift */,
 				7A82180814517A77011FF3DB /* ReviewPanelProviderSelectionTests.swift */,
 				1FF191CFFEF7611A132D49BA /* ReviewPipelineNoFilesMessageTests.swift */,
 				22E6ED444BE12213DECA341B /* RuntimeResourceLocatorTests.swift */,
@@ -6563,6 +6566,7 @@
 				3303CEAE109B9071394F31CF /* ReviewPanelChatSessionStoreTests.swift in Sources */,
 				1A7C64C523A2C269FB22B092 /* ReviewPanelChatStructuredContentTests.swift in Sources */,
 				79755DB76AE3FC5FD561BD64 /* ReviewPanelLifecycleE2ETests.swift in Sources */,
+				A7C0E8D1B2F34A8C9D0E1122 /* CodeReviewPanelChatStateDeferralTests.swift in Sources */,
 				199770A42AA6E44211822704 /* ReviewPanelProviderSelectionTests.swift in Sources */,
 				955184396B60ACB691C91675 /* ReviewPipelineNoFilesMessageTests.swift in Sources */,
 				156112309C783FB9C9C9EA12 /* RuntimeResourceLocatorTests.swift in Sources */,

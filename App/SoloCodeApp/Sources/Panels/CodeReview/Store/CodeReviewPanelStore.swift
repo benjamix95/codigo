@@ -73,6 +73,7 @@ final class CodeReviewPanelStore: ObservableObject {
     // MARK: - Session Persistence
 
     private var chatStateCancellable: AnyCancellable?
+    private var pendingChatConversationApplyTask: Task<Void, Never>?
 
     // MARK: - Accent Color
 
@@ -117,7 +118,12 @@ final class CodeReviewPanelStore: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] conversation in
                 guard let self else { return }
-                self.applyChatConversationState(conversation)
+                self.pendingChatConversationApplyTask?.cancel()
+                self.pendingChatConversationApplyTask = Task { @MainActor [weak self] in
+                    await Task.yield()
+                    guard !Task.isCancelled, let self else { return }
+                    self.applyChatConversationState(conversation)
+                }
             }
     }
 
