@@ -51,6 +51,8 @@ extension CodigoApp {
             return await startReviewFromCommand(command)
         case "apply_fix":
             return await applyFixFromCommand(command)
+        case "verify_finding", "prepare_patch", "verify_patch", "apply_patch", "open_pr", "merge_pr", "resolve_conflicts":
+            return await handlePatchWorkflowCommand(command)
         case "dismiss":
             let result = await applyReviewMutation(command) { state, payload in
                 guard let findingId = payload["finding_id"] else { return false }
@@ -113,28 +115,11 @@ extension CodigoApp {
                 sessionId: sessionId,
                 conversationId: commandConversationId
             ) { snapshot in
-                CodeReviewSessionSnapshot(
-                    sessionId: snapshot.sessionId,
-                    conversationId: snapshot.conversationId,
-                    mutationSequence: snapshot.mutationSequence + 1,
-                    phase: snapshot.phase,
-                    stage: snapshot.stage,
-                    findings: snapshot.findings,
+                snapshot.copying(
                     events: snapshot.events + [
                         CodeReviewSessionEvent(type: .configUpdated, detail: "Config updated from command bus")
                     ],
-                    config: updatedConfig,
-                    scope: snapshot.scope,
-                    workspacePath: snapshot.workspacePath,
-                    currentRound: snapshot.currentRound,
-                    activeWorkerCount: snapshot.activeWorkerCount,
-                    startedAt: snapshot.startedAt,
-                    completedAt: snapshot.completedAt,
-                    analysisCompletedAt: snapshot.analysisCompletedAt,
-                    lastError: snapshot.lastError,
-                    currentJobId: snapshot.currentJobId,
-                    lastTestStatus: snapshot.lastTestStatus,
-                    lastUpdatedAt: Date()
+                    config: updatedConfig
                 )
             }
             return .immediate(success: result.success, message: result.message)
@@ -202,71 +187,7 @@ extension CodigoApp {
     private func applyFixFromCommand(
         _ command: MCPSharedCodeReviewCommand
     ) async -> CodeReviewCommandOutcome {
-        guard let sourceSessionId = command.sessionId else {
-            return .immediate(success: false, message: "Missing session_id")
-        }
-        guard let findingId = command.payload["finding_id"] else {
-            return .immediate(success: false, message: "Missing finding_id")
-        }
-
-        let conversationId = command.conversationId.flatMap(UUID.init(uuidString:))
-        guard let sourceSnapshot = resolveCodeReviewSnapshot(
-            sessionId: sourceSessionId,
-            conversationId: conversationId
-        ) else {
-            return .immediate(success: false, message: "Review session not found")
-        }
-        guard let finding = sourceSnapshot.findings.first(where: { $0.id == findingId }) else {
-            return .immediate(success: false, message: "Unable to update the requested finding")
-        }
-
-        let fixSessionId = makeTargetedFixSessionId(sourceSessionId: sourceSessionId)
-        let fixSessionState = makeCommandReviewSessionState(
-            sessionId: fixSessionId,
-            conversationId: conversationId ?? sourceSnapshot.conversationId,
-            config: sourceSnapshot.config
-        )
-        let cfg = providerFactoryConfig()
-        let context = codeReviewCommandContext()
-        guard let provider = CodeReviewCommandRuntimeHooks.makeProvider(
-            config: cfg,
-            executionController: executionController,
-            agentProviderId: providerRegistry.selectedProviderId,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: context.workspacePaths,
-            sessionState: fixSessionState,
-            initialSessionConfig: sourceSnapshot.config
-        ) else {
-            return .immediate(success: false, message: "Unable to create code review provider")
-        }
-
-        await ReviewSessionRegistry.shared.register(fixSessionState)
-        await persistLiveReviewState(
-            fixSessionState,
-            conversationId: conversationId ?? sourceSnapshot.conversationId
-        )
-
-        launchDeferredReviewCommand(
-            command: command,
-            provider: provider,
-            sessionState: fixSessionState,
-            prompt: CodeReviewPromptBuilder.targetedFixPrompt(
-                snapshot: sourceSnapshot,
-                findings: [finding],
-                targetSessionId: fixSessionId
-            ),
-            context: context,
-            onSuccess: {
-                await markFindingFixApplied(
-                    sessionId: sourceSessionId,
-                    conversationId: conversationId ?? sourceSnapshot.conversationId,
-                    findingId: findingId
-                )
-            }
-        )
-        return .deferred(
-            message: "Targeted fix session \(fixSessionId) started for finding \(findingId)"
-        )
+        await handlePatchWorkflowCommand(command)
     }
 
     @MainActor

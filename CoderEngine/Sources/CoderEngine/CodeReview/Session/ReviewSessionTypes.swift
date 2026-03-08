@@ -128,6 +128,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let phase: ReviewSessionPhase
     public let stage: ReviewSessionStage
     public let findings: [CodeReviewFinding]
+    public let candidates: [ReviewCandidate]
+    public let patches: [ReviewPatchArtifact]
     public let events: [CodeReviewSessionEvent]
     public let config: SessionConfig
     public let scope: ReviewSessionScope?
@@ -141,6 +143,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let currentJobId: String?
     public let lastTestStatus: ReviewSessionTestStatus?
     public let audit: ReviewAuditSnapshot
+    public let outcome: ReviewSessionOutcome
     public let lastUpdatedAt: Date
 
     public init(
@@ -150,6 +153,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         phase: ReviewSessionPhase,
         stage: ReviewSessionStage,
         findings: [CodeReviewFinding],
+        candidates: [ReviewCandidate] = [],
+        patches: [ReviewPatchArtifact] = [],
         events: [CodeReviewSessionEvent],
         config: SessionConfig,
         scope: ReviewSessionScope?,
@@ -163,6 +168,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         currentJobId: String?,
         lastTestStatus: ReviewSessionTestStatus?,
         audit: ReviewAuditSnapshot = .empty,
+        outcome: ReviewSessionOutcome = .empty,
         lastUpdatedAt: Date
     ) {
         self.sessionId = sessionId
@@ -171,6 +177,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         self.phase = phase
         self.stage = stage
         self.findings = findings
+        self.candidates = candidates
+        self.patches = patches
         self.events = events
         self.config = config
         self.scope = scope
@@ -184,6 +192,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         self.currentJobId = currentJobId
         self.lastTestStatus = lastTestStatus
         self.audit = audit
+        self.outcome = outcome
         self.lastUpdatedAt = lastUpdatedAt
     }
 
@@ -194,6 +203,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         case phase
         case stage
         case findings
+        case candidates
+        case patches
         case events
         case config
         case scope
@@ -207,6 +218,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         case currentJobId
         case lastTestStatus
         case audit
+        case outcome
         case lastUpdatedAt
     }
 
@@ -221,6 +233,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         phase = try container.decode(ReviewSessionPhase.self, forKey: .phase)
         stage = try container.decode(ReviewSessionStage.self, forKey: .stage)
         findings = try container.decode([CodeReviewFinding].self, forKey: .findings)
+        candidates = try container.decodeIfPresent([ReviewCandidate].self, forKey: .candidates) ?? []
+        patches = try container.decodeIfPresent([ReviewPatchArtifact].self, forKey: .patches) ?? []
         events = try container.decode([CodeReviewSessionEvent].self, forKey: .events)
         config = try container.decode(SessionConfig.self, forKey: .config)
         scope = try container.decodeIfPresent(ReviewSessionScope.self, forKey: .scope)
@@ -237,56 +251,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
             forKey: .lastTestStatus
         )
         audit = try container.decodeIfPresent(ReviewAuditSnapshot.self, forKey: .audit) ?? .empty
+        outcome = try container.decodeIfPresent(ReviewSessionOutcome.self, forKey: .outcome) ?? .empty
         lastUpdatedAt = try container.decode(Date.self, forKey: .lastUpdatedAt)
-    }
-
-    public var findingsByFile: [String: [CodeReviewFinding]] {
-        Dictionary(grouping: findings, by: \.filePath)
-    }
-
-    public var findingsBySeverity: [FindingSeverity: [CodeReviewFinding]] {
-        Dictionary(grouping: findings, by: \.severity)
-    }
-
-    public var findingsByOrigin: [FindingOrigin: [CodeReviewFinding]] {
-        Dictionary(grouping: findings, by: \.origin)
-    }
-
-    public var findingsByCategory: [FindingCategory: [CodeReviewFinding]] {
-        Dictionary(grouping: findings, by: \.category)
-    }
-
-    public var openFindings: [CodeReviewFinding] {
-        findings.filter { $0.status == .open }
-    }
-
-    public var blockingOpenFindings: [CodeReviewFinding] {
-        openFindings.filter(\.blocking)
-    }
-
-    public var auditCoveragePercent: Double {
-        guard !audit.toolCoverage.isEmpty else { return 0 }
-        let covered = audit.toolCoverage.values.filter { $0 }.count
-        return Double(covered) / Double(audit.toolCoverage.count) * 100.0
-    }
-
-    public var isActive: Bool {
-        switch phase {
-        case .analyzing, .fixing, .testing, .reReviewing:
-            return true
-        case .idle, .completed, .failed:
-            return false
-        }
-    }
-
-    public var statusSummary: String {
-        let total = findings.count
-        let open = findings.filter { $0.status == .open }.count
-        let blocking = blockingOpenFindings.count
-        let fixed = findings.filter { $0.status == .fixApplied }.count
-        let dismissed = findings.filter {
-            $0.status == .dismissed || $0.status == .wontFix
-        }.count
-        return "\(total) findings: \(open) open (\(blocking) blocking), \(fixed) fixed, \(dismissed) dismissed"
     }
 }

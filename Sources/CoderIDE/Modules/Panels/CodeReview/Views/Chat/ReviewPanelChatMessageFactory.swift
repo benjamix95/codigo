@@ -79,7 +79,10 @@ enum ReviewPanelChatMessageFactory {
         - phase: \(snapshot.phase.rawValue)
         - stage: \(snapshot.stage.rawValue)
         - scope: \(snapshot.scope?.description ?? "unknown")
-        - findings: \(snapshot.findings.count)
+        - verified_findings: \(snapshot.findings.count)
+        - candidates: \(snapshot.candidates.count)
+        - patches: \(snapshot.patches.count)
+        - outcome: \(snapshot.outcome.summary)
         """
 
         let findings = snapshot.findings.map { finding in

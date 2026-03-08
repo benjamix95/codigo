@@ -132,13 +132,11 @@ func shouldTreatConversationAsPlanContext(
 
     if let streamConversationId {
         if streamConversationId == activeBuildPlanConversationId { return true }
-        if hasPlanBoardForStreamConversation && showPlanPanel { return true }
         return false
     }
 
     if currentConversationId != nil {
         if currentConversationId == activeBuildPlanConversationId { return true }
-        if hasPlanBoardForCurrentConversation && showPlanPanel { return true }
     }
 
     return false
@@ -158,6 +156,5 @@ func shouldRoutePlanStreamToPlanPanel(
         if streamConversationId == activeBuildPlanConversationId { return true }
         if streamConversationId == activeBuildAgentConversationId { return true }
     }
-    if shouldRoutePlanStreamingToPanel { return true }
     return false
 }

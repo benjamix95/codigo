@@ -4,7 +4,7 @@ import SwiftUI
 /// Findings tab: list view or detail view, with actions bar.
 struct ReviewPanelFindingsTab: View {
     @ObservedObject var store: CodeReviewPanelStore
-    let onOpenFile: (String) -> Void
+    let onOpenFileAtLocation: (String, Int?) -> Void
 
     var body: some View {
         let findings = store.currentFindings
@@ -15,7 +15,7 @@ struct ReviewPanelFindingsTab: View {
             ReviewPanelFindingDetail(
                 store: store,
                 finding: finding,
-                onOpenFile: onOpenFile,
+                onOpenFileAtLocation: onOpenFileAtLocation,
                 onBack: { store.selectedFindingId = nil }
             )
         } else {
@@ -34,14 +34,29 @@ struct ReviewPanelFindingsTab: View {
 
     @ViewBuilder
     private func findingsListView(_ findings: [CodeReviewFinding]) -> some View {
-        if findings.isEmpty {
-            emptyPlaceholder
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                summaryBar(findings)
-                Divider().opacity(0.2)
-                scrollList(findings)
+        VStack(alignment: .leading, spacing: 10) {
+            if findings.isEmpty {
+                emptyPlaceholder
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    summaryBar(findings)
+                    Divider().opacity(0.2)
+                    scrollList(findings)
+                }
             }
+
+            if !store.currentCandidates.isEmpty {
+                ReviewPanelCandidatesSection(candidates: store.currentCandidates)
+                    .padding(.horizontal, 10)
+            }
+
+            if !store.currentPatches.isEmpty {
+                ReviewPanelPatchesSection(patches: store.currentPatches)
+                    .padding(.horizontal, 10)
+            }
+
+            ReviewPanelOutcomeCard(outcome: store.currentOutcome)
+                .padding(.horizontal, 10)
         }
     }
 

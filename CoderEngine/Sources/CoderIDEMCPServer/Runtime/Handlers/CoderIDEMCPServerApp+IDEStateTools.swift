@@ -19,6 +19,9 @@ extension CoderIDEMCPServerApp {
         "review_start", "review_list_sessions", "review_status", "review_findings",
         "review_apply_fix", "review_dismiss", "review_configure",
         "review_diff_summary", "review_comment",
+        "review_verify_finding", "review_prepare_patch", "review_preview_patch",
+        "review_apply_patch", "review_verify_patch", "review_open_pr",
+        "review_merge_pr", "review_resolve_conflicts", "review_get_outcome",
     ]
 
     /// IDE state tools are pass-through. The MCP server acknowledges the call

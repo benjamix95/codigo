@@ -80,8 +80,17 @@ public actor ReviewPipelineCoordinator {
             sessionState: sessionState,
             continuation: continuation
         )
-        if !auditFindings.isEmpty {
-            await sessionState.addFindings(auditFindings)
+        let auditCandidates = auditFindings.map {
+            ReviewCandidateVerificationService.candidate(from: $0, signalType: .pattern)
+        }
+        if !auditCandidates.isEmpty {
+            await sessionState.addCandidates(auditCandidates)
+            await verifyCandidates(
+                auditCandidates,
+                workspacePath: workspacePath,
+                filesToReview: filesToReview,
+                sessionState: sessionState
+            )
         }
         await sessionState.markAnalysisStarted()
 
@@ -135,22 +144,14 @@ public actor ReviewPipelineCoordinator {
         }
 
         if !initialTasks.isEmpty {
-            let findings = initialTasks.map { task in
-                CodeReviewFinding.fromRawTask(
-                    id: "r0-\(task.id)",
-                    description: task.description,
-                    files: task.files,
-                    severity: task.severity,
-                    category: task.category,
-                    origin: task.origin,
-                    filePath: task.files.first,
-                    confidence: task.confidence,
-                    evidence: task.evidence,
-                    sourceTool: task.sourceTool,
-                    blocking: task.blocking
-                )
-            }
-            await sessionState.addFindings(findings)
+            let candidates = initialTasks.map { reviewCandidate(from: $0, prefix: "r0-") }
+            await sessionState.addCandidates(candidates)
+            await verifyCandidates(
+                candidates,
+                workspacePath: workspacePath,
+                filesToReview: filesToReview,
+                sessionState: sessionState
+            )
         }
         if let extractionFailureReason {
             let fallbackFile = filesToReview.first ?? "review-scope"

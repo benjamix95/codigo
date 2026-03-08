@@ -109,11 +109,15 @@ extension CodeReviewPanelStore {
         let snapshot = currentSnapshot
         let findingsCount = snapshot?.findings.count ?? 0
         let openCount = snapshot?.findings.filter { $0.status == .open }.count ?? 0
+        let candidateCount = snapshot?.candidates.count ?? 0
+        let patchCount = snapshot?.patches.count ?? 0
 
         var summary = "Phase: \(snapshot?.phase.rawValue ?? "none")"
         if let scope = snapshot?.scope {
             summary += "\nScope: \(scope.description)"
         }
+        summary += "\nCandidates: \(candidateCount)"
+        summary += "\nPatches: \(patchCount)"
         if findingsCount > 0 {
             let critCount = snapshot?.findings
                 .filter { $0.severity == .critical }.count ?? 0

@@ -139,31 +139,7 @@ extension CodeReviewPanelStore {
     // MARK: - Finding Mutations
 
     func applyFix(sessionId: String, findingId: String) async {
-        guard let sourceSnapshot = taskActivityStore.codeReviewSnapshot(
-            sessionId: sessionId,
-            conversationId: conversationId
-        ), let finding = sourceSnapshot.findings.first(where: { $0.id == findingId }) else {
-            return
-        }
-
-        let launched = await launchTargetedFixRun(
-            sourceSnapshot: sourceSnapshot,
-            findings: [finding]
-        )
-        if launched {
-            return
-        }
-
-        await mutateSnapshot(sessionId: sessionId, findingId: findingId) { finding in
-            finding.status = .fixApplied
-        } event: {
-            .findingFixApplied(findingId: findingId)
-        }
-        appendPanelSystemMessage(
-            "Fix applied to finding \(findingId).",
-            kind: .findingMutation,
-            selectChatTab: false
-        )
+        await applyPatch(sessionId: sessionId, findingId: findingId)
     }
 
     func dismissFinding(
@@ -211,16 +187,8 @@ extension CodeReviewPanelStore {
         let findings = sourceSnapshot.findings.filter { findingIds.contains($0.id) }
         guard !findings.isEmpty else { return }
 
-        let launched = await launchTargetedFixRun(
-            sourceSnapshot: sourceSnapshot,
-            findings: findings
-        )
-        if launched {
-            return
-        }
-
         for finding in findings {
-            await applyFix(sessionId: sessionId, findingId: finding.id)
+            await applyPatch(sessionId: sessionId, findingId: finding.id)
         }
     }
 

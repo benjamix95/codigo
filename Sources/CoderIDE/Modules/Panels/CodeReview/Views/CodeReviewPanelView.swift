@@ -58,7 +58,7 @@ struct CodeReviewPanelView: View {
         case .commands:
             ReviewPanelCommandsTab(store: store, onOpenFile: onOpenFile)
         case .findings:
-            ReviewPanelFindingsTab(store: store, onOpenFile: onOpenFile)
+            ReviewPanelFindingsTab(store: store, onOpenFileAtLocation: onOpenFileAtLocation)
         case .timeline:
             ReviewPanelTimelineTab(store: store)
         case .chat:

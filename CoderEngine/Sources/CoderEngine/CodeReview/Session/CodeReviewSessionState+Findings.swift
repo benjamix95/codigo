@@ -29,7 +29,7 @@ extension CodeReviewSessionState {
         with newFindings: [CodeReviewFinding]
     ) {
         findings.removeAll {
-            $0.status == .open
+            $0.status.isOpenState
                 && reviewedFiles.contains($0.filePath)
         }
         for finding in newFindings {
@@ -54,7 +54,7 @@ extension CodeReviewSessionState {
         guard let idx = findings.firstIndex(where: { $0.id == findingId }) else {
             return false
         }
-        findings[idx].status = .fixApplied
+        findings[idx].status = findings[idx].patchArtifactId == nil ? .fixApplied : .patchApplied
         events.append(.findingFixApplied(findingId: findingId))
         notifyChange()
         return true
@@ -111,8 +111,8 @@ extension CodeReviewSessionState {
 
     public func markAllOpenFindingsAsFixApplied() {
         var changedFindingIDs: [String] = []
-        for index in findings.indices where findings[index].status == .open {
-            findings[index].status = .fixApplied
+        for index in findings.indices where findings[index].status.isOpenState {
+            findings[index].status = .patchApplied
             changedFindingIDs.append(findings[index].id)
         }
         for findingId in changedFindingIDs {
@@ -127,8 +127,8 @@ extension CodeReviewSessionState {
         guard !files.isEmpty else { return }
         var changedFindingIDs: [String] = []
         for index in findings.indices
-        where findings[index].status == .open && files.contains(findings[index].filePath) {
-            findings[index].status = .fixApplied
+        where findings[index].status.isOpenState && files.contains(findings[index].filePath) {
+            findings[index].status = .patchApplied
             changedFindingIDs.append(findings[index].id)
         }
         for findingId in changedFindingIDs {

@@ -89,10 +89,17 @@ struct ReviewPanelTimelineTab: View {
         case .sessionStarted, .sessionCompleted: return store.accent
         case .analysisStarted, .analysisCompleted: return DesignSystem.Colors.info
         case .auditStarted, .auditCompleted: return DesignSystem.Colors.info.opacity(0.85)
+        case .candidateAdded: return DesignSystem.Colors.info
+        case .candidateVerified: return DesignSystem.Colors.success
+        case .candidateRejected: return .secondary
         case .findingAdded: return DesignSystem.Colors.warning
         case .findingFixApplied: return DesignSystem.Colors.success
         case .findingDismissed: return .secondary
         case .findingCommented: return store.accent
+        case .patchPrepared, .patchVerified: return store.accent
+        case .patchApplyFailed, .conflictDetected: return DesignSystem.Colors.error
+        case .prOpened, .prMerged: return DesignSystem.Colors.success
+        case .outcomePublished: return DesignSystem.Colors.info
         case .roundStarted, .roundCompleted: return DesignSystem.Colors.info
         case .workerSpawned, .workerCompleted: return .secondary
         case .testsPassed: return DesignSystem.Colors.success
@@ -110,10 +117,20 @@ struct ReviewPanelTimelineTab: View {
         case .analysisCompleted: return "magnifyingglass.circle.fill"
         case .auditStarted: return "shield"
         case .auditCompleted: return "shield.checkered"
+        case .candidateAdded: return "plus.circle"
+        case .candidateVerified: return "checkmark.seal"
+        case .candidateRejected: return "xmark.seal"
         case .findingAdded: return "exclamationmark.triangle"
         case .findingFixApplied: return "wrench.and.screwdriver"
         case .findingDismissed: return "xmark.circle"
         case .findingCommented: return "bubble.left"
+        case .patchPrepared: return "doc.badge.plus"
+        case .patchVerified: return "checkmark.shield"
+        case .patchApplyFailed: return "xmark.octagon"
+        case .prOpened: return "arrow.up.right.square"
+        case .prMerged: return "arrow.merge"
+        case .conflictDetected: return "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+        case .outcomePublished: return "text.badge.checkmark"
         case .roundStarted: return "arrow.clockwise"
         case .roundCompleted: return "arrow.clockwise.circle.fill"
         case .workerSpawned: return "person.badge.plus"
@@ -133,10 +150,20 @@ struct ReviewPanelTimelineTab: View {
         case .analysisCompleted: return "Analysis Completed"
         case .auditStarted: return "Audit Started"
         case .auditCompleted: return "Audit Completed"
+        case .candidateAdded: return "Candidate Added"
+        case .candidateVerified: return "Candidate Verified"
+        case .candidateRejected: return "Candidate Rejected"
         case .findingAdded: return "Finding Added"
         case .findingFixApplied: return "Fix Applied"
         case .findingDismissed: return "Finding Dismissed"
         case .findingCommented: return "Comment Added"
+        case .patchPrepared: return "Patch Prepared"
+        case .patchVerified: return "Patch Verified"
+        case .patchApplyFailed: return "Patch Apply Failed"
+        case .prOpened: return "PR Opened"
+        case .prMerged: return "PR Merged"
+        case .conflictDetected: return "Conflict Detected"
+        case .outcomePublished: return "Outcome Published"
         case .roundStarted: return "Round Started"
         case .roundCompleted: return "Round Completed"
         case .workerSpawned: return "Worker Spawned"

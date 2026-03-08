@@ -34,10 +34,20 @@ extension CodeReviewSessionEvent {
         case analysisCompleted = "analysis_completed"
         case auditStarted = "audit_started"
         case auditCompleted = "audit_completed"
+        case candidateAdded = "candidate_added"
+        case candidateVerified = "candidate_verified"
+        case candidateRejected = "candidate_rejected"
         case findingAdded = "finding_added"
         case findingFixApplied = "finding_fix_applied"
         case findingDismissed = "finding_dismissed"
         case findingCommented = "finding_commented"
+        case patchPrepared = "patch_prepared"
+        case patchVerified = "patch_verified"
+        case patchApplyFailed = "patch_apply_failed"
+        case prOpened = "pr_opened"
+        case prMerged = "pr_merged"
+        case conflictDetected = "conflict_detected"
+        case outcomePublished = "outcome_published"
         case roundStarted = "round_started"
         case roundCompleted = "round_completed"
         case workerSpawned = "worker_spawned"
@@ -83,6 +93,36 @@ extension CodeReviewSessionEvent {
         )
     }
 
+    public static func candidateAdded(
+        candidateId: String,
+        filePath: String
+    ) -> CodeReviewSessionEvent {
+        CodeReviewSessionEvent(
+            type: .candidateAdded,
+            detail: filePath,
+            metadata: ["candidate_id": candidateId, "file_path": filePath]
+        )
+    }
+
+    public static func candidateVerified(candidateId: String) -> CodeReviewSessionEvent {
+        CodeReviewSessionEvent(
+            type: .candidateVerified,
+            detail: "Candidate \(candidateId) verified",
+            metadata: ["candidate_id": candidateId]
+        )
+    }
+
+    public static func candidateRejected(
+        candidateId: String,
+        reason: String
+    ) -> CodeReviewSessionEvent {
+        CodeReviewSessionEvent(
+            type: .candidateRejected,
+            detail: "Candidate \(candidateId) rejected",
+            metadata: ["candidate_id": candidateId, "reason": reason]
+        )
+    }
+
     public static func findingFixApplied(findingId: String) -> CodeReviewSessionEvent {
         CodeReviewSessionEvent(
             type: .findingFixApplied,
@@ -120,6 +160,17 @@ extension CodeReviewSessionEvent {
         CodeReviewSessionEvent(
             type: .error,
             detail: message
+        )
+    }
+
+    public static func patchPrepared(
+        patchId: String,
+        findingId: String
+    ) -> CodeReviewSessionEvent {
+        CodeReviewSessionEvent(
+            type: .patchPrepared,
+            detail: "Patch prepared for finding \(findingId)",
+            metadata: ["patch_id": patchId, "finding_id": findingId]
         )
     }
 }

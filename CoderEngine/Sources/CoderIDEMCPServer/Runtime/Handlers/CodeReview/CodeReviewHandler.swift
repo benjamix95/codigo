@@ -11,6 +11,9 @@ extension CoderIDEMCPServerApp {
         "review_start", "review_status", "review_findings",
         "review_apply_fix", "review_dismiss", "review_configure",
         "review_diff_summary", "review_comment", "review_list_sessions",
+        "review_verify_finding", "review_prepare_patch", "review_preview_patch",
+        "review_apply_patch", "review_verify_patch", "review_open_pr",
+        "review_merge_pr", "review_resolve_conflicts", "review_get_outcome",
     ]
 
     static func handleCodeReviewTool(
@@ -38,6 +41,24 @@ extension CoderIDEMCPServerApp {
             return handleReviewComment(args: args)
         case "review_list_sessions":
             return handleReviewListSessions(args: args)
+        case "review_verify_finding":
+            return handleReviewVerifyFinding(args: args)
+        case "review_prepare_patch":
+            return handleReviewPreparePatch(args: args)
+        case "review_preview_patch":
+            return handleReviewPreviewPatch(args: args)
+        case "review_apply_patch":
+            return handleReviewApplyPatch(args: args)
+        case "review_verify_patch":
+            return handleReviewVerifyPatch(args: args)
+        case "review_open_pr":
+            return handleReviewOpenPR(args: args)
+        case "review_merge_pr":
+            return handleReviewMergePR(args: args)
+        case "review_resolve_conflicts":
+            return handleReviewResolveConflicts(args: args)
+        case "review_get_outcome":
+            return handleReviewGetOutcome(args: args)
         default:
             return reviewError("Unknown code review tool: \(name)")
         }

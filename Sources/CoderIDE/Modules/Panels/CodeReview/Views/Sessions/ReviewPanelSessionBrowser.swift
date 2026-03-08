@@ -106,6 +106,16 @@ struct ReviewPanelSessionBrowser: View {
                                     .font(.system(size: 8.5, design: .monospaced))
                                     .foregroundStyle(.quaternary)
                             }
+                            if !snap.candidates.isEmpty {
+                                Text("\(snap.candidates.count) candidates")
+                                    .font(.system(size: 8.5, design: .monospaced))
+                                    .foregroundStyle(.quaternary)
+                            }
+                            if !snap.patches.isEmpty {
+                                Text("\(snap.patches.count) patches")
+                                    .font(.system(size: 8.5, design: .monospaced))
+                                    .foregroundStyle(.quaternary)
+                            }
                         }
                     }
 

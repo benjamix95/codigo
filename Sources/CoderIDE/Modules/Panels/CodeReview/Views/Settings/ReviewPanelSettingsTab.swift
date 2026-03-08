@@ -11,6 +11,7 @@ struct ReviewPanelSettingsTab: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 pipelineSection
+                workflowSection
                 backendsSection
                 instructionsSection
                 customCommandsSection
@@ -20,6 +21,66 @@ struct ReviewPanelSettingsTab: View {
         }
         .sheet(isPresented: $showCustomCommands) {
             ReviewPanelCustomCommands(store: store)
+        }
+    }
+
+    private var workflowSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("WORKFLOW", icon: "point.3.connected.trianglepath.dotted")
+
+            settingsRow("Patch Delivery") {
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { store.settings.patchDeliveryMode },
+                        set: { store.updatePipelineSettings(patchDeliveryMode: $0) }
+                    )
+                ) {
+                    ForEach(ReviewPatchDeliveryMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .controlSize(.mini)
+                .frame(width: 150)
+            }
+
+            settingsRow("Auto Prepare Patch") {
+                Toggle("", isOn: Binding(
+                    get: { store.settings.autoPreparePatchForVerifiedFindings },
+                    set: { store.updatePipelineSettings(autoPreparePatchForVerifiedFindings: $0) }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+            }
+
+            settingsRow("Auto Resolve Conflicts") {
+                Picker(
+                    "",
+                    selection: Binding(
+                        get: { store.settings.autoResolveConflicts },
+                        set: { store.updatePipelineSettings(autoResolveConflicts: $0) }
+                    )
+                ) {
+                    ForEach(ReviewConflictAutomation.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .controlSize(.mini)
+                .frame(width: 130)
+            }
+
+            settingsRow("Show Candidates In Main") {
+                Toggle("", isOn: Binding(
+                    get: { store.settings.showCandidatesInMainFindings },
+                    set: { store.updatePipelineSettings(showCandidatesInMainFindings: $0) }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+            }
         }
     }
 
