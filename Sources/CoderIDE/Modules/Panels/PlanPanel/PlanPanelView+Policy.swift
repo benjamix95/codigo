@@ -136,6 +136,42 @@ func makePlanFileName(
     return "\(finalSlug).plan.md"
 }
 
+func preferredPlanPanelHistoryContent(
+    markdown: String,
+    chosenPath: String?,
+    fallbackTitle: String
+) -> String {
+    if let chosen = chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !chosen.isEmpty {
+        return chosen
+    }
+    let trimmedMarkdown = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !trimmedMarkdown.isEmpty {
+        return markdown
+    }
+    let title = fallbackTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+    return "# \(title.isEmpty ? "Plan" : title)\n\n(No plan content available.)"
+}
+
+func preferredPlanPanelOptionContent(
+    chosenPath: String?,
+    options: [PlanOption]
+) -> String? {
+    guard !options.isEmpty else { return nil }
+    let normalizedChosen = chosenPath?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression) ?? ""
+    if !normalizedChosen.isEmpty,
+       let matched = options.first(where: {
+           $0.fullText
+               .trimmingCharacters(in: .whitespacesAndNewlines)
+               .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression) == normalizedChosen
+       }) {
+        return matched.fullText
+    }
+    return options.min(by: { $0.id < $1.id })?.fullText
+}
+
 private func normalizedPlanFileTitleCandidate(_ raw: String?) -> String? {
     guard let raw else { return nil }
     let normalized = raw

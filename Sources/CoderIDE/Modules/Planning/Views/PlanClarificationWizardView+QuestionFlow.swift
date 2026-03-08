@@ -112,107 +112,22 @@ extension PlanClarificationWizardView {
         }
     }
 
-    var confirmContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Final confirmation")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-
-            ForEach(orderedQuestions) { question in
-                let selectedIds = selectedOptionsByQuestionId[question.id] ?? Set<String>()
-                let selectedOptions = question.options.filter { selectedIds.contains($0.id) }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("\(question.id). \(question.prompt)")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    if !selectedOptions.isEmpty {
-                        if question.isMultiSelect {
-                            let selectedText = selectedOptions.map { "\($0.id)) \($0.text)" }.joined(separator: ", ")
-                            Text("Selected: \(selectedText)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.primary)
-                        } else if let selected = selectedOptions.first {
-                            Text("Selected answer: \(selected.id)) \(selected.text)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.primary)
-                        }
-                        let custom = customTextByQuestionId[question.id]?
-                            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                        if !custom.isEmpty {
-                            Text("Custom response (overrides selection): \(custom)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(planColor)
-                        }
-                    } else {
-                        Text("Answer: not selected")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Final note (optional)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                TextField(
-                    "Add final details for the plan (optional)...",
-                    text: $finalNote,
-                    axis: .vertical
-                )
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(2...6)
-                .focused($focusedField, equals: .finalNote)
-                .submitLabel(.done)
-                .onSubmit {
-                    submitIfPossible()
-                }
-            }
-
-            HStack(spacing: 8) {
-                Button("Back to questions") {
-                    isConfirmStep = false
-                    if let question = currentQuestion, shouldShowCustomField(for: question) {
-                        focusedField = .customQuestion(question.id)
-                    } else {
-                        focusedField = nil
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(.caption.weight(.medium))
-
-                Spacer()
-
-                Button("Final confirmation") {
-                    submitIfPossible()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .tint(planColor)
-                .disabled(!canSubmitFinal)
-            }
-        }
-    }
-
-    private var canSubmitFinal: Bool {
-        !orderedQuestions.isEmpty
-            && orderedQuestions.allSatisfy(isQuestionAnswered)
-    }
-
-    private func customTextBinding(for questionId: Int) -> Binding<String> {
+    func customTextBinding(for questionId: Int) -> Binding<String> {
         Binding(
             get: { customTextByQuestionId[questionId] ?? "" },
             set: { customTextByQuestionId[questionId] = $0 }
         )
     }
 
-    /// Returns the first selected option for a question (for single-select compatibility).
-    private func selectedOption(for question: PlanClarificationQuestion) -> PlanClarificationOption? {
-        guard let selectedIds = selectedOptionsByQuestionId[question.id], let firstId = selectedIds.first else { return nil }
+    func selectedOption(for question: PlanClarificationQuestion) -> PlanClarificationOption? {
+        guard let selectedIds = selectedOptionsByQuestionId[question.id],
+              let firstId = selectedIds.first else {
+            return nil
+        }
         return question.options.first(where: { $0.id == firstId })
     }
 
-    private func shouldShowCustomField(for question: PlanClarificationQuestion) -> Bool {
+    func shouldShowCustomField(for question: PlanClarificationQuestion) -> Bool {
         let selectedIds = selectedOptionsByQuestionId[question.id] ?? Set()
         guard !selectedIds.isEmpty else { return false }
         let selected = question.options.filter { selectedIds.contains($0.id) }
@@ -220,17 +135,16 @@ extension PlanClarificationWizardView {
         return selected.contains(where: PlanOptionsParser.isOtherLikeClarificationOption)
     }
 
-    private func isLastQuestion(_ question: PlanClarificationQuestion) -> Bool {
+    func isLastQuestion(_ question: PlanClarificationQuestion) -> Bool {
         guard let lastQuestionId = orderedQuestions.last?.id else { return false }
         return question.id == lastQuestionId
     }
 
-    private func handleOptionSelection(
+    func handleOptionSelection(
         _ option: PlanClarificationOption,
         for question: PlanClarificationQuestion
     ) {
         if question.isMultiSelect {
-            // Multi-select: toggle selection.
             var current = selectedOptionsByQuestionId[question.id] ?? Set()
             if current.contains(option.id) {
                 current.remove(option.id)
@@ -248,15 +162,12 @@ extension PlanClarificationWizardView {
                     focusedField = nil
                 }
             }
-            // Don't auto-advance for multi-select — user must explicitly press Continue.
             return
         }
 
-        // Single-select: replace selection.
         selectedOptionsByQuestionId[question.id] = Set([option.id])
         if PlanOptionsParser.isOtherLikeClarificationOption(option) {
             focusedField = .customQuestion(question.id)
-            // Don't auto-advance for "Other" options - user needs to type custom text.
             return
         } else {
             customTextByQuestionId[question.id] = ""
@@ -265,7 +176,6 @@ extension PlanClarificationWizardView {
             }
         }
 
-        // Only auto-advance for non-"Other" single-select options, and guard against stale state.
         let targetQuestionId = question.id
         Task { @MainActor in
             guard currentQuestion?.id == targetQuestionId else { return }
@@ -273,7 +183,7 @@ extension PlanClarificationWizardView {
         }
     }
 
-    private func advanceFromQuestion(_ question: PlanClarificationQuestion) {
+    func advanceFromQuestion(_ question: PlanClarificationQuestion) {
         guard isQuestionAnswered(question) else { return }
         if isLastQuestion(question) {
             isConfirmStep = true
@@ -287,44 +197,7 @@ extension PlanClarificationWizardView {
         }
     }
 
-    private func buildSubmission() -> PlanClarificationSubmission? {
-        let answers = orderedQuestions.compactMap { question -> PlanClarificationAnswer? in
-            guard let selectedIds = selectedOptionsByQuestionId[question.id], !selectedIds.isEmpty else {
-                return nil
-            }
-            let selectedOptions = question.options.filter { selectedIds.contains($0.id) }
-            guard !selectedOptions.isEmpty else { return nil }
-
-            guard let primaryOption = selectedOptions.first else { return nil }
-            let customText = customTextByQuestionId[question.id]?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let includesOther = selectedOptions.contains(where: PlanOptionsParser.isOtherLikeClarificationOption)
-            let customResponse: String? = includesOther ? (customText.isEmpty ? nil : customText) : nil
-            return PlanClarificationAnswer(
-                questionId: question.id,
-                question: question.prompt,
-                optionId: primaryOption.id,
-                optionText: primaryOption.text,
-                optionIds: selectedOptions.map(\.id),
-                optionTexts: selectedOptions.map(\.text),
-                customResponse: customResponse
-            )
-        }
-        guard answers.count == orderedQuestions.count else { return nil }
-        return PlanClarificationSubmission(
-            answers: answers,
-            finalNote: trimmedFinalNote
-        )
-    }
-
-    private func submitIfPossible() {
-        guard let submission = buildSubmission() else { return }
-        onSubmit(submission)
-        isConfirmStep = false
-        focusedField = nil
-    }
-
-    private func isQuestionAnswered(_ question: PlanClarificationQuestion) -> Bool {
+    func isQuestionAnswered(_ question: PlanClarificationQuestion) -> Bool {
         isClarificationSelectionComplete(
             question: question,
             selectedOption: selectedOption(for: question),

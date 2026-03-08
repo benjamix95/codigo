@@ -17,16 +17,17 @@ extension PlanPanelView {
         }
 
         if let selected = latestPlanHistoryEntry() {
-            if !selected.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return selected.markdown
-            }
-            if let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !chosen.isEmpty {
-                return chosen
-            }
+            return resolvedPreviewContent(for: selected)
         }
 
         if let board = chatStore.planBoard(for: conversationId) {
+            if case .awaitingChoice(_, let options) = planningState,
+               let preferredOptionContent = preferredPlanPanelOptionContent(
+                   chosenPath: board.chosenPath,
+                   options: options
+               ) {
+                return preferredOptionContent
+            }
             if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
                !chosen.isEmpty {
                 return chosen

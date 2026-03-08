@@ -27,13 +27,11 @@ extension PlanPanelView {
     }
 
     func resolvedPreviewContent(for entry: PlanHistoryEntry) -> String {
-        if !entry.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return entry.markdown
-        }
-        if let chosen = entry.chosenPath, !chosen.isEmpty {
-            return chosen
-        }
-        return "# \(entry.title.isEmpty ? "Plan" : entry.title)\n\n(No plan content available.)"
+        preferredPlanPanelHistoryContent(
+            markdown: entry.markdown,
+            chosenPath: entry.chosenPath,
+            fallbackTitle: entry.title
+        )
     }
 
     func selectedHistoryEntryForConversation() -> PlanHistoryEntry? {

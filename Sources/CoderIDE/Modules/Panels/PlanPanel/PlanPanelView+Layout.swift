@@ -181,7 +181,10 @@ extension PlanPanelView {
         let ids = providerRegistry.providers
             .filter { isPlanExecutionProviderIdAllowed($0.id) }
             .map(\.id)
-        guard !ids.isEmpty else { return }
+        guard !ids.isEmpty else {
+            providerAuthCache = [:]
+            return
+        }
         var cache: [String: Bool] = [:]
         for id in ids {
             cache[id] = providerRegistry.provider(for: id)?.isAuthenticated() ?? false
