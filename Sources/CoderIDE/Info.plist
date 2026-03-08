@@ -6,8 +6,10 @@
 	<string>com.codigo.app</string>
 	<key>CFBundleDisplayName</key>
 	<string>Codigo</string>
+	<key>CFBundleExecutable</key>
+	<string>Codigo</string>
 	<key>CFBundleIconFile</key>
-	<string>Codigo.icns</string>
+	<string>Codigo</string>
 	<key>CFBundleName</key>
 	<string>Codigo</string>
 	<key>CFBundlePackageType</key>

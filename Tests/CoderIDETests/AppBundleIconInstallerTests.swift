@@ -71,7 +71,8 @@ struct AppBundleIconInstallerTests {
             PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any]
         )
 
-        #expect(plist["CFBundleIconFile"] as? String == AppBundleIconInstaller.iconFilename)
+        #expect(plist["CFBundleIconFile"] as? String == "Codigo")
+        #expect(plist["CFBundleExecutable"] as? String == "Codigo")
     }
 
     private func makeSandbox() throws -> URL {

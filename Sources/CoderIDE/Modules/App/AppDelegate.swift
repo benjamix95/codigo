@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSApplication.shared.setActivationPolicy(.regular)
+        installDockIconFallbackIfNeeded()
 
         installWindowStyleObservers()
 
@@ -26,6 +27,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers.removeAll()
+    }
+
+    private func installDockIconFallbackIfNeeded() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let iconURL = RuntimeResourceLocator.appIconURL(),
+                  let iconImage = NSImage(contentsOf: iconURL) else {
+                return
+            }
+            DispatchQueue.main.async {
+                NSApplication.shared.applicationIconImage = iconImage
+            }
+        }
     }
 
     private func installWindowStyleObservers() {
