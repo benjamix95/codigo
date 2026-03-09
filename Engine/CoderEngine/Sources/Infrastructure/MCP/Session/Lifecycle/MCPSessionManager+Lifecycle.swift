@@ -94,7 +94,7 @@ extension MCPSessionManager {
                 sessions[cfg.id] = existing
                 return existing
             }
-            await existing.client.disconnect()
+            await disposeSession(existing, waitForExit: false)
             sessions.removeValue(forKey: cfg.id)
         }
 

@@ -1,6 +1,13 @@
 import XCTest
 @testable import CoderEngine
 import Darwin
+import MCP
+
+#if canImport(System)
+import System
+#else
+@preconcurrency import SystemPackage
+#endif
 
 final class MCPSessionManagerTests: XCTestCase {
     func testMCPLogStoreWarnAliasUsesWarningThreshold() async {
@@ -299,6 +306,67 @@ final class MCPSessionManagerTests: XCTestCase {
         try await Self.assertProcessEventuallyExits(pid)
     }
 
+    func testSessionReconnectDisposesTransportResourcesForExitedSession() async throws {
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-stale-session.json",
+            name: "stale-session-server",
+            command: "/definitely/missing/mcp-binary"
+        )
+        let manager = MCPSessionManager(serverResolver: { [server] })
+
+        let (inputRead, inputWrite) = try FileDescriptor.pipe()
+        let (outputRead, outputWrite) = try FileDescriptor.pipe()
+        let stderrPipe = Pipe()
+
+        let staleProcess = Process()
+        staleProcess.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+        try staleProcess.run()
+        staleProcess.waitUntilExit()
+
+        let staleSession = MCPServerSession(
+            serverId: server.id,
+            serverName: server.name,
+            client: Client(
+                name: "stale-session-test-client",
+                version: "1.0.0",
+                configuration: .default
+            ),
+            transport: StdioTransport(input: inputRead, output: outputWrite),
+            process: staleProcess,
+            transportResources: MCPTransportResources(
+                input: inputRead,
+                output: outputWrite,
+                stderrReadHandle: stderrPipe.fileHandleForReading
+            ),
+            lastUsedAt: Date(timeIntervalSince1970: 0),
+            cachedTools: [],
+            cachedToolsTimestamp: nil
+        )
+
+        let inputFD = inputRead.rawValue
+        let outputFD = outputWrite.rawValue
+        let stderrFD = stderrPipe.fileHandleForReading.fileDescriptor
+
+        await manager._insertTestSession(staleSession)
+
+        do {
+            _ = try await manager.session(for: server)
+            XCTFail("Expected reconnect to fail for missing executable")
+        } catch {}
+
+        XCTAssertTrue(Self.descriptorIsClosed(inputFD))
+        XCTAssertTrue(Self.descriptorIsClosed(outputFD))
+        XCTAssertTrue(Self.descriptorIsClosed(stderrFD))
+        let hasSession = await manager._hasSession(server.id)
+        XCTAssertFalse(hasSession)
+
+        try? inputWrite.close()
+        try? outputRead.close()
+        try? stderrPipe.fileHandleForWriting.close()
+    }
+
     private func makeServer(
         source: String,
         origin: String,
@@ -364,4 +432,19 @@ final class MCPSessionManagerTests: XCTestCase {
         XCTAssertFalse(processExists(pid), "Expected process \(pid) to exit after session reset")
     }
 
+    private static func descriptorIsClosed(_ descriptor: Int32) -> Bool {
+        errno = 0
+        return fcntl(descriptor, F_GETFD) == -1 && errno == EBADF
+    }
+
+}
+
+private extension MCPSessionManager {
+    func _insertTestSession(_ session: MCPServerSession) {
+        sessions[session.serverId] = session
+    }
+
+    func _hasSession(_ serverId: String) -> Bool {
+        sessions[serverId] != nil
+    }
 }
