@@ -282,6 +282,7 @@ extension PipelineIntegrationService {
     // MARK: - Review & Progress
 
     func handleReviewFinding(_ p: ReviewFindingPayload, for conversationId: UUID) {
+        upsertInlineReviewFindingSession(p, for: conversationId)
         let reviewRuntime = runtime(for: conversationId)
         consumePipelineEvents(
             [

@@ -150,6 +150,7 @@
 		17320A839AB325217806F1D0 /* CLIAccountSecretsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E24EBC36415DEA6DC27B2D63 /* CLIAccountSecretsStore.swift */; };
 		1758F276BEE7857EC437C775 /* DebugProjectionStoreBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA58BB6499EEEE7F8DB3646 /* DebugProjectionStoreBinding.swift */; };
 		1765844A9D7255BAEACF4A2D /* CoderIDEMCPServerApp+IDEStateTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F09BF99268AB08ADC652D4C /* CoderIDEMCPServerApp+IDEStateTools.swift */; };
+		1769B940637D247D0865DB99 /* PipelineIntegrationVerifiedFindingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FA96321FEDBCEBC649200C /* PipelineIntegrationVerifiedFindingsTests.swift */; };
 		1781410786D6D7F4BC81AB13 /* ReviewPanelChatThreadSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FF78005FF710E4769905D53 /* ReviewPanelChatThreadSwitcher.swift */; };
 		17EAD5C4C01944F640E7C879 /* CodexLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81965031E88C96E543A5B5BE /* CodexLoginView.swift */; };
 		187491752E7101AB23241B2E /* GeminiStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37FA2FD2B9241B56432EB43 /* GeminiStateStore.swift */; };
@@ -908,6 +909,7 @@
 		8F4658D0ACEFFFD916DAF860 /* ExtensionRuntimeSandboxCapabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7000DD9442DBDB9AA47C00 /* ExtensionRuntimeSandboxCapabilityTests.swift */; };
 		8F52CC6267A111F3C5750083 /* EditorNavigationDispatchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C13C760B9E6AEC8A3EFF5D1 /* EditorNavigationDispatchStore.swift */; };
 		8F6954369910DAED86CAA14E /* PipelineEnumsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B9B262BA9A2666DECF0C7F /* PipelineEnumsTests.swift */; };
+		8F7800AC350083D4340714F8 /* PipelineIntegrationService+VerifiedFindingsReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853ADC2C191E73F0146F6BA6 /* PipelineIntegrationService+VerifiedFindingsReview.swift */; };
 		8FA34E977158883C6E4896C5 /* ComposerTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9CF40ACCB2D7792D85BFA16 /* ComposerTextView.swift */; };
 		8FAE2EF1B4B2EAE625A06B14 /* ValidationCommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1A3640C74C6FADD918680C /* ValidationCommandExecutor.swift */; };
 		8FE0F56F19A12DF70AC4CC95 /* PlanPanelVisualSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8BE8F1B7A2A0ABE34FAD9E /* PlanPanelVisualSmokeTests.swift */; };
@@ -2045,6 +2047,7 @@
 		3382F2786E25E8958572EE5D /* ModeControlsBarView+Buttons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ModeControlsBarView+Buttons.swift"; path = "App/SoloCodeApp/Sources/App/ModeControls/Sections/ModeControlsBarView+Buttons.swift"; sourceTree = "<group>"; };
 		33C23630F037106D22D0B986 /* DeadLetterQueue.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DeadLetterQueue.swift; path = Engine/CoderEngine/Sources/Pipeline/EventBus/DeadLetterQueue.swift; sourceTree = "<group>"; };
 		33CEC663EB42AF52A552D137 /* TaskActivityStoreInstantGrepTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaskActivityStoreInstantGrepTests.swift; path = Tests/SoloCodeAppTests/TaskActivityStoreInstantGrepTests.swift; sourceTree = "<group>"; };
+		33FA96321FEDBCEBC649200C /* PipelineIntegrationVerifiedFindingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineIntegrationVerifiedFindingsTests.swift; path = Tests/SoloCodeAppTests/PipelineIntegrationVerifiedFindingsTests.swift; sourceTree = "<group>"; };
 		3426A055407520D7ED8EA42A /* ReviewPanelChatMessageContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatMessageContextTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelChatMessageContextTests.swift; sourceTree = "<group>"; };
 		34970D98FA588A5A3498EC76 /* AppUpdateCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppUpdateCenter.swift; path = App/SoloCodeApp/Sources/Services/AppUpdateCenter/AppUpdateCenter.swift; sourceTree = "<group>"; };
 		349DF55934ADF3712EDECF88 /* DebugPipelineContractsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugPipelineContractsTests.swift; path = Tests/CoderEngineTests/Pipeline/Contracts/DebugPipelineContractsTests.swift; sourceTree = "<group>"; };
@@ -2520,6 +2523,7 @@
 		84EA09578EE2CA96FBABF75D /* PromptProfiles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PromptProfiles.swift; path = Engine/CoderEngine/Sources/SystemPrompts/Dimensions/PromptProfiles.swift; sourceTree = "<group>"; };
 		852C0EA1228C1DADA2B6CB5B /* DebugPanelView+Input.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugPanelView+Input.swift"; path = "App/SoloCodeApp/Sources/Panels/DebugPanel/DebugPanelView+Input.swift"; sourceTree = "<group>"; };
 		8534958A367DB833CCC7DE6E /* BrowserPanelView+Toolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "BrowserPanelView+Toolbar.swift"; path = "App/SoloCodeApp/Sources/Panels/Browser/BrowserPanelView+Toolbar.swift"; sourceTree = "<group>"; };
+		853ADC2C191E73F0146F6BA6 /* PipelineIntegrationService+VerifiedFindingsReview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PipelineIntegrationService+VerifiedFindingsReview.swift"; path = "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+VerifiedFindingsReview.swift"; sourceTree = "<group>"; };
 		85BB2788D2AD2C87564F8E47 /* PipelineEventLoggerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineEventLoggerTests.swift; path = Tests/CoderEngineTests/Pipeline/Observability/PipelineEventLoggerTests.swift; sourceTree = "<group>"; };
 		85C7B6C521A17E48D86B6948 /* ChatStoreConversationReuseTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreConversationReuseTests.swift; path = Tests/SoloCodeAppTests/ChatStoreConversationReuseTests.swift; sourceTree = "<group>"; };
 		85EC46E3D4DA8671E9B52420 /* CodeReviewHandlerTests+Validation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewHandlerTests+Validation.swift"; path = "Tests/CoderEngineTests/CodeReview/CodeReviewHandlerTests+Validation.swift"; sourceTree = "<group>"; };
@@ -4541,6 +4545,8 @@
 				B3AF7C649EABE6BE6BAFC611 /* TaskActivityStore+VerifiedFindings.swift */,
 				F7A5B3F2FBD2B9AC9F2D3C8A /* VerifiedFindingsCommandCoordinator.swift */,
 				D9DEB8A08F95244715165F33 /* VerifiedFindingsCommandCoordinatorTests.swift */,
+				853ADC2C191E73F0146F6BA6 /* PipelineIntegrationService+VerifiedFindingsReview.swift */,
+				33FA96321FEDBCEBC649200C /* PipelineIntegrationVerifiedFindingsTests.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -5430,6 +5436,7 @@
 				AB9E6A04A16CEE2415499E6D /* WorktreeFlowCoordinatorTests.swift in Sources */,
 				1C75DDFA35CDCA0D393427B4 /* WorktreeMergeAIServiceTests.swift in Sources */,
 				D091D93822CF45D4A8C2CA0C /* WorktreeSessionStoreTests.swift in Sources */,
+				1769B940637D247D0865DB99 /* PipelineIntegrationVerifiedFindingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -6599,6 +6606,7 @@
 				8BB26DC1D36A42B260376956 /* View+OnChangeCompat.swift in Sources */,
 				A514ADB174EE38759D19B331 /* View+ToolbarCompatibility.swift in Sources */,
 				FE84352CF5E6DEC386DA331C /* TaskActivityStore+VerifiedFindings.swift in Sources */,
+				8F7800AC350083D4340714F8 /* PipelineIntegrationService+VerifiedFindingsReview.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
