@@ -103,18 +103,14 @@ extension CodigoApp {
 
         let reviewCommand: MCPSharedCodeReviewCommand
         do {
-            let request = try VerifiedFindingsStartCommandService.makeRequest(
-                args: [
-                    "scope": promptAndCommits.2 == nil ? "uncommitted" : "against_ref",
-                    "ref": promptAndCommits.2 ?? "",
-                    "session_id": reviewSessionId,
-                    "analysis_only": "false",
-                    "max_rounds": String(max(3, settings.maxAutoRounds + 1)),
-                    "max_workers": String(max(codeReviewPartitions, 4)),
-                    "bughunter_run_id": command.runId,
-                    "bughunter_profile": sourceKind == .commit ? BugHunterProfile.commitReview.rawValue : BugHunterProfile.deep.rawValue,
-                    "bughunter_prompt_override": promptAndCommits.0,
-                ],
+            let request = try BugHunterWorkflowService.makeStartRequest(
+                runId: command.runId,
+                reviewSessionId: reviewSessionId,
+                sourceKind: sourceKind,
+                againstRef: promptAndCommits.2,
+                prompt: promptAndCommits.0,
+                maxRounds: max(3, settings.maxAutoRounds + 1),
+                maxWorkers: max(codeReviewPartitions, 4),
                 conversationId: nil
             )
             reviewCommand = try VerifiedFindingsStartCommandService.enqueueReviewStart(

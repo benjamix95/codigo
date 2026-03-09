@@ -9,6 +9,32 @@ public struct BugHunterClusterSummary: Sendable, Equatable {
 }
 
 public enum BugHunterWorkflowService {
+    public static func makeStartRequest(
+        runId: String,
+        reviewSessionId: String,
+        sourceKind: MCPSharedBugHunterSourceKind,
+        againstRef: String?,
+        prompt: String,
+        maxRounds: Int,
+        maxWorkers: Int,
+        conversationId: UUID? = nil
+    ) throws -> VerifiedFindingsStartCommandRequest {
+        try VerifiedFindingsStartCommandService.makeRequest(
+            args: [
+                "scope": againstRef == nil ? "uncommitted" : "against_ref",
+                "ref": againstRef ?? "",
+                "session_id": reviewSessionId,
+                "analysis_only": "false",
+                "max_rounds": String(maxRounds),
+                "max_workers": String(maxWorkers),
+                "bughunter_run_id": runId,
+                "bughunter_profile": sourceKind == .commit ? "commit_review" : "deep",
+                "bughunter_prompt_override": prompt,
+            ],
+            conversationId: conversationId
+        )
+    }
+
     public static func findings(
         snapshot: CodeReviewSessionSnapshot,
         kind: String? = nil,

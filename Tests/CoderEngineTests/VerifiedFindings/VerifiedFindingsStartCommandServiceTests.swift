@@ -77,4 +77,36 @@ final class VerifiedFindingsStartCommandServiceTests: XCTestCase {
             conversationId.uuidString.lowercased()
         )
     }
+
+    func testSecurityWorkflowServiceInjectsSecurityPromptOverride() throws {
+        let request = try SecurityWorkflowService.makeStartRequest(
+            args: ["scope": "staged", "session_id": "security-session"],
+            conversationId: nil
+        )
+
+        XCTAssertEqual(request.scope, "staged")
+        XCTAssertEqual(request.sessionId, "security-session")
+        XCTAssertTrue(
+            request.payload["review_prompt_override"]?.contains("[MODE:security-audit]") == true
+        )
+    }
+
+    func testBugHunterWorkflowServiceBuildsStartRequest() throws {
+        let request = try BugHunterWorkflowService.makeStartRequest(
+            runId: "run-1",
+            reviewSessionId: "bughunter-review-run-1",
+            sourceKind: .commit,
+            againstRef: "HEAD~3",
+            prompt: "[AGAINST:HEAD~3] [MODE:bug-hunter]",
+            maxRounds: 4,
+            maxWorkers: 5
+        )
+
+        XCTAssertEqual(request.scope, "against_ref")
+        XCTAssertEqual(request.ref, "HEAD~3")
+        XCTAssertEqual(request.payload["bughunter_run_id"], "run-1")
+        XCTAssertEqual(request.payload["bughunter_profile"], "commit_review")
+        XCTAssertEqual(request.payload["max_rounds"], "4")
+        XCTAssertEqual(request.payload["max_workers"], "5")
+    }
 }

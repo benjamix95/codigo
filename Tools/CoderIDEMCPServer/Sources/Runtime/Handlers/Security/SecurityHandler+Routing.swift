@@ -9,9 +9,41 @@ extension CoderIDEMCPServerApp {
                 ?? "security_gate=blocked, no verified bughunter baseline is available"
             return reviewError("Error: security gate not ready. \(summary)")
         }
-        var reviewArgs = args
-        reviewArgs["review_prompt_override"] = securityReviewPrompt(from: args)
-        return handleReviewStart(args: reviewArgs)
+        do {
+            let request = try SecurityWorkflowService.makeStartRequest(
+                args: args,
+                conversationId: resolveReviewConversationId(args)
+            )
+            _ = try VerifiedFindingsStartCommandService.enqueueReviewStart(request: request)
+            return reviewOK(
+                "OK — code review start queued (session_id=\(request.sessionId), scope=\(request.scope))"
+            )
+        } catch let error as VerifiedFindingsStartCommandError {
+            switch error {
+            case .invalidScope(let scope):
+                return reviewError("Error: invalid scope '\(scope)'. Use: uncommitted, staged, against_ref")
+            case .missingRef:
+                return reviewError("Error: 'ref' parameter is required when scope=against_ref")
+            case .invalidRef(let ref):
+                return reviewError("Error: invalid ref '\(ref)'")
+            case .invalidMaxWorkers:
+                return reviewError("Error: max_workers must be 1-12")
+            case .invalidMaxRounds:
+                return reviewError("Error: max_rounds must be 1-10")
+            case .invalidAnalysisOnly:
+                return reviewError("Error: analysis_only must be a boolean value")
+            case .invalidBackend(let field, let value):
+                return reviewError("Error: invalid \(field) '\(value)'")
+            case .invalidSessionId:
+                return reviewError("Error: invalid session_id. Use only letters, numbers, hyphen, or underscore")
+            case .sessionAlreadyExists(let sessionId):
+                return reviewError("Error: session_id '\(sessionId)' already exists")
+            case .sessionAlreadyQueued(let sessionId):
+                return reviewError("Error: session_id '\(sessionId)' already has a queued start command")
+            }
+        } catch {
+            return reviewError("Error: failed to queue code review start command")
+        }
     }
 
     static func handleSecurityStatus(args: [String: String]) -> CallTool.Result {
@@ -121,31 +153,6 @@ extension CoderIDEMCPServerApp {
 
     static func handleSecurityCloseFinding(args: [String: String]) -> CallTool.Result {
         queueSecurityLifecycleCommand(action: "close_finding", args: args)
-    }
-
-    private static func securityReviewPrompt(from args: [String: String]) -> String {
-        let scope = (args["scope"] ?? "uncommitted").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        switch scope {
-        case "staged":
-            return """
-            [REVIEW_SCOPE:staged] [MODE:security-audit]
-            Run a security-focused review on staged changes only.
-            Prioritize exploitability, auth/authz gaps, secrets, injection, unsafe config, dangerous deserialization, and sensitive logging.
-            """
-        case "against_ref":
-            let ref = args["ref"] ?? "HEAD~1"
-            return """
-            [AGAINST:\(ref)] [MODE:security-audit]
-            Run a security-focused review against ref \(ref).
-            Prioritize exploitability, auth/authz gaps, secrets, injection, unsafe config, dangerous deserialization, and sensitive logging.
-            """
-        default:
-            return """
-            [REVIEW_SCOPE:uncommitted] [MODE:security-audit]
-            Run a security-focused review on uncommitted changes.
-            Prioritize exploitability, auth/authz gaps, secrets, injection, unsafe config, dangerous deserialization, and sensitive logging.
-            """
-        }
     }
 
     private static func currentSecurityGate(

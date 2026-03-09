@@ -66,6 +66,10 @@ extension CodigoApp {
                     }
                 }
 
+                await persistLiveReviewState(
+                    sessionState,
+                    conversationId: sessionState.conversationId
+                )
                 MCPSharedState.markCodeReviewCommand(
                     id: command.id,
                     status: .completed,
