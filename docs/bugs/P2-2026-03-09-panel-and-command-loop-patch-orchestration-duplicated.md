@@ -4,27 +4,27 @@
 Categoria B
 
 ## Bug
-Il panel `CodeReview` e il command loop dell’app usavano entrambi `ReviewPatchWorkflowService`, ma con orchestrazioni parallele e snapshot mutation duplicate.
+Il panel `CodeReview` e il command loop dell’app usavano entrambi `ReviewPatchWorkflowService`, ma con orchestrazioni parallele e mutation snapshot duplicate.
 
 ## Sintomo
-Prepare/apply/revalidate/rollback/open_pr/merge_pr seguivano due flow diversi:
-- uno nel command loop
-- uno nel panel store
+Il lifecycle patch `prepare/apply/revalidate/rollback/open_pr/merge_pr` viveva in due posti distinti:
+- path command loop
+- path panel store
 
 ## Impatto
-Rischio di drift comportamentale e regressioni diverse tra UI e command path, pur agendo sugli stessi finding e patch artifact.
+Rischio di drift comportamentale tra UI e command path, nonostante agissero sugli stessi finding e patch artifact.
 
 ## Gravità
 Media
 
 ## Causa probabile
-Il workflow patch era nato in una fase review-centric e poi riusato progressivamente, senza un service applicativo condiviso a livello app.
+Il workflow patch è nato lato review ed è stato poi riusato in più entrypoint senza un execution service app-level condiviso.
 
 ## Fix applicato
 - introdotto `VerifiedFindingsPatchExecutionService`
-- il command loop e il panel store ora riusano lo stesso service per l’orchestrazione patch
-- spezzato il panel patch workflow in file separati per restare sotto soglia
+- il command loop e il panel store usano ora lo stesso service condiviso
+- spezzato il patch workflow del panel in file separati per restare sotto soglia
 
 ## Regressione da coprire
-- apply patch da panel e command loop con mapping patch/finding coerente
-- upsert patch artifact aggiorna stato finding e outcome summary
+- mapping patch -> snapshot coerente
+- apply patch da panel/command loop con stesso behaviour
