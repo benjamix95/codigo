@@ -6,6 +6,16 @@ struct AutoCodeReviewRequest: Equatable {
     let prefersCodeReviewRuntimeProvider: Bool
 }
 
+private struct AutoCodeReviewIntentMatch: Equatable {
+    let wantsReview: Bool
+    let wantsSecurity: Bool
+    let wantsBugHunt: Bool
+
+    var shouldRouteToReviewRuntime: Bool {
+        wantsReview || wantsSecurity || wantsBugHunt
+    }
+}
+
 @MainActor
 func makeAutoCodeReviewRequest(
     userText: String,
@@ -22,27 +32,8 @@ func makeAutoCodeReviewRequest(
         )
     }
 
-    let lowercased = trimmed.lowercased()
-    let reviewSignals = [
-        "code review", "fai una review", "fammi una review", "review this",
-        "review these", "review del diff", "review this diff", "analizza questo diff",
-        "analizza il diff", "review branch", "revisione codice", "rivedi il codice",
-        "audit del codice",
-    ]
-    let securitySignals = [
-        "security review", "security audit", "audit di sicurezza", "sicurezza",
-        "vulnerabil", "xss", "csrf", "ssrf", "authz", "secret", "segreti",
-    ]
-    let bugSignals = [
-        "bug hunt", "bughunter", "cerca bug", "trova bug", "find bugs",
-        "regress", "crash", "race condition", "stale state",
-    ]
-
-    let wantsReview = reviewSignals.contains(where: lowercased.contains)
-    let wantsSecurity = securitySignals.contains(where: lowercased.contains)
-    let wantsBugHunt = bugSignals.contains(where: lowercased.contains)
-
-    guard wantsReview || wantsSecurity || wantsBugHunt else {
+    let intent = matchAutoCodeReviewIntent(trimmed)
+    guard intent.shouldRouteToReviewRuntime else {
         return AutoCodeReviewRequest(
             prompt: userText,
             selectedModes: [],
@@ -51,13 +42,13 @@ func makeAutoCodeReviewRequest(
     }
 
     var selectedModes: Set<CodeReviewPanelMode> = []
-    if wantsReview {
+    if intent.wantsReview {
         selectedModes.insert(.standard)
     }
-    if wantsSecurity {
+    if intent.wantsSecurity {
         selectedModes.insert(.securityAudit)
     }
-    if wantsBugHunt {
+    if intent.wantsBugHunt {
         selectedModes.insert(.bugFinder)
     }
     if selectedModes.isEmpty {
@@ -122,4 +113,86 @@ extension ChatPanelView {
         )
         return prompt
     }
+}
+
+private func matchAutoCodeReviewIntent(_ text: String) -> AutoCodeReviewIntentMatch {
+    let lowercased = text.lowercased()
+
+    let reviewSignals = [
+        "code review", "fai una review", "fammi una review", "review this",
+        "review these", "review del diff", "review this diff", "analizza questo diff",
+        "analizza il diff", "review branch", "revisione codice", "rivedi il codice",
+        "audit del codice", "analizza queste modifiche", "controlla queste modifiche",
+        "controlla il diff", "controlla questa patch", "check this diff",
+    ]
+    let reviewVerbs = [
+        "review", "revisione", "rivedi", "analizza", "controlla",
+        "audit", "check", "valuta", "ispeziona",
+    ]
+    let scopedTargets = [
+        "diff", "modifiche", "changes", "commit", "branch", "patch",
+        "pull request", "merge request", "file", "files",
+    ]
+    let securitySignals = [
+        "security review", "security audit", "audit di sicurezza", "sicurezza",
+        "vulnerabil", "xss", "csrf", "ssrf", "authz", "secret", "segreti",
+        "token esposto", "hardcoded key", "hardcoded secret",
+    ]
+    let bugSignals = [
+        "bug hunt", "bughunter", "cerca bug", "trova bug", "find bugs",
+        "regress", "crash", "race condition", "stale state", "null dereference",
+        "off-by-one", "memory leak", "logic error",
+    ]
+    let negativeSignals = [
+        "spiegami", "explain", "che cos", "what is", "come funziona",
+        "how does", "documenta", "documentation", "riassumi",
+    ]
+
+    let hasReviewPhrase = reviewSignals.contains(where: lowercased.contains)
+    let hasReviewVerb = reviewVerbs.contains(where: lowercased.contains)
+    let hasPullRequestTarget =
+        lowercased.contains("pull request")
+        || lowercased.contains("merge request")
+        || lowercased.contains("questa pr")
+        || lowercased.contains("questa mr")
+        || lowercased.hasPrefix("pr ")
+        || lowercased.contains(" pr ")
+    let hasScopedTarget = scopedTargets.contains(where: lowercased.contains) || hasPullRequestTarget
+    let hasSecuritySignal = securitySignals.contains(where: lowercased.contains)
+    let hasBugSignal = bugSignals.contains(where: lowercased.contains)
+    let hasNegativeSignal = negativeSignals.contains(where: lowercased.contains)
+    let hasExplicitSecurityReview =
+        lowercased.contains("security review")
+        || lowercased.contains("security audit")
+        || lowercased.contains("audit di sicurezza")
+    let hasExplicitBugReview =
+        lowercased.contains("bug hunt")
+        || lowercased.contains("bughunter")
+        || lowercased.contains("cerca bug")
+        || lowercased.contains("trova bug")
+        || lowercased.contains("find bugs")
+
+    if hasNegativeSignal,
+       !hasScopedTarget,
+       !hasExplicitSecurityReview,
+       !hasExplicitBugReview,
+       !hasReviewPhrase {
+        return AutoCodeReviewIntentMatch(
+            wantsReview: false,
+            wantsSecurity: false,
+            wantsBugHunt: false
+        )
+    }
+
+    let wantsReview = hasReviewPhrase || (hasReviewVerb && hasScopedTarget)
+    let wantsSecurity = hasSecuritySignal
+        && (hasExplicitSecurityReview || hasScopedTarget || (hasReviewVerb && !hasNegativeSignal))
+    let wantsBugHunt = hasBugSignal
+        && (hasExplicitBugReview || hasScopedTarget || (hasReviewVerb && !hasNegativeSignal))
+
+    return AutoCodeReviewIntentMatch(
+        wantsReview: wantsReview,
+        wantsSecurity: wantsSecurity,
+        wantsBugHunt: wantsBugHunt
+    )
 }

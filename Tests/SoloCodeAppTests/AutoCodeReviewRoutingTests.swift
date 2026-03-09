@@ -48,4 +48,37 @@ final class AutoCodeReviewRoutingTests: XCTestCase {
         XCTAssertEqual(request.selectedModes, [])
         XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
     }
+
+    func testAutoCodeReviewRequestMatchesVagueSecurityDiffPrompt() {
+        let request = makeAutoCodeReviewRequest(
+            userText: "Controlla queste modifiche e dimmi se ci sono vulnerabilità o secret esposti.",
+            coderMode: .agent
+        )
+
+        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit])
+        XCTAssertTrue(request.prompt.contains("Security focus:"))
+    }
+
+    func testAutoCodeReviewRequestMatchesRegressionPromptWithoutReviewKeyword() {
+        let request = makeAutoCodeReviewRequest(
+            userText: "Analizza queste modifiche e dimmi se vedi regressioni o crash.",
+            coderMode: .agent
+        )
+
+        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [.standard, .bugFinder])
+        XCTAssertTrue(request.prompt.contains("Bug focus:"))
+    }
+
+    func testAutoCodeReviewRequestDoesNotHijackGenericExplanationPrompt() {
+        let request = makeAutoCodeReviewRequest(
+            userText: "Spiegami come funziona la policy di sicurezza del progetto.",
+            coderMode: .agent
+        )
+
+        XCTAssertEqual(request.prompt, "Spiegami come funziona la policy di sicurezza del progetto.")
+        XCTAssertEqual(request.selectedModes, [])
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+    }
 }
