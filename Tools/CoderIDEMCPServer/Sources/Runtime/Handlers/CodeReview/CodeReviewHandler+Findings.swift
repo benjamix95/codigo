@@ -106,12 +106,16 @@ extension CoderIDEMCPServerApp {
             let origin = f["origin"] ?? "reviewer"
             let st = f["status"] ?? "open"
             let kind = f["kind"] ?? "verified"
+            let domain = f["domain"] ?? "bug"
+            let staleStatus = f["stale_status"].map { ", stale: \($0)" } ?? ""
+            let duplicateOf = f["possible_duplicate_of"].map { ", duplicate_of: \($0)" } ?? ""
+            let mergedInto = f["merged_into_finding_id"].map { ", merged_into: \($0)" } ?? ""
             let file = f["file_path"] ?? f["file_label"] ?? "redacted-file"
             let line = f["line_number"].map { ":\($0)" } ?? ""
             let message = f["message"] ?? f["message_summary"] ?? "Redacted finding details"
             let blocking = f["blocking"] == "true" ? ", blocking: true" : ""
             let confidence = f["confidence"].map { ", confidence: \($0)" } ?? ""
-            return "[\(idx + 1)] [\(kind)] [\(sev)] \(file)\(line) — \(message) (origin: \(origin), category: \(category), status: \(st)\(blocking)\(confidence), id: \(id))"
+            return "[\(idx + 1)] [\(kind)] [\(sev)] \(file)\(line) — \(message) (domain: \(domain), origin: \(origin), category: \(category), status: \(st)\(blocking)\(confidence)\(staleStatus)\(duplicateOf)\(mergedInto), id: \(id))"
         }
         return reviewOK("Findings (\(findings.count)):\n" + lines.joined(separator: "\n"))
     }

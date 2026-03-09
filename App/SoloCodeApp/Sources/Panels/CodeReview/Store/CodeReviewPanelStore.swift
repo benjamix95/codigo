@@ -162,6 +162,21 @@ final class CodeReviewPanelStore: ObservableObject {
         currentSnapshot?.outcome ?? .empty
     }
 
+    var currentVerifiedFindingsEnvelope: VerifiedFindingsSessionEnvelope? {
+        guard let sessionId = selectedSessionId else { return nil }
+        return taskActivityStore.verifiedFindingsEnvelope(
+            sessionId: sessionId,
+            conversationId: conversationId
+        )
+    }
+
+    var currentVerifiedFindingsProjection: VerifiedFindingsProjectionSnapshot {
+        if let envelope = currentVerifiedFindingsEnvelope {
+            return envelope.projectionSnapshot
+        }
+        return taskActivityStore.verifiedFindingsProjection(for: conversationId)
+    }
+
     var currentEvents: [CodeReviewSessionEvent] {
         currentSnapshot?.events ?? []
     }

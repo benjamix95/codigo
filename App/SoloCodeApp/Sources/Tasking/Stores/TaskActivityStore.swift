@@ -26,6 +26,8 @@ final class TaskActivityStore: ObservableObject {
     @Published var codeReviewSnapshotsBySession: [String: CodeReviewSessionSnapshot] = [:]
     @Published var codeReviewSessionIdsByConversation: [String: [String]] = [:]
     @Published var selectedCodeReviewSessionIdByConversation: [String: String] = [:]
+    @Published var verifiedFindingsEnvelopesBySession: [String: VerifiedFindingsSessionEnvelope] = [:]
+    @Published var verifiedFindingsProjectionsByConversation: [String: VerifiedFindingsProjectionSnapshot] = [:]
 
     let swarmLogger = Logger(subsystem: "com.codigo.app", category: "swarm")
     let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit

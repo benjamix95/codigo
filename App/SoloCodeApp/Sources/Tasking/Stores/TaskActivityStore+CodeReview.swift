@@ -38,10 +38,16 @@ extension TaskActivityStore {
         codeReviewEvents = snapshot.events
         codeReviewPhase = snapshot.phase
         codeReviewStage = snapshot.stage
+        if let envelope = snapshot.verifiedFindings {
+            verifiedFindingsEnvelopesBySession[snapshot.sessionId] = envelope
+        } else {
+            verifiedFindingsEnvelopesBySession.removeValue(forKey: snapshot.sessionId)
+        }
         if let conversationScope = codeReviewConversationScope(resolvedConversationId) {
             codeReviewFindingsByConversation[conversationScope] = snapshot.findings
             codeReviewEventsByConversation[conversationScope] = snapshot.events
             codeReviewPhaseByConversation[conversationScope] = snapshot.phase
+            verifiedFindingsProjectionsByConversation[conversationScope] = snapshot.verifiedFindingsProjection
         }
 
         // Persist to disk for MCP server cross-process reads (review_status, review_findings)
@@ -104,6 +110,14 @@ extension TaskActivityStore {
                 codeReviewFindingsByConversation[conversationScope] = scopedSnapshot?.findings ?? []
                 codeReviewEventsByConversation[conversationScope] = scopedSnapshot?.events ?? []
                 codeReviewPhaseByConversation[conversationScope] = scopedSnapshot?.phase ?? .idle
+                verifiedFindingsProjectionsByConversation[conversationScope] = scopedSnapshot?.verifiedFindingsProjection
+                    ?? VerifiedFindingsProjectionSnapshot(
+                        candidateQueue: [],
+                        verifiedQueue: [],
+                        duplicatesCount: 0,
+                        staleCandidatesCount: 0,
+                        traceSnippets: []
+                    )
             }
             codeReviewFindings = scopedSnapshot?.findings ?? []
             codeReviewEvents = scopedSnapshot?.events ?? []
@@ -199,37 +213,7 @@ extension TaskActivityStore {
         }
     }
 
-    private func codeReviewPayload(
-        _ snapshot: CodeReviewSessionSnapshot,
-        conversationId: UUID?
-    ) -> [String: String] {
-        var payload: [String: String] = [
-            "phase": snapshot.phase.rawValue,
-            "findings_count": String(snapshot.findings.count),
-            "candidates_count": String(snapshot.candidates.count),
-            "patches_count": String(snapshot.patches.count),
-            "open_count": String(snapshot.openFindings.count),
-            "round": String(snapshot.currentRound),
-            "active_workers": String(snapshot.activeWorkerCount),
-        ]
-        payload["patches_applied"] = String(snapshot.outcome.patchesApplied)
-        payload["prs_opened"] = String(snapshot.outcome.prsOpened)
-        if let scope = snapshot.scope {
-            payload["scope"] = scope.type.rawValue
-            payload["scope_files"] = String(scope.files.count)
-        }
-        if let error = snapshot.lastError {
-            payload["error"] = error
-        }
-        if let conversationScope = codeReviewConversationScope(conversationId) {
-            payload["conversation_id"] = conversationScope
-        }
-        payload["session_id"] = snapshot.sessionId
-        payload["stage"] = snapshot.stage.rawValue
-        return payload
-    }
-
-    private func codeReviewConversationScope(_ conversationId: UUID?) -> String? {
+    func codeReviewConversationScope(_ conversationId: UUID?) -> String? {
         conversationId?.uuidString.lowercased()
     }
 
@@ -277,6 +261,7 @@ extension TaskActivityStore {
         case .error: return "Error"
         }
     }
+
 }
 
 // MARK: - ReviewSessionPhase Helpers

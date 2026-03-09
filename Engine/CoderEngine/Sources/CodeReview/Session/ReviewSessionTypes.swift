@@ -150,6 +150,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let lastTestStatus: ReviewSessionTestStatus?
     public let audit: ReviewAuditSnapshot
     public let outcome: ReviewSessionOutcome
+    public let verifiedFindings: VerifiedFindingsSessionEnvelope?
     public let lastUpdatedAt: Date
 
     public init(
@@ -175,6 +176,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         lastTestStatus: ReviewSessionTestStatus?,
         audit: ReviewAuditSnapshot = .empty,
         outcome: ReviewSessionOutcome = .empty,
+        verifiedFindings: VerifiedFindingsSessionEnvelope? = nil,
         lastUpdatedAt: Date
     ) {
         self.sessionId = sessionId
@@ -199,6 +201,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         self.lastTestStatus = lastTestStatus
         self.audit = audit
         self.outcome = outcome
+        self.verifiedFindings = verifiedFindings
         self.lastUpdatedAt = lastUpdatedAt
     }
 
@@ -225,6 +228,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         case lastTestStatus
         case audit
         case outcome
+        case verifiedFindings
         case lastUpdatedAt
     }
 
@@ -258,6 +262,10 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         )
         audit = try container.decodeIfPresent(ReviewAuditSnapshot.self, forKey: .audit) ?? .empty
         outcome = try container.decodeIfPresent(ReviewSessionOutcome.self, forKey: .outcome) ?? .empty
+        verifiedFindings = try container.decodeIfPresent(
+            VerifiedFindingsSessionEnvelope.self,
+            forKey: .verifiedFindings
+        )
         lastUpdatedAt = try container.decode(Date.self, forKey: .lastUpdatedAt)
     }
 }

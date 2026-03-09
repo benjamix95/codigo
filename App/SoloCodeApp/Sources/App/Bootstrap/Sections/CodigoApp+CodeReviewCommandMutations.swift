@@ -2,12 +2,48 @@ import CoderEngine
 import Foundation
 
 extension CodigoApp {
+    func verifiedCommandMeta(
+        for command: MCPSharedCodeReviewCommand,
+        entityId: String
+    ) -> VerifiedCommandMeta {
+        VerifiedCommandMeta(
+            commandId: command.id,
+            entityId: entityId,
+            issuedBy: "mcp_review_command",
+            issuedFrom: .mcp,
+            requestFingerprint: "\(command.action)|\(entityId)|\(command.sessionId ?? "no-session")",
+            expectedEntityVersion: nil
+        )
+    }
+
+    nonisolated
+    func synchronizedVerifiedFindingsSnapshot(
+        _ snapshot: CodeReviewSessionSnapshot,
+        conversationId: UUID?
+    ) -> CodeReviewSessionSnapshot {
+        let entryPoint: VerifiedFindingOriginEntryPoint = {
+            if conversationId != nil {
+                return .reviewChat
+            }
+            return .mcp
+        }()
+        let envelope = VerifiedFindingsSessionSyncService.sync(
+            snapshot: snapshot,
+            existingEnvelope: snapshot.verifiedFindings,
+            entryPoint: entryPoint
+        )
+        return snapshot.copying(verifiedFindings: envelope)
+    }
+
     @MainActor
     func persistLiveReviewState(
         _ state: CodeReviewSessionState,
         conversationId: UUID?
     ) async {
-        let snapshot = await state.snapshot()
+        let snapshot = synchronizedVerifiedFindingsSnapshot(
+            await state.snapshot(),
+            conversationId: conversationId
+        )
         MCPSharedState.writeCodeReviewSnapshot(snapshot)
         await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
         taskActivityStore.ingestCodeReviewSnapshot(
@@ -24,24 +60,47 @@ extension CodigoApp {
         guard let sessionId = command.sessionId else {
             return (false, "Missing session_id")
         }
+        let entityId = command.payload["finding_id"] ?? sessionId
+        let meta = verifiedCommandMeta(for: command, entityId: entityId)
         if let liveState = await ReviewSessionRegistry.shared.state(sessionId: sessionId) {
-            let succeeded = await apply(liveState, command.payload)
-            if succeeded {
-                await persistLiveReviewState(
-                    liveState,
-                    conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
-                )
+            do {
+                let outcome = try await VerifiedFindingsCommandCoordinator.shared.execute(
+                    meta: meta,
+                    successSummary: "\(command.action) \(entityId)"
+                ) {
+                    let succeeded = await apply(liveState, command.payload)
+                    guard succeeded else {
+                        throw ReviewPatchWorkflowError.applyFailed("Unable to update the requested finding")
+                    }
+                    await self.persistLiveReviewState(
+                        liveState,
+                        conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
+                    )
+                }
+                return (true, outcomeSummary(outcome))
+            } catch {
+                return (false, error.localizedDescription)
             }
-            return succeeded
-                ? (true, "Command applied to live session")
-                : (false, "Unable to update the requested finding")
         }
 
-        return await persistReviewSnapshotMutation(
-            sessionId: sessionId,
-            conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
-        ) { snapshot in
-            mutateReviewSnapshot(snapshot: snapshot, command: command)
+        do {
+            let outcome = try await VerifiedFindingsCommandCoordinator.shared.execute(
+                meta: meta,
+                successSummary: "\(command.action) \(entityId)"
+            ) {
+                let result = await self.persistReviewSnapshotMutation(
+                    sessionId: sessionId,
+                    conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
+                ) { snapshot in
+                    mutateReviewSnapshot(snapshot: snapshot, command: command)
+                }
+                if !result.success {
+                    throw ReviewPatchWorkflowError.applyFailed(result.message)
+                }
+            }
+            return (true, outcomeSummary(outcome))
+        } catch {
+            return (false, error.localizedDescription)
         }
     }
 
@@ -56,11 +115,12 @@ extension CodigoApp {
               let updated = mutate(snapshot) else {
             return (false, "Review session not found")
         }
-        MCPSharedState.writeCodeReviewSnapshot(updated)
-        await ReviewSessionRegistry.shared.recordSnapshot(updated)
+        let synchronized = synchronizedVerifiedFindingsSnapshot(updated, conversationId: conversationId)
+        MCPSharedState.writeCodeReviewSnapshot(synchronized)
+        await ReviewSessionRegistry.shared.recordSnapshot(synchronized)
         taskActivityStore.ingestCodeReviewSnapshot(
-            updated,
-            conversationId: updated.conversationId
+            synchronized,
+            conversationId: synchronized.conversationId
         )
         return (true, "Snapshot updated")
     }
@@ -129,6 +189,15 @@ extension CodigoApp {
             return false
         default:
             return nil
+        }
+    }
+
+    func outcomeSummary(_ outcome: VerifiedFindingsCommandOutcome) -> String {
+        switch outcome {
+        case .executed(let summary):
+            return summary
+        case .deduplicated(let summary):
+            return "Deduplicated: \(summary)"
         }
     }
 }

@@ -12,6 +12,32 @@ public struct VerifiedFindingListItemProjection: Sendable, Codable, Equatable, I
     public let duplicateOf: [String]
     public let mergedIntoFindingId: String?
     public let recurrenceGroupId: String?
+
+    public init(
+        id: String,
+        title: String,
+        domain: VerifiedFindingDomain,
+        status: VerifiedFindingStatus,
+        staleStatus: VerifiedFindingStaleStatus,
+        severity: VerifiedFindingSeverity,
+        filePath: String,
+        lineStart: Int?,
+        duplicateOf: [String],
+        mergedIntoFindingId: String?,
+        recurrenceGroupId: String?
+    ) {
+        self.id = id
+        self.title = title
+        self.domain = domain
+        self.status = status
+        self.staleStatus = staleStatus
+        self.severity = severity
+        self.filePath = filePath
+        self.lineStart = lineStart
+        self.duplicateOf = duplicateOf
+        self.mergedIntoFindingId = mergedIntoFindingId
+        self.recurrenceGroupId = recurrenceGroupId
+    }
 }
 
 public struct VerifiedFindingsProjectionSnapshot: Sendable, Codable, Equatable {
@@ -20,4 +46,18 @@ public struct VerifiedFindingsProjectionSnapshot: Sendable, Codable, Equatable {
     public let duplicatesCount: Int
     public let staleCandidatesCount: Int
     public let traceSnippets: [String]
+
+    public init(
+        candidateQueue: [VerifiedFindingListItemProjection],
+        verifiedQueue: [VerifiedFindingListItemProjection],
+        duplicatesCount: Int,
+        staleCandidatesCount: Int,
+        traceSnippets: [String]
+    ) {
+        self.candidateQueue = candidateQueue
+        self.verifiedQueue = verifiedQueue
+        self.duplicatesCount = duplicatesCount
+        self.staleCandidatesCount = staleCandidatesCount
+        self.traceSnippets = traceSnippets
+    }
 }

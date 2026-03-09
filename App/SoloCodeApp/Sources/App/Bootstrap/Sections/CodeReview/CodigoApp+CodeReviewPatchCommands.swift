@@ -22,16 +22,34 @@ extension CodigoApp {
         }
 
         do {
-            let updated = try await executePatchWorkflowCommand(
-                command: command,
-                snapshot: snapshot,
-                findingId: findingId,
-                workspaceRoot: workspaceRoot
-            )
-            MCPSharedState.writeCodeReviewSnapshot(updated)
-            await ReviewSessionRegistry.shared.recordSnapshot(updated)
-            taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: updated.conversationId)
-            return .immediate(success: true, message: "Review workflow command '\(command.action)' completed")
+            let meta = verifiedCommandMeta(for: command, entityId: findingId)
+            let outcome = try await VerifiedFindingsCommandCoordinator.shared.execute(
+                meta: meta,
+                successSummary: "\(command.action) \(findingId)"
+            ) {
+                let updated = try await self.executePatchWorkflowCommand(
+                    command: command,
+                    snapshot: snapshot,
+                    findingId: findingId,
+                    workspaceRoot: workspaceRoot
+                )
+                let synchronized = self.synchronizedVerifiedFindingsSnapshot(
+                    updated,
+                    conversationId: updated.conversationId
+                )
+                MCPSharedState.writeCodeReviewSnapshot(synchronized)
+                await ReviewSessionRegistry.shared.recordSnapshot(synchronized)
+                await MainActor.run {
+                    taskActivityStore.ingestCodeReviewSnapshot(
+                        synchronized,
+                        conversationId: synchronized.conversationId
+                    )
+                }
+            }
+            switch outcome {
+            case .executed(let summary), .deduplicated(let summary):
+                return .immediate(success: true, message: summary)
+            }
         } catch {
             return .immediate(success: false, message: error.localizedDescription)
         }

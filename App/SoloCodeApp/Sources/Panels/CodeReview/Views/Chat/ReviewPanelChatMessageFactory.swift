@@ -73,6 +73,7 @@ enum ReviewPanelChatMessageFactory {
     }
 
     private static func summaryText(from snapshot: CodeReviewSessionSnapshot) -> String {
+        let projection = snapshot.verifiedFindingsProjection
         let header = """
         ## Code Review Summary
         - session_id: \(snapshot.sessionId)
@@ -82,6 +83,10 @@ enum ReviewPanelChatMessageFactory {
         - verified_findings: \(snapshot.findings.count)
         - candidates: \(snapshot.candidates.count)
         - patches: \(snapshot.patches.count)
+        - verified_queue: \(projection.verifiedQueue.count)
+        - candidate_queue: \(projection.candidateQueue.count)
+        - duplicate_findings: \(projection.duplicatesCount)
+        - stale_candidates: \(projection.staleCandidatesCount)
         - outcome: \(snapshot.outcome.summary)
         """
 

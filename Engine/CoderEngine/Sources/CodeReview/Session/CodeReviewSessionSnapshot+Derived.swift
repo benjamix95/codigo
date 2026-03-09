@@ -79,6 +79,7 @@ extension CodeReviewSessionSnapshot {
         lastTestStatus: ReviewSessionTestStatus?? = nil,
         audit: ReviewAuditSnapshot? = nil,
         outcome: ReviewSessionOutcome? = nil,
+        verifiedFindings: VerifiedFindingsSessionEnvelope?? = nil,
         lastUpdatedAt: Date = Date()
     ) -> CodeReviewSessionSnapshot {
         CodeReviewSessionSnapshot(
@@ -104,6 +105,7 @@ extension CodeReviewSessionSnapshot {
             lastTestStatus: lastTestStatus ?? self.lastTestStatus,
             audit: audit ?? self.audit,
             outcome: outcome ?? self.outcome,
+            verifiedFindings: verifiedFindings ?? self.verifiedFindings,
             lastUpdatedAt: lastUpdatedAt
         )
     }

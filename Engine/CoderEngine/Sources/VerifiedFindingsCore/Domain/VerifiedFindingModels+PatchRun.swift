@@ -95,6 +95,58 @@ public struct VerifiedPipelineRun: Sendable, Codable, Identifiable, Equatable {
     public let projectionSchemaVersion: Int
     public let createdAt: Date
     public let updatedAt: Date
+
+    public init(
+        id: String,
+        status: VerifiedRunStatus,
+        domainScope: [VerifiedFindingDomain],
+        workspaceId: String,
+        entryPoint: VerifiedFindingOriginEntryPoint,
+        budgetPolicy: VerifiedRunBudgetPolicy,
+        maxDuration: TimeInterval,
+        maxToolCalls: Int,
+        maxVerificationAttempts: Int,
+        maxPatchAttempts: Int,
+        maxRevalidationAttempts: Int,
+        timeoutAt: Date?,
+        cancelledAt: Date?,
+        cancelReason: String?,
+        toolCallCount: Int,
+        verificationAttemptCount: Int,
+        patchAttemptCount: Int,
+        revalidationAttemptCount: Int,
+        isCancellable: Bool,
+        eventSchemaVersion: Int = 1,
+        entitySchemaVersion: Int = 1,
+        projectionSchemaVersion: Int = 1,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.status = status
+        self.domainScope = domainScope
+        self.workspaceId = workspaceId
+        self.entryPoint = entryPoint
+        self.budgetPolicy = budgetPolicy
+        self.maxDuration = maxDuration
+        self.maxToolCalls = maxToolCalls
+        self.maxVerificationAttempts = maxVerificationAttempts
+        self.maxPatchAttempts = maxPatchAttempts
+        self.maxRevalidationAttempts = maxRevalidationAttempts
+        self.timeoutAt = timeoutAt
+        self.cancelledAt = cancelledAt
+        self.cancelReason = cancelReason
+        self.toolCallCount = toolCallCount
+        self.verificationAttemptCount = verificationAttemptCount
+        self.patchAttemptCount = patchAttemptCount
+        self.revalidationAttemptCount = revalidationAttemptCount
+        self.isCancellable = isCancellable
+        self.eventSchemaVersion = eventSchemaVersion
+        self.entitySchemaVersion = entitySchemaVersion
+        self.projectionSchemaVersion = projectionSchemaVersion
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
 }
 
 public struct VerifiedPipelineEvent: Sendable, Codable, Identifiable, Equatable {

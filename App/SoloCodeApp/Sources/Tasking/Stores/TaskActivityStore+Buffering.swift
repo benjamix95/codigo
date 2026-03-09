@@ -250,5 +250,7 @@ extension TaskActivityStore {
         codeReviewSnapshotsBySession.removeAll()
         codeReviewSessionIdsByConversation.removeAll()
         selectedCodeReviewSessionIdByConversation.removeAll()
+        verifiedFindingsEnvelopesBySession.removeAll()
+        verifiedFindingsProjectionsByConversation.removeAll()
     }
 }
