@@ -43,6 +43,9 @@ extension MCPSharedState {
     public static func writeVerifiedFindingsEnvelope(
         _ envelope: VerifiedFindingsSessionEnvelope
     ) {
+        if let store = persistenceStoreIfAvailable() {
+            try? store.persistVerifiedFindingsEnvelope(envelope)
+        }
         withCodeReviewFileLock {
             _writeVerifiedFindingsEnvelopeUnsafe(envelope)
         }
@@ -51,7 +54,10 @@ extension MCPSharedState {
     public static func readVerifiedFindingsEnvelope(
         sessionId: String
     ) -> VerifiedFindingsSessionEnvelope? {
-        withCodeReviewFileLock {
+        if let envelope = readVerifiedFindingsEnvelopeFromPersistence(sessionId: sessionId) {
+            return envelope
+        }
+        return withCodeReviewFileLock {
             _readVerifiedFindingsEnvelopeUnsafe(sessionId: sessionId)
                 ?? _rebuildVerifiedFindingsEnvelopeUnsafe(sessionId: sessionId)
         }
@@ -60,7 +66,10 @@ extension MCPSharedState {
     public static func readVerifiedFindingsCanonicalSnapshot(
         sessionId: String
     ) -> VerifiedFindingsCanonicalSnapshot? {
-        withCodeReviewFileLock {
+        if let envelope = readVerifiedFindingsEnvelopeFromPersistence(sessionId: sessionId) {
+            return envelope.canonicalSnapshot
+        }
+        return withCodeReviewFileLock {
             _readVerifiedFindingsCanonicalSnapshotUnsafe(sessionId: sessionId)
         }
     }
@@ -68,7 +77,10 @@ extension MCPSharedState {
     public static func readVerifiedFindingsCheckpoint(
         sessionId: String
     ) -> MCPSharedVerifiedFindingsCheckpoint? {
-        withCodeReviewFileLock {
+        if let checkpoint = readVerifiedFindingsCheckpointFromPersistence(sessionId: sessionId) {
+            return checkpoint
+        }
+        return withCodeReviewFileLock {
             _readVerifiedFindingsCheckpointUnsafe(sessionId: sessionId)
         }
     }

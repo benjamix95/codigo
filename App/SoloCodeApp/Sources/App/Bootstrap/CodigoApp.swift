@@ -100,6 +100,7 @@ struct CodigoApp: App {
                 .environmentObject(pipelineIntegrationService)
                 .onAppear {
                     configureWindow()
+                    bootstrapPersistenceIfNeeded()
                     Task { @MainActor in
                         FontPreferences.registerBundledFonts()
                         projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)

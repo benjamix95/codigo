@@ -15,6 +15,18 @@ public extension MCPSharedState {
         outcome: String? = nil,
         maxHistoryPerConversation: Int = 50
     ) {
+        if let store = persistenceStoreIfAvailable() {
+            try? store.writePlanSnapshot(
+                conversationId: conversationId,
+                goal: goal,
+                chosenPath: chosenPath,
+                steps: steps,
+                walkthroughMarkdown: walkthroughMarkdown,
+                summary: summary,
+                outcome: outcome,
+                maxHistoryPerConversation: maxHistoryPerConversation
+            )
+        }
         planFileAccessQueue.sync {
             ensurePlanDirectory()
             var document = _readPlanDocumentUnsafe()
@@ -66,6 +78,18 @@ public extension MCPSharedState {
         includeHistory: Bool = false,
         historyLimit: Int = 10
     ) -> [String: Any]? {
+        if let store = persistenceStoreIfAvailable(),
+           let latest = try? store.readLatestPlanSnapshot(conversationId: conversationId) {
+            let history = includeHistory
+                ? ((try? store.readPlanHistory(conversationId: conversationId, limit: max(1, min(historyLimit, 50)))) ?? [])
+                : []
+            return buildPlanSnapshotJSONObject(
+                snapshot: latest.snapshot,
+                latestConversationId: latest.snapshot.conversationId,
+                includeHistory: includeHistory,
+                history: history
+            )
+        }
         let document = readPlanDocument()
         guard let conversationKey = resolveConversationId(conversationId: conversationId, document: document),
               let history = document.snapshotsByConversation[conversationKey],
@@ -96,6 +120,10 @@ public extension MCPSharedState {
         conversationId: UUID?,
         limit: Int = 10
     ) -> [[String: Any]] {
+        if let store = persistenceStoreIfAvailable(),
+           let history = try? store.readPlanHistory(conversationId: conversationId, limit: limit) {
+            return jsonArray(history) ?? []
+        }
         let document = readPlanDocument()
         guard let conversationKey = resolveConversationId(conversationId: conversationId, document: document),
               let history = document.snapshotsByConversation[conversationKey] else {
@@ -111,6 +139,19 @@ public extension MCPSharedState {
         fromSnapshotId: String,
         toSnapshotId: String?
     ) -> [String: Any]? {
+        if let store = persistenceStoreIfAvailable() {
+            let history = (try? store.readPlanHistory(conversationId: conversationId, limit: 50)) ?? []
+            let normalizedFromId = optionalSanitizedText(fromSnapshotId)?.lowercased() ?? ""
+            guard !normalizedFromId.isEmpty else { return nil }
+            guard let from = history.first(where: { $0.snapshotId.lowercased() == normalizedFromId }) else {
+                return nil
+            }
+            let to = (optionalSanitizedText(toSnapshotId)?.lowercased()).flatMap { normalized in
+                history.first(where: { $0.snapshotId.lowercased() == normalized })
+            } ?? history.first
+            guard let to else { return nil }
+            return buildPlanDiff(from: from, to: to)
+        }
         let document = readPlanDocument()
         guard let resolved = resolveSnapshotsForDiff(
             conversationId: conversationId,

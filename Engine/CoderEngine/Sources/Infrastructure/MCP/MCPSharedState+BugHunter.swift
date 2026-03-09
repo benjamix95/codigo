@@ -25,6 +25,9 @@ extension MCPSharedState {
     }
 
     public static func writeBugHunterSnapshot(_ snapshot: MCPSharedBugHunterSnapshot) {
+        if let store = persistenceStoreIfAvailable() {
+            try? store.persistBugHunterSnapshot(snapshot)
+        }
         withBugHunterFileLock {
             ensureBugHunterDirectories()
             let encoder = JSONEncoder()
@@ -46,7 +49,11 @@ extension MCPSharedState {
     }
 
     public static func readBugHunterSnapshot(runId: String) -> MCPSharedBugHunterSnapshot? {
-        withBugHunterFileLock {
+        if let store = persistenceStoreIfAvailable(),
+           let snapshot = try? store.readBugHunterSnapshot(runId: runId) {
+            return snapshot
+        }
+        return withBugHunterFileLock {
             let filePath = bugHunterRunFilePath(runId: runId)
             let data: Data
             do {
@@ -72,7 +79,11 @@ extension MCPSharedState {
     public static func readBugHunterSnapshots(
         conversationId: UUID? = nil
     ) -> [MCPSharedBugHunterSnapshot] {
-        withBugHunterFileLock {
+        if let store = persistenceStoreIfAvailable(),
+           let snapshots = try? store.readBugHunterSnapshots(conversationId: conversationId) {
+            return snapshots
+        }
+        return withBugHunterFileLock {
             ensureBugHunterDirectories()
             let normalizedConversationId = conversationId?.uuidString.lowercased()
             let urls: [URL]

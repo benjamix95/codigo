@@ -73,19 +73,30 @@ extension MCPSharedState {
     }
 
     public static func writeCodeReviewSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
+        if let store = persistenceStoreIfAvailable() {
+            try? store.persistCodeReviewSnapshot(snapshot)
+        }
         withCodeReviewFileLock {
             _writeCodeReviewSnapshotUnsafe(snapshot)
         }
     }
 
     public static func readCodeReviewIndex() -> MCPSharedCodeReviewIndex {
-        withCodeReviewFileLock {
+        if let store = persistenceStoreIfAvailable(),
+           let snapshots = try? store.readCodeReviewSnapshots() {
+            return buildCodeReviewIndex(snapshots: snapshots)
+        }
+        return withCodeReviewFileLock {
             rebuiltCodeReviewIndexUnsafe()
         }
     }
 
     public static func readCodeReviewSnapshot(sessionId: String) -> CodeReviewSessionSnapshot? {
-        withCodeReviewFileLock {
+        if let store = persistenceStoreIfAvailable(),
+           let snapshot = try? store.readCodeReviewSnapshot(sessionId: sessionId) {
+            return snapshot
+        }
+        return withCodeReviewFileLock {
             _readCodeReviewSnapshotUnsafe(sessionId: sessionId)
         }
     }
@@ -93,7 +104,11 @@ extension MCPSharedState {
     public static func readCodeReviewSnapshots(
         conversationId: UUID? = nil
     ) -> [CodeReviewSessionSnapshot] {
-        withCodeReviewFileLock {
+        if let store = persistenceStoreIfAvailable(),
+           let snapshots = try? store.readCodeReviewSnapshots(conversationId: conversationId) {
+            return snapshots.sorted(by: sortCodeReviewSnapshots)
+        }
+        return withCodeReviewFileLock {
             let normalizedConversationId = conversationId?.uuidString.lowercased()
             return allCodeReviewSnapshotsUnsafe()
                 .filter { snapshot in
@@ -111,6 +126,9 @@ extension MCPSharedState {
     }
 
     public static func deleteCodeReviewSession(sessionId: String) {
+        if let store = persistenceStoreIfAvailable() {
+            try? store.deleteCodeReviewSession(sessionId: sessionId)
+        }
         withCodeReviewFileLock {
             guard let snapshotFilePath = validatedCodeReviewSessionFilePath(sessionId: sessionId) else {
                 return
