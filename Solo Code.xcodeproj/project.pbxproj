@@ -147,6 +147,9 @@
 		163981735FDF3BB278DE7D31 /* GitPanelStore+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CA3D513E86F157F1B4661B /* GitPanelStore+Sync.swift */; };
 		16949F6A3162678B7CB4284F /* CoderIDETools+SecurityWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5112A8DFD9FB240AEB6804 /* CoderIDETools+SecurityWorkflow.swift */; };
 		16A1B8E47873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */; };
+		16C1A2B87873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2B77873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift */; };
+		16C1A2BA7873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2B97873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift */; };
+		16C1A2BC7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2BB7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift */; };
 		16C187B102217CE3AC17F9CF /* CodexCLIProviderStreamParsingTests+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691B516652D1032F4A81D960 /* CodexCLIProviderStreamParsingTests+Helpers.swift */; };
 		1714C8847F5FBFC9AA824C82 /* PipelineEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F7392D8039C205F827A859 /* PipelineEnums.swift */; };
 		171650B4BB8F4FCCD89B23C6 /* CodexCLIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFA47E41B4F82D2A55D3960 /* CodexCLIProvider+Execution.swift */; };
@@ -2296,6 +2299,9 @@
 		5EA58BB6499EEEE7F8DB3646 /* DebugProjectionStoreBinding.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugProjectionStoreBinding.swift; path = App/SoloCodeApp/Sources/Runtime/DebugPipeline/DebugProjectionStoreBinding.swift; sourceTree = "<group>"; };
 		5EE20192EF61E071D65A455E /* SecurityHandlerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SecurityHandlerTests.swift; path = Tests/CoderEngineTests/Security/SecurityHandlerTests.swift; sourceTree = "<group>"; };
 		16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SecurityHandlerTests+Gate.swift"; path = "Tests/CoderEngineTests/Security/SecurityHandlerTests+Gate.swift"; sourceTree = "<group>"; };
+		16C1A2B77873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsReplayServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsReplayServiceTests.swift; sourceTree = "<group>"; };
+		16C1A2B97873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsCheckpointService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsCheckpointService.swift; sourceTree = "<group>"; };
+		16C1A2BB7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsReplayService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsReplayService.swift; sourceTree = "<group>"; };
 		5EEDCEE488DDF6A73795DD1A /* SwarmPanelView+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SwarmPanelView+Helpers.swift"; path = "App/SoloCodeApp/Sources/Panels/Swarm/SwarmPanelView+Helpers.swift"; sourceTree = "<group>"; };
 		5F6252F57CBB5670629FBF50 /* CLIAccountLoginCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIAccountLoginCoordinatorTests.swift; path = Tests/SoloCodeAppTests/CLIAccountLoginCoordinatorTests.swift; sourceTree = "<group>"; };
 		5F83122A62EFE24480D067D5 /* ValidationPerformanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ValidationPerformanceTests.swift; path = Tests/CoderEngineTests/Validation/ValidationPerformanceTests.swift; sourceTree = "<group>"; };
@@ -4568,6 +4574,8 @@
 				F18A8882C7CB4C778BB9A745 /* VerifiedFindingsSessionSyncService+Artifacts.swift */,
 				7A49923D63AB9E4CB1CDAFB2 /* VerifiedFindingsSessionSyncService+Mappings.swift */,
 				AE387E88D14B7BF8E3747DD4 /* VerifiedFindingsSessionSyncService.swift */,
+				16C1A2B97873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift */,
+				16C1A2BB7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift */,
 				7F4730FACD002987B84A3186 /* VerifiedFindingsSessionEnvelope.swift */,
 				8216E2E3CD43A1D0F7B65940 /* VerifiedFindingsSessionSyncServiceTests.swift */,
 				45EF85C3D457598BDD0DFB86 /* MCPSharedState+CodeReviewReads.swift */,
@@ -4584,6 +4592,7 @@
 				0023A00B4FE251CA368D56F1 /* ReviewPatchWorkflowService+ApplyLifecycle.swift */,
 				00CBEA19C69FAE9E5F48016B /* MCPSharedState+VerifiedFindings.swift */,
 				A57767A53B315C24446CB466 /* VerifiedFindingsSharedStateTests.swift */,
+				16C1A2B77873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift */,
 				5EE20192EF61E071D65A455E /* SecurityHandlerTests.swift */,
 				16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */,
 				AD5112A8DFD9FB240AEB6804 /* CoderIDETools+SecurityWorkflow.swift */,
@@ -5914,6 +5923,8 @@
 				E248B76544E244C4586B90C0 /* VerifiedFindingsSessionSyncService+Artifacts.swift in Sources */,
 				AC3DEF2A7755D754FC324D20 /* VerifiedFindingsSessionSyncService+Mappings.swift in Sources */,
 				54A9D7CEFD31B509C55C3A80 /* VerifiedFindingsSessionSyncService.swift in Sources */,
+				16C1A2BA7873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift in Sources */,
+				16C1A2BC7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift in Sources */,
 				A57FD52E57B81E746BBDD29A /* VerifiedFindingsSessionEnvelope.swift in Sources */,
 				331E0C236AE8639CB7813871 /* MCPSharedState+CodeReviewReads.swift in Sources */,
 				97D9FC9BE38D287A39297FDE /* VerifiedFindingsCommandCoordinator.swift in Sources */,
@@ -6921,6 +6932,7 @@
 				9E23118440AEB48B1762B464 /* CodeReviewHandlerTests+PatchLifecycle.swift in Sources */,
 				79AB1A07EAF45602666C3898 /* BugHunterHandlerTests.swift in Sources */,
 				647628A742EECA678BCB402D /* VerifiedFindingsSharedStateTests.swift in Sources */,
+				16C1A2B87873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift in Sources */,
 				E818366091D4E04FFD8169D1 /* SecurityHandlerTests.swift in Sources */,
 				16A1B8E47873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift in Sources */,
 			);

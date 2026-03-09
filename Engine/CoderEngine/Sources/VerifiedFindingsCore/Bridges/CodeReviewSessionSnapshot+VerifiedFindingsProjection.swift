@@ -2,12 +2,10 @@ import Foundation
 
 extension CodeReviewSessionSnapshot {
     public var verifiedFindingsProjection: VerifiedFindingsProjectionSnapshot {
-        verifiedFindings?.projectionSnapshot
-            ?? VerifiedFindingsSessionSyncService.sync(snapshot: self).projectionSnapshot
+        VerifiedFindingsCheckpointService.resolveEnvelope(snapshot: self).envelope.projectionSnapshot
     }
 
     public var canonicalVerifiedFindingsSnapshot: VerifiedFindingsCanonicalSnapshot {
-        verifiedFindings?.canonicalSnapshot
-            ?? VerifiedFindingsSessionSyncService.sync(snapshot: self).canonicalSnapshot
+        VerifiedFindingsCheckpointService.resolveEnvelope(snapshot: self).envelope.canonicalSnapshot
     }
 }

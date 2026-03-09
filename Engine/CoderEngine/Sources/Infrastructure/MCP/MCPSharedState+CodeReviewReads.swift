@@ -68,6 +68,19 @@ extension MCPSharedState {
         payload["verified_projection_findings"] = String(projection.verifiedQueue.count)
         payload["verified_projection_duplicates"] = String(projection.duplicatesCount)
         payload["verified_projection_stale_candidates"] = String(projection.staleCandidatesCount)
+        let recovered = VerifiedFindingsCheckpointService.resolveEnvelope(snapshot: snapshot)
+        let replay = VerifiedFindingsReplayService.replay(recovered)
+        payload["verified_envelope_source"] = recovered.source.rawValue
+        if let checkpoint = recovered.checkpoint {
+            payload["verified_checkpoint_findings"] = String(checkpoint.findingCount)
+            payload["verified_checkpoint_events"] = String(checkpoint.eventCount)
+            payload["verified_checkpoint_traces"] = String(checkpoint.traceCount)
+            payload["verified_checkpointed_at"] = ISO8601DateFormatter().string(from: checkpoint.checkpointedAt)
+        }
+        payload["verified_replay_candidates"] = String(replay.candidateCount)
+        payload["verified_replay_findings"] = String(replay.verifiedCount)
+        payload["verified_replay_duplicates"] = String(replay.duplicatesCount)
+        payload["verified_replay_stale_candidates"] = String(replay.staleCandidatesCount)
         if let securityGate {
             payload["security_gate_ready"] = securityGate.ready ? "true" : "false"
             payload["security_gate_summary"] = securityGate.summary
