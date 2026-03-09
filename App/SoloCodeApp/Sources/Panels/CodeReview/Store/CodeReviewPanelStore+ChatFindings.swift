@@ -2,7 +2,10 @@ import CoderEngine
 import Foundation
 
 extension CodeReviewPanelStore {
-    func syncStructuredFindingsFromChatResponse(messageId: UUID) async {
+    func syncStructuredFindingsFromChatResponse(
+        messageId: UUID,
+        sessionId: String? = nil
+    ) async {
         guard let index = chatMessages.firstIndex(where: { $0.id == messageId }) else {
             return
         }
@@ -13,7 +16,7 @@ extension CodeReviewPanelStore {
         chatMessages[index].content = extraction.visibleContent
         persistChatState()
 
-        guard let sessionId = selectedSessionId,
+        guard let sessionId = sessionId ?? selectedSessionId,
               let snapshot = taskActivityStore.codeReviewSnapshot(
                 sessionId: sessionId,
                 conversationId: conversationId

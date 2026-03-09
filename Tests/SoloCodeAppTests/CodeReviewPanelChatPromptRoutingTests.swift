@@ -59,19 +59,98 @@ final class CodeReviewPanelChatPromptRoutingTests: XCTestCase {
         XCTAssertEqual(store.panelSessionId, "session-pinned")
     }
 
+    func testSendChatMessageUsesPinnedSessionInPromptWhileSelectionChangesMidStream() async {
+        let conversationId = UUID()
+        let taskStore = TaskActivityStore()
+        taskStore.ingestCodeReviewSnapshot(
+            makeSnapshot(sessionId: "session-a", conversationId: conversationId),
+            conversationId: conversationId
+        )
+        taskStore.ingestCodeReviewSnapshot(
+            makeSnapshot(sessionId: "session-b", conversationId: conversationId),
+            conversationId: conversationId
+        )
+        let provider = ControllableReviewPanelProvider(id: "openai-api", displayName: "OpenAI")
+        let registry = ProviderRegistry()
+        registry.register(provider)
+        registry.selectedProviderId = "openai-api"
+        let store = makeStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId,
+            providerRegistry: registry
+        )
+        store.setSelectedSession("session-a")
+
+        let sendTask = Task {
+            await store.sendChatMessage("Mi fai una review della pipeline del plan panel?")
+        }
+
+        await waitUntil("chat stream starts") {
+            provider.lastPrompt != nil && store.isChatProcessing
+        }
+        store.setSelectedSession("session-b")
+        provider.finish()
+        await sendTask.value
+
+        XCTAssertEqual(store.selectedSessionId, "session-b")
+        XCTAssertEqual(provider.prompts.count, 1)
+        XCTAssertTrue(provider.prompts[0].contains("session_id session-a"))
+        XCTAssertFalse(provider.prompts[0].contains("session_id session-b"))
+    }
+
     private func makeStore(
         taskActivityStore: TaskActivityStore? = nil,
-        conversationId: UUID? = nil
+        conversationId: UUID? = nil,
+        providerRegistry: ProviderRegistry? = nil
     ) -> CodeReviewPanelStore {
         CodeReviewPanelStore(
             taskActivityStore: taskActivityStore ?? TaskActivityStore(),
-            providerRegistry: ProviderRegistry(),
+            providerRegistry: providerRegistry ?? ProviderRegistry(),
             executionController: nil,
             workspaceStore: WorkspaceStore(),
             openFilesStore: OpenFilesStore(),
             conversationId: conversationId,
             providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
         )
+    }
+
+    private func makeSnapshot(
+        sessionId: String,
+        conversationId: UUID
+    ) -> CodeReviewSessionSnapshot {
+        CodeReviewSessionSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId,
+            phase: .completed,
+            stage: .findings,
+            findings: [],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: nil,
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: nil,
+            lastUpdatedAt: Date()
+        )
+    }
+
+    private func waitUntil(
+        _ description: String,
+        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let start = DispatchTime.now().uptimeNanoseconds
+        while DispatchTime.now().uptimeNanoseconds - start < timeoutNanoseconds {
+            if condition() { return }
+            await Task.yield()
+        }
+        XCTFail("Timed out waiting for \(description)")
     }
 
     private static func makeProviderFactoryConfig() -> ProviderFactoryConfig {
@@ -120,5 +199,41 @@ final class CodeReviewPanelChatPromptRoutingTests: XCTestCase {
             tavilyApiKey: "",
             serperApiKey: ""
         )
+    }
+}
+
+private final class ControllableReviewPanelProvider: LLMProvider, @unchecked Sendable {
+    let id: String
+    let displayName: String
+    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
+
+    private(set) var prompts: [String] = []
+    private var continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation?
+
+    var lastPrompt: String? { prompts.last }
+
+    init(id: String, displayName: String) {
+        self.id = id
+        self.displayName = displayName
+    }
+
+    func isAuthenticated() -> Bool { true }
+
+    func send(
+        prompt: String,
+        context: WorkspaceContext,
+        imageURLs: [URL]?
+    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        prompts.append(prompt)
+        return AsyncThrowingStream { continuation in
+            self.continuation = continuation
+            continuation.yield(.started)
+        }
+    }
+
+    func finish() {
+        continuation?.yield(.completed)
+        continuation?.finish()
+        continuation = nil
     }
 }

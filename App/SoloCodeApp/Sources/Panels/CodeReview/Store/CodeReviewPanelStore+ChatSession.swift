@@ -11,8 +11,9 @@ extension CodeReviewPanelStore {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isChatProcessing else { return }
         ensureActiveChatThread()
-        if panelSessionId == nil, let selectedSessionId {
-            panelSessionId = selectedSessionId
+        let pinnedSessionId = panelSessionId ?? selectedSessionId
+        if panelSessionId == nil, let pinnedSessionId {
+            panelSessionId = pinnedSessionId
         }
 
         appendChatMessage(ReviewPanelMessage(
@@ -47,8 +48,9 @@ extension CodeReviewPanelStore {
         let prompt = buildChatPrompt(
             userMessage: normalizedPanelChatUserMessage(
                 trimmed,
-                selectedSessionId: selectedSessionId
-            )
+                selectedSessionId: pinnedSessionId
+            ),
+            sessionId: pinnedSessionId
         )
         let context = buildWorkspaceContext()
 
@@ -67,7 +69,10 @@ extension CodeReviewPanelStore {
                 )
                 Task { @MainActor [weak self] in
                     guard let self else { return }
-                    await self.syncStructuredFindingsFromChatResponse(messageId: assistantId)
+                    await self.syncStructuredFindingsFromChatResponse(
+                        messageId: assistantId,
+                        sessionId: pinnedSessionId
+                    )
                     self.setChatProcessing(false, startedAt: nil)
                 }
             },
@@ -149,8 +154,11 @@ extension CodeReviewPanelStore {
         """
     }
 
-    func buildChatPrompt(userMessage: String) -> String {
-        let snapshot = currentSnapshot
+    func buildChatPrompt(
+        userMessage: String,
+        sessionId: String? = nil
+    ) -> String {
+        let snapshot = snapshot(for: sessionId)
         let findingsCount = snapshot?.findings.count ?? 0
         let openCount = snapshot?.findings.filter { $0.status == .open }.count ?? 0
         let candidateCount = snapshot?.candidates.count ?? 0
@@ -187,7 +195,15 @@ extension CodeReviewPanelStore {
             sessionSummary: summary + findingsContext,
             findingsCount: findingsCount,
             openCount: openCount,
-            activeSessionId: selectedSessionId,
+            activeSessionId: sessionId ?? selectedSessionId,
+            conversationId: conversationId
+        )
+    }
+
+    private func snapshot(for sessionId: String?) -> CodeReviewSessionSnapshot? {
+        guard let sessionId else { return nil }
+        return taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId,
             conversationId: conversationId
         )
     }

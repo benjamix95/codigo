@@ -1,6 +1,16 @@
 import AppKit
 import SwiftUI
 
+enum ComposerTextViewFocusCoordinator {
+    static func applyDeferredFocusChange(shouldFocus: Bool, textView: NSTextView) {
+        if shouldFocus {
+            textView.window?.makeFirstResponder(textView)
+        } else if textView.window?.firstResponder === textView {
+            textView.window?.makeFirstResponder(nil)
+        }
+    }
+}
+
 struct ComposerTextView: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
@@ -53,11 +63,10 @@ struct ComposerTextView: NSViewRepresentable {
         let isCurrentlyFocused = textView.window?.firstResponder === textView
         if shouldFocus != isCurrentlyFocused {
             DispatchQueue.main.async {
-                if shouldFocus {
-                    textView.window?.makeFirstResponder(textView)
-                } else {
-                    textView.window?.makeFirstResponder(nil)
-                }
+                ComposerTextViewFocusCoordinator.applyDeferredFocusChange(
+                    shouldFocus: shouldFocus,
+                    textView: textView
+                )
             }
         }
     }

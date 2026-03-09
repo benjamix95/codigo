@@ -12,7 +12,7 @@
   3. Osservare console Xcode e responsività dell’app.
 - Risultato attuale: il publish del session store schedula nuove assegnazioni `@Published` anche per snapshot identici, rientrando nel render SwiftUI e alimentando il ciclo `AttributeGraph`.
 - Risultato atteso: il mirror della conversazione review deve essere differito fuori dal turno di update in corso e deve saltare assegnazioni identiche.
-- Causa probabile: il precedente fix locale ha sostituito il deferral coalescato con `Task.yield()` con un `DispatchQueue.main.async` sempre attivo; il sink del session store ha ripreso a riapplicare stato identico senza guardie di uguaglianza.
+- Causa probabile: il `sink` del `CodeReviewPanelStore` su `ReviewPanelChatSessionStore.$conversationsByKey` rientrava durante update SwiftUI del pannello review; quando lo snapshot echo era identico o quasi identico, il panel store riapplicava comunque `chatThreads`, `activeChatThreadId`, `chatMessages`, `isChatProcessing` e `chatStartedAt`, alimentando publish reentranti e layout invalidation.
 - Scope consentito:
   - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore.swift`
   - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+ModesAndChatThreads.swift`
@@ -31,14 +31,14 @@
   - smoke sul deferral del mirror thread
   - smoke sui lifecycle test del pannello review
 - Strategia di fix minimo:
-  - ripristinare apply coalescato sul tick successivo del main actor con cancellazione del task pendente
-  - rimuovere il `DispatchQueue.main.async` ricorsivo nel mirror chat
+  - coalescare il `sink` del session store sul tick successivo del main actor con cancellazione del task pendente
+  - saltare subito gli echo identici prima di schedulare un nuovo apply
   - applicare guardie di uguaglianza sui campi `chatThreads`, `activeChatThreadId`, `chatMessages`, `isChatProcessing`, `chatStartedAt`
 - Verifica post-fix:
   1. `sample` del PID `Solo Code` ha mostrato main thread in loop su `SwiftUICore` / `AttributeGraph`, non deadlock I/O.
   2. `log show` ha confermato warning `Publishing changes from within view updates is not allowed`.
   3. `xcodebuild test -project 'Solo Code.xcodeproj' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodeReviewPanelChatStateDeferralTests -only-testing:SoloCodeAppTests/CodeReviewPanelSessionScopingTests -only-testing:SoloCodeAppTests/ReviewPanelLifecycleE2ETests`
-  4. Esito: 13 test eseguiti, 0 failure.
+  4. Esito: 14 test eseguiti, 0 failure.
 - Commit previsto: `fix(review): stop chat session echo from re-publishing identical state`
 
 ## Note

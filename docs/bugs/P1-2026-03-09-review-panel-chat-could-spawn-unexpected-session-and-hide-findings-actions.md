@@ -1,4 +1,5 @@
 ## Bug Fix Record
+- Priorità: P1
 - Categoria: A
 - Bug: la chat del review panel poteva trasformare una richiesta generica di review in una nuova review session implicita, alterando la sessione selezionata e facendo sparire azioni/contesto del tab `Findings`.
 - Sintomo:
@@ -33,8 +34,13 @@
 - Strategia di fix minimo:
   - pin di `panelSessionId` all’inizio della chat
   - prompt normalization che forza l’uso della sessione corrente e vieta `review_start` implicito
+- Fix previsto:
+  - fissare la sessione review attiva prima di costruire il prompt della chat
+  - reinterpretare le richieste review generiche come analisi della sessione corrente
+  - consentire l’avvio di una nuova review solo su richiesta esplicita dell’utente
 - Verifica post-fix:
   - `SoloCodeAppTests/CodeReviewPanelChatPromptRoutingTests`
   - `SoloCodeAppTests/ReviewPanelLifecycleE2ETests`
   - `SoloCodeAppTests/ReviewPatchWorkflowServiceTests`
+  - smoke manuale del tab `Findings` verificando che `Fix All`, scroll e azioni restino ancorati alla sessione selezionata dopo un messaggio chat generico
 - Commit previsto: `fix(review-panel): pin active session during chat analysis`
