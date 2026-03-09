@@ -2,6 +2,8 @@ import XCTest
 @testable import CoderEngine
 
 final class VerifiedFindingsSessionSyncServiceTests: XCTestCase {
+    private let stableDate = Date(timeIntervalSince1970: 1_700_000_123)
+
     func testSyncBuildsEnvelopeWithPatchAndRevalidationArtifacts() {
         let finding = CodeReviewFinding(
             id: "finding-1",
@@ -16,7 +18,8 @@ final class VerifiedFindingsSessionSyncServiceTests: XCTestCase {
             sourceTool: "xctest",
             status: .patchApplied,
             verificationReport: "Verified by failing regression test",
-            verifiedAt: Date()
+            verifiedAt: stableDate,
+            createdAt: stableDate
         )
         let patch = ReviewPatchArtifact(
             id: "patch-1",
@@ -47,15 +50,15 @@ final class VerifiedFindingsSessionSyncServiceTests: XCTestCase {
             workspacePath: "/tmp/workspace",
             currentRound: 1,
             activeWorkerCount: 0,
-            startedAt: Date(),
-            completedAt: Date(),
-            analysisCompletedAt: Date(),
+            startedAt: stableDate,
+            completedAt: stableDate,
+            analysisCompletedAt: stableDate,
             lastError: nil,
             currentJobId: "job-1",
             lastTestStatus: .passed,
             audit: .empty,
             outcome: .empty,
-            lastUpdatedAt: Date()
+            lastUpdatedAt: stableDate
         )
 
         let envelope = VerifiedFindingsSessionSyncService.sync(snapshot: snapshot, entryPoint: .mcp)
@@ -108,7 +111,7 @@ final class VerifiedFindingsSessionSyncServiceTests: XCTestCase {
             workspacePath: "/tmp/workspace",
             currentRound: 0,
             activeWorkerCount: 0,
-            startedAt: Date(),
+            startedAt: stableDate,
             completedAt: nil,
             analysisCompletedAt: nil,
             lastError: nil,
@@ -126,6 +129,81 @@ final class VerifiedFindingsSessionSyncServiceTests: XCTestCase {
         XCTAssertEqual(
             envelope.canonicalSnapshot.findings["candidate-2"]?.possibleDuplicateOf,
             ["candidate-1"]
+        )
+    }
+
+    func testSyncPreservesAndIncrementsFindingVersionAcrossMutations() {
+        let baseFinding = CodeReviewFinding(
+            id: "finding-versioned",
+            severity: .warning,
+            category: .correctness,
+            origin: .bugHunter,
+            filePath: "Sources/App.swift",
+            lineNumber: 18,
+            message: "Crash path",
+            confidence: 0.8,
+            status: .open,
+            createdAt: stableDate
+        )
+        let baseSnapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-versioning",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [baseFinding],
+            candidates: [],
+            patches: [],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/workspace",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: stableDate,
+            completedAt: stableDate,
+            analysisCompletedAt: stableDate,
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            audit: .empty,
+            outcome: .empty,
+            lastUpdatedAt: stableDate
+        )
+
+        let firstEnvelope = VerifiedFindingsSessionSyncService.sync(
+            snapshot: baseSnapshot,
+            existingEnvelope: nil,
+            entryPoint: .mcp
+        )
+        let secondEnvelope = VerifiedFindingsSessionSyncService.sync(
+            snapshot: baseSnapshot,
+            existingEnvelope: firstEnvelope,
+            entryPoint: .mcp
+        )
+
+        var updatedFinding = baseFinding
+        updatedFinding.status = .patchApplied
+        let updatedSnapshot = baseSnapshot.copying(
+            findings: [updatedFinding],
+            lastUpdatedAt: stableDate.addingTimeInterval(60)
+        )
+        let thirdEnvelope = VerifiedFindingsSessionSyncService.sync(
+            snapshot: updatedSnapshot,
+            existingEnvelope: secondEnvelope,
+            entryPoint: .mcp
+        )
+
+        XCTAssertEqual(
+            firstEnvelope.canonicalSnapshot.findings["finding-versioned"]?.version,
+            1
+        )
+        XCTAssertEqual(
+            secondEnvelope.canonicalSnapshot.findings["finding-versioned"]?.version,
+            1
+        )
+        XCTAssertEqual(
+            thirdEnvelope.canonicalSnapshot.findings["finding-versioned"]?.version,
+            2
         )
     }
 }

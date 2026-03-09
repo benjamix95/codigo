@@ -22,10 +22,25 @@ extension CodigoApp {
         }
 
         do {
-            let meta = verifiedCommandMeta(for: command, entityId: findingId)
+            let synchronizedSnapshot = synchronizedVerifiedFindingsSnapshot(
+                snapshot,
+                conversationId: snapshot.conversationId
+            )
+            let meta = verifiedCommandMeta(
+                for: command,
+                entityId: findingId,
+                snapshot: synchronizedSnapshot
+            )
             let outcome = try await VerifiedFindingsCommandCoordinator.shared.execute(
                 meta: meta,
-                successSummary: "\(command.action) \(findingId)"
+                successSummary: "\(command.action) \(findingId)",
+                currentEntityVersion: { [self] in
+                    await currentVerifiedEntityVersion(
+                        sessionId: sessionId,
+                        conversationId: conversationId,
+                        entityId: findingId
+                    )
+                }
             ) {
                 let updated = try await self.executePatchWorkflowCommand(
                     command: command,

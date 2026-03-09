@@ -4,16 +4,48 @@ import Foundation
 extension CodigoApp {
     func verifiedCommandMeta(
         for command: MCPSharedCodeReviewCommand,
-        entityId: String
+        entityId: String,
+        snapshot: CodeReviewSessionSnapshot? = nil
     ) -> VerifiedCommandMeta {
-        VerifiedCommandMeta(
+        let expectedEntityVersion = snapshot?
+            .verifiedFindings?
+            .canonicalSnapshot
+            .findings[entityId]?
+            .version
+        return VerifiedCommandMeta(
             commandId: command.id,
             entityId: entityId,
             issuedBy: "mcp_review_command",
             issuedFrom: .mcp,
             requestFingerprint: "\(command.action)|\(entityId)|\(command.sessionId ?? "no-session")",
-            expectedEntityVersion: nil
+            expectedEntityVersion: expectedEntityVersion
         )
+    }
+
+    @MainActor
+    func currentVerifiedEntityVersion(
+        sessionId: String,
+        conversationId: UUID?,
+        entityId: String
+    ) async -> Int? {
+        if let liveState = await ReviewSessionRegistry.shared.state(sessionId: sessionId) {
+            let snapshot = synchronizedVerifiedFindingsSnapshot(
+                await liveState.snapshot(),
+                conversationId: conversationId
+            )
+            return snapshot.verifiedFindings?.canonicalSnapshot.findings[entityId]?.version
+        }
+        guard let snapshot = resolveCodeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        ) else {
+            return nil
+        }
+        let synchronized = synchronizedVerifiedFindingsSnapshot(
+            snapshot,
+            conversationId: conversationId
+        )
+        return synchronized.verifiedFindings?.canonicalSnapshot.findings[entityId]?.version
     }
 
     nonisolated
@@ -61,12 +93,28 @@ extension CodigoApp {
             return (false, "Missing session_id")
         }
         let entityId = command.payload["finding_id"] ?? sessionId
-        let meta = verifiedCommandMeta(for: command, entityId: entityId)
+        let commandConversationId = command.conversationId.flatMap(UUID.init(uuidString:))
         if let liveState = await ReviewSessionRegistry.shared.state(sessionId: sessionId) {
+            let liveSnapshot = synchronizedVerifiedFindingsSnapshot(
+                await liveState.snapshot(),
+                conversationId: commandConversationId
+            )
+            let meta = verifiedCommandMeta(
+                for: command,
+                entityId: entityId,
+                snapshot: liveSnapshot
+            )
             do {
                 let outcome = try await VerifiedFindingsCommandCoordinator.shared.execute(
                     meta: meta,
-                    successSummary: "\(command.action) \(entityId)"
+                    successSummary: "\(command.action) \(entityId)",
+                    currentEntityVersion: { [self] in
+                        await currentVerifiedEntityVersion(
+                            sessionId: sessionId,
+                            conversationId: commandConversationId,
+                            entityId: entityId
+                        )
+                    }
                 ) {
                     let succeeded = await apply(liveState, command.payload)
                     guard succeeded else {
@@ -74,7 +122,7 @@ extension CodigoApp {
                     }
                     await self.persistLiveReviewState(
                         liveState,
-                        conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
+                        conversationId: commandConversationId
                     )
                 }
                 return (true, outcomeSummary(outcome))
@@ -83,14 +131,33 @@ extension CodigoApp {
             }
         }
 
+        let baseSnapshot = resolveCodeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: commandConversationId
+        )
+        let synchronizedSnapshot = baseSnapshot.map {
+            synchronizedVerifiedFindingsSnapshot($0, conversationId: commandConversationId)
+        }
+        let meta = verifiedCommandMeta(
+            for: command,
+            entityId: entityId,
+            snapshot: synchronizedSnapshot
+        )
         do {
             let outcome = try await VerifiedFindingsCommandCoordinator.shared.execute(
                 meta: meta,
-                successSummary: "\(command.action) \(entityId)"
+                successSummary: "\(command.action) \(entityId)",
+                currentEntityVersion: { [self] in
+                    await currentVerifiedEntityVersion(
+                        sessionId: sessionId,
+                        conversationId: commandConversationId,
+                        entityId: entityId
+                    )
+                }
             ) {
                 let result = await self.persistReviewSnapshotMutation(
                     sessionId: sessionId,
-                    conversationId: command.conversationId.flatMap(UUID.init(uuidString:))
+                    conversationId: commandConversationId
                 ) { snapshot in
                     mutateReviewSnapshot(snapshot: snapshot, command: command)
                 }
@@ -125,6 +192,7 @@ extension CodigoApp {
         return (true, "Snapshot updated")
     }
 
+    nonisolated
     func mutateReviewSnapshot(
         snapshot: CodeReviewSessionSnapshot,
         command: MCPSharedCodeReviewCommand

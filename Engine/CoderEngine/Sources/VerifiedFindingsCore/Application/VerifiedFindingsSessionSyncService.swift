@@ -6,7 +6,13 @@ public enum VerifiedFindingsSessionSyncService {
         existingEnvelope: VerifiedFindingsSessionEnvelope? = nil,
         entryPoint: VerifiedFindingOriginEntryPoint = .reviewChat
     ) -> VerifiedFindingsSessionEnvelope {
-        let findings = applyIdentityPolicy(to: buildBaseFindings(snapshot: snapshot, entryPoint: entryPoint))
+        let identifiedFindings = applyIdentityPolicy(
+            to: buildBaseFindings(snapshot: snapshot, entryPoint: entryPoint)
+        )
+        let findings = applyVersionPolicy(
+            to: identifiedFindings,
+            existingEnvelope: existingEnvelope
+        )
         let evidences = buildEvidences(snapshot: snapshot, findings: findings)
         let reports = buildVerificationReports(snapshot: snapshot, findings: findings, evidences: evidences)
         let patches = buildPatchArtifacts(snapshot: snapshot)
@@ -77,5 +83,83 @@ public enum VerifiedFindingsSessionSyncService {
             }
         }
         return output
+    }
+
+    static func applyVersionPolicy(
+        to findings: [VerifiedFinding],
+        existingEnvelope: VerifiedFindingsSessionEnvelope?
+    ) -> [VerifiedFinding] {
+        let existingFindings = existingEnvelope?.canonicalSnapshot.findings ?? [:]
+        return findings.map { finding in
+            guard let previous = existingFindings[finding.id] else { return finding }
+            let unchanged = hasSameVersionedContent(previous, finding)
+            return VerifiedFinding(
+                id: finding.id,
+                domain: finding.domain,
+                title: finding.title,
+                summary: finding.summary,
+                category: finding.category,
+                severity: finding.severity,
+                confidence: finding.confidence,
+                status: finding.status,
+                filePath: finding.filePath,
+                lineStart: finding.lineStart,
+                lineEnd: finding.lineEnd,
+                ruleId: finding.ruleId,
+                evidenceIds: finding.evidenceIds,
+                verificationReportId: finding.verificationReportId,
+                patchId: finding.patchId,
+                revalidationReportId: finding.revalidationReportId,
+                rootCause: finding.rootCause,
+                impact: finding.impact,
+                exploitability: finding.exploitability,
+                reproducibility: finding.reproducibility,
+                version: unchanged ? previous.version : previous.version + 1,
+                originEntryPoint: finding.originEntryPoint,
+                lastCommandId: previous.lastCommandId,
+                staleStatus: finding.staleStatus,
+                closedReason: finding.closedReason,
+                policyFlags: finding.policyFlags,
+                findingFingerprint: finding.findingFingerprint,
+                identityVersion: previous.identityVersion,
+                possibleDuplicateOf: finding.possibleDuplicateOf,
+                mergedIntoFindingId: finding.mergedIntoFindingId,
+                recurrenceGroupId: finding.recurrenceGroupId,
+                createdAt: previous.createdAt,
+                updatedAt: unchanged ? previous.updatedAt : finding.updatedAt
+            )
+        }
+    }
+
+    static func hasSameVersionedContent(
+        _ lhs: VerifiedFinding,
+        _ rhs: VerifiedFinding
+    ) -> Bool {
+        lhs.domain == rhs.domain
+            && lhs.title == rhs.title
+            && lhs.summary == rhs.summary
+            && lhs.category == rhs.category
+            && lhs.severity == rhs.severity
+            && lhs.confidence == rhs.confidence
+            && lhs.status == rhs.status
+            && lhs.filePath == rhs.filePath
+            && lhs.lineStart == rhs.lineStart
+            && lhs.lineEnd == rhs.lineEnd
+            && lhs.ruleId == rhs.ruleId
+            && lhs.evidenceIds == rhs.evidenceIds
+            && lhs.verificationReportId == rhs.verificationReportId
+            && lhs.patchId == rhs.patchId
+            && lhs.revalidationReportId == rhs.revalidationReportId
+            && lhs.rootCause == rhs.rootCause
+            && lhs.impact == rhs.impact
+            && lhs.exploitability == rhs.exploitability
+            && lhs.reproducibility == rhs.reproducibility
+            && lhs.staleStatus == rhs.staleStatus
+            && lhs.closedReason == rhs.closedReason
+            && lhs.policyFlags == rhs.policyFlags
+            && lhs.findingFingerprint == rhs.findingFingerprint
+            && lhs.possibleDuplicateOf == rhs.possibleDuplicateOf
+            && lhs.mergedIntoFindingId == rhs.mergedIntoFindingId
+            && lhs.recurrenceGroupId == rhs.recurrenceGroupId
     }
 }
