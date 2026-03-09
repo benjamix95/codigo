@@ -25,6 +25,54 @@ final class VerifiedFindingsCommandCoordinatorTests: XCTestCase {
         XCTAssertEqual(second, .deduplicated(summary: "done"))
         XCTAssertEqual(finalValue, 1)
     }
+
+    func testExpectedEntityVersionMismatchThrowsConflict() async throws {
+        let coordinator = VerifiedFindingsCommandCoordinator()
+        let meta = VerifiedCommandMeta(
+            commandId: "command-2",
+            entityId: "finding-2",
+            issuedBy: "tester",
+            issuedFrom: .mcp,
+            requestFingerprint: "verify|finding-2",
+            expectedEntityVersion: 3
+        )
+
+        do {
+            _ = try await coordinator.execute(
+                meta: meta,
+                successSummary: "done",
+                currentEntityVersion: { 2 }
+            ) {}
+            XCTFail("Expected a version conflict")
+        } catch let error as VerifiedFindingsCommandError {
+            XCTAssertEqual(error, .versionConflict(expected: 3, actual: 2))
+        }
+    }
+
+    func testMatchingExpectedEntityVersionAllowsExecution() async throws {
+        let coordinator = VerifiedFindingsCommandCoordinator()
+        let meta = VerifiedCommandMeta(
+            commandId: "command-3",
+            entityId: "finding-3",
+            issuedBy: "tester",
+            issuedFrom: .mcp,
+            requestFingerprint: "apply|finding-3",
+            expectedEntityVersion: 5
+        )
+        let counter = LockedCounter()
+
+        let result = try await coordinator.execute(
+            meta: meta,
+            successSummary: "applied",
+            currentEntityVersion: { 5 }
+        ) {
+            await counter.increment()
+        }
+        let finalValue = await counter.value
+
+        XCTAssertEqual(result, .executed(summary: "applied"))
+        XCTAssertEqual(finalValue, 1)
+    }
 }
 
 private actor LockedCounter {
