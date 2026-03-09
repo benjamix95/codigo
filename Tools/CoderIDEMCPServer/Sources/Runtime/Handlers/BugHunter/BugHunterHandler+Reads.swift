@@ -20,6 +20,10 @@ extension CoderIDEMCPServerApp {
             if let reviewStatus = MCPSharedState.readCodeReviewStatus(sessionId: reviewSessionId) {
                 lines.append("review_phase: \(reviewStatus["phase"] ?? "unknown")")
                 lines.append("review_summary: \(reviewStatus["summary"] ?? "n/a")")
+                lines.append("verified_findings: \(reviewStatus["verified_projection_findings"] ?? reviewStatus["findings_total"] ?? "0")")
+                lines.append("candidate_queue: \(reviewStatus["verified_projection_candidates"] ?? reviewStatus["candidates_total"] ?? "0")")
+                lines.append("duplicates: \(reviewStatus["verified_projection_duplicates"] ?? "0")")
+                lines.append("stale_candidates: \(reviewStatus["verified_projection_stale_candidates"] ?? "0")")
             }
         }
         if let branchName = snapshot.branchName { lines.append("branch: \(branchName)") }
@@ -55,7 +59,10 @@ extension CoderIDEMCPServerApp {
             let message = finding["message"] ?? finding["message_summary"] ?? "n/a"
             let file = finding["file_path"] ?? finding["file_label"] ?? "redacted"
             let line = finding["line_number"].map { ":\($0)" } ?? ""
-            return "[\(index + 1)] [\(finding["severity"] ?? "?")] \(file)\(line) — \(message) (status: \(finding["status"] ?? "?"), id: \(finding["id"] ?? "?"))"
+            let domain = finding["domain"] ?? "bug"
+            let duplicateOf = finding["possible_duplicate_of"].map { ", duplicate_of: \($0)" } ?? ""
+            let staleStatus = finding["stale_status"].map { ", stale: \($0)" } ?? ""
+            return "[\(index + 1)] [\(finding["severity"] ?? "?")] \(file)\(line) — \(message) (domain: \(domain), status: \(finding["status"] ?? "?")\(duplicateOf)\(staleStatus), id: \(finding["id"] ?? "?"))"
         }
         return bugHunterOK(lines.joined(separator: "\n"))
     }
