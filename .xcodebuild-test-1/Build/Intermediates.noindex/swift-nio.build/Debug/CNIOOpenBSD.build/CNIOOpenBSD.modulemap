@@ -1,4 +1,0 @@
-module CNIOOpenBSD {
-umbrella header "/Users/benjaminstoica/codigo/.xcodebuild-test-1/SourcePackages/checkouts/swift-nio/Sources/CNIOOpenBSD/include/CNIOOpenBSD.h"
-export *
-}

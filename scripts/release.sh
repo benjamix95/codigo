@@ -197,8 +197,12 @@ if [[ -n "$NOTARY_TEAM_ID" ]]; then
   build_env+=(NOTARY_TEAM_ID="$NOTARY_TEAM_ID")
 fi
 
-env "${build_env[@]}" ./Scripts/build-app.sh
+env "${build_env[@]}" "$REPO_ROOT/scripts/build-app.sh"
 mkdir -p "$REPO_ROOT/dist"
-zip -qr "$REPO_ROOT/dist/Codigo-$VERSION.app.zip" Codigo.app
+(
+  cd "$REPO_ROOT/dist"
+  rm -f "Codigo-$VERSION.app.zip"
+  zip -qr "Codigo-$VERSION.app.zip" "Solo Code.app"
+)
 echo "Release package ready at $REPO_ROOT/dist/Codigo-$VERSION.app.zip"
 echo "Manifest updated at $MANIFEST_FILE"

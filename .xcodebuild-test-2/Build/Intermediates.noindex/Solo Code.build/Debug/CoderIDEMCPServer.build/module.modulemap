@@ -1,4 +1,0 @@
-framework module CoderIDEMCPServer {
-  header "CoderIDEMCPServer-Swift.h"
-  requires objc
-}

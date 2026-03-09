@@ -1,6 +1,6 @@
-# CoderIDE
+# SoloCode
 
-Native Cursor-like IDE for macOS built in Swift, with an integrated AI assistant ("Coder") that supports multiple LLM providers.
+IDE nativo per macOS, in Swift/SwiftUI, con assistente AI integrato ("Coder") e supporto a più provider LLM.
 
 ## Features
 
@@ -17,17 +17,17 @@ Native Cursor-like IDE for macOS built in Swift, with an integrated AI assistant
 
 ## Installation
 
+Apri [Solo Code.xcworkspace](/Users/benjaminstoica/SoloCode/Solo%20Code.xcworkspace) in Xcode oppure usa gli script del repository:
+
 ```bash
-cd codigo
-swift build
-swift run Codigo
+./scripts/run-app.sh
 ```
 
 **Voice input (microphone):** Speech recognition TCC requires an app bundle. Use:
 
 ```bash
-./Scripts/build-app.sh
-open Codigo.app
+./scripts/build-app.sh
+open dist/"Solo Code.app"
 ```
 
 ## Configuration
@@ -80,12 +80,21 @@ Note:
 Lanciando lo script verranno aggiornati automaticamente:
 - Info.plist con versione/build
 - `docs/update/manifest.json`
-- pacchetto `.app` e zip in `dist/Codigo-<version>.app.zip` (tramite `./Scripts/build-app.sh`)
+- pacchetto `.app` e zip in `dist/Codigo-<version>.app.zip` (tramite `./scripts/build-app.sh`)
 
 ## Structure
 
-- `CoderEngine/`: library with LLM providers, MCP, and shared protocols
-- `App/SoloCodeApp/Sources/`: macOS SwiftUI app
+- `App/SoloCodeApp/Sources/`: app macOS SwiftUI
+- `Engine/CoderEngine/Sources/`: core engine, provider LLM, MCP e runtime condiviso
+- `Tools/CoderIDEMCPServer/Sources/`: tool/runtime MCP lato IDE
+- `Tests/`: target test separati per app, engine e integrazione
+- `docs/`: audit, ADR, bug log, changelog, note release
+
+## Documenti chiave
+
+- Scopo prodotto: `docs/SCOPO_APP.md`
+- Flow code review: `docs/CODE_REVIEW_FLOW.md`
+- Piano test manuale plan flow: `docs/plan-flow-manual-qa-checklist.md`
 
 ## Providers
 

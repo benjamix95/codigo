@@ -5,9 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ALLOWLIST_FILE="$ROOT_DIR/scripts/english_only_allowlist.txt"
 
 TARGETS=(
-  "$ROOT_DIR/CoderEngine/Sources"
-  "$ROOT_DIR/Sources/CoderIDE"
-  "$ROOT_DIR/CoderEngine/Tests"
+  "$ROOT_DIR/Engine/CoderEngine/Sources"
+  "$ROOT_DIR/App/SoloCodeApp/Sources"
+  "$ROOT_DIR/Tests/CoderEngineTests"
   "$ROOT_DIR/Tests/SoloCodeAppTests"
 )
 

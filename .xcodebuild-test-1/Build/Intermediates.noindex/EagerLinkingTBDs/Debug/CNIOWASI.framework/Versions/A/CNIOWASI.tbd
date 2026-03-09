@@ -1,1 +1,0 @@
-{"main_library":{"compatibility_versions":[{"version":"0"}],"current_versions":[{"version":"0"}],"flags":[{"attributes":["not_app_extension_safe"]}],"install_names":[{"name":"@rpath/CNIOWASI.framework/Versions/A/CNIOWASI"}],"target_info":[{"min_deployment":"11","target":"arm64-macos"}]},"tapi_tbd_version":5}
