@@ -444,6 +444,7 @@
 		485FD98961C7122D92FF1B18 /* DebugStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C64C4F1144CD59D3C5341874 /* DebugStore.swift */; };
 		48672901FAD727A3365C0AC2 /* ReviewSessionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DEB6CA8D05430AF127070DD /* ReviewSessionTypes.swift */; };
 		488075F906D847521E25CE73 /* TerminalBridgeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CAE613A90E0FD1CB65EF506 /* TerminalBridgeIntegrationTests.swift */; };
+		A12E4D9B5C3A47F18D2E6B11 /* IntegrationHostSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B24F6E8C7D1A4B329E5F0C22 /* IntegrationHostSmokeTests.swift */; };
 		48971BAD4582F3891A2A8D50 /* ChatTurnState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D56E9CEF4C33E69B648ECF10 /* ChatTurnState.swift */; };
 		489DFD89E8BC70C1C6FA0F8D /* ChatStoreStreaming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 794E78BC022317FE1B213A28 /* ChatStoreStreaming.swift */; };
 		48A800849FD1FE3D5BF6EC47 /* BrowserPanelView+TabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC8FA7AE2B4134CADEA0CEE /* BrowserPanelView+TabBar.swift */; };
@@ -2063,6 +2064,7 @@
 		3C42468055C27B6C8C89AC5D /* CLIProfileProvisioner+CodexProfiles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CLIProfileProvisioner+CodexProfiles.swift"; path = "App/SoloCodeApp/Sources/Accounts/Provisioning/CLIProfileProvisioner+CodexProfiles.swift"; sourceTree = "<group>"; };
 		3C7EA1A92B94AFB00D87D84E /* GitService+Stash.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitService+Stash.swift"; path = "App/SoloCodeApp/Sources/Git/Services/GitService+Stash.swift"; sourceTree = "<group>"; };
 		3CAE613A90E0FD1CB65EF506 /* TerminalBridgeIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TerminalBridgeIntegrationTests.swift; path = Tests/SoloCodeAppTests/TerminalBridgeIntegrationTests.swift; sourceTree = "<group>"; };
+		B24F6E8C7D1A4B329E5F0C22 /* IntegrationHostSmokeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IntegrationHostSmokeTests.swift; path = Tests/SoloCodeIntegrationTests/IntegrationHostSmokeTests.swift; sourceTree = "<group>"; };
 		3D5F8E07CD5E154702BA957E /* ToolEnabledLLMProviderPolicyAckTests+PolicyAck.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProviderPolicyAckTests+PolicyAck.swift"; path = "Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+PolicyAck.swift"; sourceTree = "<group>"; };
 		3DC242D63E439D70C8C00BB7 /* ProviderUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderUsageStore.swift; path = App/SoloCodeApp/Sources/Settings/ProviderUsageStore.swift; sourceTree = "<group>"; };
 		3DD0C47F76DE6880B882C8CE /* CodeReviewPanelStore+Summary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+Summary.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+Summary.swift"; sourceTree = "<group>"; };
@@ -3316,6 +3318,7 @@
 		359578ADC8FD5B179522F708 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				B24F6E8C7D1A4B329E5F0C22 /* IntegrationHostSmokeTests.swift */,
 				8FF58B8AB2CE054C6D9B4899 /* ActivityBarItemTests.swift */,
 				A9D08FDA76390211F5C5D289 /* AppBundleProjectStructureTests.swift */,
 				2853B94A171512A0B4E21A88 /* AppDelegateWindowStyleTests.swift */,
@@ -6546,6 +6549,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A12E4D9B5C3A47F18D2E6B11 /* IntegrationHostSmokeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
