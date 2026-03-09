@@ -19,50 +19,56 @@ extension TaskActivityStore {
                 return
             }
         }
-        codeReviewSnapshotsBySession[snapshot.sessionId] = snapshot
-
         let resolvedConversationId = conversationId ?? snapshot.conversationId
+        let verifiedState = resolvedVerifiedFindingsState(
+            for: snapshot,
+            conversationId: resolvedConversationId
+        )
+        let verifiedEnvelope = verifiedState.recovered.envelope
+        let resolvedSnapshot = snapshot.copying(
+            mutationSequence: snapshot.mutationSequence,
+            verifiedFindings: verifiedEnvelope,
+            lastUpdatedAt: snapshot.lastUpdatedAt
+        )
+        codeReviewSnapshotsBySession[snapshot.sessionId] = resolvedSnapshot
         if let conversationScope = codeReviewConversationScope(resolvedConversationId) {
             var sessionIds = codeReviewSessionIdsByConversation[conversationScope] ?? []
-            let isNewSession = !sessionIds.contains(snapshot.sessionId)
-            sessionIds.removeAll { $0 == snapshot.sessionId }
-            sessionIds.insert(snapshot.sessionId, at: 0)
+            let isNewSession = !sessionIds.contains(resolvedSnapshot.sessionId)
+            sessionIds.removeAll { $0 == resolvedSnapshot.sessionId }
+            sessionIds.insert(resolvedSnapshot.sessionId, at: 0)
             codeReviewSessionIdsByConversation[conversationScope] = sessionIds
             if isNewSession || selectedCodeReviewSessionIdByConversation[conversationScope] == nil {
-                selectedCodeReviewSessionIdByConversation[conversationScope] = snapshot.sessionId
+                selectedCodeReviewSessionIdByConversation[conversationScope] = resolvedSnapshot.sessionId
             }
         }
 
         // Update structured data for panel consumption
-        codeReviewFindings = snapshot.findings
-        codeReviewEvents = snapshot.events
-        codeReviewPhase = snapshot.phase
-        codeReviewStage = snapshot.stage
-        if let envelope = snapshot.verifiedFindings {
-            verifiedFindingsEnvelopesBySession[snapshot.sessionId] = envelope
-        } else {
-            verifiedFindingsEnvelopesBySession.removeValue(forKey: snapshot.sessionId)
-        }
+        codeReviewFindings = resolvedSnapshot.findings
+        codeReviewEvents = resolvedSnapshot.events
+        codeReviewPhase = resolvedSnapshot.phase
+        codeReviewStage = resolvedSnapshot.stage
+        verifiedFindingsEnvelopesBySession[resolvedSnapshot.sessionId] = verifiedEnvelope
         if let conversationScope = codeReviewConversationScope(resolvedConversationId) {
-            codeReviewFindingsByConversation[conversationScope] = snapshot.findings
-            codeReviewEventsByConversation[conversationScope] = snapshot.events
-            codeReviewPhaseByConversation[conversationScope] = snapshot.phase
-            verifiedFindingsProjectionsByConversation[conversationScope] = resolvedVerifiedFindingsProjection(
-                for: snapshot,
-                conversationId: resolvedConversationId
-            )
+            codeReviewFindingsByConversation[conversationScope] = resolvedSnapshot.findings
+            codeReviewEventsByConversation[conversationScope] = resolvedSnapshot.events
+            codeReviewPhaseByConversation[conversationScope] = resolvedSnapshot.phase
+            verifiedFindingsProjectionsByConversation[conversationScope] = verifiedEnvelope.projectionSnapshot
         }
 
         // Persist off the main thread so PostgreSQL bootstrap / psql I/O cannot freeze the panel UI.
-        persistenceBridge.persistCodeReviewSnapshot(snapshot)
+        persistenceBridge.persistCodeReviewSnapshot(resolvedSnapshot)
 
         let activity = TaskActivity(
             type: "code_review_update",
-            title: codeReviewTitle(for: snapshot.phase),
-            detail: snapshot.statusSummary,
-            payload: codeReviewPayload(snapshot, conversationId: resolvedConversationId),
-            phase: codeReviewActivityPhase(snapshot.phase),
-            isRunning: snapshot.phase.isActive,
+            title: codeReviewTitle(for: resolvedSnapshot.phase),
+            detail: resolvedSnapshot.statusSummary,
+            payload: codeReviewPayload(
+                resolvedSnapshot,
+                conversationId: resolvedConversationId,
+                verifiedState: verifiedState
+            ),
+            phase: codeReviewActivityPhase(resolvedSnapshot.phase),
+            isRunning: resolvedSnapshot.phase.isActive,
             groupId: "code-review"
         )
         addActivity(activity)

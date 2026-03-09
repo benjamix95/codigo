@@ -70,17 +70,25 @@ public enum VerifiedFindingsSessionSyncService {
 
     static func applyIdentityPolicy(to findings: [VerifiedFinding]) -> [VerifiedFinding] {
         var output: [VerifiedFinding] = []
+        var identityIndex = FindingIdentityService.IdentityIndex()
         for finding in findings.sorted(by: { $0.createdAt < $1.createdAt }) {
-            if let match = FindingIdentityService.findDuplicate(candidate: finding, existing: output) {
-                output.append(copying(
+            let candidateIdentity = FindingIdentityService.prepare(finding)
+            let resolvedFinding: VerifiedFinding
+            if let match = FindingIdentityService.findDuplicate(
+                candidateIdentity: candidateIdentity,
+                existingIndex: identityIndex
+            ) {
+                resolvedFinding = copying(
                     finding,
                     possibleDuplicateOf: [match.existingFindingId],
                     mergedIntoFindingId: match.isExactDuplicate ? match.existingFindingId : nil,
                     recurrenceGroupId: match.existingFindingId
-                ))
+                )
             } else {
-                output.append(finding)
+                resolvedFinding = finding
             }
+            output.append(resolvedFinding)
+            identityIndex.insert(FindingIdentityService.prepare(resolvedFinding))
         }
         return output
     }

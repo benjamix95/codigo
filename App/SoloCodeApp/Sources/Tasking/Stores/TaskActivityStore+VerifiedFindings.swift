@@ -7,20 +7,22 @@ extension TaskActivityStore {
         conversationId: UUID?
     ) -> VerifiedFindingsResolvedState {
         let recovered: VerifiedFindingsRecoveredEnvelope
-        if let envelope = snapshot.verifiedFindings ?? verifiedFindingsEnvelope(
-            sessionId: snapshot.sessionId,
-            conversationId: conversationId
-        ) {
+        if let envelope = snapshot.verifiedFindings {
             recovered = VerifiedFindingsRecoveredEnvelope(
                 source: .embeddedSnapshot,
                 envelope: envelope,
                 checkpoint: nil
             )
         } else {
+            let existingEnvelope = verifiedFindingsEnvelope(
+                sessionId: snapshot.sessionId,
+                conversationId: conversationId
+            )
             recovered = VerifiedFindingsRecoveredEnvelope(
                 source: .syncedFromSnapshot,
                 envelope: VerifiedFindingsSessionSyncService.sync(
                     snapshot: snapshot,
+                    existingEnvelope: existingEnvelope,
                     entryPoint: .reviewChat
                 ),
                 checkpoint: nil
@@ -74,7 +76,8 @@ extension TaskActivityStore {
 
     func codeReviewPayload(
         _ snapshot: CodeReviewSessionSnapshot,
-        conversationId: UUID?
+        conversationId: UUID?,
+        verifiedState: VerifiedFindingsResolvedState? = nil
     ) -> [String: String] {
         var payload: [String: String] = [
             "phase": snapshot.phase.rawValue,
@@ -94,7 +97,7 @@ extension TaskActivityStore {
         if let error = snapshot.lastError {
             payload["error"] = error
         }
-        let verifiedState = resolvedVerifiedFindingsState(
+        let verifiedState = verifiedState ?? resolvedVerifiedFindingsState(
             for: snapshot,
             conversationId: conversationId
         )

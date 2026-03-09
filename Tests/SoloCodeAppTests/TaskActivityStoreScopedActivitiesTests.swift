@@ -90,6 +90,93 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
         XCTAssertEqual(recorder.snapshots.map(\.mutationSequence), [1, 2])
     }
 
+    func testIngestCodeReviewSnapshotCachesFreshVerifiedEnvelopePerMutation() {
+        let store = TaskActivityStore(
+            persistenceBridge: TaskActivityPersistenceBridge(
+                writeCodeReviewSnapshot: { _ in }
+            )
+        )
+        let conversationId = UUID()
+        let first = CodeReviewSessionSnapshot(
+            sessionId: "session-verified-cache",
+            conversationId: conversationId,
+            mutationSequence: 1,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-old",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/App.swift",
+                    lineNumber: 10,
+                    endLineNumber: 10,
+                    message: "Old finding",
+                    status: .open
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date(timeIntervalSince1970: 1_700_000_001)
+        )
+        let second = CodeReviewSessionSnapshot(
+            sessionId: "session-verified-cache",
+            conversationId: conversationId,
+            mutationSequence: 2,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-new",
+                    severity: .critical,
+                    category: .security,
+                    filePath: "Sources/Auth.swift",
+                    lineNumber: 44,
+                    endLineNumber: 44,
+                    message: "New finding",
+                    status: .open
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date(timeIntervalSince1970: 1_700_000_002)
+        )
+
+        store.ingestCodeReviewSnapshot(first, conversationId: conversationId)
+        store.ingestCodeReviewSnapshot(second, conversationId: conversationId)
+
+        let storedSnapshot = store.codeReviewSnapshot(
+            sessionId: second.sessionId,
+            conversationId: conversationId
+        )
+        let projection = store.verifiedFindingsProjection(for: conversationId)
+
+        XCTAssertEqual(storedSnapshot?.mutationSequence, 2)
+        XCTAssertEqual(storedSnapshot?.verifiedFindings?.projectionSnapshot.verifiedQueue.map(\.id), ["finding-new"])
+        XCTAssertEqual(projection.verifiedQueue.map(\.id), ["finding-new"])
+        XCTAssertEqual(store.verifiedFindingsEnvelopesBySession[second.sessionId]?.projectionSnapshot.verifiedQueue.map(\.id), ["finding-new"])
+    }
+
     private func makeActivity(
         type: String,
         conversationId: UUID,
