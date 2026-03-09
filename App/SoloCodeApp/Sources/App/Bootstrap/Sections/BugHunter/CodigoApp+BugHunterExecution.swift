@@ -103,10 +103,8 @@ extension CodigoApp {
 
         let reviewCommand: MCPSharedCodeReviewCommand
         do {
-            reviewCommand = try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
-                sessionId: reviewSessionId,
-                conversationId: nil,
-                payload: [
+            let request = try VerifiedFindingsStartCommandService.makeRequest(
+                args: [
                     "scope": promptAndCommits.2 == nil ? "uncommitted" : "against_ref",
                     "ref": promptAndCommits.2 ?? "",
                     "session_id": reviewSessionId,
@@ -116,7 +114,11 @@ extension CodigoApp {
                     "bughunter_run_id": command.runId,
                     "bughunter_profile": sourceKind == .commit ? BugHunterProfile.commitReview.rawValue : BugHunterProfile.deep.rawValue,
                     "bughunter_prompt_override": promptAndCommits.0,
-                ]
+                ],
+                conversationId: nil
+            )
+            reviewCommand = try VerifiedFindingsStartCommandService.enqueueReviewStart(
+                request: request
             )
         } catch {
             return (false, error.localizedDescription)

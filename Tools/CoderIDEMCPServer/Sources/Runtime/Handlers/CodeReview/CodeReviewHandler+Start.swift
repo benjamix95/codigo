@@ -7,107 +7,45 @@ extension CoderIDEMCPServerApp {
         if hasInvalidConversationIdArgument(args["conversation_id"] ?? args["conversationId"]) {
             return reviewError("Error: 'conversation_id' must be a valid UUID")
         }
-        let scope = sanitizedReviewArg(args, key: "scope").lowercased()
-        let validScopes: Set<String> = ["uncommitted", "staged", "against_ref"]
-
-        let effectiveScope = scope.isEmpty ? "uncommitted" : scope
-        if !validScopes.contains(effectiveScope) {
-            return reviewError(
-                "Error: invalid scope '\(scope)'. Use: uncommitted, staged, against_ref"
-            )
-        }
-
-        if effectiveScope == "against_ref" {
-            let ref = sanitizedReviewArg(args, key: "ref")
-            if ref.isEmpty {
-                return reviewError(
-                    "Error: 'ref' parameter is required when scope=against_ref"
-                )
-            }
-            guard CodeReviewMultiSwarmProvider.isValidAgainstRefFormat(ref) else {
-                return reviewError("Error: invalid ref '\(ref)'")
-            }
-        }
-
-        // Validate optional numeric parameters
-        if let maxWorkersStr = args["max_workers"],
-           !maxWorkersStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            guard let val = Int(maxWorkersStr.trimmingCharacters(in: .whitespacesAndNewlines)),
-                  (1...12).contains(val) else {
-                return reviewError("Error: max_workers must be 1-12")
-            }
-        }
-
-        if let maxRoundsStr = args["max_rounds"],
-           !maxRoundsStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            guard let val = Int(maxRoundsStr.trimmingCharacters(in: .whitespacesAndNewlines)),
-                  (1...10).contains(val) else {
-                return reviewError("Error: max_rounds must be 1-10")
-            }
-        }
-
-        if let analysisOnly = args["analysis_only"],
-           !analysisOnly.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let normalized = analysisOnly.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let validValues = ["1", "0", "true", "false", "yes", "no", "y", "n"]
-            if !validValues.contains(normalized) {
-                return reviewError("Error: analysis_only must be a boolean value")
-            }
-        }
-
-        if let backend = args["analysis_backend"],
-           !backend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !validateReviewBackend(backend.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            return reviewError("Error: invalid analysis_backend '\(backend)'")
-        }
-
-        if let backend = args["execution_backend"],
-           !backend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !validateReviewBackend(backend.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            return reviewError("Error: invalid execution_backend '\(backend)'")
-        }
-
-        let requestedSessionId = sanitizedReviewArg(
-            args,
-            key: args["session_id"] != nil ? "session_id" : "sessionId"
-        )
-        let sessionId: String
-        if requestedSessionId.isEmpty {
-            sessionId = UUID().uuidString.lowercased()
-        } else if let sanitizedSessionId = MCPSharedState.sanitizedCodeReviewSessionId(
-            requestedSessionId
-        ) {
-            sessionId = sanitizedSessionId
-        } else if let formatError = validateReviewSessionIdFormat(requestedSessionId) {
-            return reviewError(formatError)
-        } else {
-            return reviewError(
-                "Error: invalid session_id. Use only letters, numbers, hyphen, or underscore"
-            )
-        }
-        if MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) != nil {
-            return reviewError("Error: session_id '\(sessionId)' already exists")
-        }
-        let conversationId = resolveReviewConversationId(args)
-        var commandPayload = args
-        commandPayload["scope"] = effectiveScope
-        commandPayload["session_id"] = sessionId
-        if commandPayload["conversation_id"] == nil,
-           let conversationId {
-            commandPayload["conversation_id"] = conversationId.uuidString.lowercased()
-        }
         do {
-            _ = try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
-                sessionId: sessionId,
-                conversationId: conversationId,
-                payload: commandPayload
+            let request = try VerifiedFindingsStartCommandService.makeRequest(
+                args: args,
+                conversationId: resolveReviewConversationId(args)
             )
-        } catch MCPSharedState.CodeReviewStartEnqueueError.sessionAlreadyQueued {
-            return reviewError("Error: session_id '\(sessionId)' already has a queued start command")
+            _ = try VerifiedFindingsStartCommandService.enqueueReviewStart(request: request)
+            return reviewOK(
+                "OK — code review start queued (session_id=\(request.sessionId), scope=\(request.scope))"
+            )
+        } catch let error as VerifiedFindingsStartCommandError {
+            switch error {
+            case .invalidScope(let scope):
+                return reviewError(
+                    "Error: invalid scope '\(scope)'. Use: uncommitted, staged, against_ref"
+                )
+            case .missingRef:
+                return reviewError("Error: 'ref' parameter is required when scope=against_ref")
+            case .invalidRef(let ref):
+                return reviewError("Error: invalid ref '\(ref)'")
+            case .invalidMaxWorkers:
+                return reviewError("Error: max_workers must be 1-12")
+            case .invalidMaxRounds:
+                return reviewError("Error: max_rounds must be 1-10")
+            case .invalidAnalysisOnly:
+                return reviewError("Error: analysis_only must be a boolean value")
+            case .invalidBackend(let field, let value):
+                return reviewError("Error: invalid \(field) '\(value)'")
+            case .invalidSessionId:
+                return reviewError(
+                    "Error: invalid session_id. Use only letters, numbers, hyphen, or underscore"
+                )
+            case .sessionAlreadyExists(let sessionId):
+                return reviewError("Error: session_id '\(sessionId)' already exists")
+            case .sessionAlreadyQueued(let sessionId):
+                return reviewError("Error: session_id '\(sessionId)' already has a queued start command")
+            }
         } catch {
             return reviewError("Error: failed to queue code review start command")
         }
-        return reviewOK("OK — code review start queued (session_id=\(sessionId), scope=\(effectiveScope))")
     }
 
     static func handleReviewStatus(args: [String: String]) -> CallTool.Result {

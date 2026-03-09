@@ -105,11 +105,22 @@ public enum VerifiedFindingsQueryService {
                 if let lineStart = finding.lineStart { payload["line_number"] = String(lineStart) }
                 if let lineEnd = finding.lineEnd { payload["end_line_number"] = String(lineEnd) }
             } else {
-                payload["file_label"] = MCPSharedState.stableRedactionSuffix(for: finding.filePath)
-                payload["message_summary"] = finding.title
+                payload["file_label"] = redactedFileLabel(for: finding.filePath)
+                payload["message_summary"] = redactedFindingSummary(for: finding)
                 if let lineStart = finding.lineStart { payload["line_number"] = String(lineStart) }
             }
             return payload
         }
+    }
+
+    private static func redactedFileLabel(for filePath: String) -> String {
+        let ext = (filePath as NSString).pathExtension.lowercased()
+        let fileClass = ext.isEmpty ? "file" : "\(ext)-file"
+        return "redacted-\(fileClass)-\(MCPSharedState.stableRedactionSuffix(for: filePath))"
+    }
+
+    private static func redactedFindingSummary(for finding: VerifiedFinding) -> String {
+        let category = finding.category.replacingOccurrences(of: "_", with: " ")
+        return "Redacted \(finding.severity.rawValue) \(category) finding"
     }
 }
