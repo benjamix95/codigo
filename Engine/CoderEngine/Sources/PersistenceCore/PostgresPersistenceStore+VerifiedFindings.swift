@@ -25,6 +25,18 @@ extension PostgresPersistenceStore {
             "DELETE FROM pipeline_runs WHERE session_id = \(sessionId);",
         ]
 
+        let workspaceIDs = Set(
+            envelope.canonicalSnapshot.runs.values.map(\.workspaceId) +
+            envelope.canonicalSnapshot.patchArtifacts.values.map(\.workspaceId)
+        )
+        for workspaceID in workspaceIDs.sorted() where workspaceID.isEmpty == false {
+            statements.append("""
+            INSERT INTO workspaces(id, root_path, created_at, updated_at)
+            VALUES (\(PersistenceSupport.sqlLiteral(workspaceID)), \(PersistenceSupport.sqlLiteral(workspaceID)), NOW(), NOW())
+            ON CONFLICT (id) DO UPDATE SET root_path = EXCLUDED.root_path, updated_at = NOW(), version = workspaces.version + 1;
+            """)
+        }
+
         for run in envelope.canonicalSnapshot.runs.values {
             let domainScope = try PersistenceSupport.jsonLiteral(run.domainScope.map(\.rawValue))
             let budgetPolicy = try PersistenceSupport.jsonLiteral(run.budgetPolicy)
@@ -42,7 +54,7 @@ extension PostgresPersistenceStore {
                 \(run.maxRevalidationAttempts), \(sqlTimestamp(run.timeoutAt)), \(sqlTimestamp(run.cancelledAt)),
                 \(sqlNullable(run.cancelReason)), \(run.toolCallCount), \(run.verificationAttemptCount), \(run.patchAttemptCount),
                 \(run.revalidationAttemptCount), \(run.isCancellable), \(run.eventSchemaVersion), \(run.entitySchemaVersion),
-                \(run.projectionSchemaVersion), \(sqlTimestamp(run.createdAt)), \(sqlTimestamp(run.updatedAt))
+                \(run.projectionSchemaVersion), \(sqlTimestamp(run.createdAt)), \(sqlTimestamp(run.updatedAt)))
             ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, updated_at = EXCLUDED.updated_at, version = pipeline_runs.version + 1;
             """)
         }

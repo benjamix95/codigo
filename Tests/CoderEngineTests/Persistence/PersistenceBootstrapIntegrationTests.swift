@@ -16,10 +16,33 @@ final class PersistenceBootstrapIntegrationTests: XCTestCase {
     func testBootstrapImportsLegacyVerifiedFindingsAndPlanState() throws {
         let stableDate = PersistenceTestSupport.stableDate()
         let conversationId = UUID()
+        let run = VerifiedPipelineRun(
+            id: "run-import",
+            status: .running,
+            domainScope: [.bug],
+            workspaceId: "/tmp/workspace",
+            entryPoint: .mainChat,
+            budgetPolicy: VerifiedRunBudgetPolicy(name: "bootstrap-import", allowRetryOnTransientFailure: true),
+            maxDuration: 120,
+            maxToolCalls: 8,
+            maxVerificationAttempts: 2,
+            maxPatchAttempts: 1,
+            maxRevalidationAttempts: 1,
+            timeoutAt: nil,
+            cancelledAt: nil,
+            cancelReason: nil,
+            toolCallCount: 1,
+            verificationAttemptCount: 0,
+            patchAttemptCount: 0,
+            revalidationAttemptCount: 0,
+            isCancellable: true,
+            createdAt: stableDate,
+            updatedAt: stableDate
+        )
         let envelope = VerifiedFindingsSessionEnvelope(
             sessionId: "session-import",
             canonicalSnapshot: VerifiedFindingsCanonicalSnapshot(
-                runs: [:],
+                runs: [run.id: run],
                 findings: [
                     "finding-import": VerifiedFinding(
                         id: "finding-import",
@@ -69,6 +92,10 @@ final class PersistenceBootstrapIntegrationTests: XCTestCase {
 
         XCTAssertTrue(report.importedLegacyData)
         XCTAssertEqual(try store.readVerifiedFindingsEnvelope(sessionId: "session-import"), envelope)
+        XCTAssertEqual(
+            try store.readVerifiedFindingsEnvelope(sessionId: "session-import")?.canonicalSnapshot.runs[run.id],
+            run
+        )
         let latestPlan = try XCTUnwrap(store.readLatestPlanSnapshot(conversationId: conversationId))
         XCTAssertEqual(latestPlan.snapshot.goal, "Import legacy plan")
     }
