@@ -17,38 +17,41 @@ extension CoderIDEMCPServerApp {
         guard !findingId.isEmpty, !sessionId.isEmpty else {
             return reviewError("Error: 'finding_id' and 'session_id' are required")
         }
-        if let ownershipError = validateFindingOwnership(sessionId: sessionId, findingId: findingId, args: args) {
-            return reviewError(ownershipError)
+        do {
+            let queued = try VerifiedFindingsLifecycleCommandService.queueApplyPatchCommand(
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: resolveReviewConversationId(args),
+                payload: args
+            )
+            var parts = [
+                "OK — review command queued",
+                "action=apply_patch",
+                "command_id=\(queued.commandId)",
+                "session_id=\(queued.sessionId)",
+            ]
+            if let patchId = queued.patchId {
+                parts.append("patch_id=\(patchId)")
+            }
+            if let verifyStatus = queued.patchVerifyStatus {
+                parts.append("verify_status=\(verifyStatus)")
+            }
+            if let riskScore = queued.patchRiskScore {
+                parts.append("risk_score=\(String(format: "%.2f", riskScore))")
+            }
+            if let severity = queued.findingSeverity {
+                parts.append("severity=\(severity)")
+            }
+            if let category = queued.findingCategory {
+                parts.append("category=\(category)")
+            }
+            if let message = queued.findingMessage {
+                parts.append("message=\(message)")
+            }
+            return reviewOK(parts.joined(separator: ", "))
+        } catch {
+            return reviewError(reviewLifecycleErrorMessage(error))
         }
-        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId),
-              let patch = snapshot.patches.first(where: { $0.findingId == findingId }) else {
-            return reviewError("Error: no prepared patch artifact found. Run review_prepare_patch first.")
-        }
-        guard patch.verifyStatus == .verified else {
-            return reviewError("Error: patch artifact is not verified. Run review_prepare_patch or review_verify_patch first.")
-        }
-        let finding = snapshot.findings.first(where: { $0.id == findingId })
-        let command = MCPSharedState.enqueueCodeReviewCommand(
-            action: "apply_patch",
-            sessionId: sessionId,
-            conversationId: resolveReviewConversationId(args),
-            payload: args
-        )
-        var parts = [
-            "OK — review command queued",
-            "action=apply_patch",
-            "command_id=\(command.id)",
-            "session_id=\(sessionId)",
-            "patch_id=\(patch.id)",
-            "verify_status=\(patch.verifyStatus.rawValue)",
-            "risk_score=\(String(format: "%.2f", patch.riskScore))",
-        ]
-        if let finding {
-            parts.append("severity=\(finding.severity.rawValue)")
-            parts.append("category=\(finding.category.rawValue)")
-            parts.append("message=\(finding.message)")
-        }
-        return reviewOK(parts.joined(separator: ", "))
     }
 
     static func handleReviewVerifyPatch(args: [String: String]) -> CallTool.Result {
@@ -149,9 +152,51 @@ extension CoderIDEMCPServerApp {
         guard !findingId.isEmpty, !sessionId.isEmpty else {
             return reviewError("Error: 'finding_id' and 'session_id' are required")
         }
-        if let ownershipError = validateFindingOwnership(sessionId: sessionId, findingId: findingId, args: args) {
-            return reviewError(ownershipError)
+        do {
+            let queued = try VerifiedFindingsLifecycleCommandService.queueFindingCommand(
+                action: action,
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: resolveReviewConversationId(args),
+                payload: args
+            )
+            var parts = [
+                "OK — review command queued",
+                "action=\(action)",
+                "command_id=\(queued.commandId)",
+                "session_id=\(queued.sessionId)",
+            ]
+            if let severity = queued.findingSeverity {
+                parts.append("severity=\(severity)")
+            }
+            if let category = queued.findingCategory {
+                parts.append("category=\(category)")
+            }
+            return reviewOK(parts.joined(separator: ", "))
+        } catch {
+            return reviewError(reviewLifecycleErrorMessage(error))
         }
-        return reviewCommandQueued(action: action, sessionId: sessionId, args: args)
+    }
+
+    private static func reviewLifecycleErrorMessage(_ error: Error) -> String {
+        guard let lifecycleError = error as? VerifiedFindingsLifecycleCommandError else {
+            return error.localizedDescription
+        }
+        switch lifecycleError {
+        case .missingIdentifiers:
+            return "Error: 'finding_id' and 'session_id' are required"
+        case .sessionNotFound(let sessionId):
+            return "Error: session_id '\(sessionId)' was not found"
+        case .conversationRequired(let sessionId):
+            return "Error: 'conversation_id' is required for session_id '\(sessionId)'"
+        case .conversationMismatch(let sessionId):
+            return "Error: session_id '\(sessionId)' does not belong to the requested conversation"
+        case .findingNotOwned(let findingId, let sessionId):
+            return "Error: finding_id '\(findingId)' does not belong to session_id '\(sessionId)'"
+        case .missingPreparedPatch:
+            return "Error: no prepared patch artifact found. Run review_prepare_patch first."
+        case .patchNotVerified:
+            return "Error: patch artifact is not verified. Run review_prepare_patch or review_verify_patch first."
+        }
     }
 }
