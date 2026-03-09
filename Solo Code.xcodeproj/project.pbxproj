@@ -157,6 +157,8 @@
 		16C1A2C47873F69A3C4E2A91 /* VerifiedFindingsLifecycleCommandService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2C37873F69A3C4E2A91 /* VerifiedFindingsLifecycleCommandService.swift */; };
 		16C1A2C67873F6A53C4E2A91 /* VerifiedFindingsQueryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2C57873F6A53C4E2A91 /* VerifiedFindingsQueryService.swift */; };
 		16C1A2C87873F6AB3C4E2A91 /* VerifiedFindingsQueryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2C77873F6AB3C4E2A91 /* VerifiedFindingsQueryServiceTests.swift */; };
+		16C1A2CC7873F6C23C4E2A91 /* SecurityWorkflowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2CB7873F6C23C4E2A91 /* SecurityWorkflowService.swift */; };
+		16C1A2CE7873F6C93C4E2A91 /* BugHunterWorkflowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2CD7873F6C93C4E2A91 /* BugHunterWorkflowService.swift */; };
 		1714C8847F5FBFC9AA824C82 /* PipelineEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F7392D8039C205F827A859 /* PipelineEnums.swift */; };
 		171650B4BB8F4FCCD89B23C6 /* CodexCLIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFA47E41B4F82D2A55D3960 /* CodexCLIProvider+Execution.swift */; };
 		171E31C517D32F60FBCBB5F0 /* OrchestratorMainLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4499A7DB9A99717E26E42A /* OrchestratorMainLoop.swift */; };
@@ -1890,6 +1892,8 @@
 		16C1A2C37873F69A3C4E2A91 /* VerifiedFindingsLifecycleCommandService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsLifecycleCommandService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsLifecycleCommandService.swift; sourceTree = "<group>"; };
 		16C1A2C57873F6A53C4E2A91 /* VerifiedFindingsQueryService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsQueryService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsQueryService.swift; sourceTree = "<group>"; };
 		16C1A2C77873F6AB3C4E2A91 /* VerifiedFindingsQueryServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsQueryServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsQueryServiceTests.swift; sourceTree = "<group>"; };
+		16C1A2CB7873F6C23C4E2A91 /* SecurityWorkflowService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SecurityWorkflowService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/SecurityWorkflowService.swift; sourceTree = "<group>"; };
+		16C1A2CD7873F6C93C4E2A91 /* BugHunterWorkflowService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterWorkflowService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/BugHunterWorkflowService.swift; sourceTree = "<group>"; };
 		1723C4DB50FC5964E24284AE /* LanguageServiceModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceModels.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageServiceModels.swift; sourceTree = "<group>"; };
 		173E86F5B0B9744BDF35EEC4 /* GitPanelStore+Refresh.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitPanelStore+Refresh.swift"; path = "App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+Refresh.swift"; sourceTree = "<group>"; };
 		175C3ED2D1EAC5D42C6C23B5 /* TestRunnerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TestRunnerService.swift; path = App/SoloCodeApp/Sources/Services/Testing/TestRunnerService.swift; sourceTree = "<group>"; };
@@ -4592,6 +4596,8 @@
 				16C1A2C17873F68D3C4E2A91 /* BugHunterAutofixSelectionService.swift */,
 				16C1A2C37873F69A3C4E2A91 /* VerifiedFindingsLifecycleCommandService.swift */,
 				16C1A2C57873F6A53C4E2A91 /* VerifiedFindingsQueryService.swift */,
+				16C1A2CB7873F6C23C4E2A91 /* SecurityWorkflowService.swift */,
+				16C1A2CD7873F6C93C4E2A91 /* BugHunterWorkflowService.swift */,
 				7F4730FACD002987B84A3186 /* VerifiedFindingsSessionEnvelope.swift */,
 				8216E2E3CD43A1D0F7B65940 /* VerifiedFindingsSessionSyncServiceTests.swift */,
 				45EF85C3D457598BDD0DFB86 /* MCPSharedState+CodeReviewReads.swift */,
@@ -5946,6 +5952,8 @@
 				16C1A2C27873F68D3C4E2A91 /* BugHunterAutofixSelectionService.swift in Sources */,
 				16C1A2C47873F69A3C4E2A91 /* VerifiedFindingsLifecycleCommandService.swift in Sources */,
 				16C1A2C67873F6A53C4E2A91 /* VerifiedFindingsQueryService.swift in Sources */,
+				16C1A2CC7873F6C23C4E2A91 /* SecurityWorkflowService.swift in Sources */,
+				16C1A2CE7873F6C93C4E2A91 /* BugHunterWorkflowService.swift in Sources */,
 				A57FD52E57B81E746BBDD29A /* VerifiedFindingsSessionEnvelope.swift in Sources */,
 				331E0C236AE8639CB7813871 /* MCPSharedState+CodeReviewReads.swift in Sources */,
 				97D9FC9BE38D287A39297FDE /* VerifiedFindingsCommandCoordinator.swift in Sources */,

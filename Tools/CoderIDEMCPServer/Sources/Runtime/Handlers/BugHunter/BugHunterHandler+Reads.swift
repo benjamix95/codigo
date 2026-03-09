@@ -61,19 +61,13 @@ extension CoderIDEMCPServerApp {
               let reviewSnapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: reviewSessionId) else {
             return bugHunterOK("No linked review findings available for this BugHunter run.")
         }
-        let findings = VerifiedFindingsQueryService.listPayloads(
+        let findings = BugHunterWorkflowService.findings(
             snapshot: reviewSnapshot,
-            query: VerifiedFindingsQuery(
-                kind: (args["kind"] ?? "verified").lowercased() == "candidate" ? .candidate : .verified,
-                domain: .bug,
-                severity: args["severity"],
-                status: args["status"],
-                sourceOrigin: "bugHunter",
-                category: nil,
-                file: nil,
-                limit: 50,
-                includeSensitiveDetails: false
-            ),
+            kind: args["kind"],
+            severity: args["severity"],
+            status: args["status"],
+            limit: 50,
+            includeSensitiveDetails: false,
             entryPoint: .mcp
         )
         if findings.isEmpty {
@@ -111,23 +105,17 @@ extension CoderIDEMCPServerApp {
               ) else {
             return bugHunterError("Error: unable to resolve BugHunter cluster context")
         }
-        let findings = verifiedState.recovered.envelope.canonicalSnapshot.findings.values
-            .filter { $0.domain == .bug }
-        guard !findings.isEmpty else { return bugHunterOK("No BugHunter cluster available.") }
-        let grouped = Dictionary(grouping: findings) { finding in
-            finding.title.split(separator: ".").first.map(String.init) ?? finding.title
-        }
-        guard let top = grouped.max(by: { $0.value.count < $1.value.count }) else {
+        guard let cluster = BugHunterWorkflowService.explainCluster(
+            resolved: verifiedState
+        ) else {
             return bugHunterOK("No BugHunter cluster available.")
         }
-        let files = Array(Set(top.value.map(\.filePath))).sorted()
-        let avgConfidence = top.value.map(\.confidence).reduce(0, +) / Double(max(top.value.count, 1))
         let lines = [
-            "cluster_title: \(top.key)",
-            "cluster_size: \(top.value.count)",
-            "files: \(files.joined(separator: ", "))",
-            String(format: "avg_confidence: %.2f", avgConfidence),
-            "primary_risk: \(top.value.first?.category ?? "unknown")",
+            "cluster_title: \(cluster.title)",
+            "cluster_size: \(cluster.size)",
+            "files: \(cluster.files.joined(separator: ", "))",
+            String(format: "avg_confidence: %.2f", cluster.averageConfidence),
+            "primary_risk: \(cluster.primaryRisk)",
         ]
         return bugHunterOK(lines.joined(separator: "\n"))
     }

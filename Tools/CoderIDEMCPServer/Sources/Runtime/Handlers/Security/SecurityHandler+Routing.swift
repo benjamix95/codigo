@@ -68,19 +68,14 @@ extension CoderIDEMCPServerApp {
         guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
             return reviewError("Error: unable to load the requested review session")
         }
-        let findings = VerifiedFindingsQueryService.listPayloads(
+        let findings = SecurityWorkflowService.findings(
             snapshot: snapshot,
-            query: VerifiedFindingsQuery(
-                kind: (args["kind"] ?? "verified").lowercased() == "candidate" ? .candidate : .verified,
-                domain: .security,
-                severity: args["severity"],
-                status: args["status"],
-                sourceOrigin: "securityAuditor",
-                category: "security",
-                file: nil,
-                limit: 50,
-                includeSensitiveDetails: false
-            ),
+            kind: args["kind"],
+            severity: args["severity"],
+            status: args["status"],
+            file: nil,
+            limit: 50,
+            includeSensitiveDetails: false,
             entryPoint: .mcp
         )
         guard !findings.isEmpty else {
@@ -97,11 +92,11 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleSecurityPreparePatch(args: [String: String]) -> CallTool.Result {
-        handleReviewPreparePatch(args: args)
+        queueSecurityLifecycleCommand(action: "prepare_patch", args: args)
     }
 
     static func handleSecurityVerifyFinding(args: [String: String]) -> CallTool.Result {
-        handleReviewVerifyFinding(args: args)
+        queueSecurityLifecycleCommand(action: "verify_finding", args: args)
     }
 
     static func handleSecurityPreviewPatch(args: [String: String]) -> CallTool.Result {
@@ -109,23 +104,23 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleSecurityApplyPatch(args: [String: String]) -> CallTool.Result {
-        handleReviewApplyPatch(args: args)
+        queueSecurityLifecycleCommand(action: "apply_patch", args: args)
     }
 
     static func handleSecurityVerifyPatch(args: [String: String]) -> CallTool.Result {
-        handleReviewVerifyPatch(args: args)
+        queueSecurityLifecycleCommand(action: "verify_patch", args: args)
     }
 
     static func handleSecurityRevalidateFinding(args: [String: String]) -> CallTool.Result {
-        handleReviewRevalidateFinding(args: args)
+        queueSecurityLifecycleCommand(action: "revalidate_finding", args: args)
     }
 
     static func handleSecurityRollbackPatch(args: [String: String]) -> CallTool.Result {
-        handleReviewRollbackPatch(args: args)
+        queueSecurityLifecycleCommand(action: "rollback_patch", args: args)
     }
 
     static func handleSecurityCloseFinding(args: [String: String]) -> CallTool.Result {
-        handleReviewCloseFinding(args: args)
+        queueSecurityLifecycleCommand(action: "close_finding", args: args)
     }
 
     private static func securityReviewPrompt(from args: [String: String]) -> String {
@@ -162,7 +157,7 @@ extension CoderIDEMCPServerApp {
             ? MCPSharedState.readCodeReviewSnapshots()
             : scopedSnapshots
         guard let snapshot = snapshots.first else { return nil }
-        return VerifiedFindingsService.resolve(snapshot: snapshot, entryPoint: .mcp).securityGate
+        return SecurityWorkflowService.gate(snapshot: snapshot, entryPoint: .mcp)
     }
 
     private static func textContent(from result: CallTool.Result) -> String {
@@ -171,5 +166,60 @@ extension CoderIDEMCPServerApp {
             return text
         }
         return ""
+    }
+
+    private static func queueSecurityLifecycleCommand(
+        action: String,
+        args: [String: String]
+    ) -> CallTool.Result {
+        let findingId = sanitizedReviewArg(args, key: "finding_id")
+        let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
+        guard !findingId.isEmpty, !sessionId.isEmpty else {
+            return reviewError("Error: 'finding_id' and 'session_id' are required")
+        }
+        do {
+            let queued = try SecurityWorkflowService.queueLifecycleCommand(
+                action: action,
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: resolveReviewConversationId(args),
+                payload: args
+            )
+            var parts = [
+                "OK — security command queued",
+                "action=\(action)",
+                "command_id=\(queued.commandId)",
+                "session_id=\(queued.sessionId)",
+            ]
+            if let patchId = queued.patchId {
+                parts.append("patch_id=\(patchId)")
+            }
+            if let verifyStatus = queued.patchVerifyStatus {
+                parts.append("verify_status=\(verifyStatus)")
+            }
+            if let riskScore = queued.patchRiskScore {
+                parts.append("risk_score=\(String(format: "%.2f", riskScore))")
+            }
+            return reviewOK(parts.joined(separator: ", "))
+        } catch let lifecycleError as VerifiedFindingsLifecycleCommandError {
+            switch lifecycleError {
+            case .missingIdentifiers:
+                return reviewError("Error: 'finding_id' and 'session_id' are required")
+            case .sessionNotFound(let sessionId):
+                return reviewError("Error: session_id '\(sessionId)' was not found")
+            case .conversationRequired(let sessionId):
+                return reviewError("Error: 'conversation_id' is required for session_id '\(sessionId)'")
+            case .conversationMismatch(let sessionId):
+                return reviewError("Error: session_id '\(sessionId)' does not belong to the requested conversation")
+            case .findingNotOwned(let findingId, let sessionId):
+                return reviewError("Error: finding_id '\(findingId)' does not belong to session_id '\(sessionId)'")
+            case .missingPreparedPatch:
+                return reviewError("Error: no prepared patch artifact found. Run security_prepare_patch first.")
+            case .patchNotVerified:
+                return reviewError("Error: patch artifact is not verified. Run security_prepare_patch or security_verify_patch first.")
+            }
+        } catch {
+            return reviewError(error.localizedDescription)
+        }
     }
 }
