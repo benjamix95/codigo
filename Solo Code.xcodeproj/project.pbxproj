@@ -146,6 +146,7 @@
 		15D66F08980FBE555A5A4B60 /* UnifiedToolRuntime+MCPCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2870D0F81E726C975041D669 /* UnifiedToolRuntime+MCPCore.swift */; };
 		163981735FDF3BB278DE7D31 /* GitPanelStore+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CA3D513E86F157F1B4661B /* GitPanelStore+Sync.swift */; };
 		16949F6A3162678B7CB4284F /* CoderIDETools+SecurityWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5112A8DFD9FB240AEB6804 /* CoderIDETools+SecurityWorkflow.swift */; };
+		16A1B8E47873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */; };
 		16C187B102217CE3AC17F9CF /* CodexCLIProviderStreamParsingTests+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691B516652D1032F4A81D960 /* CodexCLIProviderStreamParsingTests+Helpers.swift */; };
 		1714C8847F5FBFC9AA824C82 /* PipelineEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F7392D8039C205F827A859 /* PipelineEnums.swift */; };
 		171650B4BB8F4FCCD89B23C6 /* CodexCLIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFA47E41B4F82D2A55D3960 /* CodexCLIProvider+Execution.swift */; };
@@ -2294,6 +2295,7 @@
 		5E2D8174D7E21251C466B56D /* UnifiedToolRuntime+ShellDiagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+ShellDiagnostics.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Shell/Diagnostics/UnifiedToolRuntime+ShellDiagnostics.swift"; sourceTree = "<group>"; };
 		5EA58BB6499EEEE7F8DB3646 /* DebugProjectionStoreBinding.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugProjectionStoreBinding.swift; path = App/SoloCodeApp/Sources/Runtime/DebugPipeline/DebugProjectionStoreBinding.swift; sourceTree = "<group>"; };
 		5EE20192EF61E071D65A455E /* SecurityHandlerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SecurityHandlerTests.swift; path = Tests/CoderEngineTests/Security/SecurityHandlerTests.swift; sourceTree = "<group>"; };
+		16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SecurityHandlerTests+Gate.swift"; path = "Tests/CoderEngineTests/Security/SecurityHandlerTests+Gate.swift"; sourceTree = "<group>"; };
 		5EEDCEE488DDF6A73795DD1A /* SwarmPanelView+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SwarmPanelView+Helpers.swift"; path = "App/SoloCodeApp/Sources/Panels/Swarm/SwarmPanelView+Helpers.swift"; sourceTree = "<group>"; };
 		5F6252F57CBB5670629FBF50 /* CLIAccountLoginCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIAccountLoginCoordinatorTests.swift; path = Tests/SoloCodeAppTests/CLIAccountLoginCoordinatorTests.swift; sourceTree = "<group>"; };
 		5F83122A62EFE24480D067D5 /* ValidationPerformanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ValidationPerformanceTests.swift; path = Tests/CoderEngineTests/Validation/ValidationPerformanceTests.swift; sourceTree = "<group>"; };
@@ -4583,6 +4585,7 @@
 				00CBEA19C69FAE9E5F48016B /* MCPSharedState+VerifiedFindings.swift */,
 				A57767A53B315C24446CB466 /* VerifiedFindingsSharedStateTests.swift */,
 				5EE20192EF61E071D65A455E /* SecurityHandlerTests.swift */,
+				16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */,
 				AD5112A8DFD9FB240AEB6804 /* CoderIDETools+SecurityWorkflow.swift */,
 				A82A56F609D7DD2083951B46 /* SecurityHandler.swift */,
 				D54016D93FB18871907943B2 /* SecurityHandler+Routing.swift */,
@@ -6919,6 +6922,7 @@
 				79AB1A07EAF45602666C3898 /* BugHunterHandlerTests.swift in Sources */,
 				647628A742EECA678BCB402D /* VerifiedFindingsSharedStateTests.swift in Sources */,
 				E818366091D4E04FFD8169D1 /* SecurityHandlerTests.swift in Sources */,
+				16A1B8E47873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

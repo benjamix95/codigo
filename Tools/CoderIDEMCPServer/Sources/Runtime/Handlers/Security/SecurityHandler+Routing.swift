@@ -1,15 +1,57 @@
+import CoderEngine
 import Foundation
 import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleSecurityStart(args: [String: String]) -> CallTool.Result {
+        guard let gate = currentSecurityGate(args: args), gate.ready else {
+            let summary = currentSecurityGate(args: args)?.summary
+                ?? "security_gate=blocked, no verified bughunter baseline is available"
+            return reviewError("Error: security gate not ready. \(summary)")
+        }
         var reviewArgs = args
         reviewArgs["review_prompt_override"] = securityReviewPrompt(from: args)
         return handleReviewStart(args: reviewArgs)
     }
 
     static func handleSecurityStatus(args: [String: String]) -> CallTool.Result {
-        handleReviewStatus(args: args)
+        let base = handleReviewStatus(args: args)
+        let text = textContent(from: base)
+        guard !text.contains("security_gate_ready:") else { return base }
+        guard let gate = currentSecurityGate(args: args) else {
+            if text.isEmpty || text == "No active review session." {
+                return reviewOK(
+                    """
+                    No active review session.
+                    security_gate_ready: false
+                    security_gate_summary: security_gate=blocked, no verified bughunter baseline is available
+                    """
+                )
+            }
+            return reviewOK(
+                """
+                \(text)
+                security_gate_ready: false
+                security_gate_summary: security_gate=blocked, no verified bughunter baseline is available
+                """
+            )
+        }
+        if text.isEmpty || text == "No active review session." {
+            return reviewOK(
+                """
+                No active review session.
+                security_gate_ready: \(gate.ready ? "true" : "false")
+                security_gate_summary: \(gate.summary)
+                """
+            )
+        }
+        return reviewOK(
+            """
+            \(text)
+            security_gate_ready: \(gate.ready ? "true" : "false")
+            security_gate_summary: \(gate.summary)
+            """
+        )
     }
 
     static func handleSecurityFindings(args: [String: String]) -> CallTool.Result {
@@ -75,5 +117,27 @@ extension CoderIDEMCPServerApp {
             Prioritize exploitability, auth/authz gaps, secrets, injection, unsafe config, dangerous deserialization, and sensitive logging.
             """
         }
+    }
+
+    private static func currentSecurityGate(
+        args: [String: String]
+    ) -> VerifiedFindingsSecurityGateReport? {
+        let conversationId = resolveReviewConversationId(args)
+        let scopedSnapshots = MCPSharedState.readCodeReviewSnapshots(conversationId: conversationId)
+        let snapshots = scopedSnapshots.isEmpty
+            ? MCPSharedState.readCodeReviewSnapshots()
+            : scopedSnapshots
+        guard let snapshot = snapshots.first else { return nil }
+        let envelope = snapshot.verifiedFindings
+            ?? VerifiedFindingsSessionSyncService.sync(snapshot: snapshot, entryPoint: .mcp)
+        return VerifiedFindingsSecurityGateService.evaluate(envelope: envelope)
+    }
+
+    private static func textContent(from result: CallTool.Result) -> String {
+        guard let first = result.content.first else { return "" }
+        if case .text(let text) = first {
+            return text
+        }
+        return ""
     }
 }

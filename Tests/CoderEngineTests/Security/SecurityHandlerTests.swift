@@ -1,6 +1,6 @@
 import XCTest
 import MCP
-import CoderEngine
+@testable import CoderEngine
 @testable import CoderIDEMCPServer
 
 final class SecurityHandlerTests: XCTestCase {
@@ -12,17 +12,6 @@ final class SecurityHandlerTests: XCTestCase {
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
         try super.tearDownWithError()
-    }
-
-    func testSecurityStartUsesReviewStartWithSecurityPromptOverride() {
-        let result = CoderIDEMCPServerApp.handleSecurityTool(
-            name: "security_start",
-            args: ["scope": "uncommitted"]
-        )
-
-        XCTAssertNotNil(result)
-        XCTAssertNil(result?.isError)
-        XCTAssertTrue(textContent(result).contains("session_id"))
     }
 
     func testSecurityFindingsFiltersSecurityOrigin() {
@@ -122,7 +111,7 @@ final class SecurityHandlerTests: XCTestCase {
         )
     }
 
-    private func textContent(_ result: MCP.CallTool.Result?) -> String {
+    func textContent(_ result: MCP.CallTool.Result?) -> String {
         guard let content = result?.content.first else { return "" }
         if case .text(let text) = content {
             return text
