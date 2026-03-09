@@ -275,4 +275,5 @@ final class MCPSharedBugHunterLockTests: XCTestCase {
         waitForExpectations(timeout: 15)
         // Nessun crash = nessuna corruzione dati
     }
+
 }

@@ -1,4 +1,5 @@
 import XCTest
+import Darwin
 @testable import CoderEngine
 
 final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
@@ -119,6 +120,84 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
         let loaded = MCPSharedState.readCodeReviewSnapshot(sessionId: newer.sessionId)
         XCTAssertEqual(loaded?.phase, .fixing)
         XCTAssertEqual(loaded?.mutationSequence, newer.mutationSequence)
+    }
+
+    func testWithCodeReviewFileLockFallsBackToLocalLockWhenFileLockFails() {
+        let lockURL = MCPSharedState.codeReviewDirectoryPath.appendingPathComponent(".lock")
+        let result: String = MCPSharedState.withAdvisoryFileLock(
+            label: "CodeReviewLockTest",
+            lockURL: lockURL,
+            createMode: S_IRUSR | S_IWUSR,
+            fallbackLock: NSRecursiveLock(),
+            ensureLockDirectory: {
+                MCPSharedState.ensureDirectory()
+                try? FileManager.default.createDirectory(
+                    at: MCPSharedState.codeReviewDirectoryPath,
+                    withIntermediateDirectories: true
+                )
+            },
+            acquireLock: {
+                .fallback(ENOENT)
+            },
+            body: {
+                "ok"
+            }
+        )
+
+        XCTAssertEqual(result, "ok")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: MCPSharedState.codeReviewDirectoryPath.path))
+    }
+
+    func testCodeReviewFallbackLockSerializesConcurrentWrites() {
+        let lockURL = MCPSharedState.codeReviewDirectoryPath.appendingPathComponent(".lock")
+        let fallbackLock = NSRecursiveLock()
+        let counterURL = MCPSharedState.codeReviewDirectoryPath.appendingPathComponent("fallback_counter.txt")
+        try? FileManager.default.createDirectory(
+            at: MCPSharedState.codeReviewDirectoryPath,
+            withIntermediateDirectories: true
+        )
+        try? "0".write(to: counterURL, atomically: true, encoding: .utf8)
+
+        let iterations = 40
+        let expectation = expectation(description: "code review fallback lock")
+        expectation.expectedFulfillmentCount = iterations
+        let queue = DispatchQueue(label: "test.codereview.fallback", attributes: .concurrent)
+
+        for _ in 0..<iterations {
+            queue.async {
+                MCPSharedState.withAdvisoryFileLock(
+                    label: "CodeReviewLockTest",
+                    lockURL: lockURL,
+                    createMode: S_IRUSR | S_IWUSR,
+                    fallbackLock: fallbackLock,
+                    ensureLockDirectory: {
+                        MCPSharedState.ensureDirectory()
+                        try? FileManager.default.createDirectory(
+                            at: MCPSharedState.codeReviewDirectoryPath,
+                            withIntermediateDirectories: true
+                        )
+                    },
+                    acquireLock: {
+                        .fallback(EMFILE)
+                    },
+                    body: {
+                        let current = (try? String(contentsOf: counterURL, encoding: .utf8))
+                            .flatMap(Int.init) ?? 0
+                        try? String(current + 1).write(
+                            to: counterURL,
+                            atomically: true,
+                            encoding: .utf8
+                        )
+                    }
+                )
+                expectation.fulfill()
+            }
+        }
+
+        waitForExpectations(timeout: 15)
+        let finalValue = (try? String(contentsOf: counterURL, encoding: .utf8))
+            .flatMap(Int.init)
+        XCTAssertEqual(finalValue, iterations)
     }
 
     private func makeSnapshot(
