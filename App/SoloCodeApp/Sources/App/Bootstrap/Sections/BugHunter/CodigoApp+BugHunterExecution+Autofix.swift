@@ -85,14 +85,21 @@ extension CodigoApp {
         expectedVerifyStatus: ReviewPatchVerifyStatus,
         bugHunterRunId: String
     ) async -> (success: Bool, message: String) {
-        let patchCommand = MCPSharedState.enqueueCodeReviewCommand(
-            action: action,
-            sessionId: sessionId,
-            conversationId: nil,
-            payload: payload
-        )
+        let patchCommandId: String
+        do {
+            let queued = try BugHunterWorkflowService.queueLifecycleCommand(
+                action: action,
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: nil,
+                payload: payload
+            )
+            patchCommandId = queued.commandId
+        } catch {
+            return (false, error.localizedDescription)
+        }
         await processPendingCodeReviewCommandsOnce()
-        MCPSharedState.refreshCodeReviewCommandHeartbeat(id: patchCommand.id)
+        MCPSharedState.refreshCodeReviewCommandHeartbeat(id: patchCommandId)
 
         guard let latestReviewSnapshot = resolveCodeReviewSnapshot(sessionId: sessionId, conversationId: nil),
               let patch = latestReviewSnapshot.patches.first(where: { $0.findingId == findingId }) else {

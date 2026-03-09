@@ -10,6 +10,15 @@ import XCTest
 /// This catches the operator-precedence regression where
 /// `A && B || A` made the `patchArtifactId` check dead code.
 final class BugHunterAutofixFilterTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        super.tearDown()
+    }
 
     // MARK: - Filter under test (mirrors production logic)
 

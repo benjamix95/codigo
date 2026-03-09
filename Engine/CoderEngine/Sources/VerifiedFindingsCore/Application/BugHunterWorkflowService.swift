@@ -101,4 +101,30 @@ public enum BugHunterWorkflowService {
             primaryRisk: top.value.first?.category ?? "unknown"
         )
     }
+
+    public static func queueLifecycleCommand(
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) throws -> VerifiedFindingsQueuedCommandContext {
+        switch action {
+        case "apply_patch":
+            return try VerifiedFindingsLifecycleCommandService.queueApplyPatchCommand(
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: conversationId,
+                payload: payload
+            )
+        default:
+            return try VerifiedFindingsLifecycleCommandService.queueFindingCommand(
+                action: action,
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: conversationId,
+                payload: payload
+            )
+        }
+    }
 }
