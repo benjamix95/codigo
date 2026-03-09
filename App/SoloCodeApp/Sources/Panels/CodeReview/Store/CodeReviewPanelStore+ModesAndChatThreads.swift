@@ -31,6 +31,21 @@ extension CodeReviewPanelStore {
         Self.chatSessionKey(conversationId: conversationId)
     }
 
+    var currentChatSessionState: ReviewPanelChatSessionState {
+        ReviewPanelChatSessionState(
+            messages: chatMessages,
+            isProcessing: isChatProcessing,
+            startedAt: chatStartedAt
+        )
+    }
+
+    var currentChatConversationState: ReviewPanelChatConversationState {
+        ReviewPanelChatConversationState(
+            threads: chatThreads,
+            activeThreadId: activeChatThreadId
+        )
+    }
+
     func createNewChatThread(title: String? = nil) {
         let threadId = chatSessionStore.createThread(for: chatSessionKey, title: title)
         activeChatThreadId = threadId
@@ -55,14 +70,26 @@ extension CodeReviewPanelStore {
     }
 
     func applyChatSessionState(_ state: ReviewPanelChatSessionState) {
-        chatMessages = state.messages
-        isChatProcessing = state.isProcessing
-        chatStartedAt = state.startedAt
+        guard currentChatSessionState != state else { return }
+        if chatMessages != state.messages {
+            chatMessages = state.messages
+        }
+        if isChatProcessing != state.isProcessing {
+            isChatProcessing = state.isProcessing
+        }
+        if chatStartedAt != state.startedAt {
+            chatStartedAt = state.startedAt
+        }
     }
 
     func applyChatConversationState(_ conversation: ReviewPanelChatConversationState) {
-        chatThreads = conversation.threads
-        activeChatThreadId = conversation.activeThreadId
+        guard currentChatConversationState != conversation else { return }
+        if chatThreads != conversation.threads {
+            chatThreads = conversation.threads
+        }
+        if activeChatThreadId != conversation.activeThreadId {
+            activeChatThreadId = conversation.activeThreadId
+        }
         let activeState = conversation.activeThreadId.flatMap { activeId in
             conversation.threads.first(where: { $0.id == activeId })?.sessionState
         } ?? .empty

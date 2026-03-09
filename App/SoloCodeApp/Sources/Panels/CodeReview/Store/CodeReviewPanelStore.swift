@@ -110,7 +110,15 @@ final class CodeReviewPanelStore: ObservableObject {
         let initialConversation = resolvedChatSessionStore.conversation(
             for: Self.chatSessionKey(conversationId: conversationId)
         )
-        applyChatConversationState(initialConversation)
+        // Apply initial state synchronously (safe during init, no view update in progress).
+        chatThreads = initialConversation.threads
+        activeChatThreadId = initialConversation.activeThreadId
+        let activeState = initialConversation.activeThreadId.flatMap { activeId in
+            initialConversation.threads.first(where: { $0.id == activeId })?.sessionState
+        } ?? .empty
+        chatMessages = activeState.messages
+        isChatProcessing = activeState.isProcessing
+        chatStartedAt = activeState.startedAt
         if !chatMessages.isEmpty {
             self.selectedTab = .chat
         }
@@ -119,12 +127,15 @@ final class CodeReviewPanelStore: ObservableObject {
         self.chatStateCancellable = resolvedChatSessionStore.$conversationsByKey
             .map { $0[sessionKey] ?? .empty }
             .removeDuplicates()
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] conversation in
                 guard let self else { return }
+                guard self.currentChatConversationState != conversation else { return }
                 self.pendingChatConversationApplyTask?.cancel()
                 self.pendingChatConversationApplyTask = Task { @MainActor [weak self] in
                     await Task.yield()
                     guard !Task.isCancelled, let self else { return }
+                    self.pendingChatConversationApplyTask = nil
                     self.applyChatConversationState(conversation)
                 }
             }
