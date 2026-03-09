@@ -14,29 +14,20 @@ extension MCPSharedState {
     ) -> [[String: String]] {
         guard let snapshot = readCodeReviewSnapshot(sessionId: sessionId) else { return [] }
         let normalizedKind = (kind ?? "verified").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let canonicalFindings = snapshot.canonicalVerifiedFindingsSnapshot.findings
-        if normalizedKind == "candidate" || normalizedKind == "candidates" {
-            return mappedCandidatePayloads(
-                from: snapshot,
-                canonicalFindings: canonicalFindings,
+        return VerifiedFindingsQueryService.listPayloads(
+            snapshot: snapshot,
+            query: VerifiedFindingsQuery(
+                kind: normalizedKind == "candidate" || normalizedKind == "candidates" ? .candidate : .verified,
+                domain: nil,
                 severity: severity,
-                origin: origin,
-                category: category,
+                status: status,
+                sourceOrigin: origin,
+                category: category.map { FindingCategory.fromStoredValue($0).rawValue },
                 file: file,
                 limit: limit,
                 includeSensitiveDetails: includeSensitiveDetails
-            )
-        }
-        return mappedFindingPayloads(
-            from: snapshot,
-            canonicalFindings: canonicalFindings,
-            severity: severity,
-            status: status,
-            origin: origin,
-            category: category,
-            file: file,
-            limit: limit,
-            includeSensitiveDetails: includeSensitiveDetails
+            ),
+            entryPoint: .mcp
         )
     }
 
@@ -107,102 +98,5 @@ extension MCPSharedState {
         if let error = snapshot.lastError { payload["error"] = error }
         if let testStatus = snapshot.lastTestStatus { payload["last_test_status"] = testStatus.rawValue }
         return payload
-    }
-
-    private static func mappedCandidatePayloads(
-        from snapshot: CodeReviewSessionSnapshot,
-        canonicalFindings: [String: VerifiedFinding],
-        severity: String?,
-        origin: String?,
-        category: String?,
-        file: String?,
-        limit: Int,
-        includeSensitiveDetails: Bool
-    ) -> [[String: String]] {
-        var candidates = snapshot.candidates
-        if let severity, !severity.isEmpty { candidates = candidates.filter { $0.severity.rawValue == severity } }
-        if let origin, !origin.isEmpty { candidates = candidates.filter { $0.origin.rawValue == origin } }
-        if let category, !category.isEmpty { candidates = candidates.filter { $0.category.rawValue == FindingCategory.fromStoredValue(category).rawValue } }
-        if let file, !file.isEmpty { candidates = candidates.filter { $0.filePath.contains(file) } }
-        return Array(candidates.prefix(limit)).map { candidate in
-            var payload: [String: String] = [
-                "id": candidate.id,
-                "kind": "candidate",
-                "severity": candidate.severity.rawValue,
-                "category": candidate.category.rawValue,
-                "origin": candidate.origin.rawValue,
-                "status": candidate.verificationStatus.rawValue,
-            ]
-            if let canonical = canonicalFindings[candidate.id] {
-                payload["domain"] = canonical.domain.rawValue
-                payload["stale_status"] = canonical.staleStatus.rawValue
-                if !canonical.possibleDuplicateOf.isEmpty {
-                    payload["possible_duplicate_of"] = canonical.possibleDuplicateOf.joined(separator: ",")
-                }
-            }
-            if let confidence = candidate.confidence { payload["confidence"] = String(format: "%.2f", confidence) }
-            if includeSensitiveDetails {
-                payload["file_path"] = candidate.filePath
-                payload["message"] = candidate.message
-                payload["evidence"] = candidate.evidence
-                if let lineNumber = candidate.lineNumber { payload["line_number"] = String(lineNumber) }
-            } else {
-                payload["file_label"] = redactedFindingReference(for: CodeReviewFinding.fromCandidate(candidate))
-                payload["message_summary"] = redactedFindingSummary(for: CodeReviewFinding.fromCandidate(candidate))
-            }
-            return payload
-        }
-    }
-
-    private static func mappedFindingPayloads(
-        from snapshot: CodeReviewSessionSnapshot,
-        canonicalFindings: [String: VerifiedFinding],
-        severity: String?,
-        status: String?,
-        origin: String?,
-        category: String?,
-        file: String?,
-        limit: Int,
-        includeSensitiveDetails: Bool
-    ) -> [[String: String]] {
-        var findings = snapshot.findings
-        if let severity, !severity.isEmpty { findings = findings.filter { $0.severity.rawValue == severity } }
-        if let status, !status.isEmpty { findings = findings.filter { $0.status.rawValue == status } }
-        if let origin, !origin.isEmpty { findings = findings.filter { $0.origin.rawValue == origin } }
-        if let category, !category.isEmpty { findings = findings.filter { $0.category.rawValue == FindingCategory.fromStoredValue(category).rawValue } }
-        if let file, !file.isEmpty { findings = findings.filter { $0.filePath.contains(file) } }
-        return Array(findings.prefix(limit)).map { finding in
-            var payload: [String: String] = [
-                "id": finding.id,
-                "kind": "verified",
-                "severity": finding.severity.rawValue,
-                "category": finding.category.rawValue,
-                "origin": finding.origin.rawValue,
-                "status": finding.status.rawValue,
-                "blocking": finding.blocking ? "true" : "false",
-            ]
-            if let canonical = canonicalFindings[finding.id] {
-                payload["domain"] = canonical.domain.rawValue
-                payload["stale_status"] = canonical.staleStatus.rawValue
-                if !canonical.possibleDuplicateOf.isEmpty {
-                    payload["possible_duplicate_of"] = canonical.possibleDuplicateOf.joined(separator: ",")
-                }
-                if let mergedIntoFindingId = canonical.mergedIntoFindingId { payload["merged_into_finding_id"] = mergedIntoFindingId }
-                if let recurrenceGroupId = canonical.recurrenceGroupId { payload["recurrence_group_id"] = recurrenceGroupId }
-            }
-            if let confidence = finding.confidence { payload["confidence"] = String(format: "%.2f", confidence) }
-            if let sourceTool = finding.sourceTool { payload["source_tool"] = sourceTool }
-            if includeSensitiveDetails {
-                payload["file_path"] = finding.filePath
-                payload["message"] = finding.message
-                if let lineNumber = finding.lineNumber { payload["line_number"] = String(lineNumber) }
-                if let endLineNumber = finding.endLineNumber { payload["end_line_number"] = String(endLineNumber) }
-            } else {
-                payload["file_label"] = redactedFindingReference(for: finding)
-                payload["message_summary"] = redactedFindingSummary(for: finding)
-                if let lineNumber = finding.lineNumber { payload["line_number"] = String(lineNumber) }
-            }
-            return payload
-        }
     }
 }

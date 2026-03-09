@@ -220,6 +220,86 @@ final class BugHunterHandlerTests: XCTestCase {
         XCTAssertFalse(text.contains("Auth bypass"))
     }
 
+    func testBugHunterFindingsUsesCanonicalQueryService() {
+        let now = Date(timeIntervalSince1970: 1_700_002_100)
+        let canonical = VerifiedFindingsCanonicalSnapshot(
+            runs: [:],
+            findings: [
+                "bughunter-1": VerifiedFinding(
+                    id: "bughunter-1",
+                    domain: .bug,
+                    title: "Crash path",
+                    summary: "bug",
+                    category: "correctness",
+                    severity: .high,
+                    confidence: 0.94,
+                    status: .verified,
+                    filePath: "Sources/App.swift",
+                    lineStart: 44,
+                    originEntryPoint: .mcp,
+                    sourceOrigin: "bugHunter",
+                    findingFingerprint: "bughunter-1",
+                    createdAt: now,
+                    updatedAt: now
+                ),
+            ],
+            evidences: [:],
+            verificationReports: [:],
+            patchArtifacts: [:],
+            revalidationReports: [:],
+            commandLog: [],
+            eventLog: [],
+            traceLog: []
+        )
+        let reviewSnapshot = CodeReviewSessionSnapshot(
+            sessionId: "review-1",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: now,
+            completedAt: now,
+            analysisCompletedAt: now,
+            lastError: nil,
+            currentJobId: "job-1",
+            lastTestStatus: .passed,
+            verifiedFindings: VerifiedFindingsSessionEnvelope(
+                sessionId: "review-1",
+                canonicalSnapshot: canonical,
+                projectionSnapshot: VerifiedFindingsProjectionBuilder.build(from: canonical),
+                lastUpdatedAt: now
+            ),
+            lastUpdatedAt: now
+        )
+        MCPSharedState.writeCodeReviewSnapshot(reviewSnapshot)
+        MCPSharedState.writeBugHunterSnapshot(
+            MCPSharedBugHunterSnapshot(
+                runId: "run-1",
+                reviewSessionId: "review-1",
+                sourceKind: .uncommitted,
+                triggerKind: .manual,
+                gitRoot: "/tmp/repo",
+                status: .completed
+            )
+        )
+
+        let result = CoderIDEMCPServerApp.handleBugHunterTool(
+            name: "bughunter_findings",
+            args: ["run_id": "run-1"]
+        )
+
+        XCTAssertNil(result?.isError)
+        let text = textContent(result)
+        XCTAssertTrue(text.contains("bughunter-1"))
+        XCTAssertTrue(text.contains("domain: bug"))
+    }
+
     private func textContent(_ result: MCP.CallTool.Result?) -> String {
         guard let content = result?.content.first else { return "" }
         if case .text(let text) = content {

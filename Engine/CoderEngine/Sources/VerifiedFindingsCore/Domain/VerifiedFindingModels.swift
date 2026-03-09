@@ -51,6 +51,7 @@ public struct VerifiedFinding: Sendable, Codable, Identifiable, Equatable {
     public let reproducibility: VerifiedFindingReproducibility
     public let version: Int
     public let originEntryPoint: VerifiedFindingOriginEntryPoint
+    public let sourceOrigin: String?
     public let lastCommandId: String?
     public let staleStatus: VerifiedFindingStaleStatus
     public let closedReason: String?
@@ -86,6 +87,7 @@ public struct VerifiedFinding: Sendable, Codable, Identifiable, Equatable {
         reproducibility: VerifiedFindingReproducibility = .none,
         version: Int = 1,
         originEntryPoint: VerifiedFindingOriginEntryPoint,
+        sourceOrigin: String? = nil,
         lastCommandId: String? = nil,
         staleStatus: VerifiedFindingStaleStatus = .active,
         closedReason: String? = nil,
@@ -120,6 +122,7 @@ public struct VerifiedFinding: Sendable, Codable, Identifiable, Equatable {
         self.reproducibility = reproducibility
         self.version = version
         self.originEntryPoint = originEntryPoint
+        self.sourceOrigin = sourceOrigin
         self.lastCommandId = lastCommandId
         self.staleStatus = staleStatus
         self.closedReason = closedReason

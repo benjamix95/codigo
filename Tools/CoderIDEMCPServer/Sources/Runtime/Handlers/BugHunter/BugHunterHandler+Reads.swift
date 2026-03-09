@@ -57,20 +57,24 @@ extension CoderIDEMCPServerApp {
 
     static func handleBugHunterFindings(args: [String: String]) -> CallTool.Result {
         guard let snapshot = resolveBugHunterSnapshot(args: args),
-              let reviewSessionId = snapshot.reviewSessionId else {
+              let reviewSessionId = snapshot.reviewSessionId,
+              let reviewSnapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: reviewSessionId) else {
             return bugHunterOK("No linked review findings available for this BugHunter run.")
         }
-        let kind = (args["kind"] ?? "verified").trimmingCharacters(in: .whitespacesAndNewlines)
-        let findings = MCPSharedState.readCodeReviewFindings(
-            sessionId: reviewSessionId,
-            kind: kind,
-            severity: args["severity"],
-            status: args["status"],
-            origin: "bugHunter",
-            category: nil,
-            file: nil,
-            limit: 50,
-            includeSensitiveDetails: false
+        let findings = VerifiedFindingsQueryService.listPayloads(
+            snapshot: reviewSnapshot,
+            query: VerifiedFindingsQuery(
+                kind: (args["kind"] ?? "verified").lowercased() == "candidate" ? .candidate : .verified,
+                domain: .bug,
+                severity: args["severity"],
+                status: args["status"],
+                sourceOrigin: "bugHunter",
+                category: nil,
+                file: nil,
+                limit: 50,
+                includeSensitiveDetails: false
+            ),
+            entryPoint: .mcp
         )
         if findings.isEmpty {
             return bugHunterOK("No BugHunter findings match the query.")

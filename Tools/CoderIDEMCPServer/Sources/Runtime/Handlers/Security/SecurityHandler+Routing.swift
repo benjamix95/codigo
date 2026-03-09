@@ -55,11 +55,45 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleSecurityFindings(args: [String: String]) -> CallTool.Result {
-        var reviewArgs = args
-        // Keep the MCP handler decoupled from CoderEngine enum types.
-        reviewArgs["origin"] = "securityAuditor"
-        reviewArgs["category"] = "security"
-        return handleReviewFindings(args: reviewArgs)
+        let sessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        guard !sessionId.isEmpty else {
+            return reviewError("Error: 'session_id' is required")
+        }
+        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
+            return reviewError(accessError)
+        }
+        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
+            return reviewError("Error: unable to load the requested review session")
+        }
+        let findings = VerifiedFindingsQueryService.listPayloads(
+            snapshot: snapshot,
+            query: VerifiedFindingsQuery(
+                kind: (args["kind"] ?? "verified").lowercased() == "candidate" ? .candidate : .verified,
+                domain: .security,
+                severity: args["severity"],
+                status: args["status"],
+                sourceOrigin: "securityAuditor",
+                category: "security",
+                file: nil,
+                limit: 50,
+                includeSensitiveDetails: false
+            ),
+            entryPoint: .mcp
+        )
+        guard !findings.isEmpty else {
+            return reviewOK("No security findings match the query.")
+        }
+        let lines = findings.enumerated().map { index, finding in
+            let message = finding["message"] ?? finding["message_summary"] ?? "n/a"
+            let file = finding["file_path"] ?? finding["file_label"] ?? "redacted"
+            let line = finding["line_number"].map { ":\($0)" } ?? ""
+            let staleStatus = finding["stale_status"].map { ", stale: \($0)" } ?? ""
+            return "[\(index + 1)] [\(finding["severity"] ?? "?")] \(file)\(line) — \(message) (domain: security, status: \(finding["status"] ?? "?")\(staleStatus), id: \(finding["id"] ?? "?"))"
+        }
+        return reviewOK(lines.joined(separator: "\n"))
     }
 
     static func handleSecurityPreparePatch(args: [String: String]) -> CallTool.Result {

@@ -116,6 +116,7 @@ public enum VerifiedFindingsSessionSyncService {
                 reproducibility: finding.reproducibility,
                 version: unchanged ? previous.version : previous.version + 1,
                 originEntryPoint: finding.originEntryPoint,
+                sourceOrigin: finding.sourceOrigin,
                 lastCommandId: previous.lastCommandId,
                 staleStatus: finding.staleStatus,
                 closedReason: finding.closedReason,
@@ -154,6 +155,7 @@ public enum VerifiedFindingsSessionSyncService {
             && lhs.impact == rhs.impact
             && lhs.exploitability == rhs.exploitability
             && lhs.reproducibility == rhs.reproducibility
+            && lhs.sourceOrigin == rhs.sourceOrigin
             && lhs.staleStatus == rhs.staleStatus
             && lhs.closedReason == rhs.closedReason
             && lhs.policyFlags == rhs.policyFlags
