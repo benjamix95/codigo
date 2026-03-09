@@ -58,6 +58,22 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertFalse(rawTypes(events).contains("mcp_tool_call"))
     }
 
+    func testDefaultRuntimeReusesSharedMCPSessionManager() async {
+        let runtimeA = UnifiedToolRuntime()
+        let runtimeB = UnifiedToolRuntime()
+        let managerA = await runtimeA.mcpSessions
+        let managerB = await runtimeB.mcpSessions
+
+        XCTAssertEqual(
+            ObjectIdentifier(managerA),
+            ObjectIdentifier(MCPSessionManager.shared)
+        )
+        XCTAssertEqual(
+            ObjectIdentifier(managerB),
+            ObjectIdentifier(MCPSessionManager.shared)
+        )
+    }
+
     func testFindFilesSupportsPathScopeAlias() async throws {
         let index = CodebaseIndex()
         let tmp = try makeTmpWorkspace()

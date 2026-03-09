@@ -3,6 +3,8 @@ import MCP
 import os
 
 public actor MCPSessionManager {
+    public static let shared = MCPSessionManager()
+
     static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPSessionManager")
     var sessions: [String: MCPServerSession] = [:]
     let retryPolicy: MCPRetryPolicy

@@ -237,7 +237,7 @@ public actor UnifiedToolRuntime {
     public init(
         executionController: ExecutionController? = nil,
         executionScope: ExecutionScope = .agent,
-        mcpSessions: MCPSessionManager = MCPSessionManager(),
+        mcpSessions: MCPSessionManager = .shared,
         index: CodebaseIndex? = nil,
         workspacePaths: [URL] = [],
         excludedPaths: [String] = [],
