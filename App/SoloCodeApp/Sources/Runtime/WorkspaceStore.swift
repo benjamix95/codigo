@@ -150,7 +150,10 @@ final class WorkspaceStore: ObservableObject {
                 self?.fileWatcher = watcher
                 self?.progressPollingTask?.cancel()
                 self?.progressPollingTask = nil
-                self?.indexProgress = nil
+                DispatchQueue.main.async { [weak self] in
+                    guard self?.indexingEpoch == activeToken else { return }
+                    self?.indexProgress = nil
+                }
             }
         }
     }
@@ -163,7 +166,10 @@ final class WorkspaceStore: ObservableObject {
                 guard self?.indexingEpoch == activeToken else { break }
                 let info = await index.status()
                 guard !Task.isCancelled else { break }
-                self?.indexProgress = info.progress
+                DispatchQueue.main.async { [weak self] in
+                    guard self?.indexingEpoch == activeToken else { return }
+                    self?.indexProgress = info.progress
+                }
                 if info.status != .indexing { break }
                 try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
             }

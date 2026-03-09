@@ -211,15 +211,18 @@ extension CodeReviewPanelStore {
             return
         }
 
-        if formatted.sectionTitle == "Response" {
-            // assistant_update output is cumulative — replace, don't append
-            replaceResponseSection(id: id, replacement: formatted.line)
-        } else {
-            appendReviewRunSectionLine(
-                id: id,
-                sectionTitle: formatted.sectionTitle,
-                line: formatted.line
-            )
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if formatted.sectionTitle == "Response" {
+                // assistant_update output is cumulative — replace, don't append
+                self.replaceResponseSection(id: id, replacement: formatted.line)
+            } else {
+                self.appendReviewRunSectionLine(
+                    id: id,
+                    sectionTitle: formatted.sectionTitle,
+                    line: formatted.line
+                )
+            }
         }
     }
 
@@ -236,8 +239,7 @@ extension CodeReviewPanelStore {
             type: type,
             payload: enrichedPayload
         )
-        Task { @MainActor [weak self] in
-            await Task.yield()
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.taskActivityStore.addEnvelope(envelope)
             for event in envelope.events {

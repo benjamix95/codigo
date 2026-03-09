@@ -133,10 +133,12 @@ final class CodeReviewPanelStore: ObservableObject {
                 guard self.currentChatConversationState != conversation else { return }
                 self.pendingChatConversationApplyTask?.cancel()
                 self.pendingChatConversationApplyTask = Task { @MainActor [weak self] in
-                    await Task.yield()
                     guard !Task.isCancelled, let self else { return }
-                    self.pendingChatConversationApplyTask = nil
-                    self.applyChatConversationState(conversation)
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self else { return }
+                        self.pendingChatConversationApplyTask = nil
+                        self.applyChatConversationState(conversation)
+                    }
                 }
             }
     }

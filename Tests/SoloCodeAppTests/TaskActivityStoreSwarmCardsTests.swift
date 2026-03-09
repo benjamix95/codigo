@@ -36,6 +36,7 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
                 phase: .searching,
                 isRunning: true
             ))
+        store.flushPending()
 
         let cards = store.swarmCardStates()
         XCTAssertTrue(cards.contains(where: { $0.swarmId == "planner" }))
@@ -55,6 +56,7 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
                 phase: .editing,
                 isRunning: true
             ))
+        store.flushPending()
 
         XCTAssertEqual(store.swarmIds(), ["reviewer"])
         XCTAssertEqual(store.activities(forSwarmId: "reviewer").count, 1)

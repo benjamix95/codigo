@@ -8,16 +8,9 @@ extension TaskActivityStore {
         let isImmediate = activity.isRunning
             || pendingActivities.count >= 8
             || activity.type == "agent"
-        if isImmediate {
-            flushPendingActivities()
-        } else {
-            flushTask?.cancel()
-            flushTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 50_000_000)
-                guard !Task.isCancelled else { return }
-                self?.flushPendingActivities()
-            }
-        }
+        schedulePendingActivitiesFlush(
+            delayNanoseconds: isImmediate ? 0 : 50_000_000
+        )
     }
 
     /// Flush any buffered activities synchronously. Useful in tests.
@@ -37,6 +30,19 @@ extension TaskActivityStore {
         recalcActiveOperations()
         for activity in batch {
             ingestSwarmCard(activity: activity)
+        }
+    }
+
+    private func schedulePendingActivitiesFlush(delayNanoseconds: UInt64) {
+        flushTask?.cancel()
+        flushTask = Task { [weak self] in
+            if delayNanoseconds > 0 {
+                try? await Task.sleep(nanoseconds: delayNanoseconds)
+            }
+            guard !Task.isCancelled else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.flushPendingActivities()
+            }
         }
     }
 
