@@ -8,6 +8,7 @@ enum ReviewPatchWorkflowError: LocalizedError, Equatable {
     case emptyDiff
     case invalidPatch
     case patchNotVerified
+    case rollbackUnavailable
     case validationFailed(String)
     case applyFailed(String)
     case pullRequestUnavailable(String)
@@ -26,6 +27,8 @@ enum ReviewPatchWorkflowError: LocalizedError, Equatable {
             return "La patch salvata non è valida o non è applicabile al workspace corrente."
         case .patchNotVerified:
             return "La patch non è stata verificata con successo e non può essere applicata."
+        case .rollbackUnavailable:
+            return "Rollback non disponibile per questa patch."
         case .validationFailed(let message):
             return "La validation pipeline della patch ha fallito: \(message)"
         case .applyFailed(let message):
@@ -207,6 +210,57 @@ final class ReviewPatchWorkflowService {
         } catch {
             _ = try? gitService.runGit(["apply", "-R", "--3way", patchFile.path], gitRoot: gitRoot)
             throw ReviewPatchWorkflowError.applyFailed(error.localizedDescription)
+        }
+    }
+
+    func revalidatePatch(
+        artifact: ReviewPatchArtifact,
+        workspaceRoot: String
+    ) async throws -> ReviewPatchArtifact {
+        guard artifact.status == .applied else {
+            throw ReviewPatchWorkflowError.applyFailed("La patch non risulta applicata nel workspace corrente.")
+        }
+        let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
+        let validation = try await runValidation(
+            trigger: .reviewPatchApply,
+            workspaceRoot: gitRoot,
+            touchedFiles: artifact.touchedFiles,
+            patchText: nil,
+            workspaceContainsPatch: true
+        )
+        var updated = artifact
+        updated.validationRunId = validation.runId
+        updated.validationStatus = validation.status
+        updated.validationSummary = ValidationReportFormatter.summary(for: validation)
+        updated.applyMessage = updated.validationSummary
+        updated.status = validation.status == .passed ? .applied : .applyFailed
+        updated.updatedAt = Date()
+        return updated
+    }
+
+    func rollbackPatch(
+        artifact: ReviewPatchArtifact,
+        workspaceRoot: String
+    ) async throws -> ReviewPatchArtifact {
+        guard artifact.status == .applied else {
+            throw ReviewPatchWorkflowError.rollbackUnavailable
+        }
+        guard artifact.rollbackRef != nil else {
+            throw ReviewPatchWorkflowError.rollbackUnavailable
+        }
+        let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
+        let patchFile = try writePatchTempFile(artifact.patchText, prefix: "\(artifact.id)-rollback")
+        defer { try? FileManager.default.removeItem(at: patchFile) }
+
+        do {
+            _ = try gitService.runGit(["apply", "-R", "--3way", "--whitespace=nowarn", patchFile.path], gitRoot: gitRoot)
+            var rolledBack = artifact
+            rolledBack.status = .rolledBack
+            rolledBack.applyMessage = "Rollback applied successfully"
+            rolledBack.updatedAt = Date()
+            return rolledBack
+        } catch {
+            throw ReviewPatchWorkflowError.applyFailed("Rollback fallito: \(error.localizedDescription)")
         }
     }
 

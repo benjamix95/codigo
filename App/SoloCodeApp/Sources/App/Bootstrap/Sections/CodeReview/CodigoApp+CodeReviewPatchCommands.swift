@@ -85,6 +85,18 @@ extension CodigoApp {
             let verifiedSnapshot = upsertingPatch(in: preparedSnapshot, artifact: verifiedArtifact)
             let applied = try await service.applyPatch(artifact: verifiedArtifact, workspaceRoot: workspaceRoot)
             return upsertingPatch(in: verifiedSnapshot, artifact: applied)
+        case "revalidate_finding":
+            guard let artifact = snapshot.patches.first(where: { $0.findingId == findingId }) else {
+                throw ReviewPatchWorkflowError.invalidPatch
+            }
+            let revalidated = try await service.revalidatePatch(artifact: artifact, workspaceRoot: workspaceRoot)
+            return upsertingPatch(in: snapshot, artifact: revalidated)
+        case "rollback_patch":
+            guard let artifact = snapshot.patches.first(where: { $0.findingId == findingId }) else {
+                throw ReviewPatchWorkflowError.invalidPatch
+            }
+            let rolledBack = try await service.rollbackPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+            return upsertingPatch(in: snapshot, artifact: rolledBack)
         case "open_pr":
             guard let artifact = snapshot.patches.first(where: { $0.findingId == findingId }),
                   let finding = snapshot.findings.first(where: { $0.id == findingId }) else {

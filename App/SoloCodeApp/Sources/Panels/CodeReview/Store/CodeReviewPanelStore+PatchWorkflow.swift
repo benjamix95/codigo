@@ -61,6 +61,74 @@ extension CodeReviewPanelStore {
         await applyPreparedPatch(sessionId: sessionId, artifact: artifact, workspaceRoot: workspaceRoot)
     }
 
+    func revalidatePatch(sessionId: String, findingId: String) async {
+        guard let workspaceRoot = workspaceStore.activeWorkspacePaths.first?.path else {
+            await markPatchFailure(
+                sessionId: sessionId,
+                findingId: findingId,
+                message: ReviewPatchWorkflowError.missingWorkspace.localizedDescription
+            )
+            return
+        }
+        guard let artifact = patchesForSession(sessionId).first(where: { $0.findingId == findingId }) else {
+            await markPatchFailure(
+                sessionId: sessionId,
+                findingId: findingId,
+                message: ReviewPatchWorkflowError.invalidPatch.localizedDescription
+            )
+            return
+        }
+        let service = ReviewPatchWorkflowService()
+        do {
+            let revalidated = try await service.revalidatePatch(
+                artifact: artifact,
+                workspaceRoot: workspaceRoot
+            )
+            await upsertPatchArtifact(sessionId: sessionId, artifact: revalidated)
+            appendPanelSystemMessage(
+                "Revalidation completata per finding \(findingId).",
+                kind: .statusNote,
+                selectChatTab: false
+            )
+        } catch {
+            await markPatchFailure(sessionId: sessionId, findingId: findingId, message: error.localizedDescription)
+        }
+    }
+
+    func rollbackPatch(sessionId: String, findingId: String) async {
+        guard let workspaceRoot = workspaceStore.activeWorkspacePaths.first?.path else {
+            await markPatchFailure(
+                sessionId: sessionId,
+                findingId: findingId,
+                message: ReviewPatchWorkflowError.missingWorkspace.localizedDescription
+            )
+            return
+        }
+        guard let artifact = patchesForSession(sessionId).first(where: { $0.findingId == findingId }) else {
+            await markPatchFailure(
+                sessionId: sessionId,
+                findingId: findingId,
+                message: ReviewPatchWorkflowError.invalidPatch.localizedDescription
+            )
+            return
+        }
+        let service = ReviewPatchWorkflowService()
+        do {
+            let rolledBack = try await service.rollbackPatch(
+                artifact: artifact,
+                workspaceRoot: workspaceRoot
+            )
+            await upsertPatchArtifact(sessionId: sessionId, artifact: rolledBack)
+            appendPanelSystemMessage(
+                "Rollback completato per finding \(findingId).",
+                kind: .statusNote,
+                selectChatTab: true
+            )
+        } catch {
+            await markPatchFailure(sessionId: sessionId, findingId: findingId, message: error.localizedDescription)
+        }
+    }
+
     func openPatchPullRequest(sessionId: String, findingId: String) async {
         guard let artifact = currentPatches.first(where: { $0.findingId == findingId }),
               let workspaceRoot = workspaceStore.activeWorkspacePaths.first?.path,

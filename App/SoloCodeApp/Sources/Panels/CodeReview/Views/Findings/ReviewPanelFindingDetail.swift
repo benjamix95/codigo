@@ -216,6 +216,24 @@ struct ReviewPanelFindingDetail: View {
             if let sessionId = store.selectedSessionId,
                store.currentPatches.contains(where: { $0.findingId == finding.id }) {
                 Button {
+                    Task { await store.revalidatePatch(sessionId: sessionId, findingId: finding.id) }
+                } label: {
+                    Label("Revalidate", systemImage: "checkmark.seal")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button {
+                    Task { await store.rollbackPatch(sessionId: sessionId, findingId: finding.id) }
+                } label: {
+                    Label("Rollback", systemImage: "arrow.uturn.backward.circle")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button {
                     Task { await store.openPatchPullRequest(sessionId: sessionId, findingId: finding.id) }
                 } label: {
                     Label("Open PR", systemImage: "arrow.up.right.square")

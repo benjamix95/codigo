@@ -74,6 +74,34 @@ extension CoderIDETools {
             annotations: .init(title: "Review Verify Patch", readOnlyHint: false)
         ),
         Tool(
+            name: "coderide_review_revalidate_finding",
+            description: "Re-run post-fix validation for an already applied review patch.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "finding_id": .object(["type": "string", "description": "Finding id"]),
+                    "session_id": .object(["type": "string", "description": "Owning review session id"]),
+                    "conversation_id": .object(["type": "string", "description": "Conversation UUID for scoped sessions"]),
+                ]),
+                "required": .array([.string("finding_id"), .string("session_id")]),
+            ]),
+            annotations: .init(title: "Review Revalidate Finding", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_review_rollback_patch",
+            description: "Rollback an already applied review patch when rollback data is available.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "finding_id": .object(["type": "string", "description": "Finding id"]),
+                    "session_id": .object(["type": "string", "description": "Owning review session id"]),
+                    "conversation_id": .object(["type": "string", "description": "Conversation UUID for scoped sessions"]),
+                ]),
+                "required": .array([.string("finding_id"), .string("session_id")]),
+            ]),
+            annotations: .init(title: "Review Rollback Patch", readOnlyHint: false)
+        ),
+        Tool(
             name: "coderide_review_open_pr",
             description: "Open a PR for the stored patch artifact of a review finding.",
             inputSchema: .object([

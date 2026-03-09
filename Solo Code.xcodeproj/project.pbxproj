@@ -996,6 +996,7 @@
 		9C809C62A193A1BA57664EBE /* ChatTodoExecutionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF988C01BE11AD7DCDB4CFB2 /* ChatTodoExecutionCardView.swift */; };
 		9CEB7832E270CB3EEF7FEA41 /* EditorPlaceholderView+Diff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2629970C120A1710A0832FCB /* EditorPlaceholderView+Diff.swift */; };
 		9CF10296F68354AC00303E2E /* GitPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CAA2B00CCFDD9582511065F /* GitPanelView.swift */; };
+		9E23118440AEB48B1762B464 /* CodeReviewHandlerTests+PatchLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C060B37B3611CED3A25BCCE /* CodeReviewHandlerTests+PatchLifecycle.swift */; };
 		9E278DA37D5EA3F7CEFFF187 /* CodexModelsCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD292EA4B6307028F1300CAC /* CodexModelsCache.swift */; };
 		9E2E3287C47157FF3C70E4C9 /* ChatReasoningStreamReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF28FCA1CD9D3C4390070CD7 /* ChatReasoningStreamReducer.swift */; };
 		9E2E4893BF8D6E9605CDF3AA /* CodeReviewPanelChatSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B6A113EDF4B68E213B4309 /* CodeReviewPanelChatSessionStore.swift */; };
@@ -2566,6 +2567,7 @@
 		8B260F473785726AF9261F79 /* FileStats.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FileStats.swift; path = Engine/CoderEngine/Sources/CodebaseIndex/Core/Domain/FileStats.swift; sourceTree = "<group>"; };
 		8B83D003C6A6FEF0FB3F86A5 /* WorkspaceScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorkspaceScanner.swift; path = Engine/CoderEngine/Sources/Workspace/WorkspaceScanner.swift; sourceTree = "<group>"; };
 		8BFD321A830DA0F51EF8D066 /* SidePanelView+Explorer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SidePanelView+Explorer.swift"; path = "App/SoloCodeApp/Sources/App/SidePanel/Sections/SidePanelView+Explorer.swift"; sourceTree = "<group>"; };
+		8C060B37B3611CED3A25BCCE /* CodeReviewHandlerTests+PatchLifecycle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewHandlerTests+PatchLifecycle.swift"; path = "Tests/CoderEngineTests/CodeReview/CodeReviewHandlerTests+PatchLifecycle.swift"; sourceTree = "<group>"; };
 		8C835CA47586DECA8916D0C6 /* ProfileSwitcherView+Popover.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ProfileSwitcherView+Popover.swift"; path = "App/SoloCodeApp/Sources/App/ProfileSwitcher/Sections/ProfileSwitcherView+Popover.swift"; sourceTree = "<group>"; };
 		8CA5BDF4D20C2BB5DB9DE864 /* SwiftLintAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftLintAdapter.swift; path = App/SoloCodeApp/Sources/Services/Linting/SwiftLintAdapter.swift; sourceTree = "<group>"; };
 		8CB5BB85DE0F126FD7366E88 /* MCPSharedState+CodeReviewIndex.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSharedState+CodeReviewIndex.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/MCPSharedState+CodeReviewIndex.swift"; sourceTree = "<group>"; };
@@ -4553,6 +4555,7 @@
 				33FA96321FEDBCEBC649200C /* PipelineIntegrationVerifiedFindingsTests.swift */,
 				54C6EEDB7EDF7C6A8E240EED /* VerifiedFindingsSecurityGateService.swift */,
 				F69D74CD017AF0195ECD96DD /* VerifiedFindingsSecurityGateServiceTests.swift */,
+				8C060B37B3611CED3A25BCCE /* CodeReviewHandlerTests+PatchLifecycle.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -6873,6 +6876,7 @@
 				02037C7E1D0F5AFEFDAC5ED4 /* VerifiedFindingsSessionSyncServiceTests.swift in Sources */,
 				07F9D06A115DA6EB199D01EA /* VerifiedFindingsCommandCoordinatorTests.swift in Sources */,
 				0D0C7BAB7D4311EE97E106E8 /* VerifiedFindingsSecurityGateServiceTests.swift in Sources */,
+				9E23118440AEB48B1762B464 /* CodeReviewHandlerTests+PatchLifecycle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

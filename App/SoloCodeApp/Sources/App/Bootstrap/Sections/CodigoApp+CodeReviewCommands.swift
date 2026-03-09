@@ -51,7 +51,7 @@ extension CodigoApp {
             return await startReviewFromCommand(command)
         case "apply_fix":
             return await applyFixFromCommand(command)
-        case "verify_finding", "prepare_patch", "verify_patch", "apply_patch", "open_pr", "merge_pr", "resolve_conflicts":
+        case "verify_finding", "prepare_patch", "verify_patch", "apply_patch", "revalidate_finding", "rollback_patch", "open_pr", "merge_pr", "resolve_conflicts":
             return await handlePatchWorkflowCommand(command)
         case "dismiss":
             let result = await applyReviewMutation(command) { state, payload in
