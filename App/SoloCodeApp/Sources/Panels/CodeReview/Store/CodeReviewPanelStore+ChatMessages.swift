@@ -63,6 +63,37 @@ extension CodeReviewPanelStore {
         appendChatMessage(message)
     }
 
+    func appendVerifiedFindingSystemMessage(
+        sessionId: String,
+        findingId: String,
+        title: String,
+        detail: String? = nil,
+        selectChatTab: Bool = false
+    ) {
+        if selectChatTab {
+            selectTab(.chat)
+        }
+        guard let snapshot = taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        ) else {
+            appendPanelSystemMessage(
+                detail.map { "\(title)\n\n\($0)" } ?? title,
+                kind: .findingMutation,
+                selectChatTab: false
+            )
+            return
+        }
+        appendChatMessage(
+            ReviewPanelChatMessageFactory.findingUpdate(
+                snapshot: snapshot,
+                findingId: findingId,
+                title: title,
+                detail: detail
+            )
+        )
+    }
+
     func appendReviewRunSectionLine(
         id: UUID,
         sectionTitle: String,

@@ -18,9 +18,11 @@ extension CodeReviewPanelStore {
                 providerRegistry: providerRegistry
             )
             await ingestUpdatedPatchSnapshot(updated)
-            appendPanelSystemMessage(
-                "Patch applicata per finding \(artifact.findingId).",
-                kind: .findingMutation,
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: artifact.findingId,
+                title: "Patch applicata",
+                detail: "Il fix è stato applicato e il lifecycle ora espone apply, validation e rollback.",
                 selectChatTab: false
             )
             if settings.autoOpenPRAfterApply {
@@ -110,9 +112,11 @@ extension CodeReviewPanelStore {
                 .buildOutcomeSummary(summaryOverride: message)
         )
         taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
-        appendPanelSystemMessage(
-            "Patch fallita per finding \(findingId): \(message)",
-            kind: .statusNote,
+        appendVerifiedFindingSystemMessage(
+            sessionId: sessionId,
+            findingId: findingId,
+            title: "Patch fallita",
+            detail: message,
             selectChatTab: true
         )
     }

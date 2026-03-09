@@ -47,6 +47,22 @@ enum ReviewPanelChatMessageFactory {
         )
     }
 
+    static func findingUpdate(
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String,
+        title: String,
+        detail: String? = nil
+    ) -> ReviewPanelMessage {
+        VerifiedFindingsChatPresentationService.reviewPanelMessage(
+            snapshot: snapshot,
+            findingId: findingId,
+            eventTitle: title,
+            eventDetail: detail
+        ) ?? findingUpdate(
+            text: detail.map { "\(title)\n\n\($0)" } ?? title
+        )
+    }
+
     static func summary(snapshot: CodeReviewSessionSnapshot) -> ReviewPanelMessage {
         let content = summaryText(from: snapshot)
         return ReviewPanelMessage(

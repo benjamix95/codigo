@@ -29,9 +29,11 @@ extension CodeReviewPanelStore {
                 providerRegistry: providerRegistry
             )
             await ingestUpdatedPatchSnapshot(updated)
-            appendPanelSystemMessage(
-                "Patch pronta e validata per finding \(findingId).",
-                kind: .findingMutation,
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Patch pronta",
+                detail: "La patch proposta e il diff preview sono ora disponibili prima dell'apply.",
                 selectChatTab: false
             )
         } catch {
@@ -89,9 +91,11 @@ extension CodeReviewPanelStore {
                 providerRegistry: providerRegistry
             )
             await ingestUpdatedPatchSnapshot(updated)
-            appendPanelSystemMessage(
-                "Revalidation completata per finding \(findingId).",
-                kind: .statusNote,
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Revalidation completata",
+                detail: "Il finding è stato rivalidato dopo il fix con lo stato aggiornato del patch lifecycle.",
                 selectChatTab: false
             )
         } catch {
@@ -127,9 +131,11 @@ extension CodeReviewPanelStore {
                 providerRegistry: providerRegistry
             )
             await ingestUpdatedPatchSnapshot(updated)
-            appendPanelSystemMessage(
-                "Rollback completato per finding \(findingId).",
-                kind: .statusNote,
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Rollback completato",
+                detail: "Il patch workflow è tornato allo stato precedente e il finding è stato aggiornato.",
                 selectChatTab: true
             )
         } catch {

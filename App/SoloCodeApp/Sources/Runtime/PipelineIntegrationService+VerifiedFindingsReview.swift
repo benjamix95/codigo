@@ -68,7 +68,7 @@ extension PipelineIntegrationService {
         )
     }
 
-    private func inlineReviewSessionId(for conversationId: UUID) -> String {
+    func inlineReviewSessionId(for conversationId: UUID) -> String {
         "inline-review-\(conversationId.uuidString.lowercased())"
     }
 

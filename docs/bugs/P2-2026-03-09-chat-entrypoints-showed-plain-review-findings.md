@@ -1,0 +1,42 @@
+## Bug Fix Record
+- Categoria: B
+- Bug: main chat e review panel chat mostravano i finding review come testo piatto o status generici, anche con backend `VerifiedFindings` già presente.
+- Sintomo: quando la pipeline emetteva `reviewFinding`, la chat principale riceveva un artifact minimale senza summary/patch state; nel panel chat gli aggiornamenti finding/patch non esponevano card strutturate con preview diff.
+- Impatto: esperienza incoerente tra panel e chat; l’utente non vedeva subito severity, file, verification e stato patch direttamente nel flusso conversazionale.
+- Gravità: importante
+- Steps to reproduce:
+  1. Avviare una review dalla main chat o ricevere un `reviewFinding`.
+  2. Osservare l’artifact chat prodotto.
+  3. Preparare una patch dal review panel e controllare il messaggio in chat.
+- Risultato attuale: summary ridotta a una singola riga; patch preview non rappresentata come card strutturata.
+- Risultato atteso: finding card con metadata, summary, verification e patch preview; stessa famiglia di presenter sia per main chat sia per review panel chat.
+- Causa probabile: il core shared era stato integrato per storage/query/lifecycle, ma il layer di presentazione chat continuava a usare formatter locali troppo poveri.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/CodeReview/Services`
+  - `App/SoloCodeApp/Sources/Runtime`
+  - `App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat`
+  - `App/SoloCodeApp/Sources/Panels/CodeReview/Store`
+  - test chat/pipeline panel correlati
+- Non-scope:
+  - modifica del core `VerifiedFindings`
+  - nuovi workflow di verify/apply
+  - redesign globale della timeline chat
+- Moduli confinanti da verificare:
+  - `PipelineIntegrationService`
+  - `ReviewPanelChatMessageFactory`
+  - `ReviewPatchWorkflowService`
+  - `PipelineIntegrationLifecycleTests`
+- Test da aggiungere o aggiornare:
+  - regressione per finding card nel review panel chat
+  - regressione per payload strutturato main chat
+  - smoke patch workflow panel
+- Strategia di fix minimo:
+  - introdurre un presenter shared per finding/patch card
+  - riusarlo in runtime main chat e review panel chat
+  - estrarre i metodi review/diagnostics da `PipelineIntegrationService+EventSupport.swift` per restare sotto soglia file
+- Verifica post-fix:
+  - `xcodebuildmcp` su `ReviewPanelChatMessageFactoryTests`
+  - `PipelineIntegrationVerifiedFindingsTests`
+  - `PipelineIntegrationLifecycleTests`
+  - `ReviewPatchWorkflowServiceTests`
+- Commit previsto: `feat(chat): surface verified findings cards in main and review chat`
