@@ -111,6 +111,119 @@ final class BugHunterAutofixFilterTests: XCTestCase {
         XCTAssertEqual(result.map(\.id), ["high", "mid", "low"])
     }
 
+    func testCanonicalSelectionUsesOnlyVerifiedBugFindings() {
+        let resolved = VerifiedFindingsResolvedState(
+            recovered: VerifiedFindingsRecoveredEnvelope(
+                source: .embeddedSnapshot,
+                envelope: VerifiedFindingsSessionEnvelope(
+                    sessionId: "session-1",
+                    canonicalSnapshot: VerifiedFindingsCanonicalSnapshot(
+                        runs: [:],
+                        findings: [
+                            "candidate": VerifiedFinding(
+                                id: "candidate",
+                                domain: .bug,
+                                title: "Candidate",
+                                summary: "candidate",
+                                category: "correctness",
+                                severity: .medium,
+                                confidence: 0.99,
+                                status: .candidate,
+                                filePath: "A.swift",
+                                originEntryPoint: .mcp,
+                                findingFingerprint: "candidate"
+                            ),
+                            "security": VerifiedFinding(
+                                id: "security",
+                                domain: .security,
+                                title: "Security",
+                                summary: "security",
+                                category: "security",
+                                severity: .critical,
+                                confidence: 0.99,
+                                status: .verified,
+                                filePath: "B.swift",
+                                originEntryPoint: .mcp,
+                                findingFingerprint: "security"
+                            ),
+                            "verified-low": VerifiedFinding(
+                                id: "verified-low",
+                                domain: .bug,
+                                title: "Verified Low",
+                                summary: "verified",
+                                category: "correctness",
+                                severity: .medium,
+                                confidence: 0.91,
+                                status: .verified,
+                                filePath: "C.swift",
+                                originEntryPoint: .mcp,
+                                findingFingerprint: "verified-low"
+                            ),
+                            "verified-high": VerifiedFinding(
+                                id: "verified-high",
+                                domain: .bug,
+                                title: "Verified High",
+                                summary: "verified",
+                                category: "correctness",
+                                severity: .high,
+                                confidence: 0.97,
+                                status: .verified,
+                                filePath: "D.swift",
+                                originEntryPoint: .mcp,
+                                findingFingerprint: "verified-high"
+                            ),
+                        ],
+                        evidences: [:],
+                        verificationReports: [:],
+                        patchArtifacts: [:],
+                        revalidationReports: [:],
+                        commandLog: [],
+                        eventLog: [],
+                        traceLog: []
+                    ),
+                    projectionSnapshot: VerifiedFindingsProjectionSnapshot(
+                        candidateQueue: [],
+                        verifiedQueue: [],
+                        duplicatesCount: 0,
+                        staleCandidatesCount: 0,
+                        traceSnippets: []
+                    )
+                ),
+                checkpoint: nil
+            ),
+            securityGate: VerifiedFindingsSecurityGateReport(
+                ready: false,
+                canonicalProjectionMismatchCount: 0,
+                undetectedDuplicateCount: 0,
+                findingsMissingEvidenceCount: 0,
+                findingsMissingVerificationCount: 0,
+                rollbackCoverageCount: 0,
+                rollbackEligibleCount: 0,
+                applyRevalidateSuccessRate: 1.0,
+                knownCriticalRaceCount: 0,
+                summary: "test"
+            ),
+            replayReport: VerifiedFindingsReplayReport(
+                sessionId: "session-1",
+                checkpointSource: .embeddedSnapshot,
+                eventSchemaVersion: 1,
+                projectionSchemaVersion: 1,
+                entitySchemaVersion: 1,
+                findingCount: 4,
+                eventCount: 0,
+                traceCount: 0,
+                candidateCount: 1,
+                verifiedCount: 3,
+                duplicatesCount: 0,
+                staleCandidatesCount: 0
+            )
+        )
+
+        let selected = BugHunterAutofixSelectionService.selectFindingId(from: resolved)
+
+        XCTAssertEqual(selected, "verified-high")
+    }
+
     /// Demonstrates the old buggy filter accepted findings without a patch.
     func testBuggyFilter_wouldAcceptWithoutPatch() {
         let buggyFilter: (CodeReviewFinding) -> Bool = {

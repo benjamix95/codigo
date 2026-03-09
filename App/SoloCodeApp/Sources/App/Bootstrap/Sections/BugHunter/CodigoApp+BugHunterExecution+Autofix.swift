@@ -14,12 +14,14 @@ extension CodigoApp {
         guard let reviewSnapshot = resolveCodeReviewSnapshot(sessionId: reviewSessionId, conversationId: nil) else {
             return (false, "Linked review session not found")
         }
-
-        let autofixable = reviewSnapshot.findings
-            .filter { ($0.confidence ?? 0) >= 0.9 && $0.verifiedAt != nil }
-            .sorted { ($0.confidence ?? 0) > ($1.confidence ?? 0) }
-
-        guard let finding = autofixable.first else {
+        let verifiedState = VerifiedFindingsService.resolve(
+            snapshot: reviewSnapshot,
+            entryPoint: .mcp
+        )
+        guard let findingId = BugHunterAutofixSelectionService.selectFindingId(
+            from: verifiedState
+        ),
+        let finding = reviewSnapshot.findings.first(where: { $0.id == findingId }) else {
             return (false, "No autofixable verified bug found")
         }
         let commandPayload = [
@@ -160,9 +162,12 @@ extension CodigoApp {
               let reviewSnapshot = resolveCodeReviewSnapshot(sessionId: reviewSessionId, conversationId: nil) else {
             return
         }
-        let projection = reviewSnapshot.verifiedFindingsProjection
-        let gate = reviewSnapshot.verifiedFindings.map(VerifiedFindingsSecurityGateService.evaluate)
-        let lastVerdict = reviewSnapshot.verifiedFindings?.canonicalSnapshot.revalidationReports.values
+        let verifiedState = VerifiedFindingsService.resolve(
+            snapshot: reviewSnapshot,
+            entryPoint: .mcp
+        )
+        let projection = verifiedState.recovered.envelope.projectionSnapshot
+        let lastVerdict = verifiedState.recovered.envelope.canonicalSnapshot.revalidationReports.values
             .sorted(by: { $0.createdAt > $1.createdAt })
             .first?.verdict.rawValue
         let updated = MCPSharedBugHunterSnapshot(
@@ -185,7 +190,7 @@ extension CodigoApp {
             verifiedFindingsCount: projection.verifiedQueue.count,
             candidateFindingsCount: projection.candidateQueue.count,
             lastRevalidationVerdict: lastVerdict,
-            securityGateReady: gate?.ready
+            securityGateReady: verifiedState.securityGate.ready
         )
         MCPSharedState.writeBugHunterSnapshot(updated)
     }
