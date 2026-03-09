@@ -134,6 +134,9 @@ public struct ReviewPatchArtifact: Sendable, Identifiable, Codable, Equatable {
     public var baseBranchName: String?
     public var prURL: String?
     public var verificationReport: String?
+    public var validationRunId: String?
+    public var validationStatus: ValidationStatus
+    public var validationSummary: String?
     public var applyMessage: String?
     public let createdAt: Date
     public var updatedAt: Date
@@ -156,6 +159,9 @@ public struct ReviewPatchArtifact: Sendable, Identifiable, Codable, Equatable {
         baseBranchName: String? = nil,
         prURL: String? = nil,
         verificationReport: String? = nil,
+        validationRunId: String? = nil,
+        validationStatus: ValidationStatus = .pending,
+        validationSummary: String? = nil,
         applyMessage: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -177,6 +183,9 @@ public struct ReviewPatchArtifact: Sendable, Identifiable, Codable, Equatable {
         self.baseBranchName = baseBranchName
         self.prURL = prURL
         self.verificationReport = verificationReport
+        self.validationRunId = validationRunId
+        self.validationStatus = validationStatus
+        self.validationSummary = validationSummary
         self.applyMessage = applyMessage
         self.createdAt = createdAt
         self.updatedAt = updatedAt

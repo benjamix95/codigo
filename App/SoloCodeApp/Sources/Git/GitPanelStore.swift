@@ -19,7 +19,7 @@ final class GitPanelStore: ObservableObject {
 
     // Commit form state
     @Published var commitMessage = ""
-    @Published var includeUnstaged = true
+    @Published var includeUnstaged = false
     @Published var nextStep: GitCommitNextStep = .commit
 
     // Branch creation

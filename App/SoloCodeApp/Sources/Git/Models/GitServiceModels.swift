@@ -94,6 +94,8 @@ enum GitServiceError: LocalizedError, Sendable {
     case notGitRepository
     case branchNotFound(String)
     case noChangesToCommit
+    case unstagedCommitNotAllowed
+    case validationFailed(String)
     case missingRemote
     case ghNotInstalled
     case ghNotAuthenticated
@@ -109,6 +111,10 @@ enum GitServiceError: LocalizedError, Sendable {
             return "Branch not found: \(branch)."
         case .noChangesToCommit:
             return "No changes to commit."
+        case .unstagedCommitNotAllowed:
+            return "Il commit locale richiede staging selettivo: i file unstaged non vengono inclusi automaticamente."
+        case .validationFailed(let message):
+            return "Validation pipeline fallita: \(message)"
         case .missingRemote:
             return "Remote is not configured for this repository."
         case .ghNotInstalled:

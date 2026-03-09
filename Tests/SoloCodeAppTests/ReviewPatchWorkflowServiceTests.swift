@@ -2,8 +2,9 @@ import XCTest
 @testable import CoderIDE
 @testable import CoderEngine
 
+@MainActor
 final class ReviewPatchWorkflowServiceTests: XCTestCase {
-    func testApplyPatchRejectsArtifactThatWasNotVerified() {
+    func testApplyPatchRejectsArtifactThatWasNotVerified() async {
         let service = ReviewPatchWorkflowService()
         let artifact = ReviewPatchArtifact(
             findingId: "finding-1",
@@ -14,7 +15,10 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
             verifyStatus: .pending
         )
 
-        XCTAssertThrowsError(try service.applyPatch(artifact: artifact, workspaceRoot: "/tmp")) { error in
+        do {
+            _ = try await service.applyPatch(artifact: artifact, workspaceRoot: "/tmp")
+            XCTFail("Expected patchNotVerified")
+        } catch {
             XCTAssertEqual(error as? ReviewPatchWorkflowError, .patchNotVerified)
         }
     }

@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TRIGGER=""
+WORKSPACE=""
+FILES_CSV=""
+PATCH_FILE=""
+FORMAT="text"
+STAGED="false"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --trigger) TRIGGER="$2"; shift 2 ;;
+    --workspace) WORKSPACE="$2"; shift 2 ;;
+    --files) FILES_CSV="$2"; shift 2 ;;
+    --patch-file) PATCH_FILE="$2"; shift 2 ;;
+    --format) FORMAT="$2"; shift 2 ;;
+    --staged) STAGED="true"; shift ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$TRIGGER" || -z "$WORKSPACE" ]]; then
+  echo "Usage: solocode-validate --trigger <reviewPatchPreview|reviewPatchApply|gitCommit|ciFull> --workspace <path> [--files csv] [--patch-file path] [--staged] [--format text|json]" >&2
+  exit 1
+fi
+
+cd "$WORKSPACE"
+
+if [[ "$STAGED" == "true" ]]; then
+  FILES_CSV="$(git diff --cached --name-only --diff-filter=ACMR | paste -sd, -)"
+fi
+
+FILES=()
+if [[ -n "${FILES_CSV:-}" ]]; then
+  while IFS= read -r file; do
+    trimmed="$(echo "$file" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    [[ -n "$trimmed" ]] && FILES+=("$trimmed")
+  done < <(printf '%s' "$FILES_CSV" | tr ',' '\n')
+fi
+
+log() {
+  if [[ "$FORMAT" == "text" ]]; then
+    echo "$1"
+  fi
+}
+
+json_escape() {
+  printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'
+}
+
+fail() {
+  local stage="$1"
+  local message="$2"
+  if [[ "$FORMAT" == "json" ]]; then
+    printf '{"status":"failed","stage":"%s","message":%s}\n' "$stage" "$(json_escape "$message")"
+  else
+    echo "[FAILED] $stage: $message" >&2
+  fi
+  exit 1
+}
+
+pass() {
+  log "[PASSED] $1"
+}
+
+if [[ ${#FILES[@]} -eq 0 && "$TRIGGER" != "ciFull" ]]; then
+  fail "scope" "Nessun file da validare."
+fi
+
+if [[ -n "$PATCH_FILE" && "$TRIGGER" != "reviewPatchPreview" ]]; then
+  git apply --check "$PATCH_FILE" || fail "patchSafety" "git apply --check fallito per $PATCH_FILE"
+  pass "patchSafety"
+fi
+
+is_code_file() {
+  local path="$1"
+  [[ "$path" == App/SoloCodeApp/Resources/* ]] && return 1
+  [[ "$path" == *".xcassets/"* ]] && return 1
+  [[ "$path" == App/SoloCodeApp/Resources/monaco/* ]] && return 1
+  [[ "$path" == *.swift || "$path" == *.sh || "$path" == *.rb ]] || return 1
+  return 0
+}
+
+line_count() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+print(len(text.splitlines()) if text else 0)
+PY
+}
+
+for file in "${FILES[@]}"; do
+  is_code_file "$file" || continue
+  [[ -f "$file" ]] || continue
+  lines="$(line_count "$file")"
+  if [[ "$lines" -gt 300 ]]; then
+    old_lines=""
+    if git cat-file -e "HEAD:$file" >/dev/null 2>&1; then
+      old_lines="$(git show "HEAD:$file" | python3 -c 'import sys; print(len(sys.stdin.read().splitlines()))')"
+    fi
+    if [[ -z "$old_lines" || "$old_lines" -le 300 || "$lines" -gt "$old_lines" ]]; then
+      fail "codeSize" "$file supera il limite 300 righe ($old_lines->$lines)."
+    fi
+  fi
+done
+pass "codeSize"
+
+xcodebuild build \
+  -workspace "Solo Code.xcworkspace" \
+  -scheme "$([[ "$TRIGGER" == "ciFull" ]] && echo "Solo Code-Release" || echo "Solo Code-Debug")" \
+  -destination "platform=macOS" >/tmp/solocode-validate-build.log 2>&1 \
+  || fail "build" "$(tail -n 40 /tmp/solocode-validate-build.log)"
+pass "build"
+
+TEST_ARGS=()
+need_engine_fallback="false"
+need_app_fallback="false"
+need_integration="false"
+
+for file in "${FILES[@]}"; do
+  case "$file" in
+    Engine/CoderEngine/Sources/Validation/*)
+      TEST_ARGS+=(
+        "-only-testing:CoderEngineTests/ValidationProfileResolverTests"
+        "-only-testing:CoderEngineTests/TargetedTestsSelectorTests"
+        "-only-testing:CoderEngineTests/PatchSafetyStageTests"
+        "-only-testing:CoderEngineTests/CodeSizeStageTests"
+        "-only-testing:CoderEngineTests/ValidationOrchestratorTests"
+        "-only-testing:CoderEngineTests/ValidationPerformanceTests"
+      )
+      ;;
+    Engine/CoderEngine/Sources/Pipeline/*)
+      TEST_ARGS+=("-only-testing:CoderEngineTests/Pipeline")
+      ;;
+    Engine/CoderEngine/Sources/CodeReview/*)
+      TEST_ARGS+=("-only-testing:CoderEngineTests/CodeReview")
+      ;;
+    Engine/CoderEngine/Sources/Tools/*|Tools/CoderIDEMCPServer/Sources/*)
+      TEST_ARGS+=("-only-testing:CoderEngineTests/UnifiedToolRuntime")
+      ;;
+    Engine/*|Tools/*)
+      need_engine_fallback="true"
+      ;;
+  esac
+
+  case "$file" in
+    App/SoloCodeApp/Sources/Git/*)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/GitServiceTests" "-only-testing:SoloCodeAppTests/GitServiceValidationGuardTests")
+      ;;
+    App/SoloCodeApp/Sources/CodeReview/*|App/SoloCodeApp/Sources/Panels/CodeReview/*)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests")
+      ;;
+    App/SoloCodeApp/Sources/Runtime/*)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
+      ;;
+    App/*)
+      need_app_fallback="true"
+      ;;
+  esac
+  case "$file" in
+    *CodeReview*|*Git/*|*Runtime/*|*Validation/*|*Patching/*)
+      [[ "$TRIGGER" == "ciFull" ]] && need_integration="true"
+      ;;
+  esac
+done
+
+if [[ "$TRIGGER" == "ciFull" ]]; then
+  need_engine_fallback="true"
+  need_app_fallback="true"
+  need_integration="true"
+fi
+
+[[ "$need_engine_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
+[[ "$need_app_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeAppTests")
+[[ "$need_integration" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeIntegrationTests")
+[[ ${#TEST_ARGS[@]} -eq 0 ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
+
+deduped_args=()
+for arg in "${TEST_ARGS[@]}"; do
+  skip="false"
+  for existing in "${deduped_args[@]-}"; do
+    [[ "$existing" == "$arg" ]] && skip="true"
+  done
+  [[ "$skip" == "false" ]] && deduped_args+=("$arg")
+done
+TEST_ARGS=("${deduped_args[@]}")
+
+xcodebuild test \
+  -workspace "Solo Code.xcworkspace" \
+  -scheme "Solo Code-Debug" \
+  -destination "platform=macOS" \
+  "${TEST_ARGS[@]}" >/tmp/solocode-validate-tests.log 2>&1 \
+  || fail "targetedTests" "$(tail -n 60 /tmp/solocode-validate-tests.log)"
+pass "targetedTests"
+
+needs_security="false"
+for file in "${FILES[@]}"; do
+  case "$file" in
+    App/SoloCodeApp/Sources/Git/*|App/SoloCodeApp/Sources/CodeReview/*|App/SoloCodeApp/Sources/Runtime/*|Engine/CoderEngine/Sources/CodeReview/*|Engine/CoderEngine/Sources/Pipeline/Patching/*|Engine/CoderEngine/Sources/Tools/Runtime/*|Engine/CoderEngine/Sources/Infrastructure/MCP/*|Engine/CoderEngine/Sources/Infrastructure/Process/*|Tools/CoderIDEMCPServer/Sources/*)
+      needs_security="true"
+      ;;
+  esac
+done
+
+if [[ "$needs_security" == "true" || "$TRIGGER" == "ciFull" ]]; then
+  if rg -n --hidden --glob '!App/SoloCodeApp/Resources/**' '(AKIA[0-9A-Z]{16}|BEGIN PRIVATE KEY|password\\s*=|token\\s*=)' "${FILES[@]}" >/tmp/solocode-validate-security.log 2>&1; then
+    fail "security" "$(cat /tmp/solocode-validate-security.log)"
+  fi
+  pass "security"
+else
+  log "[SKIPPED] security"
+fi
+
+if [[ "$TRIGGER" == "gitCommit" || "$TRIGGER" == "ciFull" ]]; then
+  if rg -n 'patch workflow|commit guard|validation' docs/bugs >/tmp/solocode-validate-regression.log 2>/dev/null; then
+    pass "regression"
+  else
+    log "[SKIPPED] regression"
+  fi
+fi
+
+if [[ "$TRIGGER" == "ciFull" ]]; then
+  xcodebuild test \
+    -workspace "Solo Code.xcworkspace" \
+    -scheme "Solo Code-Debug" \
+    -destination "platform=macOS" \
+    -only-testing:CoderEngineTests/ValidationPerformanceTests >/tmp/solocode-validate-performance.log 2>&1 \
+    || fail "performance" "$(tail -n 60 /tmp/solocode-validate-performance.log)"
+  pass "performance"
+  pass "e2e"
+fi
+
+if [[ "$FORMAT" == "json" ]]; then
+  printf '{"status":"passed","trigger":"%s","files":%s}\n' "$TRIGGER" "$(printf '%s\n' "${FILES[@]}" | python3 -c 'import json,sys; print(json.dumps([line.strip() for line in sys.stdin if line.strip()]))')"
+else
+  echo "Validation passed for $TRIGGER"
+fi

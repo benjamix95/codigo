@@ -25,7 +25,7 @@ final class GitServiceTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testBranchAndStatusAndCommit() throws {
+    func testBranchAndStatusAndCommit() async throws {
         let repo = try XCTUnwrap(repoURL)
         let root = try git.resolveGitRoot(from: repo.path)
         let current = try git.currentBranch(gitRoot: root)
@@ -36,10 +36,20 @@ final class GitServiceTests: XCTestCase {
         try "change".write(to: repo.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
         let status = try git.status(gitRoot: root)
         XCTAssertGreaterThan(status.changedFiles, 0)
+        try runGit(["add", "a.txt"], cwd: repo.path)
 
-        let commit = try git.commit(gitRoot: root, message: "chore: update file", includeUnstaged: true)
-        XCTAssertFalse(commit.sha.isEmpty)
-        XCTAssertEqual(commit.subject, "chore: update file")
+        do {
+            _ = try await git.commit(
+                gitRoot: root,
+                message: "chore: update file",
+                includeUnstaged: false
+            )
+            XCTFail("Expected validation failure in temporary non-SoloCode repo")
+        } catch let error as GitServiceError {
+            guard case .validationFailed = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
     }
 
     func testPushWithoutRemoteFails() throws {

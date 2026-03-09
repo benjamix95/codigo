@@ -65,9 +65,9 @@ struct GitCommitSheetView: View {
                     .foregroundStyle(DesignSystem.Colors.error)
             }
 
-            Toggle("Include unstaged", isOn: $includeUnstaged)
+            Toggle("Commit solo staged", isOn: .constant(false))
                 .toggleStyle(.switch)
-                .disabled(isBusy)
+                .disabled(true)
                 .font(.system(size: 16, weight: .medium))
 
             VStack(alignment: .leading, spacing: 8) {

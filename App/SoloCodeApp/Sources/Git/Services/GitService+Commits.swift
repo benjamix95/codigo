@@ -1,13 +1,23 @@
 import Foundation
+import CoderEngine
 
 extension GitService {
-    func commit(gitRoot: String, message: String, includeUnstaged: Bool) throws -> GitCommitResult {
+    func commit(gitRoot: String, message: String, includeUnstaged: Bool) async throws -> GitCommitResult {
         if includeUnstaged {
-            _ = try runGit(["add", "-A"], gitRoot: gitRoot)
+            throw GitServiceError.unstagedCommitNotAllowed
         }
-        let st = try status(gitRoot: gitRoot)
-        if st.changedFiles == 0 {
+        let staged = try changedFiles(gitRoot: gitRoot).filter(\.isStaged)
+        if staged.isEmpty {
             throw GitServiceError.noChangesToCommit
+        }
+        let validation: ValidationRunResult
+        do {
+            validation = try await validateForCommit(gitRoot: gitRoot, stagedFiles: staged.map(\.path))
+        } catch {
+            throw GitServiceError.validationFailed(error.localizedDescription)
+        }
+        guard validation.status == .passed else {
+            throw GitServiceError.validationFailed(validation.summaryLine)
         }
         _ = try runGit(["commit", "-m", message], gitRoot: gitRoot)
         let sha = try runGit(["rev-parse", "HEAD"], gitRoot: gitRoot).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -72,7 +82,7 @@ extension GitService {
                     subject: parts[4],
                     authorName: parts[2],
                     relativeDate: parts[3]
-                )
-            }
+        )
+    }
     }
 }

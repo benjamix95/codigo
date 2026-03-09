@@ -28,7 +28,7 @@ extension GitPanelStore {
                     }
                 }
 
-                let commit = try gitService.commit(
+                let commit = try await gitService.commit(
                     gitRoot: gitRoot, message: message, includeUnstaged: includeUnstaged)
                 notifyBugHunterForCommit(commit, gitRoot: gitRoot)
 

@@ -71,7 +71,7 @@ extension GitPanelView {
                     .background(DesignSystem.Colors.agentColor, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .disabled(store.isBusy || (store.status?.changedFiles ?? 0) == 0)
+                .disabled(store.isBusy || store.stagedFiles.isEmpty)
             }
 
             // Status messages
@@ -102,4 +102,3 @@ extension GitPanelView {
         .padding(.vertical, 10)
     }
 }
-

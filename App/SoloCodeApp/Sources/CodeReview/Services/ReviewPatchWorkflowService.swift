@@ -8,6 +8,7 @@ enum ReviewPatchWorkflowError: LocalizedError, Equatable {
     case emptyDiff
     case invalidPatch
     case patchNotVerified
+    case validationFailed(String)
     case applyFailed(String)
     case pullRequestUnavailable(String)
 
@@ -25,6 +26,8 @@ enum ReviewPatchWorkflowError: LocalizedError, Equatable {
             return "La patch salvata non è valida o non è applicabile al workspace corrente."
         case .patchNotVerified:
             return "La patch non è stata verificata con successo e non può essere applicata."
+        case .validationFailed(let message):
+            return "La validation pipeline della patch ha fallito: \(message)"
         case .applyFailed(let message):
             return "Apply patch fallito: \(message)"
         case .pullRequestUnavailable(let message):
@@ -113,8 +116,7 @@ final class ReviewPatchWorkflowService {
             .filter { !$0.isEmpty }
         let riskScore = patchRiskScore(patchText: patchText, touchedFiles: touchedFiles)
         let preview = String(patchText.prefix(12_000))
-
-        return ReviewPatchArtifact(
+        let artifact = ReviewPatchArtifact(
             findingId: finding.id,
             patchText: patchText,
             diffPreview: preview,
@@ -127,12 +129,24 @@ final class ReviewPatchWorkflowService {
             baseBranchName: baseBranch,
             verificationReport: finding.verificationReport
         )
+        let validated = try await validatePreparedArtifact(
+            artifact,
+            workspaceRoot: worktreePath,
+            trigger: .reviewPatchPreview,
+            workspaceContainsPatch: true
+        )
+        return validated
     }
 
     func verifyPatch(
         artifact: ReviewPatchArtifact,
         workspaceRoot: String
-    ) throws -> ReviewPatchArtifact {
+    ) async throws -> ReviewPatchArtifact {
+        guard artifact.validationStatus == .passed else {
+            throw ReviewPatchWorkflowError.validationFailed(
+                artifact.validationSummary ?? "validation status non passed"
+            )
+        }
         let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
         let patchFile = try writePatchTempFile(artifact.patchText, prefix: artifact.id)
         defer { try? FileManager.default.removeItem(at: patchFile) }
@@ -159,7 +173,7 @@ final class ReviewPatchWorkflowService {
     func applyPatch(
         artifact: ReviewPatchArtifact,
         workspaceRoot: String
-    ) throws -> ReviewPatchArtifact {
+    ) async throws -> ReviewPatchArtifact {
         guard artifact.verifyStatus == .verified else {
             throw ReviewPatchWorkflowError.patchNotVerified
         }
@@ -169,12 +183,25 @@ final class ReviewPatchWorkflowService {
 
         do {
             _ = try gitService.runGit(["apply", "--3way", "--whitespace=nowarn", patchFile.path], gitRoot: gitRoot)
-            let verifyMessage = try runQualityGateIfAvailable(gitRoot: gitRoot)
+            let validation = try await runValidation(
+                trigger: .reviewPatchApply,
+                workspaceRoot: gitRoot,
+                touchedFiles: artifact.touchedFiles,
+                patchText: artifact.patchText,
+                workspaceContainsPatch: true
+            )
+            guard validation.status == .passed else {
+                _ = try? gitService.runGit(["apply", "-R", "--3way", patchFile.path], gitRoot: gitRoot)
+                throw ReviewPatchWorkflowError.validationFailed(validation.summaryLine)
+            }
             var applied = artifact
             applied.status = .applied
             applied.verifyStatus = .verified
+            applied.validationRunId = validation.runId
+            applied.validationStatus = validation.status
+            applied.validationSummary = ValidationReportFormatter.summary(for: validation)
             applied.rollbackRef = "reverse:\(artifact.id)"
-            applied.applyMessage = verifyMessage
+            applied.applyMessage = applied.validationSummary
             applied.updatedAt = Date()
             return applied
         } catch {
@@ -235,15 +262,7 @@ final class ReviewPatchWorkflowService {
         return scorer.score(from: PatchRiskInput(filesChanged: touchedFiles.count, linesChanged: changedLines))
     }
 
-    private func runQualityGateIfAvailable(gitRoot: String) throws -> String {
-        guard let testCommand = TestProjectDetector.testCommand(workspacePath: URL(fileURLWithPath: gitRoot)) else {
-            return "Nessun test command rilevato; apply completato senza quality gate automatico."
-        }
-        _ = try gitService.runCommand(executable: testCommand.executable, args: testCommand.arguments, cwd: gitRoot)
-        return "Patch applicata e quality gate passato con \(testCommand.executable) \(testCommand.arguments.joined(separator: " "))."
-    }
-
-    private func writePatchTempFile(_ patchText: String, prefix: String) throws -> URL {
+    func writePatchTempFile(_ patchText: String, prefix: String) throws -> URL {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("\(prefix)-\(UUID().uuidString).patch")
         try patchText.write(to: url, atomically: true, encoding: .utf8)

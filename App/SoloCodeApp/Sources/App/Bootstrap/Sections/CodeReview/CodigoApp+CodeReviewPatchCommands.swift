@@ -54,7 +54,7 @@ extension CodigoApp {
             guard let artifact = snapshot.patches.first(where: { $0.findingId == findingId }) else {
                 throw ReviewPatchWorkflowError.invalidPatch
             }
-            let verified = try service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+            let verified = try await service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
             return upsertingPatch(in: snapshot, artifact: verified)
         case "apply_patch", "apply_fix":
             let preparedSnapshot = snapshot.patches.contains(where: { $0.findingId == findingId })
@@ -63,9 +63,9 @@ extension CodigoApp {
             guard let artifact = preparedSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                 throw ReviewPatchWorkflowError.invalidPatch
             }
-            let verifiedArtifact = try service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+            let verifiedArtifact = try await service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
             let verifiedSnapshot = upsertingPatch(in: preparedSnapshot, artifact: verifiedArtifact)
-            let applied = try service.applyPatch(artifact: verifiedArtifact, workspaceRoot: workspaceRoot)
+            let applied = try await service.applyPatch(artifact: verifiedArtifact, workspaceRoot: workspaceRoot)
             return upsertingPatch(in: verifiedSnapshot, artifact: applied)
         case "open_pr":
             guard let artifact = snapshot.patches.first(where: { $0.findingId == findingId }),
@@ -159,7 +159,7 @@ extension CodigoApp {
             providerRegistry: providerRegistry,
             workspaceRoot: workspaceRoot
         )
-        let verified = try service.verifyPatch(artifact: prepared, workspaceRoot: workspaceRoot)
+        let verified = try await service.verifyPatch(artifact: prepared, workspaceRoot: workspaceRoot)
         return upsertingPatch(in: snapshot, artifact: verified)
     }
 

@@ -1,0 +1,21 @@
+name: Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install hooks script permissions
+        run: chmod +x scripts/solocode-validate
+      - name: Run Solo Code validation
+        run: scripts/solocode-validate --trigger ciFull --workspace "$GITHUB_WORKSPACE" --format text

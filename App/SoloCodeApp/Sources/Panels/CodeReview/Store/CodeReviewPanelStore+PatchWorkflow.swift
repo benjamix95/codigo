@@ -28,10 +28,9 @@ extension CodeReviewPanelStore {
                 providerRegistry: providerRegistry,
                 workspaceRoot: workspaceRoot
             )
-            let verified = try service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-            await upsertPatchArtifact(sessionId: sessionId, artifact: verified)
+            await upsertPatchArtifact(sessionId: sessionId, artifact: artifact)
             appendPanelSystemMessage(
-                "Patch pronta e verificata per finding \(findingId).",
+                "Patch pronta e validata per finding \(findingId).",
                 kind: .findingMutation,
                 selectChatTab: false
             )
@@ -130,7 +129,8 @@ extension CodeReviewPanelStore {
     ) async {
         let service = ReviewPatchWorkflowService()
         do {
-            let applied = try service.applyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+            let verified = try await service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+            let applied = try await service.applyPatch(artifact: verified, workspaceRoot: workspaceRoot)
             await upsertPatchArtifact(sessionId: sessionId, artifact: applied)
             appendPanelSystemMessage(
                 "Patch applicata per finding \(artifact.findingId).",

@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "workspace": "Solo Code.xcworkspace",
+  "localScheme": "Solo Code-Debug",
+  "releaseScheme": "Solo Code-Release",
+  "destination": "platform=macOS",
+  "testPlan": null,
+  "codeFileGlobs": [
+    "App/**/*.swift",
+    "Engine/**/*.swift",
+    "Tools/**/*.swift",
+    "Tests/**/*.swift",
+    "scripts/**/*.sh",
+    "scripts/**/*.rb"
+  ],
+  "excludedCodePaths": [
+    "App/SoloCodeApp/Resources/**",
+    "App/**/Resources/**",
+    "**/*.xcassets/**",
+    "**/*.ttf",
+    "**/*.icns",
+    "**/*.png",
+    "**/*.jpg",
+    "**/*.jpeg",
+    "**/*.gif",
+    "App/SoloCodeApp/Resources/monaco/**"
+  ],
+  "securitySensitivePrefixes": [
+    "App/SoloCodeApp/Sources/Git/",
+    "App/SoloCodeApp/Sources/CodeReview/",
+    "App/SoloCodeApp/Sources/Runtime/",
+    "Engine/CoderEngine/Sources/CodeReview/",
+    "Engine/CoderEngine/Sources/Pipeline/Patching/",
+    "Engine/CoderEngine/Sources/Tools/Runtime/",
+    "Engine/CoderEngine/Sources/Infrastructure/MCP/",
+    "Engine/CoderEngine/Sources/Infrastructure/Process/",
+    "Tools/CoderIDEMCPServer/Sources/"
+  ],
+  "testGroups": [
+    {
+      "id": "engine-pipeline",
+      "bundle": "CoderEngineTests",
+      "pathPrefixes": ["Engine/CoderEngine/Sources/Pipeline/"],
+      "onlyTesting": ["CoderEngineTests/Pipeline"]
+    },
+    {
+      "id": "engine-code-review",
+      "bundle": "CoderEngineTests",
+      "pathPrefixes": ["Engine/CoderEngine/Sources/CodeReview/"],
+      "onlyTesting": ["CoderEngineTests/CodeReview"]
+    },
+    {
+      "id": "engine-tools",
+      "bundle": "CoderEngineTests",
+      "pathPrefixes": ["Engine/CoderEngine/Sources/Tools/", "Tools/CoderIDEMCPServer/Sources/"],
+      "onlyTesting": ["CoderEngineTests/UnifiedToolRuntime", "CoderEngineTests/CoderIDEMCPServerPlanToolsTests"]
+    },
+    {
+      "id": "app-git",
+      "bundle": "SoloCodeAppTests",
+      "pathPrefixes": ["App/SoloCodeApp/Sources/Git/"],
+      "onlyTesting": ["SoloCodeAppTests/GitServiceTests"]
+    },
+    {
+      "id": "app-code-review",
+      "bundle": "SoloCodeAppTests",
+      "pathPrefixes": ["App/SoloCodeApp/Sources/Panels/CodeReview/", "App/SoloCodeApp/Sources/CodeReview/"],
+      "onlyTesting": ["SoloCodeAppTests/CodeReviewPanelValidationTests", "SoloCodeAppTests/CodeReviewPanelSessionScopingTests"]
+    },
+    {
+      "id": "app-runtime",
+      "bundle": "SoloCodeAppTests",
+      "pathPrefixes": ["App/SoloCodeApp/Sources/Runtime/"],
+      "onlyTesting": ["SoloCodeAppTests/PipelineIntegrationServiceTests"]
+    },
+    {
+      "id": "integration",
+      "bundle": "SoloCodeIntegrationTests",
+      "pathPrefixes": [
+        "App/SoloCodeApp/Sources/Git/",
+        "App/SoloCodeApp/Sources/CodeReview/",
+        "Engine/CoderEngine/Sources/Validation/",
+        "Engine/CoderEngine/Sources/Pipeline/Patching/"
+      ],
+      "onlyTesting": ["SoloCodeIntegrationTests"]
+    }
+  ]
+}

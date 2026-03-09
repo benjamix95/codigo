@@ -192,7 +192,7 @@ extension CodigoApp {
             let gitRoot = workspaceStore.activeWorkspacePaths.first?.path ?? snapshot.gitRoot
             guard !gitRoot.isEmpty else { return (false, "Missing git root for autofix commit") }
             do {
-                let commit = try GitService().commit(
+                let commit = try await GitService().commit(
                     gitRoot: gitRoot,
                     message: "fix(bughunter): \(finding.filePath.components(separatedBy: "/").last ?? finding.filePath)",
                     includeUnstaged: false
