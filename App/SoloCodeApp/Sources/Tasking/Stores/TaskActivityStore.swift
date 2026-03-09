@@ -40,8 +40,13 @@ final class TaskActivityStore: ObservableObject {
     var swarmCardDedupKeys: [String: Set<String>] = [:]
     var sortedSwarmCardsCache: [SwarmLiveCardState] = []
     var isSortedSwarmCardsCacheDirty = true
+    let persistenceBridge: TaskActivityPersistenceBridge
 
-    init() { }
+    init(
+        persistenceBridge: TaskActivityPersistenceBridge = .shared
+    ) {
+        self.persistenceBridge = persistenceBridge
+    }
 
     func addEnvelope(_ envelope: NormalizedEventEnvelope) {
         envelopes.insert(envelope, at: 0)
@@ -82,5 +87,35 @@ final class TaskActivityStore: ObservableObject {
                 isRunning: false
             )
         )
+    }
+}
+
+final class TaskActivityPersistenceBridge: @unchecked Sendable {
+    static let shared = TaskActivityPersistenceBridge()
+
+    private let queue: DispatchQueue
+    private let writeCodeReviewSnapshotImpl: @Sendable (CodeReviewSessionSnapshot) -> Void
+
+    init(
+        queue: DispatchQueue = DispatchQueue(
+            label: "com.solocode.task-activity.persistence",
+            qos: .utility
+        ),
+        writeCodeReviewSnapshot: @escaping @Sendable (CodeReviewSessionSnapshot) -> Void = {
+            MCPSharedState.writeCodeReviewSnapshot($0)
+        }
+    ) {
+        self.queue = queue
+        self.writeCodeReviewSnapshotImpl = writeCodeReviewSnapshot
+    }
+
+    func persistCodeReviewSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
+        queue.async { [writeCodeReviewSnapshotImpl] in
+            writeCodeReviewSnapshotImpl(snapshot)
+        }
+    }
+
+    func flush() {
+        queue.sync {}
     }
 }

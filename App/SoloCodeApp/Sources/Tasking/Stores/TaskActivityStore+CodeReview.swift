@@ -50,8 +50,8 @@ extension TaskActivityStore {
             verifiedFindingsProjectionsByConversation[conversationScope] = snapshot.verifiedFindingsProjection
         }
 
-        // Persist to disk for MCP server cross-process reads (review_status, review_findings)
-        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+        // Persist off the main thread so PostgreSQL bootstrap / psql I/O cannot freeze the panel UI.
+        persistenceBridge.persistCodeReviewSnapshot(snapshot)
 
         let activity = TaskActivity(
             type: "code_review_update",

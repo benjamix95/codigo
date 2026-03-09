@@ -1,4 +1,5 @@
 import XCTest
+import CoderEngine
 @testable import CoderIDE
 
 @MainActor
@@ -45,6 +46,50 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
         XCTAssertEqual(scoped.first?.payload["conversationId"]?.lowercased(), firstConversationId.uuidString.lowercased())
     }
 
+    func testIngestCodeReviewSnapshotDefersPersistenceOffMainThread() {
+        let recorder = SnapshotRecorder()
+        let bridge = TaskActivityPersistenceBridge(
+            writeCodeReviewSnapshot: recorder.record(snapshot:)
+        )
+        let store = TaskActivityStore(persistenceBridge: bridge)
+        let snapshot = makeSnapshot(sessionId: "session-async", mutationSequence: 1)
+
+        store.ingestCodeReviewSnapshot(snapshot, conversationId: snapshot.conversationId)
+
+        XCTAssertEqual(store.codeReviewSnapshotsBySession[snapshot.sessionId]?.sessionId, snapshot.sessionId)
+        XCTAssertTrue(recorder.executedOnMainThread.allSatisfy { $0 == false })
+
+        bridge.flush()
+
+        XCTAssertEqual(recorder.snapshots.map(\.sessionId), [snapshot.sessionId])
+        XCTAssertEqual(recorder.executedOnMainThread, [false])
+    }
+
+    func testPersistenceBridgePreservesSnapshotWriteOrder() {
+        let recorder = SnapshotRecorder()
+        let bridge = TaskActivityPersistenceBridge(
+            writeCodeReviewSnapshot: recorder.record(snapshot:)
+        )
+        let store = TaskActivityStore(persistenceBridge: bridge)
+        let conversationId = UUID()
+        let first = makeSnapshot(
+            sessionId: "session-ordered",
+            conversationId: conversationId,
+            mutationSequence: 1
+        )
+        let second = makeSnapshot(
+            sessionId: "session-ordered",
+            conversationId: conversationId,
+            mutationSequence: 2
+        )
+
+        store.ingestCodeReviewSnapshot(first, conversationId: conversationId)
+        store.ingestCodeReviewSnapshot(second, conversationId: conversationId)
+        bridge.flush()
+
+        XCTAssertEqual(recorder.snapshots.map(\.mutationSequence), [1, 2])
+    }
+
     private func makeActivity(
         type: String,
         conversationId: UUID,
@@ -62,5 +107,62 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
             phase: .planning,
             isRunning: false
         )
+    }
+
+    private func makeSnapshot(
+        sessionId: String,
+        conversationId: UUID = UUID(),
+        mutationSequence: UInt64
+    ) -> CodeReviewSessionSnapshot {
+        CodeReviewSessionSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId,
+            mutationSequence: mutationSequence,
+            phase: .analyzing,
+            stage: .analysis,
+            findings: [],
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .workspace, files: ["Sources/App.swift"]),
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 1,
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            completedAt: nil,
+            analysisCompletedAt: nil,
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: nil,
+            lastUpdatedAt: Date(timeIntervalSince1970: 1_700_000_100 + Double(mutationSequence))
+        )
+    }
+}
+
+private final class SnapshotRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedSnapshots: [CodeReviewSessionSnapshot] = []
+    private var storedMainThreadFlags: [Bool] = []
+
+    var snapshots: [CodeReviewSessionSnapshot] {
+        lock.withLock { storedSnapshots }
+    }
+
+    var executedOnMainThread: [Bool] {
+        lock.withLock { storedMainThreadFlags }
+    }
+
+    func record(snapshot: CodeReviewSessionSnapshot) {
+        lock.withLock {
+            storedSnapshots.append(snapshot)
+            storedMainThreadFlags.append(Thread.isMainThread)
+        }
+    }
+}
+
+private extension NSLock {
+    func withLock<T>(_ body: () -> T) -> T {
+        lock()
+        defer { unlock() }
+        return body()
     }
 }
