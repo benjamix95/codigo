@@ -10,14 +10,16 @@
   1. Avviare l'app macOS.
   2. Aprire una finestra in modalità con sidebar visibile.
   3. Osservare l'area top sinistra con titlebar trasparente e controlli finestra.
-- Risultato attuale: `SidebarView` inseriva un `sidebarTitlebarHeader` vuoto alto 28pt prima del contenuto scrollabile, creando uno stacco visivo artificiale nella sidebar.
+- Risultato attuale: la colonna sidebar veniva resa come pannello inset separato e il contenuto partiva troppo in basso, lasciando i semafori visivamente fuori dal blocco principale.
 - Risultato atteso: la sidebar deve restare una colonna continua fino al bordo superiore; il contenuto deve partire sotto i semafori senza introdurre un box top separato.
-- Causa probabile: compensazione del titlebar trasparente implementata come view vuota dedicata, invece che come inset del contenuto reale.
-- Scope consentito: [SidebarView+Sections+Core.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/App/Sidebar/Sections/SidebarView+Sections+Core.swift)
+- Causa probabile: poi confermata. La `NavigationSplitView` della modalità chat era forzata su `.prominentDetail`, facendo apparire la sidebar come un pannello interno invece di una colonna classica; in più l'inset top di `SidebarView` era più alto del necessario.
+- Scope consentito:
+  - [ContentView+Layout+Composition.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+Composition.swift)
+  - [SidebarView+Sections+Core.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/App/Sidebar/Sections/SidebarView+Sections+Core.swift)
 - Non-scope: refactor del layout globale, modifiche a `WindowSidebarToggleController`, redesign del toggle custom, restyling del workbench IDE.
 - Moduli confinanti da verificare: layout della sidebar standard, toggle apertura/chiusura colonna, sezioni `quickActions`, `contextSection`, `threadsSection`.
 - Test da aggiungere o aggiornare: nessun harness UI/snapshot locale dedicato a questa gerarchia; validazione tramite build workspace e scenario manuale ripetibile.
-- Strategia di fix minimo: rimuovere il blocco header vuoto e spostare l'inset top direttamente nel contenuto scrollabile della sidebar.
+- Strategia di fix minimo: riportare la split view a uno stile sidebar classico e ridurre solo l'inset superiore della `SidebarView`, senza toccare il toggle custom o il chrome della finestra.
 - Verifica post-fix:
   1. Build del workspace macOS.
   2. Verifica manuale della sidebar con semafori sovrapposti alla stessa superficie visiva della colonna.

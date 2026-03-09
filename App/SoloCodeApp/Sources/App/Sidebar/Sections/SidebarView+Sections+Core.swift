@@ -3,7 +3,7 @@ import AppKit
 import CoderEngine
 
 extension SidebarView {
-    private var sidebarTopContentInset: CGFloat { 36 }
+    private var sidebarTopContentInset: CGFloat { 24 }
 
     var selectedConversation: Conversation? {
         chatStore.conversation(for: selectedConversationId)
