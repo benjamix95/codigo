@@ -48,7 +48,13 @@ public enum VerifiedFindingsSessionSyncService {
         snapshot: CodeReviewSessionSnapshot,
         entryPoint: VerifiedFindingOriginEntryPoint
     ) -> [VerifiedFinding] {
-        var results = snapshot.findings.map { mapFinding($0, entryPoint: entryPoint) }
+        var results = snapshot.findings.map { finding in
+            mapFinding(
+                finding,
+                patch: snapshot.patches.first(where: { $0.findingId == finding.id }),
+                entryPoint: entryPoint
+            )
+        }
         let findingIds = Set(results.map(\.id))
         for candidate in snapshot.candidates where !findingIds.contains(candidate.id) {
             results.append(mapCandidate(candidate, entryPoint: entryPoint))

@@ -74,6 +74,7 @@ enum ReviewPanelChatMessageFactory {
 
     private static func summaryText(from snapshot: CodeReviewSessionSnapshot) -> String {
         let projection = snapshot.verifiedFindingsProjection
+        let securityGate = snapshot.verifiedFindings.map(VerifiedFindingsSecurityGateService.evaluate)
         let header = """
         ## Code Review Summary
         - session_id: \(snapshot.sessionId)
@@ -87,6 +88,7 @@ enum ReviewPanelChatMessageFactory {
         - candidate_queue: \(projection.candidateQueue.count)
         - duplicate_findings: \(projection.duplicatesCount)
         - stale_candidates: \(projection.staleCandidatesCount)
+        - security_gate_ready: \(securityGate?.ready == true ? "true" : "false")
         - outcome: \(snapshot.outcome.summary)
         """
 
@@ -95,7 +97,8 @@ enum ReviewPanelChatMessageFactory {
             return "- [\(finding.severity.rawValue)] \(finding.filePath)\(line) — \(finding.message)"
         }
 
-        return ([header] + findings).joined(separator: "\n")
+        let securityLines: [String] = securityGate.map { ["", "## Security Gate", "- \($0.summary)"] } ?? []
+        return ([header] + securityLines + findings).joined(separator: "\n")
     }
 
     private static func normalizedLines(from content: String) -> [String] {

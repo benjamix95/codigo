@@ -24,6 +24,10 @@ extension CoderIDEMCPServerApp {
                 lines.append("candidate_queue: \(reviewStatus["verified_projection_candidates"] ?? reviewStatus["candidates_total"] ?? "0")")
                 lines.append("duplicates: \(reviewStatus["verified_projection_duplicates"] ?? "0")")
                 lines.append("stale_candidates: \(reviewStatus["verified_projection_stale_candidates"] ?? "0")")
+                lines.append("security_gate_ready: \(reviewStatus["security_gate_ready"] ?? "false")")
+                if let gateSummary = reviewStatus["security_gate_summary"] {
+                    lines.append("security_gate_summary: \(gateSummary)")
+                }
             }
         }
         if let branchName = snapshot.branchName { lines.append("branch: \(branchName)") }

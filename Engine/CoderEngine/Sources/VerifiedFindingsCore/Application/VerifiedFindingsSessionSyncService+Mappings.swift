@@ -1,8 +1,13 @@
 import Foundation
 
 extension VerifiedFindingsSessionSyncService {
-    static func mapFinding(_ finding: CodeReviewFinding, entryPoint: VerifiedFindingOriginEntryPoint) -> VerifiedFinding {
+    static func mapFinding(
+        _ finding: CodeReviewFinding,
+        patch: ReviewPatchArtifact?,
+        entryPoint: VerifiedFindingOriginEntryPoint
+    ) -> VerifiedFinding {
         let domain: VerifiedFindingDomain = finding.origin == .securityAuditor || finding.category == .security ? .security : .bug
+        let derivedStatus = derivedStatus(for: finding, patch: patch)
         return VerifiedFinding(
             id: finding.id,
             domain: domain,
@@ -11,14 +16,14 @@ extension VerifiedFindingsSessionSyncService {
             category: finding.category.rawValue,
             severity: mapSeverity(finding.severity),
             confidence: finding.confidence ?? 0.0,
-            status: mapFindingStatus(finding.status),
+            status: derivedStatus,
             filePath: finding.filePath,
             lineStart: finding.lineNumber,
             lineEnd: finding.endLineNumber,
             evidenceIds: finding.evidence.map { _ in ["evidence-\(finding.id)"] } ?? [],
             verificationReportId: finding.verificationReport.map { _ in "verification-\(finding.id)" },
             patchId: finding.patchArtifactId,
-            revalidationReportId: finding.status == .patchApplied ? "revalidation-\(finding.patchArtifactId ?? finding.id)" : nil,
+            revalidationReportId: patch?.validationRunId != nil ? "revalidation-\(patch?.id ?? finding.id)" : nil,
             rootCause: finding.verificationReport,
             impact: finding.message,
             exploitability: nil,
@@ -96,6 +101,27 @@ extension VerifiedFindingsSessionSyncService {
         case .blocked: return .needsManualReview
         case .dismissed, .wontFix: return .rejected
         }
+    }
+
+    static func derivedStatus(
+        for finding: CodeReviewFinding,
+        patch: ReviewPatchArtifact?
+    ) -> VerifiedFindingStatus {
+        guard let patch else { return mapFindingStatus(finding.status) }
+        if patch.status == .applied {
+            switch patch.validationStatus {
+            case .passed:
+                return .fixedVerified
+            case .failed:
+                return .fixFailed
+            case .pending:
+                return .patchApplied
+            }
+        }
+        if patch.status == .rolledBack {
+            return .rollbackApplied
+        }
+        return mapFindingStatus(finding.status)
     }
 
     static func mapCandidateStatus(_ status: ReviewCandidateStatus) -> VerifiedFindingStatus {

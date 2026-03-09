@@ -42,6 +42,7 @@ extension MCPSharedState {
 
     public static func readCodeReviewStatus(sessionId: String) -> [String: String]? {
         guard let snapshot = readCodeReviewSnapshot(sessionId: sessionId) else { return nil }
+        let securityGate = snapshot.verifiedFindings.map(VerifiedFindingsSecurityGateService.evaluate)
         var payload: [String: String] = [
             "session_id": snapshot.sessionId,
             "phase": snapshot.phase.rawValue,
@@ -67,6 +68,15 @@ extension MCPSharedState {
         payload["verified_projection_findings"] = String(projection.verifiedQueue.count)
         payload["verified_projection_duplicates"] = String(projection.duplicatesCount)
         payload["verified_projection_stale_candidates"] = String(projection.staleCandidatesCount)
+        if let securityGate {
+            payload["security_gate_ready"] = securityGate.ready ? "true" : "false"
+            payload["security_gate_summary"] = securityGate.summary
+            payload["security_gate_projection_mismatches"] = String(securityGate.canonicalProjectionMismatchCount)
+            payload["security_gate_undetected_duplicates"] = String(securityGate.undetectedDuplicateCount)
+            payload["security_gate_missing_evidence"] = String(securityGate.findingsMissingEvidenceCount)
+            payload["security_gate_missing_verification"] = String(securityGate.findingsMissingVerificationCount)
+            payload["security_gate_apply_revalidate_success_rate"] = String(format: "%.2f", securityGate.applyRevalidateSuccessRate)
+        }
         if !snapshot.audit.toolCoverage.isEmpty {
             payload["findings_by_origin"] = snapshot.findingsByOrigin.map { "\($0.key.rawValue)=\($0.value.count)" }.sorted().joined(separator: ",")
             payload["audit_tools"] = snapshot.audit.toolCoverage.map { "\($0.key)=\($0.value ? "covered" : "unavailable")" }.sorted().joined(separator: ",")
