@@ -11,6 +11,9 @@ extension CodeReviewPanelStore {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isChatProcessing else { return }
         ensureActiveChatThread()
+        if panelSessionId == nil, let selectedSessionId {
+            panelSessionId = selectedSessionId
+        }
 
         appendChatMessage(ReviewPanelMessage(
             role: .user,
@@ -41,7 +44,12 @@ extension CodeReviewPanelStore {
         }
 
         // Build contextual prompt
-        let prompt = buildChatPrompt(userMessage: trimmed)
+        let prompt = buildChatPrompt(
+            userMessage: normalizedPanelChatUserMessage(
+                trimmed,
+                selectedSessionId: selectedSessionId
+            )
+        )
         let context = buildWorkspaceContext()
 
         coordinator.runChatStream(
@@ -116,6 +124,30 @@ extension CodeReviewPanelStore {
     }
 
     // MARK: - Private Helpers
+
+    @MainActor
+    func normalizedPanelChatUserMessage(
+        _ userMessage: String,
+        selectedSessionId: String?
+    ) -> String {
+        guard let selectedSessionId,
+              makeAutoCodeReviewRequest(
+                userText: userMessage,
+                coderMode: .agent
+              ).prefersCodeReviewRuntimeProvider else {
+            return userMessage
+        }
+
+        return """
+        Treat the request as analysis over the CURRENT active review session.
+        Reuse session_id \(selectedSessionId) and the current findings context.
+        Do NOT call review_start or create a new review session unless the user explicitly asks for a new session or a new run.
+        If more evidence is needed, inspect files directly and update findings within the current session.
+
+        User request:
+        \(userMessage)
+        """
+    }
 
     func buildChatPrompt(userMessage: String) -> String {
         let snapshot = currentSnapshot

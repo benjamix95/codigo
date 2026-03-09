@@ -1041,6 +1041,7 @@
 		9F310BAFD6571C3B695F6DF8 /* MergeConflictPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4CAB9BE46C3DF8D284F54F2 /* MergeConflictPanel.swift */; };
 		9F3B0B523B2A7462718080D3 /* WorkspaceStorePathNormalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4735253FDBC79767AF6EC7CE /* WorkspaceStorePathNormalizationTests.swift */; };
 		9F5CA972F87B4364604D9C32 /* CodeReviewPanelChatStateDeferralTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB963CD798E5412FE7CBEA4B /* CodeReviewPanelChatStateDeferralTests.swift */; };
+		9F5CA976F87B4386604D9C32 /* CodeReviewPanelChatPromptRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F5CA975F87B4386604D9C32 /* CodeReviewPanelChatPromptRoutingTests.swift */; };
 		9F97E7A89846BD338C2A43A1 /* OpenFilesStoreContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9309836C8C1D89BB4F5B940 /* OpenFilesStoreContextTests.swift */; };
 		9FD9D2AC61F05637CCB2B104 /* HTMLToMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4505D5A07B06116A48C2DB00 /* HTMLToMarkdown.swift */; };
 		A00015DE678A628D3F6504CC /* CLIProfileProvisioner+Paths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A4A13C5252D2F1E866D8E6 /* CLIProfileProvisioner+Paths.swift */; };
@@ -3103,6 +3104,7 @@
 		D8C71AA2C9AE7C6C02EA260F /* ReviewPanelChatBubble+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ReviewPanelChatBubble+Helpers.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatBubble+Helpers.swift"; sourceTree = "<group>"; };
 		D912BA2A0263FFF309945E88 /* MCPSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MCPSettingsSection.swift; path = App/SoloCodeApp/Sources/Services/MCPSettingsSection.swift; sourceTree = "<group>"; };
 		D9309836C8C1D89BB4F5B940 /* OpenFilesStoreContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OpenFilesStoreContextTests.swift; path = Tests/SoloCodeAppTests/OpenFilesStoreContextTests.swift; sourceTree = "<group>"; };
+		9F5CA975F87B4386604D9C32 /* CodeReviewPanelChatPromptRoutingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPanelChatPromptRoutingTests.swift; path = Tests/SoloCodeAppTests/CodeReviewPanelChatPromptRoutingTests.swift; sourceTree = "<group>"; };
 		D9345C20622C6374BF0375DB /* GeminiCLIUsageFetcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GeminiCLIUsageFetcher.swift; path = Engine/CoderEngine/Sources/Providers/GeminiCLI/GeminiCLIUsageFetcher.swift; sourceTree = "<group>"; };
 		D9710C75798F63688226425D /* UsageFooterView+WorktreeState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UsageFooterView+WorktreeState.swift"; path = "App/SoloCodeApp/Sources/Tasking/Views/Usage/UsageFooterView+WorktreeState.swift"; sourceTree = "<group>"; };
 		D9763B26FBDCF0770B79015C /* ChatStoreMigrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreMigrationTests.swift; path = Tests/SoloCodeAppTests/ChatStoreMigrationTests.swift; sourceTree = "<group>"; };
@@ -3498,6 +3500,7 @@
 				7E6A3BF3357313BED00E01BA /* ChatTodoVisibilityTests.swift */,
 				841CA07845479C511B2E3DA3 /* CheckpointGitStoreTests.swift */,
 				EB963CD798E5412FE7CBEA4B /* CodeReviewPanelChatStateDeferralTests.swift */,
+				9F5CA975F87B4386604D9C32 /* CodeReviewPanelChatPromptRoutingTests.swift */,
 				FA3532F3E2A782A159416E50 /* CodeReviewPanelSessionScopingTests.swift */,
 				C4C63094F16FCA7BCDC54A49 /* CodeReviewPanelValidationTests.swift */,
 				878A81E791784954FAC3CA99 /* CodexCustomModelProfileSyncTests.swift */,
@@ -5406,6 +5409,7 @@
 				9B38720AA20F5E8A5DB69CD2 /* ChatTodoVisibilityTests.swift in Sources */,
 				EFABFD555788DEDC40B07DEF /* CheckpointGitStoreTests.swift in Sources */,
 				9F5CA972F87B4364604D9C32 /* CodeReviewPanelChatStateDeferralTests.swift in Sources */,
+				9F5CA976F87B4386604D9C32 /* CodeReviewPanelChatPromptRoutingTests.swift in Sources */,
 				D17774074992327A213A2331 /* CodeReviewPanelSessionScopingTests.swift in Sources */,
 				19A11F6D7AC2DA3A328C19E7 /* CodeReviewPanelValidationTests.swift in Sources */,
 				C9E03B356162DF5AB3C50802 /* CodexCustomModelProfileSyncTests.swift in Sources */,
