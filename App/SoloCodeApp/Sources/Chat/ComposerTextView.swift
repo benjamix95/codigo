@@ -48,12 +48,17 @@ struct ComposerTextView: NSViewRepresentable {
         }
         context.coordinator.updateHeight(minHeight: minHeight, maxHeight: maxHeight)
 
-        if isFocused {
-            if textView.window?.firstResponder !== textView {
-                textView.window?.makeFirstResponder(textView)
+        // Defer focus changes to avoid modifying state during view update
+        let shouldFocus = isFocused
+        let isCurrentlyFocused = textView.window?.firstResponder === textView
+        if shouldFocus != isCurrentlyFocused {
+            DispatchQueue.main.async {
+                if shouldFocus {
+                    textView.window?.makeFirstResponder(textView)
+                } else {
+                    textView.window?.makeFirstResponder(nil)
+                }
             }
-        } else if textView.window?.firstResponder === textView {
-            textView.window?.makeFirstResponder(nil)
         }
     }
 
