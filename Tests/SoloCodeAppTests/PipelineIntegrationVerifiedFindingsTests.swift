@@ -4,6 +4,18 @@ import CoderEngine
 
 @MainActor
 final class PipelineIntegrationVerifiedFindingsTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        try? FileManager.default.removeItem(at: MCPSharedState.verifiedFindingsDirectoryPath)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        try? FileManager.default.removeItem(at: MCPSharedState.verifiedFindingsDirectoryPath)
+        try super.tearDownWithError()
+    }
+
     func testReviewFindingCreatesInlineVerifiedFindingsSessionForConversation() {
         let suiteName = "PipelineIntegrationVerifiedFindingsTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -64,7 +76,11 @@ final class PipelineIntegrationVerifiedFindingsTests: XCTestCase {
     }
 
     func testCodeReviewPayloadIncludesVerifiedFindingsFacadeFields() {
-        let store = TaskActivityStore()
+        let store = TaskActivityStore(
+            persistenceBridge: TaskActivityPersistenceBridge(
+                writeCodeReviewSnapshot: { _ in }
+            )
+        )
         let snapshot = CodeReviewSessionSnapshot(
             sessionId: "payload-session",
             conversationId: nil,
@@ -156,6 +172,74 @@ final class PipelineIntegrationVerifiedFindingsTests: XCTestCase {
         XCTAssertEqual(payload["verified_replay_findings_count"], "1")
         XCTAssertEqual(payload["verified_queue_count"], "1")
         XCTAssertEqual(payload["verified_candidate_queue_count"], "0")
+    }
+
+    func testIngestPrefersSnapshotProjection() {
+        let conversationId = UUID()
+        let sessionId = "ingest-sync-session"
+        MCPSharedState.writeVerifiedFindingsEnvelope(
+            VerifiedFindingsSessionEnvelope(
+                sessionId: sessionId,
+                canonicalSnapshot: VerifiedFindingsCanonicalSnapshot(
+                    runs: [:],
+                    findings: [:],
+                    evidences: [:],
+                    verificationReports: [:],
+                    patchArtifacts: [:],
+                    revalidationReports: [:],
+                    commandLog: [],
+                    eventLog: [],
+                    traceLog: []
+                ),
+                projectionSnapshot: VerifiedFindingsProjectionSnapshot(
+                    candidateQueue: [],
+                    verifiedQueue: [],
+                    duplicatesCount: 0,
+                    staleCandidatesCount: 0,
+                    traceSnippets: []
+                )
+            )
+        )
+
+        let store = TaskActivityStore()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-ingest-1",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/Runtime/ReviewFlow.swift",
+                    lineNumber: 18,
+                    endLineNumber: 18,
+                    message: "Stale stored envelope must not override snapshot findings.",
+                    status: .open
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            verifiedFindings: nil,
+            lastUpdatedAt: Date()
+        )
+
+        store.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+
+        let projection = store.verifiedFindingsProjection(for: conversationId)
+        XCTAssertEqual(projection.verifiedQueue.map(\.id), ["finding-ingest-1"])
+        XCTAssertEqual(projection.candidateQueue.count, 0)
     }
 
     func testReviewFindingBuildsStructuredChatArtifactPayloadFromSharedSnapshot() {

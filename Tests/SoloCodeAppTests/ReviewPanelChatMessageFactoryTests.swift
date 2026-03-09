@@ -3,6 +3,18 @@ import CoderEngine
 @testable import CoderIDE
 
 final class ReviewPanelChatMessageFactoryTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        try? FileManager.default.removeItem(at: MCPSharedState.verifiedFindingsDirectoryPath)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        try? FileManager.default.removeItem(at: MCPSharedState.verifiedFindingsDirectoryPath)
+        try super.tearDownWithError()
+    }
+
     func testSummaryFactoryBuildsPrecomputedPresentation() {
         let snapshot = CodeReviewSessionSnapshot(
             sessionId: "session-1",
@@ -37,6 +49,66 @@ final class ReviewPanelChatMessageFactoryTests: XCTestCase {
 
         XCTAssertEqual(message.kind, .summary)
         XCTAssertEqual(message.presentation?.sections.map(\.title), ["Outcome", "Findings"])
+    }
+
+    func testSummaryPrefersSnapshotProjection() {
+        MCPSharedState.writeVerifiedFindingsEnvelope(
+            VerifiedFindingsSessionEnvelope(
+                sessionId: "session-1",
+                canonicalSnapshot: VerifiedFindingsCanonicalSnapshot(
+                    runs: [:],
+                    findings: [:],
+                    evidences: [:],
+                    verificationReports: [:],
+                    patchArtifacts: [:],
+                    revalidationReports: [:],
+                    commandLog: [],
+                    eventLog: [],
+                    traceLog: []
+                ),
+                projectionSnapshot: VerifiedFindingsProjectionSnapshot(
+                    candidateQueue: [],
+                    verifiedQueue: [],
+                    duplicatesCount: 0,
+                    staleCandidatesCount: 0,
+                    traceSnippets: []
+                )
+            )
+        )
+
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-1",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "f-sync-1",
+                    severity: .warning,
+                    category: .bug,
+                    filePath: "Sources/App/Main.swift",
+                    message: "Use snapshot projection instead of stale shared envelope."
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .uncommitted, files: ["Sources/App/Main.swift"]),
+            workspacePath: nil,
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: nil,
+            completedAt: nil,
+            analysisCompletedAt: nil,
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: nil,
+            lastUpdatedAt: Date()
+        )
+
+        let message = ReviewPanelChatMessageFactory.summary(snapshot: snapshot)
+
+        XCTAssertTrue(message.content.contains("- verified_queue: 1"))
+        XCTAssertTrue(message.content.contains("- candidate_queue: 0"))
     }
 
     func testFindingUpdateFactoryBuildsDedicatedSection() {

@@ -89,7 +89,8 @@ enum ReviewPanelChatMessageFactory {
     }
 
     private static func summaryText(from snapshot: CodeReviewSessionSnapshot) -> String {
-        let projection = snapshot.verifiedFindingsProjection
+        let resolvedVerifiedFindings = resolvedVerifiedFindingsState(from: snapshot)
+        let projection = resolvedVerifiedFindings.recovered.envelope.projectionSnapshot
         let securityGate = snapshot.verifiedFindings.map(VerifiedFindingsSecurityGateService.evaluate)
         let header = """
         ## Code Review Summary
@@ -115,6 +116,29 @@ enum ReviewPanelChatMessageFactory {
 
         let securityLines: [String] = securityGate.map { ["", "## Security Gate", "- \($0.summary)"] } ?? []
         return ([header] + securityLines + findings).joined(separator: "\n")
+    }
+
+    private static func resolvedVerifiedFindingsState(
+        from snapshot: CodeReviewSessionSnapshot
+    ) -> VerifiedFindingsResolvedState {
+        let recovered: VerifiedFindingsRecoveredEnvelope
+        if let envelope = snapshot.verifiedFindings {
+            recovered = VerifiedFindingsRecoveredEnvelope(
+                source: .embeddedSnapshot,
+                envelope: envelope,
+                checkpoint: nil
+            )
+        } else {
+            recovered = VerifiedFindingsRecoveredEnvelope(
+                source: .syncedFromSnapshot,
+                envelope: VerifiedFindingsSessionSyncService.sync(
+                    snapshot: snapshot,
+                    entryPoint: .reviewChat
+                ),
+                checkpoint: nil
+            )
+        }
+        return VerifiedFindingsService.resolve(recovered: recovered)
     }
 
     private static func normalizedLines(from content: String) -> [String] {

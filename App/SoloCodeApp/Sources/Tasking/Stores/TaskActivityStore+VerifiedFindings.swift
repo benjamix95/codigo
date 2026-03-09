@@ -29,6 +29,16 @@ extension TaskActivityStore {
         return VerifiedFindingsService.resolve(recovered: recovered)
     }
 
+    func resolvedVerifiedFindingsProjection(
+        for snapshot: CodeReviewSessionSnapshot,
+        conversationId: UUID?
+    ) -> VerifiedFindingsProjectionSnapshot {
+        resolvedVerifiedFindingsState(
+            for: snapshot,
+            conversationId: conversationId
+        ).recovered.envelope.projectionSnapshot
+    }
+
     func verifiedFindingsEnvelope(
         sessionId: String?,
         conversationId: UUID?
@@ -42,12 +52,24 @@ extension TaskActivityStore {
 
     func verifiedFindingsProjection(for conversationId: UUID?) -> VerifiedFindingsProjectionSnapshot {
         guard let conversationScope = codeReviewConversationScope(conversationId) else {
-            return codeReviewSnapshot(sessionId: nil, conversationId: conversationId)?.verifiedFindingsProjection
-                ?? emptyVerifiedFindingsProjection()
+            guard let snapshot = codeReviewSnapshot(sessionId: nil, conversationId: conversationId) else {
+                return emptyVerifiedFindingsProjection()
+            }
+            return resolvedVerifiedFindingsProjection(
+                for: snapshot,
+                conversationId: conversationId
+            )
         }
-        return verifiedFindingsProjectionsByConversation[conversationScope]
-            ?? codeReviewSnapshot(sessionId: nil, conversationId: conversationId)?.verifiedFindingsProjection
-            ?? emptyVerifiedFindingsProjection()
+        if let projection = verifiedFindingsProjectionsByConversation[conversationScope] {
+            return projection
+        }
+        guard let snapshot = codeReviewSnapshot(sessionId: nil, conversationId: conversationId) else {
+            return emptyVerifiedFindingsProjection()
+        }
+        return resolvedVerifiedFindingsProjection(
+            for: snapshot,
+            conversationId: conversationId
+        )
     }
 
     func codeReviewPayload(

@@ -47,7 +47,10 @@ extension TaskActivityStore {
             codeReviewFindingsByConversation[conversationScope] = snapshot.findings
             codeReviewEventsByConversation[conversationScope] = snapshot.events
             codeReviewPhaseByConversation[conversationScope] = snapshot.phase
-            verifiedFindingsProjectionsByConversation[conversationScope] = snapshot.verifiedFindingsProjection
+            verifiedFindingsProjectionsByConversation[conversationScope] = resolvedVerifiedFindingsProjection(
+                for: snapshot,
+                conversationId: resolvedConversationId
+            )
         }
 
         // Persist off the main thread so PostgreSQL bootstrap / psql I/O cannot freeze the panel UI.
@@ -92,6 +95,7 @@ extension TaskActivityStore {
         conversationId: UUID?
     ) {
         codeReviewSnapshotsBySession.removeValue(forKey: sessionId)
+        verifiedFindingsEnvelopesBySession.removeValue(forKey: sessionId)
 
         if let conversationScope = codeReviewConversationScope(conversationId) {
             codeReviewSessionIdsByConversation[conversationScope]?.removeAll { $0 == sessionId }
@@ -110,14 +114,22 @@ extension TaskActivityStore {
                 codeReviewFindingsByConversation[conversationScope] = scopedSnapshot?.findings ?? []
                 codeReviewEventsByConversation[conversationScope] = scopedSnapshot?.events ?? []
                 codeReviewPhaseByConversation[conversationScope] = scopedSnapshot?.phase ?? .idle
-                verifiedFindingsProjectionsByConversation[conversationScope] = scopedSnapshot?.verifiedFindingsProjection
-                    ?? VerifiedFindingsProjectionSnapshot(
-                        candidateQueue: [],
-                        verifiedQueue: [],
-                        duplicatesCount: 0,
-                        staleCandidatesCount: 0,
-                        traceSnippets: []
-                    )
+                if let scopedSnapshot {
+                    verifiedFindingsProjectionsByConversation[conversationScope] =
+                        resolvedVerifiedFindingsProjection(
+                            for: scopedSnapshot,
+                            conversationId: conversationId
+                        )
+                } else {
+                    verifiedFindingsProjectionsByConversation[conversationScope] =
+                        VerifiedFindingsProjectionSnapshot(
+                            candidateQueue: [],
+                            verifiedQueue: [],
+                            duplicatesCount: 0,
+                            staleCandidatesCount: 0,
+                            traceSnippets: []
+                        )
+                }
             }
             codeReviewFindings = scopedSnapshot?.findings ?? []
             codeReviewEvents = scopedSnapshot?.events ?? []
