@@ -10,6 +10,28 @@ public struct VerifiedFindingsCanonicalSnapshot: Sendable, Codable, Equatable {
     public let commandLog: [VerifiedCommandDeduplicationRecord]
     public let eventLog: [VerifiedPipelineEvent]
     public let traceLog: [String]
+
+    public init(
+        runs: [String: VerifiedPipelineRun],
+        findings: [String: VerifiedFinding],
+        evidences: [String: VerifiedEvidence],
+        verificationReports: [String: VerifiedVerificationReport],
+        patchArtifacts: [String: VerifiedPatchArtifact],
+        revalidationReports: [String: VerifiedRevalidationReport],
+        commandLog: [VerifiedCommandDeduplicationRecord],
+        eventLog: [VerifiedPipelineEvent],
+        traceLog: [String]
+    ) {
+        self.runs = runs
+        self.findings = findings
+        self.evidences = evidences
+        self.verificationReports = verificationReports
+        self.patchArtifacts = patchArtifacts
+        self.revalidationReports = revalidationReports
+        self.commandLog = commandLog
+        self.eventLog = eventLog
+        self.traceLog = traceLog
+    }
 }
 
 public actor VerifiedFindingsCanonicalStore {

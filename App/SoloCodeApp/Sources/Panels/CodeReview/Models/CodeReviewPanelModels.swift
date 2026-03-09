@@ -151,5 +151,6 @@ func reviewStatusLabel(_ status: FindingStatus) -> (String, Color) {
     case .blocked: return ("Blocked", DesignSystem.Colors.error)
     case .dismissed: return ("Dismissed", .secondary)
     case .wontFix: return ("Won't Fix", .secondary)
+    case .closed: return ("Closed", .secondary)
     }
 }

@@ -12,7 +12,7 @@ extension CoderIDEMCPServerApp {
         "review_apply_fix", "review_dismiss", "review_configure",
         "review_diff_summary", "review_comment", "review_list_sessions",
         "review_verify_finding", "review_prepare_patch", "review_preview_patch",
-        "review_apply_patch", "review_verify_patch", "review_revalidate_finding", "review_rollback_patch", "review_open_pr",
+        "review_apply_patch", "review_verify_patch", "review_revalidate_finding", "review_rollback_patch", "review_close_finding", "review_open_pr",
         "review_merge_pr", "review_resolve_conflicts", "review_get_outcome",
     ]
 
@@ -55,6 +55,8 @@ extension CoderIDEMCPServerApp {
             return handleReviewRevalidateFinding(args: args)
         case "review_rollback_patch":
             return handleReviewRollbackPatch(args: args)
+        case "review_close_finding":
+            return handleReviewCloseFinding(args: args)
         case "review_open_pr":
             return handleReviewOpenPR(args: args)
         case "review_merge_pr":

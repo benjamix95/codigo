@@ -146,5 +146,18 @@ extension CoderIDETools {
             ]),
             annotations: .init(title: "BugHunter Explain Cluster", readOnlyHint: true, idempotentHint: true)
         ),
+        Tool(
+            name: "coderide_bughunter_cancel_run",
+            description: "Cancel a running BugHunter run.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "run_id": .object(["type": "string", "description": "BugHunter run id"]),
+                    "conversation_id": .object(["type": "string", "description": "Optional conversation UUID"]),
+                ]),
+                "required": .array([.string("run_id")]),
+            ]),
+            annotations: .init(title: "BugHunter Cancel Run", readOnlyHint: false)
+        ),
     ]
 }

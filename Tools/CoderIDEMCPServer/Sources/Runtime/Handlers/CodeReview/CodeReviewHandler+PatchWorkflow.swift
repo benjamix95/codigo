@@ -63,6 +63,10 @@ extension CoderIDEMCPServerApp {
         queueFindingScopedReviewCommand(action: "rollback_patch", args: args)
     }
 
+    static func handleReviewCloseFinding(args: [String: String]) -> CallTool.Result {
+        queueFindingScopedReviewCommand(action: "close_finding", args: args)
+    }
+
     static func handleReviewOpenPR(args: [String: String]) -> CallTool.Result {
         queueFindingScopedReviewCommand(action: "open_pr", args: args)
     }

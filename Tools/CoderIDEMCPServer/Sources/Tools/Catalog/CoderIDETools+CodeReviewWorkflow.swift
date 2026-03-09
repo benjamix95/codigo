@@ -102,6 +102,21 @@ extension CoderIDETools {
             annotations: .init(title: "Review Rollback Patch", readOnlyHint: false)
         ),
         Tool(
+            name: "coderide_review_close_finding",
+            description: "Close a review finding when the fix was verified or the finding was explicitly resolved.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "finding_id": .object(["type": "string", "description": "Finding id"]),
+                    "session_id": .object(["type": "string", "description": "Owning review session id"]),
+                    "reason": .object(["type": "string", "description": "Closure reason"]),
+                    "conversation_id": .object(["type": "string", "description": "Conversation UUID for scoped sessions"]),
+                ]),
+                "required": .array([.string("finding_id"), .string("session_id")]),
+            ]),
+            annotations: .init(title: "Review Close Finding", readOnlyHint: false)
+        ),
+        Tool(
             name: "coderide_review_open_pr",
             description: "Open a PR for the stored patch artifact of a review finding.",
             inputSchema: .object([

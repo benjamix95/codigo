@@ -36,6 +36,14 @@ extension CoderIDEMCPServerApp {
             lines.append("related_commits: \(snapshot.relatedCommits.joined(separator: ","))")
         }
         if let lastMessage = snapshot.lastMessage { lines.append("message: \(lastMessage)") }
+        lines.append("verified_findings_count: \(snapshot.verifiedFindingsCount)")
+        lines.append("candidate_findings_count: \(snapshot.candidateFindingsCount)")
+        if let lastRevalidationVerdict = snapshot.lastRevalidationVerdict {
+            lines.append("last_revalidation_verdict: \(lastRevalidationVerdict)")
+        }
+        if let securityGateReady = snapshot.securityGateReady {
+            lines.append("security_gate_ready_cached: \(securityGateReady ? "true" : "false")")
+        }
         return bugHunterOK(lines.joined(separator: "\n"))
     }
 

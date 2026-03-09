@@ -116,6 +116,7 @@ extension MCPSharedState {
                 return
             }
             try? FileManager.default.removeItem(at: snapshotFilePath)
+            deleteVerifiedFindingsEnvelopeUnsafe(sessionId: sessionId)
             _writeCodeReviewIndexUnsafe(rebuiltCodeReviewIndexUnsafe())
         }
     }
@@ -142,6 +143,9 @@ extension MCPSharedState {
                 to: snapshotFilePath,
                 options: .atomic
             )
+            if let verifiedFindings = snapshot.verifiedFindings {
+                _writeVerifiedFindingsEnvelopeUnsafe(verifiedFindings)
+            }
             _writeCodeReviewIndexUnsafe(rebuiltCodeReviewIndexUnsafe())
         } catch {
             print("[MCPSharedState] ⚠️ Failed to write code review snapshot: \(error.localizedDescription)")
@@ -173,7 +177,14 @@ extension MCPSharedState {
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(CodeReviewSessionSnapshot.self, from: data)
+        guard var snapshot = try? decoder.decode(CodeReviewSessionSnapshot.self, from: data) else {
+            return nil
+        }
+        if snapshot.verifiedFindings == nil,
+           let envelope = _readVerifiedFindingsEnvelopeUnsafe(sessionId: sessionId) {
+            snapshot = snapshot.copying(verifiedFindings: envelope)
+        }
+        return snapshot
     }
 
     static func allCodeReviewSnapshotsUnsafe() -> [CodeReviewSessionSnapshot] {

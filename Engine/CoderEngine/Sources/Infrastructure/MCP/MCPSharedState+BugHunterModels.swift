@@ -4,8 +4,10 @@ public enum MCPSharedBugHunterRunStatus: String, Codable, Sendable {
     case queued
     case running
     case awaitingApproval = "awaiting_approval"
+    case revalidating
     case completed
     case failed
+    case cancelled
 }
 
 public enum MCPSharedBugHunterSourceKind: String, Codable, Sendable {
@@ -39,6 +41,10 @@ public struct MCPSharedBugHunterSnapshot: Codable, Sendable {
     public let lastMessage: String?
     public let autoFixMode: String
     public let cleanAfterFix: Bool
+    public let verifiedFindingsCount: Int
+    public let candidateFindingsCount: Int
+    public let lastRevalidationVerdict: String?
+    public let securityGateReady: Bool?
 
     public init(
         runId: String,
@@ -56,7 +62,11 @@ public struct MCPSharedBugHunterSnapshot: Codable, Sendable {
         lastUpdatedAt: Date = Date(),
         lastMessage: String? = nil,
         autoFixMode: String = "manual_preview",
-        cleanAfterFix: Bool = false
+        cleanAfterFix: Bool = false,
+        verifiedFindingsCount: Int = 0,
+        candidateFindingsCount: Int = 0,
+        lastRevalidationVerdict: String? = nil,
+        securityGateReady: Bool? = nil
     ) {
         self.runId = runId
         self.conversationId = conversationId
@@ -74,6 +84,10 @@ public struct MCPSharedBugHunterSnapshot: Codable, Sendable {
         self.lastMessage = lastMessage
         self.autoFixMode = autoFixMode
         self.cleanAfterFix = cleanAfterFix
+        self.verifiedFindingsCount = verifiedFindingsCount
+        self.candidateFindingsCount = candidateFindingsCount
+        self.lastRevalidationVerdict = lastRevalidationVerdict
+        self.securityGateReady = securityGateReady
     }
 }
 

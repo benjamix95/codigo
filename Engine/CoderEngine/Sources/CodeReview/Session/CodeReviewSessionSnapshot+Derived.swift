@@ -116,7 +116,7 @@ extension FindingStatus {
         switch self {
         case .open, .patchPreparing, .patchReady, .patchApplying, .patchFailed, .prOpened, .blocked:
             return true
-        case .fixApplied, .patchApplied, .merged, .dismissed, .wontFix:
+        case .fixApplied, .patchApplied, .merged, .dismissed, .wontFix, .closed:
             return false
         }
     }
@@ -125,7 +125,7 @@ extension FindingStatus {
         switch self {
         case .fixApplied, .patchApplied, .merged:
             return true
-        case .open, .patchPreparing, .patchReady, .patchApplying, .patchFailed, .prOpened, .blocked, .dismissed, .wontFix:
+        case .open, .patchPreparing, .patchReady, .patchApplying, .patchFailed, .prOpened, .blocked, .dismissed, .wontFix, .closed:
             return false
         }
     }

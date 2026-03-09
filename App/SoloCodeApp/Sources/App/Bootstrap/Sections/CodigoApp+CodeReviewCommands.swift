@@ -51,7 +51,7 @@ extension CodigoApp {
             return await startReviewFromCommand(command)
         case "apply_fix":
             return await applyFixFromCommand(command)
-        case "verify_finding", "prepare_patch", "verify_patch", "apply_patch", "revalidate_finding", "rollback_patch", "open_pr", "merge_pr", "resolve_conflicts":
+        case "verify_finding", "prepare_patch", "verify_patch", "apply_patch", "revalidate_finding", "rollback_patch", "close_finding", "open_pr", "merge_pr", "resolve_conflicts":
             return await handlePatchWorkflowCommand(command)
         case "dismiss":
             let result = await applyReviewMutation(command) { state, payload in
@@ -69,6 +69,13 @@ extension CodigoApp {
                     findingId: findingId,
                     comment: FindingComment(author: author, content: content)
                 )
+            }
+            return .immediate(success: result.success, message: result.message)
+        case "close_finding":
+            let result = await applyReviewMutation(command) { state, payload in
+                guard let findingId = payload["finding_id"] else { return false }
+                let reason = payload["reason"] ?? "closed"
+                return await state.closeFinding(findingId: findingId, reason: reason)
             }
             return .immediate(success: result.success, message: result.message)
         case "configure":

@@ -100,6 +100,7 @@ extension VerifiedFindingsSessionSyncService {
         case .prOpened, .merged: return .closed
         case .blocked: return .needsManualReview
         case .dismissed, .wontFix: return .rejected
+        case .closed: return .closed
         }
     }
 
@@ -175,6 +176,7 @@ extension VerifiedFindingsSessionSyncService {
         case .wontFix: return "wont_fix"
         case .merged: return "merged"
         case .prOpened: return "pr_opened"
+        case .closed: return "closed"
         default: return nil
         }
     }

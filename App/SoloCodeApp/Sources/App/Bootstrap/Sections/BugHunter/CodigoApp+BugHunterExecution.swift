@@ -33,6 +33,8 @@ extension CodigoApp {
             return await executeBugHunterAutofix(command, mode: .apply)
         case "autofix_commit":
             return await executeBugHunterAutofix(command, mode: .commit)
+        case "cancel_run":
+            return await cancelBugHunterRun(command)
         case "install_hook":
             return await configureBugHunterHook(command, install: true)
         case "uninstall_hook":
@@ -132,109 +134,17 @@ extension CodigoApp {
             status: .running,
             startedAt: Date(),
             lastMessage: "BugHunter run started",
-            autoFixMode: settings.autofixMode.rawValue
+            autoFixMode: settings.autofixMode.rawValue,
+            verifiedFindingsCount: 0,
+            candidateFindingsCount: 0,
+            lastRevalidationVerdict: nil,
+            securityGateReady: nil
         )
         MCPSharedState.writeBugHunterSnapshot(snapshot)
         await processPendingCodeReviewCommandsOnce()
         MCPSharedState.refreshCodeReviewCommandHeartbeat(id: reviewCommand.id)
+        await refreshBugHunterSnapshotFromReview(runId: command.runId)
         return (true, "BugHunter run \(command.runId) started")
-    }
-
-    @MainActor
-    private func executeBugHunterAutofix(
-        _ command: MCPSharedBugHunterCommand,
-        mode: BugHunterAutofixExecutionMode
-    ) async -> (success: Bool, message: String) {
-        guard let snapshot = MCPSharedState.readBugHunterSnapshot(runId: command.runId),
-              let reviewSessionId = snapshot.reviewSessionId else {
-            return (false, "BugHunter run not found")
-        }
-        guard let reviewSnapshot = resolveCodeReviewSnapshot(sessionId: reviewSessionId, conversationId: nil) else {
-            return (false, "Linked review session not found")
-        }
-
-        let autofixable = reviewSnapshot.findings
-            .filter { ($0.confidence ?? 0) >= 0.9 && $0.verifiedAt != nil }
-            .sorted { ($0.confidence ?? 0) > ($1.confidence ?? 0) }
-
-        guard let finding = autofixable.first else {
-            return (false, "No autofixable verified bug found")
-        }
-        let commandPayload = [
-            "session_id": reviewSessionId,
-            "finding_id": finding.id,
-        ]
-
-        let preparedResult = await runBugHunterPatchCommand(
-            action: "prepare_patch",
-            sessionId: reviewSessionId,
-            payload: commandPayload,
-            findingId: finding.id,
-            expectedStatus: nil,
-            expectedVerifyStatus: .verified
-        )
-        guard preparedResult.success else {
-            return preparedResult
-        }
-
-        if mode == .commit {
-            let applyResult = await runBugHunterPatchCommand(
-                action: "apply_patch",
-                sessionId: reviewSessionId,
-                payload: commandPayload,
-                findingId: finding.id,
-                expectedStatus: .applied,
-                expectedVerifyStatus: .verified
-            )
-            guard applyResult.success else {
-                return applyResult
-            }
-            let gitRoot = workspaceStore.activeWorkspacePaths.first?.path ?? snapshot.gitRoot
-            guard !gitRoot.isEmpty else { return (false, "Missing git root for autofix commit") }
-            do {
-                let commit = try await GitService().commit(
-                    gitRoot: gitRoot,
-                    message: "fix(bughunter): \(finding.filePath.components(separatedBy: "/").last ?? finding.filePath)",
-                    includeUnstaged: false
-                )
-                enqueueBugHunterPostCommit(commit: commit, gitRoot: gitRoot, triggerKind: .manual)
-                let updated = MCPSharedBugHunterSnapshot(
-                    runId: snapshot.runId,
-                    conversationId: snapshot.conversationId,
-                    reviewSessionId: snapshot.reviewSessionId,
-                    sourceKind: .autofixRound,
-                    triggerKind: snapshot.triggerKind,
-                    gitRoot: snapshot.gitRoot,
-                    branchName: snapshot.branchName,
-                    primaryCommit: commit.sha,
-                    relatedCommits: snapshot.relatedCommits,
-                    status: .completed,
-                    startedAt: snapshot.startedAt,
-                    completedAt: Date(),
-                    lastUpdatedAt: Date(),
-                    lastMessage: "Autofix commit \(commit.shortSha) created",
-                    autoFixMode: snapshot.autoFixMode,
-                    cleanAfterFix: false
-                )
-                MCPSharedState.writeBugHunterSnapshot(updated)
-                return (true, "Autofix commit \(commit.shortSha) created")
-            } catch {
-                return (false, error.localizedDescription)
-            }
-        }
-
-        if mode == .apply {
-            return await runBugHunterPatchCommand(
-                action: "apply_patch",
-                sessionId: reviewSessionId,
-                payload: commandPayload,
-                findingId: finding.id,
-                expectedStatus: .applied,
-                expectedVerifyStatus: .verified
-            )
-        }
-
-        return preparedResult
     }
 
     @MainActor
@@ -262,51 +172,8 @@ extension CodigoApp {
     }
 }
 
-private enum BugHunterAutofixExecutionMode {
+enum BugHunterAutofixExecutionMode {
     case preview
     case apply
     case commit
-}
-
-private extension CodigoApp {
-    @MainActor
-    func runBugHunterPatchCommand(
-        action: String,
-        sessionId: String,
-        payload: [String: String],
-        findingId: String,
-        expectedStatus: ReviewPatchStatus?,
-        expectedVerifyStatus: ReviewPatchVerifyStatus
-    ) async -> (success: Bool, message: String) {
-        let patchCommand = MCPSharedState.enqueueCodeReviewCommand(
-            action: action,
-            sessionId: sessionId,
-            conversationId: nil,
-            payload: payload
-        )
-        await processPendingCodeReviewCommandsOnce()
-        MCPSharedState.refreshCodeReviewCommandHeartbeat(id: patchCommand.id)
-
-        guard let latestReviewSnapshot = resolveCodeReviewSnapshot(sessionId: sessionId, conversationId: nil),
-              let patch = latestReviewSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-            return (false, "Patch workflow did not produce an artifact for action \(action)")
-        }
-        guard patch.verifyStatus == expectedVerifyStatus else {
-            return (false, "Patch workflow returned verify_status=\(patch.verifyStatus.rawValue) for action \(action)")
-        }
-        if let expectedStatus, patch.status != expectedStatus {
-            return (false, "Patch workflow returned status=\(patch.status.rawValue) for action \(action)")
-        }
-
-        let successMessage: String
-        switch action {
-        case "prepare_patch":
-            successMessage = "Autofix preview prepared"
-        case "apply_patch":
-            successMessage = "Autofix applied"
-        default:
-            successMessage = "Autofix step \(action) completed"
-        }
-        return (true, successMessage)
-    }
 }

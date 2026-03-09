@@ -20,12 +20,12 @@ extension CoderIDEMCPServerApp {
         "review_apply_fix", "review_dismiss", "review_configure",
         "review_diff_summary", "review_comment",
         "review_verify_finding", "review_prepare_patch", "review_preview_patch",
-        "review_apply_patch", "review_verify_patch", "review_revalidate_finding", "review_rollback_patch", "review_open_pr",
+        "review_apply_patch", "review_verify_patch", "review_revalidate_finding", "review_rollback_patch", "review_close_finding", "review_open_pr",
         "review_merge_pr", "review_resolve_conflicts", "review_get_outcome",
         "bughunter_start", "bughunter_status", "bughunter_findings",
         "bughunter_autofix_preview", "bughunter_autofix_apply", "bughunter_autofix_commit",
         "bughunter_commit_window", "bughunter_install_hook", "bughunter_uninstall_hook",
-        "bughunter_run_history", "bughunter_explain_cluster",
+        "bughunter_run_history", "bughunter_explain_cluster", "bughunter_cancel_run",
     ]).union(Set(SubagentRole.allToolNames))
 
     /// IDE state tools are pass-through. The MCP server acknowledges the call

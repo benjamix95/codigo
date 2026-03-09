@@ -96,6 +96,39 @@ extension CodeReviewSessionState {
         return true
     }
 
+    public func closeFinding(
+        findingId: String,
+        reason: String = "closed"
+    ) -> Bool {
+        guard let idx = findings.firstIndex(where: { $0.id == findingId }) else {
+            return false
+        }
+        let currentStatus = findings[idx].status
+        let canClose: Bool
+        switch currentStatus {
+        case .merged, .dismissed, .wontFix, .closed:
+            canClose = true
+        case .patchApplied, .fixApplied:
+            if let patchId = findings[idx].patchArtifactId,
+               let patch = patches.first(where: { $0.id == patchId }) {
+                canClose = patch.validationStatus == .passed
+            } else {
+                canClose = false
+            }
+        default:
+            canClose = false
+        }
+        guard canClose else { return false }
+        findings[idx].status = .closed
+        events.append(CodeReviewSessionEvent(
+            type: .outcomePublished,
+            detail: "Finding \(findingId) closed",
+            metadata: ["finding_id": findingId, "reason": reason]
+        ))
+        notifyChange()
+        return true
+    }
+
     public func finding(byId id: String) -> CodeReviewFinding? {
         findings.first { $0.id == id }
     }

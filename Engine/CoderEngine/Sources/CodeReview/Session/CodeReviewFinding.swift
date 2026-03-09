@@ -129,6 +129,7 @@ public enum FindingStatus: String, Sendable, Codable, CaseIterable {
     case blocked
     case dismissed
     case wontFix = "wont_fix"
+    case closed
 }
 
 // MARK: - FindingComment

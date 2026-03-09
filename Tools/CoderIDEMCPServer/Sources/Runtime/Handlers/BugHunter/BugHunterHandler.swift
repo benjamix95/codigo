@@ -6,7 +6,7 @@ extension CoderIDEMCPServerApp {
         "bughunter_start", "bughunter_status", "bughunter_findings",
         "bughunter_autofix_preview", "bughunter_autofix_apply", "bughunter_autofix_commit",
         "bughunter_commit_window", "bughunter_install_hook", "bughunter_uninstall_hook",
-        "bughunter_run_history", "bughunter_explain_cluster",
+        "bughunter_run_history", "bughunter_explain_cluster", "bughunter_cancel_run",
     ]
 
     static func handleBugHunterTool(
@@ -37,6 +37,8 @@ extension CoderIDEMCPServerApp {
             return handleBugHunterRunHistory(args: args)
         case "bughunter_explain_cluster":
             return handleBugHunterExplainCluster(args: args)
+        case "bughunter_cancel_run":
+            return queueBugHunterAction("cancel_run", args: args)
         default:
             return reviewError("Unknown bugHunter tool: \(name)")
         }

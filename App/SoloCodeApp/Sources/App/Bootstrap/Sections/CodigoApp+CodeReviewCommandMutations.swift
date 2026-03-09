@@ -166,6 +166,29 @@ extension CodigoApp {
                 detail: "Comment added from command bus",
                 metadata: ["finding_id": findingId]
             ))
+        case "close_finding":
+            guard let findingId = command.payload["finding_id"],
+                  let index = findings.firstIndex(where: { $0.id == findingId }) else {
+                return nil
+            }
+            let patch = snapshot.patches.first(where: { $0.findingId == findingId })
+            let currentStatus = findings[index].status
+            let canClose: Bool
+            switch currentStatus {
+            case .merged, .dismissed, .wontFix, .closed:
+                canClose = true
+            case .patchApplied, .fixApplied:
+                canClose = patch?.validationStatus == .passed
+            default:
+                canClose = false
+            }
+            guard canClose else { return nil }
+            findings[index].status = .closed
+            events.append(CodeReviewSessionEvent(
+                type: .outcomePublished,
+                detail: "Finding \(findingId) closed",
+                metadata: ["finding_id": findingId, "reason": command.payload["reason"] ?? "closed"]
+            ))
         default:
             return nil
         }

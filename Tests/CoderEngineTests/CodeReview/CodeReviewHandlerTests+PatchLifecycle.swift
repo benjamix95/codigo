@@ -76,4 +76,30 @@ extension CodeReviewHandlerTests {
         XCTAssertNil(result?.isError)
         XCTAssertTrue(textContent(result).contains("queued"))
     }
+
+    func testReviewCloseFindingQueuesCommand() {
+        let snapshot = seedSnapshot(
+            findings: [
+                CodeReviewFinding(
+                    id: "f123",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Package.swift",
+                    message: "Test finding",
+                    status: .merged,
+                    verificationReport: "verified",
+                    verifiedAt: Date()
+                )
+            ]
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_close_finding",
+            args: reviewSessionArgs(snapshot, extras: ["finding_id": "f123", "reason": "fixed_verified"])
+        )
+        XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains("queued"))
+    }
 }
