@@ -101,25 +101,29 @@ extension CoderIDEMCPServerApp {
     static func handleBugHunterExplainCluster(args: [String: String]) -> CallTool.Result {
         guard let snapshot = resolveBugHunterSnapshot(args: args),
               let reviewSessionId = snapshot.reviewSessionId,
-              let reviewSnapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: reviewSessionId) else {
+              let verifiedState = VerifiedFindingsService.resolve(
+                sessionId: reviewSessionId,
+                entryPoint: .mcp
+              ) else {
             return bugHunterError("Error: unable to resolve BugHunter cluster context")
         }
-        let findings = reviewSnapshot.findings.filter { $0.origin == .bugHunter }
+        let findings = verifiedState.recovered.envelope.canonicalSnapshot.findings.values
+            .filter { $0.domain == .bug }
         guard !findings.isEmpty else { return bugHunterOK("No BugHunter cluster available.") }
         let grouped = Dictionary(grouping: findings) { finding in
-            finding.message.split(separator: ".").first.map(String.init) ?? finding.message
+            finding.title.split(separator: ".").first.map(String.init) ?? finding.title
         }
         guard let top = grouped.max(by: { $0.value.count < $1.value.count }) else {
             return bugHunterOK("No BugHunter cluster available.")
         }
         let files = Array(Set(top.value.map(\.filePath))).sorted()
-        let avgConfidence = top.value.compactMap(\.confidence).reduce(0, +) / Double(max(top.value.compactMap(\.confidence).count, 1))
+        let avgConfidence = top.value.map(\.confidence).reduce(0, +) / Double(max(top.value.count, 1))
         let lines = [
             "cluster_title: \(top.key)",
             "cluster_size: \(top.value.count)",
             "files: \(files.joined(separator: ", "))",
             String(format: "avg_confidence: %.2f", avgConfidence),
-            "primary_risk: \(top.value.first?.category.rawValue ?? "unknown")",
+            "primary_risk: \(top.value.first?.category ?? "unknown")",
         ]
         return bugHunterOK(lines.joined(separator: "\n"))
     }
