@@ -44,4 +44,21 @@ final class ReviewPanelChatMessageContextTests: XCTestCase {
             ]
         )
     }
+
+    func testExtractsFindingTargetsFromStructuredFindingCards() {
+        let content = """
+        id: review-f-1
+        finding_id: review-f-2
+        """
+
+        let targets = ReviewPanelChatMessageContext.findingTargets(from: content)
+
+        XCTAssertEqual(
+            targets,
+            [
+                ReviewPanelChatFindingTarget(findingId: "review-f-1"),
+                ReviewPanelChatFindingTarget(findingId: "review-f-2"),
+            ]
+        )
+    }
 }

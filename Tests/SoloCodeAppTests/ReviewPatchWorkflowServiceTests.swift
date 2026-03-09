@@ -4,6 +4,50 @@ import XCTest
 
 @MainActor
 final class ReviewPatchWorkflowServiceTests: XCTestCase {
+    func testPreparePatchPromptIncludesVerificationRemediationAndInvariantContext() {
+        let service = ReviewPatchWorkflowService()
+        let finding = CodeReviewFinding(
+            id: "finding-ctx",
+            severity: .warning,
+            category: .correctness,
+            filePath: "Sources/File.swift",
+            lineNumber: 42,
+            message: "Invariant broken",
+            suggestedFix: "Ripristina il guard sullo stato",
+            expectedInvariant: "Lo stato finale deve essere emesso una sola volta",
+            reproOrReasoning: "Il retry duplica l'evento terminale",
+            verificationReport: "Riproduzione confermata con retry consecutivo",
+            verifiedAt: Date()
+        )
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-ctx",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [finding],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        let prompt = service.preparePatchPrompt(finding: finding, snapshot: snapshot)
+
+        XCTAssertTrue(prompt.contains("Verifica: Riproduzione confermata con retry consecutivo"))
+        XCTAssertTrue(prompt.contains("Fix suggerito: Ripristina il guard sullo stato"))
+        XCTAssertTrue(prompt.contains("Invariante atteso: Lo stato finale deve essere emesso una sola volta"))
+        XCTAssertTrue(prompt.contains("Repro o reasoning: Il retry duplica l'evento terminale"))
+    }
+
     func testApplyPatchRejectsArtifactThatWasNotVerified() async {
         let service = ReviewPatchWorkflowService()
         let artifact = ReviewPatchArtifact(

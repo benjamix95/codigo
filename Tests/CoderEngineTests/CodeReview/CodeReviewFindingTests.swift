@@ -37,6 +37,8 @@ final class CodeReviewFindingTests: XCTestCase {
             endLineNumber: 15,
             message: "SQL injection",
             suggestedFix: "Use parameterized queries",
+            expectedInvariant: "Only admins may execute this path.",
+            reproOrReasoning: "Request reaches the sink before authz is checked.",
             status: .open,
             comments: [FindingComment(content: "Urgent")]
         )
@@ -47,6 +49,8 @@ final class CodeReviewFindingTests: XCTestCase {
         XCTAssertEqual(finding.lineNumber, 10)
         XCTAssertEqual(finding.endLineNumber, 15)
         XCTAssertEqual(finding.suggestedFix, "Use parameterized queries")
+        XCTAssertEqual(finding.expectedInvariant, "Only admins may execute this path.")
+        XCTAssertEqual(finding.reproOrReasoning, "Request reaches the sink before authz is checked.")
         XCTAssertEqual(finding.comments.count, 1)
     }
 
@@ -83,6 +87,35 @@ final class CodeReviewFindingTests: XCTestCase {
         XCTAssertEqual(payload["status"], "open")
     }
 
+    func testFromCandidatePreservesVerificationContextAndRemediation() {
+        let candidate = ReviewCandidate(
+            id: "candidate-1",
+            severity: .critical,
+            category: .security,
+            origin: .securityAuditor,
+            filePath: "Sources/Auth/AdminGuard.swift",
+            lineNumber: 18,
+            message: "Admin action lacks authorization guard",
+            evidence: "Route reaches admin action without role check",
+            expectedInvariant: "Only admins can execute the action",
+            reproOrReasoning: "Add a role guard before invoking the action",
+            confidence: 0.97,
+            sourceTool: "security-auditor",
+            signalType: .pattern,
+            verificationStatus: .verified,
+            verificationMethod: "line_evidence_match",
+            verificationReport: "Verified on the concrete guard line.",
+            verifiedAt: Date()
+        )
+
+        let finding = CodeReviewFinding.fromCandidate(candidate)
+
+        XCTAssertEqual(finding.suggestedFix, "Add a role guard before invoking the action")
+        XCTAssertEqual(finding.expectedInvariant, "Only admins can execute the action")
+        XCTAssertEqual(finding.reproOrReasoning, "Add a role guard before invoking the action")
+        XCTAssertEqual(finding.verificationReport, "Verified on the concrete guard line.")
+    }
+
     func testToPayloadOmitsNilFields() {
         let finding = CodeReviewFinding(
             severity: .info,
@@ -110,6 +143,8 @@ final class CodeReviewFindingTests: XCTestCase {
             lineNumber: 5,
             message: "Use camelCase",
             suggestedFix: "Rename to camelCase",
+            expectedInvariant: "Names should stay stable and readable.",
+            reproOrReasoning: "The current API leaks inconsistent naming.",
             comments: [FindingComment(content: "Agreed")]
         )
 
@@ -124,6 +159,8 @@ final class CodeReviewFindingTests: XCTestCase {
         XCTAssertEqual(decoded.lineNumber, original.lineNumber)
         XCTAssertEqual(decoded.message, original.message)
         XCTAssertEqual(decoded.suggestedFix, original.suggestedFix)
+        XCTAssertEqual(decoded.expectedInvariant, original.expectedInvariant)
+        XCTAssertEqual(decoded.reproOrReasoning, original.reproOrReasoning)
         XCTAssertEqual(decoded.status, original.status)
         XCTAssertEqual(decoded.comments.count, 1)
     }

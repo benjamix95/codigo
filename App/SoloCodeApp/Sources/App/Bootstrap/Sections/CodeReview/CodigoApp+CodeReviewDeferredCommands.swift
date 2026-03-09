@@ -54,6 +54,19 @@ extension CodigoApp {
                     return
                 }
 
+                let autoPrepared = await autoPrepareVerifiedPatchesIfRequested(
+                    command: command,
+                    sessionState: sessionState
+                )
+                guard autoPrepared else {
+                    MCPSharedState.markCodeReviewCommand(
+                        id: command.id,
+                        status: .failed,
+                        resultMessage: "Code review completed, but automatic patch preview preparation failed"
+                    )
+                    return
+                }
+
                 if let onSuccess {
                     let succeeded = await onSuccess()
                     guard succeeded else {
@@ -175,5 +188,80 @@ extension CodigoApp {
             )
         }
         return result.success
+    }
+
+    @MainActor
+    private func autoPrepareVerifiedPatchesIfRequested(
+        command: MCPSharedCodeReviewCommand,
+        sessionState: CodeReviewSessionState
+    ) async -> Bool {
+        guard parseBoolValue(command.payload["auto_prepare_verified_patches"]) == true else {
+            return true
+        }
+        guard let workspaceRoot = workspaceStore.activeWorkspacePaths.first?.path else {
+            return false
+        }
+
+        let snapshot = await sessionState.snapshot()
+        let eligibleFindingIds = Set(
+            autoPrepareEligibleFindingIds(
+                snapshot: snapshot,
+                originFilter: command.payload["auto_prepare_origin_filter"]
+            )
+        )
+        let findingsToPrepare = snapshot.findings.filter { eligibleFindingIds.contains($0.id) }
+
+        guard !findingsToPrepare.isEmpty else { return true }
+
+        for finding in findingsToPrepare {
+            do {
+                let updated = try await VerifiedFindingsPatchExecutionService.execute(
+                    action: "prepare_patch",
+                    snapshot: await sessionState.snapshot(),
+                    findingId: finding.id,
+                    workspaceRoot: workspaceRoot,
+                    preferredProviderId: providerRegistry.selectedProviderId,
+                    providerRegistry: providerRegistry
+                )
+                guard let artifact = updated.patches.first(where: { $0.findingId == finding.id }) else {
+                    return false
+                }
+                await sessionState.upsertPatch(artifact)
+            } catch {
+                _ = await sessionState.addComment(
+                    findingId: finding.id,
+                    comment: FindingComment(
+                        author: "system",
+                        content: "Patch preview non disponibile: \(error.localizedDescription)"
+                    )
+                )
+            }
+            await persistLiveReviewState(
+                sessionState,
+                conversationId: sessionState.conversationId
+            )
+        }
+
+        return true
+    }
+
+    func autoPrepareEligibleFindingIds(
+        snapshot: CodeReviewSessionSnapshot,
+        originFilter: String?
+    ) -> [String] {
+        let allowedOrigins = Set(
+            (originFilter ?? "")
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+        return snapshot.findings.compactMap { finding in
+            guard finding.patchArtifactId == nil else { return nil }
+            guard finding.verifiedAt != nil || finding.verificationReport != nil else { return nil }
+            if !allowedOrigins.isEmpty && !allowedOrigins.contains(finding.origin.rawValue) {
+                return nil
+            }
+            return finding.id
+        }
     }
 }

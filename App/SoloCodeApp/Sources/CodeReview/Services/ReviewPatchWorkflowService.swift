@@ -81,25 +81,10 @@ final class ReviewPatchWorkflowService {
             providerRegistry: providerRegistry
         )
 
-        let prompt = """
-        Sei in una worktree temporanea creata solo per preparare una patch preview.
-        Devi modificare i file target e fermarti senza fare commit.
-
-        Sessione review: \(snapshot.sessionId)
-        Finding: \(finding.id)
-        File: \(finding.filePath)
-        Riga: \(finding.lineNumber.map(String.init) ?? "n/a")
-        Messaggio: \(finding.message)
-        Verifica: \(finding.verificationReport ?? "n/a")
-        Fix suggerito: \(finding.suggestedFix ?? "n/a")
-
-        Regole:
-        - modifica solo i file strettamente necessari a risolvere questo finding;
-        - mantieni il patch set minimo e leggibile;
-        - non fare commit, push o merge;
-        - non introdurre refactor estranei;
-        - al termine lascia le modifiche nel worktree e fermati.
-        """
+        let prompt = preparePatchPrompt(
+            finding: finding,
+            snapshot: snapshot
+        )
 
         _ = try await mergeAIService.runHeadlessPrompt(
             provider: provider,
@@ -139,6 +124,33 @@ final class ReviewPatchWorkflowService {
             workspaceContainsPatch: true
         )
         return validated
+    }
+
+    func preparePatchPrompt(
+        finding: CodeReviewFinding,
+        snapshot: CodeReviewSessionSnapshot
+    ) -> String {
+        """
+        Sei in una worktree temporanea creata solo per preparare una patch preview.
+        Devi modificare i file target e fermarti senza fare commit.
+
+        Sessione review: \(snapshot.sessionId)
+        Finding: \(finding.id)
+        File: \(finding.filePath)
+        Riga: \(finding.lineNumber.map(String.init) ?? "n/a")
+        Messaggio: \(finding.message)
+        Verifica: \(finding.verificationReport ?? "n/a")
+        Fix suggerito: \(finding.suggestedFix ?? "n/a")
+        Invariante atteso: \(finding.expectedInvariant ?? "n/a")
+        Repro o reasoning: \(finding.reproOrReasoning ?? "n/a")
+
+        Regole:
+        - modifica solo i file strettamente necessari a risolvere questo finding;
+        - mantieni il patch set minimo e leggibile;
+        - non fare commit, push o merge;
+        - non introdurre refactor estranei;
+        - al termine lascia le modifiche nel worktree e fermati.
+        """
     }
 
     func verifyPatch(

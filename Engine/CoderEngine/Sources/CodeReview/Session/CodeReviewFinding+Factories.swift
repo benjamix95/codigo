@@ -60,6 +60,9 @@ extension CodeReviewFinding {
             lineNumber: candidate.lineNumber,
             endLineNumber: candidate.endLineNumber,
             message: candidate.message,
+            suggestedFix: candidate.reproOrReasoning,
+            expectedInvariant: candidate.expectedInvariant,
+            reproOrReasoning: candidate.reproOrReasoning,
             confidence: candidate.confidence,
             evidence: candidate.evidence,
             sourceTool: candidate.sourceTool,
@@ -109,6 +112,12 @@ extension CodeReviewFinding {
         if let ln = lineNumber { payload["line_number"] = String(ln) }
         if let eln = endLineNumber { payload["end_line_number"] = String(eln) }
         if let fix = suggestedFix { payload["suggested_fix"] = fix }
+        if let expectedInvariant, !expectedInvariant.isEmpty {
+            payload["expected_invariant"] = expectedInvariant
+        }
+        if let reproOrReasoning, !reproOrReasoning.isEmpty {
+            payload["repro_or_reasoning"] = reproOrReasoning
+        }
         if let confidence { payload["confidence"] = String(format: "%.2f", confidence) }
         if let evidence, !evidence.isEmpty { payload["evidence"] = evidence }
         if let sourceTool, !sourceTool.isEmpty { payload["source_tool"] = sourceTool }

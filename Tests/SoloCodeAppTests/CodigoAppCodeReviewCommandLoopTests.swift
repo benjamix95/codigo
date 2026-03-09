@@ -135,6 +135,84 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertTrue(snapshot.config.analysisOnly)
     }
 
+    func testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch() {
+        let app = makeApp()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "review-auto-prepare",
+            conversationId: nil,
+            phase: .completed,
+            stage: .findings,
+            findings: [
+                CodeReviewFinding(
+                    id: "bughunter-verified",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Sources/Bug.swift",
+                    message: "Bug finding",
+                    verificationReport: "verified",
+                    verifiedAt: Date()
+                ),
+                CodeReviewFinding(
+                    id: "security-prepared",
+                    severity: .critical,
+                    category: .security,
+                    origin: .securityAuditor,
+                    filePath: "Sources/Security.swift",
+                    message: "Security finding",
+                    verificationReport: "verified",
+                    verifiedAt: Date(),
+                    patchArtifactId: "patch-1"
+                ),
+                CodeReviewFinding(
+                    id: "reviewer-verified",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .reviewer,
+                    filePath: "Sources/Review.swift",
+                    message: "Reviewer finding",
+                    verificationReport: "verified",
+                    verifiedAt: Date()
+                ),
+                CodeReviewFinding(
+                    id: "bughunter-unverified",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Sources/Pending.swift",
+                    message: "Pending finding"
+                ),
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: workspaceURL.path,
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        let bugIds = app.autoPrepareEligibleFindingIds(
+            snapshot: snapshot,
+            originFilter: FindingOrigin.bugHunter.rawValue
+        )
+        let securityIds = app.autoPrepareEligibleFindingIds(
+            snapshot: snapshot,
+            originFilter: FindingOrigin.securityAuditor.rawValue
+        )
+        let allIds = app.autoPrepareEligibleFindingIds(snapshot: snapshot, originFilter: nil)
+
+        XCTAssertEqual(bugIds, ["bughunter-verified"])
+        XCTAssertTrue(securityIds.isEmpty)
+        XCTAssertEqual(Set(allIds), ["bughunter-verified", "reviewer-verified"])
+    }
+
     private func makeApp() -> CodigoApp {
         let app = CodigoApp()
         return app
@@ -189,91 +267,5 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
         XCTFail("Timed out waiting for command \(id) to reach \(expectedStatus.rawValue)")
-    }
-}
-
-private actor ReviewProviderGate {
-    private var continuations: [CheckedContinuation<Void, Never>] = []
-    private var completed = false
-
-    func wait() async {
-        if completed { return }
-        await withCheckedContinuation { continuation in
-            continuations.append(continuation)
-        }
-    }
-
-    func finishSuccessfully() {
-        completed = true
-        let current = continuations
-        continuations.removeAll()
-        current.forEach { $0.resume() }
-    }
-}
-
-private final class DeferredCodeReviewProvider: LLMProvider, @unchecked Sendable {
-    let id = "deferred-code-review-provider"
-    let displayName = "DeferredCodeReviewProvider"
-    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
-
-    private let sessionState: CodeReviewSessionState?
-    private let gate: ReviewProviderGate
-    private let scopeFiles: [String]
-
-    init(
-        sessionState: CodeReviewSessionState?,
-        gate: ReviewProviderGate,
-        scopeFiles: [String]
-    ) {
-        self.sessionState = sessionState
-        self.gate = gate
-        self.scopeFiles = scopeFiles
-    }
-
-    func isAuthenticated() -> Bool { true }
-
-    func send(
-        prompt: String,
-        context: WorkspaceContext,
-        imageURLs: [URL]?
-    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let sessionState = self.sessionState
-        let gate = self.gate
-        let scopeFiles = self.scopeFiles
-        return AsyncThrowingStream { continuation in
-            Task {
-                continuation.yield(.started)
-                if let sessionState {
-                    await sessionState.start(
-                        scope: ReviewSessionScope(type: .uncommitted, files: scopeFiles),
-                        workspacePath: context.workspacePath.path
-                    )
-                }
-                await gate.wait()
-                if let sessionState {
-                    await sessionState.complete()
-                }
-                continuation.yield(.completed)
-                continuation.finish()
-            }
-        }
-    }
-}
-
-private final class ValidationOnlyProvider: LLMProvider, @unchecked Sendable {
-    let id = "validation-only-provider"
-    let displayName = "ValidationOnlyProvider"
-    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
-
-    func isAuthenticated() -> Bool { true }
-
-    func send(
-        prompt: String,
-        context: WorkspaceContext,
-        imageURLs: [URL]?
-    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        AsyncThrowingStream { continuation in
-            continuation.finish()
-        }
     }
 }

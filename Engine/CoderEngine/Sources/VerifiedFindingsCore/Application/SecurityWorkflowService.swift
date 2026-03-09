@@ -7,6 +7,9 @@ public enum SecurityWorkflowService {
     ) throws -> VerifiedFindingsStartCommandRequest {
         var payload = args
         payload["review_prompt_override"] = securityReviewPrompt(from: args)
+        payload["analysis_only"] = "true"
+        payload["auto_prepare_verified_patches"] = "true"
+        payload["auto_prepare_origin_filter"] = FindingOrigin.securityAuditor.rawValue
         return try VerifiedFindingsStartCommandService.makeRequest(
             args: payload,
             conversationId: conversationId

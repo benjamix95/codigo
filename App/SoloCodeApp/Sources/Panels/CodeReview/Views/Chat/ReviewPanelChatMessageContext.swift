@@ -35,7 +35,7 @@ enum ReviewPanelChatMessageContext {
     private static let fileReferencePattern =
         #"([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)(?::([0-9]+))?"#
     private static let findingReferencePattern =
-        #"finding\s+([A-Za-z0-9_-]+)"#
+        #"(?:(?:finding|finding_id)\s+|(?:finding_id|id):\s*)([A-Za-z0-9_-]+)"#
 
     static func fileTargets(from content: String, limit: Int = 3) -> [ReviewPanelChatMessageFileTarget] {
         guard !content.isEmpty,

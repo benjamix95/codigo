@@ -101,8 +101,8 @@ public enum ReviewCandidateVerificationService {
             endLineNumber: finding.endLineNumber,
             message: finding.message,
             evidence: finding.evidence,
-            expectedInvariant: finding.verificationReport,
-            reproOrReasoning: finding.suggestedFix,
+            expectedInvariant: finding.expectedInvariant ?? finding.verificationReport,
+            reproOrReasoning: finding.reproOrReasoning ?? finding.suggestedFix,
             confidence: finding.confidence,
             sourceTool: finding.sourceTool,
             signalType: signalType

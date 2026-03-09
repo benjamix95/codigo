@@ -89,6 +89,9 @@ final class VerifiedFindingsStartCommandServiceTests: XCTestCase {
         XCTAssertTrue(
             request.payload["review_prompt_override"]?.contains("[MODE:security-audit]") == true
         )
+        XCTAssertEqual(request.payload["analysis_only"], "true")
+        XCTAssertEqual(request.payload["auto_prepare_verified_patches"], "true")
+        XCTAssertEqual(request.payload["auto_prepare_origin_filter"], FindingOrigin.securityAuditor.rawValue)
     }
 
     func testBugHunterWorkflowServiceBuildsStartRequest() throws {
@@ -108,5 +111,8 @@ final class VerifiedFindingsStartCommandServiceTests: XCTestCase {
         XCTAssertEqual(request.payload["bughunter_profile"], "commit_review")
         XCTAssertEqual(request.payload["max_rounds"], "4")
         XCTAssertEqual(request.payload["max_workers"], "5")
+        XCTAssertEqual(request.payload["analysis_only"], "true")
+        XCTAssertEqual(request.payload["auto_prepare_verified_patches"], "true")
+        XCTAssertEqual(request.payload["auto_prepare_origin_filter"], FindingOrigin.bugHunter.rawValue)
     }
 }

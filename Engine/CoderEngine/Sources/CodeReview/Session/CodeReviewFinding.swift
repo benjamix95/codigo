@@ -13,6 +13,8 @@ public struct CodeReviewFinding: Sendable, Identifiable, Codable {
     public let endLineNumber: Int?
     public let message: String
     public let suggestedFix: String?
+    public let expectedInvariant: String?
+    public let reproOrReasoning: String?
     public let confidence: Double?
     public let evidence: String?
     public let sourceTool: String?
@@ -36,6 +38,8 @@ public struct CodeReviewFinding: Sendable, Identifiable, Codable {
         endLineNumber: Int? = nil,
         message: String,
         suggestedFix: String? = nil,
+        expectedInvariant: String? = nil,
+        reproOrReasoning: String? = nil,
         confidence: Double? = nil,
         evidence: String? = nil,
         sourceTool: String? = nil,
@@ -58,6 +62,8 @@ public struct CodeReviewFinding: Sendable, Identifiable, Codable {
         self.endLineNumber = endLineNumber
         self.message = message
         self.suggestedFix = suggestedFix
+        self.expectedInvariant = expectedInvariant
+        self.reproOrReasoning = reproOrReasoning
         self.confidence = confidence
         self.evidence = evidence
         self.sourceTool = sourceTool
@@ -164,6 +170,8 @@ extension CodeReviewFinding {
         case endLineNumber
         case message
         case suggestedFix
+        case expectedInvariant
+        case reproOrReasoning
         case confidence
         case evidence
         case sourceTool
@@ -184,6 +192,8 @@ extension CodeReviewFinding {
         let endLineNumber = try container.decodeIfPresent(Int.self, forKey: .endLineNumber)
         let message = try container.decode(String.self, forKey: .message)
         let suggestedFix = try container.decodeIfPresent(String.self, forKey: .suggestedFix)
+        let expectedInvariant = try container.decodeIfPresent(String.self, forKey: .expectedInvariant)
+        let reproOrReasoning = try container.decodeIfPresent(String.self, forKey: .reproOrReasoning)
         let confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
         let evidence = try container.decodeIfPresent(String.self, forKey: .evidence)
         let sourceTool = try container.decodeIfPresent(String.self, forKey: .sourceTool)
@@ -202,6 +212,8 @@ extension CodeReviewFinding {
             endLineNumber: endLineNumber,
             message: message,
             suggestedFix: suggestedFix,
+            expectedInvariant: expectedInvariant,
+            reproOrReasoning: reproOrReasoning,
             confidence: confidence,
             evidence: evidence,
             sourceTool: sourceTool,
