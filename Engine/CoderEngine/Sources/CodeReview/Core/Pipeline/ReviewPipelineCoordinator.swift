@@ -60,7 +60,14 @@ public actor ReviewPipelineCoordinator {
         )
         let scopeType: ReviewSessionScope.ScopeType = {
             if againstRef != nil { return .againstRef }
-            return resolvedScope == .staged ? .staged : .uncommitted
+            switch resolvedScope {
+            case .staged:
+                return .staged
+            case .workspace:
+                return .workspace
+            case .uncommitted:
+                return .uncommitted
+            }
         }()
         await sessionState.start(scope: ReviewSessionScope(
             type: scopeType,
@@ -303,6 +310,8 @@ public actor ReviewPipelineCoordinator {
         switch scope {
         case .staged:
             return "Staged changes"
+        case .workspace:
+            return "Workspace source files"
         case .uncommitted:
             return "Uncommitted changes"
         }
@@ -317,7 +326,7 @@ public actor ReviewPipelineCoordinator {
     ) -> [String] {
         if let againstRef {
             guard CodeReviewMultiSwarmProvider.isValidAgainstRefFormat(againstRef) else {
-                continuation.yield(.textDelta("Invalid AGAINST ref `\(againstRef)`.\n"))
+                continuation.yield(.textReplace("Invalid AGAINST ref `\(againstRef)`.\n"))
                 return []
             }
             let (files, error) = CodeReviewMultiSwarmProvider.gitDiffFiles(
@@ -333,7 +342,7 @@ public actor ReviewPipelineCoordinator {
                     currentHeadRevision: currentHead,
                     error: error
                 )
-                continuation.yield(.textDelta(message + "\n"))
+                continuation.yield(.textReplace(message + "\n"))
             }
             return files
         }
@@ -343,10 +352,15 @@ public actor ReviewPipelineCoordinator {
             scope: resolvedScope
         )
         if files.isEmpty {
-            let message = resolvedScope == .staged
-                ? "No staged source files found.\n"
-                : "No uncommitted source files found.\n"
-            continuation.yield(.textDelta(message))
+            let message = switch resolvedScope {
+            case .staged:
+                "No staged source files found.\n"
+            case .workspace:
+                "No workspace source files found.\n"
+            case .uncommitted:
+                "No uncommitted source files found.\n"
+            }
+            continuation.yield(.textReplace(message))
         }
         return files
     }

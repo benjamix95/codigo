@@ -1,0 +1,42 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: le review generiche/architetturali della main chat venivano instradate con scope `uncommitted`, e con working tree pulita mostravano `No uncommitted source files found.`; in più il messaggio poteva comparire concatenato più volte.
+- Sintomo: richieste tipo "mi fai una review della pipeline del plan panel?" producevano una review vuota su diff locale e la chat mostrava il messaggio di no-files ripetuto.
+- Impatto: la pipeline review sembrava rotta proprio sul caso d’uso principale di analisi codebase; UX rumorosa e fuorviante.
+- Gravità: critica
+- Steps to reproduce:
+  1. Avere repository pulito.
+  2. In main chat chiedere una review architetturale generica di una parte del codicebase.
+  3. Osservare lo scope `uncommitted` e il messaggio `No uncommitted source files found.`.
+- Risultato attuale: review generica su codebase -> fallback `uncommitted`; messaggio terminale no-files potenzialmente duplicato.
+- Risultato atteso: review generica -> scope `workspace`; messaggio terminale no-files non concatenato se il layer di streaming lo riceve più volte.
+- Causa probabile:
+  - l’auto-routing della main chat costruiva sempre prompt review con `[REVIEW_SCOPE:uncommitted]`
+  - i messaggi terminali no-files erano emessi come `textDelta`, quindi eventuali duplicazioni di evento venivano concatenate
+- Scope consentito:
+  - `ChatPanelView+PartH_CodeReviewModes.swift`
+  - motore review scope/pipeline
+  - modelli scope review
+  - test review scope e pipeline coordinator
+- Non-scope:
+  - redesign della UI panel
+  - nuovi workflow MCP
+  - modifica del core `VerifiedFindings`
+- Moduli confinanti da verificare:
+  - parsing scope review
+  - pipeline coordinator
+  - auto-routing main chat
+  - diff summary service
+- Test da aggiungere o aggiornare:
+  - parsing/inferenza `workspace`
+  - regression su review generica main chat
+  - regression su emissione `textReplace` per no-files
+- Strategia di fix minimo:
+  - introdurre scope `workspace` nel motore review
+  - usare `workspace` solo per review generiche senza target diff/patch/commit
+  - cambiare i messaggi terminali no-files/invalid ref da `textDelta` a `textReplace`
+- Verifica post-fix:
+  - `CoderEngineTests/CodeReviewMultiSwarmProviderTests`
+  - `CoderEngineTests/ReviewPipelineCoordinatorTests`
+  - `SoloCodeAppTests/AutoCodeReviewRoutingTests`
+- Commit previsto: `fix(review): route generic chat reviews to workspace scope`

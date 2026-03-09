@@ -27,6 +27,17 @@ final class AutoCodeReviewRoutingTests: XCTestCase {
         XCTAssertTrue(request.prompt.contains("Additional instructions:"))
     }
 
+    func testAutoCodeReviewRequestUsesWorkspaceScopeForArchitecturalReview() {
+        let request = makeAutoCodeReviewRequest(
+            userText: "Mi fai una review della pipeline del plan panel?",
+            coderMode: .agent
+        )
+
+        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertEqual(request.selectedModes, [.standard])
+        XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:workspace]"))
+    }
+
     func testAutoCodeReviewRequestWrapsBugHuntPrompt() {
         let request = makeAutoCodeReviewRequest(
             userText: "Fai bug hunt su queste modifiche e cerca regressioni o crash.",

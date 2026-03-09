@@ -83,6 +83,54 @@ final class ReviewPipelineCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(message.contains("current `HEAD` commit"))
     }
+
+    func testRunEmitsSingleTextReplaceWhenWorkspaceScopeHasNoFiles() async throws {
+        let workspacePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(
+            at: workspacePath,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: workspacePath) }
+
+        let sessionState = CodeReviewSessionState()
+        let provider = SilentLLMProvider()
+        let stream = AsyncThrowingStream<StreamEvent, Error> { continuation in
+            Task {
+                do {
+                    try await ReviewPipelineCoordinator.shared.run(
+                        prompt: "[REVIEW_SCOPE:workspace] Review repository architecture",
+                        context: WorkspaceContext(workspacePath: workspacePath),
+                        config: MultiSwarmReviewConfig(
+                            maxWorkers: 1,
+                            enabledPhases: .analysisOnly,
+                            maxReviewRounds: 1
+                        ),
+                        analysisProvider: provider,
+                        executionProvider: provider,
+                        runtimeResolver: nil,
+                        execController: nil,
+                        fileLockCoordinator: FileLockCoordinator(),
+                        sessionState: sessionState,
+                        continuation: continuation
+                    )
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+
+        var textReplaceEvents: [String] = []
+        for try await event in stream {
+            if case .textReplace(let replacement) = event {
+                textReplaceEvents.append(replacement)
+            }
+        }
+
+        XCTAssertEqual(textReplaceEvents, ["No workspace source files found.\n"])
+        let snapshot = await sessionState.snapshot()
+        XCTAssertEqual(snapshot.scope?.type, .workspace)
+    }
 }
 
 private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {

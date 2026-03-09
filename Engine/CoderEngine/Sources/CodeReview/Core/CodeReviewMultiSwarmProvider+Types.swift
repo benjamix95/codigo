@@ -40,6 +40,7 @@ extension CodeReviewMultiSwarmProvider {
     enum ReviewFileScope: String, Sendable {
         case uncommitted
         case staged
+        case workspace
     }
 
     enum ReviewPipelineError: Error, LocalizedError {

@@ -263,7 +263,7 @@ struct ReviewPanelScopeCard: View {
 
     private var isValidScope: Bool {
         switch store.scopeTarget {
-        case .uncommitted, .staged: return true
+        case .uncommitted, .staged, .workspace: return true
         case .againstRef(let ref): return !ref.isEmpty
         case .branch(let name): return !name.isEmpty && store.selectedBranch != nil
         case .commits(let shas): return !shas.isEmpty

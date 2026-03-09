@@ -68,6 +68,15 @@ extension CodeReviewMultiSwarmProviderTests {
         XCTAssertEqual(clean, prompt)
     }
 
+    func testParseReviewScope_withWorkspaceMarker() {
+        let (clean, scope) = CodeReviewMultiSwarmProvider.parseReviewScope(
+            from: "[REVIEW_SCOPE:workspace] Review the repository architecture."
+        )
+        XCTAssertEqual(scope, .workspace)
+        XCTAssertFalse(clean.contains("[REVIEW_SCOPE:workspace]"))
+        XCTAssertEqual(clean, "Review the repository architecture.")
+    }
+
     func testInferReviewScope_detectsStagedLanguage() {
         let scope = CodeReviewMultiSwarmProvider.inferReviewScope(
             from: "Review ONLY staged changes and ignore unstaged."
@@ -78,6 +87,13 @@ extension CodeReviewMultiSwarmProviderTests {
     func testInferReviewScope_detectsSlashCommand() {
         let scope = CodeReviewMultiSwarmProvider.inferReviewScope(from: "/review-staged")
         XCTAssertEqual(scope, .staged)
+    }
+
+    func testInferReviewScope_detectsWorkspaceLanguage() {
+        let scope = CodeReviewMultiSwarmProvider.inferReviewScope(
+            from: "Please review the workspace architecture."
+        )
+        XCTAssertEqual(scope, .workspace)
     }
 
     // MARK: - isValidAgainstRefFormat

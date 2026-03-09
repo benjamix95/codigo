@@ -16,6 +16,11 @@ extension CodeReviewMultiSwarmProvider {
                 workspacePath: context.workspacePath,
                 excludedPaths: context.excludedPaths
             )
+        case .workspace:
+            return WorkspaceScanner.listSourceFiles(
+                workspacePath: context.workspacePath,
+                excludedPaths: context.excludedPaths
+            )
         }
     }
 
@@ -23,7 +28,7 @@ extension CodeReviewMultiSwarmProvider {
     static func parseReviewScope(from prompt: String) -> (cleanPrompt: String, scope: ReviewFileScope?) {
         let searchableLimit = prompt.range(of: "## Conversation context (recent)")?.lowerBound ?? prompt.endIndex
         let searchable = String(prompt[..<searchableLimit])
-        let pattern = #"\[REVIEW_SCOPE:(staged|uncommitted)\]"#
+        let pattern = #"\[REVIEW_SCOPE:(staged|uncommitted|workspace)\]"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
               let match = regex.firstMatch(in: searchable, range: NSRange(searchable.startIndex..., in: searchable)),
               let scopeRange = Range(match.range(at: 1), in: searchable),
@@ -49,6 +54,14 @@ extension CodeReviewMultiSwarmProvider {
         }
         if lower.contains("[review_scope:uncommitted]") || lower.contains("/review-uncommitted") {
             return .uncommitted
+        }
+        if lower.contains("[review_scope:workspace]")
+            || lower.contains("/review-workspace")
+            || lower.contains("review the workspace")
+            || lower.contains("review the repository")
+            || lower.contains("review the codebase")
+        {
+            return .workspace
         }
         return nil
     }

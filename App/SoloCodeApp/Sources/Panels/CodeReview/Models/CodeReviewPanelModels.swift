@@ -55,6 +55,7 @@ enum CodeReviewPanelMode: String, CaseIterable, Identifiable {
 enum ReviewScopeTarget: Equatable {
     case uncommitted
     case staged
+    case workspace
     case againstRef(String)
     case branch(String)
     case commits([String])
@@ -63,6 +64,7 @@ enum ReviewScopeTarget: Equatable {
         switch self {
         case .uncommitted: return "Uncommitted changes"
         case .staged: return "Staged changes"
+        case .workspace: return "Workspace source files"
         case .againstRef(let ref): return "Against \(ref)"
         case .branch(let name): return "Branch \(name)"
         case .commits(let shas):
@@ -77,6 +79,7 @@ enum ReviewScopeTarget: Equatable {
         switch self {
         case .uncommitted: return "[REVIEW_SCOPE:uncommitted]"
         case .staged: return "[REVIEW_SCOPE:staged]"
+        case .workspace: return "[REVIEW_SCOPE:workspace]"
         case .againstRef(let ref): return "[AGAINST:\(ref)]"
         case .branch(let name): return "[AGAINST:\(name)]"
         case .commits(let shas):

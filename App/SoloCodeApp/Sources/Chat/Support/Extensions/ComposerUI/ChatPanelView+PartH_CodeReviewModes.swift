@@ -10,6 +10,7 @@ private struct AutoCodeReviewIntentMatch: Equatable {
     let wantsReview: Bool
     let wantsSecurity: Bool
     let wantsBugHunt: Bool
+    let prefersWorkspaceScope: Bool
 
     var shouldRouteToReviewRuntime: Bool {
         wantsReview || wantsSecurity || wantsBugHunt
@@ -55,8 +56,9 @@ func makeAutoCodeReviewRequest(
         selectedModes.insert(.standard)
     }
 
+    let scopeTarget: ReviewScopeTarget = intent.prefersWorkspaceScope ? .workspace : .uncommitted
     let prompt = ReviewPanelCoordinator.combinedPrompt(
-        scope: .uncommitted,
+        scope: scopeTarget,
         currentBranch: "",
         selectedModes: selectedModes,
         customInstructions: trimmed
@@ -180,7 +182,8 @@ private func matchAutoCodeReviewIntent(_ text: String) -> AutoCodeReviewIntentMa
         return AutoCodeReviewIntentMatch(
             wantsReview: false,
             wantsSecurity: false,
-            wantsBugHunt: false
+            wantsBugHunt: false,
+            prefersWorkspaceScope: false
         )
     }
 
@@ -189,10 +192,12 @@ private func matchAutoCodeReviewIntent(_ text: String) -> AutoCodeReviewIntentMa
         && (hasExplicitSecurityReview || hasScopedTarget || (hasReviewVerb && !hasNegativeSignal))
     let wantsBugHunt = hasBugSignal
         && (hasExplicitBugReview || hasScopedTarget || (hasReviewVerb && !hasNegativeSignal))
+    let prefersWorkspaceScope = !hasScopedTarget && (hasReviewPhrase || hasReviewVerb)
 
     return AutoCodeReviewIntentMatch(
         wantsReview: wantsReview,
         wantsSecurity: wantsSecurity,
-        wantsBugHunt: wantsBugHunt
+        wantsBugHunt: wantsBugHunt,
+        prefersWorkspaceScope: prefersWorkspaceScope
     )
 }

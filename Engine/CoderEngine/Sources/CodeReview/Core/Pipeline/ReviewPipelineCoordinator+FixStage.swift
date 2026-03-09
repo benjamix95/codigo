@@ -17,7 +17,16 @@ extension ReviewPipelineCoordinator {
     ) async -> Bool {
         let pipelineScope: ReviewScope = againstRef != nil
             ? .againstRef
-            : (resolvedScope == .staged ? .staged : .uncommitted)
+            : {
+                switch resolvedScope {
+                case .staged:
+                    return .staged
+                case .workspace:
+                    return .workspace
+                case .uncommitted:
+                    return .uncommitted
+                }
+            }()
         let sessionId = await sessionState.snapshot().sessionId
         let taskBatches = nonOverlappingReviewTaskBatches(tasks)
         var activeWorkers = 0

@@ -104,7 +104,7 @@ public enum ReviewDiffSummaryService {
             if let ref = scope.ref, !ref.isEmpty {
                 args.append(CodeReviewMultiSwarmProvider.normalizedAgainstRefRevision(ref))
             }
-        case .uncommitted:
+        case .uncommitted, .workspace:
             break
         }
         return args

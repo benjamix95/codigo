@@ -36,6 +36,7 @@ public struct ReviewSessionScope: Sendable, Codable {
     public enum ScopeType: String, Sendable, Codable {
         case uncommitted
         case staged
+        case workspace
         case againstRef = "against_ref"
     }
 
@@ -45,6 +46,8 @@ public struct ReviewSessionScope: Sendable, Codable {
             return "uncommitted changes (\(files.count) files)"
         case .staged:
             return "staged changes (\(files.count) files)"
+        case .workspace:
+            return "workspace source files (\(files.count) files)"
         case .againstRef:
             return "vs \(ref ?? "unknown") (\(files.count) files)"
         }

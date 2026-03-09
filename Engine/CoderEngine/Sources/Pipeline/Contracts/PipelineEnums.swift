@@ -162,6 +162,7 @@ public enum ProviderHealthStatus: String, Codable, Sendable, Equatable, CaseIter
 public enum ReviewScope: String, Codable, Sendable, Equatable, CaseIterable {
     case uncommitted
     case staged
+    case workspace
     case againstRef = "against_ref"
 }
 

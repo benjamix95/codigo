@@ -120,6 +120,8 @@ extension CodeReviewPanelStore {
             scope = .againstRef(snapshot.scope?.ref ?? "HEAD~1")
         case .staged:
             scope = .staged
+        case .workspace:
+            scope = .workspace
         case .uncommitted, .none:
             scope = .uncommitted
         }
