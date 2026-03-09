@@ -3,6 +3,8 @@ import AppKit
 import CoderEngine
 
 extension SidebarView {
+    private var sidebarTopContentInset: CGFloat { 36 }
+
     var selectedConversation: Conversation? {
         chatStore.conversation(for: selectedConversationId)
     }
@@ -97,8 +99,6 @@ extension SidebarView {
 
     var sidebarContent: some View {
         VStack(spacing: 0) {
-            sidebarTitlebarHeader
-
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     quickActions
@@ -112,6 +112,7 @@ extension SidebarView {
                         explorerSection(context: context)
                     }
                 }
+                .padding(.top, sidebarTopContentInset)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 10)
             }
@@ -138,12 +139,6 @@ extension SidebarView {
         .onChange(of: currentContextSyncFingerprint) { _ in
             scheduleSidebarWorkspaceSync(currentContextId: currentContext?.id)
         }
-    }
-
-    var sidebarTitlebarHeader: some View {
-        Color.clear
-            .frame(height: 28)
-            .allowsHitTesting(false)
     }
 
     var quickActions: some View {
