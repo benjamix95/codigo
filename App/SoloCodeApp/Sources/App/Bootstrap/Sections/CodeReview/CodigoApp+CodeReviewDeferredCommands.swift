@@ -113,10 +113,12 @@ extension CodigoApp {
                 Task { @MainActor in
                     MCPSharedState.writeCodeReviewSnapshot(snapshot)
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                    self.taskActivityStore.ingestCodeReviewSnapshot(
-                        snapshot,
-                        conversationId: conversationId
-                    )
+                    DispatchQueue.main.async { [taskActivityStore = self.taskActivityStore] in
+                        taskActivityStore.ingestCodeReviewSnapshot(
+                            snapshot,
+                            conversationId: conversationId
+                        )
+                    }
                 }
             }
         )

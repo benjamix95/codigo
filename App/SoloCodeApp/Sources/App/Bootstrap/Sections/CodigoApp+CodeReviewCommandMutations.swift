@@ -78,10 +78,12 @@ extension CodigoApp {
         )
         MCPSharedState.writeCodeReviewSnapshot(snapshot)
         await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-        taskActivityStore.ingestCodeReviewSnapshot(
-            snapshot,
-            conversationId: conversationId ?? snapshot.conversationId
-        )
+        DispatchQueue.main.async { [taskActivityStore] in
+            taskActivityStore.ingestCodeReviewSnapshot(
+                snapshot,
+                conversationId: conversationId ?? snapshot.conversationId
+            )
+        }
     }
 
     @MainActor
@@ -185,10 +187,12 @@ extension CodigoApp {
         let synchronized = synchronizedVerifiedFindingsSnapshot(updated, conversationId: conversationId)
         MCPSharedState.writeCodeReviewSnapshot(synchronized)
         await ReviewSessionRegistry.shared.recordSnapshot(synchronized)
-        taskActivityStore.ingestCodeReviewSnapshot(
-            synchronized,
-            conversationId: synchronized.conversationId
-        )
+        DispatchQueue.main.async { [taskActivityStore] in
+            taskActivityStore.ingestCodeReviewSnapshot(
+                synchronized,
+                conversationId: synchronized.conversationId
+            )
+        }
         return (true, "Snapshot updated")
     }
 

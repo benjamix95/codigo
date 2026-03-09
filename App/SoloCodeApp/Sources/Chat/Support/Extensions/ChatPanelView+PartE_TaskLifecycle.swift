@@ -276,13 +276,10 @@ extension ChatPanelView {
         // Flush pending task activities so subagent swarm cards are fully
         // populated before we snapshot them into the assistant message.
         flushPendingTaskActivities(conversationId: targetConversationId)
-        taskActivityStore.flushPending()
-
-        // Transition any cards still stuck in .running to .completed
-        // so the panel doesn't show stale running indicators.
-        taskActivityStore.finalizeRunningSwarmCards(for: targetConversationId)
-
-        let cards = visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates(for: targetConversationId))
+        let cards = visibleSwarmCardsForChat(
+            from: taskActivityStore.swarmCardStatesIncludingPending(for: targetConversationId)
+        )
+            .map { finalizedSubagentCardForSnapshot($0) }
             .map { SubagentCardSnapshot(from: $0) }
         if !cards.isEmpty {
             chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
@@ -299,5 +296,16 @@ extension ChatPanelView {
 
     internal func visibleSwarmCardsForChat(from cards: [SwarmLiveCardState]) -> [SwarmLiveCardState] {
         return cards
+    }
+
+    private func finalizedSubagentCardForSnapshot(_ card: SwarmLiveCardState) -> SwarmLiveCardState {
+        guard card.status == .running else { return card }
+        var finalized = card
+        finalized.status = .completed
+        finalized.completedAt = finalized.lastEventAt ?? Date()
+        finalized.activeOpsCount = 0
+        finalized.isCollapsed = true
+        finalized.hasUnreadSinceCollapse = false
+        return finalized
     }
 }

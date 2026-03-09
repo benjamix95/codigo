@@ -89,6 +89,29 @@ extension TaskActivityStore {
         return currentSortedSwarmCardsSnapshot()
     }
 
+    func swarmCardStatesIncludingPending(
+        for conversationId: UUID? = nil,
+        limitEventsPerCard: Int = SwarmLiveReducer.defaultRecentEventsLimit
+    ) -> [SwarmLiveCardState] {
+        let mergedActivities = activities + pendingActivities
+        if let conversationId {
+            let scoped = mergedActivities.filter { activity in
+                canonicalConversationScope(from: activity.payload) == conversationId.uuidString.lowercased()
+            }
+            let reduced = SwarmLiveReducer.reduce(
+                activities: scoped,
+                limitRecentEvents: limitEventsPerCard
+            )
+            return SwarmLiveReducer.sorted(states: Array(reduced.values))
+        }
+
+        let reduced = SwarmLiveReducer.reduce(
+            activities: mergedActivities,
+            limitRecentEvents: limitEventsPerCard
+        )
+        return SwarmLiveReducer.sorted(states: Array(reduced.values))
+    }
+
     func recentActivities(limit: Int) -> [TaskActivity] {
         guard limit > 0 else { return [] }
         return Array(activities.suffix(limit))

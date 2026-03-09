@@ -200,4 +200,24 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         XCTAssertEqual(publishCount, 0)
         XCTAssertTrue(store.isSortedSwarmCardsCacheDirty)
     }
+
+    func testSwarmCardStatesIncludingPendingContainsBufferedActivitiesWithoutFlush() {
+        let store = TaskActivityStore()
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner",
+                detail: "started",
+                payload: ["swarm_id": "planner", "group_id": "swarm-planner"],
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner"
+            )
+        )
+
+        let cards = store.swarmCardStatesIncludingPending()
+
+        XCTAssertEqual(cards.map(\.swarmId), ["planner"])
+        XCTAssertEqual(cards.first?.status, .running)
+    }
 }
