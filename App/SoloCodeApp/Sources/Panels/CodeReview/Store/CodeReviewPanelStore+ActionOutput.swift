@@ -65,31 +65,38 @@ extension CodeReviewPanelStore {
     /// Finds or creates a dedicated response message that follows
     /// the review-run activity message. The response is rendered
     /// as its own chat bubble with full markdown support.
+    /// Uses `responseMessageIds` dictionary to track the stable
+    /// mapping between activity and response message IDs.
     private func responseMessageIndex(
         for activityId: UUID
     ) -> Int {
-        // Look for an existing response message right after the activity
+        // Check if we already have a response message for this activity
+        if let responseId = responseMessageIds[activityId],
+           let index = chatMessages.firstIndex(where: { $0.id == responseId })
+        {
+            return index
+        }
+
+        // Create a new response message right after the activity message
+        let responseId = UUID()
+        let responseMessage = ReviewPanelMessage(
+            id: responseId,
+            role: .assistant,
+            kind: .plain,
+            content: "",
+            isStreaming: true
+        )
+        responseMessageIds[activityId] = responseId
+
         if let activityIndex = chatMessages.firstIndex(
             where: { $0.id == activityId }
         ) {
-            let nextIndex = activityIndex + 1
-            if nextIndex < chatMessages.count,
-               chatMessages[nextIndex].role == .assistant,
-               chatMessages[nextIndex].kind == .plain
-            {
-                return nextIndex
-            }
-            // Create a new response message
-            let responseMessage = ReviewPanelMessage(
-                role: .assistant,
-                kind: .plain,
-                content: "",
-                isStreaming: true
-            )
-            chatMessages.insert(responseMessage, at: nextIndex)
-            return nextIndex
+            chatMessages.insert(responseMessage, at: activityIndex + 1)
+            return activityIndex + 1
+        } else {
+            chatMessages.append(responseMessage)
+            return chatMessages.count - 1
         }
-        return chatMessages.count - 1
     }
 
     /// Appends a text delta to the separate response message.
@@ -120,15 +127,7 @@ extension CodeReviewPanelStore {
         }
         chatMessages[index].isStreaming = false
         ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[index])
-
-        // Also finalize the separate response message if it exists
-        let nextIndex = index + 1
-        if nextIndex < chatMessages.count,
-           chatMessages[nextIndex].role == .assistant,
-           chatMessages[nextIndex].kind == .plain
-        {
-            chatMessages[nextIndex].isStreaming = false
-        }
+        finalizeResponseMessage(for: id)
         persistChatState()
     }
 
@@ -139,16 +138,63 @@ extension CodeReviewPanelStore {
         chatMessages[index].content = "Error: \(error)"
         chatMessages[index].isStreaming = false
         ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[index])
-
-        // Also finalize the separate response message if it exists
-        let nextIndex = index + 1
-        if nextIndex < chatMessages.count,
-           chatMessages[nextIndex].role == .assistant,
-           chatMessages[nextIndex].kind == .plain
-        {
-            chatMessages[nextIndex].isStreaming = false
-        }
+        finalizeResponseMessage(for: id)
         persistChatState()
+    }
+
+    /// Stops streaming on the separate response message, if one exists.
+    /// If the response contains a verdict separator (`\n---\n`),
+    /// splits off the verdict into its own summary message.
+    private func finalizeResponseMessage(for activityId: UUID) {
+        guard let responseId = responseMessageIds.removeValue(forKey: activityId),
+              let index = chatMessages.firstIndex(where: { $0.id == responseId })
+        else { return }
+        chatMessages[index].isStreaming = false
+
+        let content = chatMessages[index].content
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Remove empty response messages (no textDelta was ever received)
+        if content.isEmpty {
+            chatMessages.remove(at: index)
+            return
+        }
+
+        // Split verdict from response if a --- separator exists
+        let separator = "\n---\n"
+        if let separatorRange = content.range(of: separator) {
+            let responsePart = String(content[..<separatorRange.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let verdictPart = String(content[separatorRange.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            chatMessages[index].content = responsePart
+
+            // Remove response if empty after split
+            if responsePart.isEmpty {
+                chatMessages.remove(at: index)
+            }
+
+            // Add verdict as a separate summary-style message
+            if !verdictPart.isEmpty {
+                let verdictMessage = ReviewPanelMessage(
+                    role: .assistant,
+                    kind: .reviewRun,
+                    content: verdictPart
+                )
+                let insertAt = chatMessages.firstIndex(
+                    where: { $0.id == responseId }
+                ).map { $0 + 1 } ?? chatMessages.endIndex
+                chatMessages.insert(verdictMessage, at: insertAt)
+                // Finalize immediately to bake verdict sections
+                let verdictIdx = chatMessages.firstIndex(
+                    where: { $0.id == verdictMessage.id }
+                )!
+                ReviewPanelChatMessageFactory.finalizeReviewRunMessage(
+                    &chatMessages[verdictIdx]
+                )
+            }
+        }
     }
 
     // MARK: - Raw Event Handling
@@ -166,8 +212,8 @@ extension CodeReviewPanelStore {
         }
 
         if formatted.sectionTitle == "Response" {
-            // Response content goes into the separate response message
-            appendTextDelta(id: id, delta: formatted.line + "\n")
+            // assistant_update output is cumulative — replace, don't append
+            replaceResponseSection(id: id, replacement: formatted.line)
         } else {
             appendReviewRunSectionLine(
                 id: id,

@@ -81,20 +81,32 @@ extension CodeReviewPanelStore {
         coordinator.cancelChat()
         setChatProcessing(false, startedAt: nil)
 
-        // Mark last assistant message as not streaming
-        if let lastIndex = chatMessages.indices.last,
-           chatMessages[lastIndex].role == .assistant,
-           chatMessages[lastIndex].isStreaming
-        {
-            chatMessages[lastIndex].isStreaming = false
-            if chatMessages[lastIndex].content.isEmpty {
-                chatMessages[lastIndex].content = "Cancelled."
+        // Finalize ALL streaming assistant messages (reviewRun + response)
+        for index in chatMessages.indices.reversed() {
+            guard chatMessages[index].role == .assistant,
+                  chatMessages[index].isStreaming
+            else { continue }
+
+            chatMessages[index].isStreaming = false
+
+            if chatMessages[index].kind == .reviewRun {
+                if chatMessages[index].content.isEmpty {
+                    chatMessages[index].content = "Cancelled."
+                }
+                ReviewPanelChatMessageFactory.finalizeReviewRunMessage(
+                    &chatMessages[index]
+                )
+            } else if chatMessages[index].kind == .plain,
+                      chatMessages[index].content
+                          .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                // Remove empty response bubble on cancel
+                chatMessages.remove(at: index)
             }
-            if chatMessages[lastIndex].kind == .reviewRun {
-                ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[lastIndex])
-            }
-            persistChatState()
         }
+        // Clear any pending response mappings
+        responseMessageIds.removeAll()
+        persistChatState()
     }
 
     /// Clear chat history.

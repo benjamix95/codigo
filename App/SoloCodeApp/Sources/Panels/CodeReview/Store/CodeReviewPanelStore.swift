@@ -45,6 +45,9 @@ final class CodeReviewPanelStore: ObservableObject {
     @Published var chatThreads: [ReviewPanelChatThreadState] = []
     @Published var activeChatThreadId: String?
 
+    /// Maps activity message ID → response message ID for split bubbles.
+    var responseMessageIds: [UUID: UUID] = [:]
+
     // MARK: - Git Context
 
     @Published var gitBranches: [GitBranch] = []
