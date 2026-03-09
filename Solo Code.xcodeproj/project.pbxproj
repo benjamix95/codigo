@@ -176,6 +176,7 @@
 		1758F276BEE7857EC437C775 /* DebugProjectionStoreBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA58BB6499EEEE7F8DB3646 /* DebugProjectionStoreBinding.swift */; };
 		1765844A9D7255BAEACF4A2D /* CoderIDEMCPServerApp+IDEStateTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F09BF99268AB08ADC652D4C /* CoderIDEMCPServerApp+IDEStateTools.swift */; };
 		1769B940637D247D0865DB99 /* PipelineIntegrationVerifiedFindingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FA96321FEDBCEBC649200C /* PipelineIntegrationVerifiedFindingsTests.swift */; };
+		1769B942637D248D0865DB99 /* AutoCodeReviewRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1769B941637D248D0865DB99 /* AutoCodeReviewRoutingTests.swift */; };
 		1781410786D6D7F4BC81AB13 /* ReviewPanelChatThreadSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FF78005FF710E4769905D53 /* ReviewPanelChatThreadSwitcher.swift */; };
 		17EAD5C4C01944F640E7C879 /* CodexLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81965031E88C96E543A5B5BE /* CodexLoginView.swift */; };
 		187491752E7101AB23241B2E /* GeminiStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37FA2FD2B9241B56432EB43 /* GeminiStateStore.swift */; };
@@ -2109,6 +2110,7 @@
 		33C23630F037106D22D0B986 /* DeadLetterQueue.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DeadLetterQueue.swift; path = Engine/CoderEngine/Sources/Pipeline/EventBus/DeadLetterQueue.swift; sourceTree = "<group>"; };
 		33CEC663EB42AF52A552D137 /* TaskActivityStoreInstantGrepTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaskActivityStoreInstantGrepTests.swift; path = Tests/SoloCodeAppTests/TaskActivityStoreInstantGrepTests.swift; sourceTree = "<group>"; };
 		33FA96321FEDBCEBC649200C /* PipelineIntegrationVerifiedFindingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineIntegrationVerifiedFindingsTests.swift; path = Tests/SoloCodeAppTests/PipelineIntegrationVerifiedFindingsTests.swift; sourceTree = "<group>"; };
+		1769B941637D248D0865DB99 /* AutoCodeReviewRoutingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AutoCodeReviewRoutingTests.swift; path = Tests/SoloCodeAppTests/AutoCodeReviewRoutingTests.swift; sourceTree = "<group>"; };
 		3426A055407520D7ED8EA42A /* ReviewPanelChatMessageContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatMessageContextTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelChatMessageContextTests.swift; sourceTree = "<group>"; };
 		34970D98FA588A5A3498EC76 /* AppUpdateCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppUpdateCenter.swift; path = App/SoloCodeApp/Sources/Services/AppUpdateCenter/AppUpdateCenter.swift; sourceTree = "<group>"; };
 		349DF55934ADF3712EDECF88 /* DebugPipelineContractsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugPipelineContractsTests.swift; path = Tests/CoderEngineTests/Pipeline/Contracts/DebugPipelineContractsTests.swift; sourceTree = "<group>"; };
@@ -4632,6 +4634,7 @@
 				D9DEB8A08F95244715165F33 /* VerifiedFindingsCommandCoordinatorTests.swift */,
 				853ADC2C191E73F0146F6BA6 /* PipelineIntegrationService+VerifiedFindingsReview.swift */,
 				33FA96321FEDBCEBC649200C /* PipelineIntegrationVerifiedFindingsTests.swift */,
+				1769B941637D248D0865DB99 /* AutoCodeReviewRoutingTests.swift */,
 				54C6EEDB7EDF7C6A8E240EED /* VerifiedFindingsSecurityGateService.swift */,
 				F69D74CD017AF0195ECD96DD /* VerifiedFindingsSecurityGateServiceTests.swift */,
 				8C060B37B3611CED3A25BCCE /* CodeReviewHandlerTests+PatchLifecycle.swift */,
@@ -5540,6 +5543,7 @@
 				1C75DDFA35CDCA0D393427B4 /* WorktreeMergeAIServiceTests.swift in Sources */,
 				D091D93822CF45D4A8C2CA0C /* WorktreeSessionStoreTests.swift in Sources */,
 				1769B940637D247D0865DB99 /* PipelineIntegrationVerifiedFindingsTests.swift in Sources */,
+				1769B942637D248D0865DB99 /* AutoCodeReviewRoutingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

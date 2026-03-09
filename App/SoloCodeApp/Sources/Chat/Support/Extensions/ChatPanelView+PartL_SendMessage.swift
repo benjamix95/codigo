@@ -6,9 +6,16 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     internal func sendMessage(preferCodeReviewRuntimeProvider: Bool? = nil) {
         let parsedInput = parsePlanCommandInput(inputText)
-        let text = applyComposerCodeReviewModesIfNeeded(to: parsedInput.llmPromptInput)
+        let autoCodeReviewRequest = resolvedAutoCodeReviewRequest(for: parsedInput.llmPromptInput)
+        let text = applyComposerCodeReviewModesIfNeeded(to: autoCodeReviewRequest.prompt)
         let displayedInput = parsedInput.displayedInput
         let forcePlanInline = parsedInput.forcePlanInline
+        let runtimeReviewPreference: Bool? = {
+            if let preferCodeReviewRuntimeProvider {
+                return preferCodeReviewRuntimeProvider
+            }
+            return autoCodeReviewRequest.prefersCodeReviewRuntimeProvider ? true : nil
+        }()
         if forcePlanInline {
             // `/plan` should force the planning flow — panel opens after screening in Phase 0.
             planToggleEnabled = true
@@ -104,7 +111,7 @@ extension ChatPanelView {
                 selectedProvider: selectedProvider,
                 shouldRunPlanInline: shouldRunPlanInline,
                 forcePlanInline: forcePlanInline,
-                preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider
+                preferCodeReviewRuntimeProvider: runtimeReviewPreference
             )
         else {
             resetPlanFlowAfterPreflightFailureIfNeeded()
