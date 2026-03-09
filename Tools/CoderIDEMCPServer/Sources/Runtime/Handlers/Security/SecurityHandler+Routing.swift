@@ -128,9 +128,7 @@ extension CoderIDEMCPServerApp {
             ? MCPSharedState.readCodeReviewSnapshots()
             : scopedSnapshots
         guard let snapshot = snapshots.first else { return nil }
-        let envelope = snapshot.verifiedFindings
-            ?? VerifiedFindingsSessionSyncService.sync(snapshot: snapshot, entryPoint: .mcp)
-        return VerifiedFindingsSecurityGateService.evaluate(envelope: envelope)
+        return VerifiedFindingsService.resolve(snapshot: snapshot, entryPoint: .mcp).securityGate
     }
 
     private static func textContent(from result: CallTool.Result) -> String {

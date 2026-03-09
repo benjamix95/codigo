@@ -42,7 +42,8 @@ extension MCPSharedState {
 
     public static func readCodeReviewStatus(sessionId: String) -> [String: String]? {
         guard let snapshot = readCodeReviewSnapshot(sessionId: sessionId) else { return nil }
-        let securityGate = snapshot.verifiedFindings.map(VerifiedFindingsSecurityGateService.evaluate)
+        let verifiedState = VerifiedFindingsService.resolve(snapshot: snapshot, entryPoint: .mcp)
+        let securityGate = verifiedState.securityGate
         var payload: [String: String] = [
             "session_id": snapshot.sessionId,
             "phase": snapshot.phase.rawValue,
@@ -63,13 +64,13 @@ extension MCPSharedState {
         payload["merged_patches"] = String(snapshot.outcome.mergedPatches)
         payload["manual_action_required"] = snapshot.outcome.manualActionRequired ? "true" : "false"
         payload["audit_coverage_percent"] = String(format: "%.0f", snapshot.auditCoveragePercent)
-        let projection = snapshot.verifiedFindingsProjection
+        let projection = verifiedState.recovered.envelope.projectionSnapshot
         payload["verified_projection_candidates"] = String(projection.candidateQueue.count)
         payload["verified_projection_findings"] = String(projection.verifiedQueue.count)
         payload["verified_projection_duplicates"] = String(projection.duplicatesCount)
         payload["verified_projection_stale_candidates"] = String(projection.staleCandidatesCount)
-        let recovered = VerifiedFindingsCheckpointService.resolveEnvelope(snapshot: snapshot)
-        let replay = VerifiedFindingsReplayService.replay(recovered)
+        let recovered = verifiedState.recovered
+        let replay = verifiedState.replayReport
         payload["verified_envelope_source"] = recovered.source.rawValue
         if let checkpoint = recovered.checkpoint {
             payload["verified_checkpoint_findings"] = String(checkpoint.findingCount)
@@ -81,15 +82,13 @@ extension MCPSharedState {
         payload["verified_replay_findings"] = String(replay.verifiedCount)
         payload["verified_replay_duplicates"] = String(replay.duplicatesCount)
         payload["verified_replay_stale_candidates"] = String(replay.staleCandidatesCount)
-        if let securityGate {
-            payload["security_gate_ready"] = securityGate.ready ? "true" : "false"
-            payload["security_gate_summary"] = securityGate.summary
-            payload["security_gate_projection_mismatches"] = String(securityGate.canonicalProjectionMismatchCount)
-            payload["security_gate_undetected_duplicates"] = String(securityGate.undetectedDuplicateCount)
-            payload["security_gate_missing_evidence"] = String(securityGate.findingsMissingEvidenceCount)
-            payload["security_gate_missing_verification"] = String(securityGate.findingsMissingVerificationCount)
-            payload["security_gate_apply_revalidate_success_rate"] = String(format: "%.2f", securityGate.applyRevalidateSuccessRate)
-        }
+        payload["security_gate_ready"] = securityGate.ready ? "true" : "false"
+        payload["security_gate_summary"] = securityGate.summary
+        payload["security_gate_projection_mismatches"] = String(securityGate.canonicalProjectionMismatchCount)
+        payload["security_gate_undetected_duplicates"] = String(securityGate.undetectedDuplicateCount)
+        payload["security_gate_missing_evidence"] = String(securityGate.findingsMissingEvidenceCount)
+        payload["security_gate_missing_verification"] = String(securityGate.findingsMissingVerificationCount)
+        payload["security_gate_apply_revalidate_success_rate"] = String(format: "%.2f", securityGate.applyRevalidateSuccessRate)
         if !snapshot.audit.toolCoverage.isEmpty {
             payload["findings_by_origin"] = snapshot.findingsByOrigin.map { "\($0.key.rawValue)=\($0.value.count)" }.sorted().joined(separator: ",")
             payload["audit_tools"] = snapshot.audit.toolCoverage.map { "\($0.key)=\($0.value ? "covered" : "unavailable")" }.sorted().joined(separator: ",")

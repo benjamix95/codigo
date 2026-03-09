@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -147,10 +147,12 @@
 		163981735FDF3BB278DE7D31 /* GitPanelStore+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CA3D513E86F157F1B4661B /* GitPanelStore+Sync.swift */; };
 		16949F6A3162678B7CB4284F /* CoderIDETools+SecurityWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5112A8DFD9FB240AEB6804 /* CoderIDETools+SecurityWorkflow.swift */; };
 		16A1B8E47873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */; };
+		16C187B102217CE3AC17F9CF /* CodexCLIProviderStreamParsingTests+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691B516652D1032F4A81D960 /* CodexCLIProviderStreamParsingTests+Helpers.swift */; };
 		16C1A2B87873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2B77873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift */; };
 		16C1A2BA7873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2B97873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift */; };
 		16C1A2BC7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2BB7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift */; };
-		16C187B102217CE3AC17F9CF /* CodexCLIProviderStreamParsingTests+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691B516652D1032F4A81D960 /* CodexCLIProviderStreamParsingTests+Helpers.swift */; };
+		16C1A2BE7873F6803C4E2A91 /* VerifiedFindingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2BD7873F6803C4E2A91 /* VerifiedFindingsService.swift */; };
+		16C1A2C07873F6873C4E2A91 /* VerifiedFindingsServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2BF7873F6873C4E2A91 /* VerifiedFindingsServiceTests.swift */; };
 		1714C8847F5FBFC9AA824C82 /* PipelineEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F7392D8039C205F827A859 /* PipelineEnums.swift */; };
 		171650B4BB8F4FCCD89B23C6 /* CodexCLIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFA47E41B4F82D2A55D3960 /* CodexCLIProvider+Execution.swift */; };
 		171E31C517D32F60FBCBB5F0 /* OrchestratorMainLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4499A7DB9A99717E26E42A /* OrchestratorMainLoop.swift */; };
@@ -745,7 +747,7 @@
 		7324B967C3FACE8B42369E35 /* CodeReviewRuntimeResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = C36E9FABD98AD6F4966D72A8 /* CodeReviewRuntimeResources.swift */; };
 		7373A38D708D492973CFCD76 /* WebSearchService+DuckDuckGo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F653136DE6456D5175E2ADE /* WebSearchService+DuckDuckGo.swift */; };
 		739798F7A558A42F576095EC /* WorkspaceStoreContextSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A01E4D851068C330B0B6A73 /* WorkspaceStoreContextSyncTests.swift */; };
-		73C670BAC486847893962165 /* CoderIDEMCPServerExecutable in Embed Helper */ = {isa = PBXBuildFile; fileRef = 2E4FDF4D414D1D0034C6CB62 /* CoderIDEMCPServerExecutable */; };
+		73C670BAC486847893962165 /* coderide-mcp-server in Embed Helper */ = {isa = PBXBuildFile; fileRef = 2E4FDF4D414D1D0034C6CB62 /* coderide-mcp-server */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		73F8CB4999E3D7F0B0B352BE /* SensitiveDataRedactionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6EE920E0EC0BCCD21CAE00D /* SensitiveDataRedactionService.swift */; };
 		73FC5E29DA3AB57EDC0BE0D7 /* BugHunterHandler+Reads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 067FED011DA8D12D2896C01E /* BugHunterHandler+Reads.swift */; };
 		7418152B1A2CB1C56CDD94C4 /* UnifiedToolRuntime+DebugTestCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = A323B966D16DB4AE07E03CD1 /* UnifiedToolRuntime+DebugTestCheck.swift */; };
@@ -1716,7 +1718,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
-				73C670BAC486847893962165 /* CoderIDEMCPServerExecutable in Embed Helper */,
+				73C670BAC486847893962165 /* coderide-mcp-server in Embed Helper */,
 			);
 			name = "Embed Helper";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1840,7 +1842,7 @@
 		0FB98AB1FD73371946D6EC4B /* MarkdownContentView+Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MarkdownContentView+Views.swift"; path = "App/SoloCodeApp/Sources/Editor/Markdown/MarkdownContentView+Views.swift"; sourceTree = "<group>"; };
 		0FFD5E08DB7C8DDFEA0D9AED /* UnifiedToolRuntimeTests+SearchTools.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntimeTests+SearchTools.swift"; path = "Tests/CoderEngineTests/UnifiedToolRuntime/UnifiedToolRuntimeTests+SearchTools.swift"; sourceTree = "<group>"; };
 		1036D64A2AD30E091ABE70D5 /* UnifiedToolRuntime+SemanticHybridRendering.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+SemanticHybridRendering.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Index/Search/Semantic/Hybrid/UnifiedToolRuntime+SemanticHybridRendering.swift"; sourceTree = "<group>"; };
-		10CC2993B00EF14DC85A2ABF /* monaco */ = {isa = PBXFileReference; includeInIndex = 1; name = monaco; path = App/SoloCodeApp/Resources/monaco; sourceTree = "<group>"; };
+		10CC2993B00EF14DC85A2ABF /* monaco */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = monaco; path = App/SoloCodeApp/Resources/monaco; sourceTree = "<group>"; };
 		10CE92812EFF3AA3D5096F22 /* ChatPipelineReducer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPipelineReducer.swift; path = App/SoloCodeApp/Sources/Chat/Pipeline/Core/ChatPipelineReducer.swift; sourceTree = "<group>"; };
 		110439CA2C887D5A47C152BD /* ChatPanelTraceBindingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPanelTraceBindingTests.swift; path = Tests/SoloCodeAppTests/ChatPanelTraceBindingTests.swift; sourceTree = "<group>"; };
 		115FDBFDD0AAD347D6FC2D53 /* ToolTraceFileChangeModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToolTraceFileChangeModels.swift; path = App/SoloCodeApp/Sources/Tasking/Models/ToolTraceFileChangeModels.swift; sourceTree = "<group>"; };
@@ -1873,7 +1875,13 @@
 		1628AC102AD3DB28B214F09A /* LanguageServiceAdapters.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceAdapters.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageServiceAdapters.swift; sourceTree = "<group>"; };
 		165579C2BE3D91FD7B05CFB0 /* PatchApplyTransactionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PatchApplyTransactionTests.swift; path = Tests/CoderEngineTests/Pipeline/Patching/PatchApplyTransactionTests.swift; sourceTree = "<group>"; };
 		165BEA67A7154FF161AB85BE /* MessageToolTraceView+EventMetadata.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MessageToolTraceView+EventMetadata.swift"; path = "App/SoloCodeApp/Sources/Chat/MessageToolTrace/MessageToolTraceView+EventMetadata.swift"; sourceTree = "<group>"; };
+		16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SecurityHandlerTests+Gate.swift"; path = "Tests/CoderEngineTests/Security/SecurityHandlerTests+Gate.swift"; sourceTree = "<group>"; };
 		16A4035C37FB19E66C4D70BE /* CoderIDEMCPServerPlanToolsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CoderIDEMCPServerPlanToolsTests.swift; path = Tests/CoderEngineTests/CoderIDEMCPServerPlanToolsTests.swift; sourceTree = "<group>"; };
+		16C1A2B77873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsReplayServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsReplayServiceTests.swift; sourceTree = "<group>"; };
+		16C1A2B97873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsCheckpointService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsCheckpointService.swift; sourceTree = "<group>"; };
+		16C1A2BB7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsReplayService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsReplayService.swift; sourceTree = "<group>"; };
+		16C1A2BD7873F6803C4E2A91 /* VerifiedFindingsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsService.swift; sourceTree = "<group>"; };
+		16C1A2BF7873F6873C4E2A91 /* VerifiedFindingsServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsServiceTests.swift; sourceTree = "<group>"; };
 		1723C4DB50FC5964E24284AE /* LanguageServiceModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceModels.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageServiceModels.swift; sourceTree = "<group>"; };
 		173E86F5B0B9744BDF35EEC4 /* GitPanelStore+Refresh.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitPanelStore+Refresh.swift"; path = "App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+Refresh.swift"; sourceTree = "<group>"; };
 		175C3ED2D1EAC5D42C6C23B5 /* TestRunnerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TestRunnerService.swift; path = App/SoloCodeApp/Sources/Services/Testing/TestRunnerService.swift; sourceTree = "<group>"; };
@@ -1919,7 +1927,7 @@
 		1DCB426258B0C40B567A1A03 /* CodexMCPHealthStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodexMCPHealthStore.swift; path = App/SoloCodeApp/Sources/Services/CodexMCPHealthStore.swift; sourceTree = "<group>"; };
 		1DD397314FF54290919DF13F /* ReviewPatchWorkflowServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPatchWorkflowServiceTests.swift; path = Tests/SoloCodeAppTests/ReviewPatchWorkflowServiceTests.swift; sourceTree = "<group>"; };
 		1DD4029387EE552371A7F0E2 /* CoderIDEMCPServerApp+PayloadHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CoderIDEMCPServerApp+PayloadHelpers.swift"; path = "Tools/CoderIDEMCPServer/Sources/Runtime/Helpers/CoderIDEMCPServerApp+PayloadHelpers.swift"; sourceTree = "<group>"; };
-		1DF108E3D65AD51BA786FFAF /* browser-bridge.js */ = {isa = PBXFileReference; includeInIndex = 1; name = "browser-bridge.js"; path = "App/SoloCodeApp/Resources/browser-bridge.js"; sourceTree = "<group>"; };
+		1DF108E3D65AD51BA786FFAF /* browser-bridge.js */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; name = "browser-bridge.js"; path = "App/SoloCodeApp/Resources/browser-bridge.js"; sourceTree = "<group>"; };
 		1E4668D9D533E71EAC4DD628 /* SwarmProgressStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwarmProgressStoreTests.swift; path = Tests/SoloCodeAppTests/SwarmProgressStoreTests.swift; sourceTree = "<group>"; };
 		1E52CEBF835B5DE5CF40F8E3 /* WebToolsModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebToolsModels.swift; path = Engine/CoderEngine/Sources/Tools/Web/Models/WebToolsModels.swift; sourceTree = "<group>"; };
 		1E56130FC576A5627E21E99D /* CLIAccountLoginSheet+Polling.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CLIAccountLoginSheet+Polling.swift"; path = "App/SoloCodeApp/Sources/Accounts/CLIAccountLoginSheet/Sections/CLIAccountLoginSheet+Polling.swift"; sourceTree = "<group>"; };
@@ -2021,7 +2029,7 @@
 		2DC5760F1396D7A7CA55D366 /* AppLogo.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = AppLogo.png; path = App/SoloCodeApp/Resources/AppLogo.png; sourceTree = "<group>"; };
 		2E0D66E638C84B14E41E2CAF /* CoderIDETools+AdvancedEditing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CoderIDETools+AdvancedEditing.swift"; path = "Tools/CoderIDEMCPServer/Sources/Tools/Catalog/CoderIDETools+AdvancedEditing.swift"; sourceTree = "<group>"; };
 		2E17B8E2067106D45191717D /* DebugStoreModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugStoreModels.swift; path = App/SoloCodeApp/Sources/Debug/Stores/DebugStoreModels.swift; sourceTree = "<group>"; };
-		2E4FDF4D414D1D0034C6CB62 /* CoderIDEMCPServerExecutable */ = {isa = PBXFileReference; includeInIndex = 0; path = CoderIDEMCPServerExecutable; sourceTree = BUILT_PRODUCTS_DIR; };
+		2E4FDF4D414D1D0034C6CB62 /* coderide-mcp-server */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "coderide-mcp-server"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2E5A46397CE3EC1814B74619 /* DebugStore+Defaults.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugStore+Defaults.swift"; path = "App/SoloCodeApp/Sources/Debug/Stores/DebugStore+Defaults.swift"; sourceTree = "<group>"; };
 		2E72B154A067B3644DDFF208 /* CodeReviewAuditModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewAuditModels.swift; path = Engine/CoderEngine/Sources/CodeReview/Audit/CodeReviewAuditModels.swift; sourceTree = "<group>"; };
 		2EC82EA896A277E004D2B473 /* ArtifactCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ArtifactCardView.swift; path = App/SoloCodeApp/Sources/Chat/Timeline/Blocks/ArtifactCardView.swift; sourceTree = "<group>"; };
@@ -2298,10 +2306,6 @@
 		5E2D8174D7E21251C466B56D /* UnifiedToolRuntime+ShellDiagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+ShellDiagnostics.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Shell/Diagnostics/UnifiedToolRuntime+ShellDiagnostics.swift"; sourceTree = "<group>"; };
 		5EA58BB6499EEEE7F8DB3646 /* DebugProjectionStoreBinding.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugProjectionStoreBinding.swift; path = App/SoloCodeApp/Sources/Runtime/DebugPipeline/DebugProjectionStoreBinding.swift; sourceTree = "<group>"; };
 		5EE20192EF61E071D65A455E /* SecurityHandlerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SecurityHandlerTests.swift; path = Tests/CoderEngineTests/Security/SecurityHandlerTests.swift; sourceTree = "<group>"; };
-		16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SecurityHandlerTests+Gate.swift"; path = "Tests/CoderEngineTests/Security/SecurityHandlerTests+Gate.swift"; sourceTree = "<group>"; };
-		16C1A2B77873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsReplayServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsReplayServiceTests.swift; sourceTree = "<group>"; };
-		16C1A2B97873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsCheckpointService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsCheckpointService.swift; sourceTree = "<group>"; };
-		16C1A2BB7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsReplayService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsReplayService.swift; sourceTree = "<group>"; };
 		5EEDCEE488DDF6A73795DD1A /* SwarmPanelView+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SwarmPanelView+Helpers.swift"; path = "App/SoloCodeApp/Sources/Panels/Swarm/SwarmPanelView+Helpers.swift"; sourceTree = "<group>"; };
 		5F6252F57CBB5670629FBF50 /* CLIAccountLoginCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIAccountLoginCoordinatorTests.swift; path = Tests/SoloCodeAppTests/CLIAccountLoginCoordinatorTests.swift; sourceTree = "<group>"; };
 		5F83122A62EFE24480D067D5 /* ValidationPerformanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ValidationPerformanceTests.swift; path = Tests/CoderEngineTests/Validation/ValidationPerformanceTests.swift; sourceTree = "<group>"; };
@@ -2352,7 +2356,7 @@
 		668682E35FC10B951018ABA9 /* BreadcrumbStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BreadcrumbStore.swift; path = App/SoloCodeApp/Sources/Panels/Navigation/BreadcrumbStore.swift; sourceTree = "<group>"; };
 		6698F73AFB3A5C1AAAF6D5A5 /* MCPSharedState+BugHunterLock.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSharedState+BugHunterLock.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/MCPSharedState+BugHunterLock.swift"; sourceTree = "<group>"; };
 		66B25F524B443270A8701172 /* OpenAIAPIProvider+ToolDefinitions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "OpenAIAPIProvider+ToolDefinitions.swift"; path = "Engine/CoderEngine/Sources/Providers/OpenAI/Core/OpenAIAPIProvider+ToolDefinitions.swift"; sourceTree = "<group>"; };
-		672A9B858455FB43BDC4A625 /* Codigo.icns */ = {isa = PBXFileReference; includeInIndex = 1; name = Codigo.icns; path = App/SoloCodeApp/Resources/Codigo.icns; sourceTree = "<group>"; };
+		672A9B858455FB43BDC4A625 /* Codigo.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = Codigo.icns; path = App/SoloCodeApp/Resources/Codigo.icns; sourceTree = "<group>"; };
 		6749BFC08A5DC616AF3D0D72 /* TodoStore+Mutations+Lifecycle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "TodoStore+Mutations+Lifecycle.swift"; path = "App/SoloCodeApp/Sources/Tasking/Stores/TodoStore+Mutations+Lifecycle.swift"; sourceTree = "<group>"; };
 		6752F5FA8A1EBCB7DD6DC021 /* ProjectTemplateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProjectTemplateService.swift; path = App/SoloCodeApp/Sources/Services/Project/ProjectTemplateService.swift; sourceTree = "<group>"; };
 		6768F84C69018E917313F1F3 /* CLIAccountLoginSheet+Options.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CLIAccountLoginSheet+Options.swift"; path = "App/SoloCodeApp/Sources/Accounts/CLIAccountLoginSheet/Sections/CLIAccountLoginSheet+Options.swift"; sourceTree = "<group>"; };
@@ -3029,7 +3033,7 @@
 		D1645B3D96E567351350E585 /* ContextCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContextCache.swift; path = Engine/CoderEngine/Sources/Pipeline/Context/ContextCache.swift; sourceTree = "<group>"; };
 		D25C0F1D3ED1A20F857DAFC9 /* DebugAdapterRecovery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugAdapterRecovery.swift; path = App/SoloCodeApp/Sources/Debug/Services/DebugAdapterRecovery.swift; sourceTree = "<group>"; };
 		D2B416F3B769385F38A0FAED /* UnifiedToolRuntime+MCPCallsSecondary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+MCPCallsSecondary.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Calls/UnifiedToolRuntime+MCPCallsSecondary.swift"; sourceTree = "<group>"; };
-		D344AB26C4A7689534113893 /* Fonts */ = {isa = PBXFileReference; includeInIndex = 1; name = Fonts; path = App/SoloCodeApp/Resources/Fonts; sourceTree = "<group>"; };
+		D344AB26C4A7689534113893 /* Fonts */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = Fonts; path = App/SoloCodeApp/Resources/Fonts; sourceTree = "<group>"; };
 		D37FA2FD2B9241B56432EB43 /* GeminiStateStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GeminiStateStore.swift; path = App/SoloCodeApp/Sources/Accounts/GeminiStateStore.swift; sourceTree = "<group>"; };
 		D3FA375AF7561EC962F3E4FC /* WorktreeBranchNaming.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorktreeBranchNaming.swift; path = App/SoloCodeApp/Sources/Git/Worktree/Services/WorktreeBranchNaming.swift; sourceTree = "<group>"; };
 		D430751B5ACD57D02860EF9F /* FontPreferencesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FontPreferencesTests.swift; path = Tests/SoloCodeAppTests/FontPreferencesTests.swift; sourceTree = "<group>"; };
@@ -3398,7 +3402,7 @@
 				C77FE5B558AA7E59CAA0633B /* Solo Code.app */,
 				9B0C8A73FB9607D1E50A2201 /* CoderEngine.framework */,
 				68B5CD3C37110711D2811123 /* CoderIDEMCPServer.framework */,
-				2E4FDF4D414D1D0034C6CB62 /* CoderIDEMCPServerExecutable */,
+				2E4FDF4D414D1D0034C6CB62 /* coderide-mcp-server */,
 				D07108F1E0A36603A0D3B30E /* SoloCodeAppTests.xctest */,
 				C61D5BC35A980EB66C6ACA75 /* CoderEngineTests.xctest */,
 				DAB15B2316FE4003FAFC2CC5 /* SoloCodeIntegrationTests.xctest */,
@@ -4576,6 +4580,7 @@
 				AE387E88D14B7BF8E3747DD4 /* VerifiedFindingsSessionSyncService.swift */,
 				16C1A2B97873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift */,
 				16C1A2BB7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift */,
+				16C1A2BD7873F6803C4E2A91 /* VerifiedFindingsService.swift */,
 				7F4730FACD002987B84A3186 /* VerifiedFindingsSessionEnvelope.swift */,
 				8216E2E3CD43A1D0F7B65940 /* VerifiedFindingsSessionSyncServiceTests.swift */,
 				45EF85C3D457598BDD0DFB86 /* MCPSharedState+CodeReviewReads.swift */,
@@ -4593,6 +4598,7 @@
 				00CBEA19C69FAE9E5F48016B /* MCPSharedState+VerifiedFindings.swift */,
 				A57767A53B315C24446CB466 /* VerifiedFindingsSharedStateTests.swift */,
 				16C1A2B77873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift */,
+				16C1A2BF7873F6873C4E2A91 /* VerifiedFindingsServiceTests.swift */,
 				5EE20192EF61E071D65A455E /* SecurityHandlerTests.swift */,
 				16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */,
 				AD5112A8DFD9FB240AEB6804 /* CoderIDETools+SecurityWorkflow.swift */,
@@ -5183,7 +5189,7 @@
 				EA4F2E19945C9C259FEC9C82 /* MCP */,
 			);
 			productName = CoderIDEMCPServerExecutable;
-			productReference = 2E4FDF4D414D1D0034C6CB62 /* CoderIDEMCPServerExecutable */;
+			productReference = 2E4FDF4D414D1D0034C6CB62 /* coderide-mcp-server */;
 			productType = "com.apple.product-type.tool";
 		};
 		EC823259DFA4B6EABA300EF3 /* SoloCodeIntegrationTests */ = {
@@ -5211,8 +5217,9 @@
 		64823179C1F65042AEE6DF19 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 1700;
+				LastUpgradeCheck = 2630;
 			};
 			buildConfigurationList = DE77E3FC6D270402B5EAE65D /* Build configuration list for PBXProject "Solo Code" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -5223,13 +5230,11 @@
 				Base,
 			);
 			mainGroup = 9EAB2B0FC00651E10A6697FC;
-			minimizedProjectReferenceProxies = 0;
 			packageReferences = (
 				84030BB89CEBE609234B60EE /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				65BD63FAC7C624117508229B /* XCRemoteSwiftPackageReference "swift-sdk" */,
 				5656EA43E13B9C9C79F5D81F /* XCRemoteSwiftPackageReference "swift-log" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = 265B5A758AA40CF675E10A16 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -5925,6 +5930,7 @@
 				54A9D7CEFD31B509C55C3A80 /* VerifiedFindingsSessionSyncService.swift in Sources */,
 				16C1A2BA7873F66F3C4E2A91 /* VerifiedFindingsCheckpointService.swift in Sources */,
 				16C1A2BC7873F6743C4E2A91 /* VerifiedFindingsReplayService.swift in Sources */,
+				16C1A2BE7873F6803C4E2A91 /* VerifiedFindingsService.swift in Sources */,
 				A57FD52E57B81E746BBDD29A /* VerifiedFindingsSessionEnvelope.swift in Sources */,
 				331E0C236AE8639CB7813871 /* MCPSharedState+CodeReviewReads.swift in Sources */,
 				97D9FC9BE38D287A39297FDE /* VerifiedFindingsCommandCoordinator.swift in Sources */,
@@ -6933,6 +6939,7 @@
 				79AB1A07EAF45602666C3898 /* BugHunterHandlerTests.swift in Sources */,
 				647628A742EECA678BCB402D /* VerifiedFindingsSharedStateTests.swift in Sources */,
 				16C1A2B87873F6623C4E2A91 /* VerifiedFindingsReplayServiceTests.swift in Sources */,
+				16C1A2C07873F6873C4E2A91 /* VerifiedFindingsServiceTests.swift in Sources */,
 				E818366091D4E04FFD8169D1 /* SecurityHandlerTests.swift in Sources */,
 				16A1B8E47873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift in Sources */,
 			);
@@ -7014,6 +7021,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 3BE84843B2FBAA707B724065 /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.integration;
 				SDKROOT = macosx;
@@ -7027,13 +7035,20 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -7048,13 +7063,20 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver.framework;
 				PRODUCT_MODULE_NAME = CoderIDEMCPServer;
 				PRODUCT_NAME = CoderIDEMCPServer;
@@ -7069,6 +7091,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F078781D8876B1D631EED39B /* Tool.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				EXECUTABLE_NAME = "coderide-mcp-server";
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver;
@@ -7082,6 +7105,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 3BE84843B2FBAA707B724065 /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.engine;
 				SDKROOT = macosx;
@@ -7092,6 +7116,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 3BE84843B2FBAA707B724065 /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.app;
 				SDKROOT = macosx;
@@ -7133,9 +7158,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -7147,6 +7174,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -7159,13 +7187,20 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver.framework;
 				PRODUCT_MODULE_NAME = CoderIDEMCPServer;
 				PRODUCT_NAME = CoderIDEMCPServer;
@@ -7183,7 +7218,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				DEAD_CODE_STRIPPING = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				SDKROOT = macosx;
 			};
@@ -7196,7 +7235,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				DEAD_CODE_STRIPPING = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				SDKROOT = macosx;
 			};
@@ -7236,9 +7279,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -7257,6 +7302,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -7267,6 +7313,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 3BE84843B2FBAA707B724065 /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.app;
 				SDKROOT = macosx;
@@ -7278,6 +7325,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 3BE84843B2FBAA707B724065 /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.integration;
 				SDKROOT = macosx;
@@ -7289,6 +7337,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F078781D8876B1D631EED39B /* Tool.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				EXECUTABLE_NAME = "coderide-mcp-server";
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver;
@@ -7304,13 +7353,20 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++14";
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -7323,6 +7379,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 3BE84843B2FBAA707B724065 /* Tests.xcconfig */;
 			buildSettings = {
+				DEAD_CODE_STRIPPING = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.engine;
 				SDKROOT = macosx;
