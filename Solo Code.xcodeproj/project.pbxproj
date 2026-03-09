@@ -164,6 +164,8 @@
 		16C1A2D47873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */; };
 		16C1A2D67873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */; };
 		16C1A2D87873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D77873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift */; };
+		16C1A2DA7873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D97873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift */; };
+		16C1A2DC7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2DB7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift */; };
 		1714C8847F5FBFC9AA824C82 /* PipelineEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F7392D8039C205F827A859 /* PipelineEnums.swift */; };
 		171650B4BB8F4FCCD89B23C6 /* CodexCLIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFA47E41B4F82D2A55D3960 /* CodexCLIProvider+Execution.swift */; };
 		171E31C517D32F60FBCBB5F0 /* OrchestratorMainLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4499A7DB9A99717E26E42A /* OrchestratorMainLoop.swift */; };
@@ -1904,6 +1906,8 @@
 		16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStatusService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsStatusService.swift; sourceTree = "<group>"; };
 		16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStatusServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStatusServiceTests.swift; sourceTree = "<group>"; };
 		16C1A2D77873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterWorkflowServiceTests.swift; path = Tests/CoderEngineTests/CodeReview/BugHunterWorkflowServiceTests.swift; sourceTree = "<group>"; };
+		16C1A2D97873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsPatchExecutionService.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/VerifiedFindingsPatchExecutionService.swift; sourceTree = "<group>"; };
+		16C1A2DB7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+PatchWorkflow+Execution.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+PatchWorkflow+Execution.swift"; sourceTree = "<group>"; };
 		1723C4DB50FC5964E24284AE /* LanguageServiceModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceModels.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageServiceModels.swift; sourceTree = "<group>"; };
 		173E86F5B0B9744BDF35EEC4 /* GitPanelStore+Refresh.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitPanelStore+Refresh.swift"; path = "App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+Refresh.swift"; sourceTree = "<group>"; };
 		175C3ED2D1EAC5D42C6C23B5 /* TestRunnerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TestRunnerService.swift; path = App/SoloCodeApp/Sources/Services/Testing/TestRunnerService.swift; sourceTree = "<group>"; };
@@ -4610,6 +4614,7 @@
 				16C1A2CD7873F6C93C4E2A91 /* BugHunterWorkflowService.swift */,
 				16C1A2CF7873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift */,
 				16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */,
+				16C1A2D97873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift */,
 				7F4730FACD002987B84A3186 /* VerifiedFindingsSessionEnvelope.swift */,
 				8216E2E3CD43A1D0F7B65940 /* VerifiedFindingsSessionSyncServiceTests.swift */,
 				45EF85C3D457598BDD0DFB86 /* MCPSharedState+CodeReviewReads.swift */,
@@ -6710,6 +6715,8 @@
 				8F7800AC350083D4340714F8 /* PipelineIntegrationService+VerifiedFindingsReview.swift in Sources */,
 				3DDA268D33D148F936A91500 /* CodigoApp+BugHunterExecution+Autofix.swift in Sources */,
 				252A6F10EC6C0E9D9CF5CC63 /* ReviewPatchWorkflowService+ApplyLifecycle.swift in Sources */,
+				16C1A2DC7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift in Sources */,
+				16C1A2DA7873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
