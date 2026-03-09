@@ -37,11 +37,7 @@ extension MCPSessionManager {
             throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
         }
         if let existing = sessions[cfg.id] {
-            await existing.client.disconnect()
-            if existing.process.isRunning {
-                existing.process.terminate()
-                existing.process.waitUntilExit()
-            }
+            await disposeSession(existing)
             sessions.removeValue(forKey: cfg.id)
         }
         invalidateNativeToolRegistry()
@@ -50,10 +46,7 @@ extension MCPSessionManager {
 
     public func shutdownAll() async {
         for (_, session) in sessions {
-            await session.client.disconnect()
-            if session.process.isRunning {
-                session.process.terminate()
-            }
+            await disposeSession(session)
         }
         sessions.removeAll()
     }
@@ -105,7 +98,7 @@ extension MCPSessionManager {
             sessions.removeValue(forKey: cfg.id)
         }
 
-        let (transport, process) = try await MCPTransportFactory.connectToProcess(
+        let (transport, process, resources) = try await MCPTransportFactory.connectToProcess(
             command: cfg.command,
             arguments: cfg.args,
             workingDirectory: nil,
@@ -125,6 +118,7 @@ extension MCPSessionManager {
             client: client,
             transport: transport,
             process: process,
+            transportResources: resources,
             lastUsedAt: Date(),
             cachedTools: [],
             cachedToolsTimestamp: nil
@@ -201,10 +195,7 @@ extension MCPSessionManager {
         guard idleTTLSeconds > 0 else { return }
         let cutoff = Date().addingTimeInterval(TimeInterval(-idleTTLSeconds))
         for (id, session) in sessions where session.lastUsedAt < cutoff {
-            await session.client.disconnect()
-            if session.process.isRunning {
-                session.process.terminate()
-            }
+            await disposeSession(session, waitForExit: false)
             sessions.removeValue(forKey: id)
         }
     }

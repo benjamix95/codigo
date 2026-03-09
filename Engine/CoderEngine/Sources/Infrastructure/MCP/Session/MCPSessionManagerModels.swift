@@ -1,6 +1,12 @@
 import Foundation
 import MCP
 
+#if canImport(System)
+import System
+#else
+@preconcurrency import SystemPackage
+#endif
+
 public struct MCPNullValue: Sendable, Hashable {
     public init() {}
 }
@@ -37,10 +43,33 @@ public struct MCPServerSession {
     public let client: Client
     public let transport: StdioTransport
     public let process: Process
+    public var transportResources: MCPTransportResources
     public var lastUsedAt: Date
     public var cachedTools: [MCPToolDescriptor]
     public var cachedToolsTimestamp: Date?
     public var connectedAt: Date = Date()
+}
+
+public struct MCPTransportResources {
+    public var input: FileDescriptor
+    public var output: FileDescriptor
+    public let stderrReadHandle: FileHandle
+
+    public init(
+        input: FileDescriptor,
+        output: FileDescriptor,
+        stderrReadHandle: FileHandle
+    ) {
+        self.input = input
+        self.output = output
+        self.stderrReadHandle = stderrReadHandle
+    }
+
+    public mutating func closeAll() {
+        try? stderrReadHandle.close()
+        try? input.close()
+        try? output.close()
+    }
 }
 
 public struct MCPResourceDescriptor: Sendable {

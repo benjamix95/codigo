@@ -1,5 +1,6 @@
 import XCTest
 @testable import CoderEngine
+import Darwin
 
 final class MCPSessionManagerTests: XCTestCase {
     func testMCPLogStoreWarnAliasUsesWarningThreshold() async {
@@ -265,6 +266,39 @@ final class MCPSessionManagerTests: XCTestCase {
         XCTAssertFalse(registry.hasTools())
     }
 
+    func testResetSessionTerminatesSpawnedProcess() async throws {
+        guard let binaryPath = locateCoderideMCPServerBinary() else {
+            throw XCTSkip("coderide-mcp-server binary not found in .build")
+        }
+
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp-reset-process-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-reset-process.json",
+            name: "coderide-reset-process",
+            command: binaryPath,
+            args: ["--workspace", workspace.path]
+        )
+        let manager = MCPSessionManager(serverResolver: { [server] })
+        defer {
+            Task {
+                await manager.shutdownAll()
+            }
+        }
+
+        let session = try await manager.session(for: server)
+        let pid = session.process.processIdentifier
+        XCTAssertTrue(Self.processExists(pid))
+
+        try await manager.resetSession(server.id)
+        try await Self.assertProcessEventuallyExits(pid)
+    }
+
     private func makeServer(
         source: String,
         origin: String,
@@ -312,6 +346,22 @@ final class MCPSessionManagerTests: XCTestCase {
             }
         }
         return nil
+    }
+
+    private static func processExists(_ pid: Int32) -> Bool {
+        guard pid > 0 else { return false }
+        return kill(pid, 0) == 0 || errno != ESRCH
+    }
+
+    private static func assertProcessEventuallyExits(
+        _ pid: Int32,
+        timeoutMs: UInt64 = 2_000
+    ) async throws {
+        let deadline = DispatchTime.now().uptimeNanoseconds + (timeoutMs * 1_000_000)
+        while processExists(pid) && DispatchTime.now().uptimeNanoseconds < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTAssertFalse(processExists(pid), "Expected process \(pid) to exit after session reset")
     }
 
 }

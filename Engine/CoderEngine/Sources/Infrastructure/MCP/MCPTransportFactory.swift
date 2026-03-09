@@ -20,16 +20,29 @@ public enum MCPTransportFactory {
         environment: [String: String] = [:],
         serverLabel: String? = nil,
         stderrBufferLimitBytes: Int = 65_536
-    ) async throws -> (transport: StdioTransport, process: Process) {
+    ) async throws -> (
+        transport: StdioTransport,
+        process: Process,
+        resources: MCPTransportResources
+    ) {
         let (clientRead, serverWrite) = try FileDescriptor.pipe()
         let (serverRead, clientWrite) = try FileDescriptor.pipe()
         let stderrPipe = Pipe()
-        
+        let stdinHandle = FileHandle(fileDescriptor: serverRead.rawValue, closeOnDealloc: true)
+        let stdoutHandle = FileHandle(fileDescriptor: serverWrite.rawValue, closeOnDealloc: true)
+        let stderrReadHandle = stderrPipe.fileHandleForReading
+        let stderrWriteHandle = stderrPipe.fileHandleForWriting
+        var resources = MCPTransportResources(
+            input: clientRead,
+            output: clientWrite,
+            stderrReadHandle: stderrReadHandle
+        )
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command)
         process.arguments = arguments
-        process.standardInput = FileHandle(fileDescriptor: serverRead.rawValue)
-        process.standardOutput = FileHandle(fileDescriptor: serverWrite.rawValue)
+        process.standardInput = stdinHandle
+        process.standardOutput = stdoutHandle
         process.standardError = stderrPipe
         if !environment.isEmpty {
             var env = ProcessInfo.processInfo.environment
@@ -39,16 +52,27 @@ public enum MCPTransportFactory {
         if let cwd = workingDirectory {
             process.currentDirectoryURL = cwd
         }
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            try? stdinHandle.close()
+            try? stdoutHandle.close()
+            try? stderrWriteHandle.close()
+            resources.closeAll()
+            throw error
+        }
+
+        // The child inherited duplicates of these ends during spawn; the parent
+        // must close its copies immediately to avoid exhausting file descriptors.
+        try? stdinHandle.close()
+        try? stdoutHandle.close()
+        try? stderrWriteHandle.close()
 
         startStderrPump(
-            fileHandle: stderrPipe.fileHandleForReading,
+            fileHandle: stderrReadHandle,
             serverLabel: serverLabel ?? command,
             bufferLimitBytes: max(4_096, stderrBufferLimitBytes)
         )
-
-        try serverRead.close()
-        try serverWrite.close()
 
         let transport = StdioTransport(input: clientRead, output: clientWrite)
         do {
@@ -56,12 +80,12 @@ public enum MCPTransportFactory {
         } catch {
             // Clean up leaked resources on connection failure
             process.terminate()
-            try? clientRead.close()
-            try? clientWrite.close()
+            process.waitUntilExit()
+            resources.closeAll()
             throw error
         }
 
-        return (transport, process)
+        return (transport, process, resources)
     }
 
     private static func startStderrPump(
