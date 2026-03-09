@@ -11,6 +11,12 @@ struct E2EStage: ValidationStage {
         guard profile == .ciFull else {
             return ValidationStageResult(stage: id, status: .skipped, summary: "E2E gate riservato a ciFull.")
         }
+        let testsDir = context.workspaceRoot.appendingPathComponent("Tests/SoloCodeIntegrationTests")
+        let hasIntegrationTests = (try? FileManager.default.contentsOfDirectory(atPath: testsDir.path))
+            .map { entries in entries.contains { $0.hasSuffix(".swift") } } ?? false
+        guard hasIntegrationTests else {
+            return ValidationStageResult(stage: id, status: .skipped, summary: "SoloCodeIntegrationTests non popolato: E2E saltato.")
+        }
         do {
             let result = try await ValidationCommandExecutor.run(
                 executable: "/usr/bin/xcodebuild",

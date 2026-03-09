@@ -233,7 +233,17 @@ if [[ "$TRIGGER" == "ciFull" ]]; then
     -only-testing:CoderEngineTests/ValidationPerformanceTests >/tmp/solocode-validate-performance.log 2>&1 \
     || fail "performance" "$(tail -n 60 /tmp/solocode-validate-performance.log)"
   pass "performance"
-  pass "e2e"
+  if find Tests/SoloCodeIntegrationTests -name '*.swift' -print -quit | grep -q .; then
+    xcodebuild test \
+      -workspace "Solo Code.xcworkspace" \
+      -scheme "Solo Code-Debug" \
+      -destination "platform=macOS" \
+      -only-testing:SoloCodeIntegrationTests >/tmp/solocode-validate-e2e.log 2>&1 \
+      || fail "e2e" "$(tail -n 60 /tmp/solocode-validate-e2e.log)"
+    pass "e2e"
+  else
+    log "[SKIPPED] e2e"
+  fi
 fi
 
 if [[ "$FORMAT" == "json" ]]; then
