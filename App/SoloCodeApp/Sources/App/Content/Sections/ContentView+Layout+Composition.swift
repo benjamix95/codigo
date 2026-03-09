@@ -193,16 +193,17 @@ extension ContentView {
     }
 
     private var configuredSidebar: some View {
-        SidebarView(
-            selectedConversationId: $selectedConversationId,
-            showSettings: $showSettings,
-            isSelectingProjectFolders: $isSelectingProjectFolders,
-            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
-        )
-        .background(
+        ZStack {
             DesignSystem.Colors.backgroundSecondary
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(.all)
-        )
+            SidebarView(
+                selectedConversationId: $selectedConversationId,
+                showSettings: $showSettings,
+                isSelectingProjectFolders: $isSelectingProjectFolders,
+                preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+            )
+        }
         .environmentObject(providerRegistry)
         .environmentObject(chatStore)
         .environmentObject(workspaceStore)

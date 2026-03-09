@@ -57,6 +57,8 @@ extension UnifiedToolRuntime {
         args += ["-c", "approval_policy=\"\(askForApproval)\""]
         args += ["--sandbox", sandboxMode, "--cd", workspacePath, fullPrompt]
 
+        let finalArgs = args // capture as let for Sendable closure
+
         do {
             let (outputLines, status) = try await AsyncTimeout.run(
                 seconds: SkillExecutionPolicy.maxExecutionSeconds,
@@ -64,7 +66,7 @@ extension UnifiedToolRuntime {
             ) {
                 try await ProcessRunner.runCollecting(
                     executable: codexPath,
-                    arguments: args,
+                    arguments: finalArgs,
                     workingDirectory: URL(fileURLWithPath: workspacePath),
                     executionController: nil,
                     scope: .agent

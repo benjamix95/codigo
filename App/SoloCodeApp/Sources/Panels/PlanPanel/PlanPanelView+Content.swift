@@ -60,6 +60,8 @@ extension PlanPanelView {
     }
 
     /// Returns a cached snapshot, rebuilding only when plan content or todos actually change.
+    /// `snapshotCache` is a reference type (class), so mutating its properties during body
+    /// evaluation does NOT trigger a SwiftUI state change — avoiding the runtime warning.
     func resolveSnapshot() -> PlanRenderSnapshot {
         let content = displayPlanContent
         let key = makePlanRenderSnapshotCacheKey(

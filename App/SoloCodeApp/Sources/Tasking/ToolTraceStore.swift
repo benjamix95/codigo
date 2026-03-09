@@ -83,7 +83,12 @@ final class ToolTraceStore: ObservableObject {
         let assistantMessageId: UUID
     }
 
-    @Published private var cache: [TraceKey: [ToolTraceEvent]] = [:]
+    /// In-memory cache of trace events per (conversation, assistant-message) pair.
+    /// Mutations that represent *new data* (e.g. `append`) must manually call
+    /// `objectWillChange.send()` so SwiftUI picks up the change.
+    /// Lazy-loading from disk does NOT send change notifications, avoiding the
+    /// "Publishing changes from within view updates" runtime warning.
+    private var cache: [TraceKey: [ToolTraceEvent]] = [:]
 
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -122,6 +127,7 @@ final class ToolTraceStore: ObservableObject {
             if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
             return lhs.timestamp < rhs.timestamp
         }
+        objectWillChange.send()
         cache[key] = events
         // Encode on main thread (fast), dispatch write to background
         if let encoded = try? encoder.encode(event) {

@@ -96,11 +96,13 @@ struct CachedThumbnailView: View {
                 loadedImage = cached
                 return
             }
-            let result = await Task.detached(priority: .utility) {
-                guard FileManager.default.fileExists(atPath: path) else { return nil as NSImage? }
-                return NSImage(contentsOf: URL(fileURLWithPath: path))
+            // Load raw data off-main to avoid NSImage Sendable availability warnings.
+            let imageData: Data? = await Task.detached(priority: .utility) {
+                let url = URL(fileURLWithPath: path)
+                guard FileManager.default.fileExists(atPath: path) else { return nil }
+                return try? Data(contentsOf: url)
             }.value
-            if let img = result {
+            if let data = imageData, let img = NSImage(data: data) {
                 MessageImageCache.shared.setImage(img, for: path)
                 loadedImage = img
             } else {

@@ -46,8 +46,10 @@ struct PlanPanelView: View {
     @State var planProviderId: String?
     /// Cached auth per provider — populated async to avoid blocking main thread on isAuthenticated().
     @State var providerAuthCache: [String: Bool] = [:]
-    /// Value-type cache to avoid redundant snapshot computation during body evaluation.
-    struct SnapshotCache {
+    /// Reference-type cache to avoid redundant snapshot computation during body evaluation.
+    /// Using a class (reference type) instead of @State avoids "Modifying state during view update"
+    /// warnings — mutations to a class instance's properties don't trigger SwiftUI state changes.
+    final class SnapshotCache {
         var key: String = ""
         var snapshot: PlanRenderSnapshot?
     }

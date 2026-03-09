@@ -2,6 +2,21 @@ import Foundation
 
 // MARK: - XCTrace Adapter
 
+/// Thread-safe one-shot flag for bridging Process termination into async continuations.
+private final class OnceFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+
+    /// Returns `true` exactly once; all subsequent calls return `false`.
+    func tryFire() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !fired else { return false }
+        fired = true
+        return true
+    }
+}
+
 /// Adapter per l'integrazione con xcrun xctrace per il profiling.
 actor XCTraceAdapter {
     /// Risultato di una registrazione xctrace.
@@ -75,25 +90,16 @@ actor XCTraceAdapter {
 
         if let process = activeProcess, process.isRunning {
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                let lock = NSLock()
-                var didResume = false
-
-                @Sendable func resumeOnce() {
-                    lock.lock()
-                    defer { lock.unlock() }
-                    guard !didResume else { return }
-                    didResume = true
-                    continuation.resume()
-                }
+                let once = OnceFlag()
 
                 process.terminationHandler = { _ in
-                    resumeOnce()
+                    if once.tryFire() { continuation.resume() }
                 }
 
                 process.interrupt()
 
                 if !process.isRunning {
-                    resumeOnce()
+                    if once.tryFire() { continuation.resume() }
                 }
             }
         }
@@ -129,30 +135,21 @@ actor XCTraceAdapter {
         process.standardError = Pipe()
 
         return await withCheckedContinuation { continuation in
-            let lock = NSLock()
-            var didResume = false
-
-            @Sendable func resumeOnce(_ value: Bool) {
-                lock.lock()
-                defer { lock.unlock() }
-                guard !didResume else { return }
-                didResume = true
-                continuation.resume(returning: value)
-            }
+            let once = OnceFlag()
 
             process.terminationHandler = { p in
-                resumeOnce(p.terminationStatus == 0)
+                if once.tryFire() { continuation.resume(returning: p.terminationStatus == 0) }
             }
 
             do {
                 try process.run()
             } catch {
-                resumeOnce(false)
+                if once.tryFire() { continuation.resume(returning: false) }
                 return
             }
 
             if !process.isRunning {
-                resumeOnce(process.terminationStatus == 0)
+                if once.tryFire() { continuation.resume(returning: process.terminationStatus == 0) }
             }
         }
     }
@@ -178,30 +175,21 @@ actor XCTraceAdapter {
         process.standardError = errPipe
 
         let exitStatus: Int32 = await withCheckedContinuation { continuation in
-            let lock = NSLock()
-            var didResume = false
-
-            @Sendable func resumeOnce(_ value: Int32) {
-                lock.lock()
-                defer { lock.unlock() }
-                guard !didResume else { return }
-                didResume = true
-                continuation.resume(returning: value)
-            }
+            let once = OnceFlag()
 
             process.terminationHandler = { p in
-                resumeOnce(p.terminationStatus)
+                if once.tryFire() { continuation.resume(returning: p.terminationStatus) }
             }
 
             do {
                 try process.run()
             } catch {
-                resumeOnce(-1)
+                if once.tryFire() { continuation.resume(returning: -1) }
                 return
             }
 
             if !process.isRunning {
-                resumeOnce(process.terminationStatus)
+                if once.tryFire() { continuation.resume(returning: process.terminationStatus) }
             }
         }
 

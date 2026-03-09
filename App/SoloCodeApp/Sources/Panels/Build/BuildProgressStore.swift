@@ -120,6 +120,19 @@ final class BuildProgressStore: ObservableObject {
         }
     }
 
+    /// Thread-safe one-shot flag for bridging Process termination into async continuations.
+    private final class OnceFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var fired = false
+        func tryFire() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !fired else { return false }
+            fired = true
+            return true
+        }
+    }
+
     private func launchBuildProcess(projectPath: String) async -> (output: String, terminationStatus: Int32)? {
         await withCheckedContinuation { continuation in
             let process = Process()
@@ -132,10 +145,9 @@ final class BuildProgressStore: ObservableObject {
             process.standardOutput = outPipe
             process.standardError = errPipe
 
-            let lock = NSLock()
-            var didResume = false
+            let once = OnceFlag()
 
-            func readProcessOutput(status: Int32) -> (output: String, terminationStatus: Int32) {
+            @Sendable func readProcessOutput(status: Int32) -> (output: String, terminationStatus: Int32) {
                 let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
                 let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
                 let stdout = String(data: outData, encoding: .utf8) ?? ""
@@ -143,27 +155,23 @@ final class BuildProgressStore: ObservableObject {
                 return (stdout + "\n" + stderr, status)
             }
 
-            func resumeOnce(_ value: (output: String, terminationStatus: Int32)?) {
-                lock.lock()
-                defer { lock.unlock() }
-                guard !didResume else { return }
-                didResume = true
-                continuation.resume(returning: value)
-            }
-
             process.terminationHandler = { proc in
-                resumeOnce(readProcessOutput(status: proc.terminationStatus))
+                if once.tryFire() {
+                    continuation.resume(returning: readProcessOutput(status: proc.terminationStatus))
+                }
             }
 
             do {
                 try process.run()
             } catch {
-                resumeOnce(nil)
+                if once.tryFire() { continuation.resume(returning: nil) }
                 return
             }
 
             if !process.isRunning {
-                resumeOnce(readProcessOutput(status: process.terminationStatus))
+                if once.tryFire() {
+                    continuation.resume(returning: readProcessOutput(status: process.terminationStatus))
+                }
             }
         }
     }

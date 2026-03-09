@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.styleMask.insert(.fullSizeContentView)
         window.isOpaque = false
-        window.backgroundColor = DesignSystem.AppKit.sidebarBackground
+        window.backgroundColor = DesignSystem.AppKit.windowBackground
         window.isMovableByWindowBackground = false
         if #available(macOS 11.0, *) {
             window.toolbarStyle = .unifiedCompact
