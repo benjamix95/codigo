@@ -16,6 +16,7 @@ struct CoderIDETools {
         + debugTools
         + subagentTools
         + bugHunterTools
+        + securityWorkflowTools
         + codeReviewTools
 
     private static let allowedRuntimeToolNames: Set<String> = Set(

@@ -71,13 +71,6 @@ extension CodigoApp {
                 )
             }
             return .immediate(success: result.success, message: result.message)
-        case "close_finding":
-            let result = await applyReviewMutation(command) { state, payload in
-                guard let findingId = payload["finding_id"] else { return false }
-                let reason = payload["reason"] ?? "closed"
-                return await state.closeFinding(findingId: findingId, reason: reason)
-            }
-            return .immediate(success: result.success, message: result.message)
         case "configure":
             guard let sessionId = command.sessionId else {
                 return .immediate(success: false, message: "Missing session_id for configure")
@@ -202,6 +195,10 @@ extension CodigoApp {
         for command: MCPSharedCodeReviewCommand,
         sessionId: String
     ) -> String {
+        if let overridePrompt = command.payload["review_prompt_override"],
+           !overridePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return overridePrompt
+        }
         if let overridePrompt = command.payload["bughunter_prompt_override"],
            !overridePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return overridePrompt

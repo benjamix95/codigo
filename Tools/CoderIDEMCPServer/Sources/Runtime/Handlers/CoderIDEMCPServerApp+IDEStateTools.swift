@@ -22,6 +22,9 @@ extension CoderIDEMCPServerApp {
         "review_verify_finding", "review_prepare_patch", "review_preview_patch",
         "review_apply_patch", "review_verify_patch", "review_revalidate_finding", "review_rollback_patch", "review_close_finding", "review_open_pr",
         "review_merge_pr", "review_resolve_conflicts", "review_get_outcome",
+        "security_start", "security_status", "security_findings", "security_verify_finding",
+        "security_prepare_patch", "security_preview_patch", "security_apply_patch",
+        "security_verify_patch", "security_revalidate_finding", "security_rollback_patch", "security_close_finding",
         "bughunter_start", "bughunter_status", "bughunter_findings",
         "bughunter_autofix_preview", "bughunter_autofix_apply", "bughunter_autofix_commit",
         "bughunter_commit_window", "bughunter_install_hook", "bughunter_uninstall_hook",
@@ -42,6 +45,9 @@ extension CoderIDEMCPServerApp {
         }
         if let reviewResult = handleCodeReviewTool(name: name, args: args) {
             return reviewResult
+        }
+        if let securityResult = handleSecurityTool(name: name, args: args) {
+            return securityResult
         }
         if let bugHunterResult = handleBugHunterTool(name: name, args: args) {
             return bugHunterResult
