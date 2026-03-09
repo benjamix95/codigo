@@ -17,7 +17,11 @@ extension CoderIDEMCPServerApp {
         ]
         if let reviewSessionId = snapshot.reviewSessionId {
             lines.append("review_session_id: \(reviewSessionId)")
-            if let reviewStatus = MCPSharedState.readCodeReviewStatus(sessionId: reviewSessionId) {
+            if let reviewSnapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: reviewSessionId) {
+                let reviewStatus = VerifiedFindingsStatusService.payload(
+                    snapshot: reviewSnapshot,
+                    entryPoint: .mcp
+                )
                 lines.append("review_phase: \(reviewStatus["phase"] ?? "unknown")")
                 lines.append("review_summary: \(reviewStatus["summary"] ?? "n/a")")
                 lines.append("verified_findings: \(reviewStatus["verified_projection_findings"] ?? reviewStatus["findings_total"] ?? "0")")

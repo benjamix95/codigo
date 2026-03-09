@@ -161,6 +161,8 @@
 		16C1A2CE7873F6C93C4E2A91 /* BugHunterWorkflowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2CD7873F6C93C4E2A91 /* BugHunterWorkflowService.swift */; };
 		16C1A2D07873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2CF7873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift */; };
 		16C1A2D27873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D17873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift */; };
+		16C1A2D47873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */; };
+		16C1A2D67873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */; };
 		1714C8847F5FBFC9AA824C82 /* PipelineEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F7392D8039C205F827A859 /* PipelineEnums.swift */; };
 		171650B4BB8F4FCCD89B23C6 /* CodexCLIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFA47E41B4F82D2A55D3960 /* CodexCLIProvider+Execution.swift */; };
 		171E31C517D32F60FBCBB5F0 /* OrchestratorMainLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4499A7DB9A99717E26E42A /* OrchestratorMainLoop.swift */; };
@@ -1898,6 +1900,8 @@
 		16C1A2CD7873F6C93C4E2A91 /* BugHunterWorkflowService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterWorkflowService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/BugHunterWorkflowService.swift; sourceTree = "<group>"; };
 		16C1A2CF7873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStartCommandService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsStartCommandService.swift; sourceTree = "<group>"; };
 		16C1A2D17873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStartCommandServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStartCommandServiceTests.swift; sourceTree = "<group>"; };
+		16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStatusService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsStatusService.swift; sourceTree = "<group>"; };
+		16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStatusServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStatusServiceTests.swift; sourceTree = "<group>"; };
 		1723C4DB50FC5964E24284AE /* LanguageServiceModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceModels.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageServiceModels.swift; sourceTree = "<group>"; };
 		173E86F5B0B9744BDF35EEC4 /* GitPanelStore+Refresh.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitPanelStore+Refresh.swift"; path = "App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+Refresh.swift"; sourceTree = "<group>"; };
 		175C3ED2D1EAC5D42C6C23B5 /* TestRunnerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TestRunnerService.swift; path = App/SoloCodeApp/Sources/Services/Testing/TestRunnerService.swift; sourceTree = "<group>"; };
@@ -4603,6 +4607,7 @@
 				16C1A2CB7873F6C23C4E2A91 /* SecurityWorkflowService.swift */,
 				16C1A2CD7873F6C93C4E2A91 /* BugHunterWorkflowService.swift */,
 				16C1A2CF7873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift */,
+				16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */,
 				7F4730FACD002987B84A3186 /* VerifiedFindingsSessionEnvelope.swift */,
 				8216E2E3CD43A1D0F7B65940 /* VerifiedFindingsSessionSyncServiceTests.swift */,
 				45EF85C3D457598BDD0DFB86 /* MCPSharedState+CodeReviewReads.swift */,
@@ -4623,6 +4628,7 @@
 				16C1A2BF7873F6873C4E2A91 /* VerifiedFindingsServiceTests.swift */,
 				16C1A2C77873F6AB3C4E2A91 /* VerifiedFindingsQueryServiceTests.swift */,
 				16C1A2D17873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift */,
+				16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */,
 				5EE20192EF61E071D65A455E /* SecurityHandlerTests.swift */,
 				16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */,
 				AD5112A8DFD9FB240AEB6804 /* CoderIDETools+SecurityWorkflow.swift */,
@@ -5961,6 +5967,7 @@
 				16C1A2CC7873F6C23C4E2A91 /* SecurityWorkflowService.swift in Sources */,
 				16C1A2CE7873F6C93C4E2A91 /* BugHunterWorkflowService.swift in Sources */,
 				16C1A2D07873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift in Sources */,
+				16C1A2D47873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift in Sources */,
 				A57FD52E57B81E746BBDD29A /* VerifiedFindingsSessionEnvelope.swift in Sources */,
 				331E0C236AE8639CB7813871 /* MCPSharedState+CodeReviewReads.swift in Sources */,
 				97D9FC9BE38D287A39297FDE /* VerifiedFindingsCommandCoordinator.swift in Sources */,
@@ -6972,6 +6979,7 @@
 				16C1A2C07873F6873C4E2A91 /* VerifiedFindingsServiceTests.swift in Sources */,
 				16C1A2C87873F6AB3C4E2A91 /* VerifiedFindingsQueryServiceTests.swift in Sources */,
 				16C1A2D27873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift in Sources */,
+				16C1A2D67873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift in Sources */,
 				E818366091D4E04FFD8169D1 /* SecurityHandlerTests.swift in Sources */,
 				16A1B8E47873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift in Sources */,
 			);
