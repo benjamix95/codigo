@@ -1,12 +1,13 @@
 import CoderEngine
 import Foundation
 
-enum ReviewPatchWorkflowError: LocalizedError {
+enum ReviewPatchWorkflowError: LocalizedError, Equatable {
     case missingWorkspace
     case reviewNotVerified
     case providerUnavailable
     case emptyDiff
     case invalidPatch
+    case patchNotVerified
     case applyFailed(String)
     case pullRequestUnavailable(String)
 
@@ -22,6 +23,8 @@ enum ReviewPatchWorkflowError: LocalizedError {
             return "La preparazione patch non ha prodotto alcuna modifica concreta."
         case .invalidPatch:
             return "La patch salvata non è valida o non è applicabile al workspace corrente."
+        case .patchNotVerified:
+            return "La patch non è stata verificata con successo e non può essere applicata."
         case .applyFailed(let message):
             return "Apply patch fallito: \(message)"
         case .pullRequestUnavailable(let message):
@@ -157,6 +160,9 @@ final class ReviewPatchWorkflowService {
         artifact: ReviewPatchArtifact,
         workspaceRoot: String
     ) throws -> ReviewPatchArtifact {
+        guard artifact.verifyStatus == .verified else {
+            throw ReviewPatchWorkflowError.patchNotVerified
+        }
         let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
         let patchFile = try writePatchTempFile(artifact.patchText, prefix: artifact.id)
         defer { try? FileManager.default.removeItem(at: patchFile) }

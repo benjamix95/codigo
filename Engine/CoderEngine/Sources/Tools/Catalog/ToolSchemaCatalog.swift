@@ -13,6 +13,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
     static let shared = MCPNativeToolRegistry()
 
     private let lock = NSLock()
+    private var _descriptors: [MCPToolDescriptor] = []
     private var _entries: [ToolSchemaEntry] = []
     private var _routing: [String: (serverId: String, toolName: String)] = [:]
     private var _rawSchemas: [String: [String: Any]] = [:]
@@ -46,6 +47,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
     func clear() {
         lock.lock()
         defer { lock.unlock() }
+        _descriptors.removeAll()
         _entries.removeAll()
         _routing.removeAll()
         _rawSchemas.removeAll()
@@ -58,12 +60,37 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
     func register(tools: [MCPToolDescriptor]) -> Bool {
         lock.lock()
         defer { lock.unlock() }
+        return rebuildLocked(with: tools)
+    }
 
+    @discardableResult
+    func mergeRegister(tools: [MCPToolDescriptor]) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !tools.isEmpty else { return false }
+
+        var mergedByKey: [String: MCPToolDescriptor] = [:]
+        for descriptor in _descriptors {
+            mergedByKey[Self.descriptorIdentityKey(for: descriptor)] = descriptor
+        }
+        for descriptor in tools {
+            mergedByKey[Self.descriptorIdentityKey(for: descriptor)] = descriptor
+        }
+        let merged = mergedByKey.values.sorted { lhs, rhs in
+            if lhs.serverId != rhs.serverId { return lhs.serverId < rhs.serverId }
+            if lhs.name != rhs.name { return lhs.name < rhs.name }
+            return lhs.schema < rhs.schema
+        }
+        return rebuildLocked(with: merged)
+    }
+
+    private func rebuildLocked(with tools: [MCPToolDescriptor]) -> Bool {
         let fingerprint = Self.descriptorFingerprint(for: tools)
         if fingerprint == _sourceFingerprint {
             return false
         }
 
+        _descriptors = tools
         _entries.removeAll()
         _routing.removeAll()
         _rawSchemas.removeAll()
@@ -112,6 +139,10 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
             }
         }
         return true
+    }
+
+    private static func descriptorIdentityKey(for descriptor: MCPToolDescriptor) -> String {
+        "\(descriptor.serverId)|\(descriptor.name)|\(descriptor.schema)"
     }
 
     /// MCP tool metadata comes from external servers and must not be injected

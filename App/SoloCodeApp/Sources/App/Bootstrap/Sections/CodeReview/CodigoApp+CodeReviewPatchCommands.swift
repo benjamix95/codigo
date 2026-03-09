@@ -63,8 +63,10 @@ extension CodigoApp {
             guard let artifact = preparedSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                 throw ReviewPatchWorkflowError.invalidPatch
             }
-            let applied = try service.applyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-            return upsertingPatch(in: preparedSnapshot, artifact: applied)
+            let verifiedArtifact = try service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+            let verifiedSnapshot = upsertingPatch(in: preparedSnapshot, artifact: verifiedArtifact)
+            let applied = try service.applyPatch(artifact: verifiedArtifact, workspaceRoot: workspaceRoot)
+            return upsertingPatch(in: verifiedSnapshot, artifact: applied)
         case "open_pr":
             guard let artifact = snapshot.patches.first(where: { $0.findingId == findingId }),
                   let finding = snapshot.findings.first(where: { $0.id == findingId }) else {

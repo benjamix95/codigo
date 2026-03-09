@@ -35,6 +35,22 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
         XCTAssertEqual(result.payload.findings.first?.signalType, "semantic")
     }
 
+    func testBugNilCrashPathsDoesNotFlagGenericNegationOrInequality() throws {
+        let file = tempDir.appendingPathComponent("Logic.swift")
+        try """
+        if value != nil { print("ok") }
+        let enabled = !flag
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        let result = CodeReviewAuditService.runTool(
+            named: ReviewAuditToolName.bugNilCrashPaths,
+            scopeFiles: ["Logic.swift"],
+            workspacePath: tempDir
+        )
+
+        XCTAssertTrue(result.findings.isEmpty)
+    }
+
     func testBugTestImpactFlagsPublicSymbolsWithoutTests() throws {
         let file = tempDir.appendingPathComponent("API.swift")
         try """

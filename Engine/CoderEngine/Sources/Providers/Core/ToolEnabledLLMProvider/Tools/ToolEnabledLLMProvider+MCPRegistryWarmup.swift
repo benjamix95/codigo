@@ -21,7 +21,7 @@ private actor MCPNativeToolRegistryWarmupCoordinator {
             }
 
             if !discovered.isEmpty {
-                _ = MCPNativeToolRegistry.shared.register(tools: discovered)
+                _ = MCPNativeToolRegistry.shared.mergeRegister(tools: discovered)
             }
 
             await self.finishRefresh()
@@ -64,7 +64,7 @@ extension ToolEnabledLLMProvider {
             }
 
             if !primaryTools.isEmpty {
-                _ = MCPNativeToolRegistry.shared.register(tools: primaryTools)
+                _ = MCPNativeToolRegistry.shared.mergeRegister(tools: primaryTools)
             }
         }
 

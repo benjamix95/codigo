@@ -12,7 +12,43 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewApplyPatch(args: [String: String]) -> CallTool.Result {
-        queueFindingScopedReviewCommand(action: "apply_patch", args: args)
+        let findingId = sanitizedReviewArg(args, key: "finding_id")
+        let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
+        guard !findingId.isEmpty, !sessionId.isEmpty else {
+            return reviewError("Error: 'finding_id' and 'session_id' are required")
+        }
+        if let ownershipError = validateFindingOwnership(sessionId: sessionId, findingId: findingId, args: args) {
+            return reviewError(ownershipError)
+        }
+        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId),
+              let patch = snapshot.patches.first(where: { $0.findingId == findingId }) else {
+            return reviewError("Error: no prepared patch artifact found. Run review_prepare_patch first.")
+        }
+        guard patch.verifyStatus == .verified else {
+            return reviewError("Error: patch artifact is not verified. Run review_prepare_patch or review_verify_patch first.")
+        }
+        let finding = snapshot.findings.first(where: { $0.id == findingId })
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "apply_patch",
+            sessionId: sessionId,
+            conversationId: resolveReviewConversationId(args),
+            payload: args
+        )
+        var parts = [
+            "OK — review command queued",
+            "action=apply_patch",
+            "command_id=\(command.id)",
+            "session_id=\(sessionId)",
+            "patch_id=\(patch.id)",
+            "verify_status=\(patch.verifyStatus.rawValue)",
+            "risk_score=\(String(format: "%.2f", patch.riskScore))",
+        ]
+        if let finding {
+            parts.append("severity=\(finding.severity.rawValue)")
+            parts.append("category=\(finding.category.rawValue)")
+            parts.append("message=\(finding.message)")
+        }
+        return reviewOK(parts.joined(separator: ", "))
     }
 
     static func handleReviewVerifyPatch(args: [String: String]) -> CallTool.Result {
@@ -44,7 +80,13 @@ extension CoderIDEMCPServerApp {
               let patch = snapshot.patches.first(where: { $0.findingId == findingId }) else {
             return reviewOK("No patch artifact available for the requested finding.")
         }
+        let finding = snapshot.findings.first(where: { $0.id == findingId })
         let details = [
+            "finding_id: \(findingId)",
+            "severity: \(finding?.severity.rawValue ?? "unknown")",
+            "category: \(finding?.category.rawValue ?? "unknown")",
+            "message: \(finding?.message ?? "n/a")",
+            "verification_report: \(finding?.verificationReport ?? patch.verificationReport ?? "n/a")",
             "patch_id: \(patch.id)",
             "status: \(patch.status.rawValue)",
             "verify_status: \(patch.verifyStatus.rawValue)",

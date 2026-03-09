@@ -144,7 +144,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
     }
-    func testDoesNotInjectSyntheticPolicyAckBeforeOperationalToolEvent() async throws {
+    func testOperationalToolIsRejectedUntilPolicyAckArrives() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("policy-ack-inject-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
@@ -181,7 +181,8 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         }
 
         XCTAssertFalse(rawTypes.contains("policy_ack"))
-        XCTAssertTrue(rawTypes.contains(where: { $0 == "read_batch_started" || $0 == "read_batch_completed" }))
+        XCTAssertTrue(rawTypes.contains("tool_validation_error"))
+        XCTAssertFalse(rawTypes.contains(where: { $0 == "read_batch_started" || $0 == "read_batch_completed" }))
     }
 
     func testDoesNotDuplicatePolicyAckWhenModelAlreadyAcknowledged() async throws {

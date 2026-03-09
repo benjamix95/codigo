@@ -50,9 +50,9 @@ public enum ReviewCandidateVerificationService {
             if let evidence = trimmedEvidence(candidate.evidence),
                content.localizedCaseInsensitiveContains(evidence) {
                 return ReviewCandidateVerificationResult(
-                    status: .verified,
+                    status: .inconclusive,
                     method: "file_evidence_search",
-                    report: "L'evidenza del candidate è stata trovata nel file \(normalizedPath)."
+                    report: "L'evidenza del candidate compare nel file \(normalizedPath), ma senza un contesto di riga valido la verifica automatica non può promuoverlo a finding verificato."
                 )
             }
             return ReviewCandidateVerificationResult(
@@ -74,9 +74,9 @@ public enum ReviewCandidateVerificationService {
 
         if matchesKnownRisk(message: candidate.message, line: lineText) {
             return ReviewCandidateVerificationResult(
-                status: .verified,
+                status: .inconclusive,
                 method: "semantic_risk_match",
-                report: "Il contesto della riga \(lineNumber) conferma un pattern coerente con il rischio segnalato."
+                report: "La riga \(lineNumber) contiene un pattern coerente con il rischio segnalato, ma la corrispondenza euristica non è sufficiente per promuovere automaticamente il candidate a finding verificato."
             )
         }
 

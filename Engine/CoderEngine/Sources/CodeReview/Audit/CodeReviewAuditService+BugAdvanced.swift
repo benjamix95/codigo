@@ -5,20 +5,74 @@ extension CodeReviewAuditService {
         scopeFiles: [String],
         workspacePath: URL
     ) -> (findings: [CodeReviewFinding], coverageAvailable: Bool, summary: String, adapters: [String], metadata: [String: String]) {
-        let patterns: [(String, FindingSeverity, String, String, Double)] = [
-            ("!", .warning, "Possibile crash path da force unwrap.", "Sostituisci con guard/if let o fallback esplicito.", 0.62),
-            ("try!", .warning, "Possibile crash path da force-try.", "Gestisci l'errore in modo esplicito.", 0.84),
-            (" as! ", .warning, "Possibile crash path da cast forzato.", "Usa cast sicuro e validazione dell'input.", 0.79),
-            ("first!", .warning, "Accesso forzato al primo elemento.", "Verifica emptiness prima dell'accesso.", 0.72),
-            ("last!", .warning, "Accesso forzato all'ultimo elemento.", "Verifica emptiness prima dell'accesso.", 0.72),
-        ]
-        return patternBugAudit(
-            scopeFiles: scopeFiles,
-            workspacePath: workspacePath,
-            patterns: patterns,
-            sourceTool: ReviewAuditToolName.bugNilCrashPaths,
-            summaryWhenEmpty: "Nessun crash path evidente da optional/indexing rilevato.",
-            summaryWhenNonEmpty: "Rilevati crash path potenziali da optional o cast forzati."
+        var findings: [CodeReviewFinding] = []
+        for file in scopeFiles {
+            guard !isAuditSourceFile(file),
+                  let lines = loadLines(for: file, workspacePath: workspacePath) else { continue }
+            for (index, line) in lines.enumerated() {
+                let lower = line.lowercased()
+                if lower.contains("try!") {
+                    findings.append(
+                        makeFinding(
+                            severity: .warning,
+                            category: .correctness,
+                            origin: .bugHunter,
+                            filePath: file,
+                            lineNumber: index + 1,
+                            message: "Possibile crash path da force-try.",
+                            suggestedFix: "Gestisci l'errore in modo esplicito.",
+                            confidence: 0.84,
+                            evidence: line.trimmingCharacters(in: .whitespacesAndNewlines),
+                            sourceTool: ReviewAuditToolName.bugNilCrashPaths,
+                            blocking: false
+                        )
+                    )
+                    continue
+                }
+                if lower.contains(" as! ") {
+                    findings.append(
+                        makeFinding(
+                            severity: .warning,
+                            category: .correctness,
+                            origin: .bugHunter,
+                            filePath: file,
+                            lineNumber: index + 1,
+                            message: "Possibile crash path da cast forzato.",
+                            suggestedFix: "Usa cast sicuro e validazione dell'input.",
+                            confidence: 0.79,
+                            evidence: line.trimmingCharacters(in: .whitespacesAndNewlines),
+                            sourceTool: ReviewAuditToolName.bugNilCrashPaths,
+                            blocking: false
+                        )
+                    )
+                    continue
+                }
+                if lower.contains("first!") || lower.contains("last!") || containsPotentialForceUnwrap(line) {
+                    findings.append(
+                        makeFinding(
+                            severity: .warning,
+                            category: .correctness,
+                            origin: .bugHunter,
+                            filePath: file,
+                            lineNumber: index + 1,
+                            message: "Possibile crash path da force unwrap.",
+                            suggestedFix: "Sostituisci con guard/if let o fallback esplicito.",
+                            confidence: 0.72,
+                            evidence: line.trimmingCharacters(in: .whitespacesAndNewlines),
+                            sourceTool: ReviewAuditToolName.bugNilCrashPaths,
+                            blocking: false
+                        )
+                    )
+                }
+            }
+        }
+        let deduped = deduplicate(findings)
+        return (
+            deduped,
+            !scopeFiles.isEmpty,
+            deduped.isEmpty ? "Nessun crash path evidente da optional/indexing rilevato." : "Rilevati crash path potenziali da optional o cast forzati.",
+            [],
+            ["signal_type": "pattern", "verification_hint": "Conferma il path runtime e la raggiungibilità del codice segnalato", "promotion_gate": "strict_verified"]
         )
     }
 
@@ -178,5 +232,16 @@ extension CodeReviewAuditService {
             [],
             ["signal_type": "pattern", "verification_hint": "Conferma il path runtime e la raggiungibilità del codice segnalato", "promotion_gate": "strict_verified"]
         )
+    }
+}
+
+private extension CodeReviewAuditService {
+    static func containsPotentialForceUnwrap(_ line: String) -> Bool {
+        let pattern = #"[A-Za-z0-9_\)\]]!\s*(?:[\.\,\)\]\?:;]|$)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return false
+        }
+        let range = NSRange(location: 0, length: line.utf16.count)
+        return regex.firstMatch(in: line, options: [], range: range) != nil
     }
 }

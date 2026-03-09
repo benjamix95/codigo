@@ -161,6 +161,22 @@ extension ToolEnabledLLMProvider {
                 } ?? marker
                 let effectiveName = resolvedSubagent?.toolName ?? name
 
+                if let requiredPolicyHash,
+                   !requiredPolicyHash.isEmpty,
+                   !didEmitPolicyAck,
+                   effectiveName != "policy_ack",
+                   !Self.isSubagentFirstRoundExemptTool(effectiveName)
+                {
+                    continuation.yield(.raw(type: "tool_validation_error", payload: [
+                        "title": "Policy acknowledgement required",
+                        "detail": "Emit policy_ack with the required hash before using tool '\(effectiveName)'.",
+                        "status": "failed",
+                        "error_code": "policy_ack_required",
+                        "tool": effectiveName,
+                    ]))
+                    continue
+                }
+
                 if enforceSubagentFirstRound,
                    !localAcceptedSubagentInFirstRound,
                    resolvedSubagent == nil,

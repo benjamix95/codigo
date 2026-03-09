@@ -225,4 +225,32 @@ final class ToolSchemaCatalogTests: XCTestCase {
         XCTAssertTrue(registry.register(tools: []))
         XCTAssertFalse(registry.hasTools())
     }
+
+    func testNativeRegistryMergeRegisterPreservesExistingEntries() {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let existing = MCPToolDescriptor(
+            name: "existing_tool",
+            description: "existing",
+            schema: #"{"type":"object","properties":{}}"#,
+            serverId: "srv-existing",
+            serverName: "existing"
+        )
+        let fresh = MCPToolDescriptor(
+            name: "fresh_tool",
+            description: "fresh",
+            schema: #"{"type":"object","properties":{}}"#,
+            serverId: "srv-fresh",
+            serverName: "fresh"
+        )
+
+        XCTAssertTrue(registry.register(tools: [existing]))
+        XCTAssertTrue(registry.mergeRegister(tools: [fresh]))
+
+        let names = Set(registry.entries.map(\.name))
+        XCTAssertTrue(names.contains("existing_tool"))
+        XCTAssertTrue(names.contains("fresh_tool"))
+    }
 }

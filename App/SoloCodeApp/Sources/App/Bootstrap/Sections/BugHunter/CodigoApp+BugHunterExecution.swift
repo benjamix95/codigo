@@ -1,6 +1,24 @@
 import CoderEngine
 import Foundation
 
+enum BugHunterRunIdentityResolver {
+    static func canonicalPrimaryCommit(
+        sourceKind: MCPSharedBugHunterSourceKind,
+        payloadPrimaryCommit: String?,
+        resolvedPrimaryCommit: String?
+    ) -> String? {
+        switch sourceKind {
+        case .commit, .commitWindow, .autofixRound:
+            let explicit = (payloadPrimaryCommit ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !explicit.isEmpty { return explicit }
+            let resolved = (resolvedPrimaryCommit ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return resolved.isEmpty ? nil : resolved
+        case .branchWindow, .uncommitted:
+            return nil
+        }
+    }
+}
+
 extension CodigoApp {
     @MainActor
     func handleBugHunterCommand(
@@ -75,6 +93,11 @@ extension CodigoApp {
                 return (prompt, [], nil)
             }
         }()
+        let canonicalPrimaryCommit = BugHunterRunIdentityResolver.canonicalPrimaryCommit(
+            sourceKind: sourceKind,
+            payloadPrimaryCommit: command.payload["primary_commit"],
+            resolvedPrimaryCommit: promptAndCommits.1.first
+        )
 
         let reviewCommand: MCPSharedCodeReviewCommand
         do {
@@ -104,8 +127,8 @@ extension CodigoApp {
             triggerKind: MCPSharedBugHunterTriggerKind(rawValue: command.payload["trigger_kind"] ?? "") ?? .manual,
             gitRoot: gitRoot,
             branchName: command.payload["branch_name"] ?? gitPanelStore.currentBranch,
-            primaryCommit: promptAndCommits.2,
-            relatedCommits: promptAndCommits.1.filter { !$0.isEmpty && $0 != promptAndCommits.2 },
+            primaryCommit: canonicalPrimaryCommit,
+            relatedCommits: promptAndCommits.1.filter { !$0.isEmpty && $0 != canonicalPrimaryCommit },
             status: .running,
             startedAt: Date(),
             lastMessage: "BugHunter run started",
@@ -131,32 +154,41 @@ extension CodigoApp {
         }
 
         let autofixable = reviewSnapshot.findings
-            .filter { ($0.confidence ?? 0) >= 0.9 && $0.patchArtifactId != nil }
+            .filter { ($0.confidence ?? 0) >= 0.9 && $0.verifiedAt != nil }
             .sorted { ($0.confidence ?? 0) > ($1.confidence ?? 0) }
 
         guard let finding = autofixable.first else {
             return (false, "No autofixable verified bug found")
         }
+        let commandPayload = [
+            "session_id": reviewSessionId,
+            "finding_id": finding.id,
+        ]
 
-        let patchCommandAction: String = switch mode {
-        case .preview: "prepare_patch"
-        case .apply: "apply_patch"
-        case .commit: "apply_patch"
+        let preparedResult = await runBugHunterPatchCommand(
+            action: "prepare_patch",
+            sessionId: reviewSessionId,
+            payload: commandPayload,
+            findingId: finding.id,
+            expectedStatus: nil,
+            expectedVerifyStatus: .verified
+        )
+        guard preparedResult.success else {
+            return preparedResult
         }
 
-        let patchCommand = MCPSharedState.enqueueCodeReviewCommand(
-            action: patchCommandAction,
-            sessionId: reviewSessionId,
-            conversationId: nil,
-            payload: [
-                "session_id": reviewSessionId,
-                "finding_id": finding.id,
-            ]
-        )
-        await processPendingCodeReviewCommandsOnce()
-        MCPSharedState.refreshCodeReviewCommandHeartbeat(id: patchCommand.id)
-
         if mode == .commit {
+            let applyResult = await runBugHunterPatchCommand(
+                action: "apply_patch",
+                sessionId: reviewSessionId,
+                payload: commandPayload,
+                findingId: finding.id,
+                expectedStatus: .applied,
+                expectedVerifyStatus: .verified
+            )
+            guard applyResult.success else {
+                return applyResult
+            }
             let gitRoot = workspaceStore.activeWorkspacePaths.first?.path ?? snapshot.gitRoot
             guard !gitRoot.isEmpty else { return (false, "Missing git root for autofix commit") }
             do {
@@ -191,7 +223,18 @@ extension CodigoApp {
             }
         }
 
-        return (true, mode == .preview ? "Autofix preview prepared" : "Autofix applied")
+        if mode == .apply {
+            return await runBugHunterPatchCommand(
+                action: "apply_patch",
+                sessionId: reviewSessionId,
+                payload: commandPayload,
+                findingId: finding.id,
+                expectedStatus: .applied,
+                expectedVerifyStatus: .verified
+            )
+        }
+
+        return preparedResult
     }
 
     @MainActor
@@ -223,4 +266,47 @@ private enum BugHunterAutofixExecutionMode {
     case preview
     case apply
     case commit
+}
+
+private extension CodigoApp {
+    @MainActor
+    func runBugHunterPatchCommand(
+        action: String,
+        sessionId: String,
+        payload: [String: String],
+        findingId: String,
+        expectedStatus: ReviewPatchStatus?,
+        expectedVerifyStatus: ReviewPatchVerifyStatus
+    ) async -> (success: Bool, message: String) {
+        let patchCommand = MCPSharedState.enqueueCodeReviewCommand(
+            action: action,
+            sessionId: sessionId,
+            conversationId: nil,
+            payload: payload
+        )
+        await processPendingCodeReviewCommandsOnce()
+        MCPSharedState.refreshCodeReviewCommandHeartbeat(id: patchCommand.id)
+
+        guard let latestReviewSnapshot = resolveCodeReviewSnapshot(sessionId: sessionId, conversationId: nil),
+              let patch = latestReviewSnapshot.patches.first(where: { $0.findingId == findingId }) else {
+            return (false, "Patch workflow did not produce an artifact for action \(action)")
+        }
+        guard patch.verifyStatus == expectedVerifyStatus else {
+            return (false, "Patch workflow returned verify_status=\(patch.verifyStatus.rawValue) for action \(action)")
+        }
+        if let expectedStatus, patch.status != expectedStatus {
+            return (false, "Patch workflow returned status=\(patch.status.rawValue) for action \(action)")
+        }
+
+        let successMessage: String
+        switch action {
+        case "prepare_patch":
+            successMessage = "Autofix preview prepared"
+        case "apply_patch":
+            successMessage = "Autofix applied"
+        default:
+            successMessage = "Autofix step \(action) completed"
+        }
+        return (true, successMessage)
+    }
 }
