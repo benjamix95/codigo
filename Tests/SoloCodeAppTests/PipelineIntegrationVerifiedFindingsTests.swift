@@ -115,6 +115,49 @@ final class PipelineIntegrationVerifiedFindingsTests: XCTestCase {
         XCTAssertEqual(payload["verified_security_gate_ready"], "true")
     }
 
+    func testCodeReviewPayloadBuildsVerifiedFindingsFromSnapshotWithoutPersistenceRead() {
+        let store = TaskActivityStore()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "payload-sync-session",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-sync-1",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/Runtime/Flow.swift",
+                    lineNumber: 44,
+                    endLineNumber: 44,
+                    message: "Duplicate terminal event",
+                    status: .open
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            verifiedFindings: nil,
+            lastUpdatedAt: Date()
+        )
+
+        let payload = store.codeReviewPayload(snapshot, conversationId: nil)
+
+        XCTAssertEqual(payload["verified_envelope_source"], "synced_from_snapshot")
+        XCTAssertEqual(payload["verified_replay_findings_count"], "1")
+        XCTAssertEqual(payload["verified_queue_count"], "1")
+        XCTAssertEqual(payload["verified_candidate_queue_count"], "0")
+    }
+
     func testReviewFindingBuildsStructuredChatArtifactPayloadFromSharedSnapshot() {
         let suiteName = "PipelineIntegrationVerifiedFindingsCardTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

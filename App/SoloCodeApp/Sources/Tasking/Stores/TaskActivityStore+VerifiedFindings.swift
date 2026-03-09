@@ -2,6 +2,33 @@ import Foundation
 import CoderEngine
 
 extension TaskActivityStore {
+    func resolvedVerifiedFindingsState(
+        for snapshot: CodeReviewSessionSnapshot,
+        conversationId: UUID?
+    ) -> VerifiedFindingsResolvedState {
+        let recovered: VerifiedFindingsRecoveredEnvelope
+        if let envelope = snapshot.verifiedFindings ?? verifiedFindingsEnvelope(
+            sessionId: snapshot.sessionId,
+            conversationId: conversationId
+        ) {
+            recovered = VerifiedFindingsRecoveredEnvelope(
+                source: .embeddedSnapshot,
+                envelope: envelope,
+                checkpoint: nil
+            )
+        } else {
+            recovered = VerifiedFindingsRecoveredEnvelope(
+                source: .syncedFromSnapshot,
+                envelope: VerifiedFindingsSessionSyncService.sync(
+                    snapshot: snapshot,
+                    entryPoint: .reviewChat
+                ),
+                checkpoint: nil
+            )
+        }
+        return VerifiedFindingsService.resolve(recovered: recovered)
+    }
+
     func verifiedFindingsEnvelope(
         sessionId: String?,
         conversationId: UUID?
@@ -45,7 +72,10 @@ extension TaskActivityStore {
         if let error = snapshot.lastError {
             payload["error"] = error
         }
-        let verifiedState = VerifiedFindingsService.resolve(snapshot: snapshot)
+        let verifiedState = resolvedVerifiedFindingsState(
+            for: snapshot,
+            conversationId: conversationId
+        )
         let projection = verifiedState.recovered.envelope.projectionSnapshot
         payload["verified_candidate_queue_count"] = String(projection.candidateQueue.count)
         payload["verified_queue_count"] = String(projection.verifiedQueue.count)
