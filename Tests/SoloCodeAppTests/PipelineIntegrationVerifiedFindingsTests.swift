@@ -62,4 +62,56 @@ final class PipelineIntegrationVerifiedFindingsTests: XCTestCase {
             .security
         )
     }
+
+    func testCodeReviewPayloadIncludesVerifiedFindingsFacadeFields() {
+        let store = TaskActivityStore()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "payload-session",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            verifiedFindings: VerifiedFindingsSessionEnvelope(
+                sessionId: "payload-session",
+                canonicalSnapshot: VerifiedFindingsCanonicalSnapshot(
+                    runs: [:],
+                    findings: [:],
+                    evidences: [:],
+                    verificationReports: [:],
+                    patchArtifacts: [:],
+                    revalidationReports: [:],
+                    commandLog: [],
+                    eventLog: [],
+                    traceLog: []
+                ),
+                projectionSnapshot: VerifiedFindingsProjectionSnapshot(
+                    candidateQueue: [],
+                    verifiedQueue: [],
+                    duplicatesCount: 0,
+                    staleCandidatesCount: 0,
+                    traceSnippets: []
+                )
+            ),
+            lastUpdatedAt: Date()
+        )
+
+        let payload = store.codeReviewPayload(snapshot, conversationId: nil)
+
+        XCTAssertEqual(payload["verified_envelope_source"], "embedded_snapshot")
+        XCTAssertEqual(payload["verified_replay_candidate_count"], "0")
+        XCTAssertEqual(payload["verified_replay_findings_count"], "0")
+        XCTAssertEqual(payload["verified_security_gate_ready"], "true")
+    }
 }

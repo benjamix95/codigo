@@ -29,6 +29,14 @@ extension CoderIDEMCPServerApp {
                     lines.append("security_gate_summary: \(gateSummary)")
                 }
             }
+            if let verifiedState = VerifiedFindingsService.resolve(
+                sessionId: reviewSessionId,
+                entryPoint: .mcp
+            ) {
+                lines.append("verified_envelope_source: \(verifiedState.recovered.source.rawValue)")
+                lines.append("verified_replay_candidates: \(verifiedState.replayReport.candidateCount)")
+                lines.append("verified_replay_findings: \(verifiedState.replayReport.verifiedCount)")
+            }
         }
         if let branchName = snapshot.branchName { lines.append("branch: \(branchName)") }
         if let primaryCommit = snapshot.primaryCommit { lines.append("primary_commit: \(primaryCommit)") }

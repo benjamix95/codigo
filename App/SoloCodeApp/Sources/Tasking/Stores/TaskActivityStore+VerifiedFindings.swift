@@ -45,11 +45,16 @@ extension TaskActivityStore {
         if let error = snapshot.lastError {
             payload["error"] = error
         }
-        let projection = snapshot.verifiedFindingsProjection
+        let verifiedState = VerifiedFindingsService.resolve(snapshot: snapshot)
+        let projection = verifiedState.recovered.envelope.projectionSnapshot
         payload["verified_candidate_queue_count"] = String(projection.candidateQueue.count)
         payload["verified_queue_count"] = String(projection.verifiedQueue.count)
         payload["verified_duplicates_count"] = String(projection.duplicatesCount)
         payload["verified_stale_candidates_count"] = String(projection.staleCandidatesCount)
+        payload["verified_envelope_source"] = verifiedState.recovered.source.rawValue
+        payload["verified_replay_candidate_count"] = String(verifiedState.replayReport.candidateCount)
+        payload["verified_replay_findings_count"] = String(verifiedState.replayReport.verifiedCount)
+        payload["verified_security_gate_ready"] = verifiedState.securityGate.ready ? "true" : "false"
         if let conversationScope = codeReviewConversationScope(conversationId) {
             payload["conversation_id"] = conversationScope
         }

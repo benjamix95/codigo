@@ -106,6 +106,8 @@ final class BugHunterHandlerTests: XCTestCase {
         XCTAssertTrue(text.contains("candidate_findings_count: 2"))
         XCTAssertTrue(text.contains("last_revalidation_verdict: fixed_verified"))
         XCTAssertTrue(text.contains("security_gate_ready_cached: true"))
+        XCTAssertTrue(text.contains("verified_envelope_source: embedded_snapshot"))
+        XCTAssertTrue(text.contains("verified_replay_findings: 0"))
     }
 
     private func textContent(_ result: MCP.CallTool.Result?) -> String {
