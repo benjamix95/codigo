@@ -7,6 +7,9 @@ public actor MCPSessionManager {
 
     static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPSessionManager")
     var sessions: [String: MCPServerSession] = [:]
+    var sessionTeardownInProgress: Set<String> = []
+    var sessionTeardownWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    var sessionTeardownHook: (@Sendable (String) async -> Void)?
     let retryPolicy: MCPRetryPolicy
     let serverResolver: () -> [MCPConfigLoader.DetectedServer]
     /// TTL for cached tool lists before re-fetching (seconds).

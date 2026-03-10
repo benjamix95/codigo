@@ -26,7 +26,7 @@ extension MCPSessionManager {
         guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
             throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
         }
-        try await resetSession(cfg.id)
+        try await resetSession(cfg.id, waitForExit: true)
         invalidateNativeToolRegistry()
         _ = try await session(for: cfg)
     }
@@ -36,8 +36,9 @@ extension MCPSessionManager {
         guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
             throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
         }
+        await awaitSessionTeardownIfNeeded(for: cfg.id)
         if let existing = sessions.removeValue(forKey: cfg.id) {
-            await disposeSession(existing)
+            await disposeSession(existing, waitForExit: true)
         }
         invalidateNativeToolRegistry()
         _ = try await session(for: cfg)
@@ -47,6 +48,7 @@ extension MCPSessionManager {
         let storedSessions = Array(sessions.values)
         sessions.removeAll()
         for session in storedSessions {
+            await awaitSessionTeardownIfNeeded(for: session.serverId)
             await disposeSession(session)
         }
     }
@@ -88,6 +90,7 @@ extension MCPSessionManager {
     }
 
     public func session(for cfg: MCPConfigLoader.DetectedServer) async throws -> MCPServerSession {
+        await awaitSessionTeardownIfNeeded(for: cfg.id)
         if var existing = sessions[cfg.id] {
             if existing.process.isRunning {
                 existing.lastUsedAt = Date()
@@ -198,6 +201,7 @@ extension MCPSessionManager {
             session.lastUsedAt < cutoff ? id : nil
         }
         for id in expiredSessionIds {
+            await awaitSessionTeardownIfNeeded(for: id)
             guard let session = sessions.removeValue(forKey: id) else { continue }
             await disposeSession(session, waitForExit: false)
         }

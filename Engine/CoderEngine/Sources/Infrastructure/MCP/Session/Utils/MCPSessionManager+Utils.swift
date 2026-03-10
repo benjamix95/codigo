@@ -3,6 +3,40 @@ import MCP
 import os
 
 extension MCPSessionManager {
+    func awaitSessionTeardownIfNeeded(for serverId: String) async {
+        guard sessionTeardownInProgress.contains(serverId) else { return }
+        await withCheckedContinuation { continuation in
+            sessionTeardownWaiters[serverId, default: []].append(continuation)
+        }
+    }
+
+    func disposeSession(
+        _ session: MCPServerSession,
+        waitForExit: Bool = false
+    ) async {
+        while sessionTeardownInProgress.contains(session.serverId) {
+            await awaitSessionTeardownIfNeeded(for: session.serverId)
+        }
+        sessionTeardownInProgress.insert(session.serverId)
+        defer {
+            sessionTeardownInProgress.remove(session.serverId)
+            let waiters = sessionTeardownWaiters.removeValue(forKey: session.serverId) ?? []
+            for waiter in waiters {
+                waiter.resume()
+            }
+        }
+
+        if let sessionTeardownHook {
+            await sessionTeardownHook(session.serverId)
+        }
+        await session.client.disconnect()
+        session.transportResources.closeAll()
+        MCPTransportFactory.terminateProcess(
+            session.process,
+            waitForExit: waitForExit
+        )
+    }
+
     /// Convert MCP Value to a JSON-compatible Swift object.
     public func valueToJSONObject(_ value: Value) -> Any {
         switch value {
@@ -197,21 +231,13 @@ extension MCPSessionManager {
         }
     }
 
-    public func resetSession(_ id: String) async throws {
-        if let existing = sessions.removeValue(forKey: id) {
-            await disposeSession(existing)
-        }
-    }
-
-    func disposeSession(
-        _ session: MCPServerSession,
+    public func resetSession(
+        _ id: String,
         waitForExit: Bool = false
-    ) async {
-        await session.client.disconnect()
-        session.transportResources.closeAll()
-        MCPTransportFactory.terminateProcess(
-            session.process,
-            waitForExit: waitForExit
-        )
+    ) async throws {
+        await awaitSessionTeardownIfNeeded(for: id)
+        if let existing = sessions.removeValue(forKey: id) {
+            await disposeSession(existing, waitForExit: waitForExit)
+        }
     }
 }

@@ -455,6 +455,85 @@ final class MCPSessionManagerTests: XCTestCase {
         try? stderrPipe.fileHandleForWriting.close()
     }
 
+    func testRestartServerWaitsForPreviousProcessExitBeforeStartingReplacement() async throws {
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-restart-wait.json",
+            name: "restart-wait-server",
+            command: "/definitely/missing/mcp-binary"
+        )
+        let manager = MCPSessionManager(serverResolver: { [server] })
+        let process = try Self.makeDelayedTerminateProcess()
+        let pid = process.processIdentifier
+        let resources = try makeTransportResources()
+        let session = makeSession(server: server, process: process, resources: resources)
+
+        await manager._insertTestSession(session)
+
+        do {
+            _ = try await manager.restartServer(serverId: server.id)
+            XCTFail("Expected restart to fail for missing executable")
+        } catch {}
+        XCTAssertFalse(Self.processExists(pid))
+
+        closeUnusedPipeEnds(resources)
+    }
+
+    func testConcurrentSessionRequestsWaitForInFlightTeardown() async throws {
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-concurrent-teardown.json",
+            name: "concurrent-teardown-server",
+            command: "/definitely/missing/mcp-binary"
+        )
+        let manager = MCPSessionManager(serverResolver: { [server] })
+        let gate = AsyncGate()
+        let completionState = CompletionState()
+
+        let staleProcess = Process()
+        staleProcess.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+        try staleProcess.run()
+        staleProcess.waitUntilExit()
+
+        let resources = try makeTransportResources()
+        let session = makeSession(server: server, process: staleProcess, resources: resources)
+
+        await manager._insertTestSession(session)
+        await manager._setSessionTeardownHook { _ in
+            await gate.enterAndWait()
+        }
+
+        let firstTask = Task {
+            do {
+                _ = try await manager.session(for: server)
+            } catch {}
+            await completionState.markFirstFinished()
+        }
+
+        await gate.waitUntilEntered()
+
+        let secondTask = Task {
+            do {
+                _ = try await manager.session(for: server)
+            } catch {}
+            await completionState.markSecondFinished()
+        }
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+        let (firstFinished, secondFinished) = await completionState.snapshot()
+        XCTAssertFalse(firstFinished)
+        XCTAssertFalse(secondFinished)
+
+        await gate.release()
+        _ = await firstTask.result
+        _ = await secondTask.result
+        await manager._setSessionTeardownHook(nil)
+
+        closeUnusedPipeEnds(resources)
+    }
+
     func testTransportResourcesCloseAllIsIdempotentAcrossSessionCopies() throws {
         let (inputRead, inputWrite) = try FileDescriptor.pipe()
         let (outputRead, outputWrite) = try FileDescriptor.pipe()
@@ -543,6 +622,50 @@ final class MCPSessionManagerTests: XCTestCase {
         return nil
     }
 
+    private func makeTransportResources() throws -> TestTransportResources {
+        let (inputRead, inputWrite) = try FileDescriptor.pipe()
+        let (outputRead, outputWrite) = try FileDescriptor.pipe()
+        return TestTransportResources(
+            inputRead: inputRead,
+            inputWrite: inputWrite,
+            outputRead: outputRead,
+            outputWrite: outputWrite,
+            stderrPipe: Pipe()
+        )
+    }
+
+    private func makeSession(
+        server: MCPConfigLoader.DetectedServer,
+        process: Process,
+        resources: TestTransportResources
+    ) -> MCPServerSession {
+        MCPServerSession(
+            serverId: server.id,
+            serverName: server.name,
+            client: Client(
+                name: "lifecycle-regression-test-client",
+                version: "1.0.0",
+                configuration: .default
+            ),
+            transport: StdioTransport(input: resources.inputRead, output: resources.outputWrite),
+            process: process,
+            transportResources: MCPTransportResources(
+                input: resources.inputRead,
+                output: resources.outputWrite,
+                stderrReadHandle: resources.stderrPipe.fileHandleForReading
+            ),
+            lastUsedAt: Date(timeIntervalSince1970: 0),
+            cachedTools: [],
+            cachedToolsTimestamp: nil
+        )
+    }
+
+    private func closeUnusedPipeEnds(_ resources: TestTransportResources) {
+        try? resources.inputWrite.close()
+        try? resources.outputRead.close()
+        try? resources.stderrPipe.fileHandleForWriting.close()
+    }
+
     private static func processExists(_ pid: Int32) -> Bool {
         guard pid > 0 else { return false }
         return kill(pid, 0) == 0 || errno != ESRCH
@@ -572,6 +695,17 @@ final class MCPSessionManagerTests: XCTestCase {
         return process
     }
 
+    private static func makeDelayedTerminateProcess() throws -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        process.arguments = [
+            "-e",
+            "$SIG{TERM}=sub{select undef,undef,undef,0.5; exit 0}; while(1){select undef,undef,undef,1}"
+        ]
+        try process.run()
+        return process
+    }
+
 }
 
 private extension MCPSessionManager {
@@ -581,5 +715,70 @@ private extension MCPSessionManager {
 
     func _hasSession(_ serverId: String) -> Bool {
         sessions[serverId] != nil
+    }
+
+    func _setSessionTeardownHook(_ hook: (@Sendable (String) async -> Void)?) {
+        sessionTeardownHook = hook
+    }
+}
+
+private struct TestTransportResources {
+    let inputRead: FileDescriptor
+    let inputWrite: FileDescriptor
+    let outputRead: FileDescriptor
+    let outputWrite: FileDescriptor
+    let stderrPipe: Pipe
+}
+
+private actor AsyncGate {
+    private var entered = false
+    private var released = false
+    private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func enterAndWait() async {
+        entered = true
+        let waiters = enteredWaiters
+        enteredWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+        guard !released else { return }
+        await withCheckedContinuation { continuation in
+            releaseWaiters.append(continuation)
+        }
+    }
+
+    func waitUntilEntered() async {
+        guard !entered else { return }
+        await withCheckedContinuation { continuation in
+            enteredWaiters.append(continuation)
+        }
+    }
+
+    func release() {
+        released = true
+        let waiters = releaseWaiters
+        releaseWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+}
+
+private actor CompletionState {
+    private var firstFinished = false
+    private var secondFinished = false
+
+    func markFirstFinished() {
+        firstFinished = true
+    }
+
+    func markSecondFinished() {
+        secondFinished = true
+    }
+
+    func snapshot() -> (Bool, Bool) {
+        (firstFinished, secondFinished)
     }
 }
