@@ -59,6 +59,11 @@ struct CodeReviewPanelView: View {
             ReviewPanelCommandsTab(store: store, onOpenFile: onOpenFile)
         case .findings:
             ReviewPanelFindingsTab(store: store, onOpenFileAtLocation: onOpenFileAtLocation)
+        case .history:
+            ReviewPanelFindingsHistoryTab(
+                store: store,
+                onOpenFileAtLocation: onOpenFileAtLocation
+            )
         case .timeline:
             ReviewPanelTimelineTab(store: store)
         case .chat:
@@ -220,6 +225,9 @@ struct ReviewPanelHost: View {
         )
         .task {
             await store.consumePendingLaunchRequestIfNeeded()
+        }
+        .task {
+            await store.refreshHistoricalFindings()
         }
     }
 }

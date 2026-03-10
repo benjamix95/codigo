@@ -28,6 +28,7 @@ final class CodeReviewPanelStore: ObservableObject {
 
     @Published var selectedTab: CodeReviewTab = .findings
     @Published var selectedFindingId: String?
+    @Published var selectedHistoricalFindingId: String?
     @Published var sessionBrowserExpanded: Bool = false
 
     // MARK: - Execution State
@@ -75,6 +76,12 @@ final class CodeReviewPanelStore: ObservableObject {
     // MARK: - Session Tracking
 
     @Published var panelSessionId: String?
+    @Published var historyRecords: [HistoricalFindingRecord] = []
+    @Published var isHistoryLoading: Bool = false
+    @Published var historyLoadError: String?
+    @Published var historyStatusFilter: ReviewFindingHistoryStatusFilter = .resumeQueue
+    @Published var historyDomainFilter: ReviewFindingHistoryDomainFilter = .all
+    @Published var historySeverityFilter: ReviewFindingHistorySeverityFilter = .all
 
     // MARK: - Session Persistence
 
@@ -218,6 +225,7 @@ final class CodeReviewPanelStore: ObservableObject {
         panelSessionId = sessionId
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
         selectedFindingId = nil
+        selectedHistoricalFindingId = nil
     }
 
     func deleteSession(_ sessionId: String) async {
@@ -232,10 +240,12 @@ final class CodeReviewPanelStore: ObservableObject {
             panelSessionId = availableSnapshots.first?.sessionId
         }
         selectedFindingId = nil
+        selectedHistoricalFindingId = nil
     }
 
     func focusFinding(_ findingId: String) {
         guard currentPublishedFindings.contains(where: { $0.id == findingId }) else { return }
+        selectedHistoricalFindingId = nil
         selectedFindingId = findingId
         selectTab(.findings)
     }

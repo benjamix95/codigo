@@ -42,13 +42,13 @@ extension PostgresPersistenceStore {
             let budgetPolicy = try PersistenceSupport.jsonLiteral(run.budgetPolicy)
             statements.append("""
             INSERT INTO pipeline_runs (
-                id, session_id, status, domain_scope, workspace_id, entry_point, budget_policy, max_duration,
+                id, session_id, review_session_id, status, domain_scope, workspace_id, entry_point, budget_policy, max_duration,
                 max_tool_calls, max_verification_attempts, max_patch_attempts, max_revalidation_attempts, timeout_at,
                 cancelled_at, cancel_reason, tool_call_count, verification_attempt_count, patch_attempt_count,
                 revalidation_attempt_count, is_cancellable, event_schema_version, entity_schema_version,
                 projection_schema_version, created_at, updated_at
             ) VALUES (
-                \(PersistenceSupport.sqlLiteral(run.id)), \(sessionId), \(PersistenceSupport.sqlLiteral(run.status.rawValue)),
+                \(PersistenceSupport.sqlLiteral(run.id)), \(sessionId), \(sessionId), \(PersistenceSupport.sqlLiteral(run.status.rawValue)),
                 \(domainScope), \(PersistenceSupport.sqlLiteral(run.workspaceId)), \(PersistenceSupport.sqlLiteral(run.entryPoint.rawValue)),
                 \(budgetPolicy), \(run.maxDuration), \(run.maxToolCalls), \(run.maxVerificationAttempts), \(run.maxPatchAttempts),
                 \(run.maxRevalidationAttempts), \(sqlTimestamp(run.timeoutAt)), \(sqlTimestamp(run.cancelledAt)),
@@ -63,12 +63,12 @@ extension PostgresPersistenceStore {
             let flags = try PersistenceSupport.jsonLiteral(finding.policyFlags)
             statements.append("""
             INSERT INTO findings (
-                id, session_id, domain, title, summary, category, severity, confidence, status, file_path,
+                id, session_id, origin_run_id, domain, title, summary, category, severity, confidence, status, file_path,
                 line_start, line_end, rule_id, root_cause, impact, exploitability, reproducibility, version,
                 origin_entry_point, last_command_id, stale_status, closed_reason, policy_flags, finding_fingerprint,
                 identity_version, merged_into_finding_id, recurrence_group_id, created_at, updated_at
             ) VALUES (
-                \(PersistenceSupport.sqlLiteral(finding.id)), \(sessionId), \(PersistenceSupport.sqlLiteral(finding.domain.rawValue)),
+                \(PersistenceSupport.sqlLiteral(finding.id)), \(sessionId), \(sessionId), \(PersistenceSupport.sqlLiteral(finding.domain.rawValue)),
                 \(PersistenceSupport.sqlLiteral(finding.title)), \(PersistenceSupport.sqlLiteral(finding.summary)),
                 \(PersistenceSupport.sqlLiteral(finding.category)), \(PersistenceSupport.sqlLiteral(finding.severity.rawValue)),
                 \(finding.confidence), \(PersistenceSupport.sqlLiteral(finding.status.rawValue)), \(PersistenceSupport.sqlLiteral(finding.filePath)),

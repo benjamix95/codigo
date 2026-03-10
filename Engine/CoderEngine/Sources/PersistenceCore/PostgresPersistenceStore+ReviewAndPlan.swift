@@ -27,6 +27,13 @@ extension PostgresPersistenceStore {
         let summary = snapshot.outcome.summary
         let conversationId = sqlNullable(snapshot.conversationId?.uuidString.lowercased())
         let workspaceId = sqlNullable(snapshot.workspacePath)
+        if let workspacePath = snapshot.workspacePath, !workspacePath.isEmpty {
+            _ = try execute(sql: """
+            INSERT INTO workspaces(id, root_path, created_at, updated_at)
+            VALUES (\(PersistenceSupport.sqlLiteral(workspacePath)), \(PersistenceSupport.sqlLiteral(workspacePath)), NOW(), NOW())
+            ON CONFLICT (id) DO UPDATE SET root_path = EXCLUDED.root_path, updated_at = NOW(), version = workspaces.version + 1;
+            """)
+        }
         if let conversation = snapshot.conversationId?.uuidString.lowercased() {
             _ = try execute(sql: """
             INSERT INTO conversations(id, workspace_id, created_at, updated_at)
@@ -44,13 +51,18 @@ extension PostgresPersistenceStore {
             \(payload)::jsonb, \(sqlTimestamp(snapshot.lastUpdatedAt)))
         ON CONFLICT (session_id) DO UPDATE SET status_payload = EXCLUDED.status_payload, last_updated_at = EXCLUDED.last_updated_at, mutation_sequence = EXCLUDED.mutation_sequence, version = review_sessions.version + 1;
         """)
-        if let verified = snapshot.verifiedFindings {
-            try persistVerifiedFindingsEnvelope(verified)
-        }
+        let existingEnvelope = try? readVerifiedFindingsEnvelope(sessionId: snapshot.sessionId)
+        let verifiedEnvelope = snapshot.verifiedFindings
+            ?? VerifiedFindingsSessionSyncService.sync(
+                snapshot: snapshot,
+                existingEnvelope: existingEnvelope,
+                entryPoint: .mcp
+            )
+        try persistVerifiedFindingsEnvelope(verifiedEnvelope)
         _ = try execute(sql: """
         INSERT INTO review_chat_projection(run_id, summary, verified_count, candidate_count, rejected_count, needs_manual_review_count, updated_at)
         VALUES (\(PersistenceSupport.sqlLiteral(snapshot.sessionId)), \(PersistenceSupport.sqlLiteral(summary)),
-            \(snapshot.verifiedFindings?.projectionSnapshot.verifiedQueue.count ?? 0), \(snapshot.candidates.count),
+            \(verifiedEnvelope.projectionSnapshot.verifiedQueue.count), \(snapshot.candidates.count),
             \(snapshot.findings.filter { $0.status == .dismissed }.count), \(snapshot.findings.filter { $0.status == .open }.count),
             \(sqlTimestamp(snapshot.lastUpdatedAt)))
         ON CONFLICT (run_id) DO UPDATE SET summary = EXCLUDED.summary, updated_at = EXCLUDED.updated_at;

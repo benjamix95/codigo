@@ -7,6 +7,7 @@ import SwiftUI
 enum CodeReviewTab: String, CaseIterable {
     case commands = "Commands"
     case findings = "Findings"
+    case history = "Findings History"
     case timeline = "Timeline"
     case chat = "Chat"
     case settings = "Settings"
@@ -15,6 +16,7 @@ enum CodeReviewTab: String, CaseIterable {
         switch self {
         case .commands: return "terminal"
         case .findings: return "exclamationmark.triangle"
+        case .history: return "clock.arrow.circlepath"
         case .timeline: return "clock"
         case .chat: return "bubble.left.and.bubble.right"
         case .settings: return "gearshape"

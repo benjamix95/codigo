@@ -165,7 +165,15 @@
 		16C1A2D07873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2CF7873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift */; };
 		16C1A2D27873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D17873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift */; };
 		16C1A2D47873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */; };
+		A1010001A1010001A1010001 /* HistoricalFindingsQueryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010011A1010011A1010011 /* HistoricalFindingsQueryService.swift */; };
+		A1010002A1010002A1010002 /* PostgresPersistenceStore+HistoricalFindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010012A1010012A1010012 /* PostgresPersistenceStore+HistoricalFindings.swift */; };
+		A1010003A1010003A1010003 /* ReviewPanelFindingsHistoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010013A1010013A1010013 /* ReviewPanelFindingsHistoryModels.swift */; };
+		A1010004A1010004A1010004 /* CodeReviewPanelStore+History.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010014A1010014A1010014 /* CodeReviewPanelStore+History.swift */; };
+		A1010005A1010005A1010005 /* ReviewPanelFindingsHistoryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010015A1010015A1010015 /* ReviewPanelFindingsHistoryTab.swift */; };
+		A1010006A1010006A1010006 /* ReviewPanelHistoricalFindingDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010016A1010016A1010016 /* ReviewPanelHistoricalFindingDetail.swift */; };
 		16C1A2D67873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */; };
+		A1010007A1010007A1010007 /* HistoricalFindingsQueryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010017A1010017A1010017 /* HistoricalFindingsQueryServiceTests.swift */; };
+		A1010008A1010008A1010008 /* ReviewPanelFindingsHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010018A1010018A1010018 /* ReviewPanelFindingsHistoryTests.swift */; };
 		16C1A2D87873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D77873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift */; };
 		16C1A2DA7873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D97873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift */; };
 		16C1A2DC7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2DB7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift */; };
@@ -1940,7 +1948,15 @@
 		16C1A2CF7873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStartCommandService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsStartCommandService.swift; sourceTree = "<group>"; };
 		16C1A2D17873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStartCommandServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStartCommandServiceTests.swift; sourceTree = "<group>"; };
 		16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStatusService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsStatusService.swift; sourceTree = "<group>"; };
+		A1010011A1010011A1010011 /* HistoricalFindingsQueryService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HistoricalFindingsQueryService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/HistoricalFindingsQueryService.swift; sourceTree = "<group>"; };
+		A1010012A1010012A1010012 /* PostgresPersistenceStore+HistoricalFindings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PostgresPersistenceStore+HistoricalFindings.swift"; path = "Engine/CoderEngine/Sources/PersistenceCore/PostgresPersistenceStore+HistoricalFindings.swift"; sourceTree = "<group>"; };
+		A1010013A1010013A1010013 /* ReviewPanelFindingsHistoryModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryModels.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Models/ReviewPanelFindingsHistoryModels.swift; sourceTree = "<group>"; };
+		A1010014A1010014A1010014 /* CodeReviewPanelStore+History.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+History.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+History.swift"; sourceTree = "<group>"; };
+		A1010015A1010015A1010015 /* ReviewPanelFindingsHistoryTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryTab.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/History/ReviewPanelFindingsHistoryTab.swift; sourceTree = "<group>"; };
+		A1010016A1010016A1010016 /* ReviewPanelHistoricalFindingDetail.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelHistoricalFindingDetail.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/History/ReviewPanelHistoricalFindingDetail.swift; sourceTree = "<group>"; };
 		16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStatusServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStatusServiceTests.swift; sourceTree = "<group>"; };
+		A1010017A1010017A1010017 /* HistoricalFindingsQueryServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HistoricalFindingsQueryServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/HistoricalFindingsQueryServiceTests.swift; sourceTree = "<group>"; };
+		A1010018A1010018A1010018 /* ReviewPanelFindingsHistoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelFindingsHistoryTests.swift; sourceTree = "<group>"; };
 		16C1A2D77873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterWorkflowServiceTests.swift; path = Tests/CoderEngineTests/CodeReview/BugHunterWorkflowServiceTests.swift; sourceTree = "<group>"; };
 		16C1A2D97873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsPatchExecutionService.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/VerifiedFindingsPatchExecutionService.swift; sourceTree = "<group>"; };
 		16C1A2DB7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+PatchWorkflow+Execution.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+PatchWorkflow+Execution.swift"; sourceTree = "<group>"; };
@@ -3756,6 +3772,7 @@
 				7C3B222C0C9C5CA69C008CFD /* ReviewPanelChatMessageFactoryTests.swift */,
 				1D8A7E41B1B773D80BEA9BD3 /* ReviewPanelChatSessionStoreTests.swift */,
 				DBC6D1FAAE17E6C19A3EBFD5 /* ReviewPanelChatStructuredContentTests.swift */,
+				A1010018A1010018A1010018 /* ReviewPanelFindingsHistoryTests.swift */,
 				EF7269477B70D82D831E8C01 /* ReviewPanelLifecycleE2ETests.swift */,
 				FA4FF46455BE35A79E77E360 /* ReviewPanelProviderSelectionTests.swift */,
 				1DD397314FF54290919DF13F /* ReviewPatchWorkflowServiceTests.swift */,
@@ -3969,6 +3986,7 @@
 				CA3AF05DBA263715FB902F67 /* PersistenceSchema+Projection.swift */,
 				603AF0FBB76A0D39861BEEC8 /* PersistenceSchema+VerifiedFindings.swift */,
 				C05D541522211815E248D5F9 /* PersistenceSchema.swift */,
+				A1010012A1010012A1010012 /* PostgresPersistenceStore+HistoricalFindings.swift */,
 				13DB05FD7F2FE260FCC1352D /* PostgresPersistenceStore+ReviewAndPlan.swift */,
 				8B47E8FEEA912498F201AD3A /* PostgresPersistenceStore+VerifiedFindings.swift */,
 				261171D1F79255A9E5EDACF6 /* PostgresPersistenceStore.swift */,
@@ -4368,6 +4386,7 @@
 				D578043D471A7656D1D9BDE4 /* ReviewPanelCoordinator+Prompts.swift */,
 				B6F4879B0416FDC1DD7DBFC6 /* ReviewPanelCoordinator.swift */,
 				2C53600F07F3082EB25BEF56 /* CodeReviewPanelModels.swift */,
+				A1010013A1010013A1010013 /* ReviewPanelFindingsHistoryModels.swift */,
 				ABF74FD84CE6734EF8860AE6 /* ReviewPanelChatModels.swift */,
 				A12BCBA8C121E9EE79461B55 /* ReviewPanelChatPresentationModels.swift */,
 				A6FC0373B3405A0BDE9CA67F /* ReviewPanelSettingsModel.swift */,
@@ -4379,6 +4398,7 @@
 				C6586B3DB90FEAF60A85EF2D /* CodeReviewPanelStore+ChatMessages.swift */,
 				092631FE3C6882FB94A36835 /* CodeReviewPanelStore+ChatSession.swift */,
 				069E913EA55B2550944895F9 /* CodeReviewPanelStore+GitContext.swift */,
+				A1010014A1010014A1010014 /* CodeReviewPanelStore+History.swift */,
 				B38A148EB00EE6D9473EECDF /* CodeReviewPanelStore+Launch.swift */,
 				52D04CD3F796517ECD207B57 /* CodeReviewPanelStore+ModesAndChatThreads.swift */,
 				9E5A8E4F4A666CA0E2CE0939 /* CodeReviewPanelStore+PatchWorkflow.swift */,
@@ -4415,6 +4435,8 @@
 				69A9D4513EA8F61735C40E3C /* ReviewPanelCandidatesSection.swift */,
 				20DE7200918AF261F6FF5205 /* ReviewPanelFindingDetail.swift */,
 				A1B2C3D4E5F60718293A4B5C /* ReviewPanelFindingDetail+Sections.swift */,
+				A1010016A1010016A1010016 /* ReviewPanelHistoricalFindingDetail.swift */,
+				A1010015A1010015A1010015 /* ReviewPanelFindingsHistoryTab.swift */,
 				BC9E0B4D8C90FA403B916EEB /* ReviewPanelFindingsTab.swift */,
 				5546A99DC83E5B71A20098F6 /* ReviewPanelOutcomeCard.swift */,
 				2F9479110487654F0FDFA154 /* ReviewPanelPatchesSection.swift */,
@@ -4800,6 +4822,7 @@
 				16C1A2CD7873F6C93C4E2A91 /* BugHunterWorkflowService.swift */,
 				16C1A2CF7873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift */,
 				16C1A2D37873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift */,
+				A1010011A1010011A1010011 /* HistoricalFindingsQueryService.swift */,
 				16C1A2D97873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift */,
 				16C1A2DE7873F7103C4E2A91 /* VerifiedFindingsChatPresentationService.swift */,
 				7F4730FACD002987B84A3186 /* VerifiedFindingsSessionEnvelope.swift */,
@@ -4824,6 +4847,7 @@
 				16C1A2C77873F6AB3C4E2A91 /* VerifiedFindingsQueryServiceTests.swift */,
 				16C1A2D17873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift */,
 				16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */,
+				A1010017A1010017A1010017 /* HistoricalFindingsQueryServiceTests.swift */,
 				16C1A2D77873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift */,
 				5EE20192EF61E071D65A455E /* SecurityHandlerTests.swift */,
 				16A1B8E37873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift */,
@@ -5735,6 +5759,7 @@
 				0234005CCA9E08C829EAC108 /* ReviewPanelChatSessionStoreTests.swift in Sources */,
 				8045BDFA25FCF77421EA04EC /* ReviewPanelChatStructuredContentTests.swift in Sources */,
 				BCC4DDC3FFC60B17350D7A22 /* ReviewPanelLifecycleE2ETests.swift in Sources */,
+				A1010008A1010008A1010008 /* ReviewPanelFindingsHistoryTests.swift in Sources */,
 				5BA9806D55D5697706E162D5 /* ReviewPanelProviderSelectionTests.swift in Sources */,
 				FC77EC4823A4286DF221DC62 /* ReviewPatchWorkflowServiceTests.swift in Sources */,
 				EA5B2C2BAA979832F5D9720D /* ReviewPipelineNoFilesMessageTests.swift in Sources */,
@@ -6221,6 +6246,7 @@
 				16C1A2CE7873F6C93C4E2A91 /* BugHunterWorkflowService.swift in Sources */,
 				16C1A2D07873F6D13C4E2A91 /* VerifiedFindingsStartCommandService.swift in Sources */,
 				16C1A2D47873F6E03C4E2A91 /* VerifiedFindingsStatusService.swift in Sources */,
+				A1010001A1010001A1010001 /* HistoricalFindingsQueryService.swift in Sources */,
 				A57FD52E57B81E746BBDD29A /* VerifiedFindingsSessionEnvelope.swift in Sources */,
 				331E0C236AE8639CB7813871 /* MCPSharedState+CodeReviewReads.swift in Sources */,
 				97D9FC9BE38D287A39297FDE /* VerifiedFindingsCommandCoordinator.swift in Sources */,
@@ -6236,6 +6262,7 @@
 				C3EA19F015B0EF7BA012E036 /* PersistenceSchema+Projection.swift in Sources */,
 				FB2E1151D2D3555A54ABB05E /* PersistenceSchema+VerifiedFindings.swift in Sources */,
 				887F375816BC01C3844EB9F8 /* PersistenceSchema.swift in Sources */,
+				A1010002A1010002A1010002 /* PostgresPersistenceStore+HistoricalFindings.swift in Sources */,
 				A805D00FA71049E016CC902D /* PostgresPersistenceStore+ReviewAndPlan.swift in Sources */,
 				241379EE025AF06E90AE9D5C /* PostgresPersistenceStore+VerifiedFindings.swift in Sources */,
 				002C942398650121F7BCD3E6 /* PostgresPersistenceStore.swift in Sources */,
@@ -6634,6 +6661,7 @@
 				80B332091B15C578C25248EB /* ReviewPanelCoordinator+Prompts.swift in Sources */,
 				46CCB2DC54C9851ABA4E3559 /* ReviewPanelCoordinator.swift in Sources */,
 				C2B67F99B313F1802CE18027 /* CodeReviewPanelModels.swift in Sources */,
+				A1010003A1010003A1010003 /* ReviewPanelFindingsHistoryModels.swift in Sources */,
 				13A70C04FFD6AB9D9CA68448 /* ReviewPanelChatModels.swift in Sources */,
 				21AE48F8DE218E6168F7F989 /* ReviewPanelChatPresentationModels.swift in Sources */,
 				5753AE741F175A4DC8BC2C8D /* ReviewPanelSettingsModel.swift in Sources */,
@@ -6645,6 +6673,7 @@
 				76C6540B1E0ABFF50EF69ECD /* CodeReviewPanelStore+ChatMessages.swift in Sources */,
 				55A6809550B70C99D9E5E2FD /* CodeReviewPanelStore+ChatSession.swift in Sources */,
 				EF7600202E3F787CF981B5BF /* CodeReviewPanelStore+GitContext.swift in Sources */,
+				A1010004A1010004A1010004 /* CodeReviewPanelStore+History.swift in Sources */,
 				70532858E5E8EB60C3F69EE2 /* CodeReviewPanelStore+Launch.swift in Sources */,
 				E23BFEF5935F0A8C6136F8D8 /* CodeReviewPanelStore+ModesAndChatThreads.swift in Sources */,
 				1ACE2967A4524F4D6C7384D9 /* CodeReviewPanelStore+PatchWorkflow.swift in Sources */,
@@ -6681,6 +6710,8 @@
 				EF64B03C5E3DC63BDA99E104 /* ReviewPanelScopeCard.swift in Sources */,
 				B61B0FCEBB2036DAC001C8BD /* ReviewPanelCandidatesSection.swift in Sources */,
 				E913784AA576327A9997714B /* ReviewPanelFindingDetail.swift in Sources */,
+				A1010006A1010006A1010006 /* ReviewPanelHistoricalFindingDetail.swift in Sources */,
+				A1010005A1010005A1010005 /* ReviewPanelFindingsHistoryTab.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5D /* ReviewPanelFindingDetail+Sections.swift in Sources */,
 				6A824E21A864E6698AE3C7A4 /* ReviewPanelFindingsTab.swift in Sources */,
 				542AB93815D9F7B0E7EC2EA2 /* ReviewPanelOutcomeCard.swift in Sources */,
@@ -7263,6 +7294,7 @@
 				16C1A2C87873F6AB3C4E2A91 /* VerifiedFindingsQueryServiceTests.swift in Sources */,
 				16C1A2D27873F6D83C4E2A91 /* VerifiedFindingsStartCommandServiceTests.swift in Sources */,
 				16C1A2D67873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift in Sources */,
+				A1010007A1010007A1010007 /* HistoricalFindingsQueryServiceTests.swift in Sources */,
 				16C1A2D87873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift in Sources */,
 				E818366091D4E04FFD8169D1 /* SecurityHandlerTests.swift in Sources */,
 				16A1B8E47873F15D3C4E2A91 /* SecurityHandlerTests+Gate.swift in Sources */,
