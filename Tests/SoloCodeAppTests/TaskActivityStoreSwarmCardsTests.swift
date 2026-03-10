@@ -311,4 +311,69 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         )
         XCTAssertEqual(finalStatuses, expectedStatuses)
     }
+
+    func testFinalizedSwarmSnapshotDoesNotFinalizeReusedSwarmIdFromNextTurn() async {
+        let store = TaskActivityStore()
+        let conversationId = UUID()
+        let firstTimestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let secondTimestamp = firstTimestamp.addingTimeInterval(5)
+
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner old turn",
+                detail: "started",
+                payload: [
+                    "swarm_id": "planner",
+                    "group_id": "swarm-planner",
+                    "conversation_id": conversationId.uuidString.lowercased(),
+                ],
+                timestamp: firstTimestamp,
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner"
+            )
+        )
+
+        let cards = store.finalizedSwarmCardSnapshotForTaskCompletion(for: conversationId)
+        XCTAssertEqual(cards.map(\.swarmId), ["planner"])
+        XCTAssertEqual(cards.map(\.status), [.completed])
+
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner new turn",
+                detail: "started again",
+                payload: [
+                    "swarm_id": "planner",
+                    "group_id": "swarm-planner",
+                    "conversation_id": conversationId.uuidString.lowercased(),
+                ],
+                timestamp: secondTimestamp,
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner"
+            )
+        )
+
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
+            let drained = expectation(description: "drain main queue")
+            DispatchQueue.main.async {
+                drained.fulfill()
+            }
+            await fulfillment(of: [drained], timeout: 1.0)
+
+            let liveCard = store.swarmCardStates(for: conversationId).first
+            if liveCard?.status == .running && liveCard?.lastEventAt == secondTimestamp {
+                return
+            }
+            await Task.yield()
+        }
+
+        let liveCard = store.swarmCardStates(for: conversationId).first
+        XCTAssertEqual(liveCard?.swarmId, "planner")
+        XCTAssertEqual(liveCard?.status, .running)
+        XCTAssertEqual(liveCard?.lastEventAt, secondTimestamp)
+    }
 }

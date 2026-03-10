@@ -149,11 +149,10 @@ extension TaskActivityStore {
             limitEventsPerCard: limitEventsPerCard
         )
         let finalizedCards = cards.map(Self.finalizedSwarmCardSnapshot)
-        let finalizedSwarmIds = Set(finalizedCards.map(\.swarmId))
         DispatchQueue.main.async { [weak self] in
             self?.flushPending()
             self?.finalizeSwarmCards(
-                withIDs: finalizedSwarmIds,
+                matchingSnapshots: finalizedCards,
                 for: conversationId
             )
         }
@@ -366,5 +365,45 @@ extension TaskActivityStore {
         finalized.isCollapsed = true
         finalized.hasUnreadSinceCollapse = false
         return finalized
+    }
+
+    private func finalizeSwarmCards(
+        matchingSnapshots snapshots: [SwarmLiveCardState],
+        for conversationId: UUID? = nil
+    ) {
+        guard !snapshots.isEmpty else { return }
+        let scope = normalizedConversationScope(conversationId)
+        var didChange = false
+        for snapshot in snapshots where snapshot.status == .completed {
+            guard var liveCard = swarmCards[snapshot.swarmId], liveCard.status == .running else {
+                continue
+            }
+            if let scope, !cardBelongsToConversation(liveCard, scope: scope) {
+                continue
+            }
+            guard Self.isSameSwarmTurn(liveCard, snapshot: snapshot) else {
+                continue
+            }
+            liveCard.status = .completed
+            liveCard.completedAt = snapshot.completedAt ?? liveCard.lastEventAt ?? Date()
+            liveCard.activeOpsCount = 0
+            liveCard.isCollapsed = true
+            liveCard.hasUnreadSinceCollapse = false
+            swarmCards[snapshot.swarmId] = liveCard
+            didChange = true
+        }
+        if didChange {
+            markSortedSwarmCardsDirty()
+            swarmEventsReceivedCount += 1
+        }
+    }
+
+    private static func isSameSwarmTurn(
+        _ liveCard: SwarmLiveCardState,
+        snapshot: SwarmLiveCardState
+    ) -> Bool {
+        liveCard.startedAt == snapshot.startedAt
+            && liveCard.lastEventAt == snapshot.lastEventAt
+            && liveCard.recentEvents.last?.id == snapshot.recentEvents.last?.id
     }
 }
