@@ -96,6 +96,14 @@ final class PersistenceBootstrapIntegrationTests: XCTestCase {
             try store.readVerifiedFindingsEnvelope(sessionId: "session-import")?.canonicalSnapshot.runs[run.id],
             run
         )
+        let reviewSessionReference = try store.execute(
+            sql: "SELECT COALESCE(review_session_id, 'NULL') FROM pipeline_runs WHERE id = 'run-import';"
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(reviewSessionReference, "NULL")
+        let originRunReference = try store.execute(
+            sql: "SELECT COALESCE(origin_run_id, 'NULL') FROM findings WHERE id = 'finding-import';"
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(originRunReference, "run-import")
         let latestPlan = try XCTUnwrap(store.readLatestPlanSnapshot(conversationId: conversationId))
         XCTAssertEqual(latestPlan.snapshot.goal, "Import legacy plan")
     }

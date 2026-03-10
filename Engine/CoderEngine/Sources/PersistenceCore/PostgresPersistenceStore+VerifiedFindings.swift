@@ -9,6 +9,12 @@ extension PostgresPersistenceStore {
         let envelopeJSON = try PersistenceSupport.jsonLiteral(envelope)
         let canonicalJSON = try PersistenceSupport.jsonLiteral(envelope.canonicalSnapshot)
         let projectionJSON = try PersistenceSupport.jsonLiteral(envelope.projectionSnapshot)
+        let reviewSessionReference = """
+        (SELECT session_id FROM review_sessions WHERE session_id = \(sessionId) LIMIT 1)
+        """
+        let resolvedOriginRunId = envelope.canonicalSnapshot.runs.count == 1
+            ? envelope.canonicalSnapshot.runs.keys.first
+            : nil
 
         var statements: [String] = [
             "BEGIN;",
@@ -48,7 +54,7 @@ extension PostgresPersistenceStore {
                 revalidation_attempt_count, is_cancellable, event_schema_version, entity_schema_version,
                 projection_schema_version, created_at, updated_at
             ) VALUES (
-                \(PersistenceSupport.sqlLiteral(run.id)), \(sessionId), \(sessionId), \(PersistenceSupport.sqlLiteral(run.status.rawValue)),
+                \(PersistenceSupport.sqlLiteral(run.id)), \(sessionId), \(reviewSessionReference), \(PersistenceSupport.sqlLiteral(run.status.rawValue)),
                 \(domainScope), \(PersistenceSupport.sqlLiteral(run.workspaceId)), \(PersistenceSupport.sqlLiteral(run.entryPoint.rawValue)),
                 \(budgetPolicy), \(run.maxDuration), \(run.maxToolCalls), \(run.maxVerificationAttempts), \(run.maxPatchAttempts),
                 \(run.maxRevalidationAttempts), \(sqlTimestamp(run.timeoutAt)), \(sqlTimestamp(run.cancelledAt)),
@@ -68,7 +74,7 @@ extension PostgresPersistenceStore {
                 origin_entry_point, last_command_id, stale_status, closed_reason, policy_flags, finding_fingerprint,
                 identity_version, merged_into_finding_id, recurrence_group_id, created_at, updated_at
             ) VALUES (
-                \(PersistenceSupport.sqlLiteral(finding.id)), \(sessionId), \(sessionId), \(PersistenceSupport.sqlLiteral(finding.domain.rawValue)),
+                \(PersistenceSupport.sqlLiteral(finding.id)), \(sessionId), \(sqlNullable(resolvedOriginRunId)), \(PersistenceSupport.sqlLiteral(finding.domain.rawValue)),
                 \(PersistenceSupport.sqlLiteral(finding.title)), \(PersistenceSupport.sqlLiteral(finding.summary)),
                 \(PersistenceSupport.sqlLiteral(finding.category)), \(PersistenceSupport.sqlLiteral(finding.severity.rawValue)),
                 \(finding.confidence), \(PersistenceSupport.sqlLiteral(finding.status.rawValue)), \(PersistenceSupport.sqlLiteral(finding.filePath)),
