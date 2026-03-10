@@ -4,12 +4,16 @@ import AppKit
 final class WindowSidebarToggleController {
     private static var controllers: [ObjectIdentifier: WindowSidebarToggleController] = [:]
     private static let stripBurstPassCount = 4
+    private static let showsTitlebarButton = false
 
     static func installIfNeeded(on window: NSWindow) {
         let key = ObjectIdentifier(window)
         if let controller = controllers[key] {
-            controller.attachButtonIfNeeded()
-            controller.updateLayout()
+            if Self.showsTitlebarButton {
+                controller.attachButtonIfNeeded()
+                controller.updateLayout()
+            }
+            controller.scheduleStripBurst()
             return
         }
 
@@ -24,18 +28,18 @@ final class WindowSidebarToggleController {
 
     private weak var window: NSWindow?
     private let button = NSButton()
-    private let titlebarTintView = NSView()
     private var observers: [NSObjectProtocol] = []
     private var periodicStripTimer: Timer?
     private var stripPassesRemaining = 0
     private var consecutiveUnchangedStripPasses = 0
     private init(window: NSWindow) {
         self.window = window
-        configureTitlebarTint()
-        configureButton()
         installObservers(for: window)
-        attachButtonIfNeeded()
-        updateLayout()
+        if Self.showsTitlebarButton {
+            configureButton()
+            attachButtonIfNeeded()
+            updateLayout()
+        }
         scheduleStripBurst()
     }
 
@@ -49,10 +53,7 @@ final class WindowSidebarToggleController {
         NotificationCenter.default.post(name: .windowSidebarChromeToggleRequested, object: nil)
     }
 
-    private func configureTitlebarTint() {
-        titlebarTintView.wantsLayer = true
-        titlebarTintView.layer?.backgroundColor = DesignSystem.AppKit.sidebarBackground.cgColor
-    }
+
 
     private func configureButton() {
         button.setButtonType(.momentaryChange)
@@ -123,8 +124,10 @@ final class WindowSidebarToggleController {
         observers = windowNotifications.map { name in
             center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
-                    self?.attachButtonIfNeeded()
-                    self?.updateLayout()
+                    if Self.showsTitlebarButton {
+                        self?.attachButtonIfNeeded()
+                        self?.updateLayout()
+                    }
                     self?.scheduleStripBurst()
                 }
             }
@@ -155,11 +158,6 @@ final class WindowSidebarToggleController {
             return
         }
 
-        if titlebarTintView.superview !== titlebarView {
-            titlebarTintView.removeFromSuperview()
-            titlebarView.addSubview(titlebarTintView, positioned: .below, relativeTo: titlebarView.subviews.first)
-        }
-
         if button.superview !== titlebarView {
             button.removeFromSuperview()
             titlebarView.addSubview(button)
@@ -171,8 +169,7 @@ final class WindowSidebarToggleController {
     private func updateLayout() {
         guard
             let window,
-            let zoomButton = window.standardWindowButton(.zoomButton),
-            let titlebarView = zoomButton.superview
+            let zoomButton = window.standardWindowButton(.zoomButton)
         else {
             return
         }
@@ -181,12 +178,6 @@ final class WindowSidebarToggleController {
         let buttonX = zoomButton.frame.maxX + 12
         let buttonY = round(zoomButton.frame.midY - (buttonSize.height / 2))
         button.frame = NSRect(origin: NSPoint(x: buttonX, y: buttonY), size: buttonSize)
-
-        // Tint the titlebar area above the sidebar column.
-        // NavigationSplitView sidebar ideal width is 260pt.
-        let sidebarWidth: CGFloat = 260
-        let titlebarHeight = titlebarView.bounds.height
-        titlebarTintView.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: titlebarHeight)
     }
 
     // MARK: - Strip native sidebar controls

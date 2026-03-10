@@ -14,15 +14,17 @@ extension SidebarView {
             // Section header with action buttons
             threadsSectionHeader(threads: threads)
 
-            // Context label
+            // Context label — subtle
             if let context = currentContext {
-                Text("Context: \(context.name)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                Text(context.name)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                    .padding(.leading, 2)
             } else {
                 Text("Global threads")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                    .padding(.leading, 2)
             }
 
             if threads.isEmpty {
@@ -52,8 +54,8 @@ extension SidebarView {
                     if let context = currentContext, context.folderPaths.count > 1 {
                         ForEach(groupedThreadsByFolder(from: dateGroup.threads), id: \.folder) { group in
                             Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "General")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                                .font(.system(size: 9.5, weight: .medium))
+                                .foregroundStyle(DesignSystem.Colors.textQuaternary)
                                 .padding(.horizontal, DesignSystem.Sidebar.insetXS)
                                 .padding(.top, DesignSystem.Spacing.xs)
                             ForEach(group.threads) { conv in
@@ -82,62 +84,79 @@ extension SidebarView {
     // MARK: - Section Header
 
     private func threadsSectionHeader(threads: [Conversation]) -> some View {
-        HStack {
-            SidebarSectionHeader("Threads", icon: "bubble.left.and.text.bubble.right")
+        HStack(spacing: DesignSystem.Spacing.xs) {
+            Image(systemName: "bubble.left.and.text.bubble.right.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.7))
+
+            Text("Threads")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .textCase(.uppercase)
+                .tracking(0.5)
 
             Spacer()
 
-            Button {
-                favoritesOnly.toggle()
-            } label: {
-                Image(systemName: favoritesOnly ? "star.fill" : "star")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(favoritesOnly ? .yellow : DesignSystem.Colors.textSecondary)
-            }
-            .buttonStyle(.plain)
-            .help("Favorites only")
-
-            Button {
-                showArchived.toggle()
-            } label: {
-                Image(systemName: showArchived ? "archivebox.fill" : "archivebox")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-            }
-            .buttonStyle(.plain)
-            .help("Show archived")
-
-            Button {
-                createThread(contextId: currentContext?.id)
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-            }
-            .buttonStyle(.plain)
-
-            if !threads.isEmpty {
-                Menu {
-                    Button {
-                        for conv in threads {
-                            chatStore.setArchived(conversationId: conv.id, archived: true)
-                        }
-                    } label: {
-                        Label("Archive all threads", systemImage: "archivebox")
-                    }
-                    Button(role: .destructive) {
-                        deleteAllVisibleThreads()
-                    } label: {
-                        Label("Delete all threads", systemImage: "trash")
-                    }
+            // Action buttons — compact icon row
+            HStack(spacing: 2) {
+                Button {
+                    favoritesOnly.toggle()
                 } label: {
-                    Image(systemName: "ellipsis")
-                        .rotationEffect(.degrees(90))
+                    Image(systemName: favoritesOnly ? "star.fill" : "star")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(favoritesOnly ? .yellow : DesignSystem.Colors.textQuaternary)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help("Favorites only")
+
+                Button {
+                    showArchived.toggle()
+                } label: {
+                    Image(systemName: showArchived ? "archivebox.fill" : "archivebox")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(showArchived ? Color.accentColor.opacity(0.8) : DesignSystem.Colors.textQuaternary)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help("Show archived")
+
+                Button {
+                    createThread(contextId: currentContext?.id)
+                } label: {
+                    Image(systemName: "plus")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .frame(width: 22, height: 22)
                 }
-                .menuStyle(.borderlessButton)
-                .help("Actions on all threads")
+                .buttonStyle(.plain)
+                .help("New thread")
+
+                if !threads.isEmpty {
+                    Menu {
+                        Button {
+                            for conv in threads {
+                                chatStore.setArchived(conversationId: conv.id, archived: true)
+                            }
+                        } label: {
+                            Label("Archive all threads", systemImage: "archivebox")
+                        }
+                        Button(role: .destructive) {
+                            deleteAllVisibleThreads()
+                        } label: {
+                            Label("Delete all threads", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .rotationEffect(.degrees(90))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                            .frame(width: 22, height: 22)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Actions on all threads")
+                }
             }
         }
     }
@@ -155,12 +174,19 @@ extension SidebarView {
                     } label: {
                         HStack(spacing: DesignSystem.Spacing.sm - 2) {
                             Image(systemName: "sparkles")
+                                .font(.system(size: 10, weight: .medium))
                             Text("Ask AI about \(hits.count) threads found")
+                                .font(.system(size: 10.5, weight: .medium))
                                 .lineLimit(1)
                             Spacer()
                         }
-                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, DesignSystem.Spacing.sm)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium)
+                                .fill(Color.accentColor.opacity(0.06))
+                        )
                     }
                     .buttonStyle(.plain)
                     .padding(.top, DesignSystem.Spacing.xs)
@@ -173,11 +199,11 @@ extension SidebarView {
 
     func threadSubsectionTitle(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(DesignSystem.Colors.textTertiary)
+            .font(.system(size: 9.5, weight: .semibold))
+            .foregroundStyle(DesignSystem.Colors.textQuaternary)
             .textCase(.uppercase)
             .tracking(0.4)
             .padding(.horizontal, DesignSystem.Sidebar.insetXS)
-            .padding(.top, DesignSystem.Spacing.xs)
+            .padding(.top, DesignSystem.Spacing.sm)
     }
 }

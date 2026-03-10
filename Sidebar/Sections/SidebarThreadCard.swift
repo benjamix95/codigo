@@ -86,12 +86,8 @@ extension SidebarView {
             .padding(.horizontal, selected ? DesignSystem.Spacing.sm - 2 : DesignSystem.Spacing.sm)
             .padding(.vertical, DesignSystem.Spacing.sm)
         }
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Sidebar.rowRadius, style: .continuous)
-                .fill(threadRowBackground(selected: selected, isActive: isActive))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Sidebar.rowRadius, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Sidebar.rowRadius, style: .continuous))
+        .background(threadRowBackground(selected: selected, isActive: isActive))
+        .contentShape(Rectangle())
         .hoverHighlight()
         .contextMenu { threadContextMenu(conv) }
         .simultaneousGesture(TapGesture().onEnded { selectThread(conv) })

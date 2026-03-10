@@ -24,20 +24,32 @@ extension ContentView {
         return "\(context.id.uuidString)#\(folders)#\(exclusions)#\(activeRoot)"
     }
 
-    /// In IDE/browser mode we skip NavigationSplitView entirely so macOS never
-    /// injects a native sidebar-toggle button into the titlebar.
+    /// We always use a custom HStack layout instead of NavigationSplitView so
+    /// macOS never injects native sidebar chrome (divider, toggle button,
+    /// separate titlebar treatment). The traffic lights sit visually inside
+    /// the custom sidebar.
     @ViewBuilder
     private var contentRoot: some View {
         if coderMode == .ide || coderMode == .browser {
             configuredDetailContent
         } else {
-            NavigationSplitView(columnVisibility: $columnVisibility) {
-                configuredSidebar
-            } detail: {
+            HStack(spacing: 0) {
+                if columnVisibility != .detailOnly {
+                    configuredSidebar
+                        .frame(width: 260)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+
+                    // Subtle divider between sidebar and content
+                    Rectangle()
+                        .fill(DesignSystem.Colors.borderSubtle)
+                        .frame(width: 1)
+                        .padding(.vertical, 14)
+                }
+
                 configuredDetailContent
+                    .frame(maxWidth: .infinity)
             }
-            .navigationSplitViewStyle(.balanced)
-            .hideSidebarToggleIfSupported()
+            .animation(.snappy(duration: 0.2), value: columnVisibility)
         }
     }
 
@@ -209,7 +221,6 @@ extension ContentView {
         .environmentObject(workspaceStore)
         .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
-        .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
         .ignoresSafeArea(.container, edges: [.top, .bottom])
     }
 

@@ -13,7 +13,6 @@ struct SidebarCard<Content: View>: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             content
         }
-        .padding(.vertical, DesignSystem.Spacing.xxs)
     }
 }
 
@@ -57,11 +56,6 @@ struct SidebarPrimaryAction: ButtonStyle {
             .foregroundStyle(.primary)
             .padding(.horizontal, DesignSystem.Spacing.sm)
             .padding(.vertical, 5)
-            .background(Color.clear)
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.7)
-            )
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
@@ -140,8 +134,7 @@ struct SidebarEmptyState: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, DesignSystem.Sidebar.insetXS)
-        .padding(.vertical, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.sm)
     }
 }
 

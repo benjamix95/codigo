@@ -11,6 +11,42 @@ enum CoderMode: String, CaseIterable {
     case ide = "IDE"
     case browser = "Browser"
     case mcpServer = "MCP Server"
+
+    var color: Color {
+        switch self {
+        case .agent: return DesignSystem.Colors.agentColor
+        case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor
+        case .debug: return DesignSystem.Colors.debugColor
+        case .plan: return DesignSystem.Colors.planColor
+        case .ide: return DesignSystem.Colors.ideColor
+        case .browser: return DesignSystem.Colors.browserColor
+        case .mcpServer: return DesignSystem.Colors.mcpColor
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .agent: return "brain.head.profile"
+        case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"
+        case .debug: return "ladybug.fill"
+        case .plan: return "list.bullet.rectangle"
+        case .ide: return "sparkles"
+        case .browser: return "globe"
+        case .mcpServer: return "server.rack"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .agent: return "Agent"
+        case .codeReviewMultiSwarm: return "Review"
+        case .debug: return "Debug"
+        case .plan: return "Plan"
+        case .ide: return "IDE"
+        case .browser: return "Browser"
+        case .mcpServer: return "MCP"
+        }
+    }
 }
 
 enum PlanningState: Equatable {

@@ -134,6 +134,7 @@ struct CodigoApp: App {
                     }
                 }
         }
+        .windowStyle(HiddenTitleBarWindowStyle())
         .commands {
             appFileCommands
         }

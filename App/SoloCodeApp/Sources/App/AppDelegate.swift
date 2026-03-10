@@ -46,13 +46,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.styleMask.insert(.fullSizeContentView)
         window.isOpaque = false
-        window.backgroundColor = DesignSystem.AppKit.windowBackground
+        window.backgroundColor = DesignSystem.AppKit.sidebarBackground
         window.isMovableByWindowBackground = false
         if #available(macOS 11.0, *) {
             window.toolbarStyle = .unifiedCompact
             window.titlebarSeparatorStyle = .none
         }
         window.toolbar?.showsBaselineSeparator = false
+        hideStandardWindowButtons(for: window)
         WindowSidebarToggleController.installIfNeeded(on: window)
+    }
+
+    @MainActor
+    private static func hideStandardWindowButtons(for window: NSWindow) {
+        let buttonTypes: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+        for buttonType in buttonTypes {
+            guard let button = window.standardWindowButton(buttonType) else { continue }
+            button.isHidden = true
+            button.alphaValue = 0
+            button.isEnabled = false
+        }
     }
 }
