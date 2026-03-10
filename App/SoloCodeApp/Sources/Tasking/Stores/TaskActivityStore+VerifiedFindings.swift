@@ -45,11 +45,24 @@ extension TaskActivityStore {
         sessionId: String?,
         conversationId: UUID?
     ) -> VerifiedFindingsSessionEnvelope? {
-        if let sessionId,
-           let envelope = verifiedFindingsEnvelopesBySession[sessionId] {
+        guard let sessionId else {
+            return codeReviewSnapshot(sessionId: nil, conversationId: conversationId)?.verifiedFindings
+        }
+        if let envelope = verifiedFindingsEnvelopesBySession[sessionId] {
             return envelope
         }
-        return codeReviewSnapshot(sessionId: sessionId, conversationId: conversationId)?.verifiedFindings
+        if let envelope = codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        )?.verifiedFindings {
+            return envelope
+        }
+        if let envelope = MCPSharedState.readVerifiedFindingsEnvelope(sessionId: sessionId) {
+            return envelope
+        }
+        return VerifiedFindingsCheckpointService.rebuildEnvelope(
+            sessionId: sessionId
+        )?.envelope
     }
 
     func verifiedFindingsProjection(for conversationId: UUID?) -> VerifiedFindingsProjectionSnapshot {

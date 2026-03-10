@@ -242,6 +242,94 @@ final class PipelineIntegrationVerifiedFindingsTests: XCTestCase {
         XCTAssertEqual(projection.candidateQueue.count, 0)
     }
 
+    func testIngestSeedsSyncFromPersistedEnvelopeOnColdStart() async {
+        let conversationId = UUID()
+        let sessionId = "ingest-cold-start-session"
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-cold-start-1",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/Runtime/ColdStart.swift",
+                    lineNumber: 12,
+                    endLineNumber: 12,
+                    message: "Cold-start sync should preserve persisted metadata.",
+                    status: .open
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            verifiedFindings: nil,
+            lastUpdatedAt: Date()
+        )
+        let persisted = VerifiedFindingsSessionSyncService.sync(snapshot: snapshot)
+        let persistedCanonical = persisted.canonicalSnapshot
+        let persistedCommand = await CommandDeduplicationService().record(
+            meta: VerifiedCommandMeta(
+                commandId: "cmd-cold-start",
+                entityId: "finding-cold-start-1",
+                issuedBy: "tests",
+                issuedFrom: .reviewChat,
+                issuedAt: Date(timeIntervalSince1970: 1_700_000_010),
+                requestFingerprint: "fingerprint-cold-start"
+            ),
+            resultSummary: "persisted-command",
+            recordedAt: Date(timeIntervalSince1970: 1_700_000_010)
+        )
+        MCPSharedState.writeVerifiedFindingsEnvelope(
+            VerifiedFindingsSessionEnvelope(
+                sessionId: sessionId,
+                canonicalSnapshot: VerifiedFindingsCanonicalSnapshot(
+                    runs: persistedCanonical.runs,
+                    findings: persistedCanonical.findings,
+                    evidences: persistedCanonical.evidences,
+                    verificationReports: persistedCanonical.verificationReports,
+                    patchArtifacts: persistedCanonical.patchArtifacts,
+                    revalidationReports: persistedCanonical.revalidationReports,
+                    commandLog: [persistedCommand],
+                    eventLog: persistedCanonical.eventLog,
+                    traceLog: persistedCanonical.traceLog
+                ),
+                projectionSnapshot: persisted.projectionSnapshot
+            )
+        )
+
+        let store = TaskActivityStore(
+            persistenceBridge: TaskActivityPersistenceBridge(
+                writeCodeReviewSnapshot: { _ in }
+            )
+        )
+        store.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+
+        let storedSnapshot = store.codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        )
+        XCTAssertEqual(
+            storedSnapshot?.verifiedFindings?.canonicalSnapshot.commandLog,
+            [persistedCommand]
+        )
+        XCTAssertEqual(
+            store.verifiedFindingsEnvelopesBySession[sessionId]?.canonicalSnapshot.commandLog,
+            [persistedCommand]
+        )
+    }
+
     func testReviewFindingBuildsStructuredChatArtifactPayloadFromSharedSnapshot() {
         let suiteName = "PipelineIntegrationVerifiedFindingsCardTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
