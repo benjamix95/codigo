@@ -15,8 +15,8 @@
 - Causa probabile: `disposeSession(..., waitForExit: false)` veniva usato anche nei path di restart esplicito.
 - Scope consentito:
   - `Engine/CoderEngine/Sources/Infrastructure/MCP/Session/Lifecycle/MCPSessionManager+Lifecycle.swift`
-  - `Engine/CoderEngine/Sources/Infrastructure/MCP/Session/Utils/MCPSessionManager+Teardown.swift`
-  - `Tests/CoderEngineTests/MCPSessionManagerLifecycleRegressionTests.swift`
+  - `Engine/CoderEngine/Sources/Infrastructure/MCP/Session/Utils/MCPSessionManager+Utils.swift`
+  - `Tests/CoderEngineTests/MCPSessionManagerTests.swift`
 - Non-scope:
   - redesign del bootstrap MCP
   - cambi ai provider-side server
@@ -30,5 +30,5 @@
   - mantenere il cleanup non bloccante solo per stale session ed eviction
   - usare `waitForExit: true` nei restart/reconnect espliciti
 - Verifica post-fix:
-  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/MCPSessionManagerLifecycleRegressionTests`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/MCPSessionManagerTests/testRestartServerWaitsForPreviousProcessExitBeforeStartingReplacement`
 - Commit previsto: `fix(mcp): serialize teardown and wait explicit restart`
