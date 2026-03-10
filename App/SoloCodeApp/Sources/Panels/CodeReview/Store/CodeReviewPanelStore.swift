@@ -47,6 +47,9 @@ final class CodeReviewPanelStore: ObservableObject {
 
     /// Maps activity message ID → response message ID for split bubbles.
     var responseMessageIds: [UUID: UUID] = [:]
+    var pendingReviewRunMutations: [UUID: [ReviewRunDeferredMutation]] = [:]
+    var scheduledReviewRunMutationFlushes: Set<UUID> = []
+    var finishedReviewRunActivityIds: Set<UUID> = []
 
     // MARK: - Git Context
 

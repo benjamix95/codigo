@@ -277,9 +277,10 @@ extension ChatPanelView {
         // populated before we snapshot them into the assistant message.
         flushPendingTaskActivities(conversationId: targetConversationId)
         let cards = visibleSwarmCardsForChat(
-            from: taskActivityStore.swarmCardStatesIncludingPending(for: targetConversationId)
+            from: taskActivityStore.finalizedSwarmCardSnapshotForTaskCompletion(
+                for: targetConversationId
+            )
         )
-            .map { finalizedSubagentCardForSnapshot($0) }
             .map { SubagentCardSnapshot(from: $0) }
         if !cards.isEmpty {
             chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
@@ -296,16 +297,5 @@ extension ChatPanelView {
 
     internal func visibleSwarmCardsForChat(from cards: [SwarmLiveCardState]) -> [SwarmLiveCardState] {
         return cards
-    }
-
-    private func finalizedSubagentCardForSnapshot(_ card: SwarmLiveCardState) -> SwarmLiveCardState {
-        guard card.status == .running else { return card }
-        var finalized = card
-        finalized.status = .completed
-        finalized.completedAt = finalized.lastEventAt ?? Date()
-        finalized.activeOpsCount = 0
-        finalized.isCollapsed = true
-        finalized.hasUnreadSinceCollapse = false
-        return finalized
     }
 }

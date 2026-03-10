@@ -98,6 +98,47 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         )
     }
 
+    func testFinishPanelActionFlushesDeferredReviewRunSections() async throws {
+        let store = makePanelStore()
+        let outputId = store.beginPanelActionOutput(title: "Run review")
+
+        store.handleRawReviewRunEvent(
+            id: outputId,
+            type: "review-worker-plan",
+            payload: ["description": "Late planned work"]
+        )
+        store.finishPanelActionOutput(id: outputId)
+        await drainMainQueue()
+
+        let message = try XCTUnwrap(
+            store.chatMessages.first(where: { $0.id == outputId })
+        )
+        let plannedWork = try XCTUnwrap(
+            message.presentation?.sections.first(where: { $0.title == "Planned Work" })
+        )
+        XCTAssertEqual(plannedWork.lines, ["- [ ] Late planned work"])
+    }
+
+    func testFinishPanelActionDoesNotRecreateDeferredResponseBubble() async throws {
+        let store = makePanelStore()
+        let outputId = store.beginPanelActionOutput(title: "Run review")
+
+        store.handleRawReviewRunEvent(
+            id: outputId,
+            type: "assistant_update",
+            payload: ["output": "Late final response"]
+        )
+        store.finishPanelActionOutput(id: outputId)
+        await drainMainQueue()
+
+        let responseMessages = store.chatMessages.filter {
+            $0.role == .assistant && $0.kind == .plain
+        }
+        XCTAssertEqual(responseMessages.count, 1)
+        XCTAssertEqual(responseMessages.first?.content, "Late final response")
+        XCTAssertFalse(responseMessages.first?.isStreaming ?? true)
+    }
+
     private func waitUntil(
         _ description: String,
         timeoutNanoseconds: UInt64 = 1_000_000_000,
@@ -109,6 +150,14 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
             await Task.yield()
         }
         XCTFail("Timed out waiting for \(description)")
+    }
+
+    private func drainMainQueue() async {
+        let expectation = expectation(description: "drain main queue")
+        DispatchQueue.main.async {
+            expectation.fulfill()
+        }
+        await fulfillment(of: [expectation], timeout: 1.0)
     }
 
     private func makePanelStore(conversationId: UUID = UUID()) -> CodeReviewPanelStore {

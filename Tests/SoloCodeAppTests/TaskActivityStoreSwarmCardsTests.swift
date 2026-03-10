@@ -220,4 +220,30 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         XCTAssertEqual(cards.map(\.swarmId), ["planner"])
         XCTAssertEqual(cards.first?.status, .running)
     }
+
+    func testFinalizedSwarmSnapshotAlsoFinalizesLiveStoreCards() async {
+        let store = TaskActivityStore()
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner",
+                detail: "started",
+                payload: ["swarm_id": "planner", "group_id": "swarm-planner"],
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner"
+            )
+        )
+
+        let cards = store.finalizedSwarmCardSnapshotForTaskCompletion()
+        XCTAssertEqual(cards.map(\.status), [.completed])
+
+        let drained = expectation(description: "drain main queue")
+        DispatchQueue.main.async {
+            drained.fulfill()
+        }
+        await fulfillment(of: [drained], timeout: 1.0)
+
+        XCTAssertEqual(store.swarmCardStates().map(\.status), [.completed])
+    }
 }

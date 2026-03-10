@@ -112,6 +112,21 @@ extension TaskActivityStore {
         return SwarmLiveReducer.sorted(states: Array(reduced.values))
     }
 
+    func finalizedSwarmCardSnapshotForTaskCompletion(
+        for conversationId: UUID? = nil,
+        limitEventsPerCard: Int = SwarmLiveReducer.defaultRecentEventsLimit
+    ) -> [SwarmLiveCardState] {
+        let cards = swarmCardStatesIncludingPending(
+            for: conversationId,
+            limitEventsPerCard: limitEventsPerCard
+        ).map(Self.finalizedSwarmCardSnapshot)
+        DispatchQueue.main.async { [weak self] in
+            self?.flushPending()
+            self?.finalizeRunningSwarmCards(for: conversationId)
+        }
+        return cards
+    }
+
     func recentActivities(limit: Int) -> [TaskActivity] {
         guard limit > 0 else { return [] }
         return Array(activities.suffix(limit))
@@ -307,5 +322,16 @@ extension TaskActivityStore {
 
     private func activityBelongsToConversation(_ activity: TaskActivity, scope: String) -> Bool {
         canonicalConversationScope(from: activity.payload) == scope
+    }
+
+    private static func finalizedSwarmCardSnapshot(_ card: SwarmLiveCardState) -> SwarmLiveCardState {
+        guard card.status == .running else { return card }
+        var finalized = card
+        finalized.status = .completed
+        finalized.completedAt = finalized.lastEventAt ?? Date()
+        finalized.activeOpsCount = 0
+        finalized.isCollapsed = true
+        finalized.hasUnreadSinceCollapse = false
+        return finalized
     }
 }

@@ -3,6 +3,11 @@ import Foundation
 
 // MARK: - Action Output & Event Processing
 
+enum ReviewRunDeferredMutation {
+    case replaceResponse(String)
+    case appendSection(title: String, line: String)
+}
+
 extension CodeReviewPanelStore {
 
     func beginPanelActionOutput(
@@ -21,6 +26,7 @@ extension CodeReviewPanelStore {
             )
         )
         let assistantId = UUID()
+        finishedReviewRunActivityIds.remove(assistantId)
         appendChatMessage(ReviewPanelMessage(
             id: assistantId,
             role: .assistant,
@@ -84,7 +90,7 @@ extension CodeReviewPanelStore {
             role: .assistant,
             kind: .plain,
             content: "",
-            isStreaming: true
+            isStreaming: !finishedReviewRunActivityIds.contains(activityId)
         )
         responseMessageIds[activityId] = responseId
 
@@ -117,6 +123,7 @@ extension CodeReviewPanelStore {
     }
 
     func finishPanelActionOutput(id: UUID, fallbackContent: String? = nil) {
+        flushPendingReviewRunMutations(for: id)
         if let fallbackContent,
            let message = chatMessages.first(where: { $0.id == id }),
            message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -128,10 +135,12 @@ extension CodeReviewPanelStore {
         chatMessages[index].isStreaming = false
         ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[index])
         finalizeResponseMessage(for: id)
+        finishedReviewRunActivityIds.insert(id)
         persistChatState()
     }
 
     func failPanelActionOutput(id: UUID, error: String) {
+        flushPendingReviewRunMutations(for: id)
         guard let index = chatMessages.firstIndex(where: { $0.id == id }) else {
             return
         }
@@ -139,6 +148,7 @@ extension CodeReviewPanelStore {
         chatMessages[index].isStreaming = false
         ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[index])
         finalizeResponseMessage(for: id)
+        finishedReviewRunActivityIds.insert(id)
         persistChatState()
     }
 
@@ -146,7 +156,7 @@ extension CodeReviewPanelStore {
     /// If the response contains a verdict separator (`\n---\n`),
     /// splits off the verdict into its own summary message.
     private func finalizeResponseMessage(for activityId: UUID) {
-        guard let responseId = responseMessageIds.removeValue(forKey: activityId),
+        guard let responseId = responseMessageIds[activityId],
               let index = chatMessages.firstIndex(where: { $0.id == responseId })
         else { return }
         chatMessages[index].isStreaming = false
@@ -157,6 +167,7 @@ extension CodeReviewPanelStore {
         // Remove empty response messages (no textDelta was ever received)
         if content.isEmpty {
             chatMessages.remove(at: index)
+            responseMessageIds.removeValue(forKey: activityId)
             return
         }
 
@@ -173,6 +184,7 @@ extension CodeReviewPanelStore {
             // Remove response if empty after split
             if responsePart.isEmpty {
                 chatMessages.remove(at: index)
+                responseMessageIds.removeValue(forKey: activityId)
             }
 
             // Add verdict as a separate summary-style message
@@ -211,19 +223,16 @@ extension CodeReviewPanelStore {
             return
         }
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            if formatted.sectionTitle == "Response" {
-                // assistant_update output is cumulative — replace, don't append
-                self.replaceResponseSection(id: id, replacement: formatted.line)
-            } else {
-                self.appendReviewRunSectionLine(
-                    id: id,
-                    sectionTitle: formatted.sectionTitle,
-                    line: formatted.line
-                )
-            }
+        let mutation: ReviewRunDeferredMutation
+        if formatted.sectionTitle == "Response" {
+            mutation = .replaceResponse(formatted.line)
+        } else {
+            mutation = .appendSection(
+                title: formatted.sectionTitle,
+                line: formatted.line
+            )
         }
+        enqueueReviewRunMutation(mutation, for: id)
     }
 
     func ingestRawReviewActivity(
@@ -277,5 +286,49 @@ extension CodeReviewPanelStore {
             linkedFiles: parsedTodo.files,
             conversationId: conversationId
         )
+    }
+
+    private func enqueueReviewRunMutation(
+        _ mutation: ReviewRunDeferredMutation,
+        for activityId: UUID
+    ) {
+        pendingReviewRunMutations[activityId, default: []].append(mutation)
+        guard scheduledReviewRunMutationFlushes.insert(activityId).inserted else {
+            return
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.flushPendingReviewRunMutations(for: activityId)
+        }
+    }
+
+    private func flushPendingReviewRunMutations(for activityId: UUID) {
+        scheduledReviewRunMutationFlushes.remove(activityId)
+        guard let mutations = pendingReviewRunMutations.removeValue(forKey: activityId) else {
+            return
+        }
+        for mutation in mutations {
+            switch mutation {
+            case .replaceResponse(let replacement):
+                replaceResponseSection(id: activityId, replacement: replacement)
+            case .appendSection(let title, let line):
+                appendReviewRunSectionLine(
+                    id: activityId,
+                    sectionTitle: title,
+                    line: line
+                )
+            }
+        }
+        guard finishedReviewRunActivityIds.contains(activityId) else {
+            return
+        }
+        if let reviewIndex = chatMessages.firstIndex(where: { $0.id == activityId }) {
+            ReviewPanelChatMessageFactory.finalizeReviewRunMessage(&chatMessages[reviewIndex])
+        }
+        if let responseId = responseMessageIds[activityId],
+           let responseIndex = chatMessages.firstIndex(where: { $0.id == responseId }) {
+            chatMessages[responseIndex].isStreaming = false
+        }
+        persistChatState()
     }
 }
