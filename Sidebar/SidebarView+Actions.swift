@@ -73,11 +73,9 @@ extension SidebarView {
         deletedConversation: Conversation,
         autoCreatedConversationId: UUID? = nil
     ) -> UUID? {
-        // Keep focus in the same context/folder when possible.
         if let replacement = visibleThreads.first(where: { $0.id != deletedConversation.id }) {
             return replacement.id
         }
-
         return resolveAndApplySidebarThreadDeletionFallback(
             fallbackContextId: deletedConversation.contextId,
             fallbackFolderPath: deletedConversation.contextFolderPath,
@@ -115,7 +113,6 @@ extension SidebarView {
             selectedConversationId = selectedId
             return
         }
-        // If there's a thread you worked on in this tab, show it; otherwise new thread
         if let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
            let lastConv = chatStore.conversation(for: lastId),
            lastConv.contextId == contextId,
@@ -154,9 +151,6 @@ extension SidebarView {
         let effectiveContextId = contextId ?? selectedConversation?.contextId ?? projectContextStore.activeContextId
         let effectiveContext = projectContextStore.context(id: effectiveContextId)
         let folderScope = scopedFolderPath(for: effectiveContext)
-
-        // Reuse an existing empty thread (no user messages) with the same context
-        // instead of creating duplicate blank threads.
         if let existing = chatStore.reusableEmptyConversation(
             contextId: effectiveContextId,
             contextFolderPath: folderScope,
@@ -169,7 +163,6 @@ extension SidebarView {
             }
             return
         }
-
         let newId = chatStore.createConversation(contextId: effectiveContextId, contextFolderPath: folderScope)
         selectedConversationId = newId
         if let effectiveContextId {
@@ -198,13 +191,11 @@ extension SidebarView {
         guard !normalizedPath.isEmpty else { return }
         guard var context = projectContextStore.context(id: contextId) else { return }
         guard !context.folderPaths.contains(where: { workspaceStore.normalizedWorkspacePath($0) == normalizedPath }) else { return }
-
         context.folderPaths.append(normalizedPath)
         context.lastActiveFolderPath = normalizedPath
         context.updatedAt = .now
         projectContextStore.upsert(context)
         workspaceStore.syncActiveWorkspace(with: context)
-
         if let selectedConversationId {
             let folderScope = scopedFolderPath(for: context)
             chatStore.setContextFolder(conversationId: selectedConversationId, folderPath: folderScope)

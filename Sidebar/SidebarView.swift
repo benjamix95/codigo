@@ -12,6 +12,7 @@ struct SidebarView: View {
     @EnvironmentObject var codexState: CodexStateStore
     @EnvironmentObject var todoStore: TodoStore
     @EnvironmentObject var pipelineIntegrationService: PipelineIntegrationService
+    @EnvironmentObject var toolTraceStore: ToolTraceStore
 
     @Binding var selectedConversationId: UUID?
     @Binding var showSettings: Bool

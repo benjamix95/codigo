@@ -3,15 +3,12 @@ import AppKit
 
 extension SidebarView {
     func explorerSection(context: ProjectContext) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Explorer")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            SidebarSectionHeader("Explorer", icon: "sidebar.left")
 
             if context.folderPaths.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DesignSystem.Spacing.sm) {
                         ForEach(context.folderPaths, id: \.self) { root in
                             let active = context.activeFolderPath == root
                             Button((root as NSString).lastPathComponent) {
@@ -20,7 +17,7 @@ extension SidebarView {
                             }
                             .buttonStyle(.plain)
                             .font(.system(size: 10, weight: active ? .semibold : .regular))
-                            .foregroundStyle(active ? Color.accentColor : .secondary)
+                            .foregroundStyle(active ? Color.accentColor : DesignSystem.Colors.textSecondary)
                         }
                     }
                 }
@@ -37,21 +34,23 @@ extension SidebarView {
         let expanded = expandedFolders.contains(key)
         return VStack(alignment: .leading, spacing: 1) {
             Button {
-                toggleFolder(key)
+                withAnimation(.gentle) { toggleFolder(key) }
                 projectContextStore.setActiveRoot(contextId: context.id, rootPath: root)
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: DesignSystem.Spacing.sm - 2) {
                     Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .frame(width: 10)
                     Image(systemName: "folder.fill")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(explorerFileColor("folder"))
                     Text((root as NSString).lastPathComponent)
                         .font(.system(size: 11, weight: .medium))
                     Spacer()
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
+                .padding(.horizontal, DesignSystem.Sidebar.insetXS)
+                .padding(.vertical, DesignSystem.Spacing.xs)
             }
             .buttonStyle(.plain)
 
@@ -73,24 +72,31 @@ extension SidebarView {
             VStack(alignment: .leading, spacing: 1) {
                 Button {
                     if isDirectory {
-                        toggleFolder(key)
+                        withAnimation(.gentle) { toggleFolder(key) }
                     } else {
                         projectContextStore.setActiveRoot(contextId: context.id, rootPath: root)
                         openFilesStore.openFile(fullPath)
                     }
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DesignSystem.Spacing.sm - 2) {
                         Spacer().frame(width: CGFloat(depth) * 10)
+                        // Indentation guide line
+                        if depth > 0 {
+                            Rectangle()
+                                .fill(DesignSystem.Colors.borderSubtle.opacity(0.4))
+                                .frame(width: 1)
+                                .padding(.vertical, -2)
+                        }
                         Image(systemName: iconName(for: item, isDirectory: isDirectory, expanded: expanded))
                             .font(.system(size: 10))
-                            .foregroundStyle(isDirectory ? .secondary : .tertiary)
+                            .foregroundStyle(isDirectory ? DesignSystem.Colors.textSecondary : explorerFileColor((item as NSString).pathExtension))
                         Text(item)
                             .font(.system(size: 11, weight: selected ? .semibold : .regular))
                             .foregroundStyle(selected ? Color.accentColor : .primary)
                             .lineLimit(1)
                         Spacer()
                     }
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, DesignSystem.Sidebar.insetXS)
                     .padding(.vertical, 3)
                 }
                 .buttonStyle(.plain)
@@ -101,6 +107,8 @@ extension SidebarView {
             }
         }
     }
+
+    // MARK: - File Helpers
 
     static let defaultExcludedDirs: Set<String> = [
         ".git", ".build", ".cache", ".swiftpm", "node_modules", "DerivedData",
@@ -140,6 +148,19 @@ extension SidebarView {
         case "md", "markdown": return "doc.text"
         case "json": return "curlybraces.square"
         default: return "doc"
+        }
+    }
+
+    /// Returns a color for file type icons in the explorer.
+    func explorerFileColor(_ ext: String) -> Color {
+        switch ext.lowercased() {
+        case "swift": return .orange
+        case "js", "ts", "jsx", "tsx": return .yellow
+        case "py": return Color(red: 0.30, green: 0.68, blue: 0.95)
+        case "json": return DesignSystem.Colors.textTertiary
+        case "md", "markdown": return DesignSystem.Colors.textSecondary
+        case "folder": return DesignSystem.Colors.textSecondary
+        default: return DesignSystem.Colors.textTertiary
         }
     }
 }

@@ -3,8 +3,6 @@ import AppKit
 import CoderEngine
 
 extension SidebarView {
-    private var sidebarTopContentInset: CGFloat { 24 }
-
     var selectedConversation: Conversation? {
         chatStore.conversation(for: selectedConversationId)
     }
@@ -96,105 +94,12 @@ extension SidebarView {
         let activeRoot = context.activeFolderPath ?? ""
         return "\(context.id.uuidString)#\(folders)#\(exclusions)#\(activeRoot)"
     }
-
-    var sidebarContent: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    quickActions
-                    Divider().opacity(0.4)
-                    contextSection
-                    Divider().opacity(0.4)
-                    threadsSection
-
-                    if isIDEMode, let context = currentContext, !context.folderPaths.isEmpty {
-                        Divider().opacity(0.4)
-                        explorerSection(context: context)
-                    }
-                }
-                .padding(.top, sidebarTopContentInset)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 10)
-            }
-
-            Divider().opacity(0.4)
-            taskCloudSection
-                .padding(.horizontal, 10)
-                .padding(.vertical, 10)
-        }
-        .safeAreaInset(edge: .bottom) { footer }
-        .fileImporter(isPresented: $isSelectingAddFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleAddFolderSelection)
-        .sheet(item: $contextToRename) { context in
-            RenameContextSheet(context: context, onDismiss: { contextToRename = nil })
-                .environmentObject(projectContextStore)
-                .environmentObject(workspaceStore)
-        }
-        .sheet(item: $conversationToRename) { conv in
-            RenameConversationSheet(conversation: conv, onDismiss: { conversationToRename = nil })
-                .environmentObject(chatStore)
-        }
-        .onAppear {
-            scheduleSidebarWorkspaceSync(currentContextId: currentContext?.id)
-        }
-        .onChange(of: currentContextSyncFingerprint) { _ in
-            scheduleSidebarWorkspaceSync(currentContextId: currentContext?.id)
-        }
-    }
-
-    var quickActions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            actionRow("New thread", icon: "plus.message.fill") {
-                createThread(contextId: currentContext?.id)
-            }
-            .accessibilityLabel("Create new thread")
-            actionRow("Open project", icon: "folder.badge.plus") {
-                isSelectingProjectFolders = true
-            }
-            .accessibilityLabel("Open project folder")
-
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-                TextField("Search", text: $sidebarQuery)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11))
-                if !sidebarQuery.isEmpty {
-                    Button { sidebarQuery = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Clear search")
-                }
-            }
-            .padding(.top, 4)
-        }
-    }
-
-    func actionRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 16)
-                    .foregroundStyle(.secondary)
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                Spacer()
-            }
-            .padding(.vertical, 4)
-        }
-        .buttonStyle(.plain)
-    }
-
-
 }
 
-private extension SidebarView {
+// MARK: - Workspace Sync
+
+extension SidebarView {
     func scheduleSidebarWorkspaceSync(currentContextId: UUID?) {
-        // Defer store mutations until after the current SwiftUI layout pass.
         DispatchQueue.main.async {
             projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
             let context = projectContextStore.context(id: currentContextId)

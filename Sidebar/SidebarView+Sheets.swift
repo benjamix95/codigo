@@ -14,12 +14,12 @@ struct RenameContextSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignSystem.Spacing.lg) {
             Text("Rename context")
-                .font(.title3)
+                .font(DesignSystem.Typography.title3)
             TextField("Name", text: $newName)
                 .textFieldStyle(.roundedBorder)
-            HStack(spacing: 12) {
+            HStack(spacing: DesignSystem.Spacing.md) {
                 Button("Cancel", role: .cancel, action: onDismiss)
                 Button("Save") {
                     let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -32,7 +32,7 @@ struct RenameContextSheet: View {
                 .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(24)
+        .padding(DesignSystem.Spacing.xxl)
         .frame(width: 320)
     }
 }
@@ -50,12 +50,12 @@ struct RenameConversationSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignSystem.Spacing.lg) {
             Text("Rename thread")
-                .font(.title3)
+                .font(DesignSystem.Typography.title3)
             TextField("Title", text: $newTitle)
                 .textFieldStyle(.roundedBorder)
-            HStack(spacing: 12) {
+            HStack(spacing: DesignSystem.Spacing.md) {
                 Button("Cancel", role: .cancel, action: onDismiss)
                 Button("Save") {
                     chatStore.setTitle(conversationId: conversation.id, title: newTitle)
@@ -65,7 +65,7 @@ struct RenameConversationSheet: View {
                 .disabled(newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(24)
+        .padding(DesignSystem.Spacing.xxl)
         .frame(width: 320)
     }
 }
