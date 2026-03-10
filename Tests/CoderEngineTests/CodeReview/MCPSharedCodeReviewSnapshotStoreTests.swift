@@ -148,6 +148,74 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: MCPSharedState.codeReviewDirectoryPath.path))
     }
 
+    func testEmergencyReserveReplenishesAfterSuccessfulLockUse() {
+        let lockURL = MCPSharedState.codeReviewDirectoryPath.appendingPathComponent(".lock")
+        try? FileManager.default.createDirectory(
+            at: MCPSharedState.codeReviewDirectoryPath,
+            withIntermediateDirectories: true
+        )
+        let reserve = MCPSharedState.EmergencyLockDescriptorReserve()
+        XCTAssertTrue(reserve.releaseDescriptor())
+
+        let descriptor = open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        XCTAssertGreaterThanOrEqual(descriptor, 0)
+
+        let result: String = MCPSharedState.withAdvisoryFileLock(
+            label: "CodeReviewLockTest",
+            lockURL: lockURL,
+            createMode: S_IRUSR | S_IWUSR,
+            fallbackLock: NSRecursiveLock(),
+            emergencyReserve: reserve,
+            ensureLockDirectory: {
+                MCPSharedState.ensureDirectory()
+                try? FileManager.default.createDirectory(
+                    at: MCPSharedState.codeReviewDirectoryPath,
+                    withIntermediateDirectories: true
+                )
+            },
+            acquireLock: {
+                .locked(descriptor, reserve)
+            },
+            body: {
+                "ok"
+            }
+        )
+
+        XCTAssertEqual(result, "ok")
+        XCTAssertTrue(reserve.releaseDescriptor())
+    }
+
+    func testWithAdvisoryFileLockDefaultReserveDoesNotLeakDescriptors() {
+        let lockURL = MCPSharedState.codeReviewDirectoryPath.appendingPathComponent(".lock")
+        let baseline = countOpenFileDescriptors()
+
+        for _ in 0..<8 {
+            let result: String = MCPSharedState.withAdvisoryFileLock(
+                label: "CodeReviewLockTest",
+                lockURL: lockURL,
+                createMode: S_IRUSR | S_IWUSR,
+                fallbackLock: NSRecursiveLock(),
+                ensureLockDirectory: {
+                    MCPSharedState.ensureDirectory()
+                    try? FileManager.default.createDirectory(
+                        at: MCPSharedState.codeReviewDirectoryPath,
+                        withIntermediateDirectories: true
+                    )
+                },
+                acquireLock: {
+                    .fallback(ENOENT)
+                },
+                body: {
+                    "ok"
+                }
+            )
+            XCTAssertEqual(result, "ok")
+        }
+
+        let after = countOpenFileDescriptors()
+        XCTAssertLessThanOrEqual(after, baseline + 1)
+    }
+
     func testCodeReviewFallbackLockSerializesConcurrentWrites() {
         let lockURL = MCPSharedState.codeReviewDirectoryPath.appendingPathComponent(".lock")
         let fallbackLock = NSRecursiveLock()
@@ -317,5 +385,14 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
             lastTestStatus: .passed,
             lastUpdatedAt: lastUpdatedAt
         )
+    }
+
+    private func countOpenFileDescriptors() -> Int {
+        let upperBound = Int(getdtablesize())
+        return (0..<upperBound).reduce(into: 0) { count, descriptor in
+            if fcntl(Int32(descriptor), F_GETFD) != -1 || errno != EBADF {
+                count += 1
+            }
+        }
     }
 }

@@ -17,6 +17,10 @@ extension MCPSharedState {
             self.descriptor = open(reservePath, reserveFlags)
         }
 
+        deinit {
+            closeDescriptorIfPresent()
+        }
+
         func releaseDescriptor() -> Bool {
             lock.lock()
             let descriptor = self.descriptor
@@ -38,6 +42,18 @@ extension MCPSharedState {
             }
             descriptor = open(reservePath, reserveFlags)
             lock.unlock()
+        }
+
+        private func closeDescriptorIfPresent() {
+            lock.lock()
+            let descriptor = self.descriptor
+            self.descriptor = -1
+            lock.unlock()
+
+            guard descriptor >= 0 else {
+                return
+            }
+            close(descriptor)
         }
     }
 
@@ -94,7 +110,7 @@ extension MCPSharedState {
         lockURL: URL,
         createMode: mode_t,
         fallbackLock: NSRecursiveLock,
-        emergencyReserve: EmergencyLockDescriptorReserve = EmergencyLockDescriptorReserve(),
+        emergencyReserve: EmergencyLockDescriptorReserve? = nil,
         ensureLockDirectory: () -> Void,
         acquireLock: (() -> AdvisoryFileLockAcquisition)? = nil,
         body: () -> T
@@ -119,9 +135,11 @@ extension MCPSharedState {
 
         switch acquisition {
         case .locked(let descriptor, let releasedReserve):
-            defer { close(descriptor) }
-            defer { flock(descriptor, LOCK_UN) }
-            defer { releasedReserve?.replenishIfNeeded() }
+            defer {
+                flock(descriptor, LOCK_UN)
+                close(descriptor)
+                releasedReserve?.replenishIfNeeded()
+            }
             return body()
         case .fallback(let err):
             if acquireLock != nil {
@@ -141,7 +159,7 @@ extension MCPSharedState {
         lockURL: URL,
         createMode: mode_t,
         ensureLockDirectory: () -> Void,
-        emergencyReserve: EmergencyLockDescriptorReserve
+        emergencyReserve: EmergencyLockDescriptorReserve?
     ) -> AdvisoryFileLockAcquisition {
         var lastErr: Int32 = 0
 
@@ -150,7 +168,7 @@ extension MCPSharedState {
             var releasedReserve: EmergencyLockDescriptorReserve?
             var descriptor = open(lockURL.path, O_CREAT | O_RDWR, createMode)
             if descriptor < 0, shouldUseEmergencyReserve(errno) {
-                if emergencyReserve.releaseDescriptor() {
+                if emergencyReserve?.releaseDescriptor() == true {
                     releasedReserve = emergencyReserve
                     descriptor = open(lockURL.path, O_CREAT | O_RDWR, createMode)
                 }
