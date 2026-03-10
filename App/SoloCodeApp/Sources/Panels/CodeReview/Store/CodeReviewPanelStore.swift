@@ -86,6 +86,7 @@ final class CodeReviewPanelStore: ObservableObject {
     // MARK: - Session Persistence
 
     private var chatStateCancellable: AnyCancellable?
+    private var taskActivityStoreCancellable: AnyCancellable?
     private var pendingChatConversationApplyTask: Task<Void, Never>?
 
     // MARK: - Accent Color
@@ -153,6 +154,11 @@ final class CodeReviewPanelStore: ObservableObject {
                         self.applyChatConversationState(conversation)
                     }
                 }
+            }
+        self.taskActivityStoreCancellable = taskActivityStore.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
             }
     }
 

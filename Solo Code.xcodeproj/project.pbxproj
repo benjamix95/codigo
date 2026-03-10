@@ -171,9 +171,12 @@
 		A1010004A1010004A1010004 /* CodeReviewPanelStore+History.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010014A1010014A1010014 /* CodeReviewPanelStore+History.swift */; };
 		A1010005A1010005A1010005 /* ReviewPanelFindingsHistoryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010015A1010015A1010015 /* ReviewPanelFindingsHistoryTab.swift */; };
 		A1010006A1010006A1010006 /* ReviewPanelHistoricalFindingDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010016A1010016A1010016 /* ReviewPanelHistoricalFindingDetail.swift */; };
+		A1010009A1010009A1010009 /* CodeReviewPanelStore+HistoryLive.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010019A1010019A1010019 /* CodeReviewPanelStore+HistoryLive.swift */; };
+		A101000AA101000AA101000A /* ReviewPanelHistoricalLiveBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101001AA101001AA101001A /* ReviewPanelHistoricalLiveBoard.swift */; };
 		16C1A2D67873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */; };
 		A1010007A1010007A1010007 /* HistoricalFindingsQueryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010017A1010017A1010017 /* HistoricalFindingsQueryServiceTests.swift */; };
 		A1010008A1010008A1010008 /* ReviewPanelFindingsHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010018A1010018A1010018 /* ReviewPanelFindingsHistoryTests.swift */; };
+		A101000BA101000BA101000B /* ReviewPanelFindingsHistoryLiveBoardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101001BA101001BA101001B /* ReviewPanelFindingsHistoryLiveBoardTests.swift */; };
 		16C1A2D87873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D77873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift */; };
 		16C1A2DA7873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D97873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift */; };
 		16C1A2DC7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2DB7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift */; };
@@ -1954,9 +1957,12 @@
 		A1010014A1010014A1010014 /* CodeReviewPanelStore+History.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+History.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+History.swift"; sourceTree = "<group>"; };
 		A1010015A1010015A1010015 /* ReviewPanelFindingsHistoryTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryTab.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/History/ReviewPanelFindingsHistoryTab.swift; sourceTree = "<group>"; };
 		A1010016A1010016A1010016 /* ReviewPanelHistoricalFindingDetail.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelHistoricalFindingDetail.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/History/ReviewPanelHistoricalFindingDetail.swift; sourceTree = "<group>"; };
+		A1010019A1010019A1010019 /* CodeReviewPanelStore+HistoryLive.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+HistoryLive.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+HistoryLive.swift"; sourceTree = "<group>"; };
+		A101001AA101001AA101001A /* ReviewPanelHistoricalLiveBoard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelHistoricalLiveBoard.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/History/ReviewPanelHistoricalLiveBoard.swift; sourceTree = "<group>"; };
 		16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStatusServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStatusServiceTests.swift; sourceTree = "<group>"; };
 		A1010017A1010017A1010017 /* HistoricalFindingsQueryServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HistoricalFindingsQueryServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/HistoricalFindingsQueryServiceTests.swift; sourceTree = "<group>"; };
 		A1010018A1010018A1010018 /* ReviewPanelFindingsHistoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelFindingsHistoryTests.swift; sourceTree = "<group>"; };
+		A101001BA101001BA101001B /* ReviewPanelFindingsHistoryLiveBoardTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryLiveBoardTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelFindingsHistoryLiveBoardTests.swift; sourceTree = "<group>"; };
 		16C1A2D77873F6F03C4E2A91 /* BugHunterWorkflowServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterWorkflowServiceTests.swift; path = Tests/CoderEngineTests/CodeReview/BugHunterWorkflowServiceTests.swift; sourceTree = "<group>"; };
 		16C1A2D97873F6FE3C4E2A91 /* VerifiedFindingsPatchExecutionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsPatchExecutionService.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/VerifiedFindingsPatchExecutionService.swift; sourceTree = "<group>"; };
 		16C1A2DB7873F7063C4E2A91 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+PatchWorkflow+Execution.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+PatchWorkflow+Execution.swift"; sourceTree = "<group>"; };
@@ -3773,6 +3779,7 @@
 				1D8A7E41B1B773D80BEA9BD3 /* ReviewPanelChatSessionStoreTests.swift */,
 				DBC6D1FAAE17E6C19A3EBFD5 /* ReviewPanelChatStructuredContentTests.swift */,
 				A1010018A1010018A1010018 /* ReviewPanelFindingsHistoryTests.swift */,
+				A101001BA101001BA101001B /* ReviewPanelFindingsHistoryLiveBoardTests.swift */,
 				EF7269477B70D82D831E8C01 /* ReviewPanelLifecycleE2ETests.swift */,
 				FA4FF46455BE35A79E77E360 /* ReviewPanelProviderSelectionTests.swift */,
 				1DD397314FF54290919DF13F /* ReviewPatchWorkflowServiceTests.swift */,
@@ -4399,6 +4406,7 @@
 				092631FE3C6882FB94A36835 /* CodeReviewPanelStore+ChatSession.swift */,
 				069E913EA55B2550944895F9 /* CodeReviewPanelStore+GitContext.swift */,
 				A1010014A1010014A1010014 /* CodeReviewPanelStore+History.swift */,
+				A1010019A1010019A1010019 /* CodeReviewPanelStore+HistoryLive.swift */,
 				B38A148EB00EE6D9473EECDF /* CodeReviewPanelStore+Launch.swift */,
 				52D04CD3F796517ECD207B57 /* CodeReviewPanelStore+ModesAndChatThreads.swift */,
 				9E5A8E4F4A666CA0E2CE0939 /* CodeReviewPanelStore+PatchWorkflow.swift */,
@@ -4436,6 +4444,7 @@
 				20DE7200918AF261F6FF5205 /* ReviewPanelFindingDetail.swift */,
 				A1B2C3D4E5F60718293A4B5C /* ReviewPanelFindingDetail+Sections.swift */,
 				A1010016A1010016A1010016 /* ReviewPanelHistoricalFindingDetail.swift */,
+				A101001AA101001AA101001A /* ReviewPanelHistoricalLiveBoard.swift */,
 				A1010015A1010015A1010015 /* ReviewPanelFindingsHistoryTab.swift */,
 				BC9E0B4D8C90FA403B916EEB /* ReviewPanelFindingsTab.swift */,
 				5546A99DC83E5B71A20098F6 /* ReviewPanelOutcomeCard.swift */,
@@ -5760,6 +5769,7 @@
 				8045BDFA25FCF77421EA04EC /* ReviewPanelChatStructuredContentTests.swift in Sources */,
 				BCC4DDC3FFC60B17350D7A22 /* ReviewPanelLifecycleE2ETests.swift in Sources */,
 				A1010008A1010008A1010008 /* ReviewPanelFindingsHistoryTests.swift in Sources */,
+				A101000BA101000BA101000B /* ReviewPanelFindingsHistoryLiveBoardTests.swift in Sources */,
 				5BA9806D55D5697706E162D5 /* ReviewPanelProviderSelectionTests.swift in Sources */,
 				FC77EC4823A4286DF221DC62 /* ReviewPatchWorkflowServiceTests.swift in Sources */,
 				EA5B2C2BAA979832F5D9720D /* ReviewPipelineNoFilesMessageTests.swift in Sources */,
@@ -6674,6 +6684,7 @@
 				55A6809550B70C99D9E5E2FD /* CodeReviewPanelStore+ChatSession.swift in Sources */,
 				EF7600202E3F787CF981B5BF /* CodeReviewPanelStore+GitContext.swift in Sources */,
 				A1010004A1010004A1010004 /* CodeReviewPanelStore+History.swift in Sources */,
+				A1010009A1010009A1010009 /* CodeReviewPanelStore+HistoryLive.swift in Sources */,
 				70532858E5E8EB60C3F69EE2 /* CodeReviewPanelStore+Launch.swift in Sources */,
 				E23BFEF5935F0A8C6136F8D8 /* CodeReviewPanelStore+ModesAndChatThreads.swift in Sources */,
 				1ACE2967A4524F4D6C7384D9 /* CodeReviewPanelStore+PatchWorkflow.swift in Sources */,
@@ -6711,6 +6722,7 @@
 				B61B0FCEBB2036DAC001C8BD /* ReviewPanelCandidatesSection.swift in Sources */,
 				E913784AA576327A9997714B /* ReviewPanelFindingDetail.swift in Sources */,
 				A1010006A1010006A1010006 /* ReviewPanelHistoricalFindingDetail.swift in Sources */,
+				A101000AA101000AA101000A /* ReviewPanelHistoricalLiveBoard.swift in Sources */,
 				A1010005A1010005A1010005 /* ReviewPanelFindingsHistoryTab.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5D /* ReviewPanelFindingDetail+Sections.swift in Sources */,
 				6A824E21A864E6698AE3C7A4 /* ReviewPanelFindingsTab.swift in Sources */,

@@ -155,6 +155,8 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
     }
 
     private func makeStore(
+        taskActivityStore: TaskActivityStore? = nil,
+        conversationId: UUID = UUID(),
         workspacePath: String? = nil
     ) -> CodeReviewPanelStore {
         let registry = ProviderRegistry()
@@ -169,13 +171,13 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
             workspaceStore.activeWorkspaceId = nil
         }
         return CodeReviewPanelStore(
-            taskActivityStore: TaskActivityStore(),
+            taskActivityStore: taskActivityStore ?? TaskActivityStore(),
             providerRegistry: registry,
             executionController: nil,
             workspaceStore: workspaceStore,
             openFilesStore: OpenFilesStore(),
             todoStore: TodoStore(),
-            conversationId: UUID(),
+            conversationId: conversationId,
             providerFactoryConfigBuilder: {
                 ProviderFactoryConfig(
                     openaiApiKey: "",

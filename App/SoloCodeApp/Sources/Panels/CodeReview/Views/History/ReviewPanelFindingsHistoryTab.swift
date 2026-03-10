@@ -15,23 +15,33 @@ struct ReviewPanelFindingsHistoryTab: View {
             )
         } else {
             content
-                .task(id: store.findingsHistoryRefreshKey) {
+                .task(id: store.historyLiveRefreshKey) {
                     await store.refreshHistoricalFindings()
                 }
         }
     }
 
     private var content: some View {
-        ScrollView(.vertical, showsIndicators: true) {
+        let liveState = store.currentHistoricalLiveRunState
+        return ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 12) {
                 filtersCard
 
-                if store.isHistoryLoading && store.historyRecords.isEmpty {
+                if let liveState {
+                    ReviewPanelHistoricalLiveBoard(
+                        state: liveState,
+                        onOpenFileAtLocation: onOpenFileAtLocation
+                    )
+                }
+
+                if store.isHistoryLoading && store.historyRecords.isEmpty && liveState == nil {
                     loadingCard
                 } else if !store.historicalResumeQueue.isEmpty && store.historyStatusFilter == .all {
                     recordsSection(
                         title: "Resume Queue",
-                        subtitle: "Finding aperti o incompleti pronti per essere ripresi",
+                        subtitle: liveState == nil
+                            ? "Finding aperti o incompleti pronti per essere ripresi"
+                            : "Finding storici ancora aperti, separati dal run live corrente",
                         records: store.historicalResumeQueue,
                         showResumeBadge: true
                     )
@@ -45,8 +55,8 @@ struct ReviewPanelFindingsHistoryTab: View {
                     emptyCard
                 } else {
                     recordsSection(
-                        title: store.historyStatusFilter == .resumeQueue ? "Resume Queue" : "Findings History",
-                        subtitle: "Cronologia persistita del workspace",
+                        title: archiveTitle(liveState: liveState),
+                        subtitle: archiveSubtitle(liveState: liveState),
                         records: records,
                         showResumeBadge: store.historyStatusFilter == .resumeQueue
                     )
@@ -95,7 +105,7 @@ struct ReviewPanelFindingsHistoryTab: View {
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
-            Text("Sto caricando lo storico dei finding dal DB.")
+            Text("Sto caricando lo storico enterprise dei finding dal DB.")
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
         }
@@ -112,10 +122,14 @@ struct ReviewPanelFindingsHistoryTab: View {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 22))
                 .foregroundStyle(.tertiary)
-            Text("No historical findings")
+            Text(store.currentHistoricalLiveRunState == nil ? "No historical findings" : "No archived findings yet")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.tertiary)
-            Text("Lo storico globale verrà popolato man mano che i finding vengono persistiti.")
+            Text(
+                store.currentHistoricalLiveRunState == nil
+                    ? "Lo storico globale verrà popolato man mano che i finding vengono persistiti."
+                    : "Il live board è attivo. L’archivio persistito si aggiorna appena il run viene sincronizzato nel DB."
+            )
                 .font(.system(size: 9.5))
                 .foregroundStyle(.quaternary)
                 .multilineTextAlignment(.center)
@@ -232,5 +246,22 @@ struct ReviewPanelFindingsHistoryTab: View {
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .menuStyle(.borderlessButton)
+    }
+
+    private func archiveTitle(
+        liveState: ReviewHistoricalLiveBoardState?
+    ) -> String {
+        if store.historyStatusFilter == .resumeQueue {
+            return "Resume Queue"
+        }
+        return liveState == nil ? "Findings History" : "Historical Archive"
+    }
+
+    private func archiveSubtitle(
+        liveState: ReviewHistoricalLiveBoardState?
+    ) -> String {
+        liveState == nil
+            ? "Cronologia persistita del workspace"
+            : "Storico persistito del workspace sotto al monitoraggio live corrente"
     }
 }

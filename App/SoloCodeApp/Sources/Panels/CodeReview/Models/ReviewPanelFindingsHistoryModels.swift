@@ -124,3 +124,43 @@ extension HistoricalFindingRecord {
         }
     }
 }
+
+struct ReviewHistoricalLiveWorkerState: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let severity: FindingSeverity
+    let status: SwarmCardStatus
+    let files: [String]
+    let fileCount: Int
+
+    var statusLabel: String {
+        status.rawValue.capitalized
+    }
+}
+
+struct ReviewHistoricalLiveFileState: Identifiable, Equatable {
+    let path: String
+    let workerIDs: [String]
+    let severity: FindingSeverity
+    let status: SwarmCardStatus
+
+    var id: String { path }
+
+    var fileName: String {
+        URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    var statusLabel: String {
+        status.rawValue.capitalized
+    }
+}
+
+struct ReviewHistoricalLiveBoardState: Equatable {
+    let title: String
+    let subtitle: String
+    let pipeline: ReviewPipelineJobState
+    let workers: [ReviewHistoricalLiveWorkerState]
+    let files: [ReviewHistoricalLiveFileState]
+    let isRunning: Bool
+}
