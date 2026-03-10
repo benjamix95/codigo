@@ -242,7 +242,7 @@ final class PipelineIntegrationVerifiedFindingsTests: XCTestCase {
         XCTAssertEqual(projection.candidateQueue.count, 0)
     }
 
-    func testIngestSeedsSyncFromPersistedEnvelopeOnColdStart() async {
+    func testIngestDoesNotSynchronouslyReadPersistedEnvelopeOnColdStart() async {
         let conversationId = UUID()
         let sessionId = "ingest-cold-start-session"
         let snapshot = CodeReviewSessionSnapshot(
@@ -322,11 +322,11 @@ final class PipelineIntegrationVerifiedFindingsTests: XCTestCase {
         )
         XCTAssertEqual(
             storedSnapshot?.verifiedFindings?.canonicalSnapshot.commandLog,
-            [persistedCommand]
+            []
         )
         XCTAssertEqual(
             store.verifiedFindingsEnvelopesBySession[sessionId]?.canonicalSnapshot.commandLog,
-            [persistedCommand]
+            []
         )
     }
 

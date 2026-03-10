@@ -170,6 +170,60 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         XCTAssertTrue(verdictMessages.contains(where: { $0.content == "Final verdict" }))
     }
 
+    func testTextReplaceAfterFinishDoesNotOverwriteFinalizedResponse() async throws {
+        let store = makePanelStore()
+        let outputId = store.beginPanelActionOutput(title: "Run review")
+
+        store.streamPanelActionOutput(
+            id: outputId,
+            event: .textReplace("Final response\n---\nFinal verdict")
+        )
+        store.finishPanelActionOutput(id: outputId)
+        await drainMainQueue()
+
+        store.streamPanelActionOutput(
+            id: outputId,
+            event: .textReplace("Late overwrite")
+        )
+        await drainMainQueue()
+
+        let plainMessages = store.chatMessages.filter {
+            $0.role == .assistant && $0.kind == .plain
+        }
+        let verdictMessages = store.chatMessages.filter {
+            $0.role == .assistant && $0.kind == .reviewRun
+        }
+
+        XCTAssertEqual(plainMessages.count, 1)
+        XCTAssertEqual(plainMessages.first?.content, "Final response")
+        XCTAssertTrue(verdictMessages.contains(where: { $0.content == "Final verdict" }))
+        XCTAssertFalse(store.chatMessages.contains(where: { $0.content == "Late overwrite" }))
+    }
+
+    func testTextDeltaAfterFinishDoesNotAppendToFinalizedResponse() async throws {
+        let store = makePanelStore()
+        let outputId = store.beginPanelActionOutput(title: "Run review")
+
+        store.streamPanelActionOutput(
+            id: outputId,
+            event: .textReplace("Final response")
+        )
+        store.finishPanelActionOutput(id: outputId)
+        await drainMainQueue()
+
+        store.streamPanelActionOutput(
+            id: outputId,
+            event: .textDelta(" late delta")
+        )
+        await drainMainQueue()
+
+        let plainMessages = store.chatMessages.filter {
+            $0.role == .assistant && $0.kind == .plain
+        }
+        XCTAssertEqual(plainMessages.count, 1)
+        XCTAssertEqual(plainMessages.first?.content, "Final response")
+    }
+
     private func waitUntil(
         _ description: String,
         timeoutNanoseconds: UInt64 = 1_000_000_000,

@@ -52,8 +52,14 @@ extension CodeReviewPanelStore {
                 line: "Review stream completed"
             )
         case .textDelta(let delta):
+            guard !finishedReviewRunActivityIds.contains(id) else {
+                return
+            }
             appendTextDelta(id: id, delta: delta)
         case .textReplace(let replacement):
+            guard !finishedReviewRunActivityIds.contains(id) else {
+                return
+            }
             replaceResponseSection(id: id, replacement: replacement)
         case .raw(let type, let payload):
             handleRawReviewRunEvent(id: id, type: type, payload: payload)
