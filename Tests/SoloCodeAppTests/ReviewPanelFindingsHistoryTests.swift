@@ -97,14 +97,82 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
         XCTAssertTrue(prompt.contains("not_applied"))
     }
 
-    private func makeStore() -> CodeReviewPanelStore {
+    func testRefreshHistoricalFindingsReadsPersistedWorkspaceHistory() async throws {
+        resetPersistenceEnvironment()
+        enablePersistenceForTests()
+        defer { resetPersistenceEnvironment() }
+
+        let stableDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let persistenceStore = PostgresPersistenceStore(postgresService: ManagedPostgresService())
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "history-session",
+            conversationId: UUID(),
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "history-1",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Sources/History.swift",
+                    lineNumber: 18,
+                    message: "Retry may emit terminal event twice",
+                    status: .open,
+                    verificationReport: "Verified with persisted history",
+                    verifiedAt: stableDate,
+                    createdAt: stableDate
+                )
+            ],
+            patches: [],
+            events: [
+                .findingAdded(findingId: "history-1", severity: "warning", filePath: "Sources/History.swift")
+            ],
+            config: .default,
+            scope: ReviewSessionScope(type: .workspace, files: ["Sources/History.swift"]),
+            workspacePath: "/tmp/history-workspace",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: stableDate,
+            completedAt: stableDate.addingTimeInterval(30),
+            analysisCompletedAt: stableDate.addingTimeInterval(5),
+            lastError: nil,
+            currentJobId: "job-history",
+            lastTestStatus: .passed,
+            lastUpdatedAt: stableDate.addingTimeInterval(30)
+        )
+        try persistenceStore.persistCodeReviewSnapshot(snapshot)
+
+        let store = makeStore(workspacePath: "/tmp/history-workspace")
+        await store.refreshHistoricalFindings()
+
+        XCTAssertFalse(store.isHistoryLoading)
+        XCTAssertNil(store.historyLoadError)
+        XCTAssertEqual(store.historyRecords.map(\.findingId), ["history-1"])
+        XCTAssertEqual(store.historyRecords.first?.filePath, "Sources/History.swift")
+        XCTAssertEqual(store.historyRecords.first?.lineStart, 18)
+        XCTAssertEqual(store.historyRecords.first?.status, .verified)
+    }
+
+    private func makeStore(
+        workspacePath: String? = nil
+    ) -> CodeReviewPanelStore {
         let registry = ProviderRegistry()
         registry.selectedProviderId = "openai-api"
+        let workspaceStore = WorkspaceStore()
+        if let workspacePath {
+            let workspace = Workspace(name: "History", rootPath: workspacePath)
+            workspaceStore.workspaces = [workspace]
+            workspaceStore.activeWorkspaceId = workspace.id
+        } else {
+            workspaceStore.workspaces = []
+            workspaceStore.activeWorkspaceId = nil
+        }
         return CodeReviewPanelStore(
             taskActivityStore: TaskActivityStore(),
             providerRegistry: registry,
             executionController: nil,
-            workspaceStore: WorkspaceStore(),
+            workspaceStore: workspaceStore,
             openFilesStore: OpenFilesStore(),
             todoStore: TodoStore(),
             conversationId: UUID(),
@@ -156,5 +224,21 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
                 )
             }
         )
+    }
+
+    private func enablePersistenceForTests() {
+        unsetenv("SOLOCODE_DISABLE_POSTGRES_PERSISTENCE")
+        setenv("SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS", "1", 1)
+    }
+
+    private func resetPersistenceEnvironment() {
+        unsetenv("SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS")
+        setenv("SOLOCODE_DISABLE_POSTGRES_PERSISTENCE", "1", 1)
+        try? ManagedPostgresService.shared.shutdownIfRunning()
+        try? FileManager.default.removeItem(at: ManagedPostgresConfiguration.default.rootDirectory)
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        try? FileManager.default.removeItem(at: MCPSharedState.verifiedFindingsDirectoryPath)
+        try? FileManager.default.removeItem(at: MCPSharedState.bugHunterDirectoryPath)
+        try? FileManager.default.removeItem(at: MCPSharedState.planStateFilePath)
     }
 }

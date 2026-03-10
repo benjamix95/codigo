@@ -41,22 +41,6 @@ extension CodeReviewPanelStore {
             .filter { historyStatusFilter == .resumeQueue ? false : !($0.resumeEligible && historyStatusFilter == .all) }
     }
 
-    func refreshHistoricalFindings() async {
-        guard let workspaceId = historyWorkspaceId else {
-            historyRecords = fallbackHistoricalFindings()
-            return
-        }
-        isHistoryLoading = true
-        defer { isHistoryLoading = false }
-
-        let dbRecords = HistoricalFindingsQueryService.list(
-            query: HistoricalFindingsQuery(workspaceId: workspaceId)
-        )
-        let fallback = fallbackHistoricalFindings()
-        historyRecords = mergeHistoricalFindings(primary: dbRecords, fallback: fallback)
-        historyLoadError = nil
-    }
-
     func selectHistoricalFinding(_ findingId: String) {
         guard historyRecords.contains(where: { $0.id == findingId }) else { return }
         selectedFindingId = nil
@@ -95,10 +79,42 @@ extension CodeReviewPanelStore {
         """
     }
 
-    private var historyWorkspaceId: String? {
+    func refreshHistoricalFindings() async {
+        let refreshKey = findingsHistoryRefreshKey
+        guard let workspaceId = historyWorkspaceId else {
+            historyRecords = fallbackHistoricalFindings()
+            historyLoadError = nil
+            return
+        }
+        let fallback = fallbackHistoricalFindings()
+        isHistoryLoading = true
+        defer {
+            if findingsHistoryRefreshKey == refreshKey {
+                isHistoryLoading = false
+            }
+        }
+        let dbRecords = await ReviewPanelHistoricalFindingsLoader.list(
+            query: HistoricalFindingsQuery(workspaceId: workspaceId)
+        )
+        guard !Task.isCancelled, findingsHistoryRefreshKey == refreshKey else { return }
+        historyRecords = mergeHistoricalFindings(primary: dbRecords, fallback: fallback)
+        historyLoadError = nil
+    }
+
+    var historyWorkspaceId: String? {
         workspaceStore.activeWorkspacePaths.first?.path
             ?? currentSnapshot?.workspacePath
             ?? availableSnapshots.compactMap(\.workspacePath).first
+    }
+
+    func severityRank(_ severity: VerifiedFindingSeverity) -> Int {
+        switch severity {
+        case .critical: return 0
+        case .high: return 1
+        case .medium: return 2
+        case .low: return 3
+        case .info: return 4
+        }
     }
 
     private func mergeHistoricalFindings(
@@ -120,7 +136,6 @@ extension CodeReviewPanelStore {
     private func fallbackHistoricalFindings() -> [HistoricalFindingRecord] {
         let snapshots = availableSnapshots
         guard !snapshots.isEmpty else { return [] }
-
         var recordsById: [String: HistoricalFindingRecord] = [:]
         for snapshot in snapshots {
             let eventsByFindingId = Dictionary(grouping: snapshot.events) { event in
@@ -129,9 +144,7 @@ extension CodeReviewPanelStore {
             for finding in snapshot.findings {
                 let patch = snapshot.patches.first(where: { $0.findingId == finding.id })
                 let domain: VerifiedFindingDomain =
-                    finding.origin == .securityAuditor || finding.category == .security
-                    ? .security
-                    : .bug
+                    finding.origin == .securityAuditor || finding.category == .security ? .security : .bug
                 let candidateTimeline = (eventsByFindingId[finding.id] ?? []).map { event in
                     HistoricalFindingTimelineItem(
                         eventId: event.id,
@@ -141,6 +154,7 @@ extension CodeReviewPanelStore {
                         metadata: event.metadata
                     )
                 }
+                let status = historicalStatus(for: finding, patch: patch)
                 let record = HistoricalFindingRecord(
                     findingId: finding.id,
                     sessionId: snapshot.sessionId,
@@ -149,7 +163,7 @@ extension CodeReviewPanelStore {
                     severity: historicalSeverity(from: finding.severity),
                     title: finding.message,
                     summary: finding.evidence ?? finding.message,
-                    status: historicalStatus(for: finding, patch: patch),
+                    status: status,
                     filePath: finding.filePath,
                     lineStart: finding.lineNumber,
                     sourceOrigin: finding.origin.rawValue,
@@ -161,26 +175,14 @@ extension CodeReviewPanelStore {
                     createdAt: finding.createdAt,
                     updatedAt: patch?.updatedAt ?? finding.verifiedAt ?? finding.createdAt,
                     resolvedAt: finding.status.isAppliedState ? (patch?.updatedAt ?? finding.verifiedAt) : nil,
-                    resumeEligible: !historicalStatus(for: finding, patch: patch).isTerminalHistoryStatus,
+                    resumeEligible: !status.isTerminalHistoryStatus,
                     timeline: candidateTimeline
                 )
-                if let existing = recordsById[record.id], existing.updatedAt > record.updatedAt {
-                    continue
-                }
+                if let existing = recordsById[record.id], existing.updatedAt > record.updatedAt { continue }
                 recordsById[record.id] = record
             }
         }
         return recordsById.values.sorted { $0.updatedAt > $1.updatedAt }
-    }
-
-    private func severityRank(_ severity: VerifiedFindingSeverity) -> Int {
-        switch severity {
-        case .critical: return 0
-        case .high: return 1
-        case .medium: return 2
-        case .low: return 3
-        case .info: return 4
-        }
     }
 
     private func historicalSeverity(from severity: FindingSeverity) -> VerifiedFindingSeverity {
@@ -199,19 +201,13 @@ extension CodeReviewPanelStore {
         if let patch {
             if patch.status == .applied {
                 switch patch.validationStatus {
-                case .passed:
-                    return .fixedVerified
-                case .failed:
-                    return .fixFailed
-                case .pending:
-                    return .patchApplied
+                case .passed: return .fixedVerified
+                case .failed: return .fixFailed
+                case .pending: return .patchApplied
                 }
             }
-            if patch.status == .rolledBack {
-                return .rollbackApplied
-            }
+            if patch.status == .rolledBack { return .rollbackApplied }
         }
-
         switch finding.status {
         case .open: return .verified
         case .fixApplied, .patchApplied: return .patchApplied
@@ -225,38 +221,25 @@ extension CodeReviewPanelStore {
         }
     }
 
-    private func historicalPatchApplyStatus(
-        from patch: ReviewPatchArtifact
-    ) -> VerifiedPatchApplyStatus {
+    private func historicalPatchApplyStatus(from patch: ReviewPatchArtifact) -> VerifiedPatchApplyStatus {
         switch patch.status {
-        case .draft, .verified, .prOpened, .merged, .conflict:
-            return .notApplied
-        case .applied:
-            return .applied
-        case .applyFailed:
-            return .failed
-        case .rolledBack:
-            return .rolledBack
+        case .draft, .verified, .prOpened, .merged, .conflict: return .notApplied
+        case .applied: return .applied
+        case .applyFailed: return .failed
+        case .rolledBack: return .rolledBack
         }
     }
 
-    private func historicalRevalidationVerdict(
-        for patch: ReviewPatchArtifact?
-    ) -> RevalidationVerdict? {
+    private func historicalRevalidationVerdict(for patch: ReviewPatchArtifact?) -> RevalidationVerdict? {
         guard let patch, patch.status == .applied || patch.status == .applyFailed else { return nil }
         switch patch.validationStatus {
-        case .passed:
-            return .fixedVerified
-        case .failed:
-            return .fixFailed
-        case .pending:
-            return nil
+        case .passed: return .fixedVerified
+        case .failed: return .fixFailed
+        case .pending: return nil
         }
     }
 
-    private func historicalClosedReason(
-        for status: FindingStatus
-    ) -> String? {
+    private func historicalClosedReason(for status: FindingStatus) -> String? {
         switch status {
         case .dismissed: return "dismissed"
         case .wontFix: return "wont_fix"
@@ -268,13 +251,20 @@ extension CodeReviewPanelStore {
     }
 }
 
+enum ReviewPanelHistoricalFindingsLoader {
+    static var fetch: @Sendable (HistoricalFindingsQuery) async -> [HistoricalFindingRecord] = { query in
+        HistoricalFindingsQueryService.list(query: query)
+    }
+    static func list(query: HistoricalFindingsQuery) async -> [HistoricalFindingRecord] {
+        await Task.detached(priority: .userInitiated) { await fetch(query) }.value
+    }
+}
+
 private extension VerifiedFindingStatus {
     var isTerminalHistoryStatus: Bool {
         switch self {
-        case .fixedVerified, .closed, .rejected:
-            return true
-        case .candidate, .verifying, .verified, .needsManualReview, .patchPreparing, .patchPrepared, .patchReviewed, .patchApplied, .revalidating, .fixFailed, .rollbackApplied:
-            return false
+        case .fixedVerified, .closed, .rejected: return true
+        case .candidate, .verifying, .verified, .needsManualReview, .patchPreparing, .patchPrepared, .patchReviewed, .patchApplied, .revalidating, .fixFailed, .rollbackApplied: return false
         }
     }
 }
