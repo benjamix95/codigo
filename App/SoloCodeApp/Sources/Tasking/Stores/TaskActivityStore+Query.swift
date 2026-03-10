@@ -55,6 +55,34 @@ extension TaskActivityStore {
         }
     }
 
+    func finalizeSwarmCards(
+        withIDs swarmIds: Set<String>,
+        for conversationId: UUID? = nil
+    ) {
+        guard !swarmIds.isEmpty else { return }
+        let scope = normalizedConversationScope(conversationId)
+        var didChange = false
+        for swarmId in swarmIds {
+            guard var card = swarmCards[swarmId], card.status == .running else {
+                continue
+            }
+            if let scope, !cardBelongsToConversation(card, scope: scope) {
+                continue
+            }
+            card.status = .completed
+            card.completedAt = Date()
+            card.activeOpsCount = 0
+            card.isCollapsed = true
+            card.hasUnreadSinceCollapse = false
+            swarmCards[swarmId] = card
+            didChange = true
+        }
+        if didChange {
+            markSortedSwarmCardsDirty()
+            swarmEventsReceivedCount += 1
+        }
+    }
+
     func setSwarmCardCollapsed(_ swarmId: String, collapsed: Bool) {
         guard var card = swarmCards[swarmId] else { return }
         card.isCollapsed = collapsed
@@ -119,12 +147,17 @@ extension TaskActivityStore {
         let cards = swarmCardStatesIncludingPending(
             for: conversationId,
             limitEventsPerCard: limitEventsPerCard
-        ).map(Self.finalizedSwarmCardSnapshot)
+        )
+        let finalizedCards = cards.map(Self.finalizedSwarmCardSnapshot)
+        let finalizedSwarmIds = Set(finalizedCards.map(\.swarmId))
         DispatchQueue.main.async { [weak self] in
             self?.flushPending()
-            self?.finalizeRunningSwarmCards(for: conversationId)
+            self?.finalizeSwarmCards(
+                withIDs: finalizedSwarmIds,
+                for: conversationId
+            )
         }
-        return cards
+        return finalizedCards
     }
 
     func recentActivities(limit: Int) -> [TaskActivity] {

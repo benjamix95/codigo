@@ -91,7 +91,7 @@ enum ReviewPanelChatMessageFactory {
     private static func summaryText(from snapshot: CodeReviewSessionSnapshot) -> String {
         let resolvedVerifiedFindings = resolvedVerifiedFindingsState(from: snapshot)
         let projection = resolvedVerifiedFindings.recovered.envelope.projectionSnapshot
-        let securityGate = snapshot.verifiedFindings.map(VerifiedFindingsSecurityGateService.evaluate)
+        let securityGate = resolvedVerifiedFindings.securityGate
         let header = """
         ## Code Review Summary
         - session_id: \(snapshot.sessionId)
@@ -105,7 +105,7 @@ enum ReviewPanelChatMessageFactory {
         - candidate_queue: \(projection.candidateQueue.count)
         - duplicate_findings: \(projection.duplicatesCount)
         - stale_candidates: \(projection.staleCandidatesCount)
-        - security_gate_ready: \(securityGate?.ready == true ? "true" : "false")
+        - security_gate_ready: \(securityGate.ready ? "true" : "false")
         - outcome: \(snapshot.outcome.summary)
         """
 
@@ -114,7 +114,9 @@ enum ReviewPanelChatMessageFactory {
             return "- [\(finding.severity.rawValue)] \(finding.filePath)\(line) — \(finding.message)"
         }
 
-        let securityLines: [String] = securityGate.map { ["", "## Security Gate", "- \($0.summary)"] } ?? []
+        let securityLines: [String] = securityGate.ready
+            ? ["", "## Security Gate", "- \(securityGate.summary)"]
+            : []
         return ([header] + securityLines + findings).joined(separator: "\n")
     }
 

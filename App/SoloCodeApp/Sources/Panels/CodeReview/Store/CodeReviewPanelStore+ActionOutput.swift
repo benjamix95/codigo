@@ -159,6 +159,9 @@ extension CodeReviewPanelStore {
         guard let responseId = responseMessageIds[activityId],
               let index = chatMessages.firstIndex(where: { $0.id == responseId })
         else { return }
+        defer {
+            responseMessageIds.removeValue(forKey: activityId)
+        }
         chatMessages[index].isStreaming = false
 
         let content = chatMessages[index].content
@@ -225,6 +228,9 @@ extension CodeReviewPanelStore {
 
         let mutation: ReviewRunDeferredMutation
         if formatted.sectionTitle == "Response" {
+            guard !finishedReviewRunActivityIds.contains(id) else {
+                return
+            }
             mutation = .replaceResponse(formatted.line)
         } else {
             mutation = .appendSection(

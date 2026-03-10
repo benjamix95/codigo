@@ -246,4 +246,69 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
 
         XCTAssertEqual(store.swarmCardStates().map(\.status), [.completed])
     }
+
+    func testFinalizedSwarmSnapshotDoesNotFinalizeNextTurnCardsInSameConversation() async {
+        let store = TaskActivityStore()
+        let conversationId = UUID()
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner old turn",
+                detail: "started",
+                payload: [
+                    "swarm_id": "planner-old",
+                    "group_id": "swarm-planner-old",
+                    "conversation_id": conversationId.uuidString.lowercased(),
+                ],
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner-old"
+            )
+        )
+
+        let cards = store.finalizedSwarmCardSnapshotForTaskCompletion(for: conversationId)
+        XCTAssertEqual(cards.map(\.swarmId), ["planner-old"])
+        XCTAssertEqual(cards.map(\.status), [.completed])
+
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner new turn",
+                detail: "started",
+                payload: [
+                    "swarm_id": "planner-new",
+                    "group_id": "swarm-planner-new",
+                    "conversation_id": conversationId.uuidString.lowercased(),
+                ],
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner-new"
+            )
+        )
+
+        let expectedStatuses: [String: SwarmCardStatus] = [
+            "planner-old": .completed,
+            "planner-new": .running,
+        ]
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
+            let drained = expectation(description: "drain main queue")
+            DispatchQueue.main.async {
+                drained.fulfill()
+            }
+            await fulfillment(of: [drained], timeout: 1.0)
+
+            let liveCards = store.swarmCardStates()
+            let liveStatuses = Dictionary(uniqueKeysWithValues: liveCards.map { ($0.swarmId, $0.status) })
+            if liveStatuses == expectedStatuses {
+                return
+            }
+            await Task.yield()
+        }
+        let finalStatuses = Dictionary(
+            uniqueKeysWithValues: store.swarmCardStates()
+                .map { ($0.swarmId, $0.status) }
+        )
+        XCTAssertEqual(finalStatuses, expectedStatuses)
+    }
 }

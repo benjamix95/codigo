@@ -376,7 +376,7 @@ final class MCPSessionManagerTests: XCTestCase {
         let inputFD = inputRead.rawValue
         let outputFD = outputWrite.rawValue
         let stderrFD = stderrPipe.fileHandleForReading.fileDescriptor
-        var resources = MCPTransportResources(
+        let resources = MCPTransportResources(
             input: inputRead,
             output: outputWrite,
             stderrReadHandle: stderrPipe.fileHandleForReading
@@ -385,7 +385,7 @@ final class MCPSessionManagerTests: XCTestCase {
         let startedAt = Date()
         MCPTransportFactory.cleanupFailedConnection(
             process: process,
-            resources: &resources
+            resources: resources
         )
         let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
 
@@ -450,6 +450,45 @@ final class MCPSessionManagerTests: XCTestCase {
 
         kill(pid, SIGKILL)
         process.waitUntilExit()
+        try? inputWrite.close()
+        try? outputRead.close()
+        try? stderrPipe.fileHandleForWriting.close()
+    }
+
+    func testTransportResourcesCloseAllIsIdempotentAcrossSessionCopies() throws {
+        let (inputRead, inputWrite) = try FileDescriptor.pipe()
+        let (outputRead, outputWrite) = try FileDescriptor.pipe()
+        let stderrPipe = Pipe()
+        let stderrFD = stderrPipe.fileHandleForReading.fileDescriptor
+        let resources = MCPTransportResources(
+            input: inputRead,
+            output: outputWrite,
+            stderrReadHandle: stderrPipe.fileHandleForReading
+        )
+        let session = MCPServerSession(
+            serverId: "server",
+            serverName: "Server",
+            client: Client(
+                name: "idempotent-close-test-client",
+                version: "1.0.0",
+                configuration: .default
+            ),
+            transport: StdioTransport(input: inputRead, output: outputWrite),
+            process: Process(),
+            transportResources: resources,
+            lastUsedAt: Date(),
+            cachedTools: [],
+            cachedToolsTimestamp: nil
+        )
+        let copiedSession = session
+
+        session.transportResources.closeAll()
+        copiedSession.transportResources.closeAll()
+
+        XCTAssertTrue(Self.descriptorIsClosed(inputRead.rawValue))
+        XCTAssertTrue(Self.descriptorIsClosed(outputWrite.rawValue))
+        XCTAssertTrue(Self.descriptorIsClosed(stderrFD))
+
         try? inputWrite.close()
         try? outputRead.close()
         try? stderrPipe.fileHandleForWriting.close()

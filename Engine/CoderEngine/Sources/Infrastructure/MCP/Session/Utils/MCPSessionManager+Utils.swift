@@ -198,9 +198,8 @@ extension MCPSessionManager {
     }
 
     public func resetSession(_ id: String) async throws {
-        if let existing = sessions[id] {
+        if let existing = sessions.removeValue(forKey: id) {
             await disposeSession(existing)
-            sessions.removeValue(forKey: id)
         }
     }
 
@@ -208,11 +207,10 @@ extension MCPSessionManager {
         _ session: MCPServerSession,
         waitForExit: Bool = false
     ) async {
-        var mutableSession = session
-        await mutableSession.client.disconnect()
-        mutableSession.transportResources.closeAll()
+        await session.client.disconnect()
+        session.transportResources.closeAll()
         MCPTransportFactory.terminateProcess(
-            mutableSession.process,
+            session.process,
             waitForExit: waitForExit
         )
     }

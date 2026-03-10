@@ -32,7 +32,7 @@ public enum MCPTransportFactory {
         let stdoutHandle = FileHandle(fileDescriptor: serverWrite.rawValue, closeOnDealloc: true)
         let stderrReadHandle = stderrPipe.fileHandleForReading
         let stderrWriteHandle = stderrPipe.fileHandleForWriting
-        var resources = MCPTransportResources(
+        let resources = MCPTransportResources(
             input: clientRead,
             output: clientWrite,
             stderrReadHandle: stderrReadHandle
@@ -79,7 +79,7 @@ public enum MCPTransportFactory {
             try await transport.connect()
         } catch {
             // Clean up leaked resources on connection failure
-            cleanupFailedConnection(process: process, resources: &resources)
+            cleanupFailedConnection(process: process, resources: resources)
             throw error
         }
 
@@ -88,7 +88,7 @@ public enum MCPTransportFactory {
 
     static func cleanupFailedConnection(
         process: Process,
-        resources: inout MCPTransportResources
+        resources: MCPTransportResources
     ) {
         terminateProcess(process, waitForExit: false)
         resources.closeAll()

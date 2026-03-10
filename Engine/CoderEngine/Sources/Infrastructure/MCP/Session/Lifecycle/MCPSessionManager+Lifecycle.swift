@@ -36,19 +36,19 @@ extension MCPSessionManager {
         guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
             throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
         }
-        if let existing = sessions[cfg.id] {
+        if let existing = sessions.removeValue(forKey: cfg.id) {
             await disposeSession(existing)
-            sessions.removeValue(forKey: cfg.id)
         }
         invalidateNativeToolRegistry()
         _ = try await session(for: cfg)
     }
 
     public func shutdownAll() async {
-        for (_, session) in sessions {
+        let storedSessions = Array(sessions.values)
+        sessions.removeAll()
+        for session in storedSessions {
             await disposeSession(session)
         }
-        sessions.removeAll()
     }
 
     static func defaultResolveServers() -> [MCPConfigLoader.DetectedServer] {
@@ -94,8 +94,8 @@ extension MCPSessionManager {
                 sessions[cfg.id] = existing
                 return existing
             }
-            await disposeSession(existing, waitForExit: false)
             sessions.removeValue(forKey: cfg.id)
+            await disposeSession(existing, waitForExit: false)
         }
 
         let (transport, process, resources) = try await MCPTransportFactory.connectToProcess(
@@ -194,9 +194,12 @@ extension MCPSessionManager {
     public func evictIdleSessions(idleTTLSeconds: Int) async {
         guard idleTTLSeconds > 0 else { return }
         let cutoff = Date().addingTimeInterval(TimeInterval(-idleTTLSeconds))
-        for (id, session) in sessions where session.lastUsedAt < cutoff {
+        let expiredSessionIds = sessions.compactMap { id, session in
+            session.lastUsedAt < cutoff ? id : nil
+        }
+        for id in expiredSessionIds {
+            guard let session = sessions.removeValue(forKey: id) else { continue }
             await disposeSession(session, waitForExit: false)
-            sessions.removeValue(forKey: id)
         }
     }
 

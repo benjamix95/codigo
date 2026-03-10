@@ -139,6 +139,37 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         XCTAssertFalse(responseMessages.first?.isStreaming ?? true)
     }
 
+    func testAssistantUpdateAfterFinishDoesNotOverwriteFinalizedResponse() async throws {
+        let store = makePanelStore()
+        let outputId = store.beginPanelActionOutput(title: "Run review")
+
+        store.handleRawReviewRunEvent(
+            id: outputId,
+            type: "assistant_update",
+            payload: ["output": "Final response\n---\nFinal verdict"]
+        )
+        store.finishPanelActionOutput(id: outputId)
+        await drainMainQueue()
+
+        store.handleRawReviewRunEvent(
+            id: outputId,
+            type: "assistant_update",
+            payload: ["output": ""]
+        )
+        await drainMainQueue()
+
+        let plainMessages = store.chatMessages.filter {
+            $0.role == .assistant && $0.kind == .plain
+        }
+        let verdictMessages = store.chatMessages.filter {
+            $0.role == .assistant && $0.kind == .reviewRun
+        }
+
+        XCTAssertEqual(plainMessages.count, 1)
+        XCTAssertEqual(plainMessages.first?.content, "Final response")
+        XCTAssertTrue(verdictMessages.contains(where: { $0.content == "Final verdict" }))
+    }
+
     private func waitUntil(
         _ description: String,
         timeoutNanoseconds: UInt64 = 1_000_000_000,

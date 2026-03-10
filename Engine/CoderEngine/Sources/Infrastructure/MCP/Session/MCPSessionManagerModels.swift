@@ -50,10 +50,11 @@ public struct MCPServerSession {
     public var connectedAt: Date = Date()
 }
 
-public struct MCPTransportResources {
-    public var input: FileDescriptor
-    public var output: FileDescriptor
-    public let stderrReadHandle: FileHandle
+public final class MCPTransportResources: @unchecked Sendable {
+    private let lock = NSLock()
+    private var input: FileDescriptor?
+    private var output: FileDescriptor?
+    private var stderrReadHandle: FileHandle?
 
     public init(
         input: FileDescriptor,
@@ -65,10 +66,19 @@ public struct MCPTransportResources {
         self.stderrReadHandle = stderrReadHandle
     }
 
-    public mutating func closeAll() {
-        try? stderrReadHandle.close()
-        try? input.close()
-        try? output.close()
+    public func closeAll() {
+        lock.lock()
+        let stderrReadHandle = self.stderrReadHandle
+        let input = self.input
+        let output = self.output
+        self.stderrReadHandle = nil
+        self.input = nil
+        self.output = nil
+        lock.unlock()
+
+        try? stderrReadHandle?.close()
+        try? input?.close()
+        try? output?.close()
     }
 }
 

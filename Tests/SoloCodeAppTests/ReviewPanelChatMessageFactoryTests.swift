@@ -52,6 +52,41 @@ final class ReviewPanelChatMessageFactoryTests: XCTestCase {
     }
 
     func testSummaryPrefersSnapshotProjection() {
+        let embeddedEnvelope = VerifiedFindingsSessionEnvelope(
+            sessionId: "session-1",
+            canonicalSnapshot: VerifiedFindingsCanonicalSnapshot(
+                runs: [:],
+                findings: [:],
+                evidences: [:],
+                verificationReports: [:],
+                patchArtifacts: [:],
+                revalidationReports: [:],
+                commandLog: [],
+                eventLog: [],
+                traceLog: []
+            ),
+            projectionSnapshot: VerifiedFindingsProjectionSnapshot(
+                candidateQueue: [
+                    VerifiedFindingListItemProjection(
+                        id: "candidate-1",
+                        title: "snapshot-candidate",
+                        domain: .bug,
+                        status: .candidate,
+                        staleStatus: .active,
+                        severity: .high,
+                        filePath: "Sources/App/Main.swift",
+                        lineStart: nil,
+                        duplicateOf: [],
+                        mergedIntoFindingId: nil,
+                        recurrenceGroupId: nil
+                    )
+                ],
+                verifiedQueue: [],
+                duplicatesCount: 0,
+                staleCandidatesCount: 0,
+                traceSnippets: []
+            )
+        )
         MCPSharedState.writeVerifiedFindingsEnvelope(
             VerifiedFindingsSessionEnvelope(
                 sessionId: "session-1",
@@ -102,13 +137,46 @@ final class ReviewPanelChatMessageFactoryTests: XCTestCase {
             lastError: nil,
             currentJobId: nil,
             lastTestStatus: nil,
+            verifiedFindings: embeddedEnvelope,
             lastUpdatedAt: Date()
         )
 
         let message = ReviewPanelChatMessageFactory.summary(snapshot: snapshot)
 
-        XCTAssertTrue(message.content.contains("- verified_queue: 1"))
-        XCTAssertTrue(message.content.contains("- candidate_queue: 0"))
+        XCTAssertTrue(
+            message.content.contains("- verified_queue: 0")
+        )
+        XCTAssertTrue(
+            message.content.contains("- candidate_queue: 1")
+        )
+    }
+
+    func testSummaryUsesResolvedSecurityGateWhenEnvelopeIsRebuilt() {
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-security-gate",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [],
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .uncommitted, files: []),
+            workspacePath: nil,
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: nil,
+            completedAt: nil,
+            analysisCompletedAt: nil,
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: nil,
+            lastUpdatedAt: Date()
+        )
+
+        let message = ReviewPanelChatMessageFactory.summary(snapshot: snapshot)
+
+        XCTAssertTrue(message.content.contains("- security_gate_ready: true"))
+        XCTAssertTrue(message.content.contains("## Security Gate"))
     }
 
     func testFindingUpdateFactoryBuildsDedicatedSection() {
