@@ -3,7 +3,7 @@ import AppKit
 import CoderEngine
 
 extension SidebarView {
-    private var sidebarTopContentInset: CGFloat { 60 }
+    private var sidebarTopContentInset: CGFloat { 62 }
 
     var sidebarContent: some View {
         VStack(spacing: 0) {

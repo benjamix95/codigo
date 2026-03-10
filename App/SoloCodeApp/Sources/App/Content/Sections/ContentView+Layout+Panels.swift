@@ -232,6 +232,7 @@ extension ContentView {
                 projectContextStore: projectContextStore,
                 preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
             ),
+            windowChromeLeadingInset: chatPanelWindowChromeLeadingInset,
             coderMode: $coderMode,
             showPlanPanel: $showPlanPanel,
             showDebugPanel: $showDebugPanel,
@@ -251,5 +252,16 @@ extension ContentView {
             style: ChatBackgroundStyle.from(raw: chatBackgroundStyle),
             cornerRadius: 14
         )
+    }
+
+    private var chatPanelWindowChromeLeadingInset: CGFloat {
+        switch coderMode {
+        case .ide:
+            return showIDEWorkbenchSidebar ? 0 : 58
+        case .browser:
+            return 58
+        default:
+            return columnVisibility == .detailOnly ? 58 : 0
+        }
     }
 }

@@ -66,39 +66,53 @@ struct ContentView: View {
     }
 
     private var alwaysVisibleWindowChrome: some View {
-        WindowChromeControls()
+        WindowChromeControls(showTrafficLights: showsWindowTrafficLights)
             .padding(.leading, 14)
-            .padding(.top, 4)
+            .padding(.top, -18)
             .allowsHitTesting(true)
+    }
+
+    private var showsWindowTrafficLights: Bool {
+        switch coderMode {
+        case .ide:
+            return showIDEWorkbenchSidebar
+        case .browser:
+            return false
+        default:
+            return columnVisibility != .detailOnly
+        }
     }
 }
 
 private struct WindowChromeControls: View {
+    let showTrafficLights: Bool
     @Environment(\.controlActiveState) private var controlActiveState
     @State private var hoveredControl: WindowControlKind?
 
     var body: some View {
         HStack(spacing: 8) {
-            ForEach(WindowControlKind.allCases, id: \.self) { kind in
-                Button {
-                    performWindowAction(kind)
-                } label: {
-                    Circle()
-                        .fill(kind.fillColor(active: controlActiveState != .inactive))
-                        .frame(width: 13, height: 13)
-                        .overlay {
-                            if hoveredControl == kind {
-                                Image(systemName: kind.symbolName)
-                                    .font(.system(size: 6.5, weight: .bold))
-                                    .foregroundStyle(.black.opacity(0.72))
+            if showTrafficLights {
+                ForEach(WindowControlKind.allCases, id: \.self) { kind in
+                    Button {
+                        performWindowAction(kind)
+                    } label: {
+                        Circle()
+                            .fill(kind.fillColor(active: controlActiveState != .inactive))
+                            .frame(width: 13, height: 13)
+                            .overlay {
+                                if hoveredControl == kind {
+                                    Image(systemName: kind.symbolName)
+                                        .font(.system(size: 6.5, weight: .bold))
+                                        .foregroundStyle(.black.opacity(0.72))
+                                }
                             }
-                        }
-                }
-                .buttonStyle(.plain)
-                .help(kind.helpText)
-                .accessibilityLabel(kind.helpText)
-                .onHover { isHovering in
-                    hoveredControl = isHovering ? kind : (hoveredControl == kind ? nil : hoveredControl)
+                    }
+                    .buttonStyle(.plain)
+                    .help(kind.helpText)
+                    .accessibilityLabel(kind.helpText)
+                    .onHover { isHovering in
+                        hoveredControl = isHovering ? kind : (hoveredControl == kind ? nil : hoveredControl)
+                    }
                 }
             }
 

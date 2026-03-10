@@ -70,7 +70,7 @@ extension ChatPanelView {
 
             Spacer()
         }
-        .padding(.leading, 6)
+        .padding(.leading, 6 + windowChromeLeadingInset)
         .padding(.trailing, 14)
         .contentShape(Rectangle())
     }
@@ -85,7 +85,7 @@ extension ChatPanelView {
     }
 
     private var chatHeaderLeadingReservedWidth: CGFloat {
-        coderMode == .codeReviewMultiSwarm ? 170 : 124
+        (coderMode == .codeReviewMultiSwarm ? 170 : 168) + windowChromeLeadingInset
     }
 
     private var chatHeaderLeadingMaxWidth: CGFloat {
