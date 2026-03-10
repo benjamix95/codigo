@@ -239,7 +239,7 @@ struct ChatPanelView: View {
      static let threadSearchAskAINotification = Notification.Name(
         "CoderIDE.ThreadSearchAskAI")
      static let markdownExportContentType = UTType(filenameExtension: "md") ?? .plainText
-     let topInteractiveInset: CGFloat = 13
+     let topInteractiveInset: CGFloat = 7
      let chatColumnMaxWidth: CGFloat = 960
     /// Stable scroll anchor placed at the very bottom of the messages LazyVStack.
     /// Scrolling to this instead of individual message IDs avoids LazyVStack

@@ -68,7 +68,7 @@ struct ContentView: View {
     private var alwaysVisibleWindowChrome: some View {
         WindowChromeControls(showTrafficLights: showsWindowTrafficLights)
             .padding(.leading, 14)
-            .padding(.top, -18)
+            .padding(.top, -21)
             .allowsHitTesting(true)
     }
 
