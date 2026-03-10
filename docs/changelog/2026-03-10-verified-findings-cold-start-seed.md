@@ -6,7 +6,7 @@
 - aggiunta regressione che verifica la preservazione del `commandLog` persistito
 
 ## Test
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS,arch=arm64' -only-testing:SoloCodeAppTests/PipelineIntegrationVerifiedFindingsTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS,arch=arm64' -only-testing:SoloCodeAppTests/PipelineIntegrationVerifiedFindingsTests/testIngestSeedsPersistedEnvelopeOnColdStart`
 - esito: `TEST SUCCEEDED`
 
 ## Rischio controllato
