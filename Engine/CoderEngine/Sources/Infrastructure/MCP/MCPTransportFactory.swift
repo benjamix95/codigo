@@ -79,13 +79,31 @@ public enum MCPTransportFactory {
             try await transport.connect()
         } catch {
             // Clean up leaked resources on connection failure
-            process.terminate()
-            process.waitUntilExit()
-            resources.closeAll()
+            cleanupFailedConnection(process: process, resources: &resources)
             throw error
         }
 
         return (transport, process, resources)
+    }
+
+    static func cleanupFailedConnection(
+        process: Process,
+        resources: inout MCPTransportResources
+    ) {
+        terminateProcess(process, waitForExit: false)
+        resources.closeAll()
+    }
+
+    static func terminateProcess(
+        _ process: Process,
+        waitForExit: Bool
+    ) {
+        if process.isRunning {
+            process.terminate()
+        }
+        if waitForExit {
+            process.waitUntilExit()
+        }
     }
 
     private static func startStderrPump(

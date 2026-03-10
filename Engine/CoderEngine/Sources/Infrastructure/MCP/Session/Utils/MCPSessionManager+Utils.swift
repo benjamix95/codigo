@@ -206,17 +206,14 @@ extension MCPSessionManager {
 
     func disposeSession(
         _ session: MCPServerSession,
-        waitForExit: Bool = true
+        waitForExit: Bool = false
     ) async {
         var mutableSession = session
         await mutableSession.client.disconnect()
         mutableSession.transportResources.closeAll()
-
-        if mutableSession.process.isRunning {
-            mutableSession.process.terminate()
-        }
-        if waitForExit {
-            mutableSession.process.waitUntilExit()
-        }
+        MCPTransportFactory.terminateProcess(
+            mutableSession.process,
+            waitForExit: waitForExit
+        )
     }
 }

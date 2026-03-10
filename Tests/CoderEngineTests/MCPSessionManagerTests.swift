@@ -367,6 +367,94 @@ final class MCPSessionManagerTests: XCTestCase {
         try? stderrPipe.fileHandleForWriting.close()
     }
 
+    func testCleanupFailedConnectionDoesNotWaitForProcessExit() throws {
+        let process = try Self.makeSignalIgnoringProcess()
+        let pid = process.processIdentifier
+        let (inputRead, inputWrite) = try FileDescriptor.pipe()
+        let (outputRead, outputWrite) = try FileDescriptor.pipe()
+        let stderrPipe = Pipe()
+        let inputFD = inputRead.rawValue
+        let outputFD = outputWrite.rawValue
+        let stderrFD = stderrPipe.fileHandleForReading.fileDescriptor
+        var resources = MCPTransportResources(
+            input: inputRead,
+            output: outputWrite,
+            stderrReadHandle: stderrPipe.fileHandleForReading
+        )
+
+        let startedAt = Date()
+        MCPTransportFactory.cleanupFailedConnection(
+            process: process,
+            resources: &resources
+        )
+        let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+
+        XCTAssertLessThan(elapsedMs, 500)
+        XCTAssertTrue(Self.descriptorIsClosed(inputFD))
+        XCTAssertTrue(Self.descriptorIsClosed(outputFD))
+        XCTAssertTrue(Self.descriptorIsClosed(stderrFD))
+
+        if Self.processExists(pid) {
+            kill(pid, SIGKILL)
+            process.waitUntilExit()
+        }
+        try? inputWrite.close()
+        try? outputRead.close()
+        try? stderrPipe.fileHandleForWriting.close()
+    }
+
+    func testResetSessionDoesNotWaitForProcessExit() async throws {
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-reset-stuck.json",
+            name: "reset-stuck-server",
+            command: "/bin/echo"
+        )
+        let manager = MCPSessionManager(serverResolver: { [server] })
+        let process = try Self.makeSignalIgnoringProcess()
+        let pid = process.processIdentifier
+        let (inputRead, inputWrite) = try FileDescriptor.pipe()
+        let (outputRead, outputWrite) = try FileDescriptor.pipe()
+        let stderrPipe = Pipe()
+        let session = MCPServerSession(
+            serverId: server.id,
+            serverName: server.name,
+            client: Client(
+                name: "reset-session-test-client",
+                version: "1.0.0",
+                configuration: .default
+            ),
+            transport: StdioTransport(input: inputRead, output: outputWrite),
+            process: process,
+            transportResources: MCPTransportResources(
+                input: inputRead,
+                output: outputWrite,
+                stderrReadHandle: stderrPipe.fileHandleForReading
+            ),
+            lastUsedAt: Date(timeIntervalSince1970: 0),
+            cachedTools: [],
+            cachedToolsTimestamp: nil
+        )
+
+        await manager._insertTestSession(session)
+
+        let startedAt = Date()
+        try await manager.resetSession(server.id)
+        let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+
+        XCTAssertLessThan(elapsedMs, 500)
+        XCTAssertTrue(Self.processExists(pid))
+        let hasSession = await manager._hasSession(server.id)
+        XCTAssertFalse(hasSession)
+
+        kill(pid, SIGKILL)
+        process.waitUntilExit()
+        try? inputWrite.close()
+        try? outputRead.close()
+        try? stderrPipe.fileHandleForWriting.close()
+    }
+
     private func makeServer(
         source: String,
         origin: String,
@@ -435,6 +523,14 @@ final class MCPSessionManagerTests: XCTestCase {
     private static func descriptorIsClosed(_ descriptor: Int32) -> Bool {
         errno = 0
         return fcntl(descriptor, F_GETFD) == -1 && errno == EBADF
+    }
+
+    private static func makeSignalIgnoringProcess() throws -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "trap '' TERM; while true; do sleep 1; done"]
+        try process.run()
+        return process
     }
 
 }
