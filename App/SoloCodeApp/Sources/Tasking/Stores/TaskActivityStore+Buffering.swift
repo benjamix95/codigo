@@ -35,14 +35,14 @@ extension TaskActivityStore {
 
     private func schedulePendingActivitiesFlush(delayNanoseconds: UInt64) {
         flushTask?.cancel()
-        flushTask = Task { [weak self] in
+        flushTask = Task { @MainActor [weak self] in
             if delayNanoseconds > 0 {
                 try? await Task.sleep(nanoseconds: delayNanoseconds)
             }
             guard !Task.isCancelled else { return }
-            DispatchQueue.main.async { [weak self] in
-                self?.flushPendingActivities()
-            }
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            self?.flushPendingActivities()
         }
     }
 
@@ -129,9 +129,11 @@ extension TaskActivityStore {
     }
 
     private func recalcActiveOperations() {
-        activeOperationsCount = activities.suffix(40)
+        let nextCount = activities.suffix(40)
             .filter { $0.isRunning && !SwarmMetadata.isSwarmEvent($0.payload) }
             .count
+        guard activeOperationsCount != nextCount else { return }
+        activeOperationsCount = nextCount
     }
 
     private func shouldMerge(existing: TaskActivity, incoming: TaskActivity) -> Bool {

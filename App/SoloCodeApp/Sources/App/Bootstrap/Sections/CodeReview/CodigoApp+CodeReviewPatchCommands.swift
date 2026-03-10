@@ -55,7 +55,7 @@ extension CodigoApp {
                 MCPSharedState.writeCodeReviewSnapshot(synchronized)
                 await ReviewSessionRegistry.shared.recordSnapshot(synchronized)
                 await MainActor.run {
-                    taskActivityStore.ingestCodeReviewSnapshot(
+                    taskActivityStore.scheduleCodeReviewSnapshotIngest(
                         synchronized,
                         conversationId: synchronized.conversationId
                     )

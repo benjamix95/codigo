@@ -262,7 +262,7 @@ extension CodeReviewPanelStore {
         )
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.taskActivityStore.addEnvelope(envelope)
+            self.taskActivityStore.scheduleAddEnvelope(envelope)
             for event in envelope.events {
                 if case .taskActivity(let activity) = event {
                     self.taskActivityStore.addActivity(

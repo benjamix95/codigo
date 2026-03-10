@@ -114,7 +114,7 @@ extension CodigoApp {
                     MCPSharedState.writeCodeReviewSnapshot(snapshot)
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
                     DispatchQueue.main.async { [taskActivityStore = self.taskActivityStore] in
-                        taskActivityStore.ingestCodeReviewSnapshot(
+                        taskActivityStore.scheduleCodeReviewSnapshotIngest(
                             snapshot,
                             conversationId: conversationId
                         )

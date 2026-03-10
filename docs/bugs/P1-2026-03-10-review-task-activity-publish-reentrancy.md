@@ -19,13 +19,19 @@
 - Causa probabile: la regressione ha riaperto un path già fragile in cui callback live (`onStateChange`, patch workflow, chat findings, runtime provider) mutano store osservati dentro il render pass SwiftUI.
 - Scope consentito:
   - `App/SoloCodeApp/Sources/Tasking/Stores/TaskActivityStore.swift`
+  - `App/SoloCodeApp/Sources/Tasking/Stores/TaskActivityStore+Buffering.swift`
   - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore.swift`
+  - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+ModesAndChatThreads.swift`
   - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+Launch.swift`
-  - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+PatchWorkflow+Execution.swift`
-  - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+ChatFindings.swift`
-  - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+SnapshotMutation.swift`
-  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Providers/ChatPanelView+PartN_RuntimeProvider.swift`
+  - `App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+ActionOutput.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ComposerUI/ChatPanelView+PartH_TaskActivity.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_CodeReviewMutations.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewDeferredCommands.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewPatchCommands.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommandMutations.swift`
+  - `App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+VerifiedFindingsReview.swift`
   - `Tests/SoloCodeAppTests/TaskActivityStoreScopedActivitiesTests.swift`
+  - `Tests/SoloCodeAppTests/TaskActivityStoreSwarmCardsTests.swift`
 - Non-scope:
   - refactor architetturale completo degli store review/task
   - modifica dei reducer swarm
@@ -40,13 +46,13 @@
   - regressione sullo scheduling di `scheduleCodeReviewSnapshotIngest(...)`
   - suite panel/task deferral e swarm cards
 - Strategia di fix minimo:
-  - introdurre helper `scheduleCodeReviewSnapshotIngest(...)` nel `TaskActivityStore`
-  - usare l'helper nei bridge review live più rumorosi
-  - differire il relay `taskActivityStore.objectWillChange` con `DispatchQueue.main.async`
+  - introdurre helper di defer basati su `Task.yield()` nel `TaskActivityStore`
+  - usare `scheduleCodeReviewSnapshotIngest(...)` in tutti i bridge review live che reiniettano snapshot nello store UI
+  - differire anche il relay `taskActivityStore.objectWillChange` e il bind `panelSessionId` del panel review
+  - spostare il path `appendOrMergeBatchEvent(...)` del flush chat al tick successivo per evitare publish immediati durante update SwiftUI
 - Verifica post-fix:
   - `SoloCodeAppTests/TaskActivityStoreScopedActivitiesTests`
   - `SoloCodeAppTests/CodeReviewPanelChatStateDeferralTests`
-  - `SoloCodeAppTests/ReviewPanelLifecycleE2ETests`
   - `SoloCodeAppTests/TaskActivityStoreSwarmCardsTests`
 - Commit previsto: `fix(review): defer task activity publishes outside view updates`
 

@@ -48,12 +48,40 @@ final class TaskActivityStore: ObservableObject {
         self.persistenceBridge = persistenceBridge
     }
 
+    func scheduleDeferredMutation(
+        _ mutation: @escaping @MainActor (TaskActivityStore) -> Void
+    ) {
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled, let self else { return }
+            mutation(self)
+        }
+    }
+
     func scheduleCodeReviewSnapshotIngest(
         _ snapshot: CodeReviewSessionSnapshot,
         conversationId: UUID? = nil
     ) {
-        DispatchQueue.main.async { [weak self] in
-            self?.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+        scheduleDeferredMutation { store in
+            store.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+        }
+    }
+
+    func scheduleAppendOrMergeBatchEvent(_ activity: TaskActivity) {
+        scheduleDeferredMutation { store in
+            store.appendOrMergeBatchEvent(activity)
+        }
+    }
+
+    func scheduleAddInstantGrep(_ result: InstantGrepResult) {
+        scheduleDeferredMutation { store in
+            store.addInstantGrep(result)
+        }
+    }
+
+    func scheduleAddEnvelope(_ envelope: NormalizedEventEnvelope) {
+        scheduleDeferredMutation { store in
+            store.addEnvelope(envelope)
         }
     }
 

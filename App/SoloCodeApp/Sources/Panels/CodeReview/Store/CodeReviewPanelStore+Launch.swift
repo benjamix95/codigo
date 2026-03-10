@@ -46,12 +46,11 @@ extension CodeReviewPanelStore {
             onStateChange: { [weak self] snapshot in
                 Task { @MainActor in
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                    DispatchQueue.main.async { [weak self] in
-                        self?.taskActivityStore.ingestCodeReviewSnapshot(
-                            snapshot, conversationId: self?.conversationId
-                        )
-                        self?.panelSessionId = snapshot.sessionId
-                    }
+                    self?.taskActivityStore.scheduleCodeReviewSnapshotIngest(
+                        snapshot,
+                        conversationId: self?.conversationId
+                    )
+                    self?.schedulePanelSessionBinding(snapshot.sessionId)
                 }
             }
         )
@@ -280,13 +279,11 @@ extension CodeReviewPanelStore {
             onStateChange: { [weak self] snapshot in
                 Task { @MainActor in
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                    DispatchQueue.main.async { [weak self] in
-                        self?.taskActivityStore.ingestCodeReviewSnapshot(
-                            snapshot,
-                            conversationId: self?.conversationId ?? snapshot.conversationId
-                        )
-                        self?.panelSessionId = snapshot.sessionId
-                    }
+                    self?.taskActivityStore.scheduleCodeReviewSnapshotIngest(
+                        snapshot,
+                        conversationId: self?.conversationId ?? snapshot.conversationId
+                    )
+                    self?.schedulePanelSessionBinding(snapshot.sessionId)
                 }
             }
         )

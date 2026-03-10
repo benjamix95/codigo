@@ -83,7 +83,7 @@ extension ChatPanelView {
     @MainActor
     func persistReviewSnapshotForPanel(_ snapshot: CodeReviewSessionSnapshot) async {
         await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-        taskActivityStore.ingestCodeReviewSnapshot(
+        taskActivityStore.scheduleCodeReviewSnapshotIngest(
             snapshot,
             conversationId: conversationId ?? snapshot.conversationId
         )

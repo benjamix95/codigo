@@ -82,7 +82,7 @@ extension ChatPanelView {
                 if taskActivityStore.shouldPreserveSwarmCriticalEvent(activity) {
                     taskActivityStore.addActivity(activity)
                 } else {
-                    taskActivityStore.appendOrMergeBatchEvent(activity)
+                    taskActivityStore.scheduleAppendOrMergeBatchEvent(activity)
                 }
             } else {
                 taskActivityStore.addActivity(activity)
@@ -90,7 +90,7 @@ extension ChatPanelView {
         }
 
         for grep in greps {
-            taskActivityStore.addInstantGrep(grep)
+            taskActivityStore.scheduleAddInstantGrep(grep)
         }
 
         updateSidebarTaskStatus()

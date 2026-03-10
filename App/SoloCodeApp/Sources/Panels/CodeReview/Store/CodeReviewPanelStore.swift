@@ -87,7 +87,7 @@ final class CodeReviewPanelStore: ObservableObject {
 
     private var chatStateCancellable: AnyCancellable?
     private var taskActivityStoreCancellable: AnyCancellable?
-    private var pendingChatConversationApplyTask: Task<Void, Never>?
+    var pendingChatConversationApplyTask: Task<Void, Never>?
 
     // MARK: - Accent Color
 
@@ -144,24 +144,32 @@ final class CodeReviewPanelStore: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] conversation in
                 guard let self else { return }
-                guard self.currentChatConversationState != conversation else { return }
-                self.pendingChatConversationApplyTask?.cancel()
-                self.pendingChatConversationApplyTask = Task { @MainActor [weak self] in
-                    guard !Task.isCancelled, let self else { return }
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        self.pendingChatConversationApplyTask = nil
-                        self.applyChatConversationState(conversation)
-                    }
-                }
+                self.handleIncomingChatConversation(conversation)
             }
         self.taskActivityStoreCancellable = taskActivityStore.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                DispatchQueue.main.async { [weak self] in
-                    self?.objectWillChange.send()
+                self?.scheduleDeferredMutation { store in
+                    store.objectWillChange.send()
                 }
             }
+    }
+
+    func scheduleDeferredMutation(
+        _ mutation: @escaping @MainActor (CodeReviewPanelStore) -> Void
+    ) {
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled, let self else { return }
+            mutation(self)
+        }
+    }
+
+    func schedulePanelSessionBinding(_ sessionId: String?) {
+        scheduleDeferredMutation { store in
+            guard store.panelSessionId != sessionId else { return }
+            store.panelSessionId = sessionId
+        }
     }
 
     // MARK: - Computed Properties

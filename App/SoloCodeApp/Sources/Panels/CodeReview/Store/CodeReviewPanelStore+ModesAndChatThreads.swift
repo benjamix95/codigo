@@ -82,6 +82,21 @@ extension CodeReviewPanelStore {
         }
     }
 
+    // MARK: - Chat Conversation Handling
+
+    /// Handles incoming chat conversation updates from the session store.
+    /// Defers the actual state mutation to avoid view-update reentrancy.
+    func handleIncomingChatConversation(_ conversation: ReviewPanelChatConversationState) {
+        guard currentChatConversationState != conversation else { return }
+        pendingChatConversationApplyTask?.cancel()
+        pendingChatConversationApplyTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled, let self else { return }
+            self.pendingChatConversationApplyTask = nil
+            self.applyChatConversationState(conversation)
+        }
+    }
+
     func applyChatConversationState(_ conversation: ReviewPanelChatConversationState) {
         guard currentChatConversationState != conversation else { return }
         if chatThreads != conversation.threads {

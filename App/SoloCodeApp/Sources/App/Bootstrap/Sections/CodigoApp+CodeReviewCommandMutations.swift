@@ -79,7 +79,7 @@ extension CodigoApp {
         MCPSharedState.writeCodeReviewSnapshot(snapshot)
         await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
         DispatchQueue.main.async { [taskActivityStore] in
-            taskActivityStore.ingestCodeReviewSnapshot(
+            taskActivityStore.scheduleCodeReviewSnapshotIngest(
                 snapshot,
                 conversationId: conversationId ?? snapshot.conversationId
             )
@@ -188,7 +188,7 @@ extension CodigoApp {
         MCPSharedState.writeCodeReviewSnapshot(synchronized)
         await ReviewSessionRegistry.shared.recordSnapshot(synchronized)
         DispatchQueue.main.async { [taskActivityStore] in
-            taskActivityStore.ingestCodeReviewSnapshot(
+            taskActivityStore.scheduleCodeReviewSnapshotIngest(
                 synchronized,
                 conversationId: synchronized.conversationId
             )

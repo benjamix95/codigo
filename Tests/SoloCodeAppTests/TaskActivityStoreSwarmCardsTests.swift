@@ -96,6 +96,34 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(card?.recentEvents.count ?? 0, 2)
     }
 
+    func testScheduledAppendOrMergeBatchEventDefersMutationToNextMainTick() async {
+        let store = TaskActivityStore()
+        let started = TaskActivity(
+            type: "read_batch_started",
+            title: "Deferred read files",
+            detail: "started",
+            payload: ["swarm_id": "coder", "group_id": "swarm-coder", "status": "started"],
+            phase: .editing,
+            isRunning: true,
+            groupId: "swarm-coder"
+        )
+
+        store.scheduleAppendOrMergeBatchEvent(started)
+
+        XCTAssertTrue(
+            store.activities.isEmpty,
+            "La mutazione del path merge deve essere differita al tick main successivo."
+        )
+
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline, store.activities.isEmpty {
+            await Task.yield()
+        }
+
+        XCTAssertEqual(store.activities.count, 1)
+        XCTAssertEqual(store.activities.first?.title, "Deferred read files")
+    }
+
     func testAppendOrMergeBatchEventHardCapPreservesRunningActivities() {
         let store = TaskActivityStore()
         let running = TaskActivity(

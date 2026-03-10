@@ -62,7 +62,7 @@ extension PipelineIntegrationService {
             outcome: snapshot.copying(findings: findings).buildOutcomeSummary(),
             verifiedFindings: synchronized
         )
-        taskActivityStore?.ingestCodeReviewSnapshot(
+        taskActivityStore?.scheduleCodeReviewSnapshotIngest(
             persisted,
             conversationId: conversationId
         )
