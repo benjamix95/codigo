@@ -1,6 +1,36 @@
 import CoderEngine
 import Foundation
 
+@MainActor
+struct ReviewPanelLaunchRequest: Equatable {
+    let conversationId: UUID?
+    let scope: ReviewScopeTarget
+    let modes: Set<CodeReviewPanelMode>
+    let promptOverride: String
+    let invocationLabel: String
+}
+
+@MainActor
+final class ReviewPanelLaunchRequestStore {
+    static let shared = ReviewPanelLaunchRequestStore()
+
+    private var pendingByConversationKey: [String: ReviewPanelLaunchRequest] = [:]
+
+    private init() {}
+
+    func enqueue(_ request: ReviewPanelLaunchRequest) {
+        pendingByConversationKey[conversationKey(for: request.conversationId)] = request
+    }
+
+    func consume(conversationId: UUID?) -> ReviewPanelLaunchRequest? {
+        pendingByConversationKey.removeValue(forKey: conversationKey(for: conversationId))
+    }
+
+    private func conversationKey(for conversationId: UUID?) -> String {
+        conversationId?.uuidString.lowercased() ?? "workspace-review-panel"
+    }
+}
+
 // MARK: - Git Context Loading
 
 extension CodeReviewPanelStore {

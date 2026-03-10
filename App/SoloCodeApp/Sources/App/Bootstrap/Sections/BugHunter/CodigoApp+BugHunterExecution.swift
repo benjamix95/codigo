@@ -136,7 +136,18 @@ extension CodigoApp {
             verifiedFindingsCount: 0,
             candidateFindingsCount: 0,
             lastRevalidationVerdict: nil,
-            securityGateReady: nil
+            securityGateReady: nil,
+            pipelinePhase: "discovery",
+            progressPercent: 8,
+            stepsTotal: 6,
+            stepsCompleted: 1,
+            toolsTotal: 3,
+            toolsCompleted: 0,
+            toolsRunning: 1,
+            verificationGateReady: false,
+            patchGateReady: false,
+            bundleModes: ["standard", "bugFinder", "securityAudit"],
+            publishReady: false
         )
         MCPSharedState.writeBugHunterSnapshot(snapshot)
         await processPendingCodeReviewCommandsOnce()

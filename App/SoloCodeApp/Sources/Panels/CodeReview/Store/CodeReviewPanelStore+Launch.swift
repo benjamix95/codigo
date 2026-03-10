@@ -4,6 +4,20 @@ import Foundation
 // MARK: - Review Execution
 
 extension CodeReviewPanelStore {
+    func consumePendingLaunchRequestIfNeeded() async {
+        guard let request = ReviewPanelLaunchRequestStore.shared.consume(conversationId: conversationId) else {
+            return
+        }
+        scopeTarget = request.scope
+        selectedModes = request.modes
+        selectTab(.findings)
+        await startReview(
+            scope: request.scope,
+            modes: request.modes,
+            promptOverride: request.promptOverride,
+            invocationLabel: request.invocationLabel
+        )
+    }
 
     /// Start an independent code review. Replicates the bootstrap deferred command pattern.
     func startReview(
@@ -18,6 +32,9 @@ extension CodeReviewPanelStore {
         isRunning = true
         runStartedAt = Date()
         frozenTimerText = nil
+        scopeTarget = scope
+        selectedModes = modes
+        selectTab(.findings)
 
         let sessionId = generateSessionId()
         let sessionConfig = buildSessionConfig()
@@ -57,18 +74,6 @@ extension CodeReviewPanelStore {
 
         let prompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
         let context = buildWorkspaceContext()
-        let reviewRunTitle = invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes)
-        createNewChatThread(title: sessionId)
-        let outputMessageId = beginPanelActionOutput(
-            title: reviewRunTitle,
-            detail: prompt,
-            selectChatTab: true
-        )
-        appendReviewRunSectionLine(
-            id: outputMessageId,
-            sectionTitle: "Activity",
-            line: "Preparing review pipeline..."
-        )
 
         panelSessionId = sessionId
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
@@ -78,25 +83,22 @@ extension CodeReviewPanelStore {
             prompt: prompt,
             context: context,
             sessionState: sessionState,
-            onEvent: { [weak self] event in
-                self?.streamPanelActionOutput(id: outputMessageId, event: event)
-            },
+            onEvent: { _ in },
             onStart: { [weak self] in
-                self?.selectedTab = .chat
+                self?.selectedTab = .findings
             },
             onComplete: { [weak self] _ in
                 self?.isRunning = false
                 self?.freezeTimer()
-                self?.finishPanelActionOutput(
-                    id: outputMessageId,
-                    fallbackContent: "Review completed."
-                )
+                if self?.selectedTab != .chat {
+                    self?.selectedTab = .findings
+                }
             },
             onError: { [weak self] error in
                 self?.isRunning = false
                 self?.lastError = error
                 self?.freezeTimer()
-                self?.failPanelActionOutput(id: outputMessageId, error: error)
+                self?.selectedTab = .findings
             }
         )
     }

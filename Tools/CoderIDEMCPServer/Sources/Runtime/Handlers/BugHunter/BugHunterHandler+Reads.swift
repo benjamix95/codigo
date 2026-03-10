@@ -56,6 +56,33 @@ extension CoderIDEMCPServerApp {
         if let securityGateReady = snapshot.securityGateReady {
             lines.append("security_gate_ready_cached: \(securityGateReady ? "true" : "false")")
         }
+        if let pipelinePhase = snapshot.pipelinePhase {
+            lines.append("pipeline_phase: \(pipelinePhase)")
+        }
+        if let progressPercent = snapshot.progressPercent {
+            lines.append("progress_percent: \(progressPercent)")
+        }
+        if let stepsCompleted = snapshot.stepsCompleted, let stepsTotal = snapshot.stepsTotal {
+            lines.append("steps_progress: \(stepsCompleted)/\(stepsTotal)")
+        }
+        if let toolsCompleted = snapshot.toolsCompleted, let toolsTotal = snapshot.toolsTotal {
+            lines.append("tools_progress: \(toolsCompleted)/\(toolsTotal)")
+        }
+        if let toolsRunning = snapshot.toolsRunning {
+            lines.append("tools_running: \(toolsRunning)")
+        }
+        if let verificationGateReady = snapshot.verificationGateReady {
+            lines.append("verification_gate_ready: \(verificationGateReady ? "true" : "false")")
+        }
+        if let patchGateReady = snapshot.patchGateReady {
+            lines.append("patch_gate_ready: \(patchGateReady ? "true" : "false")")
+        }
+        if let publishReady = snapshot.publishReady {
+            lines.append("publish_ready: \(publishReady ? "true" : "false")")
+        }
+        if let bundleModes = snapshot.bundleModes, !bundleModes.isEmpty {
+            lines.append("bundle_modes: \(bundleModes.joined(separator: ","))")
+        }
         return bugHunterOK(lines.joined(separator: "\n"))
     }
 

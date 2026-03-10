@@ -7,7 +7,7 @@ struct ReviewPanelFindingsTab: View {
     let onOpenFileAtLocation: (String, Int?) -> Void
 
     var body: some View {
-        let findings = store.currentFindings
+        let findings = store.currentPublishedFindings
 
         if let selectedId = store.selectedFindingId,
            let finding = findings.first(where: { $0.id == selectedId })
@@ -35,6 +35,11 @@ struct ReviewPanelFindingsTab: View {
     @ViewBuilder
     private func findingsListView(_ findings: [CodeReviewFinding]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let pipeline = store.currentPipelineJobState {
+                ReviewPipelineJobCard(state: pipeline)
+                    .padding(.horizontal, 10)
+            }
+
             if findings.isEmpty {
                 emptyPlaceholder
             } else {
@@ -43,16 +48,6 @@ struct ReviewPanelFindingsTab: View {
                     Divider().opacity(0.2)
                     scrollList(findings)
                 }
-            }
-
-            if !store.currentCandidates.isEmpty {
-                ReviewPanelCandidatesSection(candidates: store.currentCandidates)
-                    .padding(.horizontal, 10)
-            }
-
-            if !store.currentPatches.isEmpty {
-                ReviewPanelPatchesSection(patches: store.currentPatches)
-                    .padding(.horizontal, 10)
             }
 
             ReviewPanelOutcomeCard(outcome: store.currentOutcome)
@@ -65,12 +60,13 @@ struct ReviewPanelFindingsTab: View {
             Image(systemName: "checkmark.shield")
                 .font(.system(size: 24))
                 .foregroundStyle(.tertiary)
-            Text("No findings yet")
+            Text(store.currentPipelineJobState == nil ? "No findings yet" : "No published findings yet")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.tertiary)
-            Text("Start a review to analyze your code")
+            Text(emptyStateSubtitle)
                 .font(.system(size: 10))
                 .foregroundStyle(.quaternary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -207,5 +203,18 @@ struct ReviewPanelFindingsTab: View {
                 )
         )
         .contentShape(Rectangle())
+    }
+
+    private var emptyStateSubtitle: String {
+        if let pipeline = store.currentPipelineJobState {
+            if pipeline.hiddenFindingCount > 0 {
+                return "Verification and patch preparation are still gating the findings."
+            }
+            if pipeline.isTerminal {
+                return "The run completed without any publish-ready findings."
+            }
+            return "The pipeline is still running. Findings appear only after verification and patch preview."
+        }
+        return "Start a review to analyze your code"
     }
 }

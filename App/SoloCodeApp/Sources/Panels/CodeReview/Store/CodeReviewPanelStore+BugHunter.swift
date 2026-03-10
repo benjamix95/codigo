@@ -25,7 +25,18 @@ extension CodeReviewPanelStore {
                 branchName: currentGitBranch,
                 status: .queued,
                 lastMessage: "Queued from review panel",
-                autoFixMode: bugHunterSettings.autofixMode.rawValue
+                autoFixMode: bugHunterSettings.autofixMode.rawValue,
+                pipelinePhase: "queued",
+                progressPercent: 0,
+                stepsTotal: 6,
+                stepsCompleted: 0,
+                toolsTotal: 3,
+                toolsCompleted: 0,
+                toolsRunning: 0,
+                verificationGateReady: false,
+                patchGateReady: false,
+                bundleModes: ["standard", "bugFinder", "securityAudit"],
+                publishReady: false
             )
         )
         appendPanelSystemMessage(

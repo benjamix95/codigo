@@ -124,7 +124,7 @@ struct ChatPanelView: View {
     @State  var suppressedEmptyBuildAssistantMessageIds: Set<UUID> = []
     @State  var isProviderReady = false
     @State  var attachedComposerAttachments: [ComposerAttachment] = []
-    @State  var composerCodeReviewModes: Set<CodeReviewPanelMode> = [.standard]
+    @State  var composerCodeReviewModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
     @State  var isSelectingImage = false
     @State  var isComposerDropTargeted = false
     @State  var isConvertingHeic = false

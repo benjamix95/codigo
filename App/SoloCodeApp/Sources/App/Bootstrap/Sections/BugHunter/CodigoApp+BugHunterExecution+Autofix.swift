@@ -174,6 +174,10 @@ extension CodigoApp {
             entryPoint: .mcp
         )
         let projection = verifiedState.recovered.envelope.projectionSnapshot
+        let pipeline = VerifiedFindingsPipelineStatusService.evaluate(
+            snapshot: reviewSnapshot,
+            entryPoint: .mcp
+        )
         let lastVerdict = verifiedState.recovered.envelope.canonicalSnapshot.revalidationReports.values
             .sorted(by: { $0.createdAt > $1.createdAt })
             .first?.verdict.rawValue
@@ -197,7 +201,18 @@ extension CodigoApp {
             verifiedFindingsCount: projection.verifiedQueue.count,
             candidateFindingsCount: projection.candidateQueue.count,
             lastRevalidationVerdict: lastVerdict,
-            securityGateReady: verifiedState.securityGate.ready
+            securityGateReady: verifiedState.securityGate.ready,
+            pipelinePhase: pipeline.pipelinePhase,
+            progressPercent: pipeline.progressPercent,
+            stepsTotal: pipeline.stepsTotal,
+            stepsCompleted: pipeline.stepsCompleted,
+            toolsTotal: pipeline.toolsTotal,
+            toolsCompleted: pipeline.toolsCompleted,
+            toolsRunning: pipeline.toolsRunning,
+            verificationGateReady: pipeline.verificationGateReady,
+            patchGateReady: pipeline.patchGateReady,
+            bundleModes: pipeline.bundleModes,
+            publishReady: pipeline.publishReady
         )
         MCPSharedState.writeBugHunterSnapshot(updated)
     }

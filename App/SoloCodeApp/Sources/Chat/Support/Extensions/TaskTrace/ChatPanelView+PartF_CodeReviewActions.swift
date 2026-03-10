@@ -4,20 +4,41 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
+    @MainActor
+    func launchCodeReviewPanelRequest(
+        prompt: String,
+        scope: ReviewScopeTarget,
+        modes: Set<CodeReviewPanelMode>,
+        invocationLabel: String = "Findings-first review"
+    ) {
+        let request = ReviewPanelLaunchRequest(
+            conversationId: conversationId,
+            scope: scope,
+            modes: modes,
+            promptOverride: prompt,
+            invocationLabel: invocationLabel
+        )
+        ReviewPanelLaunchRequestStore.shared.enqueue(request)
+        showCodeReviewPanel = true
+    }
+
     /// Retained for backward-compat: the MCP `processCodeReviewCommandLoop`
-    /// path still uses this method to inject a review prompt into the main chat.
+    /// path still uses this method to route a review request into the panel.
     @MainActor
     func dispatchCodeReviewPrompt(
         _ prompt: String,
         sessionConfigOverride: SessionConfig? = nil
     ) {
         pendingCodeReviewSessionConfigOverride = sessionConfigOverride
-        inputText = prompt
-        isInputFocused = true
         if coderMode != .codeReviewMultiSwarm {
             selectMode(.codeReviewMultiSwarm)
         }
-        sendMessage(preferCodeReviewRuntimeProvider: true)
+        launchCodeReviewPanelRequest(
+            prompt: prompt,
+            scope: .uncommitted,
+            modes: [.standard, .bugFinder, .securityAudit],
+            invocationLabel: "Findings-first review"
+        )
     }
 
     /// Opt-in action: publish a code review summary into the main chat thread.

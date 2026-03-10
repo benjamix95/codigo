@@ -26,7 +26,7 @@ final class CodeReviewPanelStore: ObservableObject {
 
     // MARK: - Tab & Navigation
 
-    @Published var selectedTab: CodeReviewTab = .commands
+    @Published var selectedTab: CodeReviewTab = .findings
     @Published var selectedFindingId: String?
     @Published var sessionBrowserExpanded: Bool = false
 
@@ -65,7 +65,7 @@ final class CodeReviewPanelStore: ObservableObject {
     @Published var selectedCommits: Set<String> = []
     @Published var scopeTarget: ReviewScopeTarget = .uncommitted
     @Published var againstCommitRef: String = ""
-    @Published var selectedModes: Set<CodeReviewPanelMode> = [.standard]
+    @Published var selectedModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
     @Published var selectedProviderOverrideId: String?
 
     // MARK: - Settings
@@ -122,7 +122,10 @@ final class CodeReviewPanelStore: ObservableObject {
         chatMessages = activeState.messages
         isChatProcessing = activeState.isProcessing
         chatStartedAt = activeState.startedAt
-        if !chatMessages.isEmpty {
+        if let snapshot = taskActivityStore.codeReviewSnapshot(sessionId: nil, conversationId: conversationId),
+           !snapshot.findings.isEmpty || snapshot.isActive {
+            self.selectedTab = .findings
+        } else if !chatMessages.isEmpty {
             self.selectedTab = .chat
         }
 
@@ -232,7 +235,7 @@ final class CodeReviewPanelStore: ObservableObject {
     }
 
     func focusFinding(_ findingId: String) {
-        guard currentFindings.contains(where: { $0.id == findingId }) else { return }
+        guard currentPublishedFindings.contains(where: { $0.id == findingId }) else { return }
         selectedFindingId = findingId
         selectTab(.findings)
     }

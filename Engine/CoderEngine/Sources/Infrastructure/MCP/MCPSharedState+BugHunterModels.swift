@@ -45,6 +45,17 @@ public struct MCPSharedBugHunterSnapshot: Codable, Sendable {
     public let candidateFindingsCount: Int
     public let lastRevalidationVerdict: String?
     public let securityGateReady: Bool?
+    public let pipelinePhase: String?
+    public let progressPercent: Int?
+    public let stepsTotal: Int?
+    public let stepsCompleted: Int?
+    public let toolsTotal: Int?
+    public let toolsCompleted: Int?
+    public let toolsRunning: Int?
+    public let verificationGateReady: Bool?
+    public let patchGateReady: Bool?
+    public let bundleModes: [String]?
+    public let publishReady: Bool?
 
     public init(
         runId: String,
@@ -66,7 +77,18 @@ public struct MCPSharedBugHunterSnapshot: Codable, Sendable {
         verifiedFindingsCount: Int = 0,
         candidateFindingsCount: Int = 0,
         lastRevalidationVerdict: String? = nil,
-        securityGateReady: Bool? = nil
+        securityGateReady: Bool? = nil,
+        pipelinePhase: String? = nil,
+        progressPercent: Int? = nil,
+        stepsTotal: Int? = nil,
+        stepsCompleted: Int? = nil,
+        toolsTotal: Int? = nil,
+        toolsCompleted: Int? = nil,
+        toolsRunning: Int? = nil,
+        verificationGateReady: Bool? = nil,
+        patchGateReady: Bool? = nil,
+        bundleModes: [String]? = nil,
+        publishReady: Bool? = nil
     ) {
         self.runId = runId
         self.conversationId = conversationId
@@ -88,6 +110,17 @@ public struct MCPSharedBugHunterSnapshot: Codable, Sendable {
         self.candidateFindingsCount = candidateFindingsCount
         self.lastRevalidationVerdict = lastRevalidationVerdict
         self.securityGateReady = securityGateReady
+        self.pipelinePhase = pipelinePhase
+        self.progressPercent = progressPercent
+        self.stepsTotal = stepsTotal
+        self.stepsCompleted = stepsCompleted
+        self.toolsTotal = toolsTotal
+        self.toolsCompleted = toolsCompleted
+        self.toolsRunning = toolsRunning
+        self.verificationGateReady = verificationGateReady
+        self.patchGateReady = patchGateReady
+        self.bundleModes = bundleModes
+        self.publishReady = publishReady
     }
 }
 

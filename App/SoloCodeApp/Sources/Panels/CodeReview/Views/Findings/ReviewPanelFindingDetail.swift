@@ -113,3 +113,181 @@ struct ReviewPanelFindingDetail: View {
         }
     }
 }
+
+struct ReviewPipelineJobCard: View {
+    let state: ReviewPipelineJobState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header
+            metricsRow
+            gatesRow
+            toolsSection
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.34))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(state.phaseColor.opacity(0.24), lineWidth: 0.8)
+        )
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            progressRing
+            VStack(alignment: .leading, spacing: 4) {
+                Text(state.title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary)
+                HStack(spacing: 6) {
+                    Text(state.phaseLabel)
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(state.phaseColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(state.phaseColor.opacity(0.12), in: Capsule())
+                    Text("\(state.stepsCompleted)/\(state.stepsTotal) steps")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                Text(summaryText)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var progressRing: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.primary.opacity(0.08), lineWidth: 6)
+            Circle()
+                .trim(from: 0, to: CGFloat(max(0, min(state.progressPercent, 100))) / 100.0)
+                .stroke(state.phaseColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 1) {
+                if !state.isTerminal && state.toolsRunning > 0 {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .scaleEffect(0.7)
+                }
+                Text(state.progressText)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(state.phaseColor)
+            }
+        }
+        .frame(width: 52, height: 52)
+    }
+
+    private var metricsRow: some View {
+        HStack(spacing: 8) {
+            metricChip("Tools", value: "\(state.toolsCompleted)/\(state.toolsTotal)")
+            metricChip("Candidates", value: "\(state.candidateCount)")
+            metricChip("Verified", value: "\(state.verifiedCount)")
+            metricChip("Published", value: "\(state.publishedFindingCount)")
+            if state.hiddenFindingCount > 0 {
+                metricChip("Hidden", value: "\(state.hiddenFindingCount)")
+            }
+        }
+    }
+
+    private var gatesRow: some View {
+        HStack(spacing: 8) {
+            ForEach(state.gates, id: \.title) { gate in
+                HStack(spacing: 5) {
+                    Image(systemName: gate.isReady ? "checkmark.seal.fill" : "clock.fill")
+                        .font(.system(size: 8))
+                    Text(gate.title)
+                        .font(.system(size: 8.5, weight: .medium))
+                }
+                .foregroundStyle(gate.isReady ? DesignSystem.Colors.success : DesignSystem.Colors.warning)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(
+                    (gate.isReady ? DesignSystem.Colors.success : DesignSystem.Colors.warning)
+                        .opacity(0.12),
+                    in: Capsule()
+                )
+            }
+        }
+    }
+
+    private var toolsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("TOOLS")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.8)
+                Spacer()
+                if !state.bundleModes.isEmpty {
+                    Text(state.bundleModes.joined(separator: " + "))
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(.quaternary)
+                        .lineLimit(1)
+                }
+            }
+            ForEach(state.tools) { tool in
+                HStack(spacing: 8) {
+                    statusDot(tool.status)
+                    Text(tool.title)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if tool.findingsCount > 0 {
+                        Text("\(tool.findingsCount) findings")
+                            .font(.system(size: 8.5, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func metricChip(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title.uppercased())
+                .font(.system(size: 7.5, weight: .bold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.7)
+            Text(value)
+                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    private func statusDot(_ status: ReviewPipelineToolExecution.Status) -> some View {
+        Group {
+            switch status {
+            case .completed:
+                Circle().fill(DesignSystem.Colors.success)
+            case .running:
+                Circle().fill(DesignSystem.Colors.warning)
+            case .pending:
+                Circle().fill(Color.secondary.opacity(0.35))
+            }
+        }
+        .frame(width: 7, height: 7)
+    }
+
+    private var summaryText: String {
+        if state.publishedFindingCount > 0 {
+            return "I finding visibili sono già verificati e hanno patch preview pronta."
+        }
+        if state.hiddenFindingCount > 0 {
+            return "I finding rilevati restano nascosti finché verifica e patch preparation non sono completate."
+        }
+        if state.isTerminal {
+            return "La pipeline è conclusa e non ha prodotto finding pubblicabili."
+        }
+        return "La pipeline sta raccogliendo evidenze e non pubblica risultati provvisori."
+    }
+}

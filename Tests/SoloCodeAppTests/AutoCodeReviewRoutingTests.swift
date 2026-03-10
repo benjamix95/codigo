@@ -21,7 +21,7 @@ final class AutoCodeReviewRoutingTests: XCTestCase {
         )
 
         XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit])
+        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
         XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:uncommitted]"))
         XCTAssertTrue(request.prompt.contains("Security focus:"))
         XCTAssertTrue(request.prompt.contains("Additional instructions:"))
@@ -34,7 +34,7 @@ final class AutoCodeReviewRoutingTests: XCTestCase {
         )
 
         XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard])
+        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
         XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:workspace]"))
     }
 
@@ -45,7 +45,7 @@ final class AutoCodeReviewRoutingTests: XCTestCase {
         )
 
         XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.bugFinder])
+        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
         XCTAssertTrue(request.prompt.contains("Bug focus:"))
     }
 
@@ -67,7 +67,7 @@ final class AutoCodeReviewRoutingTests: XCTestCase {
         )
 
         XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit])
+        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
         XCTAssertTrue(request.prompt.contains("Security focus:"))
     }
 
@@ -78,7 +78,7 @@ final class AutoCodeReviewRoutingTests: XCTestCase {
         )
 
         XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
-        XCTAssertEqual(request.selectedModes, [.standard, .bugFinder])
+        XCTAssertEqual(request.selectedModes, [.standard, .securityAudit, .bugFinder])
         XCTAssertTrue(request.prompt.contains("Bug focus:"))
     }
 

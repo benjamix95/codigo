@@ -218,5 +218,8 @@ struct ReviewPanelHost: View {
             onOpenFile: onOpenFile,
             onOpenFileAtLocation: onOpenFileAtLocation
         )
+        .task {
+            await store.consumePendingLaunchRequestIfNeeded()
+        }
     }
 }

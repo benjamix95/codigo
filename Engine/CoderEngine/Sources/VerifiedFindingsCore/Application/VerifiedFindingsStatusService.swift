@@ -12,6 +12,10 @@ public enum VerifiedFindingsStatusService {
         let securityGate = verifiedState.securityGate
         let replay = verifiedState.replayReport
         let projection = verifiedState.recovered.envelope.projectionSnapshot
+        let pipeline = VerifiedFindingsPipelineStatusService.evaluate(
+            snapshot: snapshot,
+            entryPoint: entryPoint
+        )
 
         var payload: [String: String] = [
             "session_id": snapshot.sessionId,
@@ -48,6 +52,17 @@ public enum VerifiedFindingsStatusService {
             "security_gate_missing_evidence": String(securityGate.findingsMissingEvidenceCount),
             "security_gate_missing_verification": String(securityGate.findingsMissingVerificationCount),
             "security_gate_apply_revalidate_success_rate": String(format: "%.2f", securityGate.applyRevalidateSuccessRate),
+            "pipeline_phase": pipeline.pipelinePhase,
+            "progress_percent": String(pipeline.progressPercent),
+            "steps_total": String(pipeline.stepsTotal),
+            "steps_completed": String(pipeline.stepsCompleted),
+            "tools_total": String(pipeline.toolsTotal),
+            "tools_completed": String(pipeline.toolsCompleted),
+            "tools_running": String(pipeline.toolsRunning),
+            "verification_gate_ready": pipeline.verificationGateReady ? "true" : "false",
+            "patch_gate_ready": pipeline.patchGateReady ? "true" : "false",
+            "publish_ready": pipeline.publishReady ? "true" : "false",
+            "bundle_modes": pipeline.bundleModes.joined(separator: ","),
         ]
 
         if let checkpoint = verifiedState.recovered.checkpoint {

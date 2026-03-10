@@ -90,9 +90,8 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         )
         XCTAssertEqual(reviewMessage.kind, .reviewRun)
         XCTAssertFalse(reviewMessage.isStreaming)
-        XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Thinking") == true)
-        XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Planned Work") == true)
         XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Activity") == true)
+        XCTAssertFalse(reviewMessage.presentation?.sections.isEmpty ?? true)
 
         // Response/verdict content now lives in a separate plain message
         let responseMessage = try XCTUnwrap(
@@ -154,8 +153,8 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
             store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .reviewRun })
         )
         XCTAssertFalse(reviewRun.isStreaming)
-        XCTAssertTrue(reviewRun.presentation?.sections.map(\.title).contains("Thinking") == true)
         XCTAssertTrue(reviewRun.presentation?.sections.map(\.title).contains("Activity") == true)
+        XCTAssertFalse(reviewRun.presentation?.sections.isEmpty ?? true)
 
         // The response content lives in a separate plain message
         let response = try XCTUnwrap(

@@ -154,6 +154,73 @@ func reviewStatusLabel(_ status: FindingStatus) -> (String, Color) {
     case .blocked: return ("Blocked", DesignSystem.Colors.error)
     case .dismissed: return ("Dismissed", .secondary)
     case .wontFix: return ("Won't Fix", .secondary)
-    case .closed: return ("Closed", .secondary)
+        case .closed: return ("Closed", .secondary)
+    }
+}
+
+struct ReviewPipelineToolExecution: Identifiable, Equatable {
+    enum Status: Equatable {
+        case pending
+        case running
+        case completed
+    }
+
+    let id: String
+    let title: String
+    let status: Status
+    let findingsCount: Int
+}
+
+struct ReviewPipelineGateState: Equatable {
+    let title: String
+    let isReady: Bool
+}
+
+struct ReviewPipelineJobState: Equatable {
+    let title: String
+    let phase: String
+    let progressPercent: Int
+    let stepsCompleted: Int
+    let stepsTotal: Int
+    let toolsTotal: Int
+    let toolsCompleted: Int
+    let toolsRunning: Int
+    let candidateCount: Int
+    let verifiedCount: Int
+    let publishedFindingCount: Int
+    let hiddenFindingCount: Int
+    let gates: [ReviewPipelineGateState]
+    let tools: [ReviewPipelineToolExecution]
+    let bundleModes: [String]
+    let isTerminal: Bool
+
+    var phaseLabel: String {
+        switch phase {
+        case "queued": return "Queued"
+        case "discovery": return "Discovery"
+        case "audit": return "Audit"
+        case "verification": return "Verification"
+        case "patch_preparation": return "Patch Preparation"
+        case "publish_ready": return "Publish Ready"
+        case "completed": return "Completed"
+        default: return phase.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    var progressText: String { "\(progressPercent)%" }
+
+    var phaseColor: Color {
+        switch phase {
+        case "completed", "publish_ready":
+            return DesignSystem.Colors.success
+        case "patch_preparation":
+            return DesignSystem.Colors.info
+        case "verification":
+            return DesignSystem.Colors.warning
+        case "audit", "discovery", "queued":
+            return DesignSystem.Colors.reviewColor
+        default:
+            return .secondary
+        }
     }
 }

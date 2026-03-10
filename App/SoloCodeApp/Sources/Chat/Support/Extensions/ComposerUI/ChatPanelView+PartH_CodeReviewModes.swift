@@ -4,6 +4,7 @@ struct AutoCodeReviewRequest: Equatable {
     let prompt: String
     let selectedModes: Set<CodeReviewPanelMode>
     let prefersCodeReviewRuntimeProvider: Bool
+    let scopeTarget: ReviewScopeTarget?
 }
 
 private struct AutoCodeReviewIntentMatch: Equatable {
@@ -29,7 +30,8 @@ func makeAutoCodeReviewRequest(
         return AutoCodeReviewRequest(
             prompt: userText,
             selectedModes: [],
-            prefersCodeReviewRuntimeProvider: false
+            prefersCodeReviewRuntimeProvider: false,
+            scopeTarget: nil
         )
     }
 
@@ -38,23 +40,12 @@ func makeAutoCodeReviewRequest(
         return AutoCodeReviewRequest(
             prompt: userText,
             selectedModes: [],
-            prefersCodeReviewRuntimeProvider: false
+            prefersCodeReviewRuntimeProvider: false,
+            scopeTarget: nil
         )
     }
 
-    var selectedModes: Set<CodeReviewPanelMode> = []
-    if intent.wantsReview {
-        selectedModes.insert(.standard)
-    }
-    if intent.wantsSecurity {
-        selectedModes.insert(.securityAudit)
-    }
-    if intent.wantsBugHunt {
-        selectedModes.insert(.bugFinder)
-    }
-    if selectedModes.isEmpty {
-        selectedModes.insert(.standard)
-    }
+    let selectedModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
 
     let scopeTarget: ReviewScopeTarget = intent.prefersWorkspaceScope ? .workspace : .uncommitted
     let prompt = ReviewPanelCoordinator.combinedPrompt(
@@ -66,7 +57,8 @@ func makeAutoCodeReviewRequest(
     return AutoCodeReviewRequest(
         prompt: prompt,
         selectedModes: selectedModes,
-        prefersCodeReviewRuntimeProvider: true
+        prefersCodeReviewRuntimeProvider: true,
+        scopeTarget: scopeTarget
     )
 }
 

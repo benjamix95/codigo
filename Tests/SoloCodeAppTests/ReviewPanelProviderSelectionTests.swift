@@ -36,6 +36,148 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
         XCTAssertEqual(store.effectivePanelProviderId, "openai-api")
     }
 
+    func testPanelDefaultsToFindingsTabAndUnifiedModes() {
+        let registry = ProviderRegistry()
+        registry.register(MockReviewPanelProvider(id: "openai-api", displayName: "OpenAI"))
+        registry.selectedProviderId = "openai-api"
+
+        let store = CodeReviewPanelStore(
+            taskActivityStore: TaskActivityStore(),
+            providerRegistry: registry,
+            executionController: nil,
+            workspaceStore: WorkspaceStore(),
+            openFilesStore: OpenFilesStore(),
+            conversationId: nil,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+
+        XCTAssertEqual(store.selectedTab, .findings)
+        XCTAssertEqual(store.selectedModes, [.standard, .bugFinder, .securityAudit])
+    }
+
+    func testPublishedFindingsRemainHiddenUntilPatchPreviewIsReady() {
+        let registry = ProviderRegistry()
+        registry.register(MockReviewPanelProvider(id: "openai-api", displayName: "OpenAI"))
+        registry.selectedProviderId = "openai-api"
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let store = CodeReviewPanelStore(
+            taskActivityStore: taskStore,
+            providerRegistry: registry,
+            executionController: nil,
+            workspaceStore: WorkspaceStore(),
+            openFilesStore: OpenFilesStore(),
+            conversationId: conversationId,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-hidden",
+            conversationId: conversationId,
+            phase: .analyzing,
+            stage: .findings,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-hidden",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Sources/App/Main.swift",
+                    message: "Terminal event can be emitted twice",
+                    verificationReport: "Retry riproduce il doppio terminal event",
+                    verifiedAt: Date()
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .uncommitted, files: ["Sources/App/Main.swift"]),
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 1,
+            startedAt: Date(),
+            completedAt: nil,
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: "job-hidden",
+            lastTestStatus: nil,
+            lastUpdatedAt: Date()
+        )
+
+        taskStore.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+        store.panelSessionId = snapshot.sessionId
+
+        XCTAssertTrue(store.currentPublishedFindings.isEmpty)
+        XCTAssertEqual(store.currentPipelineJobState?.hiddenFindingCount, 1)
+        XCTAssertEqual(store.currentPipelineJobState?.phase, "patch_preparation")
+    }
+
+    func testPublishedFindingsAppearWhenPatchPreviewIsVerified() {
+        let registry = ProviderRegistry()
+        registry.register(MockReviewPanelProvider(id: "openai-api", displayName: "OpenAI"))
+        registry.selectedProviderId = "openai-api"
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let store = CodeReviewPanelStore(
+            taskActivityStore: taskStore,
+            providerRegistry: registry,
+            executionController: nil,
+            workspaceStore: WorkspaceStore(),
+            openFilesStore: OpenFilesStore(),
+            conversationId: conversationId,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+        let patch = ReviewPatchArtifact(
+            id: "patch-ready",
+            findingId: "finding-ready",
+            patchText: "diff --git a/Authz.swift b/Authz.swift",
+            diffPreview: "@@",
+            touchedFiles: ["Sources/Auth/Authz.swift"],
+            status: .verified,
+            verifyStatus: .verified
+        )
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-ready",
+            conversationId: conversationId,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-ready",
+                    severity: .warning,
+                    category: .security,
+                    origin: .securityAuditor,
+                    filePath: "Sources/Auth/Authz.swift",
+                    lineNumber: 21,
+                    message: "Missing authorization guard",
+                    status: .patchReady,
+                    verificationReport: "Verified on the direct authorization path",
+                    verifiedAt: Date(),
+                    patchArtifactId: "patch-ready"
+                )
+            ],
+            patches: [patch],
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .uncommitted, files: ["Sources/Auth/Authz.swift"]),
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: "job-ready",
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        taskStore.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+        store.panelSessionId = snapshot.sessionId
+
+        XCTAssertEqual(store.currentPublishedFindings.map(\.id), ["finding-ready"])
+        XCTAssertEqual(store.currentPipelineJobState?.publishedFindingCount, 1)
+        XCTAssertEqual(store.currentPipelineJobState?.phase, "completed")
+    }
+
     private static func makeProviderFactoryConfig() -> ProviderFactoryConfig {
         ProviderFactoryConfig(
             openaiApiKey: "",
