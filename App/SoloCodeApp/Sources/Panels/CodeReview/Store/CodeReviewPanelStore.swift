@@ -158,7 +158,9 @@ final class CodeReviewPanelStore: ObservableObject {
         self.taskActivityStoreCancellable = taskActivityStore.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.objectWillChange.send()
+                DispatchQueue.main.async { [weak self] in
+                    self?.objectWillChange.send()
+                }
             }
     }
 

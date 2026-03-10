@@ -48,6 +48,15 @@ final class TaskActivityStore: ObservableObject {
         self.persistenceBridge = persistenceBridge
     }
 
+    func scheduleCodeReviewSnapshotIngest(
+        _ snapshot: CodeReviewSessionSnapshot,
+        conversationId: UUID? = nil
+    ) {
+        DispatchQueue.main.async { [weak self] in
+            self?.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+        }
+    }
+
     func addEnvelope(_ envelope: NormalizedEventEnvelope) {
         envelopes.insert(envelope, at: 0)
         unseenLiveEventsCount += 1

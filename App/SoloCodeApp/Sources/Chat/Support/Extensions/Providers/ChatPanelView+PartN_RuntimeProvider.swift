@@ -73,7 +73,7 @@ extension ChatPanelView {
                 onStateChange: { snapshot in
                     Task { @MainActor in
                         await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                        store.ingestCodeReviewSnapshot(
+                        store.scheduleCodeReviewSnapshotIngest(
                             snapshot,
                             conversationId: reviewConversationId
                         )
@@ -94,7 +94,7 @@ extension ChatPanelView {
                     await ReviewSessionRegistry.shared.register(sessionState)
                     let snapshot = await sessionState.snapshot()
                     await MainActor.run {
-                        taskActivityStore.ingestCodeReviewSnapshot(
+                        taskActivityStore.scheduleCodeReviewSnapshotIngest(
                             snapshot,
                             conversationId: reviewConversationId
                         )

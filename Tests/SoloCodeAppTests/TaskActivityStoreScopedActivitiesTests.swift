@@ -90,6 +90,29 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
         XCTAssertEqual(recorder.snapshots.map(\.mutationSequence), [1, 2])
     }
 
+    func testScheduleCodeReviewSnapshotIngestDefersMutationToNextMainTick() async {
+        let store = TaskActivityStore(
+            persistenceBridge: TaskActivityPersistenceBridge(
+                writeCodeReviewSnapshot: { _ in }
+            )
+        )
+        let snapshot = makeSnapshot(sessionId: "session-deferred", mutationSequence: 1)
+
+        store.scheduleCodeReviewSnapshotIngest(
+            snapshot,
+            conversationId: snapshot.conversationId
+        )
+
+        XCTAssertNil(store.codeReviewSnapshotsBySession[snapshot.sessionId])
+
+        await drainMainQueue()
+
+        XCTAssertEqual(
+            store.codeReviewSnapshotsBySession[snapshot.sessionId]?.sessionId,
+            snapshot.sessionId
+        )
+    }
+
     func testIngestCodeReviewSnapshotCachesFreshVerifiedEnvelopePerMutation() {
         let store = TaskActivityStore(
             persistenceBridge: TaskActivityPersistenceBridge(
@@ -222,6 +245,14 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
             lastTestStatus: nil,
             lastUpdatedAt: Date(timeIntervalSince1970: 1_700_000_100 + Double(mutationSequence))
         )
+    }
+
+    private func drainMainQueue() async {
+        let expectation = expectation(description: "drain main queue")
+        DispatchQueue.main.async {
+            expectation.fulfill()
+        }
+        await fulfillment(of: [expectation], timeout: 1.0)
     }
 }
 

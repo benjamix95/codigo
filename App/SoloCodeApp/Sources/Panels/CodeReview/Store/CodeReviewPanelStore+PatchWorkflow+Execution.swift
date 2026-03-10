@@ -38,7 +38,7 @@ extension CodeReviewPanelStore {
     }
 
     func ingestUpdatedPatchSnapshot(_ updated: CodeReviewSessionSnapshot) async {
-        taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
+        taskActivityStore.scheduleCodeReviewSnapshotIngest(updated, conversationId: conversationId)
     }
 
     func patchesForSession(_ sessionId: String) -> [ReviewPatchArtifact] {
@@ -111,7 +111,7 @@ extension CodeReviewPanelStore {
             outcome: snapshot.copying(findings: findings, patches: patches)
                 .buildOutcomeSummary(summaryOverride: message)
         )
-        taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
+        taskActivityStore.scheduleCodeReviewSnapshotIngest(updated, conversationId: conversationId)
         appendVerifiedFindingSystemMessage(
             sessionId: sessionId,
             findingId: findingId,

@@ -46,10 +46,12 @@ extension CodeReviewPanelStore {
             onStateChange: { [weak self] snapshot in
                 Task { @MainActor in
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                    self?.taskActivityStore.ingestCodeReviewSnapshot(
-                        snapshot, conversationId: self?.conversationId
-                    )
-                    self?.panelSessionId = snapshot.sessionId
+                    DispatchQueue.main.async { [weak self] in
+                        self?.taskActivityStore.ingestCodeReviewSnapshot(
+                            snapshot, conversationId: self?.conversationId
+                        )
+                        self?.panelSessionId = snapshot.sessionId
+                    }
                 }
             }
         )
@@ -157,7 +159,7 @@ extension CodeReviewPanelStore {
             _ = await liveState.dismissFinding(findingId: findingId, reason: reason)
             let snapshot = await liveState.snapshot()
             await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-            taskActivityStore.ingestCodeReviewSnapshot(
+            taskActivityStore.scheduleCodeReviewSnapshotIngest(
                 snapshot, conversationId: conversationId
             )
             appendPanelSystemMessage(
@@ -278,11 +280,13 @@ extension CodeReviewPanelStore {
             onStateChange: { [weak self] snapshot in
                 Task { @MainActor in
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                    self?.taskActivityStore.ingestCodeReviewSnapshot(
-                        snapshot,
-                        conversationId: self?.conversationId ?? snapshot.conversationId
-                    )
-                    self?.panelSessionId = snapshot.sessionId
+                    DispatchQueue.main.async { [weak self] in
+                        self?.taskActivityStore.ingestCodeReviewSnapshot(
+                            snapshot,
+                            conversationId: self?.conversationId ?? snapshot.conversationId
+                        )
+                        self?.panelSessionId = snapshot.sessionId
+                    }
                 }
             }
         )
@@ -300,7 +304,7 @@ extension CodeReviewPanelStore {
         }
 
         await ReviewSessionRegistry.shared.register(fixSessionState)
-        taskActivityStore.ingestCodeReviewSnapshot(
+        taskActivityStore.scheduleCodeReviewSnapshotIngest(
             await fixSessionState.snapshot(),
             conversationId: conversationId ?? sourceSnapshot.conversationId
         )

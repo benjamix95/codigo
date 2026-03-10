@@ -45,7 +45,7 @@ extension CodeReviewPanelStore {
             events: snapshot.events + events,
             outcome: snapshot.copying(findings: merge.all).buildOutcomeSummary()
         )
-        taskActivityStore.ingestCodeReviewSnapshot(
+        taskActivityStore.scheduleCodeReviewSnapshotIngest(
             updated,
             conversationId: conversationId
         )
