@@ -200,6 +200,88 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(finalValue, iterations)
     }
 
+    func testCodeReviewFallbackAndAdvisoryPathsShareSameCriticalSection() {
+        let lockURL = MCPSharedState.codeReviewDirectoryPath.appendingPathComponent(".lock")
+        let fallbackLock = NSRecursiveLock()
+        let queue = DispatchQueue(label: "test.codereview.mixed-locks", attributes: .concurrent)
+        let stateLock = NSLock()
+        var activeCriticalSections = 0
+        var maxConcurrentCriticalSections = 0
+
+        let fallbackEntered = expectation(description: "fallback path entered critical section")
+        let completed = expectation(description: "mixed lock paths completed")
+        completed.expectedFulfillmentCount = 2
+
+        queue.async {
+            MCPSharedState.withAdvisoryFileLock(
+                label: "CodeReviewLockTest",
+                lockURL: lockURL,
+                createMode: S_IRUSR | S_IWUSR,
+                fallbackLock: fallbackLock,
+                ensureLockDirectory: {
+                    MCPSharedState.ensureDirectory()
+                    try? FileManager.default.createDirectory(
+                        at: MCPSharedState.codeReviewDirectoryPath,
+                        withIntermediateDirectories: true
+                    )
+                },
+                acquireLock: {
+                    .fallback(EMFILE)
+                },
+                body: {
+                    stateLock.lock()
+                    activeCriticalSections += 1
+                    maxConcurrentCriticalSections = max(
+                        maxConcurrentCriticalSections,
+                        activeCriticalSections
+                    )
+                    stateLock.unlock()
+                    fallbackEntered.fulfill()
+                    Thread.sleep(forTimeInterval: 0.1)
+                    stateLock.lock()
+                    activeCriticalSections -= 1
+                    stateLock.unlock()
+                }
+            )
+            completed.fulfill()
+        }
+
+        wait(for: [fallbackEntered], timeout: 1.0)
+
+        queue.async {
+            MCPSharedState.withAdvisoryFileLock(
+                label: "CodeReviewLockTest",
+                lockURL: lockURL,
+                createMode: S_IRUSR | S_IWUSR,
+                fallbackLock: fallbackLock,
+                ensureLockDirectory: {
+                    MCPSharedState.ensureDirectory()
+                    try? FileManager.default.createDirectory(
+                        at: MCPSharedState.codeReviewDirectoryPath,
+                        withIntermediateDirectories: true
+                    )
+                },
+                body: {
+                    stateLock.lock()
+                    activeCriticalSections += 1
+                    maxConcurrentCriticalSections = max(
+                        maxConcurrentCriticalSections,
+                        activeCriticalSections
+                    )
+                    stateLock.unlock()
+                    Thread.sleep(forTimeInterval: 0.02)
+                    stateLock.lock()
+                    activeCriticalSections -= 1
+                    stateLock.unlock()
+                }
+            )
+            completed.fulfill()
+        }
+
+        wait(for: [completed], timeout: 5.0)
+        XCTAssertEqual(maxConcurrentCriticalSections, 1)
+    }
+
     private func makeSnapshot(
         sessionId: String,
         conversationId: UUID = UUID(),
