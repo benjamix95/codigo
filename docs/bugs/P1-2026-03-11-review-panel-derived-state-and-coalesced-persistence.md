@@ -22,7 +22,6 @@
   - test `SoloCodeAppTests` mirati
   - documentazione bug/changelog
 - Non-scope:
-  - refactor completo della persistence Postgres in delta write
   - refactor completo della lifecycle `CodeReviewSessionState`
   - fix delle failure storiche dei test engine non collegate a questa tranche
 - Moduli confinanti da verificare:
@@ -54,3 +53,8 @@
 - coalesced `scheduleCodeReviewSnapshotIngest(...)` sul next batch invece che 1 update per tick
 - coalesced `TaskActivityPersistenceBridge` con flush seriale e flush immediato sui terminal state
 - preservato il cold-start da envelope persistito per snapshot terminali senza reintrodurre il read-path nel `body`
+- convertita la persistence review/Postgres dei verified findings a modello delta:
+  - checkpoint compatto con hash per entity
+  - `upsert/delete` solo per entity cambiate o rimosse
+  - colonne `payload` per rebuild delle entity canonicali dalle tabelle normalizzate
+  - restore dell’envelope da Postgres senza dipendere dal vecchio checkpoint full

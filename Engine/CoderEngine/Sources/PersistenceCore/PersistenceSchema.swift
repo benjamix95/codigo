@@ -1,7 +1,7 @@
 import Foundation
 
 public enum PersistenceSchema {
-    public static let version = 1
+    public static let version = 2
 
     public static func migrationSQL() -> String {
         [

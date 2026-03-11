@@ -94,6 +94,35 @@ final class MCPSharedStatePostgresFallbackTests: XCTestCase {
         XCTAssertEqual(MCPSharedState.readPlanHistoryJSONObject(conversationId: conversationId, limit: 10).count, 1)
     }
 
+    func testVerifiedFindingsDeltaPersistenceRemovesDeletedRowsAndReadsLatestEnvelope() throws {
+        let store = PostgresPersistenceStore(postgresService: ManagedPostgresService())
+        let original = makeVerifiedFindingsEnvelope(
+            sessionId: "session-delta",
+            findings: [
+                makeVerifiedFinding(id: "finding-a", title: "Old A"),
+                makeVerifiedFinding(id: "finding-b", title: "Old B"),
+            ]
+        )
+        let updated = makeVerifiedFindingsEnvelope(
+            sessionId: "session-delta",
+            findings: [
+                makeVerifiedFinding(id: "finding-b", title: "New B")
+            ]
+        )
+
+        try store.persistVerifiedFindingsEnvelope(original)
+        try store.persistVerifiedFindingsEnvelope(updated)
+
+        let envelope = try XCTUnwrap(store.readVerifiedFindingsEnvelope(sessionId: "session-delta"))
+        XCTAssertEqual(Set(envelope.canonicalSnapshot.findings.keys), ["finding-b"])
+        XCTAssertEqual(envelope.canonicalSnapshot.findings["finding-b"]?.title, "New B")
+
+        let findingsCount = try store.execute(
+            sql: "SELECT COUNT(*) FROM findings WHERE session_id = 'session-delta';"
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(findingsCount, "1")
+    }
+
     private func makeCodeReviewSnapshot(sessionId: String) -> CodeReviewSessionSnapshot {
         CodeReviewSessionSnapshot(
             sessionId: sessionId,
@@ -115,6 +144,47 @@ final class MCPSharedStatePostgresFallbackTests: XCTestCase {
             currentJobId: nil,
             lastTestStatus: .passed,
             lastUpdatedAt: PersistenceTestSupport.stableDate(1_700_000_200)
+        )
+    }
+
+    private func makeVerifiedFindingsEnvelope(
+        sessionId: String,
+        findings: [VerifiedFinding]
+    ) -> VerifiedFindingsSessionEnvelope {
+        let canonical = VerifiedFindingsCanonicalSnapshot(
+            runs: [:],
+            findings: Dictionary(uniqueKeysWithValues: findings.map { ($0.id, $0) }),
+            evidences: [:],
+            verificationReports: [:],
+            patchArtifacts: [:],
+            revalidationReports: [:],
+            commandLog: [],
+            eventLog: [],
+            traceLog: ["trace-\(sessionId)"]
+        )
+        return VerifiedFindingsSessionEnvelope(
+            sessionId: sessionId,
+            canonicalSnapshot: canonical,
+            projectionSnapshot: VerifiedFindingsProjectionBuilder.build(from: canonical),
+            lastUpdatedAt: PersistenceTestSupport.stableDate(1_700_000_300)
+        )
+    }
+
+    private func makeVerifiedFinding(id: String, title: String) -> VerifiedFinding {
+        VerifiedFinding(
+            id: id,
+            domain: .bug,
+            title: title,
+            summary: title,
+            category: "correctness",
+            severity: .medium,
+            confidence: 0.8,
+            status: .verified,
+            filePath: "Sources/\(id).swift",
+            originEntryPoint: .mainChat,
+            findingFingerprint: "fp-\(id)",
+            createdAt: PersistenceTestSupport.stableDate(),
+            updatedAt: PersistenceTestSupport.stableDate(1_700_000_100)
         )
     }
 }

@@ -27,6 +27,7 @@ extension PersistenceSchema {
         event_schema_version INTEGER NOT NULL DEFAULT 1,
         entity_schema_version INTEGER NOT NULL DEFAULT 1,
         projection_schema_version INTEGER NOT NULL DEFAULT 1,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         version BIGINT NOT NULL DEFAULT 1
@@ -60,6 +61,7 @@ extension PersistenceSchema {
         identity_version INTEGER NOT NULL DEFAULT 1,
         merged_into_finding_id TEXT REFERENCES findings(id) ON DELETE SET NULL,
         recurrence_group_id TEXT,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
     );
@@ -84,6 +86,7 @@ extension PersistenceSchema {
         redaction_reason TEXT,
         retention_class TEXT NOT NULL,
         visibility_level TEXT NOT NULL,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL
     );
     CREATE TABLE IF NOT EXISTS verification_reports (
@@ -101,6 +104,7 @@ extension PersistenceSchema {
         retryable BOOLEAN NOT NULL DEFAULT FALSE,
         retry_count INTEGER NOT NULL DEFAULT 0,
         max_retry_allowed INTEGER NOT NULL DEFAULT 0,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL
     );
     CREATE TABLE IF NOT EXISTS patch_artifacts (
@@ -127,6 +131,7 @@ extension PersistenceSchema {
         redaction_applied BOOLEAN NOT NULL DEFAULT FALSE,
         retention_class TEXT NOT NULL,
         visibility_level TEXT NOT NULL,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
     );
@@ -143,6 +148,7 @@ extension PersistenceSchema {
         retryable BOOLEAN NOT NULL DEFAULT FALSE,
         retry_count INTEGER NOT NULL DEFAULT 0,
         max_retry_allowed INTEGER NOT NULL DEFAULT 0,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL
     );
     CREATE TABLE IF NOT EXISTS pipeline_events (
@@ -199,5 +205,11 @@ extension PersistenceSchema {
     CREATE INDEX IF NOT EXISTS idx_pipeline_events_type ON pipeline_events(event_type);
     CREATE INDEX IF NOT EXISTS idx_command_log_command_id ON command_log(command_id);
     CREATE INDEX IF NOT EXISTS idx_command_log_entity_fingerprint ON command_log(entity_id, request_fingerprint);
+    ALTER TABLE pipeline_runs ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE findings ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE evidence ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE verification_reports ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE patch_artifacts ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE revalidation_reports ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
     """
 }

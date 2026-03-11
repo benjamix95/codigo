@@ -30,6 +30,15 @@ Rimuovere il lavoro pesante dal `body` SwiftUI del panel Code Review e ridurre l
   - [review_reduce.rs](/Users/benjaminstoica/SoloCode/Native/RustCore/src/review_reduce.rs)
   - [ffi.rs](/Users/benjaminstoica/SoloCode/Native/RustCore/src/ffi.rs)
   - nuova operazione `derive_review_panel_state` con fallback Swift
+- aggiornato [PostgresPersistenceStore+VerifiedFindings.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/PersistenceCore/PostgresPersistenceStore+VerifiedFindings.swift)
+  - persistence verified findings convertita a delta write
+  - checkpoint compatto hash-based salvato in `verified_findings_checkpoints`
+  - rebuild dell’envelope dalle tabelle normalizzate e dal projection payload
+- aggiornato schema persistence:
+  - [PersistenceSchema.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/PersistenceCore/PersistenceSchema.swift)
+  - [PersistenceSchema+VerifiedFindings.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/PersistenceCore/PersistenceSchema+VerifiedFindings.swift)
+  - versione schema portata a `2`
+  - aggiunte colonne `payload` per `pipeline_runs`, `findings`, `evidence`, `verification_reports`, `patch_artifacts`, `revalidation_reports`
 - corretto un blocco esterno di build in [CodeReviewHandler+PatchWorkflow.swift](/Users/benjaminstoica/SoloCode/Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview/CodeReviewHandler+PatchWorkflow.swift)
   - chiusa una graffa mancante che impediva la compilazione del target `CoderIDEMCPServer`
 
@@ -43,9 +52,10 @@ Rimuovere il lavoro pesante dal `body` SwiftUI del panel Code Review e ridurre l
 - note:
   - `cargo test -q` completo del crate Rust continua a mostrare 2 failure preesistenti in `review_patch::runtime`
   - i test engine `CodeReviewSessionStateTests` selezionati mostrano mismatch storici preesistenti su `fixApplied/patchApplied`, non introdotti da questa tranche
+  - aggiunta regressione delta write in [MCPSharedStatePostgresFallbackTests.swift](/Users/benjaminstoica/SoloCode/Tests/CoderEngineTests/Persistence/MCPSharedStatePostgresFallbackTests.swift)
 
 ## Impatto atteso
 - niente più resolve verified findings/pipeline sul render path del tab Findings
 - feedback visivo più rapido quando parte la review
 - minore pressione sul bridge persistence grazie al coalescing degli snapshot
-- base pronta per completare la tranche successiva: delta write reali su Postgres
+- persistence review già spostata su delta write reali per verified findings
