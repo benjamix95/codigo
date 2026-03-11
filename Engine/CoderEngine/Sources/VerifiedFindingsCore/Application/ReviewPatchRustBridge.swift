@@ -35,6 +35,52 @@ public struct ReviewPatchRustBridge {
         )
     }
 
+    public static func startRuntime(
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        snapshot: CodeReviewSessionSnapshot
+    ) -> ReviewPatchRuntimeResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_patch_start_runtime",
+            request: ReviewPatchRuntimeStartRequest(
+                schemaVersion: 1,
+                action: action,
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: conversationId?.uuidString.lowercased(),
+                snapshot: ReviewPatchRustSnapshot(snapshot: snapshot)
+            )
+        )
+    }
+
+    public static func applyRuntimeResult(
+        runtimeId: String,
+        succeeded: Bool,
+        errorMessage: String?
+    ) -> ReviewPatchRuntimeResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_patch_apply_runtime_result",
+            request: ReviewPatchRuntimeResultRequest(
+                schemaVersion: 1,
+                runtimeId: runtimeId,
+                succeeded: succeeded,
+                errorMessage: errorMessage
+            )
+        )
+    }
+
+    public static func runtimeState(runtimeId: String) -> ReviewPatchRuntimeResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_patch_get_runtime_state",
+            request: ReviewPatchRuntimeStateRequest(
+                schemaVersion: 1,
+                runtimeId: runtimeId
+            )
+        )
+    }
+
     private static func call(
         operation: String,
         action: String,
@@ -66,6 +112,27 @@ private struct ReviewPatchRustRequest: Encodable {
     let findingId: String
     let conversationId: String?
     let snapshot: ReviewPatchRustSnapshot
+}
+
+private struct ReviewPatchRuntimeStartRequest: Encodable {
+    let schemaVersion: Int
+    let action: String
+    let sessionId: String
+    let findingId: String
+    let conversationId: String?
+    let snapshot: ReviewPatchRustSnapshot
+}
+
+private struct ReviewPatchRuntimeResultRequest: Encodable {
+    let schemaVersion: Int
+    let runtimeId: String
+    let succeeded: Bool
+    let errorMessage: String?
+}
+
+private struct ReviewPatchRuntimeStateRequest: Encodable {
+    let schemaVersion: Int
+    let runtimeId: String
 }
 
 private struct ReviewPatchRustSnapshot: Encodable {
@@ -133,4 +200,13 @@ public struct ReviewPatchRustResponse: Decodable {
     public let findingSeverity: String?
     public let findingCategory: String?
     public let findingMessage: String?
+}
+
+public struct ReviewPatchRuntimeResponse: Decodable {
+    public let isError: Bool
+    public let errorCode: String?
+    public let errorMessage: String?
+    public let runtimeId: String?
+    public let status: String
+    public let currentStep: String?
 }

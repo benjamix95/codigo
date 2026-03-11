@@ -12,18 +12,27 @@ enum VerifiedFindingsPatchExecutionService {
         providerRegistry: ProviderRegistry
     ) async throws -> CodeReviewSessionSnapshot {
         let service = ReviewPatchWorkflowService()
-        let plan = ReviewPatchRustBridge.executionPlan(
+        let runtime = ReviewPatchRustBridge.startRuntime(
             action: action,
             sessionId: snapshot.sessionId,
             findingId: findingId,
             conversationId: snapshot.conversationId,
             snapshot: snapshot
         )
-        let steps = plan?.steps ?? [action]
+        guard let runtime else {
+            throw ReviewPatchWorkflowError.invalidPatch
+        }
+        if runtime.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                runtime.errorMessage ?? "Unable to start patch runtime"
+            )
+        }
         var currentSnapshot = snapshot
-
-        for step in steps {
-            switch step {
+        var runtimeId = runtime.runtimeId
+        var currentStep = runtime.currentStep
+        while let step = currentStep {
+            do {
+                switch step {
             case "prepare_patch":
                 currentSnapshot = try await preparePatch(
                     snapshot: currentSnapshot,
@@ -100,6 +109,23 @@ enum VerifiedFindingsPatchExecutionService {
                 )
             default:
                 break
+            }
+                let updated = ReviewPatchRustBridge.applyRuntimeResult(
+                    runtimeId: runtimeId ?? "",
+                    succeeded: true,
+                    errorMessage: nil
+                )
+                runtimeId = updated?.runtimeId ?? runtimeId
+                currentStep = updated?.currentStep
+            } catch {
+                let failed = ReviewPatchRustBridge.applyRuntimeResult(
+                    runtimeId: runtimeId ?? "",
+                    succeeded: false,
+                    errorMessage: error.localizedDescription
+                )
+                throw ReviewPatchWorkflowError.applyFailed(
+                    failed?.errorMessage ?? error.localizedDescription
+                )
             }
         }
         return currentSnapshot

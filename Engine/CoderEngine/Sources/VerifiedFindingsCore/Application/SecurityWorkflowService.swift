@@ -65,23 +65,13 @@ public enum SecurityWorkflowService {
         conversationId: UUID?,
         payload: [String: String]
     ) throws -> VerifiedFindingsQueuedCommandContext {
-        switch action {
-        case "apply_patch":
-            return try VerifiedFindingsLifecycleCommandService.queueApplyPatchCommand(
-                sessionId: sessionId,
-                findingId: findingId,
-                conversationId: conversationId,
-                payload: payload
-            )
-        default:
-            return try VerifiedFindingsLifecycleCommandService.queueFindingCommand(
-                action: action,
-                sessionId: sessionId,
-                findingId: findingId,
-                conversationId: conversationId,
-                payload: payload
-            )
-        }
+        try VerifiedFindingsLifecycleCommandService.queueCommand(
+            action: action,
+            sessionId: sessionId,
+            findingId: findingId,
+            conversationId: conversationId,
+            payload: payload
+        )
     }
 
     private static func securityReviewPrompt(from args: [String: String]) -> String {

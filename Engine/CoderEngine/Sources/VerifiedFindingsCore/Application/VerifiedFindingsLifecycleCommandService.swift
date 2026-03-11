@@ -24,6 +24,32 @@ public enum VerifiedFindingsLifecycleCommandError: Error, Equatable {
 }
 
 public enum VerifiedFindingsLifecycleCommandService {
+    public static func queueCommand(
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) throws -> VerifiedFindingsQueuedCommandContext {
+        switch action {
+        case "apply_patch":
+            return try queueApplyPatchCommand(
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: conversationId,
+                payload: payload
+            )
+        default:
+            return try queueFindingCommand(
+                action: action,
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: conversationId,
+                payload: payload
+            )
+        }
+    }
+
     public static func queueFindingCommand(
         action: String,
         sessionId: String,
