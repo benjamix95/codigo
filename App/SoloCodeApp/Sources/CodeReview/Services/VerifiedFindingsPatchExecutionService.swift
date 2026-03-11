@@ -93,6 +93,11 @@ enum VerifiedFindingsPatchExecutionService {
                     providerRegistry: providerRegistry
                 )
                 currentSnapshot = upsertingPatch(in: currentSnapshot, artifact: resolved)
+            case "close_finding":
+                currentSnapshot = try closeFinding(
+                    snapshot: currentSnapshot,
+                    findingId: findingId
+                )
             default:
                 break
             }
@@ -158,5 +163,49 @@ enum VerifiedFindingsPatchExecutionService {
         )
         let verified = try await service.verifyPatch(artifact: prepared, workspaceRoot: workspaceRoot)
         return upsertingPatch(in: snapshot, artifact: verified)
+    }
+
+    private static func closeFinding(
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String
+    ) throws -> CodeReviewSessionSnapshot {
+        guard let findingIndex = snapshot.findings.firstIndex(where: { $0.id == findingId }) else {
+            throw ReviewPatchWorkflowError.reviewNotVerified
+        }
+        let currentStatus = snapshot.findings[findingIndex].status
+        let patch = snapshot.findings[findingIndex].patchArtifactId.flatMap { patchId in
+            snapshot.patches.first(where: { $0.id == patchId })
+        } ?? snapshot.patches.first(where: { $0.findingId == findingId })
+
+        let canClose: Bool
+        switch currentStatus {
+        case .merged, .dismissed, .wontFix, .closed:
+            canClose = true
+        case .patchApplied, .fixApplied:
+            canClose = patch?.validationStatus == .passed
+        default:
+            canClose = false
+        }
+        guard canClose else {
+            throw ReviewPatchWorkflowError.applyFailed("Finding cannot be closed until the patch is validated or the finding is already resolved.")
+        }
+
+        var findings = snapshot.findings
+        findings[findingIndex].status = .closed
+        let updated = snapshot.copying(
+            findings: findings,
+            events: snapshot.events + [
+                CodeReviewSessionEvent(
+                    type: .outcomePublished,
+                    detail: "Finding \(findingId) closed",
+                    metadata: ["finding_id": findingId, "reason": "closed"]
+                )
+            ]
+        )
+        return updated.copying(
+            mutationSequence: updated.mutationSequence,
+            outcome: updated.buildOutcomeSummary(),
+            lastUpdatedAt: Date()
+        )
     }
 }

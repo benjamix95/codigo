@@ -43,50 +43,53 @@ extension CodigoApp {
                 for try await _ in stream {}
 
                 let snapshot = await sessionState.snapshot()
-                guard snapshot.phase == .completed else {
-                    let failureMessage = snapshot.lastError
-                        ?? "Code review session \(snapshot.sessionId) did not complete successfully"
-                    MCPSharedState.markCodeReviewCommand(
-                        id: command.id,
-                        status: .failed,
-                        resultMessage: failureMessage
-                    )
-                    return
-                }
-
                 let autoPrepared = await autoPrepareVerifiedPatchesIfRequested(
                     command: command,
                     sessionState: sessionState
                 )
-                guard autoPrepared else {
-                    MCPSharedState.markCodeReviewCommand(
-                        id: command.id,
-                        status: .failed,
-                        resultMessage: "Code review completed, but automatic patch preview preparation failed"
-                    )
-                    return
-                }
-
+                var sourceStateUpdated = true
                 if let onSuccess {
-                    let succeeded = await onSuccess()
-                    guard succeeded else {
-                        MCPSharedState.markCodeReviewCommand(
-                            id: command.id,
-                            status: .failed,
-                            resultMessage: "Code review completed, but the source finding state could not be updated"
-                        )
-                        return
-                    }
+                    sourceStateUpdated = await onSuccess()
                 }
 
-                await persistLiveReviewState(
-                    sessionState,
-                    conversationId: sessionState.conversationId
+                if snapshot.phase == .completed || snapshot.phase == .failed {
+                    await persistLiveReviewState(
+                        sessionState,
+                        conversationId: sessionState.conversationId
+                    )
+                }
+                let finalize = ReviewCommandRustBridge.finalizeDeferred(
+                    sessionId: snapshot.sessionId,
+                    phase: snapshot.phase,
+                    lastError: snapshot.lastError,
+                    autoPrepareSucceeded: autoPrepared,
+                    sourceStateSucceeded: sourceStateUpdated
                 )
+                let status: MCPSharedCodeReviewCommand.Status
+                let message: String
+                if let finalize {
+                    status = finalize.commandStatus == "completed" ? .completed : .failed
+                    message = finalize.resultMessage
+                } else if snapshot.phase == .completed {
+                    if !autoPrepared {
+                        status = .failed
+                        message = "Code review completed, but automatic patch preview preparation failed"
+                    } else if !sourceStateUpdated {
+                        status = .failed
+                        message = "Code review completed, but the source finding state could not be updated"
+                    } else {
+                        status = .completed
+                        message = "Code review session \(snapshot.sessionId) completed"
+                    }
+                } else {
+                    status = .failed
+                    message = snapshot.lastError
+                        ?? "Code review session \(snapshot.sessionId) did not complete successfully"
+                }
                 MCPSharedState.markCodeReviewCommand(
                     id: command.id,
-                    status: .completed,
-                    resultMessage: "Code review session \(snapshot.sessionId) completed"
+                    status: status,
+                    resultMessage: message
                 )
             } catch {
                 await sessionState.fail(error: error.localizedDescription)

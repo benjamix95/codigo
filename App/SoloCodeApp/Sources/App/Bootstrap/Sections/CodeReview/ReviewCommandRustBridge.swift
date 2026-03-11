@@ -39,6 +39,26 @@ struct ReviewCommandRustBridge {
             )
         )
     }
+
+    static func finalizeDeferred(
+        sessionId: String,
+        phase: ReviewSessionPhase,
+        lastError: String?,
+        autoPrepareSucceeded: Bool,
+        sourceStateSucceeded: Bool
+    ) -> ReviewDeferredCommandFinalizeResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_command_finalize_deferred",
+            request: ReviewDeferredCommandFinalizeRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                phase: phase.rawValue,
+                lastError: lastError,
+                autoPrepareSucceeded: autoPrepareSucceeded,
+                sourceStateSucceeded: sourceStateSucceeded
+            )
+        )
+    }
 }
 
 private struct ReviewCommandPlanRequest: Encodable {
@@ -58,6 +78,15 @@ private struct ReviewCommandMutationRequest: Encodable {
     let action: String
     let snapshot: CodeReviewSessionSnapshot
     let payload: [String: String]
+}
+
+private struct ReviewDeferredCommandFinalizeRequest: Encodable {
+    let schemaVersion: Int
+    let sessionId: String
+    let phase: String
+    let lastError: String?
+    let autoPrepareSucceeded: Bool
+    let sourceStateSucceeded: Bool
 }
 
 struct ReviewCommandPlanConfig: Codable {
@@ -95,4 +124,10 @@ struct ReviewCommandMutationResponse: Decodable {
     let message: String?
     let findings: [CodeReviewFinding]?
     let events: [CodeReviewSessionEvent]?
+}
+
+struct ReviewDeferredCommandFinalizeResponse: Decodable {
+    let isError: Bool
+    let commandStatus: String
+    let resultMessage: String
 }

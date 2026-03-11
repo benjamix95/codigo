@@ -87,3 +87,48 @@ final class ValidationOnlyProvider: LLMProvider, @unchecked Sendable {
         }
     }
 }
+
+final class FailingDeferredCodeReviewProvider: LLMProvider, @unchecked Sendable {
+    let id = "failing-deferred-code-review-provider"
+    let displayName = "FailingDeferredCodeReviewProvider"
+    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
+
+    private let sessionState: CodeReviewSessionState?
+    private let scopeFiles: [String]
+    private let failureMessage: String
+
+    init(
+        sessionState: CodeReviewSessionState?,
+        scopeFiles: [String],
+        failureMessage: String = "Synthetic review failure"
+    ) {
+        self.sessionState = sessionState
+        self.scopeFiles = scopeFiles
+        self.failureMessage = failureMessage
+    }
+
+    func isAuthenticated() -> Bool { true }
+
+    func send(
+        prompt: String,
+        context: WorkspaceContext,
+        imageURLs: [URL]?
+    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        let sessionState = self.sessionState
+        let scopeFiles = self.scopeFiles
+        let failureMessage = self.failureMessage
+        return AsyncThrowingStream { continuation in
+            Task {
+                continuation.yield(.started)
+                if let sessionState {
+                    await sessionState.start(
+                        scope: ReviewSessionScope(type: .uncommitted, files: scopeFiles),
+                        workspacePath: context.workspacePath.path
+                    )
+                    await sessionState.fail(error: failureMessage)
+                }
+                continuation.finish()
+            }
+        }
+    }
+}

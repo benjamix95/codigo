@@ -1,5 +1,5 @@
 use crate::review_audit::run_audit;
-use crate::review_command::{mutate_snapshot, plan_command};
+use crate::review_command::{finalize_deferred_command, mutate_snapshot, plan_command};
 use crate::review_history::shape_historical_findings;
 use crate::review_identity::find_duplicate;
 use crate::review_mcp::{
@@ -512,6 +512,20 @@ pub extern "C" fn review_core_command_mutate_snapshot(input: *const c_char) -> *
             return encode_raw(&crate::review_command::models::ReviewCommandMutationResponse::error("schemaVersion must be 1"));
         }
         encode_raw(&mutate_snapshot(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_command_finalize_deferred(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_command::models::ReviewDeferredCommandFinalizeRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&crate::review_command::models::ReviewDeferredCommandFinalizeResponse::success("failed", err.to_string())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&crate::review_command::models::ReviewDeferredCommandFinalizeResponse::success("failed", "schemaVersion must be 1"));
+        }
+        encode_raw(&finalize_deferred_command(request))
     })
 }
 

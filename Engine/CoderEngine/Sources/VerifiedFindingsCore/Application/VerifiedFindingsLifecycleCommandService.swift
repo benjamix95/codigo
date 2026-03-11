@@ -20,6 +20,7 @@ public enum VerifiedFindingsLifecycleCommandError: Error, Equatable {
     case findingNotOwned(String, String)
     case missingPreparedPatch
     case patchNotVerified
+    case findingNotClosable
 }
 
 public enum VerifiedFindingsLifecycleCommandService {
@@ -43,6 +44,11 @@ public enum VerifiedFindingsLifecycleCommandService {
             sessionId: sessionId,
             findingId: findingId,
             conversationId: conversationId
+        )
+        try validateFallbackCommandReadiness(
+            action: action,
+            snapshot: snapshot,
+            findingId: findingId
         )
         let command = MCPSharedState.enqueueCodeReviewCommand(
             action: action,
@@ -189,5 +195,32 @@ public enum VerifiedFindingsLifecycleCommandService {
             conversationId: conversationId,
             payload: payload
         )
+    }
+
+    private static func validateFallbackCommandReadiness(
+        action: String,
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String
+    ) throws {
+        guard action == "close_finding" else { return }
+        guard let finding = snapshot.findings.first(where: { $0.id == findingId }) else {
+            throw VerifiedFindingsLifecycleCommandError.findingNotOwned(findingId, snapshot.sessionId)
+        }
+        let patch = finding.patchArtifactId.flatMap { patchId in
+            snapshot.patches.first(where: { $0.id == patchId })
+        } ?? snapshot.patches.first(where: { $0.findingId == findingId })
+
+        let canClose: Bool
+        switch finding.status {
+        case .merged, .dismissed, .wontFix, .closed:
+            canClose = true
+        case .patchApplied, .fixApplied:
+            canClose = patch?.validationStatus == .passed
+        default:
+            canClose = false
+        }
+        guard canClose else {
+            throw VerifiedFindingsLifecycleCommandError.findingNotClosable
+        }
     }
 }

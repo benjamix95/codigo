@@ -135,6 +135,37 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertTrue(snapshot.config.analysisOnly)
     }
 
+    func testDeferredReviewMarksCommandFailedWhenSessionFails() async throws {
+        let app = makeApp()
+        CodeReviewCommandRuntimeHooks.workspaceContextOverride = { [workspaceURL] _ in
+            WorkspaceContext(workspacePaths: [workspaceURL].compactMap { $0 })
+        }
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, sessionState, _ in
+            FailingDeferredCodeReviewProvider(
+                sessionState: sessionState,
+                scopeFiles: ["Sources/File.swift"]
+            )
+        }
+
+        let command = try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
+            sessionId: "review-start-failure",
+            conversationId: nil,
+            payload: [
+                "scope": "uncommitted",
+                "session_id": "review-start-failure",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+        try await waitForCommand(id: command.id, expectedStatus: .failed)
+
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: "review-start-failure")
+        )
+        XCTAssertEqual(updatedSnapshot.phase, .failed)
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .failed)
+    }
+
     func testDismissCommandUsesRustPlannerAndPersistsWontFix() async throws {
         let app = makeApp()
         let snapshot = makeSnapshot(

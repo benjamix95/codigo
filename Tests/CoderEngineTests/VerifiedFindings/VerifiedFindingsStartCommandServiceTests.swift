@@ -115,4 +115,101 @@ final class VerifiedFindingsStartCommandServiceTests: XCTestCase {
         XCTAssertEqual(request.payload["auto_prepare_verified_patches"], "true")
         XCTAssertEqual(request.payload["auto_prepare_origin_filter"], FindingOrigin.bugHunter.rawValue)
     }
+
+    func testLifecycleQueueCloseFindingRejectsOpenFinding() throws {
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "review-session-open",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "f-open",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Open finding"
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        XCTAssertThrowsError(
+            try VerifiedFindingsLifecycleCommandService.queueFindingCommand(
+                action: "close_finding",
+                sessionId: "review-session-open",
+                findingId: "f-open",
+                conversationId: nil,
+                payload: [
+                    "session_id": "review-session-open",
+                    "finding_id": "f-open",
+                ]
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? VerifiedFindingsLifecycleCommandError,
+                .findingNotClosable
+            )
+        }
+    }
+
+    func testLifecycleQueueCloseFindingAcceptsMergedFinding() throws {
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "review-session-merged",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "f-merged",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Merged finding",
+                    status: .merged
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let queued = try VerifiedFindingsLifecycleCommandService.queueFindingCommand(
+            action: "close_finding",
+            sessionId: "review-session-merged",
+            findingId: "f-merged",
+            conversationId: nil,
+            payload: [
+                "session_id": "review-session-merged",
+                "finding_id": "f-merged",
+                "reason": "fixed_verified",
+            ]
+        )
+
+        XCTAssertEqual(queued.findingId, "f-merged")
+    }
 }

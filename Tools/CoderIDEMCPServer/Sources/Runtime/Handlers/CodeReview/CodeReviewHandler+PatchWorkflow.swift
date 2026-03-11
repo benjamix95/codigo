@@ -200,6 +200,8 @@ extension CoderIDEMCPServerApp {
             return "Error: no prepared patch artifact found. Run review_prepare_patch first."
         case .patchNotVerified:
             return "Error: patch artifact is not verified. Run review_prepare_patch or review_verify_patch first."
+        case .findingNotClosable:
+            return "Error: finding cannot be closed until it is merged, dismissed, or validated after apply."
         }
     }
 }

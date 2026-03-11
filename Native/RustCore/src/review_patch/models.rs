@@ -32,7 +32,9 @@ pub struct ReviewPatchSnapshot {
 pub struct ReviewPatchRecord {
     pub id: String,
     pub finding_id: String,
+    pub status: String,
     pub verify_status: String,
+    pub validation_status: String,
     pub risk_score: f64,
 }
 
@@ -40,9 +42,11 @@ pub struct ReviewPatchRecord {
 #[serde(rename_all = "camelCase")]
 pub struct ReviewFindingRecord {
     pub id: String,
+    pub status: String,
     pub severity: String,
     pub category: String,
     pub message: String,
+    pub patch_artifact_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]

@@ -85,16 +85,20 @@ private struct ReviewPatchRustSnapshot: Encodable {
             ReviewPatchRustPatch(
                 id: $0.id,
                 findingId: $0.findingId,
+                status: $0.status.rawValue,
                 verifyStatus: $0.verifyStatus.rawValue,
+                validationStatus: $0.validationStatus.rawValue,
                 riskScore: $0.riskScore
             )
         }
         self.findings = snapshot.findings.map {
             ReviewPatchRustFinding(
                 id: $0.id,
+                status: $0.status.rawValue,
                 severity: $0.severity.rawValue,
                 category: $0.category.rawValue,
-                message: $0.message
+                message: $0.message,
+                patchArtifactId: $0.patchArtifactId
             )
         }
     }
@@ -103,15 +107,19 @@ private struct ReviewPatchRustSnapshot: Encodable {
 private struct ReviewPatchRustPatch: Encodable {
     let id: String
     let findingId: String
+    let status: String
     let verifyStatus: String
+    let validationStatus: String
     let riskScore: Double
 }
 
 private struct ReviewPatchRustFinding: Encodable {
     let id: String
+    let status: String
     let severity: String
     let category: String
     let message: String
+    let patchArtifactId: String?
 }
 
 public struct ReviewPatchRustResponse: Decodable {
