@@ -2,7 +2,7 @@
 
 ## Cosa cambia
 
-- Disabilitato `SWIFT_ENABLE_EXPLICIT_MODULES` in [Common.xcconfig](/Users/benjaminstoica/SoloCode/Config/xcconfigs/Common.xcconfig) per eliminare i warning SwiftPM/NIO del dependency scan nel build standard Xcode.
+- Disabilitati `SWIFT_ENABLE_EXPLICIT_MODULES` e `CLANG_ENABLE_EXPLICIT_MODULES` in [Common.xcconfig](/Users/benjaminstoica/SoloCode/Config/xcconfigs/Common.xcconfig) per eliminare i warning SwiftPM/NIO del dependency scan nel build standard Xcode.
 - Rimossi due warning locali del codice Swift:
   - `await` inutile in `CodeReviewSessionState`
   - risultato ignorato di `runPSQL(...)` in `PostgresPersistenceStore`
