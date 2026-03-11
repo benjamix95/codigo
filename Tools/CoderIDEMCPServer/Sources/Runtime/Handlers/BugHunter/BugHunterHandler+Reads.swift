@@ -4,6 +4,9 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleBugHunterStatus(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustBugHunterToolResult(name: "bughunter_status", args: args) {
+            return bridged
+        }
         guard let snapshot = resolveBugHunterSnapshot(args: args) else {
             return bugHunterOK("No BugHunter run found.")
         }
@@ -87,6 +90,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleBugHunterFindings(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustBugHunterToolResult(name: "bughunter_findings", args: args) {
+            return bridged
+        }
         guard let snapshot = resolveBugHunterSnapshot(args: args),
               let reviewSessionId = snapshot.reviewSessionId,
               let reviewSnapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: reviewSessionId) else {
@@ -117,6 +123,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleBugHunterRunHistory(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustBugHunterToolResult(name: "bughunter_run_history", args: args) {
+            return bridged
+        }
         let snapshots = MCPSharedState.readBugHunterSnapshots(
             conversationId: parseConversationId(args["conversation_id"])
         )
@@ -128,6 +137,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleBugHunterExplainCluster(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustBugHunterToolResult(name: "bughunter_explain_cluster", args: args) {
+            return bridged
+        }
         guard let snapshot = resolveBugHunterSnapshot(args: args),
               let reviewSessionId = snapshot.reviewSessionId,
               let verifiedState = VerifiedFindingsService.resolve(

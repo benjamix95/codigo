@@ -49,6 +49,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewStatus(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustReviewToolResult(name: "review_status", args: args) {
+            return bridged
+        }
         let explicitSessionId = sanitizedReviewArg(
             args,
             key: args["session_id"] != nil ? "session_id" : "sessionId"
@@ -142,6 +145,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewListSessions(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustReviewToolResult(name: "review_list_sessions", args: args) {
+            return bridged
+        }
         if hasInvalidConversationIdArgument(args["conversation_id"] ?? args["conversationId"]) {
             return reviewError("Error: 'conversation_id' must be a valid UUID")
         }

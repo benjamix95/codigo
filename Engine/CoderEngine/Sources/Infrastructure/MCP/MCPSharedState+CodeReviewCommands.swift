@@ -37,6 +37,18 @@ extension MCPSharedState {
         payload: [String: String]
     ) -> MCPSharedCodeReviewCommand {
         withCodeReviewFileLock {
+            var commands = _readCodeReviewCommandsUnsafe()
+            if let result = rustEnqueueCodeReviewCommand(
+                operation: "enqueue",
+                action: action,
+                sessionId: sessionId,
+                conversationId: conversationId,
+                payload: payload,
+                commands: commands
+            ), let command = result.command {
+                _writeCodeReviewCommandsUnsafe(result.commands)
+                return command
+            }
             let normalizedPayload = payload.filter { !$0.key.isEmpty }
             let command = MCPSharedCodeReviewCommand(
                 id: UUID().uuidString.lowercased(),
@@ -49,7 +61,6 @@ extension MCPSharedState {
                 status: .pending,
                 resultMessage: nil
             )
-            var commands = _readCodeReviewCommandsUnsafe()
             commands.append(command)
             _writeCodeReviewCommandsUnsafe(commands)
             return command
@@ -74,6 +85,19 @@ extension MCPSharedState {
         let result: Result<MCPSharedCodeReviewCommand, CodeReviewStartEnqueueError> =
             withCodeReviewFileLock {
                 var commands = _readCodeReviewCommandsUnsafe()
+                if let rust = rustEnqueueCodeReviewCommand(
+                    operation: "enqueue_unique_review_start",
+                    action: "start",
+                    sessionId: normalizedSessionId,
+                    conversationId: conversationId,
+                    payload: payload,
+                    commands: commands
+                ) {
+                    if let command = rust.command {
+                        _writeCodeReviewCommandsUnsafe(rust.commands)
+                        return .success(command)
+                    }
+                }
                 let hasQueuedStart = commands.contains { command in
                     guard command.action == "start" else { return false }
                     guard command.sessionId == normalizedSessionId else { return false }
@@ -132,8 +156,12 @@ extension MCPSharedState {
 
     public static func claimPendingCodeReviewCommands() -> [MCPSharedCodeReviewCommand] {
         withCodeReviewFileLock {
-            let now = Date()
             var commands = _readCodeReviewCommandsUnsafe()
+            if let rust = rustClaimPendingCodeReviewCommands(commands: commands) {
+                _writeCodeReviewCommandsUnsafe(rust.commands)
+                return rust.claimed
+            }
+            let now = Date()
             var claimed: [MCPSharedCodeReviewCommand] = []
 
             for index in commands.indices {
@@ -163,6 +191,15 @@ extension MCPSharedState {
     ) {
         withCodeReviewFileLock {
             var commands = _readCodeReviewCommandsUnsafe()
+            if let rustCommands = rustMarkCodeReviewCommand(
+                id: id,
+                status: status,
+                resultMessage: resultMessage,
+                commands: commands
+            ) {
+                _writeCodeReviewCommandsUnsafe(rustCommands)
+                return
+            }
             guard let index = commands.firstIndex(where: { $0.id == id }) else { return }
             commands[index].status = status
             commands[index].resultMessage = resultMessage
@@ -174,6 +211,10 @@ extension MCPSharedState {
     public static func refreshCodeReviewCommandHeartbeat(id: String) {
         withCodeReviewFileLock {
             var commands = _readCodeReviewCommandsUnsafe()
+            if let rustCommands = rustRefreshCodeReviewHeartbeat(id: id, commands: commands) {
+                _writeCodeReviewCommandsUnsafe(rustCommands)
+                return
+            }
             guard let index = commands.firstIndex(where: { $0.id == id }) else { return }
             guard commands[index].status == .processing else { return }
             commands[index].updatedAt = Date()

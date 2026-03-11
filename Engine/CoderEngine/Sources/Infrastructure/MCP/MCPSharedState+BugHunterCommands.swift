@@ -15,6 +15,16 @@ extension MCPSharedState {
         withBugHunterFileLock {
             ensureBugHunterDirectories()
             var commands = readBugHunterCommandsUnsafe()
+            if let rust = rustEnqueueBugHunterCommand(
+                action: action,
+                runId: runId,
+                conversationId: conversationId,
+                payload: payload,
+                commands: commands
+            ), let command = rust.command {
+                writeBugHunterCommandsUnsafe(rust.commands)
+                return command
+            }
             let command = MCPSharedBugHunterCommand(
                 id: UUID().uuidString.lowercased(),
                 action: action,
@@ -34,8 +44,12 @@ extension MCPSharedState {
 
     public static func claimPendingBugHunterCommands() -> [MCPSharedBugHunterCommand] {
         withBugHunterFileLock {
-            let now = Date()
             var commands = readBugHunterCommandsUnsafe()
+            if let rust = rustClaimPendingBugHunterCommands(commands: commands) {
+                writeBugHunterCommandsUnsafe(rust.commands)
+                return rust.claimed
+            }
+            let now = Date()
             var claimed: [MCPSharedBugHunterCommand] = []
 
             for index in commands.indices {
@@ -67,6 +81,15 @@ extension MCPSharedState {
     ) {
         withBugHunterFileLock {
             var commands = readBugHunterCommandsUnsafe()
+            if let rustCommands = rustMarkBugHunterCommand(
+                id: id,
+                status: status,
+                resultMessage: resultMessage,
+                commands: commands
+            ) {
+                writeBugHunterCommandsUnsafe(rustCommands)
+                return
+            }
             guard let index = commands.firstIndex(where: { $0.id == id }) else { return }
             commands[index].status = status
             commands[index].resultMessage = resultMessage
@@ -78,6 +101,10 @@ extension MCPSharedState {
     public static func refreshBugHunterCommandHeartbeat(id: String) {
         withBugHunterFileLock {
             var commands = readBugHunterCommandsUnsafe()
+            if let rustCommands = rustRefreshBugHunterHeartbeat(id: id, commands: commands) {
+                writeBugHunterCommandsUnsafe(rustCommands)
+                return
+            }
             guard let index = commands.firstIndex(where: { $0.id == id }) else { return }
             guard commands[index].status == .processing else { return }
             commands[index].updatedAt = Date()

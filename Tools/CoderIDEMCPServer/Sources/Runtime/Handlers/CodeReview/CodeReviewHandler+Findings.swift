@@ -4,6 +4,9 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleReviewFindings(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustReviewToolResult(name: "review_findings", args: args) {
+            return bridged
+        }
         if hasInvalidConversationIdArgument(args["conversation_id"] ?? args["conversationId"]) {
             return reviewError("Error: 'conversation_id' must be a valid UUID")
         }

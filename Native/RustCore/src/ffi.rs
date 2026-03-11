@@ -1,6 +1,11 @@
 use crate::review_audit::run_audit;
 use crate::review_history::shape_historical_findings;
 use crate::review_identity::find_duplicate;
+use crate::review_mcp::{
+    build_review_index, claim_commands, enqueue_bughunter_command, enqueue_review_command,
+    handle_bughunter_tool, handle_review_tool, handle_security_tool, heartbeat_command,
+    mark_command,
+};
 use crate::review_pipeline::{
     apply_callback_result, cancel_session, get_snapshot, resume_session, start_session,
 };
@@ -287,6 +292,123 @@ pub extern "C" fn review_core_pipeline_cancel(input: *const c_char) -> *mut c_ch
             return encode_raw(&pipeline_schema_error(&request.session_id));
         }
         encode_raw(&cancel_session(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_mcp_handle_tool(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_mcp::models::ReviewMCPToolRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err(format!("decode_failed: {}", err))),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err("unsupported_schema"));
+        }
+        encode_raw(&handle_review_tool(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_security_handle_tool(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_mcp::models::ReviewMCPToolRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err(format!("decode_failed: {}", err))),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err("unsupported_schema"));
+        }
+        encode_raw(&handle_security_tool(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_bughunter_handle_tool(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_mcp::models::ReviewMCPToolRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err(format!("decode_failed: {}", err))),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err("unsupported_schema"));
+        }
+        encode_raw(&handle_bughunter_tool(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_mcp_enqueue_command(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_mcp::models::ReviewMCPCommandQueueRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&crate::review_mcp::models::ReviewMCPCommandQueueResponse::err(format!("decode_failed: {}", err), Vec::new())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&crate::review_mcp::models::ReviewMCPCommandQueueResponse::err("unsupported_schema", request.commands));
+        }
+        let response = match request.queue_kind.as_str() {
+            "review" => enqueue_review_command(request),
+            "bughunter" => enqueue_bughunter_command(request),
+            _ => crate::review_mcp::models::ReviewMCPCommandQueueResponse::err("unsupported_queue_kind", request.commands),
+        };
+        encode_raw(&response)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_mcp_claim_commands(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_mcp::models::ReviewMCPCommandQueueRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&crate::review_mcp::models::ReviewMCPCommandQueueResponse::err(format!("decode_failed: {}", err), Vec::new())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&crate::review_mcp::models::ReviewMCPCommandQueueResponse::err("unsupported_schema", request.commands));
+        }
+        encode_raw(&claim_commands(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_mcp_mark_command(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_mcp::models::ReviewMCPCommandQueueRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&crate::review_mcp::models::ReviewMCPCommandQueueResponse::err(format!("decode_failed: {}", err), Vec::new())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&crate::review_mcp::models::ReviewMCPCommandQueueResponse::err("unsupported_schema", request.commands));
+        }
+        encode_raw(&mark_command(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_mcp_command_heartbeat(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_mcp::models::ReviewMCPCommandQueueRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&crate::review_mcp::models::ReviewMCPCommandQueueResponse::err(format!("decode_failed: {}", err), Vec::new())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&crate::review_mcp::models::ReviewMCPCommandQueueResponse::err("unsupported_schema", request.commands));
+        }
+        encode_raw(&heartbeat_command(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_mcp_read_index(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_mcp::models::ReviewMCPIndexRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(_) => return "{\"schemaVersion\":1,\"latestSessionId\":null,\"latestSessionIdByConversation\":{},\"sessions\":[]}".to_string(),
+        };
+        if request.schema_version != 1 {
+            return "{\"schemaVersion\":1,\"latestSessionId\":null,\"latestSessionIdByConversation\":{},\"sessions\":[]}".to_string();
+        }
+        encode_raw(&build_review_index(request))
     })
 }
 

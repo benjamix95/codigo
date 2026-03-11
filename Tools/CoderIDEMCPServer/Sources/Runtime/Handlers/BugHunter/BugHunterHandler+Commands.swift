@@ -4,6 +4,10 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleBugHunterStart(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustBugHunterToolResult(name: "bughunter_start", args: args),
+           bridged.isError == true {
+            return bridged
+        }
         let sourceKind = (args["source_kind"] ?? "uncommitted")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -46,6 +50,10 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleBugHunterCommitWindow(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustBugHunterToolResult(name: "bughunter_commit_window", args: args),
+           bridged.isError == true {
+            return bridged
+        }
         guard let gitRoot = args["git_root"]?.trimmingCharacters(in: .whitespacesAndNewlines),
               !gitRoot.isEmpty,
               let primaryCommit = args["primary_commit"]?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -65,6 +73,10 @@ extension CoderIDEMCPServerApp {
         _ action: String,
         args: [String: String]
     ) -> CallTool.Result {
+        if let bridged = rustBugHunterToolResult(name: "bughunter_\(action)", args: args),
+           bridged.isError == true {
+            return bridged
+        }
         let runId = (args["run_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !runId.isEmpty else {
             return bugHunterError("Error: 'run_id' is required")

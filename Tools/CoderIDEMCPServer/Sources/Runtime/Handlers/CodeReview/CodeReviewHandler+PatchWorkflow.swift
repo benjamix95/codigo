@@ -117,6 +117,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewGetOutcome(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustReviewToolResult(name: "review_get_outcome", args: args) {
+            return bridged
+        }
         let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
         guard !sessionId.isEmpty else {
             return reviewError("Error: 'session_id' parameter is required")

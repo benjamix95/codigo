@@ -42,6 +42,9 @@ extension MCPSharedState {
     static func buildCodeReviewIndex(
         snapshots: [CodeReviewSessionSnapshot]
     ) -> MCPSharedCodeReviewIndex {
+        if let rustIndex = rustBuildCodeReviewIndex(snapshots: snapshots) {
+            return rustIndex
+        }
         let sortedSnapshots = snapshots.sorted(by: sortCodeReviewSnapshots)
         let records = sortedSnapshots.map { snapshot in
             MCPSharedCodeReviewSessionRecord(

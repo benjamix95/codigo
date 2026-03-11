@@ -4,6 +4,14 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleSecurityStart(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustSecurityToolResult(name: "security_start", args: args),
+           bridged.isError == true || !textContent(from: bridged).isEmpty {
+            if bridged.isError == nil || bridged.isError == false {
+                // keep existing enqueue path for the actual start command, but preserve Rust gate validation
+            } else {
+                return bridged
+            }
+        }
         guard let gate = currentSecurityGate(args: args), gate.ready else {
             let summary = currentSecurityGate(args: args)?.summary
                 ?? "security_gate=blocked, no verified bughunter baseline is available"
@@ -47,6 +55,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleSecurityStatus(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustSecurityToolResult(name: "security_status", args: args) {
+            return bridged
+        }
         let base = handleReviewStatus(args: args)
         let text = textContent(from: base)
         guard !text.contains("security_gate_ready:") else { return base }
@@ -87,6 +98,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleSecurityFindings(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustSecurityToolResult(name: "security_findings", args: args) {
+            return bridged
+        }
         let sessionId = sanitizedReviewArg(
             args,
             key: args["session_id"] != nil ? "session_id" : "sessionId"
