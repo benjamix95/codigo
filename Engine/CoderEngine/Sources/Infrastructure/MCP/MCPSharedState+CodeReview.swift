@@ -152,7 +152,9 @@ extension MCPSharedState {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(snapshot) else {
+        let data = ReviewPersistenceRustAdapter.encodeReviewSnapshot(snapshot)
+            ?? (try? encoder.encode(snapshot))
+        guard let data else {
             print("[MCPSharedState] ⚠️ Failed to encode code review snapshot")
             return
         }
@@ -195,7 +197,8 @@ extension MCPSharedState {
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        guard var snapshot = try? decoder.decode(CodeReviewSessionSnapshot.self, from: data) else {
+        guard var snapshot = ReviewPersistenceRustAdapter.decodeReviewSnapshot(from: data)
+            ?? (try? decoder.decode(CodeReviewSessionSnapshot.self, from: data)) else {
             return nil
         }
         if snapshot.verifiedFindings == nil,

@@ -30,16 +30,14 @@ extension MCPSharedState {
         }
         withBugHunterFileLock {
             ensureBugHunterDirectories()
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data: Data
-            do {
-                data = try encoder.encode(snapshot)
-            } catch {
-                bugHunterLogger.error("Failed to encode BugHunter snapshot \(snapshot.runId): \(error.localizedDescription)")
-                return
-            }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = ReviewPersistenceRustAdapter.encodeBugHunterSnapshot(snapshot)
+            ?? (try? encoder.encode(snapshot)) else {
+            bugHunterLogger.error("Failed to encode BugHunter snapshot \(snapshot.runId)")
+            return
+        }
             do {
                 try data.write(to: bugHunterRunFilePath(runId: snapshot.runId), options: .atomic)
             } catch {
@@ -68,6 +66,9 @@ extension MCPSharedState {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             do {
+                if let decoded = ReviewPersistenceRustAdapter.decodeBugHunterSnapshot(from: data) {
+                    return decoded
+                }
                 return try decoder.decode(MCPSharedBugHunterSnapshot.self, from: data)
             } catch {
                 bugHunterLogger.error("Failed to decode BugHunter snapshot \(runId): \(error.localizedDescription)")
@@ -108,6 +109,9 @@ extension MCPSharedState {
                     }
                 }
                 .compactMap { data -> MCPSharedBugHunterSnapshot? in
+                    if let decoded = ReviewPersistenceRustAdapter.decodeBugHunterSnapshot(from: data) {
+                        return decoded
+                    }
                     do { return try decoder.decode(MCPSharedBugHunterSnapshot.self, from: data) }
                     catch {
                         bugHunterLogger.warning("Failed to decode snapshot: \(error.localizedDescription)")

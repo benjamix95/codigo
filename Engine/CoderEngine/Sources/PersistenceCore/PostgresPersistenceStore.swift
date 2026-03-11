@@ -60,10 +60,19 @@ public final class PostgresPersistenceStore {
         return try PersistenceSupport.decodeJSON(result, as: type)
     }
 
+    func querySingleJSONString(_ sql: String) throws -> String? {
+        let result = try execute(sql: sql).trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.isEmpty ? nil : result
+    }
+
     func queryJSONArray<T: Decodable>(_ sql: String, as type: [T].Type) throws -> [T] {
         let result = try execute(sql: sql).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !result.isEmpty else { return [] }
         return try PersistenceSupport.decodeJSON(result, as: type)
+    }
+
+    func queryJSONArrayString(_ sql: String) throws -> String {
+        try execute(sql: sql).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public func applyMigrationAndImportIfNeeded() throws -> PersistenceMigrationReport {

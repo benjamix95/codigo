@@ -23,7 +23,10 @@ extension PostgresPersistenceStore {
 
     public func persistCodeReviewSnapshot(_ snapshot: CodeReviewSessionSnapshot) throws {
         try ensureReady()
-        let payload = try PersistenceSupport.jsonLiteral(snapshot)
+        let payload = try ReviewPersistenceRustAdapter.sqlJSONLiteral(
+            functionName: "review_core_persistence_encode_review_snapshot",
+            value: snapshot
+        )
         let summary = snapshot.outcome.summary
         let conversationId = sqlNullable(snapshot.conversationId?.uuidString.lowercased())
         let workspaceId = sqlNullable(snapshot.workspacePath)
@@ -70,10 +73,13 @@ extension PostgresPersistenceStore {
     }
 
     public func readCodeReviewSnapshot(sessionId: String) throws -> CodeReviewSessionSnapshot? {
-        try querySingleJSON(
-            "SELECT status_payload::text FROM review_sessions WHERE session_id = \(PersistenceSupport.sqlLiteral(sessionId));",
-            as: CodeReviewSessionSnapshot.self
-        )
+        guard let raw = try querySingleJSONString(
+            "SELECT status_payload::text FROM review_sessions WHERE session_id = \(PersistenceSupport.sqlLiteral(sessionId));"
+        ) else { return nil }
+        if let decoded = ReviewPersistenceRustAdapter.decodeReviewSnapshot(from: Data(raw.utf8)) {
+            return decoded
+        }
+        return try PersistenceSupport.decodeJSON(raw, as: CodeReviewSessionSnapshot.self)
     }
 
     public func readCodeReviewSnapshots(conversationId: UUID? = nil) throws -> [CodeReviewSessionSnapshot] {
@@ -83,15 +89,18 @@ extension PostgresPersistenceStore {
         } else {
             filter = ""
         }
-        return try queryJSONArray(
-            "SELECT COALESCE(jsonb_agg(status_payload ORDER BY last_updated_at DESC), '[]'::jsonb)::text FROM review_sessions\(filter);",
-            as: [CodeReviewSessionSnapshot].self
+        let raw = try queryJSONArrayString(
+            "SELECT COALESCE(jsonb_agg(status_payload ORDER BY last_updated_at DESC), '[]'::jsonb)::text FROM review_sessions\(filter);"
         )
+        return try PersistenceSupport.decodeJSON(raw, as: [CodeReviewSessionSnapshot].self)
     }
 
     public func persistBugHunterSnapshot(_ snapshot: MCPSharedBugHunterSnapshot) throws {
         try ensureReady()
-        let payload = try PersistenceSupport.jsonLiteral(snapshot)
+        let payload = try ReviewPersistenceRustAdapter.sqlJSONLiteral(
+            functionName: "review_core_persistence_encode_bughunter_snapshot",
+            value: snapshot
+        )
         if let conversationId = snapshot.conversationId {
             _ = try execute(sql: """
             INSERT INTO conversations(id, workspace_id, created_at, updated_at)
@@ -114,20 +123,23 @@ extension PostgresPersistenceStore {
     }
 
     public func readBugHunterSnapshot(runId: String) throws -> MCPSharedBugHunterSnapshot? {
-        try querySingleJSON(
-            "SELECT status_payload::text FROM bug_hunter_runs WHERE run_id = \(PersistenceSupport.sqlLiteral(runId));",
-            as: MCPSharedBugHunterSnapshot.self
-        )
+        guard let raw = try querySingleJSONString(
+            "SELECT status_payload::text FROM bug_hunter_runs WHERE run_id = \(PersistenceSupport.sqlLiteral(runId));"
+        ) else { return nil }
+        if let decoded = ReviewPersistenceRustAdapter.decodeBugHunterSnapshot(from: Data(raw.utf8)) {
+            return decoded
+        }
+        return try PersistenceSupport.decodeJSON(raw, as: MCPSharedBugHunterSnapshot.self)
     }
 
     public func readBugHunterSnapshots(conversationId: UUID? = nil) throws -> [MCPSharedBugHunterSnapshot] {
         let filter = conversationId.map {
             " WHERE conversation_id = \(PersistenceSupport.sqlLiteral($0.uuidString.lowercased()))"
         } ?? ""
-        return try queryJSONArray(
-            "SELECT COALESCE(jsonb_agg(status_payload ORDER BY last_updated_at DESC), '[]'::jsonb)::text FROM bug_hunter_runs\(filter);",
-            as: [MCPSharedBugHunterSnapshot].self
+        let raw = try queryJSONArrayString(
+            "SELECT COALESCE(jsonb_agg(status_payload ORDER BY last_updated_at DESC), '[]'::jsonb)::text FROM bug_hunter_runs\(filter);"
         )
+        return try PersistenceSupport.decodeJSON(raw, as: [MCPSharedBugHunterSnapshot].self)
     }
 
     public func writePlanSnapshot(

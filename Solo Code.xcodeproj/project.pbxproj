@@ -192,6 +192,7 @@
 		A2100004A2100004A2100004 /* ReviewMCPRustModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100014A2100014A2100014 /* ReviewMCPRustModels.swift */; };
 		A2100005A2100005A2100005 /* ReviewMCPRustBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100015A2100015A2100015 /* ReviewMCPRustBridge.swift */; };
 		A2200001A2200001A2200001 /* ReviewPatchRustBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2200011A2200011A2200011 /* ReviewPatchRustBridge.swift */; };
+		A2300001A2300001A2300001 /* ReviewPersistenceRustAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2300011A2300011A2300011 /* ReviewPersistenceRustAdapter.swift */; };
 		A3000001A3000001A3000001 /* ReviewPipelineRustModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000011A3000011A3000011 /* ReviewPipelineRustModels.swift */; };
 		A3000002A3000002A3000002 /* CodeReviewSessionState+RustSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000012A3000012A3000012 /* CodeReviewSessionState+RustSnapshot.swift */; };
 		A3000003A3000003A3000003 /* ReviewRuntimeAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000013A3000013A3000013 /* ReviewRuntimeAdapter.swift */; };
@@ -2364,6 +2365,7 @@
 		A2100014A2100014A2100014 /* ReviewMCPRustModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewMCPRustModels.swift; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Rust/ReviewMCPRustModels.swift"; sourceTree = "<group>"; };
 		A2100015A2100015A2100015 /* ReviewMCPRustBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewMCPRustBridge.swift; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Rust/ReviewMCPRustBridge.swift"; sourceTree = "<group>"; };
 		A2200011A2200011A2200011 /* ReviewPatchRustBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPatchRustBridge.swift; path = "Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/ReviewPatchRustBridge.swift"; sourceTree = "<group>"; };
+		A2300011A2300011A2300011 /* ReviewPersistenceRustAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPersistenceRustAdapter.swift; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Rust/ReviewPersistenceRustAdapter.swift"; sourceTree = "<group>"; };
 		4AE650663132763E60482373 /* GitBlameAnnotationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitBlameAnnotationView.swift; path = App/SoloCodeApp/Sources/Panels/Git/GitBlameAnnotationView.swift; sourceTree = "<group>"; };
 		4AE82C4913CA1E5E1E6EE3DD /* PlanOptionsHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanOptionsHelpers.swift; path = App/SoloCodeApp/Sources/Planning/Views/PlanOptionsHelpers.swift; sourceTree = "<group>"; };
 		4AF554E4517D58DAB9C9A0F1 /* ModeControlsBarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModeControlsBarView.swift; path = App/SoloCodeApp/Sources/App/ModeControls/ModeControlsBarView.swift; sourceTree = "<group>"; };
@@ -5139,6 +5141,7 @@
 				A2100013A2100013A2100013 /* MCPSharedState+RustReviewIndex.swift */,
 				A2100014A2100014A2100014 /* ReviewMCPRustModels.swift */,
 				A2100015A2100015A2100015 /* ReviewMCPRustBridge.swift */,
+				A2300011A2300011A2300011 /* ReviewPersistenceRustAdapter.swift */,
 				A7D40CA824C164150818C932 /* MCPSharedState+CrossProcessLock.swift */,
 				B88D05EB79ADCC4E0B148AD6 /* MCPSharedState.swift */,
 				C1A4F6981B3A68A230D9F382 /* MCPTransportFactory.swift */,
@@ -6070,6 +6073,7 @@
 				A2100004A2100004A2100004 /* ReviewMCPRustModels.swift in Sources */,
 				A2100005A2100005A2100005 /* ReviewMCPRustBridge.swift in Sources */,
 				A2200001A2200001A2200001 /* ReviewPatchRustBridge.swift in Sources */,
+				A2300001A2300001A2300001 /* ReviewPersistenceRustAdapter.swift in Sources */,
 				9EBA7090CF5374308BED412D /* MCPSharedState+CodeReviewIndex.swift in Sources */,
 				6CC388CDC148B3F716517676 /* MCPSharedState+CrossProcessLock.swift in Sources */,
 				4539C6B8792BAA87086E2EEA /* MCPSharedState.swift in Sources */,

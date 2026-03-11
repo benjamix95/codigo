@@ -224,6 +224,9 @@ extension MCPSharedState {
 
     private static func _readCodeReviewCommandsUnsafe() -> [MCPSharedCodeReviewCommand] {
         guard let data = try? Data(contentsOf: codeReviewCommandsFilePath) else { return [] }
+        if let decoded = ReviewPersistenceRustAdapter.decodeReviewCommands(from: data) {
+            return decoded
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return (try? decoder.decode([MCPSharedCodeReviewCommand].self, from: data)) ?? []
@@ -237,7 +240,8 @@ extension MCPSharedState {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(commands) else {
+        guard let data = ReviewPersistenceRustAdapter.encodeReviewCommands(commands)
+            ?? (try? encoder.encode(commands)) else {
             print("[MCPSharedState] ⚠️ Failed to encode code review commands")
             return
         }

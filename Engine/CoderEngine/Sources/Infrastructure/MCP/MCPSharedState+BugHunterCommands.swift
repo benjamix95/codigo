@@ -123,6 +123,9 @@ extension MCPSharedState {
             bugHunterCommandsLogger.error("Failed to read BugHunter commands file: \(error.localizedDescription)")
             return []
         }
+        if let decoded = ReviewPersistenceRustAdapter.decodeBugHunterCommands(from: data) {
+            return decoded
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         do {
@@ -138,11 +141,9 @@ extension MCPSharedState {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data: Data
-        do {
-            data = try encoder.encode(commands)
-        } catch {
-            bugHunterCommandsLogger.error("Failed to encode BugHunter commands: \(error.localizedDescription)")
+        guard let data = ReviewPersistenceRustAdapter.encodeBugHunterCommands(commands)
+            ?? (try? encoder.encode(commands)) else {
+            bugHunterCommandsLogger.error("Failed to encode BugHunter commands")
             return
         }
         do {
