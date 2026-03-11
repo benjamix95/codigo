@@ -80,6 +80,8 @@ extension CodeReviewSessionSnapshot {
         audit: ReviewAuditSnapshot? = nil,
         outcome: ReviewSessionOutcome? = nil,
         verifiedFindings: VerifiedFindingsSessionEnvelope?? = nil,
+        phaseLedger: [ReviewPipelinePhaseLedgerEntry]? = nil,
+        fileLedger: [ReviewPipelineFileLedgerEntry]? = nil,
         lastUpdatedAt: Date = Date()
     ) -> CodeReviewSessionSnapshot {
         CodeReviewSessionSnapshot(
@@ -106,6 +108,8 @@ extension CodeReviewSessionSnapshot {
             audit: audit ?? self.audit,
             outcome: outcome ?? self.outcome,
             verifiedFindings: verifiedFindings ?? self.verifiedFindings,
+            phaseLedger: phaseLedger ?? self.phaseLedger,
+            fileLedger: fileLedger ?? self.fileLedger,
             lastUpdatedAt: lastUpdatedAt
         )
     }

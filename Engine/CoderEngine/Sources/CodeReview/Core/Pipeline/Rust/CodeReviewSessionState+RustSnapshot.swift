@@ -23,6 +23,8 @@ extension CodeReviewSessionState {
         lastTestStatus = snapshot.lastTestStatus
         audit = snapshot.audit
         outcome = snapshot.outcome
+        phaseLedger = snapshot.phaseLedger
+        fileLedger = snapshot.fileLedger
         if let handler = onStateChange {
             Task { @MainActor in handler(snapshot) }
         }

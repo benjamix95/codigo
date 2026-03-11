@@ -193,6 +193,7 @@ struct ReviewPipelineJobState: Equatable {
     let hiddenFindingCount: Int
     let gates: [ReviewPipelineGateState]
     let tools: [ReviewPipelineToolExecution]
+    let phaseLedger: [ReviewPipelinePhaseLedgerEntry]
     let bundleModes: [String]
     let isTerminal: Bool
 
@@ -237,11 +238,15 @@ enum ReviewPanelWarmState: String, Equatable {
 struct ReviewPanelDerivedState {
     let sessionId: String
     let mutationSequence: UInt64
-    let publishedFindings: [CodeReviewFinding]
+    let liveCandidates: [ReviewCandidate]
+    let verifiedFindings: [CodeReviewFinding]
+    let publishReadyFindings: [CodeReviewFinding]
     let publishedSeverityCounts: [FindingSeverity: Int]
     let pipelineJobState: ReviewPipelineJobState?
     let projection: VerifiedFindingsProjectionSnapshot
     let verifiedEnvelope: VerifiedFindingsSessionEnvelope?
+    let phaseLedger: [ReviewPipelinePhaseLedgerEntry]
+    let fileLedger: [ReviewPipelineFileLedgerEntry]
     let warmState: ReviewPanelWarmState
     let emptyStateTitle: String
     let emptyStateSubtitle: String

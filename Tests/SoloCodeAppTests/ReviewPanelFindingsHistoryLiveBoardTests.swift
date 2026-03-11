@@ -132,6 +132,83 @@ final class ReviewPanelFindingsHistoryLiveBoardTests: XCTestCase {
         XCTAssertNotNil(live?.pipeline)
     }
 
+    func testCurrentHistoricalLiveRunStateUsesSnapshotFileLedgerWhenAvailable() {
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let store = makeStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId,
+            workspacePath: "/tmp/ledger-workspace"
+        )
+        let sessionId = "session-ledger"
+        taskStore.ingestCodeReviewSnapshot(
+            CodeReviewSessionSnapshot(
+                sessionId: sessionId,
+                conversationId: conversationId,
+                phase: .completed,
+                stage: .completed,
+                findings: [],
+                events: [],
+                config: .default,
+                scope: ReviewSessionScope(type: .workspace, files: ["Sources/A.swift", "Sources/B.swift"]),
+                workspacePath: "/tmp/ledger-workspace",
+                currentRound: 1,
+                activeWorkerCount: 0,
+                startedAt: Date(),
+                completedAt: Date(),
+                analysisCompletedAt: Date(),
+                lastError: nil,
+                currentJobId: "job-ledger",
+                lastTestStatus: .passed,
+                phaseLedger: [
+                    ReviewPipelinePhaseLedgerEntry(
+                        id: "publish_ready",
+                        title: "Publish Ready",
+                        status: .completed,
+                        fileCount: 2,
+                        workerCount: 1,
+                        findingsCount: 1
+                    )
+                ],
+                fileLedger: [
+                    ReviewPipelineFileLedgerEntry(
+                        path: "Sources/A.swift",
+                        phaseId: "verification",
+                        status: .running,
+                        workerIds: ["worker-1"],
+                        toolIds: ["standard"],
+                        severity: .warning,
+                        candidateCount: 1,
+                        findingCount: 0,
+                        patchReadyCount: 0
+                    ),
+                    ReviewPipelineFileLedgerEntry(
+                        path: "Sources/B.swift",
+                        phaseId: "publish_ready",
+                        status: .completed,
+                        workerIds: ["worker-1"],
+                        toolIds: ["securityAudit"],
+                        severity: .critical,
+                        candidateCount: 0,
+                        findingCount: 1,
+                        patchReadyCount: 1
+                    )
+                ],
+                lastUpdatedAt: Date()
+            ),
+            conversationId: conversationId
+        )
+        taskStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
+        store.panelSessionId = sessionId
+
+        let live = store.currentHistoricalLiveRunState
+
+        XCTAssertEqual(live?.workers.map(\.id), ["worker-1"])
+        XCTAssertEqual(live?.files.map(\.path), ["Sources/B.swift", "Sources/A.swift"])
+        XCTAssertEqual(live?.files.first?.status, .completed)
+        XCTAssertEqual(live?.files.first?.workerIDs, ["worker-1"])
+    }
+
     private func makeStore(
         taskActivityStore: TaskActivityStore? = nil,
         conversationId: UUID = UUID(),

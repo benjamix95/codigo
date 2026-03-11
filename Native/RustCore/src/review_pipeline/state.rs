@@ -1,6 +1,9 @@
+use super::finalize::publish_ready_finding_ids;
+use super::ledger::{build_file_ledger, build_phase_ledger};
 use super::models::{ReviewPipelineConfig, ReviewPipelineScope, ReviewPipelineSnapshot, ReviewPipelineStep, ReviewTask};
+use super::phases::{AUDIT, COMPLETED, DISCOVERY, PATCH_PREPARATION, PUBLISH_READY, QUEUED, VERIFICATION};
+use super::support::{apple_reference_seconds, is_open_status, session_started_event};
 use serde_json::{json, Value};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone)]
 pub struct PipelineSession {
@@ -53,10 +56,12 @@ impl PipelineSession {
             }),
             outcome: empty_outcome(),
             verified_findings: None,
+            phase_ledger: Vec::new(),
+            file_ledger: Vec::new(),
             last_updated_at: now,
         };
         let step = ReviewPipelineStep::resolve_scope_files(clean_prompt.clone(), resolved_scope.clone(), against_ref.clone());
-        Self {
+        let mut session = Self {
             snapshot,
             clean_prompt,
             against_ref,
@@ -64,12 +69,15 @@ impl PipelineSession {
             current_tasks: Vec::new(),
             last_extraction_failure: None,
             step,
-        }
+        };
+        rebuild_ledger_fields(&mut session);
+        session
     }
 
     pub fn bump(&mut self) {
         self.snapshot.mutation_sequence += 1;
         self.snapshot.last_updated_at = apple_reference_seconds();
+        rebuild_ledger_fields(self);
     }
 }
 
@@ -180,14 +188,33 @@ fn refresh_outcome(session: &mut PipelineSession) {
 }
 
 fn build_outcome(session: &PipelineSession, summary: String) -> Value {
+    let publish_ready_ids = publish_ready_finding_ids(&session.snapshot);
+    let patches_applied = session
+        .snapshot
+        .patches
+        .iter()
+        .filter(|patch| patch.get("status").and_then(Value::as_str) == Some("applied"))
+        .count();
+    let prs_opened = session
+        .snapshot
+        .patches
+        .iter()
+        .filter(|patch| patch.get("status").and_then(Value::as_str) == Some("prOpened"))
+        .count();
+    let merged_patches = session
+        .snapshot
+        .patches
+        .iter()
+        .filter(|patch| patch.get("status").and_then(Value::as_str) == Some("merged"))
+        .count();
     json!({
         "summary": summary,
         "verifiedFindings": session.snapshot.findings.len(),
         "falsePositives": false_positive_count(&session.snapshot.candidates),
-        "patchesReady": 0,
-        "patchesApplied": 0,
-        "prsOpened": 0,
-        "mergedPatches": 0,
+        "patchesReady": publish_ready_ids.len(),
+        "patchesApplied": patches_applied,
+        "prsOpened": prs_opened,
+        "mergedPatches": merged_patches,
         "conflictsDetected": 0,
         "manualActionRequired": session.snapshot.candidates.iter().any(|item| item.get("verificationStatus").and_then(Value::as_str) == Some("inconclusive")),
         "testsStatus": session.snapshot.last_test_status,
@@ -218,27 +245,43 @@ fn empty_outcome() -> Value {
     })
 }
 
-fn session_started_event(scope: &str, file_count: usize, session_id: &str, sequence: u64, now: f64) -> Value {
-    json!({
-        "id": format!("{session_id}-evt-{sequence}"),
-        "type": "session_started",
-        "timestamp": now,
-        "detail": format!("Review started with scope: {scope}"),
-        "metadata": {
-            "scope": scope,
-            "file_count": file_count.to_string()
-        }
-    })
+fn derived_pipeline_phase(session: &PipelineSession) -> String {
+    let is_terminal = session.snapshot.phase == "completed" || session.snapshot.phase == "failed";
+    let has_verified = session
+        .snapshot
+        .verified_findings
+        .as_ref()
+        .and_then(|value| value.pointer("/projectionSnapshot/verifiedQueue"))
+        .and_then(Value::as_array)
+        .map(|items| !items.is_empty())
+        .unwrap_or(false);
+    let publish_ready_count = publish_ready_finding_ids(&session.snapshot).len();
+
+    if is_terminal && (publish_ready_count > 0 || (!has_verified && session.snapshot.findings.is_empty())) {
+        return COMPLETED.to_string();
+    }
+    if publish_ready_count > 0 {
+        return PUBLISH_READY.to_string();
+    }
+    if has_verified {
+        return PATCH_PREPARATION.to_string();
+    }
+    if session.snapshot.analysis_completed_at.is_some() || !session.snapshot.candidates.is_empty() || !session.snapshot.findings.is_empty() {
+        return VERIFICATION.to_string();
+    }
+    let tool_count = session.snapshot.audit.pointer("/toolCoverage").and_then(Value::as_object).map(|items| items.len()).unwrap_or(0);
+    if tool_count > 0 {
+        return AUDIT.to_string();
+    }
+    if session.snapshot.started_at.is_some() {
+        return DISCOVERY.to_string();
+    }
+    QUEUED.to_string()
 }
 
-fn is_open_status(status: &str) -> bool {
-    matches!(status, "open" | "patch_preparing" | "patch_ready" | "patch_applying" | "patch_failed" | "pr_opened" | "blocked")
-}
-
-pub fn apple_reference_seconds() -> f64 {
-    let unix = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_secs_f64())
-        .unwrap_or(0.0);
-    unix - 978_307_200.0
+fn rebuild_ledger_fields(session: &mut PipelineSession) {
+    let current_phase = derived_pipeline_phase(session);
+    let terminal = session.snapshot.phase == "completed" || session.snapshot.phase == "failed";
+    session.snapshot.phase_ledger = build_phase_ledger(&session.snapshot, &current_phase, terminal);
+    session.snapshot.file_ledger = build_file_ledger(&session.snapshot, &session.current_tasks);
 }

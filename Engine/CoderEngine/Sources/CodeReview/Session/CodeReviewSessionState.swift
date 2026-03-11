@@ -35,6 +35,8 @@ public actor CodeReviewSessionState {
     var lastTestStatus: ReviewSessionTestStatus?
     var audit: ReviewAuditSnapshot = .empty
     var outcome: ReviewSessionOutcome = .empty
+    var phaseLedger: [ReviewPipelinePhaseLedgerEntry] = []
+    var fileLedger: [ReviewPipelineFileLedgerEntry] = []
 
     /// Callback fired on every state mutation (for bridging to @MainActor stores).
     var onStateChange: (@Sendable (CodeReviewSessionSnapshot) -> Void)?
@@ -88,6 +90,8 @@ public actor CodeReviewSessionState {
             lastTestStatus: lastTestStatus,
             audit: audit,
             outcome: outcome,
+            phaseLedger: phaseLedger,
+            fileLedger: fileLedger,
             lastUpdatedAt: Date()
         )
     }

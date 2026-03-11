@@ -3,7 +3,40 @@ import Foundation
 
 @MainActor
 enum VerifiedFindingsPatchExecutionService {
+    typealias ExecuteHandler = @MainActor (
+        String,
+        CodeReviewSessionSnapshot,
+        String,
+        String,
+        String?,
+        ProviderRegistry
+    ) async throws -> CodeReviewSessionSnapshot
+
+    static var executeHandler: ExecuteHandler = defaultExecute
+
     static func execute(
+        action: String,
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String,
+        workspaceRoot: String,
+        preferredProviderId: String?,
+        providerRegistry: ProviderRegistry
+    ) async throws -> CodeReviewSessionSnapshot {
+        try await executeHandler(
+            action,
+            snapshot,
+            findingId,
+            workspaceRoot,
+            preferredProviderId,
+            providerRegistry
+        )
+    }
+
+    static func resetForTests() {
+        executeHandler = defaultExecute
+    }
+
+    private static func defaultExecute(
         action: String,
         snapshot: CodeReviewSessionSnapshot,
         findingId: String,

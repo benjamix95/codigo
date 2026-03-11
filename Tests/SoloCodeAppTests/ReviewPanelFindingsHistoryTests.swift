@@ -355,11 +355,12 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
         unsetenv("SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS")
         setenv("SOLOCODE_DISABLE_POSTGRES_PERSISTENCE", "1", 1)
         try? ManagedPostgresService.shared.shutdownIfRunning()
-        try? FileManager.default.removeItem(at: ManagedPostgresConfiguration.default.rootDirectory)
-        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
-        try? FileManager.default.removeItem(at: MCPSharedState.verifiedFindingsDirectoryPath)
-        try? FileManager.default.removeItem(at: MCPSharedState.bugHunterDirectoryPath)
-        try? FileManager.default.removeItem(at: MCPSharedState.planStateFilePath)
+        removeIfPresent(ManagedPostgresConfiguration.default.rootDirectory)
+        removeIfPresent(MCPSharedState.codeReviewDirectoryPath)
+        removeIfPresent(MCPSharedState.verifiedFindingsDirectoryPath)
+        removeIfPresent(MCPSharedState.bugHunterDirectoryPath)
+        let planStatePath = MCPSharedState.planStateFilePath
+        removeIfPresent(planStatePath)
     }
 
     private func measureSamples(iterations: Int, _ work: () -> Void) -> [Double] {
@@ -378,6 +379,11 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
             values.append((CFAbsoluteTimeGetCurrent() - started) * 1000)
         }
         return values
+    }
+
+    private func removeIfPresent(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     private func percentile95(_ samples: [Double]) -> Double {

@@ -1,3 +1,4 @@
+use super::ledger::{ReviewPipelineFileLedgerEntry, ReviewPipelinePhaseLedgerEntry};
 use crate::review_models::ReviewCoreErrorPayload;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -75,6 +76,8 @@ pub struct ReviewPipelineSnapshot {
     pub audit: Value,
     pub outcome: Value,
     pub verified_findings: Option<Value>,
+    pub phase_ledger: Vec<ReviewPipelinePhaseLedgerEntry>,
+    pub file_ledger: Vec<ReviewPipelineFileLedgerEntry>,
     pub last_updated_at: f64,
 }
 

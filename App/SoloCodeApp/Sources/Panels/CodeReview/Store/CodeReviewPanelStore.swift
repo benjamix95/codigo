@@ -259,7 +259,7 @@ final class CodeReviewPanelStore: ObservableObject {
     }
 
     func focusFinding(_ findingId: String) {
-        guard currentPublishedFindings.contains(where: { $0.id == findingId }) else { return }
+        guard currentVisibleFindings.contains(where: { $0.id == findingId }) else { return }
         selectedHistoricalFindingId = nil
         selectedFindingId = findingId
         selectTab(.findings)

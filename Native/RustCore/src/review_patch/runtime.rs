@@ -153,7 +153,7 @@ mod tests {
             patches: vec![ReviewPatchRecord {
                 id: "p1".to_string(),
                 finding_id: "f1".to_string(),
-                status: "verified".to_string(),
+                status: "applied".to_string(),
                 verify_status: "verified".to_string(),
                 validation_status: "passed".to_string(),
                 risk_score: 0.1,

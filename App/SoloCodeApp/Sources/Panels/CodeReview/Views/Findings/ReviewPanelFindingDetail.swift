@@ -120,6 +120,9 @@ struct ReviewPipelineJobCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+            if !state.phaseLedger.isEmpty {
+                phaseTimeline
+            }
             metricsRow
             gatesRow
             toolsSection
@@ -192,6 +195,29 @@ struct ReviewPipelineJobCard: View {
             metricChip("Published", value: "\(state.publishedFindingCount)")
             if state.hiddenFindingCount > 0 {
                 metricChip("Hidden", value: "\(state.hiddenFindingCount)")
+            }
+        }
+    }
+
+    private var phaseTimeline: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(state.phaseLedger, id: \.id) { entry in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.title.uppercased())
+                            .font(.system(size: 7.5, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                        Text(entry.status.rawValue.capitalized)
+                            .font(.system(size: 8.5, weight: .semibold))
+                            .foregroundStyle(statusColor(entry.status))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(
+                        statusColor(entry.status).opacity(0.10),
+                        in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    )
+                }
             }
         }
     }
@@ -276,6 +302,19 @@ struct ReviewPipelineJobCard: View {
             }
         }
         .frame(width: 7, height: 7)
+    }
+
+    private func statusColor(_ status: ReviewPipelineLedgerStatus) -> Color {
+        switch status {
+        case .completed:
+            return DesignSystem.Colors.success
+        case .running:
+            return DesignSystem.Colors.reviewColor
+        case .blocked:
+            return DesignSystem.Colors.warning
+        case .pending:
+            return .secondary
+        }
     }
 
     private var summaryText: String {

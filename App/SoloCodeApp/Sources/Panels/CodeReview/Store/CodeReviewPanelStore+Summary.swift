@@ -40,96 +40,20 @@ extension CodeReviewPanelStore {
         currentReviewPanelDerivedState?.pipelineJobState
     }
 
+    var currentLiveCandidates: [ReviewCandidate] {
+        currentReviewPanelDerivedState?.liveCandidates ?? []
+    }
+
+    var currentVerifiedFindings: [CodeReviewFinding] {
+        currentReviewPanelDerivedState?.verifiedFindings ?? []
+    }
+
     var currentPublishedFindings: [CodeReviewFinding] {
-        currentReviewPanelDerivedState?.publishedFindings ?? []
-    }
-}
-
-enum ReviewPipelineJobStateBuilder {
-    static func build(
-        snapshot: CodeReviewSessionSnapshot,
-        entryPoint: VerifiedFindingOriginEntryPoint = .panel
-    ) -> ReviewPipelineJobState {
-        let pipeline = VerifiedFindingsPipelineStatusService.evaluate(
-            snapshot: snapshot,
-            entryPoint: entryPoint
-        )
-        let bundleModes = pipeline.bundleModes.isEmpty ? ["standard", "bugFinder", "securityAudit"] : pipeline.bundleModes
-
-        return ReviewPipelineJobState(
-            title: "Unified Review Pipeline",
-            phase: pipeline.pipelinePhase,
-            progressPercent: pipeline.progressPercent,
-            stepsCompleted: pipeline.stepsCompleted,
-            stepsTotal: pipeline.stepsTotal,
-            toolsTotal: pipeline.toolsTotal,
-            toolsCompleted: pipeline.toolsCompleted,
-            toolsRunning: pipeline.toolsRunning,
-            candidateCount: pipeline.candidateCount,
-            verifiedCount: pipeline.verifiedCount,
-            publishedFindingCount: pipeline.publishedFindingCount,
-            hiddenFindingCount: max(snapshot.findings.count - pipeline.publishedFindingCount, 0),
-            gates: [
-                ReviewPipelineGateState(title: "Verification", isReady: pipeline.verificationGateReady),
-                ReviewPipelineGateState(title: "Patch", isReady: pipeline.patchGateReady),
-            ],
-            tools: toolExecutions(
-                audit: snapshot.audit,
-                pipeline: pipeline,
-                bundleModes: bundleModes
-            ),
-            bundleModes: bundleModes,
-            isTerminal: snapshot.phase == .completed || snapshot.phase == .failed
-        )
+        currentReviewPanelDerivedState?.publishReadyFindings ?? []
     }
 
-    private static func toolExecutions(
-        audit: ReviewAuditSnapshot,
-        pipeline: VerifiedFindingsPipelineStatus,
-        bundleModes: [String]
-    ) -> [ReviewPipelineToolExecution] {
-        let auditedTools = audit.toolCoverage.keys.sorted().map { toolName in
-            ReviewPipelineToolExecution(
-                id: toolName,
-                title: displayTitle(for: toolName),
-                status: .completed,
-                findingsCount: audit.toolFindingsCounts[toolName] ?? 0
-            )
-        }
-        if !auditedTools.isEmpty {
-            return auditedTools
-        }
-
-        return bundleModes.enumerated().map { index, mode in
-            let runningThreshold = min(pipeline.toolsRunning, bundleModes.count)
-            let status: ReviewPipelineToolExecution.Status
-            if index < pipeline.toolsCompleted {
-                status = .completed
-            } else if index < pipeline.toolsCompleted + runningThreshold {
-                status = .running
-            } else {
-                status = .pending
-            }
-            return ReviewPipelineToolExecution(
-                id: mode,
-                title: displayTitle(for: mode),
-                status: status,
-                findingsCount: 0
-            )
-        }
-    }
-
-    static func displayTitle(for rawValue: String) -> String {
-        switch rawValue {
-        case "standard": return "Standard Review"
-        case "bugFinder": return "Bug Finder"
-        case "securityAudit": return "Security Audit"
-        default:
-            return rawValue
-                .replacingOccurrences(of: "_", with: " ")
-                .replacingOccurrences(of: "-", with: " ")
-                .capitalized
-        }
+    var currentVisibleFindings: [CodeReviewFinding] {
+        currentVerifiedFindings + currentPublishedFindings
     }
 }
 
@@ -163,17 +87,24 @@ enum ReviewPanelDerivedStateBuilder {
             lastUpdatedAt: snapshot.lastUpdatedAt
         )
         let rustPanelState = ReviewPanelStateRustAdapter.reduce(snapshot: effectiveSnapshot)
-        let publishedFindingIDs = rustPanelState?.publishedFindingIds
-            ?? publishedFindingIDsFallback(snapshot: effectiveSnapshot)
+        let publishedFindingIDs = rustPanelState?.publishReadyFindingIds
+            ?? publishReadyFindingIDsFallback(snapshot: effectiveSnapshot)
+        let verifiedFindingIDs = rustPanelState?.verifiedFindingIds
+            ?? verifiedFindingIDsFallback(snapshot: effectiveSnapshot)
+        let liveCandidateIDs = rustPanelState?.liveCandidateIds
+            ?? effectiveSnapshot.candidates.map(\.id)
         let findingsById = Dictionary(uniqueKeysWithValues: effectiveSnapshot.findings.map { ($0.id, $0) })
-        let publishedFindings = publishedFindingIDs.compactMap { findingsById[$0] }
+        let candidatesById = Dictionary(uniqueKeysWithValues: effectiveSnapshot.candidates.map { ($0.id, $0) })
+        let liveCandidates = liveCandidateIDs.compactMap { candidatesById[$0] }
+        let verifiedFindings = verifiedFindingIDs.compactMap { findingsById[$0] }
+        let publishReadyFindings = publishedFindingIDs.compactMap { findingsById[$0] }
         let pipelineJobState = rustPanelState?.makePipelineJobState()
             ?? ReviewPipelineJobStateBuilder.build(
                 snapshot: effectiveSnapshot,
                 entryPoint: .panel
             )
         let publishedSeverityCounts = rustPanelState?.publishedSeverityCounts.findingSeverityCounts
-            ?? Dictionary(grouping: publishedFindings, by: \.severity).reduce(into: [FindingSeverity: Int]()) { partialResult, entry in
+            ?? Dictionary(grouping: publishReadyFindings, by: \.severity).reduce(into: [FindingSeverity: Int]()) { partialResult, entry in
                 partialResult[entry.key] = entry.value.count
             }
         let emptyStateTitle = rustPanelState?.emptyStateTitle
@@ -184,11 +115,15 @@ enum ReviewPanelDerivedStateBuilder {
         let derivedState = ReviewPanelDerivedState(
             sessionId: effectiveSnapshot.sessionId,
             mutationSequence: effectiveSnapshot.mutationSequence,
-            publishedFindings: publishedFindings,
+            liveCandidates: liveCandidates,
+            verifiedFindings: verifiedFindings,
+            publishReadyFindings: publishReadyFindings,
             publishedSeverityCounts: publishedSeverityCounts,
             pipelineJobState: pipelineJobState,
             projection: verifiedEnvelope.projectionSnapshot,
             verifiedEnvelope: verifiedEnvelope,
+            phaseLedger: rustPanelState?.phaseLedger ?? effectiveSnapshot.phaseLedger,
+            fileLedger: rustPanelState?.fileLedger ?? effectiveSnapshot.fileLedger,
             warmState: rustPanelState?.warmState.reviewPanelWarmState ?? .ready,
             emptyStateTitle: emptyStateTitle,
             emptyStateSubtitle: emptyStateSubtitle
@@ -216,7 +151,7 @@ enum ReviewPanelDerivedStateBuilder {
         return MCPSharedState.readVerifiedFindingsEnvelope(sessionId: snapshot.sessionId)
     }
 
-    private static func publishedFindingIDsFallback(
+    private static func publishReadyFindingIDsFallback(
         snapshot: CodeReviewSessionSnapshot
     ) -> [String] {
         guard let envelope = snapshot.verifiedFindings else { return [] }
@@ -253,11 +188,24 @@ enum ReviewPanelDerivedStateBuilder {
         }
     }
 
+    private static func verifiedFindingIDsFallback(
+        snapshot: CodeReviewSessionSnapshot
+    ) -> [String] {
+        guard let envelope = snapshot.verifiedFindings else { return [] }
+        let publishReady = Set(publishReadyFindingIDsFallback(snapshot: snapshot))
+        let verifiedIds = Set(envelope.projectionSnapshot.verifiedQueue.map(\.id))
+        return snapshot.findings.compactMap { finding in
+            guard verifiedIds.contains(finding.id), !publishReady.contains(finding.id) else { return nil }
+            let isVerified = finding.verifiedAt != nil || finding.verificationReport != nil
+            return isVerified ? finding.id : nil
+        }
+    }
+
     private static func fallbackEmptyStateTitle(
         snapshot: CodeReviewSessionSnapshot,
         pipeline: ReviewPipelineJobState?
     ) -> String {
-        pipeline == nil ? "No findings yet" : "No published findings yet"
+        pipeline == nil ? "No findings yet" : "Waiting for review evidence"
     }
 
     private static func fallbackEmptyStateSubtitle(
@@ -265,141 +213,20 @@ enum ReviewPanelDerivedStateBuilder {
         pipeline: ReviewPipelineJobState?
     ) -> String {
         if let pipeline {
+            if pipeline.candidateCount > 0 {
+                return "I candidati live sono visibili mentre la verifica è ancora in corso."
+            }
+            if pipeline.verifiedCount > pipeline.publishedFindingCount {
+                return "I finding verificati sono visibili anche se la patch finale è ancora in preparazione."
+            }
             if pipeline.hiddenFindingCount > 0 {
                 return "Verification and patch preparation are still gating the findings."
             }
             if pipeline.isTerminal {
-                return "The run completed without any publish-ready findings."
+                return "The run completed without any verified or publish-ready findings."
             }
-            return "The pipeline is still running. Findings appear only after verification and patch preview."
+            return "The pipeline is still running. Live candidates and verified findings appear progressively."
         }
         return "Start a review to analyze your code"
-    }
-}
-
-private enum ReviewPanelStateRustAdapter {
-    static func reduce(
-        snapshot: CodeReviewSessionSnapshot
-    ) -> ReviewPanelRustPanelState? {
-        let response: ReviewPanelReduceResponse? = ReviewCoreBridge.call(
-            functionName: "review_core_reduce_panel_state",
-            request: ReviewPanelReduceRequest(snapshot: snapshot)
-        )
-        guard response?.error == nil else { return nil }
-        return response?.panelState
-    }
-}
-
-private struct ReviewPanelReduceRequest: Encodable {
-    let schemaVersion: Int = 1
-    let operation: String = "derive_review_panel_state"
-    let snapshot: CodeReviewSessionSnapshot
-}
-
-private struct ReviewPanelReduceResponse: Decodable {
-    let schemaVersion: Int
-    let error: ReviewPanelReduceError?
-    let panelState: ReviewPanelRustPanelState?
-}
-
-private struct ReviewPanelReduceError: Decodable {
-    let code: String
-    let message: String
-}
-
-private struct ReviewPanelRustPanelState: Decodable {
-    let publishedFindingIds: [String]
-    let publishedSeverityCounts: [String: Int]
-    let pipelinePhase: String
-    let progressPercent: Int
-    let stepsCompleted: Int
-    let stepsTotal: Int
-    let toolsTotal: Int
-    let toolsCompleted: Int
-    let toolsRunning: Int
-    let candidateCount: Int
-    let verifiedCount: Int
-    let publishedFindingCount: Int
-    let hiddenFindingCount: Int
-    let verificationGateReady: Bool
-    let patchGateReady: Bool
-    let bundleModes: [String]
-    let toolExecutions: [ReviewPanelRustToolExecution]
-    let isTerminal: Bool
-    let warmState: String
-    let emptyStateTitle: String
-    let emptyStateSubtitle: String
-
-    func makePipelineJobState() -> ReviewPipelineJobState {
-        ReviewPipelineJobState(
-            title: "Unified Review Pipeline",
-            phase: pipelinePhase,
-            progressPercent: progressPercent,
-            stepsCompleted: stepsCompleted,
-            stepsTotal: stepsTotal,
-            toolsTotal: toolsTotal,
-            toolsCompleted: toolsCompleted,
-            toolsRunning: toolsRunning,
-            candidateCount: candidateCount,
-            verifiedCount: verifiedCount,
-            publishedFindingCount: publishedFindingCount,
-            hiddenFindingCount: hiddenFindingCount,
-            gates: [
-                ReviewPipelineGateState(title: "Verification", isReady: verificationGateReady),
-                ReviewPipelineGateState(title: "Patch", isReady: patchGateReady),
-            ],
-            tools: toolExecutions.map {
-                ReviewPipelineToolExecution(
-                    id: $0.id,
-                    title: ReviewPipelineJobStateBuilder.displayTitle(for: $0.id),
-                    status: $0.status.reviewToolStatus,
-                    findingsCount: $0.findingsCount
-                )
-            },
-            bundleModes: bundleModes,
-            isTerminal: isTerminal
-        )
-    }
-}
-
-private struct ReviewPanelRustToolExecution: Decodable {
-    let id: String
-    let status: String
-    let findingsCount: Int
-}
-
-private extension String {
-    var reviewToolStatus: ReviewPipelineToolExecution.Status {
-        switch self {
-        case "completed":
-            return .completed
-        case "running":
-            return .running
-        default:
-            return .pending
-        }
-    }
-
-    var reviewPanelWarmState: ReviewPanelWarmState {
-        switch self {
-        case "warming":
-            return .warming
-        case "failed":
-            return .failed
-        case "idle":
-            return .idle
-        default:
-            return .ready
-        }
-    }
-}
-
-private extension Dictionary where Key == String, Value == Int {
-    var findingSeverityCounts: [FindingSeverity: Int] {
-        reduce(into: [FindingSeverity: Int]()) { partialResult, entry in
-            if let severity = FindingSeverity(rawValue: entry.key) {
-                partialResult[severity] = entry.value
-            }
-        }
     }
 }

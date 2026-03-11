@@ -23,7 +23,7 @@ final class ReviewPanelCoordinator {
         sessionState: CodeReviewSessionState,
         onEvent: @escaping @MainActor (StreamEvent) -> Void,
         onStart: @escaping @MainActor () -> Void,
-        onComplete: @escaping @MainActor (CodeReviewSessionSnapshot) -> Void,
+        onComplete: @escaping @MainActor (CodeReviewSessionSnapshot) async -> Void,
         onError: @escaping @MainActor (String) -> Void
     ) {
         cancelReview()
@@ -46,7 +46,7 @@ final class ReviewPanelCoordinator {
                 isReviewRunning = false
 
                 if snapshot.phase == .completed {
-                    onComplete(snapshot)
+                    await onComplete(snapshot)
                 } else if Task.isCancelled {
                     onError("Review cancelled")
                 } else {

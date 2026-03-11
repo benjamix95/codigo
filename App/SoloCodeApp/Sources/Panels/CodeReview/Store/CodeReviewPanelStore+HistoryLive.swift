@@ -22,9 +22,13 @@ extension CodeReviewPanelStore {
 
         let workers = liveReviewWorkers()
         let cards = liveReviewCards()
+        let ledgerWorkers = historicalLiveWorkers(from: snapshot)
+        let ledgerFiles = historicalLiveFiles(from: snapshot)
         guard snapshot.isActive
                 || snapshot.phase == .completed
                 || snapshot.phase == .failed
+                || !ledgerFiles.isEmpty
+                || !ledgerWorkers.isEmpty
                 || !workers.isEmpty
                 || !cards.isEmpty else {
             return nil
@@ -33,12 +37,14 @@ extension CodeReviewPanelStore {
         let cardsByWorkerID = Dictionary(uniqueKeysWithValues: cards.compactMap { card in
             liveWorkerIdentifier(for: card).map { ($0, card) }
         })
-        let liveWorkers = historicalLiveWorkers(
-            workers: workers,
-            cardsByWorkerID: cardsByWorkerID,
-            snapshot: snapshot
-        )
-        let files = historicalLiveFiles(from: liveWorkers)
+        let liveWorkers = !ledgerWorkers.isEmpty
+            ? ledgerWorkers
+            : historicalLiveWorkers(
+                workers: workers,
+                cardsByWorkerID: cardsByWorkerID,
+                snapshot: snapshot
+            )
+        let files = !ledgerFiles.isEmpty ? ledgerFiles : historicalLiveFiles(from: liveWorkers)
 
         return ReviewHistoricalLiveBoardState(
             title: snapshot.isActive ? "Live Review Board" : "Completed Run Summary",
@@ -121,6 +127,59 @@ extension CodeReviewPanelStore {
                 workerIDs: aggregate.workerIDs.sorted(),
                 severity: aggregate.severity,
                 status: aggregate.status
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.severity.sortOrder != rhs.severity.sortOrder {
+                return lhs.severity.sortOrder < rhs.severity.sortOrder
+            }
+            return lhs.fileName.localizedStandardCompare(rhs.fileName) == .orderedAscending
+        }
+    }
+
+    private func historicalLiveWorkers(
+        from snapshot: CodeReviewSessionSnapshot
+    ) -> [ReviewHistoricalLiveWorkerState] {
+        let grouped = Dictionary(grouping: snapshot.fileLedger.flatMap { entry in
+            entry.workerIds.map { workerId in (workerId, entry) }
+        }, by: \.0)
+
+        return grouped.map { workerId, pairs in
+            let entries = pairs.map(\.1)
+            let highestSeverity = entries.compactMap(\.severity).sorted { $0.sortOrder < $1.sortOrder }.first ?? .info
+            return ReviewHistoricalLiveWorkerState(
+                id: workerId,
+                title: workerId,
+                detail: entries.map(\.phaseId).joined(separator: " -> "),
+                severity: highestSeverity,
+                status: snapshot.isActive ? .running : .completed,
+                files: entries.map(\.path),
+                fileCount: entries.count
+            )
+        }
+        .sorted { $0.id < $1.id }
+    }
+
+    private func historicalLiveFiles(
+        from snapshot: CodeReviewSessionSnapshot
+    ) -> [ReviewHistoricalLiveFileState] {
+        snapshot.fileLedger.map { entry in
+            let status: SwarmCardStatus
+            switch entry.status {
+            case .completed:
+                status = .completed
+            case .running:
+                status = .running
+            case .blocked:
+                status = .failed
+            case .pending:
+                status = .idle
+            }
+            return ReviewHistoricalLiveFileState(
+                path: entry.path,
+                workerIDs: entry.workerIds,
+                severity: entry.severity ?? .info,
+                status: status
             )
         }
         .sorted { lhs, rhs in

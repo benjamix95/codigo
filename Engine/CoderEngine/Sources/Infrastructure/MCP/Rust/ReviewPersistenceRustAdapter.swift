@@ -76,9 +76,13 @@ enum ReviewPersistenceRustAdapter {
         functionName: String,
         value: T
     ) -> Data? {
+        guard let rawData = try? JSONEncoder.persistence.encode(value),
+              let rawPayload = String(data: rawData, encoding: .utf8) else {
+            return nil
+        }
         let request = ReviewPersistencePayloadRequest(
             schemaVersion: 1,
-            payload: String(data: (try? JSONEncoder.persistence.encode(value)) ?? Data(), encoding: .utf8) ?? ""
+            payload: rawPayload
         )
         guard let response: ReviewPersistencePayloadResponse = ReviewCoreBridge.call(
             functionName: functionName,
@@ -86,7 +90,7 @@ enum ReviewPersistenceRustAdapter {
         ),
         !response.isError,
         let payload = response.payload else {
-            return nil
+            return rawData
         }
         return Data(payload.utf8)
     }
@@ -96,6 +100,7 @@ enum ReviewPersistenceRustAdapter {
         payload: Data,
         as _: T.Type
     ) -> T? {
+        let fallback = try? JSONDecoder.persistence.decode(T.self, from: payload)
         let request = ReviewPersistencePayloadRequest(
             schemaVersion: 1,
             payload: String(data: payload, encoding: .utf8) ?? ""
@@ -106,7 +111,7 @@ enum ReviewPersistenceRustAdapter {
         ),
         !response.isError,
         let payload = response.payload else {
-            return nil
+            return fallback
         }
         return try? JSONDecoder.persistence.decode(T.self, from: Data(payload.utf8))
     }

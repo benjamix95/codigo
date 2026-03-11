@@ -7,7 +7,7 @@ struct ReviewPanelFindingsTab: View {
     let onOpenFileAtLocation: (String, Int?) -> Void
 
     var body: some View {
-        let findings = store.currentPublishedFindings
+        let findings = store.currentVisibleFindings
 
         if let selectedId = store.selectedFindingId,
            let finding = findings.first(where: { $0.id == selectedId })
@@ -34,19 +34,40 @@ struct ReviewPanelFindingsTab: View {
 
     @ViewBuilder
     private func findingsListView(_ findings: [CodeReviewFinding]) -> some View {
+        let liveCandidates = store.currentLiveCandidates
+        let verifiedFindings = store.currentVerifiedFindings
+        let publishReadyFindings = store.currentPublishedFindings
         VStack(alignment: .leading, spacing: 10) {
             if let pipeline = store.currentPipelineJobState {
                 ReviewPipelineJobCard(state: pipeline)
                     .padding(.horizontal, 10)
             }
 
-            if findings.isEmpty {
+            if findings.isEmpty && liveCandidates.isEmpty {
                 emptyPlaceholder
             } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    summaryBar(findings)
-                    Divider().opacity(0.2)
-                    scrollList(findings)
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        summaryBar(findings)
+                        if !liveCandidates.isEmpty {
+                            ReviewPanelCandidatesSection(candidates: liveCandidates)
+                                .padding(.horizontal, 10)
+                        }
+                        if !verifiedFindings.isEmpty {
+                            findingsSection(
+                                title: "VERIFIED FINDINGS",
+                                subtitle: "Verificati e gia visibili, ma patch finale ancora in preparazione.",
+                                findings: verifiedFindings
+                            )
+                        }
+                        if !publishReadyFindings.isEmpty {
+                            findingsSection(
+                                title: "PUBLISH-READY FINDINGS",
+                                subtitle: "Patch pronta e azioni apply / PR / merge disponibili.",
+                                findings: publishReadyFindings
+                            )
+                        }
+                    }
                 }
             }
 
@@ -125,8 +146,21 @@ struct ReviewPanelFindingsTab: View {
 
     // MARK: - Scroll List
 
-    private func scrollList(_ findings: [CodeReviewFinding]) -> some View {
-        return ScrollView(.vertical, showsIndicators: true) {
+    private func findingsSection(
+        title: String,
+        subtitle: String,
+        findings: [CodeReviewFinding]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.8)
+                .padding(.horizontal, 10)
+            Text(subtitle)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
             LazyVStack(spacing: 2) {
                 ForEach(findings, id: \.id) { finding in
                     findingRow(finding, isSelected: store.selectedFindingId == finding.id)

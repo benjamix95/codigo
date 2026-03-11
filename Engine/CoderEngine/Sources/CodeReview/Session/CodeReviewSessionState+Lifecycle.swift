@@ -23,6 +23,8 @@ extension CodeReviewSessionState {
         self.lastTestStatus = nil
         self.audit = .empty
         self.outcome = .empty
+        self.phaseLedger = []
+        self.fileLedger = []
 
         events.append(.sessionStarted(scope: scope.description, fileCount: scope.files.count))
         notifyChange()
@@ -73,6 +75,8 @@ extension CodeReviewSessionState {
         lastTestStatus = nil
         audit = .empty
         outcome = .empty
+        phaseLedger = []
+        fileLedger = []
         notifyChange()
     }
 

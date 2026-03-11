@@ -154,6 +154,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let audit: ReviewAuditSnapshot
     public let outcome: ReviewSessionOutcome
     public let verifiedFindings: VerifiedFindingsSessionEnvelope?
+    public let phaseLedger: [ReviewPipelinePhaseLedgerEntry]
+    public let fileLedger: [ReviewPipelineFileLedgerEntry]
     public let lastUpdatedAt: Date
 
     public init(
@@ -180,6 +182,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         audit: ReviewAuditSnapshot = .empty,
         outcome: ReviewSessionOutcome = .empty,
         verifiedFindings: VerifiedFindingsSessionEnvelope? = nil,
+        phaseLedger: [ReviewPipelinePhaseLedgerEntry] = [],
+        fileLedger: [ReviewPipelineFileLedgerEntry] = [],
         lastUpdatedAt: Date
     ) {
         self.sessionId = sessionId
@@ -205,6 +209,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         self.audit = audit
         self.outcome = outcome
         self.verifiedFindings = verifiedFindings
+        self.phaseLedger = phaseLedger
+        self.fileLedger = fileLedger
         self.lastUpdatedAt = lastUpdatedAt
     }
 
@@ -232,6 +238,8 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         case audit
         case outcome
         case verifiedFindings
+        case phaseLedger
+        case fileLedger
         case lastUpdatedAt
     }
 
@@ -269,6 +277,14 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
             VerifiedFindingsSessionEnvelope.self,
             forKey: .verifiedFindings
         )
+        phaseLedger = try container.decodeIfPresent(
+            [ReviewPipelinePhaseLedgerEntry].self,
+            forKey: .phaseLedger
+        ) ?? []
+        fileLedger = try container.decodeIfPresent(
+            [ReviewPipelineFileLedgerEntry].self,
+            forKey: .fileLedger
+        ) ?? []
         lastUpdatedAt = try container.decode(Date.self, forKey: .lastUpdatedAt)
     }
 }

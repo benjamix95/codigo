@@ -32,11 +32,12 @@ enum PersistenceTestSupport {
         unsetenv("SOLOCODE_POSTGRES_ROOT_DIRECTORY")
         unsetenv("SOLOCODE_POSTGRES_PORT")
         disablePersistenceForTests()
-        try? FileManager.default.removeItem(at: ManagedPostgresConfiguration.default.rootDirectory)
-        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
-        try? FileManager.default.removeItem(at: MCPSharedState.verifiedFindingsDirectoryPath)
-        try? FileManager.default.removeItem(at: MCPSharedState.bugHunterDirectoryPath)
-        try? FileManager.default.removeItem(at: MCPSharedState.planStateFilePath)
+        removeIfPresent(ManagedPostgresConfiguration.default.rootDirectory)
+        removeIfPresent(MCPSharedState.codeReviewDirectoryPath)
+        removeIfPresent(MCPSharedState.verifiedFindingsDirectoryPath)
+        removeIfPresent(MCPSharedState.bugHunterDirectoryPath)
+        let planStatePath = MCPSharedState.planStateFilePath
+        removeIfPresent(planStatePath)
     }
 
     static func stableDate(_ seconds: TimeInterval = 1_700_000_000) -> Date {
@@ -61,5 +62,10 @@ enum PersistenceTestSupport {
             return port
         }
         return 56000 + (Int(ProcessInfo.processInfo.processIdentifier) % 1000)
+    }
+
+    private static func removeIfPresent(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 }

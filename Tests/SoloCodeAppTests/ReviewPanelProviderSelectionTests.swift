@@ -178,6 +178,148 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
         XCTAssertEqual(store.currentPipelineJobState?.phase, "completed")
     }
 
+    func testVerifiedFindingsStayVisibleBeforePatchPreparationCompletes() {
+        let registry = ProviderRegistry()
+        registry.register(MockReviewPanelProvider(id: "openai-api", displayName: "OpenAI"))
+        registry.selectedProviderId = "openai-api"
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let store = CodeReviewPanelStore(
+            taskActivityStore: taskStore,
+            providerRegistry: registry,
+            executionController: nil,
+            workspaceStore: WorkspaceStore(),
+            openFilesStore: OpenFilesStore(),
+            conversationId: conversationId,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+        let baseSnapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-progressive",
+            conversationId: conversationId,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-progressive",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Sources/App/Main.swift",
+                    message: "Terminal event can be emitted twice",
+                    verificationReport: "Retry riproduce il doppio terminal event",
+                    verifiedAt: Date()
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .uncommitted, files: ["Sources/App/Main.swift"]),
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: "job-progressive",
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+        let snapshot = baseSnapshot.copying(
+            mutationSequence: baseSnapshot.mutationSequence,
+            verifiedFindings: VerifiedFindingsSessionSyncService.sync(snapshot: baseSnapshot),
+            lastUpdatedAt: baseSnapshot.lastUpdatedAt
+        )
+
+        taskStore.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+        store.panelSessionId = snapshot.sessionId
+
+        XCTAssertEqual(store.currentVerifiedFindings.map(\.id), ["finding-progressive"])
+        XCTAssertTrue(store.currentPublishedFindings.isEmpty)
+        XCTAssertEqual(store.currentVisibleFindings.map(\.id), ["finding-progressive"])
+        XCTAssertEqual(store.currentPipelineJobState?.verifiedCount, 1)
+    }
+
+    func testCompletedReviewFinalizationAutoPreparesPatchForVerifiedFindings() async throws {
+        let registry = ProviderRegistry()
+        registry.register(MockReviewPanelProvider(id: "openai-api", displayName: "OpenAI"))
+        registry.selectedProviderId = "openai-api"
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let workspaceStore = WorkspaceStore()
+        workspaceStore.workspaces = [Workspace(name: "Repo", rootPath: "/tmp/repo")]
+        workspaceStore.activeWorkspaceId = workspaceStore.workspaces.first?.id
+        let store = CodeReviewPanelStore(
+            taskActivityStore: taskStore,
+            providerRegistry: registry,
+            executionController: nil,
+            workspaceStore: workspaceStore,
+            openFilesStore: OpenFilesStore(),
+            conversationId: conversationId,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-auto-prepare",
+            conversationId: conversationId,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-auto-prepare",
+                    severity: .warning,
+                    category: .security,
+                    origin: .securityAuditor,
+                    filePath: "Sources/Auth/Authz.swift",
+                    message: "Missing authorization guard",
+                    verificationReport: "Verified on the direct authorization path",
+                    verifiedAt: Date()
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .uncommitted, files: ["Sources/Auth/Authz.swift"]),
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: "job-auto-prepare",
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        VerifiedFindingsPatchExecutionService.executeHandler = { action, currentSnapshot, findingId, _, _, _ in
+            XCTAssertEqual(action, "prepare_patch")
+            XCTAssertEqual(findingId, "finding-auto-prepare")
+            let patch = ReviewPatchArtifact(
+                id: "patch-auto-prepare",
+                findingId: findingId,
+                patchText: "diff --git a/Authz.swift b/Authz.swift",
+                diffPreview: "@@",
+                touchedFiles: ["Sources/Auth/Authz.swift"],
+                status: .verified,
+                verifyStatus: .verified
+            )
+            let findings = currentSnapshot.findings.map { finding -> CodeReviewFinding in
+                guard finding.id == findingId else { return finding }
+                var updated = finding
+                updated.patchArtifactId = patch.id
+                updated.status = .patchReady
+                return updated
+            }
+            let updated = currentSnapshot.copying(findings: findings, patches: [patch])
+            return updated.copying(outcome: updated.buildOutcomeSummary())
+        }
+        defer { VerifiedFindingsPatchExecutionService.resetForTests() }
+
+        let finalized = await store.finalizeCompletedReviewSessionIfNeeded(snapshot: snapshot)
+
+        XCTAssertEqual(finalized.patches.map(\.id), ["patch-auto-prepare"])
+        XCTAssertEqual(finalized.findings.first?.patchArtifactId, "patch-auto-prepare")
+        XCTAssertEqual(finalized.findings.first?.status, .patchReady)
+    }
+
     private static func makeProviderFactoryConfig() -> ProviderFactoryConfig {
         ProviderFactoryConfig(
             openaiApiKey: "",
