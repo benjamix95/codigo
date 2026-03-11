@@ -73,6 +73,9 @@ struct ReviewPanelFindingsTab: View {
     }
 
     private var emptyStateTitle: String {
+        if let derivedState = store.currentReviewPanelDerivedState {
+            return derivedState.emptyStateTitle
+        }
         switch store.currentReviewPanelWarmState {
         case .warming:
             return "Preparing review state..."
@@ -86,7 +89,7 @@ struct ReviewPanelFindingsTab: View {
     // MARK: - Summary Bar
 
     private func summaryBar(_ findings: [CodeReviewFinding]) -> some View {
-        let grouped = Dictionary(grouping: findings, by: \.severity)
+        let grouped = store.currentReviewPanelDerivedState?.publishedSeverityCounts ?? [:]
         return HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 10, weight: .semibold))
@@ -97,7 +100,7 @@ struct ReviewPanelFindingsTab: View {
                 .tracking(0.8)
             Spacer()
             ForEach(FindingSeverity.allCases, id: \.rawValue) { sev in
-                let count = grouped[sev]?.count ?? 0
+                let count = grouped[sev] ?? 0
                 if count > 0 {
                     severityPill(sev, count: count)
                 }
@@ -123,10 +126,9 @@ struct ReviewPanelFindingsTab: View {
     // MARK: - Scroll List
 
     private func scrollList(_ findings: [CodeReviewFinding]) -> some View {
-        let sorted = findings.sorted { $0.severity.sortOrder < $1.severity.sortOrder }
         return ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(spacing: 2) {
-                ForEach(sorted, id: \.id) { finding in
+                ForEach(findings, id: \.id) { finding in
                     findingRow(finding, isSelected: store.selectedFindingId == finding.id)
                         .onTapGesture { store.selectedFindingId = finding.id }
                 }
@@ -217,6 +219,9 @@ struct ReviewPanelFindingsTab: View {
     }
 
     private var emptyStateSubtitle: String {
+        if let derivedState = store.currentReviewPanelDerivedState {
+            return derivedState.emptyStateSubtitle
+        }
         if store.currentReviewPanelWarmState == .warming {
             return "The panel is deriving findings and pipeline status off the render path."
         }

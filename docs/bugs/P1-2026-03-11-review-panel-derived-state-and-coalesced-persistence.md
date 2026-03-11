@@ -34,6 +34,8 @@
   - regressione panel su findings pubblicati e pipeline status da stato derivato
   - regressione ingest cold-start che preserva `commandLog`
   - regressione su persistence bridge coalesced
+  - regressione bootstrap con `payloadRef` / `artifactRef` legacy orfani
+  - regressione su callback `onStateChange` coalesced per worker/audit noise
 - Strategia di fix minimo:
   - precalcolo dello stato panel fuori dal `body`
   - cache keyed da `sessionId + mutationSequence`
@@ -58,3 +60,17 @@
   - `upsert/delete` solo per entity cambiate o rimosse
   - colonne `payload` per rebuild delle entity canonicali dalle tabelle normalizzate
   - restore dell’envelope da Postgres senza dipendere dal vecchio checkpoint full
+- aggiunti placeholder deterministici in `artifact_payloads` per `payloadRef` / `artifactRef` legacy orfani durante bootstrap e write normali
+- introdotto coalescing lato `CodeReviewSessionState` per:
+  - `setActiveWorkerCount`
+  - `markWorkerSpawned`
+  - `markWorkerCompleted`
+  - `markAuditStarted`
+  - `setPhase`
+  - `setStage`
+  - `setCurrentJobId`
+- esteso il reducer Rust del panel con:
+  - ordering dei finding pubblicati
+  - counts per severity
+  - `warmState`
+  - placeholder title/subtitle

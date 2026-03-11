@@ -6,6 +6,10 @@ import Foundation
 /// Follows the DebugStore pattern but uses an actor for Sendable compliance
 /// across CoderEngine (non-UI) boundaries.
 public actor CodeReviewSessionState {
+    enum SnapshotEmissionMode {
+        case immediate
+        case coalesced
+    }
 
     // MARK: - Published State
 
@@ -34,6 +38,7 @@ public actor CodeReviewSessionState {
 
     /// Callback fired on every state mutation (for bridging to @MainActor stores).
     var onStateChange: (@Sendable (CodeReviewSessionSnapshot) -> Void)?
+    private var pendingCoalescedNotificationTask: Task<Void, Never>?
 
     // MARK: - Init
 
@@ -91,11 +96,33 @@ public actor CodeReviewSessionState {
 
     /// Hard cap on events to prevent unbounded growth.
     private let eventsHardCap = 500
-    func notifyChange() {
+    private let coalescedNotificationDelayNanoseconds: UInt64 = 30_000_000
+
+    func notifyChange(mode: SnapshotEmissionMode = .immediate) {
         if events.count > eventsHardCap {
             events = Array(events.suffix(eventsHardCap))
         }
         mutationSequence &+= 1
+        switch mode {
+        case .immediate:
+            pendingCoalescedNotificationTask?.cancel()
+            pendingCoalescedNotificationTask = nil
+            emitSnapshot()
+        case .coalesced:
+            guard pendingCoalescedNotificationTask == nil else { return }
+            pendingCoalescedNotificationTask = Task { [coalescedNotificationDelayNanoseconds] in
+                try? await Task.sleep(nanoseconds: coalescedNotificationDelayNanoseconds)
+                await self.flushCoalescedNotification()
+            }
+        }
+    }
+
+    private func flushCoalescedNotification() {
+        pendingCoalescedNotificationTask = nil
+        emitSnapshot()
+    }
+
+    private func emitSnapshot() {
         let snap = snapshot()
         if let handler = onStateChange {
             Task { @MainActor in handler(snap) }

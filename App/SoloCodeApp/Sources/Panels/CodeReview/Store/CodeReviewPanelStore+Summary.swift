@@ -163,27 +163,35 @@ enum ReviewPanelDerivedStateBuilder {
             lastUpdatedAt: snapshot.lastUpdatedAt
         )
         let rustPanelState = ReviewPanelStateRustAdapter.reduce(snapshot: effectiveSnapshot)
-        let publishedFindingIDs = Set(
-            rustPanelState?.publishedFindingIds
-                ?? publishedFindingIDsFallback(snapshot: effectiveSnapshot)
-        )
-        let publishedFindings = effectiveSnapshot.findings.filter {
-            publishedFindingIDs.contains($0.id)
-        }
+        let publishedFindingIDs = rustPanelState?.publishedFindingIds
+            ?? publishedFindingIDsFallback(snapshot: effectiveSnapshot)
+        let findingsById = Dictionary(uniqueKeysWithValues: effectiveSnapshot.findings.map { ($0.id, $0) })
+        let publishedFindings = publishedFindingIDs.compactMap { findingsById[$0] }
         let pipelineJobState = rustPanelState?.makePipelineJobState()
             ?? ReviewPipelineJobStateBuilder.build(
                 snapshot: effectiveSnapshot,
                 entryPoint: .panel
             )
+        let publishedSeverityCounts = rustPanelState?.publishedSeverityCounts.findingSeverityCounts
+            ?? Dictionary(grouping: publishedFindings, by: \.severity).reduce(into: [FindingSeverity: Int]()) { partialResult, entry in
+                partialResult[entry.key] = entry.value.count
+            }
+        let emptyStateTitle = rustPanelState?.emptyStateTitle
+            ?? fallbackEmptyStateTitle(snapshot: effectiveSnapshot, pipeline: pipelineJobState)
+        let emptyStateSubtitle = rustPanelState?.emptyStateSubtitle
+            ?? fallbackEmptyStateSubtitle(snapshot: effectiveSnapshot, pipeline: pipelineJobState)
 
         let derivedState = ReviewPanelDerivedState(
             sessionId: effectiveSnapshot.sessionId,
             mutationSequence: effectiveSnapshot.mutationSequence,
             publishedFindings: publishedFindings,
+            publishedSeverityCounts: publishedSeverityCounts,
             pipelineJobState: pipelineJobState,
             projection: verifiedEnvelope.projectionSnapshot,
             verifiedEnvelope: verifiedEnvelope,
-            warmState: .ready
+            warmState: rustPanelState?.warmState.reviewPanelWarmState ?? .ready,
+            emptyStateTitle: emptyStateTitle,
+            emptyStateSubtitle: emptyStateSubtitle
         )
 
         cacheLock.lock()
@@ -217,7 +225,7 @@ enum ReviewPanelDerivedStateBuilder {
             uniqueKeysWithValues: snapshot.patches.map { ($0.findingId, $0) }
         )
 
-        return snapshot.findings.compactMap { finding in
+        let published = snapshot.findings.compactMap { finding in
             guard verifiedIds.contains(finding.id) else { return nil }
             let isVerified = finding.verifiedAt != nil || finding.verificationReport != nil
             guard isVerified,
@@ -232,6 +240,40 @@ enum ReviewPanelDerivedStateBuilder {
             }
             return finding.id
         }
+        let findingsById = Dictionary(uniqueKeysWithValues: snapshot.findings.map { ($0.id, $0) })
+        return published.sorted { lhs, rhs in
+            guard let left = findingsById[lhs], let right = findingsById[rhs] else { return lhs < rhs }
+            if left.severity.sortOrder != right.severity.sortOrder {
+                return left.severity.sortOrder < right.severity.sortOrder
+            }
+            if left.filePath != right.filePath {
+                return left.filePath < right.filePath
+            }
+            return (left.lineNumber ?? 0) < (right.lineNumber ?? 0)
+        }
+    }
+
+    private static func fallbackEmptyStateTitle(
+        snapshot: CodeReviewSessionSnapshot,
+        pipeline: ReviewPipelineJobState?
+    ) -> String {
+        pipeline == nil ? "No findings yet" : "No published findings yet"
+    }
+
+    private static func fallbackEmptyStateSubtitle(
+        snapshot: CodeReviewSessionSnapshot,
+        pipeline: ReviewPipelineJobState?
+    ) -> String {
+        if let pipeline {
+            if pipeline.hiddenFindingCount > 0 {
+                return "Verification and patch preparation are still gating the findings."
+            }
+            if pipeline.isTerminal {
+                return "The run completed without any publish-ready findings."
+            }
+            return "The pipeline is still running. Findings appear only after verification and patch preview."
+        }
+        return "Start a review to analyze your code"
     }
 }
 
@@ -267,6 +309,7 @@ private struct ReviewPanelReduceError: Decodable {
 
 private struct ReviewPanelRustPanelState: Decodable {
     let publishedFindingIds: [String]
+    let publishedSeverityCounts: [String: Int]
     let pipelinePhase: String
     let progressPercent: Int
     let stepsCompleted: Int
@@ -283,6 +326,9 @@ private struct ReviewPanelRustPanelState: Decodable {
     let bundleModes: [String]
     let toolExecutions: [ReviewPanelRustToolExecution]
     let isTerminal: Bool
+    let warmState: String
+    let emptyStateTitle: String
+    let emptyStateSubtitle: String
 
     func makePipelineJobState() -> ReviewPipelineJobState {
         ReviewPipelineJobState(
@@ -331,6 +377,29 @@ private extension String {
             return .running
         default:
             return .pending
+        }
+    }
+
+    var reviewPanelWarmState: ReviewPanelWarmState {
+        switch self {
+        case "warming":
+            return .warming
+        case "failed":
+            return .failed
+        case "idle":
+            return .idle
+        default:
+            return .ready
+        }
+    }
+}
+
+private extension Dictionary where Key == String, Value == Int {
+    var findingSeverityCounts: [FindingSeverity: Int] {
+        reduce(into: [FindingSeverity: Int]()) { partialResult, entry in
+            if let severity = FindingSeverity(rawValue: entry.key) {
+                partialResult[severity] = entry.value
+            }
         }
     }
 }

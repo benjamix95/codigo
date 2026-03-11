@@ -78,17 +78,17 @@ extension CodeReviewSessionState {
 
     public func setPhase(_ newPhase: ReviewSessionPhase) {
         phase = newPhase
-        notifyChange()
+        notifyChange(mode: .coalesced)
     }
 
     public func setStage(_ newStage: ReviewSessionStage) {
         stage = newStage
-        notifyChange()
+        notifyChange(mode: .coalesced)
     }
 
     public func setCurrentJobId(_ jobId: String?) {
         currentJobId = jobId
-        notifyChange()
+        notifyChange(mode: .coalesced)
     }
 
     public func markAnalysisStarted() {
@@ -111,7 +111,7 @@ extension CodeReviewSessionState {
             detail: "Running \(toolName)",
             metadata: ["tool": toolName]
         ))
-        notifyChange()
+        notifyChange(mode: .coalesced)
     }
 
     public func recordAuditResult(_ result: ReviewAuditToolResult) {
@@ -157,7 +157,7 @@ extension CodeReviewSessionState {
 
     public func setActiveWorkerCount(_ count: Int) {
         activeWorkerCount = count
-        notifyChange()
+        notifyChange(mode: .coalesced)
     }
 
     public func markWorkerSpawned(workerId: String, title: String) {
@@ -166,7 +166,7 @@ extension CodeReviewSessionState {
             detail: title,
             metadata: ["worker_id": workerId]
         ))
-        notifyChange()
+        notifyChange(mode: .coalesced)
     }
 
     public func markWorkerCompleted(workerId: String, title: String) {
@@ -175,7 +175,7 @@ extension CodeReviewSessionState {
             detail: title,
             metadata: ["worker_id": workerId]
         ))
-        notifyChange()
+        notifyChange(mode: .coalesced)
     }
 
     public func markRoundCompleted(_ round: Int) {

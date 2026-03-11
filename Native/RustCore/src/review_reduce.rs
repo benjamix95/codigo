@@ -1,4 +1,4 @@
-use crate::review_value::{get_bool, get_str};
+use crate::review_value::{get_bool, get_i64, get_str};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 
@@ -67,7 +67,7 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
         })
         .collect();
 
-    let published_finding_ids: Vec<String> = findings
+    let mut published_finding_ids: Vec<String> = findings
         .iter()
         .filter_map(|finding| {
             let finding_id = get_str(finding, "id")?;
@@ -90,6 +90,19 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
             }
         })
         .collect();
+    published_finding_ids.sort_by(|lhs, rhs| compare_published_finding(lhs, rhs, &findings));
+    let published_severity_counts = published_finding_ids.iter().fold(HashMap::<String, i64>::new(), |mut acc, finding_id| {
+        if let Some(severity) = findings.iter().find_map(|finding| {
+            if get_str(finding, "id") == Some(finding_id.as_str()) {
+                get_str(finding, "severity").map(ToString::to_string)
+            } else {
+                None
+            }
+        }) {
+            *acc.entry(severity).or_insert(0) += 1;
+        }
+        acc
+    });
 
     let bundle_modes = if snapshot.get("startedAt").is_some()
         || get_str(&snapshot, "phase").unwrap_or("idle") != "idle"
@@ -184,8 +197,33 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
             .collect::<Vec<_>>()
     };
 
+    let warm_state = if get_str(&snapshot, "phase") == Some("idle") && findings.is_empty() {
+        "idle"
+    } else {
+        "ready"
+    };
+    let empty_state_title = if warm_state == "warming" {
+        "Preparing review state..."
+    } else if published_finding_count == 0 && pipeline_phase == "queued" {
+        "No findings yet"
+    } else {
+        "No published findings yet"
+    };
+    let empty_state_subtitle = if published_finding_count == 0 {
+        if findings.len() > published_finding_count {
+            "Verification and patch preparation are still gating the findings."
+        } else if matches!(get_str(&snapshot, "phase"), Some("completed") | Some("failed")) {
+            "The run completed without any publish-ready findings."
+        } else {
+            "The pipeline is still running. Findings appear only after verification and patch preview."
+        }
+    } else {
+        ""
+    };
+
     json!({
         "publishedFindingIds": published_finding_ids,
+        "publishedSeverityCounts": published_severity_counts,
         "pipelinePhase": pipeline_phase,
         "progressPercent": progress_percent,
         "stepsCompleted": steps_completed,
@@ -201,8 +239,42 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
         "patchGateReady": patch_gate_ready,
         "bundleModes": bundle_modes,
         "toolExecutions": tool_executions,
-        "isTerminal": matches!(get_str(&snapshot, "phase"), Some("completed") | Some("failed"))
+        "isTerminal": matches!(get_str(&snapshot, "phase"), Some("completed") | Some("failed")),
+        "warmState": warm_state,
+        "emptyStateTitle": empty_state_title,
+        "emptyStateSubtitle": empty_state_subtitle
     })
+}
+
+fn compare_published_finding(lhs: &str, rhs: &str, findings: &[Value]) -> std::cmp::Ordering {
+    let left = findings.iter().find(|finding| get_str(finding, "id") == Some(lhs));
+    let right = findings.iter().find(|finding| get_str(finding, "id") == Some(rhs));
+    let left_rank = left.and_then(|finding| severity_rank(get_str(finding, "severity"))).unwrap_or(99);
+    let right_rank = right.and_then(|finding| severity_rank(get_str(finding, "severity"))).unwrap_or(99);
+    if left_rank != right_rank {
+        return left_rank.cmp(&right_rank);
+    }
+    let left_path = left.and_then(|finding| get_str(finding, "filePath")).unwrap_or("");
+    let right_path = right.and_then(|finding| get_str(finding, "filePath")).unwrap_or("");
+    if left_path != right_path {
+        return left_path.cmp(right_path);
+    }
+    let left_line = left.and_then(|finding| get_i64(finding, "lineNumber")).unwrap_or(0);
+    let right_line = right.and_then(|finding| get_i64(finding, "lineNumber")).unwrap_or(0);
+    if left_line != right_line {
+        return left_line.cmp(&right_line);
+    }
+    lhs.cmp(rhs)
+}
+
+fn severity_rank(severity: Option<&str>) -> Option<i64> {
+    match severity {
+        Some("critical") => Some(0),
+        Some("warning") => Some(1),
+        Some("suggestion") => Some(2),
+        Some("info") => Some(3),
+        _ => None,
+    }
 }
 
 fn finding_is_verified(finding: &Value) -> bool {

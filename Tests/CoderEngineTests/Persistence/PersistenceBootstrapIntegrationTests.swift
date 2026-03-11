@@ -60,7 +60,30 @@ final class PersistenceBootstrapIntegrationTests: XCTestCase {
                         updatedAt: stableDate
                     )
                 ],
-                evidences: [:],
+                evidences: [
+                    "evidence-import": VerifiedEvidence(
+                        id: "evidence-import",
+                        findingId: "finding-import",
+                        type: .toolOutput,
+                        source: "legacy",
+                        summary: "Legacy evidence placeholder",
+                        payloadRef: "inline:finding-import",
+                        originTool: "legacy-import",
+                        originCommandId: "cmd-import",
+                        originRunId: "run-import",
+                        originStep: "bootstrap",
+                        sourceType: .manualAssisted,
+                        capturedAt: stableDate,
+                        artifactRef: "snapshot:session-import",
+                        hashOrFingerprint: "hash-evidence-import",
+                        containsSensitiveData: false,
+                        redactionApplied: false,
+                        redactionReason: nil,
+                        retentionClass: .standard,
+                        visibilityLevel: .restricted,
+                        createdAt: stableDate
+                    )
+                ],
                 verificationReports: [:],
                 patchArtifacts: [:],
                 revalidationReports: [:],
@@ -104,6 +127,10 @@ final class PersistenceBootstrapIntegrationTests: XCTestCase {
             sql: "SELECT COALESCE(origin_run_id, 'NULL') FROM findings WHERE id = 'finding-import';"
         ).trimmingCharacters(in: .whitespacesAndNewlines)
         XCTAssertEqual(originRunReference, "run-import")
+        let artifactPayloadRows = try store.execute(
+            sql: "SELECT COUNT(*) FROM artifact_payloads WHERE id IN ('inline:finding-import', 'snapshot:session-import');"
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(artifactPayloadRows, "2")
         let latestPlan = try XCTUnwrap(store.readLatestPlanSnapshot(conversationId: conversationId))
         XCTAssertEqual(latestPlan.snapshot.goal, "Import legacy plan")
     }

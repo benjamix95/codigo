@@ -288,4 +288,59 @@ final class CodeReviewSessionStateTests: XCTestCase {
 
         await fulfillment(of: [expectation], timeout: 2.0)
     }
+
+    func testCoalescesWorkerLifecycleCallbacks() async {
+        let state = CodeReviewSessionState()
+        let callbackExpectation = XCTestExpectation(description: "coalesced callback fired once")
+        callbackExpectation.expectedFulfillmentCount = 1
+        let counter = CallbackCounter()
+
+        await state.setOnStateChange { snapshot in
+            if snapshot.events.contains(where: { $0.type == .workerCompleted }) {
+                Task { await counter.increment() }
+                callbackExpectation.fulfill()
+            }
+        }
+
+        await state.setActiveWorkerCount(1)
+        await state.markWorkerSpawned(workerId: "worker-1", title: "Worker 1")
+        await state.markWorkerCompleted(workerId: "worker-1", title: "Worker 1")
+
+        await fulfillment(of: [callbackExpectation], timeout: 2.0)
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        let count = await counter.value
+        XCTAssertEqual(count, 1)
+    }
+
+    func testImmediateMilestoneCancelsPendingCoalescedEmission() async {
+        let state = CodeReviewSessionState()
+        let callbackExpectation = XCTestExpectation(description: "milestone callback fired")
+        callbackExpectation.expectedFulfillmentCount = 1
+        let counter = CallbackCounter()
+
+        await state.setOnStateChange { snapshot in
+            if snapshot.events.contains(where: { $0.type == .roundCompleted }) {
+                Task { await counter.increment() }
+                callbackExpectation.fulfill()
+            }
+        }
+
+        await state.setActiveWorkerCount(2)
+        await state.markRoundCompleted(1)
+
+        await fulfillment(of: [callbackExpectation], timeout: 2.0)
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        let count = await counter.value
+        XCTAssertEqual(count, 1)
+    }
+}
+
+private actor CallbackCounter {
+    private var count = 0
+
+    func increment() {
+        count += 1
+    }
+
+    var value: Int { count }
 }

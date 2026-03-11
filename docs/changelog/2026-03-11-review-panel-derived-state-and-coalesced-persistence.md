@@ -34,6 +34,17 @@ Rimuovere il lavoro pesante dal `body` SwiftUI del panel Code Review e ridurre l
   - persistence verified findings convertita a delta write
   - checkpoint compatto hash-based salvato in `verified_findings_checkpoints`
   - rebuild dell’envelope dalle tabelle normalizzate e dal projection payload
+  - placeholder `artifact_payloads` creati automaticamente per `payloadRef` / `artifactRef` legacy orfani
+- aggiornato state engine review:
+  - [CodeReviewSessionState.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/CodeReview/Session/CodeReviewSessionState.swift)
+  - [CodeReviewSessionState+Lifecycle.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/CodeReview/Session/CodeReviewSessionState+Lifecycle.swift)
+  - callback `onStateChange` coalesced per eventi rumorosi di worker/audit/stage
+- aggiornato shaping panel lato Rust/UI:
+  - [CodeReviewPanelModels.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Panels/CodeReview/Models/CodeReviewPanelModels.swift)
+  - [CodeReviewPanelStore+Summary.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+Summary.swift)
+  - [ReviewPanelFindingsTab.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Panels/CodeReview/Views/Findings/ReviewPanelFindingsTab.swift)
+  - [review_reduce.rs](/Users/benjaminstoica/SoloCode/Native/RustCore/src/review_reduce.rs)
+  - il reducer ora produce ordering, severity buckets e placeholder già pronti per il render
 - aggiornato schema persistence:
   - [PersistenceSchema.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/PersistenceCore/PersistenceSchema.swift)
   - [PersistenceSchema+VerifiedFindings.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/PersistenceCore/PersistenceSchema+VerifiedFindings.swift)
@@ -53,6 +64,9 @@ Rimuovere il lavoro pesante dal `body` SwiftUI del panel Code Review e ridurre l
   - `cargo test -q` completo del crate Rust continua a mostrare 2 failure preesistenti in `review_patch::runtime`
   - i test engine `CodeReviewSessionStateTests` selezionati mostrano mismatch storici preesistenti su `fixApplied/patchApplied`, non introdotti da questa tranche
   - aggiunta regressione delta write in [MCPSharedStatePostgresFallbackTests.swift](/Users/benjaminstoica/SoloCode/Tests/CoderEngineTests/Persistence/MCPSharedStatePostgresFallbackTests.swift)
+  - aggiunte regressioni in:
+    - [PersistenceBootstrapIntegrationTests.swift](/Users/benjaminstoica/SoloCode/Tests/CoderEngineTests/Persistence/PersistenceBootstrapIntegrationTests.swift)
+    - [CodeReviewSessionStateTests.swift](/Users/benjaminstoica/SoloCode/Tests/CoderEngineTests/CodeReview/CodeReviewSessionStateTests.swift)
 
 ## Impatto atteso
 - niente più resolve verified findings/pipeline sul render path del tab Findings

@@ -25,6 +25,7 @@ extension PostgresPersistenceStore {
 
         var statements = ["BEGIN;"]
         statements.append(contentsOf: workspaceUpserts(for: envelope))
+        statements.append(contentsOf: artifactPayloadPlaceholderUpserts(for: envelope))
         statements.append(contentsOf: deltaDeleteStatements(
             previous: previousCheckpoint,
             current: checkpoint,
@@ -283,6 +284,52 @@ extension PostgresPersistenceStore {
             INSERT INTO workspaces(id, root_path, created_at, updated_at)
             VALUES (\(PersistenceSupport.sqlLiteral(workspaceID)), \(PersistenceSupport.sqlLiteral(workspaceID)), NOW(), NOW())
             ON CONFLICT (id) DO UPDATE SET root_path = EXCLUDED.root_path, updated_at = NOW(), version = workspaces.version + 1;
+            """
+        }
+    }
+
+    private func artifactPayloadPlaceholderUpserts(
+        for envelope: VerifiedFindingsSessionEnvelope
+    ) -> [String] {
+        let refs = envelope.canonicalSnapshot.evidences.values.reduce(into: [String: ArtifactPayloadPlaceholder]()) { partialResult, evidence in
+            for reference in [evidence.payloadRef, evidence.artifactRef].filter({ !$0.isEmpty }) {
+                let candidate = ArtifactPayloadPlaceholder(
+                    id: reference,
+                    contentText: reference,
+                    containsSensitiveData: evidence.containsSensitiveData,
+                    redactionApplied: evidence.redactionApplied,
+                    retentionClass: evidence.retentionClass.rawValue,
+                    visibilityLevel: evidence.visibilityLevel.rawValue
+                )
+                if let existing = partialResult[reference] {
+                    partialResult[reference] = existing.merging(with: candidate)
+                } else {
+                    partialResult[reference] = candidate
+                }
+            }
+        }
+
+        return refs.values.sorted { $0.id < $1.id }.map { placeholder in
+            """
+            INSERT INTO artifact_payloads(id, payload_kind, content_json, content_text, content_bytes, contains_sensitive_data, redaction_applied, retention_class, visibility_level)
+            VALUES (
+                \(PersistenceSupport.sqlLiteral(placeholder.id)),
+                'legacy_placeholder',
+                NULL,
+                \(PersistenceSupport.sqlLiteral(placeholder.contentText)),
+                NULL,
+                \(placeholder.containsSensitiveData),
+                \(placeholder.redactionApplied),
+                \(PersistenceSupport.sqlLiteral(placeholder.retentionClass)),
+                \(PersistenceSupport.sqlLiteral(placeholder.visibilityLevel))
+            )
+            ON CONFLICT (id) DO UPDATE SET
+                payload_kind = EXCLUDED.payload_kind,
+                content_text = COALESCE(artifact_payloads.content_text, EXCLUDED.content_text),
+                contains_sensitive_data = artifact_payloads.contains_sensitive_data OR EXCLUDED.contains_sensitive_data,
+                redaction_applied = artifact_payloads.redaction_applied OR EXCLUDED.redaction_applied,
+                retention_class = EXCLUDED.retention_class,
+                visibility_level = EXCLUDED.visibility_level;
             """
         }
     }
@@ -844,4 +891,24 @@ private struct VerifiedFindingsCompactCanonicalMetadata: Codable, Equatable {
     let eventIds: [String]
     let commandIds: [String]
     let traceCount: Int
+}
+
+private struct ArtifactPayloadPlaceholder {
+    let id: String
+    let contentText: String
+    let containsSensitiveData: Bool
+    let redactionApplied: Bool
+    let retentionClass: String
+    let visibilityLevel: String
+
+    func merging(with other: ArtifactPayloadPlaceholder) -> ArtifactPayloadPlaceholder {
+        ArtifactPayloadPlaceholder(
+            id: id,
+            contentText: contentText,
+            containsSensitiveData: containsSensitiveData || other.containsSensitiveData,
+            redactionApplied: redactionApplied || other.redactionApplied,
+            retentionClass: other.retentionClass,
+            visibilityLevel: other.visibilityLevel
+        )
+    }
 }

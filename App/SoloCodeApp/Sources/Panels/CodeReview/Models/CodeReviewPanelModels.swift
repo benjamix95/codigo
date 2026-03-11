@@ -238,8 +238,11 @@ struct ReviewPanelDerivedState {
     let sessionId: String
     let mutationSequence: UInt64
     let publishedFindings: [CodeReviewFinding]
+    let publishedSeverityCounts: [FindingSeverity: Int]
     let pipelineJobState: ReviewPipelineJobState?
     let projection: VerifiedFindingsProjectionSnapshot
     let verifiedEnvelope: VerifiedFindingsSessionEnvelope?
     let warmState: ReviewPanelWarmState
+    let emptyStateTitle: String
+    let emptyStateSubtitle: String
 }
