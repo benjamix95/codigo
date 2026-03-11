@@ -80,4 +80,17 @@ final class PersistenceSchemaTests: XCTestCase {
         XCTAssertEqual(rows.count, 8)
         XCTAssertTrue(rows.allSatisfy { $0.contains("nextval") == false && $0.contains("1") })
     }
+
+    func testDefaultConfigurationUsesTemporaryRootDuringPersistenceTests() {
+        let configuration = ManagedPostgresConfiguration.default
+
+        XCTAssertEqual(
+            configuration.rootDirectory.path,
+            PersistenceTestSupport.temporaryRootDirectory().path
+        )
+        XCTAssertEqual(configuration.port, PersistenceTestSupport.temporaryPort())
+        XCTAssertFalse(
+            configuration.rootDirectory.path.contains("Library/Application Support/CoderIDE/postgres")
+        )
+    }
 }

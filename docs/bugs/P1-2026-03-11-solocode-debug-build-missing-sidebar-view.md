@@ -12,10 +12,17 @@
 - Risultato attuale: il file usa `SidebarView(...)`, ma nel repository non esiste alcuna definizione del simbolo.
 - Risultato atteso: il target app deve compilare e i test app-side devono poter partire.
 - Causa probabile: simbolo rimosso o rinominato in una tranche preesistente senza aggiornare il call site.
+- Causa probabile: confermata. Il target app aveva perso `SidebarView` e gli helper di fallback thread collegati (`resolveSidebarThreadDeletionFallback`, `shouldReselectAfterArchivingThread`) ma i call site e i test li referenziavano ancora.
 - Scope consentito: target app e composizione UI collegata alla sidebar.
 - Non-scope: harness `CoderEngineTests`, business logic review, persistence.
 - Moduli confinanti da verificare: `ContentView+Layout+Composition.swift`, eventuali view/sidebar replacement.
 - Test da aggiungere o aggiornare: test di compilazione/struttura app-side dopo il ripristino del simbolo corretto.
-- Strategia di fix minimo: da fare in task separato; il bug è stato isolato mentre validavo l’harness engine.
-- Verifica post-fix: non ancora eseguita in questa tranche.
-- Commit previsto: separato, non incluso qui
+- Strategia di fix minimo:
+  - ripristinare un `SidebarView` compatibile con il call site corrente
+  - ripristinare gli helper strettamente necessari ai test/sidebar fallback
+  - evitare di reimportare il vecchio sidebar completo se non serve
+- Verifica post-fix:
+  - il build del target app non fallisce più su `Cannot find 'SidebarView' in scope`
+  - il build del target app non fallisce più sui simboli `resolveSidebarThreadDeletionFallback` / `shouldReselectAfterArchivingThread`
+  - resta un fallimento generico del run `Solo Code-Debug` non più correlato alla sidebar
+- Commit previsto: tranche separata sidebar + test isolation

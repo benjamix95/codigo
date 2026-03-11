@@ -12,10 +12,17 @@
 - Risultato attuale: il test fallisce in bootstrap `initdb`.
 - Risultato atteso: il test deve usare una data dir isolata o ripulita per run.
 - Causa probabile: il bootstrap test usa un percorso condiviso e persistente macchina-specifico.
+- Causa probabile: confermata. `ManagedPostgresConfiguration.default` e `PersistenceTestSupport` usavano implicitamente `~/Library/Application Support/CoderIDE/postgres`, quindi i test ereditavano stato locale sporco.
 - Scope consentito: test persistence Postgres e relativo harness di bootstrap.
 - Non-scope: logica delta-write verificata in questa tranche.
 - Moduli confinanti da verificare: `PersistenceBootstrapIntegrationTests`, `MCPSharedStatePostgresFallbackTests`, servizi bootstrap Postgres.
 - Test da aggiungere o aggiornare: isolare data dir temporanea per i test.
-- Strategia di fix minimo: task separato; il failure è stato isolato ma non corretto in questa tranche.
-- Verifica post-fix: non ancora eseguita in questa tranche.
-- Commit previsto: separato
+- Strategia di fix minimo:
+  - root directory e porta Postgres temporanei per i test
+  - reset dell’ambiente che ferma il server sul root corrente prima di pulire
+  - `ManagedPostgresService` reso sensibile agli override environment anche per l’istanza shared
+- Verifica post-fix:
+  - il test mirato non fallisce più con `initdb: directory exists but is not empty`
+  - la persistence usa un root temporaneo dedicato al test-run corrente
+  - resta instabilità separata del test harness `xctest`/codesign in alcuni run, già tracciata in bug distinto
+- Commit previsto: tranche separata sidebar + test isolation

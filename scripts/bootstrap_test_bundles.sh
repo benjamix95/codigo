@@ -18,7 +18,13 @@ resign_path() {
   if [ ! -e "$target_path" ]; then
     return
   fi
-  codesign --force --sign - --timestamp=none "$target_path" >/dev/null
+  codesign \
+    --force \
+    --sign - \
+    --timestamp=none \
+    --preserve-metadata=identifier,entitlements,flags \
+    --generate-entitlement-der \
+    "$target_path" >/dev/null
 }
 
 bootstrap_bundle() {
@@ -48,17 +54,6 @@ bootstrap_bundle() {
 
   resign_path "$bundle_path"
 }
-
-if [ -d "$products_dir/Solo Code.app" ]; then
-  strip_xattrs "$products_dir/Solo Code.app"
-  if [ -d "$products_dir/Solo Code.app/Contents/Frameworks" ]; then
-    find "$products_dir/Solo Code.app/Contents/Frameworks" -mindepth 1 -maxdepth 1 -name '*.framework' | while IFS= read -r framework_path; do
-      strip_xattrs "$framework_path"
-      resign_path "$framework_path"
-    done
-  fi
-  resign_path "$products_dir/Solo Code.app"
-fi
 
 find "$products_dir" -name '*.xctest' | while IFS= read -r bundle_path; do
   bootstrap_bundle "$bundle_path"

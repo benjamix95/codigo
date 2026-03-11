@@ -3,16 +3,17 @@ import Foundation
 public final class ManagedPostgresService {
     public static let shared = ManagedPostgresService()
 
-    private let configuration: ManagedPostgresConfiguration
+    private let configurationOverride: ManagedPostgresConfiguration?
     private let queue = DispatchQueue(label: "CoderEngine.Persistence.ManagedPostgres")
     private var cachedHealth: PersistenceHealthSnapshot?
 
-    public init(configuration: ManagedPostgresConfiguration = .default) {
-        self.configuration = configuration
+    public init(configuration: ManagedPostgresConfiguration? = nil) {
+        self.configurationOverride = configuration
     }
 
     public func bootstrapIfNeeded() throws -> PersistenceHealthSnapshot {
         try queue.sync {
+            let configuration = resolvedConfiguration()
             try validateBinaries()
             try PersistenceSupport.ensureDirectory(configuration.rootDirectory)
             try PersistenceSupport.ensureDirectory(configuration.socketDirectory)
@@ -72,6 +73,7 @@ public final class ManagedPostgresService {
 
     public func shutdownIfRunning() throws {
         queue.sync {
+            let configuration = resolvedConfiguration()
             guard FileManager.default.fileExists(atPath: configuration.dataDirectory.path) else { return }
             _ = try? runProcess(
                 executable: configuration.pgCtlBinary,
@@ -82,6 +84,7 @@ public final class ManagedPostgresService {
     }
 
     public func connectionInfo() throws -> ManagedPostgresConnectionInfo {
+        let configuration = resolvedConfiguration()
         _ = try bootstrapIfNeeded()
         return ManagedPostgresConnectionInfo(
             databaseName: configuration.databaseName,
@@ -92,6 +95,7 @@ public final class ManagedPostgresService {
     }
 
     private func validateBinaries() throws {
+        let configuration = resolvedConfiguration()
         for binary in [
             configuration.initdbBinary,
             configuration.pgCtlBinary,
@@ -103,6 +107,7 @@ public final class ManagedPostgresService {
     }
 
     private func ensureDatabaseExists() throws {
+        let configuration = resolvedConfiguration()
         if isHealthy(databaseName: configuration.databaseName) {
             return
         }
@@ -125,6 +130,7 @@ public final class ManagedPostgresService {
     }
 
     func runPSQL(databaseName: String, sql: String) throws -> String {
+        let configuration = resolvedConfiguration()
         let tempURL = configuration.rootDirectory.appendingPathComponent("\(UUID().uuidString).sql")
         try sql.write(to: tempURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -164,5 +170,9 @@ public final class ManagedPostgresService {
 
     private func shellQuoted(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+
+    private func resolvedConfiguration() -> ManagedPostgresConfiguration {
+        configurationOverride ?? .default
     }
 }

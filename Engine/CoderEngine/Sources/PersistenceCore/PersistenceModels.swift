@@ -43,13 +43,32 @@ public struct ManagedPostgresConfiguration: Sendable, Equatable {
     }
 
     public static var `default`: ManagedPostgresConfiguration {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        let root = appSupport
-            .appendingPathComponent("CoderIDE", isDirectory: true)
-            .appendingPathComponent("postgres", isDirectory: true)
+        let environment = ProcessInfo.processInfo.environment
+        let root: URL = {
+            if let override = environment["SOLOCODE_POSTGRES_ROOT_DIRECTORY"],
+               !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return URL(fileURLWithPath: override, isDirectory: true)
+            }
+            if environment["XCTestConfigurationFilePath"] != nil,
+               environment["SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS"] == "1" {
+                return FileManager.default.temporaryDirectory
+                    .appendingPathComponent(
+                        "solocode-postgres-tests-\(ProcessInfo.processInfo.processIdentifier)",
+                        isDirectory: true
+                    )
+            }
+            let appSupport = FileManager.default.urls(
+                for: .applicationSupportDirectory, in: .userDomainMask
+            ).first ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+            return appSupport
+                .appendingPathComponent("CoderIDE", isDirectory: true)
+                .appendingPathComponent("postgres", isDirectory: true)
+        }()
         let userName = ProcessInfo.processInfo.environment["USER"] ?? NSUserName()
+        let port = environment["SOLOCODE_POSTGRES_PORT"].flatMap(Int.init)
+            ?? (environment["XCTestConfigurationFilePath"] != nil
+                ? 56000 + (Int(ProcessInfo.processInfo.processIdentifier) % 1000)
+                : 55432)
         return ManagedPostgresConfiguration(
             rootDirectory: root,
             dataDirectory: root.appendingPathComponent("data", isDirectory: true),
@@ -57,7 +76,7 @@ public struct ManagedPostgresConfiguration: Sendable, Equatable {
             logFile: root.appendingPathComponent("postgres.log"),
             databaseName: "solocode_persistence",
             userName: userName,
-            port: 55432,
+            port: port,
             postgresBinary: "/opt/homebrew/bin/postgres",
             initdbBinary: "/opt/homebrew/bin/initdb",
             pgCtlBinary: "/opt/homebrew/bin/pg_ctl",
