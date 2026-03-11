@@ -33,7 +33,7 @@ public actor CodeReviewSessionState {
     var outcome: ReviewSessionOutcome = .empty
 
     /// Callback fired on every state mutation (for bridging to @MainActor stores).
-    private var onStateChange: (@Sendable (CodeReviewSessionSnapshot) -> Void)?
+    var onStateChange: (@Sendable (CodeReviewSessionSnapshot) -> Void)?
 
     // MARK: - Init
 

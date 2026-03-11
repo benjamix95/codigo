@@ -1,6 +1,7 @@
 mod ffi;
 mod review_audit;
 mod review_identity;
+mod review_pipeline;
 mod review_projection;
 mod review_replay;
 mod review_models;

@@ -1,6 +1,9 @@
 use crate::review_audit::run_audit;
 use crate::review_history::shape_historical_findings;
 use crate::review_identity::find_duplicate;
+use crate::review_pipeline::{
+    apply_callback_result, cancel_session, get_snapshot, resume_session, start_session,
+};
 use crate::review_models::{
     ReviewAuditRequest, ReviewCoreAuditResponse, ReviewCoreListResponse, ReviewCoreProjectionResponse,
     ReviewCoreReduceResponse, ReviewCoreReplayResponse, ReviewCoreSecurityGateResponse,
@@ -213,6 +216,81 @@ pub extern "C" fn review_core_find_duplicate(input: *const c_char) -> *mut c_cha
 }
 
 #[no_mangle]
+pub extern "C" fn review_core_run_pipeline(input: *const c_char) -> *mut c_char {
+    review_core_pipeline_start_session(input)
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_pipeline_start_session(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_pipeline::requests::ReviewPipelineStartRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&pipeline_decode_error("unknown", &err.to_string())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&pipeline_schema_error(&request.session_id));
+        }
+        encode_raw(&start_session(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_pipeline_apply_callback_result(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_pipeline::requests::ReviewPipelineApplyRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&pipeline_decode_error("unknown", &err.to_string())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&pipeline_schema_error(&request.session_id));
+        }
+        encode_raw(&apply_callback_result(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_pipeline_get_snapshot(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_pipeline::requests::ReviewPipelineSessionRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&pipeline_decode_error("unknown", &err.to_string())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&pipeline_schema_error(&request.session_id));
+        }
+        encode_raw(&get_snapshot(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_pipeline_resume(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_pipeline::requests::ReviewPipelineSessionRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&pipeline_decode_error("unknown", &err.to_string())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&pipeline_schema_error(&request.session_id));
+        }
+        encode_raw(&resume_session(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_pipeline_cancel(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_pipeline::requests::ReviewPipelineSessionRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&pipeline_decode_error("unknown", &err.to_string())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&pipeline_schema_error(&request.session_id));
+        }
+        encode_raw(&cancel_session(request))
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn solocode_free_buffer(buffer: *mut c_char) {
     if buffer.is_null() {
         return;
@@ -267,4 +345,41 @@ fn encode_raw<T: serde::Serialize>(payload: &T) -> String {
     serde_json::to_string(payload).unwrap_or_else(|_| {
         "{\"schemaVersion\":1,\"error\":{\"code\":\"encode_failed\",\"message\":\"response encoding failed\"}}".to_string()
     })
+}
+
+fn pipeline_decode_error(session_id: &str, message: &str) -> crate::review_pipeline::models::ReviewPipelineResponse {
+    crate::review_pipeline::models::ReviewPipelineResponse::error(
+        session_id.to_string(),
+        pipeline_placeholder_snapshot(session_id),
+        "decode_failed",
+        message,
+    )
+}
+
+fn pipeline_schema_error(session_id: &str) -> crate::review_pipeline::models::ReviewPipelineResponse {
+    crate::review_pipeline::models::ReviewPipelineResponse::error(
+        session_id.to_string(),
+        pipeline_placeholder_snapshot(session_id),
+        "unsupported_schema",
+        "schemaVersion must be 1",
+    )
+}
+
+fn pipeline_placeholder_snapshot(session_id: &str) -> crate::review_pipeline::models::ReviewPipelineSnapshot {
+    crate::review_pipeline::state::PipelineSession::new(
+        session_id.to_string(),
+        None,
+        String::new(),
+        crate::review_pipeline::models::ReviewPipelineConfig {
+            max_workers: 1,
+            max_review_rounds: 1,
+            enabled_phases: "analysis-and-execution".to_string(),
+            analysis_backend: "codex".to_string(),
+            execution_backend: "codex".to_string(),
+        },
+        String::new(),
+        None,
+        "uncommitted".to_string(),
+    )
+    .snapshot
 }

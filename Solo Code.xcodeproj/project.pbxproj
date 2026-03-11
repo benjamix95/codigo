@@ -186,6 +186,12 @@
 		A2000005A2000005A2000005 /* RustSearchFFIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015A2000015A2000015 /* RustSearchFFIModels.swift */; };
 		A2000006A2000006A2000006 /* RustSearchFFIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016A2000016A2000016 /* RustSearchFFIClient.swift */; };
 		A2000007A2000007A2000007 /* IndexingMetricsSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017A2000017A2000017 /* IndexingMetricsSnapshotTests.swift */; };
+		A3000001A3000001A3000001 /* ReviewPipelineRustModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000011A3000011A3000011 /* ReviewPipelineRustModels.swift */; };
+		A3000002A3000002A3000002 /* CodeReviewSessionState+RustSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000012A3000012A3000012 /* CodeReviewSessionState+RustSnapshot.swift */; };
+		A3000003A3000003A3000003 /* ReviewRuntimeAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000013A3000013A3000013 /* ReviewRuntimeAdapter.swift */; };
+		A3000004A3000004A3000004 /* ReviewRuntimeAdapter+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000014A3000014A3000014 /* ReviewRuntimeAdapter+Execution.swift */; };
+		A3000005A3000005A3000005 /* ReviewPipelineRustDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000015A3000015A3000015 /* ReviewPipelineRustDriver.swift */; };
+		A3000006A3000006A3000006 /* ReviewPipelineCoordinator+Runtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000016A3000016A3000016 /* ReviewPipelineCoordinator+Runtime.swift */; };
 		A1010009A1010009A1010009 /* CodeReviewPanelStore+HistoryLive.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1010019A1010019A1010019 /* CodeReviewPanelStore+HistoryLive.swift */; };
 		A101000AA101000AA101000A /* ReviewPanelHistoricalLiveBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A101001AA101001AA101001A /* ReviewPanelHistoricalLiveBoard.swift */; };
 		16C1A2D67873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1A2D57873F6E73C4E2A91 /* VerifiedFindingsStatusServiceTests.swift */; };
@@ -2327,6 +2333,12 @@
 		A2000015A2000015A2000015 /* RustSearchFFIModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RustSearchFFIModels.swift; path = Engine/CoderEngine/Sources/CodebaseIndex/Indexing/RustSearchFFIModels.swift; sourceTree = "<group>"; };
 		A2000016A2000016A2000016 /* RustSearchFFIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RustSearchFFIClient.swift; path = Engine/CoderEngine/Sources/CodebaseIndex/Indexing/RustSearchFFIClient.swift; sourceTree = "<group>"; };
 		A2000017A2000017A2000017 /* IndexingMetricsSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IndexingMetricsSnapshotTests.swift; path = Tests/CoderEngineTests/IndexingMetricsSnapshotTests.swift; sourceTree = "<group>"; };
+		A3000011A3000011A3000011 /* ReviewPipelineRustModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPipelineRustModels.swift; path = Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/Rust/ReviewPipelineRustModels.swift; sourceTree = "<group>"; };
+		A3000012A3000012A3000012 /* CodeReviewSessionState+RustSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewSessionState+RustSnapshot.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/Rust/CodeReviewSessionState+RustSnapshot.swift"; sourceTree = "<group>"; };
+		A3000013A3000013A3000013 /* ReviewRuntimeAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewRuntimeAdapter.swift; path = Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/Rust/ReviewRuntimeAdapter.swift; sourceTree = "<group>"; };
+		A3000014A3000014A3000014 /* ReviewRuntimeAdapter+Execution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ReviewRuntimeAdapter+Execution.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/Rust/ReviewRuntimeAdapter+Execution.swift"; sourceTree = "<group>"; };
+		A3000015A3000015A3000015 /* ReviewPipelineRustDriver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPipelineRustDriver.swift; path = Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/Rust/ReviewPipelineRustDriver.swift; sourceTree = "<group>"; };
+		A3000016A3000016A3000016 /* ReviewPipelineCoordinator+Runtime.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ReviewPipelineCoordinator+Runtime.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/ReviewPipelineCoordinator+Runtime.swift"; sourceTree = "<group>"; };
 		481E5825820892402B4668B8 /* ExtensionXPCHost.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExtensionXPCHost.swift; path = App/SoloCodeApp/Sources/Extensions/Runtime/ExtensionXPCHost.swift; sourceTree = "<group>"; };
 		4825ABBC8A0F90CFE182AB12 /* CodexCLIProviderStreamParsingTests+AgentUpdates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProviderStreamParsingTests+AgentUpdates.swift"; path = "Tests/CoderEngineTests/CodexCLI/CodexCLIProviderStreamParsingTests+AgentUpdates.swift"; sourceTree = "<group>"; };
 		48A75ABE8B9153551CAEFEA0 /* PathFinder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PathFinder.swift; path = Engine/CoderEngine/Sources/Workspace/PathFinder.swift; sourceTree = "<group>"; };
@@ -5000,6 +5012,12 @@
 				041379513BF65448670D49B9 /* ReviewPipelineCoordinator+FixStage.swift */,
 				AB2F964643C03DD94BDA178A /* ReviewPipelineCoordinator+Rounds.swift */,
 				A6D4AAFA136BA9AF2EAA801B /* ReviewPipelineCoordinator.swift */,
+				A3000011A3000011A3000011 /* ReviewPipelineRustModels.swift */,
+				A3000012A3000012A3000012 /* CodeReviewSessionState+RustSnapshot.swift */,
+				A3000013A3000013A3000013 /* ReviewRuntimeAdapter.swift */,
+				A3000014A3000014A3000014 /* ReviewRuntimeAdapter+Execution.swift */,
+				A3000015A3000015A3000015 /* ReviewPipelineRustDriver.swift */,
+				A3000016A3000016A3000016 /* ReviewPipelineCoordinator+Runtime.swift */,
 				6C57D79474B7AD014A56AAA6 /* CodeReviewMultiSwarmProvider+Scope.swift */,
 				9B5047780542E6E4A7E5978D /* CodeReviewStreamTextAccumulator.swift */,
 				00ED29AB2E59B9396C75F7EB /* FileLockCoordinator.swift */,
@@ -5920,6 +5938,12 @@
 				4F63DA2B2FB2277FD3275C09 /* ReviewPipelineCoordinator+FixStage.swift in Sources */,
 				5ECFCBFB7BFEF43C93A138ED /* ReviewPipelineCoordinator+Rounds.swift in Sources */,
 				AFA42E08D01B7EA620E7354B /* ReviewPipelineCoordinator.swift in Sources */,
+				A3000001A3000001A3000001 /* ReviewPipelineRustModels.swift in Sources */,
+				A3000002A3000002A3000002 /* CodeReviewSessionState+RustSnapshot.swift in Sources */,
+				A3000003A3000003A3000003 /* ReviewRuntimeAdapter.swift in Sources */,
+				A3000004A3000004A3000004 /* ReviewRuntimeAdapter+Execution.swift in Sources */,
+				A3000005A3000005A3000005 /* ReviewPipelineRustDriver.swift in Sources */,
+				A3000006A3000006A3000006 /* ReviewPipelineCoordinator+Runtime.swift in Sources */,
 				C0550D379BAF746099ED4D61 /* CodeReviewMultiSwarmProvider+Scope.swift in Sources */,
 				3F1D366993A831B5AC9EC1BD /* CodeReviewStreamTextAccumulator.swift in Sources */,
 				707E0EB0770B0231044D2EBE /* FileLockCoordinator.swift in Sources */,
