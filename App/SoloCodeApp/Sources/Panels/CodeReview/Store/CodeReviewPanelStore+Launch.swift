@@ -90,7 +90,6 @@ extension CodeReviewPanelStore {
             },
             onComplete: { [weak self] snapshot in
                 guard let self else { return }
-                _ = await self.finalizeCompletedReviewSessionIfNeeded(snapshot: snapshot)
                 self.isRunning = false
                 self.freezeTimer()
                 if self.selectedTab != .chat {

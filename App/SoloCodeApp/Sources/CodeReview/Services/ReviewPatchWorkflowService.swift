@@ -229,7 +229,7 @@ final class ReviewPatchWorkflowService {
         }
     }
 
-    private func patchRiskScore(patchText: String, touchedFiles: [String]) -> Double {
+    func patchRiskScore(patchText: String, touchedFiles: [String]) -> Double {
         let changedLines = patchText.components(separatedBy: .newlines).filter {
             ($0.hasPrefix("+") || $0.hasPrefix("-")) && !$0.hasPrefix("+++") && !$0.hasPrefix("---")
         }.count

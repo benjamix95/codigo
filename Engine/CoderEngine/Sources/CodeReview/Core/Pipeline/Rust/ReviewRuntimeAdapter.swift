@@ -5,8 +5,10 @@ struct ReviewRuntimeAdapter {
     let config: MultiSwarmReviewConfig
     let analysisProvider: any LLMProvider
     let executionProvider: any LLMProvider
+    let prepareVerifiedPatches: ReviewPatchPreparationRuntime?
     let execController: ExecutionController?
     let fileLockCoordinator: FileLockCoordinator
+    let sessionState: CodeReviewSessionState
     let continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
 
     func resolveScopeFiles(

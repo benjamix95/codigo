@@ -289,12 +289,11 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
             lastUpdatedAt: Date()
         )
 
-        VerifiedFindingsPatchExecutionService.executeHandler = { action, currentSnapshot, findingId, _, _, _ in
-            XCTAssertEqual(action, "prepare_patch")
-            XCTAssertEqual(findingId, "finding-auto-prepare")
+        ReviewPatchRuntimeFinalizationService.prepareHandler = { currentSnapshot, findingIds, _, _ in
+            XCTAssertEqual(findingIds, ["finding-auto-prepare"])
             let patch = ReviewPatchArtifact(
                 id: "patch-auto-prepare",
-                findingId: findingId,
+                findingId: "finding-auto-prepare",
                 patchText: "diff --git a/Authz.swift b/Authz.swift",
                 diffPreview: "@@",
                 touchedFiles: ["Sources/Auth/Authz.swift"],
@@ -302,7 +301,7 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
                 verifyStatus: .verified
             )
             let findings = currentSnapshot.findings.map { finding -> CodeReviewFinding in
-                guard finding.id == findingId else { return finding }
+                guard finding.id == "finding-auto-prepare" else { return finding }
                 var updated = finding
                 updated.patchArtifactId = patch.id
                 updated.status = .patchReady
@@ -311,7 +310,7 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
             let updated = currentSnapshot.copying(findings: findings, patches: [patch])
             return updated.copying(outcome: updated.buildOutcomeSummary())
         }
-        defer { VerifiedFindingsPatchExecutionService.resetForTests() }
+        defer { ReviewPatchRuntimeFinalizationService.resetForTests() }
 
         let finalized = await store.finalizeCompletedReviewSessionIfNeeded(snapshot: snapshot)
 

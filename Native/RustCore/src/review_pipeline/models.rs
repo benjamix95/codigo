@@ -39,6 +39,8 @@ pub struct ReviewPipelineStep {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finding_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tasks: Vec<ReviewTask>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub round: Option<i32>,
@@ -139,6 +141,7 @@ impl ReviewPipelineStep {
             against_ref,
             resolved_scope: Some(resolved_scope),
             files: Vec::new(),
+            finding_ids: Vec::new(),
             tasks: Vec::new(),
             round: None,
             reason: None,
@@ -155,6 +158,7 @@ impl ReviewPipelineStep {
             against_ref: None,
             resolved_scope: None,
             files,
+            finding_ids: Vec::new(),
             tasks: Vec::new(),
             round: None,
             reason: None,
@@ -171,6 +175,7 @@ impl ReviewPipelineStep {
             against_ref: None,
             resolved_scope: None,
             files,
+            finding_ids: Vec::new(),
             tasks: Vec::new(),
             round: None,
             reason: None,
@@ -187,6 +192,7 @@ impl ReviewPipelineStep {
             against_ref: None,
             resolved_scope: None,
             files,
+            finding_ids: Vec::new(),
             tasks,
             round: Some(round),
             reason: None,
@@ -203,6 +209,7 @@ impl ReviewPipelineStep {
             against_ref,
             resolved_scope: Some(resolved_scope),
             files: Vec::new(),
+            finding_ids: Vec::new(),
             tasks,
             round: Some(round),
             reason: None,
@@ -219,6 +226,7 @@ impl ReviewPipelineStep {
             against_ref: None,
             resolved_scope: None,
             files: Vec::new(),
+            finding_ids: Vec::new(),
             tasks: Vec::new(),
             round: None,
             reason: None,
@@ -235,6 +243,7 @@ impl ReviewPipelineStep {
             against_ref: None,
             resolved_scope: None,
             files: Vec::new(),
+            finding_ids: Vec::new(),
             tasks: Vec::new(),
             round: None,
             reason: None,
@@ -251,11 +260,29 @@ impl ReviewPipelineStep {
             against_ref: None,
             resolved_scope: None,
             files,
+            finding_ids: Vec::new(),
             tasks: Vec::new(),
             round: Some(round),
             reason: None,
             message: None,
             max_workers: Some(max_workers),
+        }
+    }
+
+    pub fn prepare_verified_patches(finding_ids: Vec<String>) -> Self {
+        Self {
+            kind: "prepare_verified_patches".to_string(),
+            clean_prompt: None,
+            scope_description: None,
+            against_ref: None,
+            resolved_scope: None,
+            files: Vec::new(),
+            finding_ids,
+            tasks: Vec::new(),
+            round: None,
+            reason: None,
+            message: None,
+            max_workers: None,
         }
     }
 
@@ -267,6 +294,7 @@ impl ReviewPipelineStep {
             against_ref: None,
             resolved_scope: None,
             files: Vec::new(),
+            finding_ids: Vec::new(),
             tasks: Vec::new(),
             round: None,
             reason: None,
@@ -283,6 +311,7 @@ impl ReviewPipelineStep {
             against_ref: None,
             resolved_scope: None,
             files: Vec::new(),
+            finding_ids: Vec::new(),
             tasks: Vec::new(),
             round: None,
             reason: Some(reason.into()),

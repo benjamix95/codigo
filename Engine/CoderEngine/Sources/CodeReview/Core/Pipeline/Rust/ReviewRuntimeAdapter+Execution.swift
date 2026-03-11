@@ -75,4 +75,38 @@ extension ReviewRuntimeAdapter {
             text: outcome.text
         )
     }
+
+    func prepareVerifiedPatches(
+        step: ReviewPipelineRustStep,
+        sessionId: String
+    ) async -> ReviewPipelineRustCallbackResult {
+        guard let prepareVerifiedPatches else {
+            return ReviewPipelineRustCallbackResult(
+                kind: "prepare_verified_patches",
+                error: "No patch preparation runtime is available for the review pipeline."
+            )
+        }
+        let current = await sessionState.snapshot()
+        let workspaceRoot = context.workspacePath.path
+        continuation.yield(.textDelta("\n### Patch Preparation\n\n"))
+        do {
+            let updated = try await prepareVerifiedPatches(
+                current,
+                step.findingIds,
+                workspaceRoot
+            )
+            let newEvents = Array(updated.events.dropFirst(current.events.count))
+            return ReviewPipelineRustCallbackResult(
+                kind: "prepare_verified_patches",
+                findings: updated.findings,
+                patches: updated.patches,
+                events: newEvents
+            )
+        } catch {
+            return ReviewPipelineRustCallbackResult(
+                kind: "prepare_verified_patches",
+                error: error.localizedDescription
+            )
+        }
+    }
 }

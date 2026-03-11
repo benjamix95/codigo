@@ -117,7 +117,15 @@ extension ProviderFactory {
         return CodeReviewRuntimeResources(
             config: reviewConfig,
             analysisProvider: analysisProvider,
-            executionProvider: executionProvider
+            executionProvider: executionProvider,
+            prepareVerifiedPatches: { snapshot, findingIds, workspaceRoot in
+                try await ReviewPatchRuntimeFinalizationService.prepareVerifiedPatches(
+                    snapshot: snapshot,
+                    findingIds: findingIds,
+                    workspaceRoot: workspaceRoot,
+                    executionProvider: executionProvider
+                )
+            }
         )
     }
 }

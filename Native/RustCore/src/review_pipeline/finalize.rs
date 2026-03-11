@@ -31,6 +31,25 @@ pub fn publish_ready_finding_ids(snapshot: &ReviewPipelineSnapshot) -> HashSet<S
         .collect()
 }
 
+pub fn patchable_verified_finding_ids(snapshot: &ReviewPipelineSnapshot) -> Vec<String> {
+    let publish_ready = publish_ready_finding_ids(snapshot);
+    let verified_ids = verified_queue_ids(snapshot);
+    snapshot
+        .findings
+        .iter()
+        .filter_map(|finding| {
+            let finding_id = finding.get("id").and_then(Value::as_str)?;
+            if publish_ready.contains(finding_id) {
+                return None;
+            }
+            if (!verified_ids.is_empty() && !verified_ids.contains(finding_id)) || !is_verified_finding(finding) {
+                return None;
+            }
+            Some(finding_id.to_string())
+        })
+        .collect()
+}
+
 fn verified_queue_ids(snapshot: &ReviewPipelineSnapshot) -> HashSet<String> {
     snapshot
         .verified_findings

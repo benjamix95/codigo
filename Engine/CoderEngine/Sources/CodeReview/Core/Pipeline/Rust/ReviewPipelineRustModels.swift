@@ -41,6 +41,7 @@ struct ReviewPipelineRustCallbackResult: Encodable {
     let files: [String]
     let findings: [CodeReviewFinding]
     let candidates: [ReviewCandidate]
+    let patches: [ReviewPatchArtifact]
     let promotedFindings: [CodeReviewFinding]
     let events: [CodeReviewSessionEvent]
     let audit: ReviewAuditSnapshot?
@@ -54,6 +55,7 @@ struct ReviewPipelineRustCallbackResult: Encodable {
         files: [String] = [],
         findings: [CodeReviewFinding] = [],
         candidates: [ReviewCandidate] = [],
+        patches: [ReviewPatchArtifact] = [],
         promotedFindings: [CodeReviewFinding] = [],
         events: [CodeReviewSessionEvent] = [],
         audit: ReviewAuditSnapshot? = nil,
@@ -66,6 +68,7 @@ struct ReviewPipelineRustCallbackResult: Encodable {
         self.files = files
         self.findings = findings
         self.candidates = candidates
+        self.patches = patches
         self.promotedFindings = promotedFindings
         self.events = events
         self.audit = audit
@@ -90,11 +93,43 @@ struct ReviewPipelineRustStep: Decodable {
     let againstRef: String?
     let resolvedScope: String?
     let files: [String]
+    let findingIds: [String]
     let tasks: [ReviewPipelineRustTask]
     let round: Int?
     let reason: String?
     let message: String?
     let maxWorkers: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case cleanPrompt
+        case scopeDescription
+        case againstRef
+        case resolvedScope
+        case files
+        case findingIds
+        case tasks
+        case round
+        case reason
+        case message
+        case maxWorkers
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(String.self, forKey: .kind)
+        cleanPrompt = try container.decodeIfPresent(String.self, forKey: .cleanPrompt)
+        scopeDescription = try container.decodeIfPresent(String.self, forKey: .scopeDescription)
+        againstRef = try container.decodeIfPresent(String.self, forKey: .againstRef)
+        resolvedScope = try container.decodeIfPresent(String.self, forKey: .resolvedScope)
+        files = try container.decodeIfPresent([String].self, forKey: .files) ?? []
+        findingIds = try container.decodeIfPresent([String].self, forKey: .findingIds) ?? []
+        tasks = try container.decodeIfPresent([ReviewPipelineRustTask].self, forKey: .tasks) ?? []
+        round = try container.decodeIfPresent(Int.self, forKey: .round)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
+        message = try container.decodeIfPresent(String.self, forKey: .message)
+        maxWorkers = try container.decodeIfPresent(Int.self, forKey: .maxWorkers)
+    }
 }
 
 struct ReviewPipelineRustTask: Codable {

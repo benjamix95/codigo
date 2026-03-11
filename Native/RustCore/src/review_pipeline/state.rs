@@ -112,6 +112,16 @@ pub fn upsert_candidates(session: &mut PipelineSession, candidates: &[Value]) {
     refresh_outcome(session);
 }
 
+pub fn replace_findings(session: &mut PipelineSession, findings: Vec<Value>) {
+    session.snapshot.findings = findings;
+    refresh_outcome(session);
+}
+
+pub fn replace_patches(session: &mut PipelineSession, patches: Vec<Value>) {
+    session.snapshot.patches = patches;
+    refresh_outcome(session);
+}
+
 pub fn replace_open_findings_in_files(session: &mut PipelineSession, files: &[String]) {
     let file_set: std::collections::HashSet<String> = files.iter().cloned().collect();
     session.snapshot.findings.retain(|finding| {

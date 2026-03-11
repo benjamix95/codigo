@@ -857,6 +857,8 @@
 		775658A1FB80DC6478A157EB /* ProcessRunnerLineSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8D07B51CA40FFACAC7F89C /* ProcessRunnerLineSplitTests.swift */; };
 		777A37267A86C907DA840BE6 /* PerformanceStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0232F5F7EDD4288F227D19B2 /* PerformanceStage.swift */; };
 		777BE8F82468341F74F3D801 /* ReviewPatchWorkflowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B6B047386B094CA8C3E9059 /* ReviewPatchWorkflowService.swift */; };
+		777BE8F82468341F74F3D802 /* ReviewPatchRuntimeFinalizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 777BE8F82468341F74F3D803 /* ReviewPatchRuntimeFinalizationService.swift */; };
+		777BE8F82468341F74F3D804 /* ReviewPatchWorkflowService+DirectProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 777BE8F82468341F74F3D805 /* ReviewPatchWorkflowService+DirectProvider.swift */; };
 		77810CF0BEAC41967C89B102 /* CLIAccountRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75E861EF91564F113879E903 /* CLIAccountRouter.swift */; };
 		77B6CA79EB2EBAD6E3946EFF /* BugHunterHandler+Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCA30E9D3EAA094377BD4AA /* BugHunterHandler+Commands.swift */; };
 		77B8B891ADC13802B616D4EA /* VerifiedFindingsPatchExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D33CEC0460235C43A1238ADC /* VerifiedFindingsPatchExecutionService.swift */; };
@@ -1897,6 +1899,8 @@
 		0B0F87BC26C2FA87A55066DB /* CodeReviewPromptBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPromptBuilder.swift; path = App/SoloCodeApp/Sources/CodeReview/Support/CodeReviewPromptBuilder.swift; sourceTree = "<group>"; };
 		0B3A4FF7400C16E74D3D84E2 /* CLIProfileProvisioner+ProviderProfiles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CLIProfileProvisioner+ProviderProfiles.swift"; path = "App/SoloCodeApp/Sources/Accounts/Provisioning/CLIProfileProvisioner+ProviderProfiles.swift"; sourceTree = "<group>"; };
 		0B6B047386B094CA8C3E9059 /* ReviewPatchWorkflowService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPatchWorkflowService.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchWorkflowService.swift; sourceTree = "<group>"; };
+		777BE8F82468341F74F3D803 /* ReviewPatchRuntimeFinalizationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPatchRuntimeFinalizationService.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchRuntimeFinalizationService.swift; sourceTree = "<group>"; };
+		777BE8F82468341F74F3D805 /* ReviewPatchWorkflowService+DirectProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ReviewPatchWorkflowService+DirectProvider.swift"; path = "App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchWorkflowService+DirectProvider.swift"; sourceTree = "<group>"; };
 		0B7829A62264C93C56F41562 /* CodeReviewAuditService+Adapters.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewAuditService+Adapters.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Audit/CodeReviewAuditService+Adapters.swift"; sourceTree = "<group>"; };
 		0BAF756357526B97C9083554 /* PlanPanelWorkspacePolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanPanelWorkspacePolicyTests.swift; path = Tests/SoloCodeAppTests/PlanPanelWorkspacePolicyTests.swift; sourceTree = "<group>"; };
 		0BCAECACD20AAEDABAE0A40C /* CLIAccountLoginSheet+Header.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CLIAccountLoginSheet+Header.swift"; path = "App/SoloCodeApp/Sources/Accounts/CLIAccountLoginSheet/Sections/CLIAccountLoginSheet+Header.swift"; sourceTree = "<group>"; };
@@ -3827,6 +3831,8 @@
 				12D5FC1EEA6232BAED861368 /* ReviewPatchWorkflowService+Merge.swift */,
 				57A37821B27ADA8090C607CD /* ReviewPatchWorkflowService+Validation.swift */,
 				0B6B047386B094CA8C3E9059 /* ReviewPatchWorkflowService.swift */,
+				777BE8F82468341F74F3D803 /* ReviewPatchRuntimeFinalizationService.swift */,
+				777BE8F82468341F74F3D805 /* ReviewPatchWorkflowService+DirectProvider.swift */,
 				47D2A90EC065B76AEFAC9786 /* VerifiedFindingsChatPresentationService.swift */,
 				D33CEC0460235C43A1238ADC /* VerifiedFindingsPatchExecutionService.swift */,
 				0B0F87BC26C2FA87A55066DB /* CodeReviewPromptBuilder.swift */,
@@ -6759,6 +6765,8 @@
 				ADA71E671AB652DD574C9E43 /* ReviewPatchWorkflowService+Merge.swift in Sources */,
 				BF4AA07AEA288AA5B5E76E12 /* ReviewPatchWorkflowService+Validation.swift in Sources */,
 				777BE8F82468341F74F3D801 /* ReviewPatchWorkflowService.swift in Sources */,
+				777BE8F82468341F74F3D802 /* ReviewPatchRuntimeFinalizationService.swift in Sources */,
+				777BE8F82468341F74F3D804 /* ReviewPatchWorkflowService+DirectProvider.swift in Sources */,
 				6A61F9B2AF87578DBA25FC3E /* VerifiedFindingsChatPresentationService.swift in Sources */,
 				77B8B891ADC13802B616D4EA /* VerifiedFindingsPatchExecutionService.swift in Sources */,
 				EA37354EE7AC18522308D4F8 /* CodeReviewPromptBuilder.swift in Sources */,

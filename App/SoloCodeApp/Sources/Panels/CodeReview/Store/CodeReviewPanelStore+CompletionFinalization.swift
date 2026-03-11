@@ -23,15 +23,19 @@ extension CodeReviewPanelStore {
         guard !targetIds.isEmpty else { return snapshot }
 
         var current = snapshot
+        guard let runtimeProvider = effectivePanelProvider
+            ?? providerRegistry.provider(for: effectivePanelProviderId ?? "")
+            ?? providerRegistry.selectedProvider
+            ?? providerRegistry.providers.first else {
+            return snapshot
+        }
         for findingId in targetIds {
             do {
-                current = try await VerifiedFindingsPatchExecutionService.execute(
-                    action: "prepare_patch",
+                current = try await ReviewPatchRuntimeFinalizationService.prepareVerifiedPatches(
                     snapshot: current,
-                    findingId: findingId,
+                    findingIds: [findingId],
                     workspaceRoot: workspaceRoot,
-                    preferredProviderId: effectivePanelProviderId,
-                    providerRegistry: providerRegistry
+                    executionProvider: runtimeProvider
                 )
                 await ReviewSessionRegistry.shared.recordSnapshot(current)
                 taskActivityStore.scheduleCodeReviewSnapshotIngest(

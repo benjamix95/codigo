@@ -24,6 +24,7 @@ public actor ReviewPipelineCoordinator {
                 config: config,
                 analysisProvider: analysisProvider,
                 executionProvider: executionProvider,
+                runtimeResolver: runtimeResolver,
                 execController: execController,
                 fileLockCoordinator: fileLockCoordinator,
                 sessionState: sessionState,

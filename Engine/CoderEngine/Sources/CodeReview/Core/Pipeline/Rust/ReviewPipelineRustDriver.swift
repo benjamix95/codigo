@@ -6,6 +6,7 @@ struct ReviewPipelineRustDriver {
     let config: MultiSwarmReviewConfig
     let analysisProvider: any LLMProvider
     let executionProvider: any LLMProvider
+    let runtimeResolver: CodeReviewRuntimeResolver?
     let execController: ExecutionController?
     let fileLockCoordinator: FileLockCoordinator
     let sessionState: CodeReviewSessionState
@@ -18,6 +19,14 @@ struct ReviewPipelineRustDriver {
         execController?.clearSwarmPauseRequested()
         continuation.yield(.started)
 
+        let sessionConfig = await sessionState.snapshot().config
+        let runtimeResources = runtimeResolver?(sessionConfig)
+            ?? CodeReviewRuntimeResources(
+                config: config,
+                analysisProvider: analysisProvider,
+                executionProvider: executionProvider
+            )
+
         let initialSnapshot = await sessionState.snapshot()
         let request = ReviewPipelineRustStartRequest(
             schemaVersion: 1,
@@ -25,7 +34,7 @@ struct ReviewPipelineRustDriver {
             conversationId: initialSnapshot.conversationId?.uuidString.lowercased(),
             prompt: prompt,
             workspacePath: context.workspacePath.path,
-            config: ReviewPipelineRustConfig(config: config)
+            config: ReviewPipelineRustConfig(config: runtimeResources.config)
         )
         guard var response: ReviewPipelineRustResponse = ReviewCoreBridge.call(
             functionName: "review_core_run_pipeline",
@@ -36,11 +45,13 @@ struct ReviewPipelineRustDriver {
         await sessionState.replaceCanonicalSnapshot(response.snapshot)
         let adapter = ReviewRuntimeAdapter(
             context: context,
-            config: config,
-            analysisProvider: analysisProvider,
-            executionProvider: executionProvider,
+            config: runtimeResources.config,
+            analysisProvider: runtimeResources.analysisProvider,
+            executionProvider: runtimeResources.executionProvider,
+            prepareVerifiedPatches: runtimeResources.prepareVerifiedPatches,
             execController: execController,
             fileLockCoordinator: fileLockCoordinator,
+            sessionState: sessionState,
             continuation: continuation
         )
 
@@ -95,6 +106,12 @@ struct ReviewPipelineRustDriver {
                 response = try await apply(
                     sessionId: response.sessionId,
                     result: await adapter.runReReview(step: response.step),
+                    sessionState: sessionState
+                )
+            case "prepare_verified_patches":
+                response = try await apply(
+                    sessionId: response.sessionId,
+                    result: await adapter.prepareVerifiedPatches(step: response.step, sessionId: response.sessionId),
                     sessionState: sessionState
                 )
             case "completed":

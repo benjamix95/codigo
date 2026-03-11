@@ -40,6 +40,8 @@ pub struct ReviewPipelineCallbackResult {
     #[serde(default)]
     pub candidates: Vec<Value>,
     #[serde(default)]
+    pub patches: Vec<Value>,
+    #[serde(default)]
     pub promoted_findings: Vec<Value>,
     #[serde(default)]
     pub events: Vec<Value>,
