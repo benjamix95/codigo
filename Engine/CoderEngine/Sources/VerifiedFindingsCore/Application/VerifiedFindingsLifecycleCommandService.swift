@@ -30,6 +30,15 @@ public enum VerifiedFindingsLifecycleCommandService {
         conversationId: UUID?,
         payload: [String: String]
     ) throws -> VerifiedFindingsQueuedCommandContext {
+        if let bridged = queueFindingCommandWithRust(
+            action: action,
+            sessionId: sessionId,
+            findingId: findingId,
+            conversationId: conversationId,
+            payload: payload
+        ) {
+            return bridged
+        }
         let snapshot = try validatedSnapshot(
             sessionId: sessionId,
             findingId: findingId,
@@ -61,6 +70,14 @@ public enum VerifiedFindingsLifecycleCommandService {
         conversationId: UUID?,
         payload: [String: String]
     ) throws -> VerifiedFindingsQueuedCommandContext {
+        if let bridged = queueApplyPatchCommandWithRust(
+            sessionId: sessionId,
+            findingId: findingId,
+            conversationId: conversationId,
+            payload: payload
+        ) {
+            return bridged
+        }
         let snapshot = try validatedSnapshot(
             sessionId: sessionId,
             findingId: findingId,
@@ -116,5 +133,61 @@ public enum VerifiedFindingsLifecycleCommandService {
             throw VerifiedFindingsLifecycleCommandError.findingNotOwned(findingId, sessionId)
         }
         return snapshot
+    }
+
+    private static func queueFindingCommandWithRust(
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) -> VerifiedFindingsQueuedCommandContext? {
+        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
+            return nil
+        }
+        guard let response = ReviewPatchRustBridge.queueContext(
+            action: action,
+            sessionId: sessionId,
+            findingId: findingId,
+            conversationId: conversationId,
+            snapshot: snapshot
+        ) else {
+            return nil
+        }
+        if response.isError {
+            return nil
+        }
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: action,
+            sessionId: sessionId,
+            conversationId: conversationId,
+            payload: payload
+        )
+        return VerifiedFindingsQueuedCommandContext(
+            commandId: command.id,
+            sessionId: sessionId,
+            findingId: findingId,
+            patchId: response.patchId,
+            patchVerifyStatus: response.patchVerifyStatus,
+            patchRiskScore: response.patchRiskScore,
+            findingSeverity: response.findingSeverity,
+            findingCategory: response.findingCategory,
+            findingMessage: response.findingMessage
+        )
+    }
+
+    private static func queueApplyPatchCommandWithRust(
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) -> VerifiedFindingsQueuedCommandContext? {
+        queueFindingCommandWithRust(
+            action: "apply_patch",
+            sessionId: sessionId,
+            findingId: findingId,
+            conversationId: conversationId,
+            payload: payload
+        )
     }
 }
