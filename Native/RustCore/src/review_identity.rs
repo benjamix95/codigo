@@ -85,6 +85,52 @@ pub fn similarity_score(lhs: &PreparedIdentity, rhs: &PreparedIdentity) -> f64 {
     score
 }
 
+pub fn find_duplicate(
+    candidate: &Value,
+    existing: &[Value],
+    minimum_score: f64,
+) -> Option<Value> {
+    let candidate_identity = prepare(candidate);
+    let mut index = IdentityIndex::default();
+    for finding in existing
+        .iter()
+        .filter(|finding| get_str(finding, "domain") == Some(candidate_identity.domain.as_str()))
+    {
+        index.insert(prepare(finding));
+    }
+    if let Some(existing_finding_id) = index.exact_duplicate_id(&candidate_identity) {
+        return Some(serde_json::json!({
+            "existingFindingId": existing_finding_id,
+            "isExactDuplicate": true,
+            "score": 1.0
+        }));
+    }
+
+    let mut best_match: Option<(String, bool, f64)> = None;
+    for existing_identity in index.candidates(&candidate_identity) {
+        let score = similarity_score(&candidate_identity, &existing_identity);
+        if score < minimum_score {
+            continue;
+        }
+        let match_tuple = (
+            existing_identity.finding_id.clone(),
+            existing_identity.fingerprint == candidate_identity.fingerprint,
+            score,
+        );
+        if should_replace_best_match(&match_tuple, best_match.as_ref()) {
+            best_match = Some(match_tuple);
+        }
+    }
+
+    best_match.map(|(existing_finding_id, is_exact_duplicate, score)| {
+        serde_json::json!({
+            "existingFindingId": existing_finding_id,
+            "isExactDuplicate": is_exact_duplicate,
+            "score": score
+        })
+    })
+}
+
 fn compatible_lines(lhs: Option<i64>, rhs: Option<i64>) -> bool {
     match (lhs, rhs) {
         (Some(lhs), Some(rhs)) => (lhs - rhs).abs() <= 3,
@@ -98,6 +144,22 @@ fn bucket_keys(identity: &PreparedIdentity) -> [String; 3] {
         format!("{}|{}", identity.domain, identity.normalized_title),
         format!("{}|{}", identity.domain, identity.normalized_summary),
     ]
+}
+
+fn should_replace_best_match(
+    candidate: &(String, bool, f64),
+    current: Option<&(String, bool, f64)>,
+) -> bool {
+    match current {
+        None => true,
+        Some(current) => {
+            if candidate.1 != current.1 {
+                candidate.1 && !current.1
+            } else {
+                candidate.2 > current.2
+            }
+        }
+    }
 }
 
 #[cfg(test)]

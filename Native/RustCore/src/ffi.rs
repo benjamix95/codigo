@@ -1,5 +1,6 @@
 use crate::review_audit::run_audit;
 use crate::review_history::shape_historical_findings;
+use crate::review_identity::find_duplicate;
 use crate::review_models::{
     ReviewAuditRequest, ReviewCoreAuditResponse, ReviewCoreListResponse, ReviewCoreProjectionResponse,
     ReviewCoreReduceResponse, ReviewCoreReplayResponse, ReviewCoreSecurityGateResponse,
@@ -16,6 +17,15 @@ use crate::scoring::{handle_search_request, RustSearchResponsePayload};
 use crate::tokenize::handle_tokenize_request;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewFindDuplicateRequest {
+    schema_version: i32,
+    candidate: serde_json::Value,
+    existing: Vec<serde_json::Value>,
+    minimum_score: Option<f64>,
+}
 
 const BACKEND_VERSION: &[u8] = b"solocode_rust_core/0.1.0\0";
 
@@ -176,6 +186,29 @@ pub extern "C" fn review_core_shape_historical_findings(input: *const c_char) ->
             return encode_raw(&ReviewCoreReduceResponse::error("unsupported_schema", "schemaVersion must be 1"));
         }
         encode_raw(&ReviewCoreReduceResponse::success(shape_historical_findings(request.records)))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_find_duplicate(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: ReviewFindDuplicateRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => return encode_raw(&ReviewCoreAuditResponse::error("decode_failed", &err.to_string())),
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&ReviewCoreAuditResponse::error("unsupported_schema", "schemaVersion must be 1"));
+        }
+        let result = find_duplicate(
+            &request.candidate,
+            &request.existing,
+            request.minimum_score.unwrap_or(0.75),
+        );
+        encode_raw(&ReviewCoreAuditResponse {
+            schema_version: 1,
+            error: None,
+            result,
+        })
     })
 }
 

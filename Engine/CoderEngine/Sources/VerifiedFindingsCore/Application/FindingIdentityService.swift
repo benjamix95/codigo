@@ -1,6 +1,6 @@
 import Foundation
 
-public struct VerifiedFindingIdentityMatch: Sendable, Equatable {
+public struct VerifiedFindingIdentityMatch: Sendable, Codable, Equatable {
     public let existingFindingId: String
     public let isExactDuplicate: Bool
     public let score: Double
@@ -90,6 +90,13 @@ public enum FindingIdentityService {
         existing: [VerifiedFinding],
         minimumScore: Double = 0.75
     ) -> VerifiedFindingIdentityMatch? {
+        if let bridged = findDuplicateWithRust(
+            candidate: candidate,
+            existing: existing,
+            minimumScore: minimumScore
+        ) {
+            return bridged
+        }
         let candidateIdentity = prepare(candidate)
         var index = IdentityIndex()
         for finding in existing where finding.domain == candidate.domain {
@@ -175,4 +182,33 @@ public enum FindingIdentityService {
     private static func normalize(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
+
+    private static func findDuplicateWithRust(
+        candidate: VerifiedFinding,
+        existing: [VerifiedFinding],
+        minimumScore: Double
+    ) -> VerifiedFindingIdentityMatch? {
+        let request = ReviewCoreFindDuplicateRequest(
+            schemaVersion: 1,
+            candidate: candidate,
+            existing: existing,
+            minimumScore: minimumScore
+        )
+        let response: ReviewCoreFindDuplicateResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_find_duplicate",
+            request: request
+        )
+        return response?.result
+    }
+}
+
+private struct ReviewCoreFindDuplicateRequest: Encodable {
+    let schemaVersion: Int
+    let candidate: VerifiedFinding
+    let existing: [VerifiedFinding]
+    let minimumScore: Double
+}
+
+private struct ReviewCoreFindDuplicateResponse: Decodable {
+    let result: VerifiedFindingIdentityMatch?
 }
