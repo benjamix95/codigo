@@ -199,14 +199,25 @@ struct ReviewPipelineJobState: Equatable {
 
     var phaseLabel: String {
         switch phase {
-        case "queued": return "Queued"
-        case "discovery": return "Discovery"
-        case "audit": return "Audit"
-        case "verification": return "Verification"
-        case "patch_preparation": return "Patch Preparation"
-        case "publish_ready": return "Publish Ready"
-        case "completed": return "Completed"
+        case "queued", "discovery": return "Avvio"
+        case "audit": return "Controlli"
+        case "verification": return "Verifica"
+        case "patch_preparation": return "Preparazione fix"
+        case "publish_ready", "completed": return "Risultati pronti"
         default: return phase.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    var visibleStepsTotal: Int { 5 }
+
+    var visibleStepNumber: Int {
+        switch phase {
+        case "queued", "discovery": return 1
+        case "audit": return 2
+        case "verification": return 3
+        case "patch_preparation": return 4
+        case "publish_ready", "completed": return 5
+        default: return min(max(stepsCompleted, 1), visibleStepsTotal)
         }
     }
 

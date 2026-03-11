@@ -61,7 +61,7 @@ struct ReviewPanelRustPanelState: Decodable {
 
     func makePipelineJobState() -> ReviewPipelineJobState {
         ReviewPipelineJobState(
-            title: "Unified Review Pipeline",
+            title: "Stato revisione",
             phase: pipelinePhase,
             progressPercent: progressPercent,
             stepsCompleted: stepsCompleted,

@@ -257,17 +257,17 @@ struct ReviewPanelFindingsTab: View {
             return derivedState.emptyStateSubtitle
         }
         if store.currentReviewPanelWarmState == .warming {
-            return "The panel is deriving findings and pipeline status off the render path."
+            return "Sto preparando lo stato della revisione."
         }
         if let pipeline = store.currentPipelineJobState {
             if pipeline.hiddenFindingCount > 0 {
-                return "Verification and patch preparation are still gating the findings."
+                return "Sto ancora completando gli ultimi controlli prima di mostrarti tutti i risultati."
             }
             if pipeline.isTerminal {
-                return "The run completed without any publish-ready findings."
+                return "La revisione si è conclusa senza risultati pronti da mostrare."
             }
-            return "The pipeline is still running. Findings appear only after verification and patch preview."
+            return "La revisione è in corso. I risultati compariranno appena sono pronti."
         }
-        return "Start a review to analyze your code"
+        return "Avvia una revisione per analizzare il codice"
     }
 }

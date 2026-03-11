@@ -205,7 +205,7 @@ enum ReviewPanelDerivedStateBuilder {
         snapshot: CodeReviewSessionSnapshot,
         pipeline: ReviewPipelineJobState?
     ) -> String {
-        pipeline == nil ? "No findings yet" : "Waiting for review evidence"
+        pipeline == nil ? "Nessun risultato ancora disponibile" : "Revisione in preparazione"
     }
 
     private static func fallbackEmptyStateSubtitle(
@@ -214,19 +214,19 @@ enum ReviewPanelDerivedStateBuilder {
     ) -> String {
         if let pipeline {
             if pipeline.candidateCount > 0 {
-                return "I candidati live sono visibili mentre la verifica è ancora in corso."
+                return "Sto controllando i risultati preliminari rilevati durante la revisione."
             }
             if pipeline.verifiedCount > pipeline.publishedFindingCount {
-                return "I finding verificati sono visibili anche se la patch finale è ancora in preparazione."
+                return "I risultati verificati sono già visibili anche se il fix finale è ancora in preparazione."
             }
             if pipeline.hiddenFindingCount > 0 {
-                return "Verification and patch preparation are still gating the findings."
+                return "Sto completando gli ultimi controlli prima di mostrarti tutto."
             }
             if pipeline.isTerminal {
-                return "The run completed without any verified or publish-ready findings."
+                return "La revisione si è conclusa senza risultati confermati."
             }
-            return "The pipeline is still running. Live candidates and verified findings appear progressively."
+            return "La revisione è in corso. I risultati vengono mostrati in modo progressivo."
         }
-        return "Start a review to analyze your code"
+        return "Avvia una revisione per analizzare il codice"
     }
 }

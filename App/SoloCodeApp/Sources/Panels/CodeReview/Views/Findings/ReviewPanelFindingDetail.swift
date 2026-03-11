@@ -152,7 +152,7 @@ struct ReviewPipelineJobCard: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(state.phaseColor.opacity(0.12), in: Capsule())
-                    Text("\(state.stepsCompleted)/\(state.stepsTotal) steps")
+                    Text("Fase \(state.visibleStepNumber) di \(state.visibleStepsTotal)")
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -319,14 +319,14 @@ struct ReviewPipelineJobCard: View {
 
     private var summaryText: String {
         if state.publishedFindingCount > 0 {
-            return "I finding visibili sono già verificati e hanno patch preview pronta."
+            return "I risultati mostrati sono verificati e hanno un fix pronto da applicare."
         }
         if state.hiddenFindingCount > 0 {
-            return "I finding rilevati restano nascosti finché verifica e patch preparation non sono completate."
+            return "La revisione sta ancora completando gli ultimi controlli prima di mostrare tutti i risultati."
         }
         if state.isTerminal {
-            return "La pipeline è conclusa e non ha prodotto finding pubblicabili."
+            return "La revisione si è conclusa senza risultati pubblicabili."
         }
-        return "La pipeline sta raccogliendo evidenze e non pubblica risultati provvisori."
+        return "La revisione è in corso e aggiornerà i risultati man mano che diventano affidabili."
     }
 }

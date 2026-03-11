@@ -17,13 +17,13 @@ pub const PHASE_ORDER: [&str; 6] = [
 
 pub fn phase_title(phase_id: &str) -> &'static str {
     match phase_id {
-        DISCOVERY => "Discovery",
-        AUDIT => "Audit",
-        VERIFICATION => "Verification",
-        PATCH_PREPARATION => "Patch Preparation",
-        PUBLISH_READY => "Publish Ready",
-        COMPLETED => "Completed",
-        _ => "Queued",
+        DISCOVERY => "Avvio",
+        AUDIT => "Controlli",
+        VERIFICATION => "Verifica",
+        PATCH_PREPARATION => "Preparazione fix",
+        PUBLISH_READY => "Risultati pronti",
+        COMPLETED => "Completata",
+        _ => "Avvio",
     }
 }
 

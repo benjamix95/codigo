@@ -13,7 +13,7 @@ enum ReviewPipelineJobStateBuilder {
         let bundleModes = pipeline.bundleModes.isEmpty ? ["standard", "bugFinder", "securityAudit"] : pipeline.bundleModes
 
         return ReviewPipelineJobState(
-            title: "Unified Review Pipeline",
+            title: "Stato revisione",
             phase: pipeline.pipelinePhase,
             progressPercent: pipeline.progressPercent,
             stepsCompleted: pipeline.stepsCompleted,
