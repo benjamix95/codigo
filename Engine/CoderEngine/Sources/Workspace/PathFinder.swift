@@ -54,19 +54,16 @@ public enum PathFinder {
         // startup SwiftUI/AttributeGraph can pump the run loop and abort.
         guard !Thread.isMainThread else { return nil }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lc", "command -v \(shellEscape(executable)) 2>/dev/null | head -n 1"]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = Pipe()
         do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0,
-                  let data = try? output.fileHandleForReading.readToEnd(),
-                  let text = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
+            let result = try ProcessSupervisor.runCollectingSync(
+                executable: "/bin/zsh",
+                arguments: ["-lc", "command -v \(shellEscape(executable)) 2>/dev/null | head -n 1"],
+                timeout: 1.5
+            )
+            guard result.terminationStatus == 0,
+                  let text = result.stdout
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .nilIfEmpty,
                   !text.isEmpty,
                   FileManager.default.isExecutableFile(atPath: text) else {
                 return nil
@@ -93,5 +90,11 @@ public enum PathFinder {
             return value
         }
         return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

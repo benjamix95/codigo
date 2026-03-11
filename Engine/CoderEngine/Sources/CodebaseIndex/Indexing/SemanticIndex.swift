@@ -24,6 +24,7 @@ public actor SemanticIndex {
     var fileToChunks: [String: [String]] = [:]
     var persistencePath: URL?
     var deferredMerkleTouchedFiles: Int = 0
+    let searchBackend: any SearchEngineBackend
 
     // MARK: - Chunk Budget (LRU Eviction)
     /// Limite massimo di chunk in memoria. Default 50K.
@@ -34,15 +35,24 @@ public actor SemanticIndex {
     static let capacityWarningThreshold: Double = 0.8
 
     // MARK: - Init
-    public init(persistencePath: URL? = nil, maxChunks: Int = 50_000) {
+    public init(
+        persistencePath: URL? = nil,
+        maxChunks: Int = 50_000,
+        searchBackend: (any SearchEngineBackend)? = nil
+    ) {
         precondition(maxChunks > 0, "maxChunks deve essere positivo")
         self.persistencePath = persistencePath
         self.maxChunks = maxChunks
+        self.searchBackend = searchBackend ?? SearchEngineBackendFactory.makeFromEnvironment()
     }
 
     /// Set or update persistence path.
     public func setPersistencePath(_ path: URL?) {
         self.persistencePath = path
+    }
+
+    public func configuredSearchBackendKind() -> SearchEngineBackendKind {
+        searchBackend.kind
     }
 
     // MARK: - Result Types

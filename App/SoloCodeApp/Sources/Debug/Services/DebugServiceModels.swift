@@ -35,6 +35,9 @@ struct NativeWatchVariable: Identifiable, Codable, Hashable {
 }
 
 struct NativeDebugSessionState: Codable, Equatable {
+    static let currentPayloadVersion = 1
+
+    var payloadVersion: Int
     var status: NativeDebugStatus
     var adapter: String
     var targetPath: String?
@@ -44,9 +47,37 @@ struct NativeDebugSessionState: Codable, Equatable {
     var lastCommand: String?
     var lastError: String?
     var updatedAt: Date
+    var metrics: DebugLifecycleMetrics
+
+    init(
+        payloadVersion: Int = currentPayloadVersion,
+        status: NativeDebugStatus,
+        adapter: String,
+        targetPath: String?,
+        breakpointsCount: Int,
+        callStack: [NativeCallStackFrame],
+        watchVariables: [NativeWatchVariable],
+        lastCommand: String?,
+        lastError: String?,
+        updatedAt: Date,
+        metrics: DebugLifecycleMetrics = .empty
+    ) {
+        self.payloadVersion = payloadVersion
+        self.status = status
+        self.adapter = adapter
+        self.targetPath = targetPath
+        self.breakpointsCount = breakpointsCount
+        self.callStack = callStack
+        self.watchVariables = watchVariables
+        self.lastCommand = lastCommand
+        self.lastError = lastError
+        self.updatedAt = updatedAt
+        self.metrics = metrics
+    }
 
     static var idle: NativeDebugSessionState {
         NativeDebugSessionState(
+            payloadVersion: currentPayloadVersion,
             status: .idle,
             adapter: "none",
             targetPath: nil,
@@ -55,8 +86,8 @@ struct NativeDebugSessionState: Codable, Equatable {
             watchVariables: [],
             lastCommand: nil,
             lastError: nil,
-            updatedAt: Date()
+            updatedAt: Date(),
+            metrics: .empty
         )
     }
 }
-

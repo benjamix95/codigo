@@ -9,6 +9,7 @@ actor DebugAdapterRecovery {
     private var adapterFactory: () -> NativeDebugAdapter
     private var currentAdapter: NativeDebugAdapter
     private var consecutiveFailures: Int = 0
+    private var totalRecoveryAttempts: Int = 0
     private var lastRecoveryAttempt: Date?
     private var isRecovering: Bool = false
 
@@ -57,6 +58,7 @@ actor DebugAdapterRecovery {
     func recoveryStatus() -> RecoveryStatus {
         RecoveryStatus(
             consecutiveFailures: consecutiveFailures,
+            totalRecoveryAttempts: totalRecoveryAttempts,
             isRecovering: isRecovering,
             lastRecoveryAttempt: lastRecoveryAttempt,
             maxRetries: configuration.maxRetries
@@ -83,6 +85,7 @@ actor DebugAdapterRecovery {
 
         for attempt in 1...configuration.maxRetries {
             consecutiveFailures += 1
+            totalRecoveryAttempts += 1
             lastRecoveryAttempt = Date()
 
             // Backoff esponenziale tra tentativi
@@ -109,6 +112,7 @@ actor DebugAdapterRecovery {
 
 struct RecoveryStatus: Sendable {
     let consecutiveFailures: Int
+    let totalRecoveryAttempts: Int
     let isRecovering: Bool
     let lastRecoveryAttempt: Date?
     let maxRetries: Int

@@ -108,6 +108,7 @@ final class DebugStore: ObservableObject {
 
     let nativeDebugConfiguration: DebugServiceConfiguration
     let nativeDebugService: DebugService
+    let nativeDebugCoordinator: DebugExecutionCoordinator
 
     var isNativeDebugEnabled: Bool {
         nativeDebugConfiguration.nativeDebuggerEnabled
@@ -122,7 +123,9 @@ final class DebugStore: ObservableObject {
         nativeDebugService: DebugService? = nil
     ) {
         self.nativeDebugConfiguration = nativeDebugConfiguration
-        self.nativeDebugService = nativeDebugService
+        let resolvedService = nativeDebugService
             ?? DebugService(configuration: nativeDebugConfiguration)
+        self.nativeDebugService = resolvedService
+        self.nativeDebugCoordinator = DebugExecutionCoordinator(service: resolvedService)
     }
 }

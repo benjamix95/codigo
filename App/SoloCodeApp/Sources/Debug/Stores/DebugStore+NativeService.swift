@@ -37,28 +37,24 @@ extension DebugStore {
         nativeTargetPathInput = resolvedTarget
         nativeArgumentsInput = resolvedArguments.joined(separator: ", ")
 
-        performNativeServiceUpdate { [breakpoints = self.breakpoints, watches = self.parsedNativeWatchExpressions] service in
-            await service.startSession(
+        performNativeCoordinatorUpdate(
+            .start(
                 targetPath: resolvedTarget,
                 arguments: resolvedArguments,
-                breakpoints: breakpoints,
-                watchExpressions: watches
+                breakpoints: self.breakpoints,
+                watchExpressions: self.parsedNativeWatchExpressions
             )
-        }
+        )
     }
 
     func stopNativeDebugSession() {
         guard ensureNativeDebugEnabledForUI() else { return }
-        performNativeServiceUpdate { service in
-            await service.stopSession()
-        }
+        performNativeCoordinatorUpdate(.stop)
     }
 
     func refreshNativeDebugSession() {
         guard ensureNativeDebugEnabledForUI() else { return }
-        performNativeServiceUpdate { service in
-            await service.refresh()
-        }
+        performNativeCoordinatorUpdate(.refresh)
     }
 
     func syncNativeBreakpoints(force: Bool = false) {
@@ -72,31 +68,33 @@ extension DebugStore {
     func syncNativeConfiguration(force: Bool = false) {
         guard ensureNativeDebugEnabledForUI() else { return }
         guard force || shouldAutoSyncNativeConfiguration else { return }
-        performNativeServiceUpdate { [breakpoints = self.breakpoints, watches = self.parsedNativeWatchExpressions] service in
-            _ = await service.syncBreakpoints(breakpoints)
-            return await service.syncWatches(watches)
+        Task { [weak self] in
+            guard let self else { return }
+            let breakpointState = await self.nativeDebugCoordinator.execute(.syncBreakpoints(self.breakpoints))
+            let finalState = await self.nativeDebugCoordinator.execute(
+                .syncWatches(self.parsedNativeWatchExpressions)
+            )
+            await MainActor.run {
+                self.nativeSession = finalState.metrics.lastStage?.stage == .syncWatches
+                    ? finalState
+                    : breakpointState
+            }
         }
     }
 
     func nativeStepIn() {
         guard ensureNativeDebugEnabledForUI() else { return }
-        performNativeServiceUpdate { service in
-            await service.stepIn()
-        }
+        performNativeCoordinatorUpdate(.stepIn)
     }
 
     func nativeStepOut() {
         guard ensureNativeDebugEnabledForUI() else { return }
-        performNativeServiceUpdate { service in
-            await service.stepOut()
-        }
+        performNativeCoordinatorUpdate(.stepOut)
     }
 
     func nativeStepOver() {
         guard ensureNativeDebugEnabledForUI() else { return }
-        performNativeServiceUpdate { service in
-            await service.stepOver()
-        }
+        performNativeCoordinatorUpdate(.stepOver)
     }
 
     @discardableResult
@@ -122,12 +120,10 @@ extension DebugStore {
         )
     }
 
-    private func performNativeServiceUpdate(
-        _ operation: @escaping (DebugService) async -> NativeDebugSessionState
-    ) {
+    private func performNativeCoordinatorUpdate(_ command: DebugExecutionCommand) {
         Task { [weak self] in
             guard let self else { return }
-            let state = await operation(self.nativeDebugService)
+            let state = await self.nativeDebugCoordinator.execute(command)
             await MainActor.run {
                 self.nativeSession = state
             }

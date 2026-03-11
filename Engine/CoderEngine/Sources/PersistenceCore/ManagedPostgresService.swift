@@ -20,7 +20,7 @@ public final class ManagedPostgresService {
                 atPath: configuration.dataDirectory.appendingPathComponent("PG_VERSION").path
             ) {
                 try PersistenceSupport.ensureDirectory(configuration.dataDirectory.deletingLastPathComponent())
-                try runProcess(
+                _ = try runProcess(
                     executable: configuration.initdbBinary,
                     arguments: [
                         "-D", configuration.dataDirectory.path,
@@ -36,7 +36,7 @@ public final class ManagedPostgresService {
                     "-k", shellQuoted(configuration.socketDirectory.path),
                     "-p", String(configuration.port),
                 ].joined(separator: " ")
-                try runProcess(
+                _ = try runProcess(
                     executable: configuration.pgCtlBinary,
                     arguments: [
                         "-D", configuration.dataDirectory.path,
@@ -71,7 +71,7 @@ public final class ManagedPostgresService {
     }
 
     public func shutdownIfRunning() throws {
-        try queue.sync {
+        queue.sync {
             guard FileManager.default.fileExists(atPath: configuration.dataDirectory.path) else { return }
             _ = try? runProcess(
                 executable: configuration.pgCtlBinary,
@@ -108,7 +108,7 @@ public final class ManagedPostgresService {
         }
         _ = try? runPSQL(databaseName: "postgres", sql: "SELECT 1;")
         do {
-            try runProcess(
+            _ = try runProcess(
                 executable: configuration.createdbBinary,
                 arguments: [
                     "-h", configuration.socketDirectory.path,
@@ -148,26 +148,18 @@ public final class ManagedPostgresService {
     }
 
     private func runProcess(executable: String, arguments: [String]) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        process.environment = ProcessInfo.processInfo.environment
-
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-        try process.run()
-        process.waitUntilExit()
-
-        let output = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let error = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        guard process.terminationStatus == 0 else {
+        let result = try ProcessSupervisor.runCollectingSync(
+            executable: executable,
+            arguments: arguments,
+            environment: ProcessInfo.processInfo.environment,
+            timeout: 30
+        )
+        guard result.terminationStatus == 0 else {
             throw PersistenceBootstrapError.bootstrapFailed(
-                ([output, error].joined(separator: "\n")).trimmingCharacters(in: .whitespacesAndNewlines)
+                result.combinedOutput.trimmingCharacters(in: .whitespacesAndNewlines)
             )
         }
-        return output
+        return result.stdout
     }
 
     private func shellQuoted(_ value: String) -> String {

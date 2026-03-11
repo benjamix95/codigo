@@ -151,4 +151,19 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertTrue(store.nativeSession.watchVariables.isEmpty)
         XCTAssertTrue(store.nativeSession.lastError?.contains("debug_service_enabled") ?? false)
     }
+
+    func testStartNativeDebugSessionStoresCoordinatorMetrics() async {
+        let service = DebugService(adapter: RecordingNativeDebugAdapter())
+        let store = DebugStore(nativeDebugService: service)
+
+        store.startNativeDebugSession(targetPath: "/tmp/bin/demo-app", arguments: ["--dry-run"])
+
+        for _ in 0..<20 where store.nativeSession.lastCommand != "start" {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertEqual(store.nativeSession.lastCommand, "start")
+        XCTAssertEqual(store.nativeSession.metrics.totalOperations, 1)
+        XCTAssertEqual(store.nativeSession.metrics.lastStage?.stage, .start)
+    }
 }
