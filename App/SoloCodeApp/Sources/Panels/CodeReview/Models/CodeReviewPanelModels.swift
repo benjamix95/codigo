@@ -226,3 +226,20 @@ struct ReviewPipelineJobState: Equatable {
         }
     }
 }
+
+enum ReviewPanelWarmState: String, Equatable {
+    case idle
+    case warming
+    case ready
+    case failed
+}
+
+struct ReviewPanelDerivedState {
+    let sessionId: String
+    let mutationSequence: UInt64
+    let publishedFindings: [CodeReviewFinding]
+    let pipelineJobState: ReviewPipelineJobState?
+    let projection: VerifiedFindingsProjectionSnapshot
+    let verifiedEnvelope: VerifiedFindingsSessionEnvelope?
+    let warmState: ReviewPanelWarmState
+}

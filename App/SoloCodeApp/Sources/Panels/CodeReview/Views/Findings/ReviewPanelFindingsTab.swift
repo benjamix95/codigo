@@ -60,7 +60,7 @@ struct ReviewPanelFindingsTab: View {
             Image(systemName: "checkmark.shield")
                 .font(.system(size: 24))
                 .foregroundStyle(.tertiary)
-            Text(store.currentPipelineJobState == nil ? "No findings yet" : "No published findings yet")
+            Text(emptyStateTitle)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.tertiary)
             Text(emptyStateSubtitle)
@@ -70,6 +70,17 @@ struct ReviewPanelFindingsTab: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+    }
+
+    private var emptyStateTitle: String {
+        switch store.currentReviewPanelWarmState {
+        case .warming:
+            return "Preparing review state..."
+        case .ready, .failed:
+            return store.currentPipelineJobState == nil ? "No findings yet" : "No published findings yet"
+        case .idle:
+            return "No findings yet"
+        }
     }
 
     // MARK: - Summary Bar
@@ -206,6 +217,9 @@ struct ReviewPanelFindingsTab: View {
     }
 
     private var emptyStateSubtitle: String {
+        if store.currentReviewPanelWarmState == .warming {
+            return "The panel is deriving findings and pipeline status off the render path."
+        }
         if let pipeline = store.currentPipelineJobState {
             if pipeline.hiddenFindingCount > 0 {
                 return "Verification and patch preparation are still gating the findings."

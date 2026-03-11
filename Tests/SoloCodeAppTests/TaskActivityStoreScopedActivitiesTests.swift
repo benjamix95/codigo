@@ -65,7 +65,7 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
         XCTAssertEqual(recorder.executedOnMainThread, [false])
     }
 
-    func testPersistenceBridgePreservesSnapshotWriteOrder() {
+    func testPersistenceBridgeCoalescesLatestSnapshotPerSession() {
         let recorder = SnapshotRecorder()
         let bridge = TaskActivityPersistenceBridge(
             writeCodeReviewSnapshot: recorder.record(snapshot:)
@@ -87,7 +87,7 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
         store.ingestCodeReviewSnapshot(second, conversationId: conversationId)
         bridge.flush()
 
-        XCTAssertEqual(recorder.snapshots.map(\.mutationSequence), [1, 2])
+        XCTAssertEqual(recorder.snapshots.map(\.mutationSequence), [2])
     }
 
     func testScheduleCodeReviewSnapshotIngestDefersMutationToNextMainTick() async {
@@ -105,6 +105,7 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
 
         XCTAssertNil(store.codeReviewSnapshotsBySession[snapshot.sessionId])
 
+        try? await Task.sleep(nanoseconds: 80_000_000)
         await drainMainQueue()
 
         XCTAssertEqual(

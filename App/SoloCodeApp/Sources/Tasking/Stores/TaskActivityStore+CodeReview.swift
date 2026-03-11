@@ -20,11 +20,11 @@ extension TaskActivityStore {
             }
         }
         let resolvedConversationId = conversationId ?? snapshot.conversationId
-        let verifiedState = resolvedVerifiedFindingsState(
-            for: snapshot,
+        let derivedState = deriveReviewPanelState(
+            snapshot: snapshot,
             conversationId: resolvedConversationId
         )
-        let verifiedEnvelope = verifiedState.recovered.envelope
+        let verifiedEnvelope = derivedState.verifiedEnvelope
         let resolvedSnapshot = snapshot.copying(
             mutationSequence: snapshot.mutationSequence,
             verifiedFindings: verifiedEnvelope,
@@ -52,7 +52,7 @@ extension TaskActivityStore {
             codeReviewFindingsByConversation[conversationScope] = resolvedSnapshot.findings
             codeReviewEventsByConversation[conversationScope] = resolvedSnapshot.events
             codeReviewPhaseByConversation[conversationScope] = resolvedSnapshot.phase
-            verifiedFindingsProjectionsByConversation[conversationScope] = verifiedEnvelope.projectionSnapshot
+            verifiedFindingsProjectionsByConversation[conversationScope] = derivedState.projection
         }
 
         // Persist off the main thread so PostgreSQL bootstrap / psql I/O cannot freeze the panel UI.
@@ -65,7 +65,7 @@ extension TaskActivityStore {
             payload: codeReviewPayload(
                 resolvedSnapshot,
                 conversationId: resolvedConversationId,
-                verifiedState: verifiedState
+                derivedState: derivedState
             ),
             phase: codeReviewActivityPhase(resolvedSnapshot.phase),
             isRunning: resolvedSnapshot.phase.isActive,
@@ -102,6 +102,7 @@ extension TaskActivityStore {
     ) {
         codeReviewSnapshotsBySession.removeValue(forKey: sessionId)
         verifiedFindingsEnvelopesBySession.removeValue(forKey: sessionId)
+        removeReviewPanelDerivedState(sessionId: sessionId, conversationId: conversationId)
 
         if let conversationScope = codeReviewConversationScope(conversationId) {
             codeReviewSessionIdsByConversation[conversationScope]?.removeAll { $0 == sessionId }
@@ -121,11 +122,12 @@ extension TaskActivityStore {
                 codeReviewEventsByConversation[conversationScope] = scopedSnapshot?.events ?? []
                 codeReviewPhaseByConversation[conversationScope] = scopedSnapshot?.phase ?? .idle
                 if let scopedSnapshot {
+                    let derivedState = deriveReviewPanelState(
+                        snapshot: scopedSnapshot,
+                        conversationId: conversationId
+                    )
                     verifiedFindingsProjectionsByConversation[conversationScope] =
-                        resolvedVerifiedFindingsProjection(
-                            for: scopedSnapshot,
-                            conversationId: conversationId
-                        )
+                        derivedState.projection
                 } else {
                     verifiedFindingsProjectionsByConversation[conversationScope] =
                         VerifiedFindingsProjectionSnapshot(

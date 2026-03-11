@@ -24,7 +24,7 @@ use crate::review_models::{
 };
 use crate::review_projection::build_projection;
 use crate::review_replay::build_replay_report;
-use crate::review_reduce::merge_history;
+use crate::review_reduce::{derive_review_panel_state, merge_history};
 use crate::review_security_gate::evaluate_security_gate;
 use crate::review_sync::sync_findings;
 use crate::review_verify::verify_candidates;
@@ -136,7 +136,18 @@ pub extern "C" fn review_core_reduce_panel_state(input: *const c_char) -> *mut c
             return encode_raw(&ReviewCoreReduceResponse::error("unsupported_schema", "schemaVersion must be 1"));
         }
         match request.operation.as_str() {
-            "merge_history" => encode_raw(&ReviewCoreReduceResponse::success(merge_history(request.primary, request.fallback))),
+            "merge_history" => encode_raw(&ReviewCoreReduceResponse::success(merge_history(
+                request.primary.unwrap_or_default(),
+                request.fallback.unwrap_or_default(),
+            ))),
+            "derive_review_panel_state" => {
+                let Some(snapshot) = request.snapshot else {
+                    return encode_raw(&ReviewCoreReduceResponse::error("missing_snapshot", "snapshot is required"));
+                };
+                encode_raw(&ReviewCoreReduceResponse::success_panel_state(
+                    derive_review_panel_state(snapshot),
+                ))
+            }
             _ => encode_raw(&ReviewCoreReduceResponse::error("unsupported_operation", "operation not implemented")),
         }
     })

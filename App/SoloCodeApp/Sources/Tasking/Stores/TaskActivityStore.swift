@@ -28,6 +28,8 @@ final class TaskActivityStore: ObservableObject {
     @Published var selectedCodeReviewSessionIdByConversation: [String: String] = [:]
     @Published var verifiedFindingsEnvelopesBySession: [String: VerifiedFindingsSessionEnvelope] = [:]
     @Published var verifiedFindingsProjectionsByConversation: [String: VerifiedFindingsProjectionSnapshot] = [:]
+    @Published var reviewPanelDerivedStateBySession: [String: ReviewPanelDerivedState] = [:]
+    @Published var reviewPanelDerivedStateByConversation: [String: ReviewPanelDerivedState] = [:]
 
     let swarmLogger = Logger(subsystem: "com.codigo.app", category: "swarm")
     let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit
@@ -40,6 +42,8 @@ final class TaskActivityStore: ObservableObject {
     var swarmCardDedupKeys: [String: Set<String>] = [:]
     var sortedSwarmCardsCache: [SwarmLiveCardState] = []
     var isSortedSwarmCardsCacheDirty = true
+    var pendingCodeReviewSnapshotsBySession: [String: (snapshot: CodeReviewSessionSnapshot, conversationId: UUID?)] = [:]
+    var codeReviewSnapshotIngestTask: Task<Void, Never>?
     let persistenceBridge: TaskActivityPersistenceBridge
 
     init(
@@ -61,8 +65,31 @@ final class TaskActivityStore: ObservableObject {
         _ snapshot: CodeReviewSessionSnapshot,
         conversationId: UUID? = nil
     ) {
-        scheduleDeferredMutation { store in
-            store.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+        pendingCodeReviewSnapshotsBySession[snapshot.sessionId] = (
+            snapshot: snapshot,
+            conversationId: conversationId
+        )
+        guard codeReviewSnapshotIngestTask == nil else { return }
+        codeReviewSnapshotIngestTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 25_000_000)
+            await MainActor.run {
+                guard let self else { return }
+                let pending = self.pendingCodeReviewSnapshotsBySession.values
+                    .sorted {
+                        if $0.snapshot.lastUpdatedAt != $1.snapshot.lastUpdatedAt {
+                            return $0.snapshot.lastUpdatedAt < $1.snapshot.lastUpdatedAt
+                        }
+                        return $0.snapshot.mutationSequence < $1.snapshot.mutationSequence
+                    }
+                self.pendingCodeReviewSnapshotsBySession.removeAll()
+                self.codeReviewSnapshotIngestTask = nil
+                for entry in pending {
+                    self.ingestCodeReviewSnapshot(
+                        entry.snapshot,
+                        conversationId: entry.conversationId
+                    )
+                }
+            }
         }
     }
 
@@ -137,27 +164,68 @@ final class TaskActivityPersistenceBridge: @unchecked Sendable {
 
     private let queue: DispatchQueue
     private let writeCodeReviewSnapshotImpl: @Sendable (CodeReviewSessionSnapshot) -> Void
+    private let debounceInterval: TimeInterval
+    private var pendingSnapshotsBySession: [String: CodeReviewSessionSnapshot] = [:]
+    private var pendingFlushWorkItem: DispatchWorkItem?
 
     init(
         queue: DispatchQueue = DispatchQueue(
             label: "com.solocode.task-activity.persistence",
             qos: .utility
         ),
+        debounceInterval: TimeInterval = 0.15,
         writeCodeReviewSnapshot: @escaping @Sendable (CodeReviewSessionSnapshot) -> Void = {
             MCPSharedState.writeCodeReviewSnapshot($0)
         }
     ) {
         self.queue = queue
+        self.debounceInterval = debounceInterval
         self.writeCodeReviewSnapshotImpl = writeCodeReviewSnapshot
     }
 
     func persistCodeReviewSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
-        queue.async { [writeCodeReviewSnapshotImpl] in
-            writeCodeReviewSnapshotImpl(snapshot)
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.pendingSnapshotsBySession[snapshot.sessionId] = snapshot
+            if snapshot.phase == .completed || snapshot.phase == .failed {
+                self.flushPendingSnapshotsLocked()
+                return
+            }
+            self.scheduleFlushLocked()
         }
     }
 
     func flush() {
-        queue.sync {}
+        let group = DispatchGroup()
+        group.enter()
+        queue.async { [weak self] in
+            self?.flushPendingSnapshotsLocked()
+            group.leave()
+        }
+        group.wait()
+    }
+
+    private func scheduleFlushLocked() {
+        pendingFlushWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.flushPendingSnapshotsLocked()
+        }
+        pendingFlushWorkItem = workItem
+        queue.asyncAfter(deadline: .now() + debounceInterval, execute: workItem)
+    }
+
+    private func flushPendingSnapshotsLocked() {
+        pendingFlushWorkItem?.cancel()
+        pendingFlushWorkItem = nil
+        let snapshots = pendingSnapshotsBySession.values.sorted {
+            if $0.lastUpdatedAt != $1.lastUpdatedAt {
+                return $0.lastUpdatedAt < $1.lastUpdatedAt
+            }
+            return $0.mutationSequence < $1.mutationSequence
+        }
+        pendingSnapshotsBySession.removeAll()
+        for snapshot in snapshots {
+            writeCodeReviewSnapshotImpl(snapshot)
+        }
     }
 }

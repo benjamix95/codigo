@@ -167,6 +167,7 @@ extension CoderIDEMCPServerApp {
         case "resolve_conflicts": return "review_resolve_conflicts"
         default: return "review_\(action)"
     }
+    }
 
     private static func reviewLifecycleErrorMessage(_ error: Error) -> String {
         guard let lifecycleError = error as? VerifiedFindingsLifecycleCommandError else {

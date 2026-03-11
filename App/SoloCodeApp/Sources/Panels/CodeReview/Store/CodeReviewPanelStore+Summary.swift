@@ -20,29 +20,28 @@ extension CodeReviewPanelStore {
         appendChatMessage(ReviewPanelChatMessageFactory.summary(snapshot: snapshot))
     }
 
+    var currentReviewPanelDerivedState: ReviewPanelDerivedState? {
+        taskActivityStore.reviewPanelDerivedState(
+            sessionId: selectedSessionId,
+            conversationId: conversationId
+        )
+    }
+
+    var currentReviewPanelWarmState: ReviewPanelWarmState {
+        if let derivedState = currentReviewPanelDerivedState,
+           derivedState.sessionId == currentSnapshot?.sessionId,
+           derivedState.mutationSequence == currentSnapshot?.mutationSequence {
+            return derivedState.warmState
+        }
+        return currentSnapshot == nil ? .idle : .warming
+    }
+
     var currentPipelineJobState: ReviewPipelineJobState? {
-        guard let snapshot = currentSnapshot else { return nil }
-        return ReviewPipelineJobStateBuilder.build(snapshot: snapshot)
+        currentReviewPanelDerivedState?.pipelineJobState
     }
 
     var currentPublishedFindings: [CodeReviewFinding] {
-        guard let snapshot = currentSnapshot else { return [] }
-        let resolved = VerifiedFindingsService.resolve(snapshot: snapshot, entryPoint: .panel)
-        let verifiedIds = Set(resolved.recovered.envelope.projectionSnapshot.verifiedQueue.map(\.id))
-        let patchesByFindingId = Dictionary(uniqueKeysWithValues: snapshot.patches.map { ($0.findingId, $0) })
-
-        return snapshot.findings.filter { finding in
-            guard verifiedIds.contains(finding.id) else { return false }
-            let isVerified = finding.verifiedAt != nil || finding.verificationReport != nil
-            guard isVerified,
-                  let patchId = finding.patchArtifactId,
-                  let patch = patchesByFindingId[finding.id],
-                  patch.id == patchId else {
-                return false
-            }
-            return patch.verifyStatus == .verified
-                && [.verified, .applied, .prOpened, .merged].contains(patch.status)
-        }
+        currentReviewPanelDerivedState?.publishedFindings ?? []
     }
 }
 
@@ -120,7 +119,7 @@ enum ReviewPipelineJobStateBuilder {
         }
     }
 
-    private static func displayTitle(for rawValue: String) -> String {
+    static func displayTitle(for rawValue: String) -> String {
         switch rawValue {
         case "standard": return "Standard Review"
         case "bugFinder": return "Bug Finder"
@@ -130,6 +129,208 @@ enum ReviewPipelineJobStateBuilder {
                 .replacingOccurrences(of: "_", with: " ")
                 .replacingOccurrences(of: "-", with: " ")
                 .capitalized
+        }
+    }
+}
+
+enum ReviewPanelDerivedStateBuilder {
+    private static let cacheLock = NSLock()
+    private static var cache: [String: ReviewPanelDerivedState] = [:]
+
+    static func build(
+        snapshot: CodeReviewSessionSnapshot,
+        existingEnvelope: VerifiedFindingsSessionEnvelope?
+    ) -> ReviewPanelDerivedState {
+        let cacheKey = "\(snapshot.sessionId)#\(snapshot.mutationSequence)"
+        cacheLock.lock()
+        if let cached = cache[cacheKey] {
+            cacheLock.unlock()
+            return cached
+        }
+        cacheLock.unlock()
+
+        let fallbackEnvelope = existingEnvelope
+            ?? persistedEnvelopeFallback(for: snapshot)
+        let verifiedEnvelope = snapshot.verifiedFindings
+            ?? VerifiedFindingsSessionSyncService.sync(
+                snapshot: snapshot,
+                existingEnvelope: fallbackEnvelope,
+                entryPoint: .panel
+            )
+        let effectiveSnapshot = snapshot.copying(
+            mutationSequence: snapshot.mutationSequence,
+            verifiedFindings: verifiedEnvelope,
+            lastUpdatedAt: snapshot.lastUpdatedAt
+        )
+        let rustPanelState = ReviewPanelStateRustAdapter.reduce(snapshot: effectiveSnapshot)
+        let publishedFindingIDs = Set(
+            rustPanelState?.publishedFindingIds
+                ?? publishedFindingIDsFallback(snapshot: effectiveSnapshot)
+        )
+        let publishedFindings = effectiveSnapshot.findings.filter {
+            publishedFindingIDs.contains($0.id)
+        }
+        let pipelineJobState = rustPanelState?.makePipelineJobState()
+            ?? ReviewPipelineJobStateBuilder.build(
+                snapshot: effectiveSnapshot,
+                entryPoint: .panel
+            )
+
+        let derivedState = ReviewPanelDerivedState(
+            sessionId: effectiveSnapshot.sessionId,
+            mutationSequence: effectiveSnapshot.mutationSequence,
+            publishedFindings: publishedFindings,
+            pipelineJobState: pipelineJobState,
+            projection: verifiedEnvelope.projectionSnapshot,
+            verifiedEnvelope: verifiedEnvelope,
+            warmState: .ready
+        )
+
+        cacheLock.lock()
+        cache[cacheKey] = derivedState
+        cacheLock.unlock()
+        return derivedState
+    }
+
+    static func invalidate(sessionId: String) {
+        cacheLock.lock()
+        cache = cache.filter { key, _ in
+            !key.hasPrefix("\(sessionId)#")
+        }
+        cacheLock.unlock()
+    }
+
+    private static func persistedEnvelopeFallback(
+        for snapshot: CodeReviewSessionSnapshot
+    ) -> VerifiedFindingsSessionEnvelope? {
+        guard snapshot.verifiedFindings == nil else { return nil }
+        guard snapshot.phase == .completed || snapshot.phase == .failed else { return nil }
+        return MCPSharedState.readVerifiedFindingsEnvelope(sessionId: snapshot.sessionId)
+    }
+
+    private static func publishedFindingIDsFallback(
+        snapshot: CodeReviewSessionSnapshot
+    ) -> [String] {
+        guard let envelope = snapshot.verifiedFindings else { return [] }
+        let verifiedIds = Set(envelope.projectionSnapshot.verifiedQueue.map(\.id))
+        let patchesByFindingId = Dictionary(
+            uniqueKeysWithValues: snapshot.patches.map { ($0.findingId, $0) }
+        )
+
+        return snapshot.findings.compactMap { finding in
+            guard verifiedIds.contains(finding.id) else { return nil }
+            let isVerified = finding.verifiedAt != nil || finding.verificationReport != nil
+            guard isVerified,
+                  let patchId = finding.patchArtifactId,
+                  let patch = patchesByFindingId[finding.id],
+                  patch.id == patchId else {
+                return nil
+            }
+            guard patch.verifyStatus == .verified,
+                  [.verified, .applied, .prOpened, .merged].contains(patch.status) else {
+                return nil
+            }
+            return finding.id
+        }
+    }
+}
+
+private enum ReviewPanelStateRustAdapter {
+    static func reduce(
+        snapshot: CodeReviewSessionSnapshot
+    ) -> ReviewPanelRustPanelState? {
+        let response: ReviewPanelReduceResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_reduce_panel_state",
+            request: ReviewPanelReduceRequest(snapshot: snapshot)
+        )
+        guard response?.error == nil else { return nil }
+        return response?.panelState
+    }
+}
+
+private struct ReviewPanelReduceRequest: Encodable {
+    let schemaVersion: Int = 1
+    let operation: String = "derive_review_panel_state"
+    let snapshot: CodeReviewSessionSnapshot
+}
+
+private struct ReviewPanelReduceResponse: Decodable {
+    let schemaVersion: Int
+    let error: ReviewPanelReduceError?
+    let panelState: ReviewPanelRustPanelState?
+}
+
+private struct ReviewPanelReduceError: Decodable {
+    let code: String
+    let message: String
+}
+
+private struct ReviewPanelRustPanelState: Decodable {
+    let publishedFindingIds: [String]
+    let pipelinePhase: String
+    let progressPercent: Int
+    let stepsCompleted: Int
+    let stepsTotal: Int
+    let toolsTotal: Int
+    let toolsCompleted: Int
+    let toolsRunning: Int
+    let candidateCount: Int
+    let verifiedCount: Int
+    let publishedFindingCount: Int
+    let hiddenFindingCount: Int
+    let verificationGateReady: Bool
+    let patchGateReady: Bool
+    let bundleModes: [String]
+    let toolExecutions: [ReviewPanelRustToolExecution]
+    let isTerminal: Bool
+
+    func makePipelineJobState() -> ReviewPipelineJobState {
+        ReviewPipelineJobState(
+            title: "Unified Review Pipeline",
+            phase: pipelinePhase,
+            progressPercent: progressPercent,
+            stepsCompleted: stepsCompleted,
+            stepsTotal: stepsTotal,
+            toolsTotal: toolsTotal,
+            toolsCompleted: toolsCompleted,
+            toolsRunning: toolsRunning,
+            candidateCount: candidateCount,
+            verifiedCount: verifiedCount,
+            publishedFindingCount: publishedFindingCount,
+            hiddenFindingCount: hiddenFindingCount,
+            gates: [
+                ReviewPipelineGateState(title: "Verification", isReady: verificationGateReady),
+                ReviewPipelineGateState(title: "Patch", isReady: patchGateReady),
+            ],
+            tools: toolExecutions.map {
+                ReviewPipelineToolExecution(
+                    id: $0.id,
+                    title: ReviewPipelineJobStateBuilder.displayTitle(for: $0.id),
+                    status: $0.status.reviewToolStatus,
+                    findingsCount: $0.findingsCount
+                )
+            },
+            bundleModes: bundleModes,
+            isTerminal: isTerminal
+        )
+    }
+}
+
+private struct ReviewPanelRustToolExecution: Decodable {
+    let id: String
+    let status: String
+    let findingsCount: Int
+}
+
+private extension String {
+    var reviewToolStatus: ReviewPipelineToolExecution.Status {
+        switch self {
+        case "completed":
+            return .completed
+        case "running":
+            return .running
+        default:
+            return .pending
         }
     }
 }

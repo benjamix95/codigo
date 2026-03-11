@@ -40,6 +40,8 @@ pub struct ReviewCoreReduceResponse {
     pub schema_version: i32,
     pub error: Option<ReviewCoreErrorPayload>,
     pub merged_history: Vec<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub panel_state: Option<Value>,
 }
 
 #[derive(Serialize)]
@@ -107,8 +109,9 @@ pub struct ReviewAuditRequest {
 pub struct ReviewReduceRequest {
     pub schema_version: i32,
     pub operation: String,
-    pub primary: Vec<Value>,
-    pub fallback: Vec<Value>,
+    pub primary: Option<Vec<Value>>,
+    pub fallback: Option<Vec<Value>>,
+    pub snapshot: Option<Value>,
 }
 
 #[derive(Deserialize)]
@@ -212,6 +215,7 @@ impl ReviewCoreReduceResponse {
             schema_version: 1,
             error: None,
             merged_history,
+            panel_state: None,
         }
     }
 
@@ -220,6 +224,16 @@ impl ReviewCoreReduceResponse {
             schema_version: 1,
             error: Some(ReviewCoreErrorPayload::new(code, message)),
             merged_history: Vec::new(),
+            panel_state: None,
+        }
+    }
+
+    pub fn success_panel_state(panel_state: Value) -> Self {
+        Self {
+            schema_version: 1,
+            error: None,
+            merged_history: Vec::new(),
+            panel_state: Some(panel_state),
         }
     }
 }
