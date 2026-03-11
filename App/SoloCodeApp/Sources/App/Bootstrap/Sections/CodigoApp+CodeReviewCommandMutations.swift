@@ -201,6 +201,22 @@ extension CodigoApp {
         snapshot: CodeReviewSessionSnapshot,
         command: MCPSharedCodeReviewCommand
     ) -> CodeReviewSessionSnapshot? {
+        if ["apply_fix", "dismiss", "comment"].contains(command.action),
+           let mutation = ReviewCommandRustBridge.mutateSnapshot(snapshot, command: command),
+           !mutation.isError,
+           let findings = mutation.findings,
+           let events = mutation.events {
+            let updated = snapshot.copying(
+                findings: findings,
+                events: events
+            )
+            return updated.copying(
+                mutationSequence: updated.mutationSequence,
+                outcome: updated.buildOutcomeSummary(),
+                lastUpdatedAt: Date()
+            )
+        }
+
         var findings = snapshot.findings
         var events = snapshot.events
         let updatedAt = Date()

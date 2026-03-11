@@ -15,6 +15,16 @@ pub struct ReviewCommandPlanRequest {
     pub default_config: ReviewCommandConfig,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCommandMutationRequest {
+    pub schema_version: i32,
+    pub action: String,
+    pub snapshot: serde_json::Value,
+    #[serde(default)]
+    pub payload: HashMap<String, String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewCommandConfig {
@@ -40,6 +50,16 @@ pub struct ReviewCommandPlanResponse {
     pub author: Option<String>,
     pub content: Option<String>,
     pub deferred: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCommandMutationResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub findings: Option<Vec<serde_json::Value>>,
+    pub events: Option<Vec<serde_json::Value>>,
 }
 
 impl ReviewCommandPlanResponse {
@@ -74,6 +94,28 @@ impl ReviewCommandPlanResponse {
             author: None,
             content: None,
             deferred: false,
+        }
+    }
+}
+
+impl ReviewCommandMutationResponse {
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            findings: None,
+            events: None,
+        }
+    }
+
+    pub fn success(findings: Vec<serde_json::Value>, events: Vec<serde_json::Value>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            findings: Some(findings),
+            events: Some(events),
         }
     }
 }

@@ -171,6 +171,42 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertEqual(updatedSnapshot.findings.first?.status, .wontFix)
     }
 
+    func testCommentCommandUsesRustMutationAndAppendsComment() async throws {
+        let app = makeApp()
+        let snapshot = makeSnapshot(
+            sessionId: "comment-command-session",
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-comment",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Comment me"
+                )
+            ]
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "comment",
+            sessionId: snapshot.sessionId,
+            conversationId: nil,
+            payload: [
+                "session_id": snapshot.sessionId,
+                "finding_id": "finding-comment",
+                "content": "note from command bus",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .completed)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: snapshot.sessionId)
+        )
+        XCTAssertEqual(updatedSnapshot.findings.first?.comments.last?.content, "note from command bus")
+    }
+
     func testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch() {
         let app = makeApp()
         let snapshot = CodeReviewSessionSnapshot(

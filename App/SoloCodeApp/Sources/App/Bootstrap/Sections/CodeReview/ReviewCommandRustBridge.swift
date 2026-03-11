@@ -24,6 +24,21 @@ struct ReviewCommandRustBridge {
             )
         )
     }
+
+    static func mutateSnapshot(
+        _ snapshot: CodeReviewSessionSnapshot,
+        command: MCPSharedCodeReviewCommand
+    ) -> ReviewCommandMutationResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_command_mutate_snapshot",
+            request: ReviewCommandMutationRequest(
+                schemaVersion: 1,
+                action: command.action,
+                snapshot: snapshot,
+                payload: command.payload
+            )
+        )
+    }
 }
 
 private struct ReviewCommandPlanRequest: Encodable {
@@ -36,6 +51,13 @@ private struct ReviewCommandPlanRequest: Encodable {
     let snapshotExists: Bool
     let currentConfig: ReviewCommandPlanConfig?
     let defaultConfig: ReviewCommandPlanConfig
+}
+
+private struct ReviewCommandMutationRequest: Encodable {
+    let schemaVersion: Int
+    let action: String
+    let snapshot: CodeReviewSessionSnapshot
+    let payload: [String: String]
 }
 
 struct ReviewCommandPlanConfig: Codable {
@@ -66,4 +88,11 @@ struct ReviewCommandPlanResponse: Decodable {
     let author: String?
     let content: String?
     let deferred: Bool
+}
+
+struct ReviewCommandMutationResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let findings: [CodeReviewFinding]?
+    let events: [CodeReviewSessionEvent]?
 }
