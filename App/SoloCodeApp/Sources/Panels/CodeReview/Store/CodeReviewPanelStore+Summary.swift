@@ -225,7 +225,7 @@ enum ReviewPanelDerivedStateBuilder {
             uniqueKeysWithValues: snapshot.patches.map { ($0.findingId, $0) }
         )
 
-        let published = snapshot.findings.compactMap { finding in
+        let published: [String] = snapshot.findings.compactMap { finding -> String? in
             guard verifiedIds.contains(finding.id) else { return nil }
             let isVerified = finding.verifiedAt != nil || finding.verificationReport != nil
             guard isVerified,
