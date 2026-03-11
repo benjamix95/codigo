@@ -32,6 +32,7 @@ struct DebugLifecycleMetrics: Codable, Equatable {
     var successfulOperations: Int
     var failedOperations: Int
     var totalRecoveries: Int
+    var cumulativeDurationMs: Int
     var lastStage: DebugStageMetrics?
 
     static var empty: DebugLifecycleMetrics {
@@ -41,6 +42,7 @@ struct DebugLifecycleMetrics: Codable, Equatable {
             successfulOperations: 0,
             failedOperations: 0,
             totalRecoveries: 0,
+            cumulativeDurationMs: 0,
             lastStage: nil
         )
     }
@@ -54,6 +56,7 @@ struct DebugLifecycleMetrics: Codable, Equatable {
             failedOperations += 1
         }
         totalRecoveries = max(totalRecoveries, stage.recoveryCount)
+        cumulativeDurationMs += stage.durationMs
         lastStage = stage
     }
 }

@@ -25,6 +25,7 @@ public actor SemanticIndex {
     var persistencePath: URL?
     var deferredMerkleTouchedFiles: Int = 0
     let searchBackend: any SearchEngineBackend
+    var lastSearchMetrics: SearchBackendMetrics?
 
     // MARK: - Chunk Budget (LRU Eviction)
     /// Limite massimo di chunk in memoria. Default 50K.
@@ -53,6 +54,10 @@ public actor SemanticIndex {
 
     public func configuredSearchBackendKind() -> SearchEngineBackendKind {
         searchBackend.kind
+    }
+
+    public func lastSearchMetricsSnapshot() -> SearchBackendMetrics? {
+        lastSearchMetrics
     }
 
     // MARK: - Result Types

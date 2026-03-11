@@ -20,13 +20,14 @@ extension SemanticIndex {
             query: queryInput,
             snapshot: makeSearchSnapshot()
         )
+        lastSearchMetrics = hits.metrics
 
-        guard !hits.isEmpty else {
+        guard !hits.hits.isEmpty else {
             Self.logger.debug("search: empty query tokens for '\(query, privacy: .public)'")
             return []
         }
 
-        return hits.compactMap { hit in
+        return hits.hits.compactMap { hit in
             guard let chunk = chunks[hit.chunkId] else { return nil }
             touchChunkAccess(hit.chunkId)
             return SearchResult(chunk: chunk, score: hit.score)

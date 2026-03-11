@@ -142,6 +142,18 @@ public actor CodebaseIndex {
 
     public init() {}
 
+    public func metricsSnapshot() async -> IndexingMetricsSnapshot {
+        let semanticStatus = await semanticIndex.status()
+        return IndexingMetricsSnapshot(
+            indexedFiles: indexedFiles.count,
+            indexedSymbols: totalSymbolsExtracted,
+            indexDurationMs: indexDurationMs,
+            lastFullIndexAt: lastFullIndexAt,
+            semanticChunks: semanticStatus.totalChunks,
+            semanticTokens: semanticStatus.totalTokens
+        )
+    }
+
     // MARK: - Persistence
 
     /// Compute a stable cache directory for the given workspace paths.

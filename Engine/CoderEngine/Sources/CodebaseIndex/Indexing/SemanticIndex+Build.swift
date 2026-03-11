@@ -22,6 +22,7 @@ extension SemanticIndex {
         docLengths.removeAll()
         fileToChunks.removeAll()
         deferredMerkleTouchedFiles = 0
+        lastSearchMetrics = nil
 
         merkleRoot = MerkleTree.build(root: workspaceRoot)
         if let root = merkleRoot {
@@ -181,6 +182,7 @@ extension SemanticIndex {
         currentSimHash = 0
         fileToChunks.removeAll()
         deferredMerkleTouchedFiles = 0
+        lastSearchMetrics = nil
         clearAccessOrder()
     }
 

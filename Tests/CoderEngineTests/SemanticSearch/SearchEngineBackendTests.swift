@@ -37,6 +37,7 @@ final class SearchEngineBackendTests: XCTestCase {
         XCTAssertEqual(rustKind, .rust)
         await rustIndex.buildIndex(indexedFiles: indexedFiles, workspaceRoot: workspace)
         let rustResults = await rustIndex.search(query: "refresh session token", numResults: 5)
+        let rustMetrics = await rustIndex.lastSearchMetricsSnapshot()
 
         let swiftIndex = SemanticIndex(searchBackend: SwiftSearchEngineBackend())
         await swiftIndex.buildIndex(indexedFiles: indexedFiles, workspaceRoot: workspace)
@@ -44,6 +45,16 @@ final class SearchEngineBackendTests: XCTestCase {
 
         XCTAssertEqual(rustResults.map(\.chunk.filePath), swiftResults.map(\.chunk.filePath))
         XCTAssertEqual(rustResults.first?.chunk.filePath, swiftResults.first?.chunk.filePath)
+        XCTAssertEqual(rustMetrics?.backendKind, .rust)
+        XCTAssertEqual(rustMetrics?.usedFallback, RustSearchFFIClient.shared.loadedVersion() == nil)
+    }
+
+    func testRustSearchFFIClientReturnsVersionWhenLibraryIsAvailable() throws {
+        guard let version = RustSearchFFIClient.shared.loadedVersion() else {
+            throw XCTSkip("Rust library non disponibile in questa sessione")
+        }
+
+        XCTAssertTrue(version.contains("solocode_rust_core"))
     }
 }
 

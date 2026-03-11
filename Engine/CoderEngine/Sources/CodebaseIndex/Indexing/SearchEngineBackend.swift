@@ -5,7 +5,7 @@ public enum SearchEngineBackendKind: String, Codable, Sendable, Equatable {
     case rust
 }
 
-public struct SearchQueryInput: Sendable, Equatable {
+public struct SearchQueryInput: Codable, Sendable, Equatable {
     public let query: String
     public let targetDirectories: [String]
     public let numResults: Int
@@ -21,7 +21,7 @@ public struct SearchQueryInput: Sendable, Equatable {
     }
 }
 
-public struct SearchHitOutput: Sendable, Equatable {
+public struct SearchHitOutput: Codable, Sendable, Equatable {
     public let chunkId: String
     public let score: Double
 
@@ -31,7 +31,7 @@ public struct SearchHitOutput: Sendable, Equatable {
     }
 }
 
-public struct IndexStatsOutput: Sendable, Equatable {
+public struct IndexStatsOutput: Codable, Sendable, Equatable {
     public let totalChunks: Int
     public let totalTokens: Int
     public let totalFiles: Int
@@ -53,7 +53,7 @@ public struct IndexStatsOutput: Sendable, Equatable {
     }
 }
 
-public struct SemanticIndexSearchSnapshot: Sendable {
+public struct SemanticIndexSearchSnapshot: Codable, Sendable {
     public let chunks: [String: SemanticChunk]
     public let invertedIndex: [String: Set<String>]
     public let termFrequencies: [String: [String: Int]]
@@ -89,7 +89,7 @@ public protocol SearchEngineBackend: Sendable {
     func search(
         query: SearchQueryInput,
         snapshot: SemanticIndexSearchSnapshot
-    ) -> [SearchHitOutput]
+    ) -> SearchEngineBackendResponse
 }
 
 enum SearchEngineBackendFactory {

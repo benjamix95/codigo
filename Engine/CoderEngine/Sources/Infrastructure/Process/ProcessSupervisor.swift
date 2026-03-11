@@ -4,6 +4,7 @@ public struct ProcessExecutionResult: Sendable, Equatable {
     public let terminationStatus: Int32
     public let stdout: String
     public let stderr: String
+    public let metrics: ProcessLifecycleMetrics
 
     public var combinedOutput: String {
         [stdout, stderr]
@@ -32,6 +33,7 @@ public enum ProcessSupervisorError: LocalizedError {
 
 public final class ManagedProcessHandle: @unchecked Sendable {
     public let process: Process
+    private let startedAt = Date()
     private let stdoutPipe: Pipe
     private let stderrPipe: Pipe
     private let stateLock = NSLock()
@@ -62,10 +64,20 @@ public final class ManagedProcessHandle: @unchecked Sendable {
 
     fileprivate func snapshotOutput() -> ProcessExecutionResult {
         finishReading()
+        let finishedAt = Date()
         return ProcessExecutionResult(
             terminationStatus: process.terminationStatus,
             stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-            stderr: String(data: stderrData, encoding: .utf8) ?? ""
+            stderr: String(data: stderrData, encoding: .utf8) ?? "",
+            metrics: ProcessLifecycleMetrics(
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                durationMs: max(Int(finishedAt.timeIntervalSince(startedAt) * 1000), 0),
+                timedOut: false,
+                terminatedBySupervisor: false,
+                stdoutBytes: stdoutData.count,
+                stderrBytes: stderrData.count
+            )
         )
     }
 
@@ -162,6 +174,31 @@ public enum ProcessSupervisor {
         if waitForExit {
             _ = handle.waitForExit(timeout: 1.0)
         }
+    }
+
+    public static func collectOutputAsync(
+        from handle: ManagedProcessHandle,
+        timeout: TimeInterval? = nil
+    ) async throws -> ProcessExecutionResult {
+        try await Task.detached(priority: .utility) {
+            try collectOutput(from: handle, timeout: timeout)
+        }.value
+    }
+
+    public static func runCollecting(
+        executable: String,
+        arguments: [String],
+        workingDirectory: URL? = nil,
+        environment: [String: String]? = nil,
+        timeout: TimeInterval? = nil
+    ) async throws -> ProcessExecutionResult {
+        let handle = try spawn(
+            executable: executable,
+            arguments: arguments,
+            workingDirectory: workingDirectory,
+            environment: environment
+        )
+        return try await collectOutputAsync(from: handle, timeout: timeout)
     }
 
     public static func runCollectingSync(

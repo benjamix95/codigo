@@ -166,4 +166,24 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertEqual(store.nativeSession.metrics.totalOperations, 1)
         XCTAssertEqual(store.nativeSession.metrics.lastStage?.stage, .start)
     }
+
+    func testSessionMetricsAggregatesLifecycleCounters() async {
+        let service = DebugService(adapter: RecordingNativeDebugAdapter())
+        let store = DebugStore(nativeDebugService: service)
+
+        store.startNativeDebugSession(targetPath: "/tmp/bin/demo-app", arguments: ["--dry-run"])
+        for _ in 0..<20 where store.nativeSession.lastCommand != "start" {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        store.refreshNativeDebugSession()
+        for _ in 0..<20 where store.nativeSession.lastCommand != "refresh" {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertEqual(store.nativeSession.sessionMetrics.totalOperations, 2)
+        XCTAssertEqual(store.nativeSession.sessionMetrics.successfulOperations, 2)
+        XCTAssertEqual(store.nativeSession.sessionMetrics.failedOperations, 0)
+        XCTAssertGreaterThanOrEqual(store.nativeSession.sessionMetrics.averageDurationMs, 0)
+    }
 }

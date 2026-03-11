@@ -6,11 +6,16 @@ struct SwiftSearchEngineBackend: SearchEngineBackend {
     func search(
         query: SearchQueryInput,
         snapshot: SemanticIndexSearchSnapshot
-    ) -> [SearchHitOutput] {
+    ) -> SearchEngineBackendResponse {
+        let startedAt = Date()
         let (positiveQuery, negativeTokens) = SemanticSearchQueryParser.splitNegations(query.query)
         let queryTokens = SemanticIndex.tokenizeStatic(positiveQuery)
-        guard !queryTokens.isEmpty else { return [] }
-        guard !snapshot.chunks.isEmpty else { return [] }
+        guard !queryTokens.isEmpty else {
+            return response(hits: [], startedAt: startedAt, errorMessage: nil)
+        }
+        guard !snapshot.chunks.isEmpty else {
+            return response(hits: [], startedAt: startedAt, errorMessage: nil)
+        }
 
         var scores: [String: Double] = [:]
         for token in Set(queryTokens) {
@@ -47,10 +52,30 @@ struct SwiftSearchEngineBackend: SearchEngineBackend {
             }
         }
 
-        return scores
+        let hits = scores
             .sorted { $0.value > $1.value }
             .prefix(query.numResults)
             .map { SearchHitOutput(chunkId: $0.key, score: $0.value) }
+        return response(hits: hits, startedAt: startedAt, errorMessage: nil)
+    }
+
+    private func response(
+        hits: [SearchHitOutput],
+        startedAt: Date,
+        errorMessage: String?
+    ) -> SearchEngineBackendResponse {
+        let finishedAt = Date()
+        return SearchEngineBackendResponse(
+            hits: hits,
+            metrics: SearchBackendMetrics(
+                backendKind: .swift,
+                elapsedMs: max(Int(finishedAt.timeIntervalSince(startedAt) * 1000), 0),
+                hitCount: hits.count,
+                usedFallback: false,
+                loadedRustLibrary: false,
+                errorMessage: errorMessage
+            )
+        )
     }
 
     private func applyBonuses(

@@ -7,10 +7,23 @@ struct RustSearchEngineBackend: SearchEngineBackend {
     func search(
         query: SearchQueryInput,
         snapshot: SemanticIndexSearchSnapshot
-    ) -> [SearchHitOutput] {
-        SemanticIndex.logger.notice(
-            "rust search backend requested but bridge is not linked; using swift fallback"
+    ) -> SearchEngineBackendResponse {
+        if let response = RustSearchFFIClient.shared.performSearch(query: query, snapshot: snapshot) {
+            return response
+        }
+
+        SemanticIndex.logger.notice("rust search backend unavailable; using swift fallback")
+        let fallbackResponse = fallback.search(query: query, snapshot: snapshot)
+        return SearchEngineBackendResponse(
+            hits: fallbackResponse.hits,
+            metrics: SearchBackendMetrics(
+                backendKind: .rust,
+                elapsedMs: fallbackResponse.metrics.elapsedMs,
+                hitCount: fallbackResponse.hits.count,
+                usedFallback: true,
+                loadedRustLibrary: false,
+                errorMessage: "Rust backend unavailable; fallback to Swift"
+            )
         )
-        return fallback.search(query: query, snapshot: snapshot)
     }
 }
