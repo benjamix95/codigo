@@ -1,8 +1,12 @@
 mod ffi;
 mod review_audit;
 mod review_identity;
+mod review_projection;
+mod review_replay;
 mod review_models;
 mod review_reduce;
+mod review_security_gate;
+mod review_history;
 mod review_sync;
 mod review_value;
 mod review_verify;

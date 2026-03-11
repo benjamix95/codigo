@@ -69,6 +69,34 @@ final class VerifiedFindingsReplayServiceTests: XCTestCase {
         XCTAssertEqual(report.duplicatesCount, 0)
     }
 
+    func testReplayServiceMatchesRustBridgeWhenLibraryIsAvailable() throws {
+        let path = reviewCoreLibraryPath(from: #filePath)
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw XCTSkip("Libreria review core Rust non disponibile")
+        }
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        ReviewCoreBridge.resetForTests()
+        let envelope = makeEnvelope(sessionId: "replay-rust-session")
+        let recovered = VerifiedFindingsRecoveredEnvelope(
+            source: .storedEnvelope,
+            envelope: envelope,
+            checkpoint: nil
+        )
+
+        let report = VerifiedFindingsReplayService.replay(recovered)
+
+        XCTAssertEqual(report.sessionId, "replay-rust-session")
+        XCTAssertEqual(report.candidateCount, 1)
+        XCTAssertEqual(report.verifiedCount, 1)
+        XCTAssertTrue(ReviewCoreBridge.loadedState().loaded)
+    }
+
     private func makeEnvelope(sessionId: String) -> VerifiedFindingsSessionEnvelope {
         let candidate = VerifiedFinding(
             id: "candidate-1",
@@ -133,4 +161,15 @@ final class VerifiedFindingsReplayServiceTests: XCTestCase {
             lastUpdatedAt: stableDate
         )
     }
+}
+
+private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
+    let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
+    return sourceURL
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
+        .path
 }

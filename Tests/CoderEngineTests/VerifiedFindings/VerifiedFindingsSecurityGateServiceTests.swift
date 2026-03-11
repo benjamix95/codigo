@@ -187,4 +187,106 @@ final class VerifiedFindingsSecurityGateServiceTests: XCTestCase {
         XCTAssertFalse(report.ready)
         XCTAssertEqual(report.findingsMissingEvidenceCount, 1)
     }
+
+    func testGateMatchesRustBridgeWhenLibraryIsAvailable() throws {
+        let path = reviewCoreLibraryPath(from: #filePath)
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw XCTSkip("Libreria review core Rust non disponibile")
+        }
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        ReviewCoreBridge.resetForTests()
+        let finding = VerifiedFinding(
+            id: "finding-1",
+            domain: .bug,
+            title: "Crash",
+            summary: "Crash",
+            category: "correctness",
+            severity: .high,
+            confidence: 0.95,
+            status: .verified,
+            filePath: "Sources/App.swift",
+            evidenceIds: ["evidence-1"],
+            verificationReportId: "verification-1",
+            originEntryPoint: .mcp,
+            findingFingerprint: "fp-1"
+        )
+        let evidence = VerifiedEvidence(
+            id: "evidence-1",
+            findingId: "finding-1",
+            type: .testFailure,
+            source: "unit",
+            summary: "failed test",
+            payloadRef: "payload",
+            originTool: "xctest",
+            originCommandId: "cmd-1",
+            originRunId: "run-1",
+            originStep: "verify",
+            sourceType: .test,
+            capturedAt: Date(),
+            artifactRef: "artifact",
+            hashOrFingerprint: "hash",
+            containsSensitiveData: false,
+            redactionApplied: false,
+            redactionReason: nil,
+            retentionClass: .standard,
+            visibilityLevel: .full,
+            createdAt: Date()
+        )
+        let verification = VerifiedVerificationReport(
+            id: "verification-1",
+            findingId: "finding-1",
+            verifierType: "test_runner",
+            verdict: .verified,
+            confidence: 0.95,
+            steps: ["run test"],
+            commandLogRefs: [],
+            evidenceIds: ["evidence-1"],
+            reasoningSummary: "verified",
+            errorCategory: nil,
+            failureReasonCode: nil,
+            retryable: false,
+            failurePhase: nil,
+            retryCount: 0,
+            maxRetryAllowed: 1,
+            createdAt: Date()
+        )
+        let canonical = VerifiedFindingsCanonicalSnapshot(
+            runs: [:],
+            findings: ["finding-1": finding],
+            evidences: ["evidence-1": evidence],
+            verificationReports: ["verification-1": verification],
+            patchArtifacts: [:],
+            revalidationReports: [:],
+            commandLog: [],
+            eventLog: [],
+            traceLog: []
+        )
+        let envelope = VerifiedFindingsSessionEnvelope(
+            sessionId: "session-rust-gate",
+            canonicalSnapshot: canonical,
+            projectionSnapshot: VerifiedFindingsProjectionBuilder.build(from: canonical)
+        )
+
+        let report = VerifiedFindingsSecurityGateService.evaluate(envelope: envelope)
+
+        XCTAssertTrue(ReviewCoreBridge.loadedState().loaded)
+        XCTAssertEqual(report.findingsMissingEvidenceCount, 0)
+    }
+}
+
+private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
+    let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
+    return sourceURL
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
+        .path
 }

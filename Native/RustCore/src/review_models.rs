@@ -44,6 +44,30 @@ pub struct ReviewCoreReduceResponse {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewCoreProjectionResponse {
+    pub schema_version: i32,
+    pub error: Option<ReviewCoreErrorPayload>,
+    pub projection: Value,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCoreReplayResponse {
+    pub schema_version: i32,
+    pub error: Option<ReviewCoreErrorPayload>,
+    pub report: Option<Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCoreSecurityGateResponse {
+    pub schema_version: i32,
+    pub error: Option<ReviewCoreErrorPayload>,
+    pub report: Option<Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewVerificationResultPayload {
     pub candidate_id: String,
     pub status: String,
@@ -85,6 +109,36 @@ pub struct ReviewReduceRequest {
     pub operation: String,
     pub primary: Vec<Value>,
     pub fallback: Vec<Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewProjectionRequest {
+    pub schema_version: i32,
+    pub findings: Vec<Value>,
+    pub trace_log: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewReplayRequest {
+    pub schema_version: i32,
+    pub envelope: Value,
+    pub checkpoint_source: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewSecurityGateRequest {
+    pub schema_version: i32,
+    pub envelope: Value,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewHistoricalShapeRequest {
+    pub schema_version: i32,
+    pub records: Vec<Value>,
 }
 
 impl ReviewCoreErrorPayload {
@@ -166,6 +220,60 @@ impl ReviewCoreReduceResponse {
             schema_version: 1,
             error: Some(ReviewCoreErrorPayload::new(code, message)),
             merged_history: Vec::new(),
+        }
+    }
+}
+
+impl ReviewCoreProjectionResponse {
+    pub fn success(projection: Value) -> Self {
+        Self {
+            schema_version: 1,
+            error: None,
+            projection,
+        }
+    }
+
+    pub fn error(code: &str, message: &str) -> Self {
+        Self {
+            schema_version: 1,
+            error: Some(ReviewCoreErrorPayload::new(code, message)),
+            projection: Value::Null,
+        }
+    }
+}
+
+impl ReviewCoreReplayResponse {
+    pub fn success(report: Value) -> Self {
+        Self {
+            schema_version: 1,
+            error: None,
+            report: Some(report),
+        }
+    }
+
+    pub fn error(code: &str, message: &str) -> Self {
+        Self {
+            schema_version: 1,
+            error: Some(ReviewCoreErrorPayload::new(code, message)),
+            report: None,
+        }
+    }
+}
+
+impl ReviewCoreSecurityGateResponse {
+    pub fn success(report: Value) -> Self {
+        Self {
+            schema_version: 1,
+            error: None,
+            report: Some(report),
+        }
+    }
+
+    pub fn error(code: &str, message: &str) -> Self {
+        Self {
+            schema_version: 1,
+            error: Some(ReviewCoreErrorPayload::new(code, message)),
+            report: None,
         }
     }
 }

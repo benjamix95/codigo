@@ -110,4 +110,86 @@ final class HistoricalFindingsQueryServiceTests: XCTestCase {
         XCTAssertEqual(records.last?.revalidationVerdict, .fixedVerified)
         XCTAssertFalse(records.first?.timeline.isEmpty ?? true)
     }
+
+    func testHistoricalFindingsShapeWithRustWhenLibraryIsAvailable() throws {
+        let path = reviewCoreLibraryPath(from: #filePath)
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw XCTSkip("Libreria review core Rust non disponibile")
+        }
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        ReviewCoreBridge.resetForTests()
+        let records = [
+            HistoricalFindingRecord(
+                findingId: "resolved",
+                sessionId: "s1",
+                workspaceId: "/tmp/workspace",
+                domain: .bug,
+                severity: .medium,
+                title: "Resolved",
+                summary: "done",
+                status: .fixedVerified,
+                filePath: "A.swift",
+                lineStart: 10,
+                sourceOrigin: nil,
+                closedReason: nil,
+                patchId: nil,
+                patchApplyStatus: nil,
+                revalidationReportId: nil,
+                revalidationVerdict: nil,
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 1),
+                resolvedAt: nil,
+                resumeEligible: false,
+                timeline: []
+            ),
+            HistoricalFindingRecord(
+                findingId: "open",
+                sessionId: "s2",
+                workspaceId: "/tmp/workspace",
+                domain: .bug,
+                severity: .medium,
+                title: "Open",
+                summary: "todo",
+                status: .verified,
+                filePath: "B.swift",
+                lineStart: 20,
+                sourceOrigin: nil,
+                closedReason: nil,
+                patchId: nil,
+                patchApplyStatus: nil,
+                revalidationReportId: nil,
+                revalidationVerdict: nil,
+                createdAt: Date(timeIntervalSince1970: 2),
+                updatedAt: Date(timeIntervalSince1970: 2),
+                resolvedAt: nil,
+                resumeEligible: true,
+                timeline: []
+            ),
+        ]
+
+        let request = ReviewCoreHistoricalShapeRequest(schemaVersion: 1, records: records)
+        let response: ReviewCoreHistoricalShapeBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_shape_historical_findings",
+            request: request
+        )
+
+        XCTAssertEqual(response?.mergedHistory?.first?.findingId, "open")
+    }
+}
+
+private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
+    let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
+    return sourceURL
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
+        .path
 }

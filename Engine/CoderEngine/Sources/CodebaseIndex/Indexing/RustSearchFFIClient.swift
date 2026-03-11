@@ -6,12 +6,20 @@ private typealias RustSearchFn = @convention(c) (UnsafePointer<CChar>?) -> Unsaf
 private typealias RustCoreFn = @convention(c) (UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?
 private typealias RustFreeFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
 
+public struct ReviewCoreLoadedState: Sendable, Equatable {
+    public let loaded: Bool
+    public let version: String?
+    public let libraryPath: String?
+    public let failureReason: String?
+}
+
 final class RustSearchFFIClient: @unchecked Sendable {
     static let shared = RustSearchFFIClient()
 
     private let lock = NSLock()
     private var api: RustSearchFFIApi?
-    private var resolutionAttempted = false
+    private var loadedLibraryPath: String?
+    private var lastFailureReason: String?
 
     func performSearch(
         query: SearchQueryInput,
@@ -55,6 +63,24 @@ final class RustSearchFFIClient: @unchecked Sendable {
         resolveApi()?.version(symbol: "review_core_version")
     }
 
+    func reviewCoreLoadedState() -> ReviewCoreLoadedState {
+        if let api = resolveApi(),
+           let version = api.version(symbol: "review_core_version") {
+            return ReviewCoreLoadedState(
+                loaded: true,
+                version: version,
+                libraryPath: loadedLibraryPath,
+                failureReason: nil
+            )
+        }
+        return ReviewCoreLoadedState(
+            loaded: false,
+            version: nil,
+            libraryPath: loadedLibraryPath,
+            failureReason: lastFailureReason
+        )
+    }
+
     func callReviewFunction<T: Decodable>(
         _ functionName: String,
         payload: String
@@ -70,16 +96,20 @@ final class RustSearchFFIClient: @unchecked Sendable {
         defer { lock.unlock() }
 
         if let api { return api }
-        if resolutionAttempted { return nil }
-        resolutionAttempted = true
+        lastFailureReason = nil
+        loadedLibraryPath = nil
 
         for candidate in Self.candidateLibraryPaths() where FileManager.default.fileExists(atPath: candidate) {
-            guard let handle = dlopen(candidate, RTLD_NOW | RTLD_LOCAL) else { continue }
+            guard let handle = dlopen(candidate, RTLD_NOW | RTLD_LOCAL) else {
+                lastFailureReason = "dlopen_failed:\(candidate):\(Self.currentDLError() ?? "unknown")"
+                continue
+            }
             guard
                 let versionPtr = dlsym(handle, "solocode_search_backend_version"),
                 let searchPtr = dlsym(handle, "solocode_semantic_search"),
                 let freePtr = dlsym(handle, "solocode_free_buffer")
             else {
+                lastFailureReason = "missing_required_symbol:\(candidate)"
                 dlclose(handle)
                 continue
             }
@@ -90,15 +120,32 @@ final class RustSearchFFIClient: @unchecked Sendable {
                 searchFn: unsafeBitCast(searchPtr, to: RustSearchFn.self),
                 freeFn: unsafeBitCast(freePtr, to: RustFreeFn.self)
             )
+            loadedLibraryPath = candidate
             api = resolved
             return resolved
         }
 
+        if lastFailureReason == nil {
+            lastFailureReason = "library_missing"
+        }
         return nil
+    }
+
+    func resetForTests() {
+        lock.lock()
+        defer { lock.unlock() }
+        api = nil
+        loadedLibraryPath = nil
+        lastFailureReason = nil
     }
 
     private static func candidateLibraryPaths() -> [String] {
         var candidates: [String] = []
+        let explicitReviewCore = ProcessInfo.processInfo.environment["SOLOCODE_REVIEW_CORE_LIBRARY_PATH"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let explicitReviewCore, !explicitReviewCore.isEmpty {
+            candidates.append(explicitReviewCore)
+        }
         let explicit = ProcessInfo.processInfo.environment["SOLOCODE_RUST_SEARCH_LIBRARY_PATH"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let explicit, !explicit.isEmpty {
@@ -116,6 +163,11 @@ final class RustSearchFFIClient: @unchecked Sendable {
         }
 
         return Array(NSOrderedSet(array: candidates)) as? [String] ?? candidates
+    }
+
+    private static func currentDLError() -> String? {
+        guard let error = dlerror() else { return nil }
+        return String(cString: error)
     }
 }
 
@@ -212,6 +264,10 @@ public enum ReviewCoreBridge {
         RustSearchFFIClient.shared.loadedReviewCoreVersion()
     }
 
+    public static func loadedState() -> ReviewCoreLoadedState {
+        RustSearchFFIClient.shared.reviewCoreLoadedState()
+    }
+
     public static func call<Request: Encodable, Response: Decodable>(
         functionName: String,
         request: Request
@@ -233,5 +289,9 @@ public enum ReviewCoreBridge {
         let forceSwift = env["SOLOCODE_REVIEW_CORE_FORCE_SWIFT"] == "1"
             || env["SOLOCODE_REVIEW_CORE_DISABLE_RUST"] == "1"
         return !forceSwift && loadedVersion() != nil
+    }
+
+    static func resetForTests() {
+        RustSearchFFIClient.shared.resetForTests()
     }
 }

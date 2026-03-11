@@ -56,10 +56,42 @@ final class SearchEngineBackendTests: XCTestCase {
 
         XCTAssertTrue(version.contains("solocode_rust_core"))
     }
+
+    func testReviewCoreBridgeLoadedStateReturnsVersionWhenLibraryPathIsForced() throws {
+        let path = reviewCoreLibraryPath(from: #filePath)
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw XCTSkip("Libreria review core Rust non disponibile in build/lib")
+        }
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        ReviewCoreBridge.resetForTests()
+        let state = ReviewCoreBridge.loadedState()
+
+        XCTAssertTrue(state.loaded)
+        XCTAssertEqual(state.libraryPath, path)
+        XCTAssertTrue(state.version?.contains("solocode_rust_core") == true)
+        XCTAssertNil(state.failureReason)
+    }
 }
 
 private extension CodebaseIndex {
     func indexedFilesProxy() -> [IndexedFile] {
         Array(indexedFiles.values)
     }
+}
+
+private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
+    let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
+    return sourceURL
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
+        .path
 }

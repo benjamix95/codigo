@@ -17,6 +17,9 @@ public enum VerifiedFindingsSecurityGateService {
     public static func evaluate(
         envelope: VerifiedFindingsSessionEnvelope
     ) -> VerifiedFindingsSecurityGateReport {
+        if let bridged = evaluateWithRust(envelope: envelope) {
+            return bridged
+        }
         let canonical = envelope.canonicalSnapshot
         let rebuiltProjection = VerifiedFindingsProjectionBuilder.build(from: canonical)
         let mismatchCount = rebuiltProjection == envelope.projectionSnapshot ? 0 : 1
@@ -77,6 +80,20 @@ public enum VerifiedFindingsSecurityGateService {
         )
     }
 
+    private static func evaluateWithRust(
+        envelope: VerifiedFindingsSessionEnvelope
+    ) -> VerifiedFindingsSecurityGateReport? {
+        let request = ReviewCoreSecurityGateRequest(
+            schemaVersion: 1,
+            envelope: envelope
+        )
+        let response: ReviewCoreSecurityGateBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_evaluate_security_gate",
+            request: request
+        )
+        return response?.report
+    }
+
     private static func countUndetectedDuplicates(_ findings: [VerifiedFinding]) -> Int {
         let grouped = Dictionary(grouping: findings, by: \.findingFingerprint)
         return grouped.values.reduce(0) { result, group in
@@ -102,4 +119,13 @@ public enum VerifiedFindingsSecurityGateService {
         let rate = String(format: "%.0f%%", applyRevalidateSuccessRate * 100)
         return "security_gate=\(readiness), mismatches=\(mismatchCount), undetected_duplicates=\(undetectedDuplicateCount), missing_evidence=\(findingsMissingEvidenceCount), missing_verification=\(findingsMissingVerificationCount), rollback=\(rollbackCoverageCount)/\(rollbackEligibleCount), apply_revalidate_success=\(rate)"
     }
+}
+
+private struct ReviewCoreSecurityGateRequest: Encodable {
+    let schemaVersion: Int
+    let envelope: VerifiedFindingsSessionEnvelope
+}
+
+private struct ReviewCoreSecurityGateBridgeResponse: Decodable {
+    let report: VerifiedFindingsSecurityGateReport?
 }

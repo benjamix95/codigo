@@ -1,6 +1,6 @@
 import Foundation
 
-public struct VerifiedFindingsReplayReport: Sendable, Equatable {
+public struct VerifiedFindingsReplayReport: Sendable, Codable, Equatable {
     public let sessionId: String
     public let checkpointSource: VerifiedFindingsEnvelopeSource
     public let eventSchemaVersion: Int
@@ -28,6 +28,9 @@ public enum VerifiedFindingsReplayService {
     public static func replay(
         _ recovered: VerifiedFindingsRecoveredEnvelope
     ) -> VerifiedFindingsReplayReport {
+        if let bridged = replayWithRust(recovered) {
+            return bridged
+        }
         let projection = VerifiedFindingsProjectionBuilder.build(
             from: recovered.envelope.canonicalSnapshot
         )
@@ -46,4 +49,29 @@ public enum VerifiedFindingsReplayService {
             staleCandidatesCount: projection.staleCandidatesCount
         )
     }
+
+    private static func replayWithRust(
+        _ recovered: VerifiedFindingsRecoveredEnvelope
+    ) -> VerifiedFindingsReplayReport? {
+        let request = ReviewCoreReplayRequest(
+            schemaVersion: 1,
+            envelope: recovered.envelope,
+            checkpointSource: recovered.source.rawValue
+        )
+        let response: ReviewCoreReplayBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_replay_verified_findings",
+            request: request
+        )
+        return response?.report
+    }
+}
+
+private struct ReviewCoreReplayRequest: Encodable {
+    let schemaVersion: Int
+    let envelope: VerifiedFindingsSessionEnvelope
+    let checkpointSource: String
+}
+
+private struct ReviewCoreReplayBridgeResponse: Decodable {
+    let report: VerifiedFindingsReplayReport?
 }

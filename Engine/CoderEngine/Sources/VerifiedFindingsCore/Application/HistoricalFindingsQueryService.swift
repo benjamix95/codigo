@@ -111,7 +111,8 @@ public enum HistoricalFindingsQueryService {
         query: HistoricalFindingsQuery
     ) -> [HistoricalFindingRecord] {
         guard let store = MCPSharedState.persistenceStoreIfAvailable() else { return [] }
-        return (try? store.readHistoricalFindings(query: query)) ?? []
+        let records = (try? store.readHistoricalFindings(query: query)) ?? []
+        return shapeWithRust(records) ?? records
     }
 
     public static func detail(
@@ -119,9 +120,34 @@ public enum HistoricalFindingsQueryService {
         workspaceId: String
     ) -> HistoricalFindingRecord? {
         guard let store = MCPSharedState.persistenceStoreIfAvailable() else { return nil }
-        return try? store.readHistoricalFinding(
+        let record = try? store.readHistoricalFinding(
             findingId: findingId,
             workspaceId: workspaceId
         )
+        guard let record else { return nil }
+        return shapeWithRust([record])?.first ?? record
     }
+
+    private static func shapeWithRust(
+        _ records: [HistoricalFindingRecord]
+    ) -> [HistoricalFindingRecord]? {
+        let request = ReviewCoreHistoricalShapeRequest(
+            schemaVersion: 1,
+            records: records
+        )
+        let response: ReviewCoreHistoricalShapeBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_shape_historical_findings",
+            request: request
+        )
+        return response?.mergedHistory
+    }
+}
+
+struct ReviewCoreHistoricalShapeRequest: Encodable {
+    let schemaVersion: Int
+    let records: [HistoricalFindingRecord]
+}
+
+struct ReviewCoreHistoricalShapeBridgeResponse: Decodable {
+    let mergedHistory: [HistoricalFindingRecord]?
 }

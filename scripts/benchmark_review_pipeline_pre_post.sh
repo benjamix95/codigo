@@ -20,10 +20,14 @@ fi
 
 OUT_DIR="$ROOT_DIR/docs/benchmarks/review-core"
 mkdir -p "$OUT_DIR"
+mkdir -p "$ROOT_DIR/tmp"
 
 ENGINE_JSON="$OUT_DIR/${TAG}-${PHASE}-engine.json"
 APP_JSON="$OUT_DIR/${TAG}-${PHASE}-app.json"
 SUMMARY_MD="$OUT_DIR/${TAG}-summary.md"
+PHASE_MARKER="$ROOT_DIR/tmp/review-core-benchmark-phase.txt"
+rm -f "$ENGINE_JSON" "$APP_JSON"
+printf '%s\n' "$PHASE" >"$PHASE_MARKER"
 
 if [[ "$PHASE" == "pre" ]]; then
   export SOLOCODE_REVIEW_CORE_FORCE_SWIFT=1
@@ -37,7 +41,13 @@ export SOLOCODE_REVIEW_APP_BENCHMARK_OUTPUT="$APP_JSON"
 source "$HOME/.cargo/env"
 scripts/build_rust_search_backend.sh >/tmp/solocode-review-rust-build-"$PHASE".log 2>&1 || true
 export SOLOCODE_RUST_SKIP_XCODE_BUILD=1
-export SOLOCODE_RUST_SEARCH_LIBRARY_PATH="$ROOT_DIR/Native/RustCore/build/lib/libsolocode_rust_core.dylib"
+if [[ "$PHASE" == "post" ]]; then
+  export SOLOCODE_RUST_SEARCH_LIBRARY_PATH="$ROOT_DIR/Native/RustCore/build/lib/libsolocode_rust_core.dylib"
+  export SOLOCODE_REVIEW_CORE_LIBRARY_PATH="$SOLOCODE_RUST_SEARCH_LIBRARY_PATH"
+else
+  unset SOLOCODE_RUST_SEARCH_LIBRARY_PATH || true
+  unset SOLOCODE_REVIEW_CORE_LIBRARY_PATH || true
+fi
 
 xcodebuild test \
   -workspace 'Solo Code.xcworkspace' \
@@ -47,15 +57,11 @@ xcodebuild test \
   -only-testing:SoloCodeAppTests/ReviewPanelFindingsHistoryTests/testReviewPanelStoreSmokeBenchmark \
   >/tmp/solocode-review-benchmark-"$PHASE".log 2>&1
 
-if [[ ! -f "$ENGINE_JSON" ]]; then
-  ENGINE_LINE="$(grep 'REVIEW_ENGINE_BENCHMARK ' /tmp/solocode-review-benchmark-"$PHASE".log | tail -n 1 | sed 's/^.*REVIEW_ENGINE_BENCHMARK //')"
-  [[ -n "$ENGINE_LINE" ]] && printf '%s\n' "$ENGINE_LINE" >"$ENGINE_JSON"
-fi
+ENGINE_LINE="$(grep 'REVIEW_ENGINE_BENCHMARK ' /tmp/solocode-review-benchmark-"$PHASE".log | tail -n 1 | sed 's/^.*REVIEW_ENGINE_BENCHMARK //')"
+[[ -n "$ENGINE_LINE" ]] && printf '%s\n' "$ENGINE_LINE" >"$ENGINE_JSON"
 
-if [[ ! -f "$APP_JSON" ]]; then
-  APP_LINE="$(grep 'REVIEW_APP_BENCHMARK ' /tmp/solocode-review-benchmark-"$PHASE".log | tail -n 1 | sed 's/^.*REVIEW_APP_BENCHMARK //')"
-  [[ -n "$APP_LINE" ]] && printf '%s\n' "$APP_LINE" >"$APP_JSON"
-fi
+APP_LINE="$(grep 'REVIEW_APP_BENCHMARK ' /tmp/solocode-review-benchmark-"$PHASE".log | tail -n 1 | sed 's/^.*REVIEW_APP_BENCHMARK //')"
+[[ -n "$APP_LINE" ]] && printf '%s\n' "$APP_LINE" >"$APP_JSON"
 
 /usr/bin/python3 - "$OUT_DIR" "$TAG" "$PHASE" "$ENGINE_JSON" "$APP_JSON" "$SUMMARY_MD" <<'PY'
 import json, pathlib, sys
@@ -80,8 +86,12 @@ if phase == "post":
 ## Engine
 - verify_candidate_p95_ms: {pre_engine.get('verify_candidate_p95_ms')} -> {engine.get('verify_candidate_p95_ms')}
 - verified_sync_p95_ms: {pre_engine.get('verified_sync_p95_ms')} -> {engine.get('verified_sync_p95_ms')}
+- projection_build_p95_ms: {pre_engine.get('projection_build_p95_ms')} -> {engine.get('projection_build_p95_ms')}
+- security_gate_p95_ms: {pre_engine.get('security_gate_p95_ms')} -> {engine.get('security_gate_p95_ms')}
+- historical_shape_p95_ms: {pre_engine.get('historical_shape_p95_ms')} -> {engine.get('historical_shape_p95_ms')}
 - audit_suite_duration_ms: {pre_engine.get('audit_suite_duration_ms')} -> {engine.get('audit_suite_duration_ms')}
 - rust_review_core_loaded_post: {engine.get('rust_review_core_loaded')}
+- rust_review_core_failure_reason_post: {engine.get('rust_review_core_failure_reason')}
 
 ## App
 - snapshot_ingest_p95_ms: {pre_app.get('snapshot_ingest_p95_ms')} -> {app.get('snapshot_ingest_p95_ms')}
@@ -90,3 +100,4 @@ if phase == "post":
 """
         pathlib.Path(summary_md).write_text(summary)
 PY
+rm -f "$PHASE_MARKER"

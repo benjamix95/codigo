@@ -118,6 +118,14 @@ extension TaskActivityStore {
         payload["verified_replay_candidate_count"] = String(verifiedState.replayReport.candidateCount)
         payload["verified_replay_findings_count"] = String(verifiedState.replayReport.verifiedCount)
         payload["verified_security_gate_ready"] = verifiedState.securityGate.ready ? "true" : "false"
+        let reviewCoreState = ReviewCoreBridge.loadedState()
+        payload["review_core_loaded"] = reviewCoreState.loaded ? "true" : "false"
+        if let version = reviewCoreState.version {
+            payload["review_core_version"] = version
+        }
+        if let reason = reviewCoreState.failureReason {
+            payload["review_core_failure_reason"] = reason
+        }
         if let conversationScope = codeReviewConversationScope(conversationId) {
             payload["conversation_id"] = conversationScope
         }

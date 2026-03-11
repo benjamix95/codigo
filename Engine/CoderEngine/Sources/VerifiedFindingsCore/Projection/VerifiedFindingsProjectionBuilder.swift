@@ -4,6 +4,9 @@ public enum VerifiedFindingsProjectionBuilder {
     public static func build(
         from snapshot: VerifiedFindingsCanonicalSnapshot
     ) -> VerifiedFindingsProjectionSnapshot {
+        if let bridged = buildWithRust(from: snapshot) {
+            return bridged
+        }
         let items = snapshot.findings.values.map { finding in
             VerifiedFindingListItemProjection(
                 id: finding.id,
@@ -36,4 +39,29 @@ public enum VerifiedFindingsProjectionBuilder {
             traceSnippets: Array(snapshot.traceLog.suffix(20))
         )
     }
+
+    private static func buildWithRust(
+        from snapshot: VerifiedFindingsCanonicalSnapshot
+    ) -> VerifiedFindingsProjectionSnapshot? {
+        let request = ReviewCoreProjectionRequest(
+            schemaVersion: 1,
+            findings: Array(snapshot.findings.values),
+            traceLog: snapshot.traceLog
+        )
+        let response: ReviewCoreProjectionBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_build_projection",
+            request: request
+        )
+        return response?.projection
+    }
+}
+
+private struct ReviewCoreProjectionRequest: Encodable {
+    let schemaVersion: Int
+    let findings: [VerifiedFinding]
+    let traceLog: [String]
+}
+
+private struct ReviewCoreProjectionBridgeResponse: Decodable {
+    let projection: VerifiedFindingsProjectionSnapshot?
 }
