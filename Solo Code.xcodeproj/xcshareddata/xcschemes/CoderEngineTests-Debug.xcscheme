@@ -14,23 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "28214A2FA00FC0B6E7A9E7F2"
-               BuildableName = "Solo Code.app"
-               BlueprintName = "Solo Code"
-               ReferencedContainer = "container:Solo Code.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "BE4DA5FB9E6D95AEBAD310C1"
-               BuildableName = "SoloCodeAppTests.xctest"
-               BlueprintName = "SoloCodeAppTests"
+               BlueprintIdentifier = "3D89E17A22E33E17AAF17C0A"
+               BuildableName = "CoderEngine.framework"
+               BlueprintName = "CoderEngine"
                ReferencedContainer = "container:Solo Code.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -56,9 +42,9 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "7AF4261C8E67C4825DF16F44"
-               BuildableName = "SoloCodeIntegrationTests.xctest"
-               BlueprintName = "SoloCodeIntegrationTests"
+               BlueprintIdentifier = "A7CFFBCF1182756C8D97CE62"
+               BuildableName = "CoderIDEMCPServer.framework"
+               BlueprintName = "CoderIDEMCPServer"
                ReferencedContainer = "container:Solo Code.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -69,26 +55,7 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
-      <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "28214A2FA00FC0B6E7A9E7F2"
-            BuildableName = "Solo Code.app"
-            BlueprintName = "Solo Code"
-            ReferencedContainer = "container:Solo Code.xcodeproj">
-         </BuildableReference>
-      </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "BE4DA5FB9E6D95AEBAD310C1"
-               BuildableName = "SoloCodeAppTests.xctest"
-               BlueprintName = "SoloCodeAppTests"
-               ReferencedContainer = "container:Solo Code.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
          <TestableReference
             skipped = "NO">
             <BuildableReference
@@ -96,16 +63,6 @@
                BlueprintIdentifier = "E06F43C753430F7CBE8834E1"
                BuildableName = "CoderEngineTests.xctest"
                BlueprintName = "CoderEngineTests"
-               ReferencedContainer = "container:Solo Code.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "7AF4261C8E67C4825DF16F44"
-               BuildableName = "SoloCodeIntegrationTests.xctest"
-               BlueprintName = "SoloCodeIntegrationTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -123,9 +80,9 @@ fi
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
-                     BlueprintIdentifier = "28214A2FA00FC0B6E7A9E7F2"
-                     BuildableName = "Solo Code.app"
-                     BlueprintName = "Solo Code"
+                     BlueprintIdentifier = "3D89E17A22E33E17AAF17C0A"
+                     BuildableName = "CoderEngine.framework"
+                     BlueprintName = "CoderEngine"
                      ReferencedContainer = "container:Solo Code.xcodeproj">
                   </BuildableReference>
                </EnvironmentBuildable>
@@ -143,16 +100,6 @@ fi
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
-      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "28214A2FA00FC0B6E7A9E7F2"
-            BuildableName = "Solo Code.app"
-            BlueprintName = "Solo Code"
-            ReferencedContainer = "container:Solo Code.xcodeproj">
-         </BuildableReference>
-      </BuildableProductRunnable>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -160,16 +107,6 @@ fi
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
       debugDocumentVersioning = "YES">
-      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "28214A2FA00FC0B6E7A9E7F2"
-            BuildableName = "Solo Code.app"
-            BlueprintName = "Solo Code"
-            ReferencedContainer = "container:Solo Code.xcodeproj">
-         </BuildableReference>
-      </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

@@ -42,6 +42,46 @@ struct AppBundleProjectStructureTests {
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Solo Code.xcodeproj").path))
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Solo Code.xcworkspace").path))
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Config/TestPlans/Solo Code.xctestplan").path))
+        #expect(FileManager.default.isExecutableFile(
+            atPath: root.appendingPathComponent("scripts/bootstrap_test_bundles.sh").path
+        ))
+    }
+
+    @Test
+    func debugSchemeBootstrapsTestBundlesBeforeRunningTests() throws {
+        let schemeURL = repoRootURL()
+            .appendingPathComponent("Solo Code.xcodeproj", isDirectory: true)
+            .appendingPathComponent("xcshareddata", isDirectory: true)
+            .appendingPathComponent("xcschemes", isDirectory: true)
+            .appendingPathComponent("Solo Code-Debug.xcscheme")
+        let xml = try String(contentsOf: schemeURL)
+
+        #expect(xml.contains("Bootstrap Test Bundles"))
+        #expect(xml.contains("scripts/bootstrap_test_bundles.sh"))
+    }
+
+    @Test
+    func engineTestsSchemeExistsForIsolatedHarnessValidation() {
+        let schemeURL = repoRootURL()
+            .appendingPathComponent("Solo Code.xcodeproj", isDirectory: true)
+            .appendingPathComponent("xcshareddata", isDirectory: true)
+            .appendingPathComponent("xcschemes", isDirectory: true)
+            .appendingPathComponent("CoderEngineTests-Debug.xcscheme")
+
+        #expect(FileManager.default.fileExists(atPath: schemeURL.path))
+    }
+
+    @Test
+    func engineTestsTargetEmbedsRequiredFrameworks() throws {
+        let projectURL = repoRootURL()
+            .appendingPathComponent("Solo Code.xcodeproj", isDirectory: true)
+            .appendingPathComponent("project.pbxproj")
+        let pbxproj = try String(contentsOf: projectURL)
+
+        #expect(pbxproj.contains("CoderEngineTests"))
+        #expect(pbxproj.contains("Embed Frameworks"))
+        #expect(pbxproj.contains("CoderEngine.framework"))
+        #expect(pbxproj.contains("CoderIDEMCPServer.framework"))
     }
 
     @Test

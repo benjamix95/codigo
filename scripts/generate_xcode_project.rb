@@ -63,6 +63,32 @@ def assign_xcconfig(project, target, path)
   target.build_configurations.each { |cfg| cfg.base_configuration_reference = ref }
 end
 
+def add_embed_frameworks_phase(project, target, frameworks)
+  phase = target.new_copy_files_build_phase('Embed Frameworks')
+  phase.dst_subfolder_spec = Xcodeproj::Constants::COPY_FILES_BUILD_PHASE_DESTINATIONS[:frameworks]
+  frameworks.each do |framework_target|
+    build = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+    build.file_ref = framework_target.product_reference
+    build.settings = { 'ATTRIBUTES' => %w[CodeSignOnCopy RemoveHeadersOnCopy] }
+    phase.files << build
+  end
+end
+
+def add_test_bootstrap_pre_action(scheme, build_target)
+  action = Xcodeproj::XCScheme::ExecutionAction.new(nil, :shell_script)
+  content = Xcodeproj::XCScheme::ShellScriptActionContent.new
+  content.title = 'Bootstrap Test Bundles'
+  content.shell_to_invoke = '/bin/sh'
+  content.script_text = <<~SH
+    if [ -n "$SRCROOT" ] && [ -f "$SRCROOT/scripts/bootstrap_test_bundles.sh" ]; then
+      "$SRCROOT/scripts/bootstrap_test_bundles.sh" "$BUILT_PRODUCTS_DIR"
+    fi
+  SH
+  content.buildable_reference = Xcodeproj::XCScheme::BuildableReference.new(build_target)
+  action.action_content = content
+  scheme.test_action.add_pre_action(action)
+end
+
 FileUtils.rm_rf(PROJECT_PATH)
 FileUtils.rm_rf(WORKSPACE_PATH)
 FileUtils.mkdir_p(File.dirname(TESTPLAN_PATH))
@@ -155,16 +181,8 @@ integration_tests_target.add_dependency(engine_target)
 engine_tests_target.frameworks_build_phase.add_file_reference(engine_target.product_reference, true)
 engine_tests_target.frameworks_build_phase.add_file_reference(helper_framework_target.product_reference, true)
 
-embed_fw = app_target.new_copy_files_build_phase('Embed Frameworks')
-embed_fw.dst_subfolder_spec = Xcodeproj::Constants::COPY_FILES_BUILD_PHASE_DESTINATIONS[:frameworks]
-fw_build = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-fw_build.file_ref = engine_target.product_reference
-fw_build.settings = { 'ATTRIBUTES' => %w[CodeSignOnCopy RemoveHeadersOnCopy] }
-embed_fw.files << fw_build
-helper_fw_build = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-helper_fw_build.file_ref = helper_framework_target.product_reference
-helper_fw_build.settings = { 'ATTRIBUTES' => %w[CodeSignOnCopy RemoveHeadersOnCopy] }
-embed_fw.files << helper_fw_build
+add_embed_frameworks_phase(project, app_target, [engine_target, helper_framework_target])
+add_embed_frameworks_phase(project, engine_tests_target, [engine_target, helper_framework_target])
 
 embed_helper = app_target.new_copy_files_build_phase('Embed Helper')
 embed_helper.dst_subfolder_spec = Xcodeproj::Constants::COPY_FILES_BUILD_PHASE_DESTINATIONS[:executables]
@@ -178,7 +196,14 @@ scheme.add_build_target(engine_tests_target, false)
 scheme.add_build_target(integration_tests_target, false)
 scheme.add_test_target(engine_tests_target)
 scheme.add_test_target(integration_tests_target)
+add_test_bootstrap_pre_action(scheme, app_target)
 scheme.save_as(PROJECT_PATH, 'Solo Code-Debug', true)
+
+engine_test_scheme = Xcodeproj::XCScheme.new
+engine_test_scheme.configure_with_targets(engine_target, engine_tests_target, launch_target: false)
+engine_test_scheme.add_build_target(helper_framework_target, false)
+add_test_bootstrap_pre_action(engine_test_scheme, engine_target)
+engine_test_scheme.save_as(PROJECT_PATH, 'CoderEngineTests-Debug', true)
 
 release_scheme = Xcodeproj::XCScheme.new
 release_scheme.configure_with_targets(app_target, nil, launch_target: true)
@@ -186,6 +211,7 @@ release_scheme.save_as(PROJECT_PATH, 'Solo Code-Release', true)
 
 integration_scheme = Xcodeproj::XCScheme.new
 integration_scheme.configure_with_targets(app_target, integration_tests_target, launch_target: true)
+add_test_bootstrap_pre_action(integration_scheme, app_target)
 integration_scheme.save_as(PROJECT_PATH, 'Solo Code-IntegrationTests', true)
 
 FileUtils.mkdir_p(WORKSPACE_PATH)

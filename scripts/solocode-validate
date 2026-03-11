@@ -67,6 +67,34 @@ pass() {
   log "[PASSED] $1"
 }
 
+DERIVED_DATA_PATH="${TMPDIR%/}/solocode-validate-derived-data"
+
+build_for_testing() {
+  rm -rf "$DERIVED_DATA_PATH"
+  xcodebuild build-for-testing \
+    -workspace "Solo Code.xcworkspace" \
+    -scheme "Solo Code-Debug" \
+    -destination "platform=macOS" \
+    -derivedDataPath "$DERIVED_DATA_PATH" >/tmp/solocode-validate-build-for-testing.log 2>&1 \
+    || fail "buildForTesting" "$(tail -n 60 /tmp/solocode-validate-build-for-testing.log)"
+  ./scripts/bootstrap_test_bundles.sh "$DERIVED_DATA_PATH/Build/Products/Debug" \
+    || fail "testBootstrap" "bootstrap_test_bundles.sh fallito"
+  pass "buildForTesting"
+}
+
+run_tests_without_building() {
+  local stage="$1"
+  local log_file="$2"
+  shift 2
+  xcodebuild test-without-building \
+    -workspace "Solo Code.xcworkspace" \
+    -scheme "Solo Code-Debug" \
+    -destination "platform=macOS" \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
+    "$@" >"$log_file" 2>&1 \
+    || fail "$stage" "$(tail -n 60 "$log_file")"
+}
+
 if [[ ${#FILES[@]} -eq 0 && "$TRIGGER" != "ciFull" ]]; then
   fail "scope" "Nessun file da validare."
 fi
@@ -191,12 +219,8 @@ for arg in "${TEST_ARGS[@]}"; do
 done
 TEST_ARGS=("${deduped_args[@]}")
 
-xcodebuild test \
-  -workspace "Solo Code.xcworkspace" \
-  -scheme "Solo Code-Debug" \
-  -destination "platform=macOS" \
-  "${TEST_ARGS[@]}" >/tmp/solocode-validate-tests.log 2>&1 \
-  || fail "targetedTests" "$(tail -n 60 /tmp/solocode-validate-tests.log)"
+build_for_testing
+run_tests_without_building targetedTests /tmp/solocode-validate-tests.log "${TEST_ARGS[@]}"
 pass "targetedTests"
 
 needs_security="false"
@@ -226,20 +250,11 @@ if [[ "$TRIGGER" == "gitCommit" || "$TRIGGER" == "ciFull" ]]; then
 fi
 
 if [[ "$TRIGGER" == "ciFull" ]]; then
-  xcodebuild test \
-    -workspace "Solo Code.xcworkspace" \
-    -scheme "Solo Code-Debug" \
-    -destination "platform=macOS" \
-    -only-testing:CoderEngineTests/ValidationPerformanceTests >/tmp/solocode-validate-performance.log 2>&1 \
-    || fail "performance" "$(tail -n 60 /tmp/solocode-validate-performance.log)"
+  run_tests_without_building performance /tmp/solocode-validate-performance.log \
+    -only-testing:CoderEngineTests/ValidationPerformanceTests
   pass "performance"
   if find Tests/SoloCodeIntegrationTests -name '*.swift' -print -quit | grep -q .; then
-    xcodebuild test \
-      -workspace "Solo Code.xcworkspace" \
-      -scheme "Solo Code-Debug" \
-      -destination "platform=macOS" \
-      -only-testing:SoloCodeIntegrationTests >/tmp/solocode-validate-e2e.log 2>&1 \
-      || fail "e2e" "$(tail -n 60 /tmp/solocode-validate-e2e.log)"
+    run_tests_without_building e2e /tmp/solocode-validate-e2e.log -only-testing:SoloCodeIntegrationTests
     pass "e2e"
   else
     log "[SKIPPED] e2e"

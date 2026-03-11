@@ -8,6 +8,12 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
     let Some(events) = request.snapshot.get("events").and_then(Value::as_array) else {
         return ReviewCommandMutationResponse::error("Snapshot events are missing");
     };
+    let patches = request
+        .snapshot
+        .get("patches")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     let timestamp = request
         .snapshot
         .get("lastUpdatedAt")
@@ -21,6 +27,13 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
         "apply_fix" => apply_fix(&mut findings, &mut events, &request.payload, &timestamp),
         "dismiss" => dismiss(&mut findings, &mut events, &request.payload, &timestamp),
         "comment" => comment(&mut findings, &mut events, &request.payload, &timestamp),
+        "close_finding" => close_finding(
+            &mut findings,
+            &mut events,
+            &patches,
+            &request.payload,
+            &timestamp,
+        ),
         _ => return ReviewCommandMutationResponse::error("Unsupported snapshot mutation"),
     };
     if let Err(error) = result {
@@ -101,6 +114,46 @@ fn comment(
     Ok(())
 }
 
+fn close_finding(
+    findings: &mut [Value],
+    events: &mut Vec<Value>,
+    patches: &[Value],
+    payload: &std::collections::HashMap<String, String>,
+    timestamp: &str,
+) -> Result<(), ReviewCommandMutationResponse> {
+    let finding_id = required(payload, "finding_id")?;
+    let reason = payload
+        .get("reason")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("closed");
+    let finding = find_finding(findings, &finding_id)?;
+    let current_status = finding
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("open");
+    let can_close = match current_status {
+        "merged" | "dismissed" | "wont_fix" | "closed" => true,
+        "patch_applied" | "fix_applied" => find_patch(patches, &finding_id)
+            .and_then(|patch| patch.get("validationStatus").and_then(Value::as_str))
+            == Some("passed"),
+        _ => false,
+    };
+    if !can_close {
+        return Err(ReviewCommandMutationResponse::error(
+            "Finding cannot be closed until it is merged, dismissed, or validated after apply",
+        ));
+    }
+    finding["status"] = Value::String("closed".to_string());
+    events.push(event(
+        "outcome_published",
+        format!("Finding {} closed", finding_id),
+        json!({ "finding_id": finding_id, "reason": reason }),
+        timestamp,
+    ));
+    Ok(())
+}
+
 fn required(
     payload: &std::collections::HashMap<String, String>,
     key: &str,
@@ -120,6 +173,12 @@ fn find_finding<'a>(
         .iter_mut()
         .find(|finding| finding.get("id").and_then(Value::as_str) == Some(finding_id))
         .ok_or_else(|| ReviewCommandMutationResponse::error("Finding not found"))
+}
+
+fn find_patch<'a>(patches: &'a [Value], finding_id: &str) -> Option<&'a Value> {
+    patches
+        .iter()
+        .find(|patch| patch.get("findingId").and_then(Value::as_str) == Some(finding_id))
 }
 
 fn event(event_type: &str, detail: String, metadata: Value, timestamp: &str) -> Value {
@@ -145,6 +204,7 @@ mod tests {
                 "status": "open",
                 "comments": []
             }],
+            "patches": [],
             "events": []
         })
     }
@@ -183,5 +243,36 @@ mod tests {
         let comments = findings[0].get("comments").and_then(Value::as_array).unwrap();
         assert_eq!(comments.len(), 1);
         assert_eq!(comments[0].get("content").and_then(Value::as_str), Some("hello"));
+    }
+
+    #[test]
+    fn close_finding_requires_validated_apply_or_terminal_status() {
+        let response = mutate_snapshot(ReviewCommandMutationRequest {
+            schema_version: 1,
+            action: "close_finding".to_string(),
+            snapshot: json!({
+                "sessionId": "session-1",
+                "lastUpdatedAt": "2026-03-11T12:00:00Z",
+                "findings": [{
+                    "id": "finding-1",
+                    "status": "patch_applied",
+                    "comments": []
+                }],
+                "patches": [{
+                    "findingId": "finding-1",
+                    "validationStatus": "passed"
+                }],
+                "events": []
+            }),
+            payload: std::collections::HashMap::from([
+                ("finding_id".to_string(), "finding-1".to_string()),
+                ("reason".to_string(), "fixed_verified".to_string()),
+            ]),
+        });
+        assert!(!response.is_error);
+        assert_eq!(
+            response.findings.unwrap()[0].get("status").and_then(Value::as_str),
+            Some("closed")
+        );
     }
 }
