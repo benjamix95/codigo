@@ -135,6 +135,42 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertTrue(snapshot.config.analysisOnly)
     }
 
+    func testDismissCommandUsesRustPlannerAndPersistsWontFix() async throws {
+        let app = makeApp()
+        let snapshot = makeSnapshot(
+            sessionId: "dismiss-command-session",
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-dismiss",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Dismiss me"
+                )
+            ]
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "dismiss",
+            sessionId: snapshot.sessionId,
+            conversationId: nil,
+            payload: [
+                "session_id": snapshot.sessionId,
+                "finding_id": "finding-dismiss",
+                "reason": "wont_fix",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .completed)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: snapshot.sessionId)
+        )
+        XCTAssertEqual(updatedSnapshot.findings.first?.status, .wontFix)
+    }
+
     func testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch() {
         let app = makeApp()
         let snapshot = CodeReviewSessionSnapshot(
