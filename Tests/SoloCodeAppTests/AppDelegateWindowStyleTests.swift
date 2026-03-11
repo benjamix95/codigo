@@ -53,6 +53,23 @@ final class AppDelegateWindowStyleTests: XCTestCase {
         XCTAssertTrue(window.standardWindowButton(.zoomButton)?.isHidden ?? false)
     }
 
+    func testApplyMainWindowStyleIsIdempotentWhenAppliedTwice() {
+        let window = makeWindow()
+        let toolbar = NSToolbar(identifier: "repeat-toolbar")
+        toolbar.showsBaselineSeparator = true
+        window.toolbar = toolbar
+
+        AppDelegate.applyMainWindowStyle(window)
+        AppDelegate.applyMainWindowStyle(window)
+
+        XCTAssertEqual(window.title, "")
+        XCTAssertEqual(window.titleVisibility, .hidden)
+        XCTAssertTrue(window.titlebarAppearsTransparent)
+        XCTAssertTrue(window.styleMask.contains(.fullSizeContentView))
+        XCTAssertFalse(window.toolbar?.showsBaselineSeparator ?? true)
+        XCTAssertTrue(window.standardWindowButton(.closeButton)?.isHidden ?? false)
+    }
+
     private func makeWindow() -> NSWindow {
         NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),

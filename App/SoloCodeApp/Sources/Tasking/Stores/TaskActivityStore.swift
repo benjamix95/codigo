@@ -51,9 +51,8 @@ final class TaskActivityStore: ObservableObject {
     func scheduleDeferredMutation(
         _ mutation: @escaping @MainActor (TaskActivityStore) -> Void
     ) {
-        Task { @MainActor [weak self] in
-            await Task.yield()
-            guard !Task.isCancelled, let self else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
             mutation(self)
         }
     }
@@ -64,6 +63,12 @@ final class TaskActivityStore: ObservableObject {
     ) {
         scheduleDeferredMutation { store in
             store.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+        }
+    }
+
+    func scheduleAddActivity(_ activity: TaskActivity) {
+        scheduleDeferredMutation { store in
+            store.addActivity(activity)
         }
     }
 

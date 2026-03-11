@@ -158,9 +158,8 @@ final class CodeReviewPanelStore: ObservableObject {
     func scheduleDeferredMutation(
         _ mutation: @escaping @MainActor (CodeReviewPanelStore) -> Void
     ) {
-        Task { @MainActor [weak self] in
-            await Task.yield()
-            guard !Task.isCancelled, let self else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
             mutation(self)
         }
     }

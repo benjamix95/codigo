@@ -35,12 +35,17 @@ extension TaskActivityStore {
 
     private func schedulePendingActivitiesFlush(delayNanoseconds: UInt64) {
         flushTask?.cancel()
+        let delaySeconds = Double(delayNanoseconds) / 1_000_000_000
         flushTask = Task { @MainActor [weak self] in
-            if delayNanoseconds > 0 {
+            if delaySeconds > 0 {
                 try? await Task.sleep(nanoseconds: delayNanoseconds)
             }
             guard !Task.isCancelled else { return }
-            await Task.yield()
+            // Defer to the next run-loop iteration so @Published mutations
+            // never fire inside a SwiftUI view update.
+            await withCheckedContinuation { continuation in
+                DispatchQueue.main.async { continuation.resume() }
+            }
             guard !Task.isCancelled else { return }
             self?.flushPendingActivities()
         }

@@ -41,18 +41,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor static func applyMainWindowStyle(_ window: NSWindow) {
-        window.title = ""
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.styleMask.insert(.fullSizeContentView)
-        window.isOpaque = false
-        window.backgroundColor = DesignSystem.AppKit.sidebarBackground
-        window.isMovableByWindowBackground = false
-        if #available(macOS 11.0, *) {
-            window.toolbarStyle = .unifiedCompact
-            window.titlebarSeparatorStyle = .none
+        if window.title != "" {
+            window.title = ""
         }
-        window.toolbar?.showsBaselineSeparator = false
+        if window.titleVisibility != .hidden {
+            window.titleVisibility = .hidden
+        }
+        if !window.titlebarAppearsTransparent {
+            window.titlebarAppearsTransparent = true
+        }
+        if !window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.insert(.fullSizeContentView)
+        }
+        if window.isOpaque {
+            window.isOpaque = false
+        }
+        if !window.backgroundColor.isEqual(DesignSystem.AppKit.sidebarBackground) {
+            window.backgroundColor = DesignSystem.AppKit.sidebarBackground
+        }
+        if window.isMovableByWindowBackground {
+            window.isMovableByWindowBackground = false
+        }
+        if #available(macOS 11.0, *) {
+            if window.toolbarStyle != .unifiedCompact {
+                window.toolbarStyle = .unifiedCompact
+            }
+            if window.titlebarSeparatorStyle != .none {
+                window.titlebarSeparatorStyle = .none
+            }
+        }
+        if window.toolbar?.showsBaselineSeparator == true {
+            window.toolbar?.showsBaselineSeparator = false
+        }
         hideStandardWindowButtons(for: window)
         WindowSidebarToggleController.installIfNeeded(on: window)
     }

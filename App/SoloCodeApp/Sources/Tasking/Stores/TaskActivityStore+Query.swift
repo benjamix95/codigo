@@ -149,9 +149,9 @@ extension TaskActivityStore {
             limitEventsPerCard: limitEventsPerCard
         )
         let finalizedCards = cards.map(Self.finalizedSwarmCardSnapshot)
-        DispatchQueue.main.async { [weak self] in
-            self?.flushPending()
-            self?.finalizeSwarmCards(
+        scheduleDeferredMutation { store in
+            store.flushPending()
+            store.finalizeSwarmCards(
                 matchingSnapshots: finalizedCards,
                 for: conversationId
             )

@@ -200,6 +200,78 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         XCTAssertFalse(store.chatMessages.contains(where: { $0.content == "Late overwrite" }))
     }
 
+    func testHandleIncomingChatConversationDefersStateApplication() async {
+        let store = makePanelStore()
+
+        store.createNewChatThread(title: "Deferred Apply")
+        await waitUntil("thread mirror becomes available") {
+            store.chatThreads.count == 1
+        }
+
+        // Build a new conversation state with an extra thread.
+        let extraThread = ReviewPanelChatThreadState(title: "Extra Thread")
+        let newConversation = ReviewPanelChatConversationState(
+            threads: store.chatThreads + [extraThread],
+            activeThreadId: store.activeChatThreadId
+        )
+
+        // Call the deferred handler – state should NOT apply synchronously.
+        store.handleIncomingChatConversation(newConversation)
+        XCTAssertEqual(
+            store.chatThreads.count,
+            1,
+            "handleIncomingChatConversation must not apply state synchronously."
+        )
+        XCTAssertNotNil(
+            store.pendingChatConversationApplyTask,
+            "A deferred task should be scheduled."
+        )
+
+        // After yielding, the deferred Task should have applied the state.
+        await waitUntil("deferred conversation state is applied") {
+            store.chatThreads.count == 2
+        }
+        XCTAssertEqual(store.chatThreads.count, 2)
+        XCTAssertNil(
+            store.pendingChatConversationApplyTask,
+            "The deferred task should be cleared after execution."
+        )
+    }
+
+    func testHandleIncomingChatConversationCancelsPreviousDeferredTask() async {
+        let store = makePanelStore()
+
+        store.createNewChatThread(title: "Cancel Test")
+        await waitUntil("thread mirror becomes available") {
+            store.chatThreads.count == 1
+        }
+
+        let thread2 = ReviewPanelChatThreadState(title: "Thread 2")
+        let thread3 = ReviewPanelChatThreadState(title: "Thread 3")
+
+        let conversation1 = ReviewPanelChatConversationState(
+            threads: store.chatThreads + [thread2],
+            activeThreadId: store.activeChatThreadId
+        )
+        let conversation2 = ReviewPanelChatConversationState(
+            threads: store.chatThreads + [thread2, thread3],
+            activeThreadId: store.activeChatThreadId
+        )
+
+        // Send two rapid updates – only the last one should take effect.
+        store.handleIncomingChatConversation(conversation1)
+        store.handleIncomingChatConversation(conversation2)
+
+        await waitUntil("deferred conversation state is applied") {
+            store.chatThreads.count == 3
+        }
+        XCTAssertEqual(
+            store.chatThreads.count,
+            3,
+            "The last deferred conversation state should win."
+        )
+    }
+
     func testTextDeltaAfterFinishDoesNotAppendToFinalizedResponse() async throws {
         let store = makePanelStore()
         let outputId = store.beginPanelActionOutput(title: "Run review")

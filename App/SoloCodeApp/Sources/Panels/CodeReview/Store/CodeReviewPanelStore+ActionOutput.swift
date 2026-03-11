@@ -265,7 +265,7 @@ extension CodeReviewPanelStore {
             self.taskActivityStore.scheduleAddEnvelope(envelope)
             for event in envelope.events {
                 if case .taskActivity(let activity) = event {
-                    self.taskActivityStore.addActivity(
+                    self.taskActivityStore.scheduleAddActivity(
                         self.scopedTaskActivity(activity)
                     )
                 }

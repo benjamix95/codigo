@@ -266,11 +266,14 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         let cards = store.finalizedSwarmCardSnapshotForTaskCompletion()
         XCTAssertEqual(cards.map(\.status), [.completed])
 
-        let drained = expectation(description: "drain main queue")
-        DispatchQueue.main.async {
-            drained.fulfill()
+        // Allow the deferred mutation (Task.yield-based) to execute.
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
+            await Task.yield()
+            if store.swarmCardStates().map(\.status) == [.completed] {
+                break
+            }
         }
-        await fulfillment(of: [drained], timeout: 1.0)
 
         XCTAssertEqual(store.swarmCardStates().map(\.status), [.completed])
     }
