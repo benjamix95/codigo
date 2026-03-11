@@ -6,9 +6,12 @@ public enum VerifiedFindingsSessionSyncService {
         existingEnvelope: VerifiedFindingsSessionEnvelope? = nil,
         entryPoint: VerifiedFindingOriginEntryPoint = .reviewChat
     ) -> VerifiedFindingsSessionEnvelope {
-        let identifiedFindings = applyIdentityPolicy(
-            to: buildBaseFindings(snapshot: snapshot, entryPoint: entryPoint)
+        let baseFindings = buildBaseFindings(snapshot: snapshot, entryPoint: entryPoint)
+        let rustSync = syncWithRust(
+            findings: baseFindings,
+            traceLog: snapshot.events.map { $0.detail ?? $0.type.rawValue }
         )
+        let identifiedFindings = rustSync?.findings ?? applyIdentityPolicy(to: baseFindings)
         let findings = applyVersionPolicy(
             to: identifiedFindings,
             existingEnvelope: existingEnvelope
@@ -45,7 +48,7 @@ public enum VerifiedFindingsSessionSyncService {
         return VerifiedFindingsSessionEnvelope(
             sessionId: snapshot.sessionId,
             canonicalSnapshot: canonicalSnapshot,
-            projectionSnapshot: VerifiedFindingsProjectionBuilder.build(from: canonicalSnapshot),
+            projectionSnapshot: rustSync?.projection ?? VerifiedFindingsProjectionBuilder.build(from: canonicalSnapshot),
             lastUpdatedAt: snapshot.lastUpdatedAt
         )
     }
@@ -172,4 +175,36 @@ public enum VerifiedFindingsSessionSyncService {
             && lhs.mergedIntoFindingId == rhs.mergedIntoFindingId
             && lhs.recurrenceGroupId == rhs.recurrenceGroupId
     }
+
+    private static func syncWithRust(
+        findings: [VerifiedFinding],
+        traceLog: [String]
+    ) -> ReviewCoreVerifiedSyncResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_sync_verified_findings",
+            request: ReviewCoreVerifiedSyncRequest(
+                schemaVersion: 1,
+                findings: findings,
+                traceLog: traceLog
+            )
+        )
+    }
+
+    static func syncWithRustForBenchmark(
+        findings: [VerifiedFinding],
+        traceLog: [String]
+    ) -> ReviewCoreVerifiedSyncResponse? {
+        syncWithRust(findings: findings, traceLog: traceLog)
+    }
+}
+
+struct ReviewCoreVerifiedSyncRequest: Encodable {
+    let schemaVersion: Int
+    let findings: [VerifiedFinding]
+    let traceLog: [String]
+}
+
+struct ReviewCoreVerifiedSyncResponse: Decodable {
+    let findings: [VerifiedFinding]
+    let projection: VerifiedFindingsProjectionSnapshot
 }

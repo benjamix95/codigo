@@ -1,6 +1,5 @@
 import CoderEngine
 import Foundation
-
 extension CodeReviewPanelStore {
     var findingsHistoryRefreshKey: String {
         let workspaceKey = historyWorkspaceId ?? "no-workspace"
@@ -40,7 +39,6 @@ extension CodeReviewPanelStore {
         filteredHistoricalFindings
             .filter { historyStatusFilter == .resumeQueue ? false : !($0.resumeEligible && historyStatusFilter == .all) }
     }
-
     func selectHistoricalFinding(_ findingId: String) {
         guard historyRecords.contains(where: { $0.id == findingId }) else { return }
         selectedFindingId = nil
@@ -53,7 +51,6 @@ extension CodeReviewPanelStore {
             focusFinding(record.findingId)
             return
         }
-
         selectedHistoricalFindingId = nil
         await startReview(
             scope: .workspace,
@@ -121,6 +118,12 @@ extension CodeReviewPanelStore {
         primary: [HistoricalFindingRecord],
         fallback: [HistoricalFindingRecord]
     ) -> [HistoricalFindingRecord] {
+        if let bridged = mergeHistoricalFindingsWithRust(
+            primary: primary,
+            fallback: fallback
+        ) {
+            return bridged
+        }
         var merged = Dictionary(uniqueKeysWithValues: primary.map { ($0.id, $0) })
         for record in fallback where merged[record.id] == nil {
             merged[record.id] = record
@@ -131,6 +134,23 @@ extension CodeReviewPanelStore {
             }
             return lhs.updatedAt > rhs.updatedAt
         }
+    }
+
+    private func mergeHistoricalFindingsWithRust(
+        primary: [HistoricalFindingRecord],
+        fallback: [HistoricalFindingRecord]
+    ) -> [HistoricalFindingRecord]? {
+        let request = ReviewCoreReduceHistoryRequest(
+            schemaVersion: 1,
+            operation: "merge_history",
+            primary: primary,
+            fallback: fallback
+        )
+        let response: ReviewCoreReduceHistoryResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_reduce_panel_state",
+            request: request
+        )
+        return response?.mergedHistory
     }
 
     private func fallbackHistoricalFindings() -> [HistoricalFindingRecord] {
@@ -250,14 +270,24 @@ extension CodeReviewPanelStore {
         }
     }
 }
-
 enum ReviewPanelHistoricalFindingsLoader {
     static var fetch: @Sendable (HistoricalFindingsQuery) async -> [HistoricalFindingRecord] = { query in
         HistoricalFindingsQueryService.list(query: query)
     }
+
     static func list(query: HistoricalFindingsQuery) async -> [HistoricalFindingRecord] {
         await Task.detached(priority: .userInitiated) { await fetch(query) }.value
     }
+}
+
+private struct ReviewCoreReduceHistoryRequest: Encodable {
+    let schemaVersion: Int
+    let operation: String
+    let primary: [HistoricalFindingRecord]
+    let fallback: [HistoricalFindingRecord]
+}
+private struct ReviewCoreReduceHistoryResponse: Decodable {
+    let mergedHistory: [HistoricalFindingRecord]
 }
 
 private extension VerifiedFindingStatus {

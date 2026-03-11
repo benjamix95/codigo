@@ -1,3 +1,10 @@
 mod ffi;
+mod review_audit;
+mod review_identity;
+mod review_models;
+mod review_reduce;
+mod review_sync;
+mod review_value;
+mod review_verify;
 mod scoring;
 mod tokenize;

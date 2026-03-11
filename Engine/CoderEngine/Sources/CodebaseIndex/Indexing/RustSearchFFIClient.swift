@@ -3,6 +3,7 @@ import Foundation
 
 private typealias RustVersionFn = @convention(c) () -> UnsafePointer<CChar>?
 private typealias RustSearchFn = @convention(c) (UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?
+private typealias RustCoreFn = @convention(c) (UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?
 private typealias RustFreeFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
 
 final class RustSearchFFIClient: @unchecked Sendable {
@@ -48,6 +49,20 @@ final class RustSearchFFIClient: @unchecked Sendable {
 
     func loadedVersion() -> String? {
         resolveApi()?.version()
+    }
+
+    func loadedReviewCoreVersion() -> String? {
+        resolveApi()?.version(symbol: "review_core_version")
+    }
+
+    func callReviewFunction<T: Decodable>(
+        _ functionName: String,
+        payload: String
+    ) throws -> T {
+        guard let api = resolveApi() else {
+            throw RustSearchFFIClientError.libraryUnavailable
+        }
+        return try api.call(functionName: functionName, payload: payload)
     }
 
     private func resolveApi() -> RustSearchFFIApi? {
@@ -115,7 +130,32 @@ private struct RustSearchFFIApi {
         return String(cString: ptr)
     }
 
+    func version(symbol: String) -> String? {
+        guard let fn: RustVersionFn = resolve(symbol: symbol) else {
+            return nil
+        }
+        guard let ptr = fn() else { return nil }
+        return String(cString: ptr)
+    }
+
     func callSearch<T: Decodable>(_ payload: String) throws -> T {
+        try call(searchFn: searchFn, payload: payload)
+    }
+
+    func call<T: Decodable>(
+        functionName: String,
+        payload: String
+    ) throws -> T {
+        guard let fn: RustCoreFn = resolve(symbol: functionName) else {
+            throw RustSearchFFIClientError.missingSymbol(functionName)
+        }
+        return try call(searchFn: fn, payload: payload)
+    }
+
+    private func call<T: Decodable>(
+        searchFn: RustCoreFn,
+        payload: String
+    ) throws -> T {
         guard let encoded = payload.cString(using: .utf8) else {
             throw RustSearchFFIClientError.invalidPayloadEncoding
         }
@@ -126,14 +166,20 @@ private struct RustSearchFFIApi {
         defer { freeFn(resultPtr) }
 
         let response = String(cString: resultPtr)
-        let data = Data(response.utf8)
-        return try JSONDecoder().decode(T.self, from: data)
+        return try JSONDecoder().decode(T.self, from: Data(response.utf8))
+    }
+
+    private func resolve<T>(symbol: String) -> T? {
+        guard let pointer = dlsym(handle, symbol) else { return nil }
+        return unsafeBitCast(pointer, to: T.self)
     }
 }
 
 private enum RustSearchFFIClientError: Error {
     case invalidPayloadEncoding
     case nilResponse
+    case libraryUnavailable
+    case missingSymbol(String)
 }
 
 private extension RustSearchSnapshotPayload {
@@ -158,5 +204,34 @@ private extension RustSearchSnapshotPayload {
         self.totalDocs = snapshot.totalDocs
         self.k1 = snapshot.k1
         self.b = snapshot.b
+    }
+}
+
+public enum ReviewCoreBridge {
+    public static func loadedVersion() -> String? {
+        RustSearchFFIClient.shared.loadedReviewCoreVersion()
+    }
+
+    public static func call<Request: Encodable, Response: Decodable>(
+        functionName: String,
+        request: Request
+    ) -> Response? {
+        guard isEnabled else { return nil }
+        do {
+            let payload = try JSONEncoder().encode(request)
+            guard let raw = String(data: payload, encoding: .utf8) else {
+                return nil
+            }
+            return try RustSearchFFIClient.shared.callReviewFunction(functionName, payload: raw)
+        } catch {
+            return nil
+        }
+    }
+
+    public static var isEnabled: Bool {
+        let env = ProcessInfo.processInfo.environment
+        let forceSwift = env["SOLOCODE_REVIEW_CORE_FORCE_SWIFT"] == "1"
+            || env["SOLOCODE_REVIEW_CORE_DISABLE_RUST"] == "1"
+        return !forceSwift && loadedVersion() != nil
     }
 }

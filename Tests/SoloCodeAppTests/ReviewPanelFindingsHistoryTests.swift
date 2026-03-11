@@ -154,6 +154,124 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
         XCTAssertEqual(store.historyRecords.first?.status, .verified)
     }
 
+    func testReviewPanelStoreSmokeBenchmark() async throws {
+        let taskStore = TaskActivityStore(
+            persistenceBridge: TaskActivityPersistenceBridge(writeCodeReviewSnapshot: { _ in })
+        )
+        let store = makeStore(taskActivityStore: taskStore, workspacePath: "/tmp/history-workspace")
+        let records = (0..<100).map { index in
+            HistoricalFindingRecord(
+                findingId: "finding-\(index)",
+                sessionId: "session-\(index)",
+                workspaceId: "/tmp/history-workspace",
+                domain: index.isMultiple(of: 2) ? .bug : .security,
+                severity: .medium,
+                title: "Title \(index)",
+                summary: "Summary \(index)",
+                status: .verified,
+                filePath: "Sources/File\(index).swift",
+                lineStart: index,
+                sourceOrigin: "bench",
+                closedReason: nil,
+                patchId: nil,
+                patchApplyStatus: nil,
+                revalidationReportId: nil,
+                revalidationVerdict: nil,
+                createdAt: Date(timeIntervalSince1970: 1000 + Double(index)),
+                updatedAt: Date(timeIntervalSince1970: 2000 + Double(index)),
+                resolvedAt: nil,
+                resumeEligible: index.isMultiple(of: 3),
+                timeline: []
+            )
+        }
+        let verifiedEnvelope = VerifiedFindingsSessionSyncService.sync(
+            snapshot: CodeReviewSessionSnapshot(
+                sessionId: "vf-bench",
+                conversationId: nil,
+                phase: .completed,
+                stage: .completed,
+                findings: [],
+                events: [],
+                config: .default,
+                scope: nil,
+                workspacePath: "/tmp/history-workspace",
+                currentRound: 0,
+                activeWorkerCount: 0,
+                startedAt: Date(),
+                completedAt: Date(),
+                analysisCompletedAt: Date(),
+                lastError: nil,
+                currentJobId: nil,
+                lastTestStatus: .passed,
+                lastUpdatedAt: Date()
+            )
+        )
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "bench-session",
+            conversationId: UUID(),
+            phase: .completed,
+            stage: .completed,
+            findings: [CodeReviewFinding(id: "bench-finding", severity: .warning, category: .correctness, origin: .reviewer, filePath: "Sources/File.swift", lineNumber: 12, message: "Issue")],
+            candidates: [],
+            patches: [],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/history-workspace",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            verifiedFindings: verifiedEnvelope,
+            lastUpdatedAt: Date()
+        )
+
+        let previousFetch = ReviewPanelHistoricalFindingsLoader.fetch
+        ReviewPanelHistoricalFindingsLoader.fetch = { _ in records }
+        defer { ReviewPanelHistoricalFindingsLoader.fetch = previousFetch }
+
+        let ingestSamples = measureSamples(iterations: 20) {
+            taskStore.ingestCodeReviewSnapshot(snapshot, conversationId: snapshot.conversationId)
+        }
+        let historySamples = await measureAsyncSamples(iterations: 10) {
+            await store.refreshHistoricalFindings()
+        }
+        XCTAssertFalse(ingestSamples.isEmpty)
+        XCTAssertFalse(historySamples.isEmpty)
+
+        if let outputPath = ProcessInfo.processInfo.environment["SOLOCODE_REVIEW_APP_BENCHMARK_OUTPUT"] {
+            let payload: [String: Any] = [
+                "snapshot_ingest_p95_ms": percentile95(ingestSamples),
+                "history_load_p95_ms": percentile95(historySamples),
+                "main_thread_block_time_ms": ingestSamples.max() ?? 0,
+            ]
+            if let summary = String(
+                data: try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                encoding: .utf8
+            ) {
+                print("REVIEW_APP_BENCHMARK \(summary)")
+            }
+            let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: URL(fileURLWithPath: outputPath))
+        } else {
+            let payload: [String: Any] = [
+                "snapshot_ingest_p95_ms": percentile95(ingestSamples),
+                "history_load_p95_ms": percentile95(historySamples),
+                "main_thread_block_time_ms": ingestSamples.max() ?? 0,
+            ]
+            if let summary = String(
+                data: try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                encoding: .utf8
+            ) {
+                print("REVIEW_APP_BENCHMARK \(summary)")
+            }
+        }
+    }
+
     private func makeStore(
         taskActivityStore: TaskActivityStore? = nil,
         conversationId: UUID = UUID(),
@@ -242,5 +360,29 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
         try? FileManager.default.removeItem(at: MCPSharedState.verifiedFindingsDirectoryPath)
         try? FileManager.default.removeItem(at: MCPSharedState.bugHunterDirectoryPath)
         try? FileManager.default.removeItem(at: MCPSharedState.planStateFilePath)
+    }
+
+    private func measureSamples(iterations: Int, _ work: () -> Void) -> [Double] {
+        (0..<iterations).map { _ in
+            let started = CFAbsoluteTimeGetCurrent()
+            work()
+            return (CFAbsoluteTimeGetCurrent() - started) * 1000
+        }
+    }
+
+    private func measureAsyncSamples(iterations: Int, _ work: @escaping () async -> Void) async -> [Double] {
+        var values: [Double] = []
+        for _ in 0..<iterations {
+            let started = CFAbsoluteTimeGetCurrent()
+            await work()
+            values.append((CFAbsoluteTimeGetCurrent() - started) * 1000)
+        }
+        return values
+    }
+
+    private func percentile95(_ samples: [Double]) -> Double {
+        let sorted = samples.sorted()
+        let index = min(sorted.count - 1, Int(Double(sorted.count - 1) * 0.95))
+        return sorted[index]
     }
 }

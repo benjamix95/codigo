@@ -6,6 +6,15 @@ public enum CodeReviewAuditService {
         scopeFiles: [String],
         workspacePath: URL
     ) -> ReviewAuditToolResult {
+        let rawScopeFiles = scopeFiles.map(normalizedRelativePath)
+        if let bridged = runToolWithRust(
+            named: toolName,
+            scopeFiles: scopeFiles,
+            workspacePath: workspacePath
+        ) {
+            return bridged
+        }
+
         let startedAt = Date()
         let scopedFiles = scopedExistingFiles(scopeFiles, workspacePath: workspacePath)
 
@@ -100,7 +109,7 @@ public enum CodeReviewAuditService {
                 clusters: correlated.clusters
             )
         case ReviewAuditToolName.explainFinding:
-            let explanation = scopedFiles.first ?? "No finding context provided."
+            let explanation = rawScopeFiles.first ?? "No finding context provided."
             result = ReviewAuditToolResult(
                 toolName: toolName,
                 findings: [],
@@ -130,6 +139,27 @@ public enum CodeReviewAuditService {
             metadata: result.metadata,
             clusters: result.clusters
         )
+    }
+
+    private static func runToolWithRust(
+        named toolName: String,
+        scopeFiles: [String],
+        workspacePath: URL
+    ) -> ReviewAuditToolResult? {
+        let request = ReviewCoreAuditRequest(
+            schemaVersion: 1,
+            toolName: toolName,
+            scopeFiles: scopeFiles,
+            workspacePath: workspacePath.path
+        )
+        let response: ReviewCoreAuditBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_run_audit",
+            request: request
+        )
+        if response?.error?.code == "unsupported_tool" {
+            return nil
+        }
+        return response?.result
     }
 
     private static func hintsFromMetadata(_ metadata: [String: String]) -> [String] {
@@ -174,4 +204,16 @@ public enum CodeReviewAuditService {
         }
         return output
     }
+}
+
+private struct ReviewCoreAuditRequest: Encodable {
+    let schemaVersion: Int
+    let toolName: String
+    let scopeFiles: [String]
+    let workspacePath: String
+}
+
+private struct ReviewCoreAuditBridgeResponse: Decodable {
+    let error: RustFFIErrorPayload?
+    let result: ReviewAuditToolResult?
 }
