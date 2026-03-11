@@ -15,7 +15,7 @@ public final class PostgresPersistenceStore {
             _ = try postgresService.bootstrapIfNeeded()
             let currentVersion = try schemaVersion()
             if currentVersion < PersistenceSchema.version {
-                try postgresService.runPSQL(
+                _ = try postgresService.runPSQL(
                     databaseName: postgresService.connectionInfo().databaseName,
                     sql: PersistenceSchema.migrationSQL()
                 )
@@ -24,7 +24,7 @@ public final class PostgresPersistenceStore {
                 VALUES (\(PersistenceSchema.version), NOW())
                 ON CONFLICT (version) DO NOTHING;
                 """
-                try postgresService.runPSQL(
+                _ = try postgresService.runPSQL(
                     databaseName: postgresService.connectionInfo().databaseName,
                     sql: insertSQL
                 )

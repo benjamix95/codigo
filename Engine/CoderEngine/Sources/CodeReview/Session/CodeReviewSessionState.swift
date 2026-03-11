@@ -116,7 +116,7 @@ public actor CodeReviewSessionState {
             guard pendingCoalescedNotificationTask == nil else { return }
             pendingCoalescedNotificationTask = Task { [coalescedNotificationDelayNanoseconds] in
                 try? await Task.sleep(nanoseconds: coalescedNotificationDelayNanoseconds)
-                await self.flushCoalescedNotification()
+                self.flushCoalescedNotification()
             }
         }
     }
