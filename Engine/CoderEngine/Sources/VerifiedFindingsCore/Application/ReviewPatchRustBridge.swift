@@ -1,7 +1,7 @@
 import Foundation
 
-struct ReviewPatchRustBridge {
-    static func queueContext(
+public struct ReviewPatchRustBridge {
+    public static func queueContext(
         action: String,
         sessionId: String,
         findingId: String,
@@ -18,7 +18,7 @@ struct ReviewPatchRustBridge {
         )
     }
 
-    static func executionPlan(
+    public static func executionPlan(
         action: String,
         sessionId: String,
         findingId: String,
@@ -114,15 +114,15 @@ private struct ReviewPatchRustFinding: Encodable {
     let message: String
 }
 
-struct ReviewPatchRustResponse: Decodable {
-    let isError: Bool
-    let errorCode: String?
-    let errorMessage: String?
-    let steps: [String]
-    let patchId: String?
-    let patchVerifyStatus: String?
-    let patchRiskScore: Double?
-    let findingSeverity: String?
-    let findingCategory: String?
-    let findingMessage: String?
+public struct ReviewPatchRustResponse: Decodable {
+    public let isError: Bool
+    public let errorCode: String?
+    public let errorMessage: String?
+    public let steps: [String]
+    public let patchId: String?
+    public let patchVerifyStatus: String?
+    public let patchRiskScore: Double?
+    public let findingSeverity: String?
+    public let findingCategory: String?
+    public let findingMessage: String?
 }
