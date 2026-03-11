@@ -1,6 +1,5 @@
 use super::models::{
     find_patch, get_arg, payload_line_map, trimmed_arg, ReviewMCPToolRequest, ReviewMCPToolResponse,
-    ReviewSnapshotRecord,
 };
 
 pub fn handle_review_tool(request: ReviewMCPToolRequest) -> ReviewMCPToolResponse {

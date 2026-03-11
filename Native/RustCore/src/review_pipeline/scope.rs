@@ -1,6 +1,3 @@
-use super::models::ReviewTask;
-use std::collections::HashSet;
-
 pub fn parse_review_scope(prompt: &str) -> (String, Option<String>) {
     let limit = prompt.find("## Conversation context (recent)").unwrap_or(prompt.len());
     let searchable = &prompt[..limit];
@@ -80,19 +77,6 @@ pub fn review_scope_description(scope: &str, against_ref: Option<&str>) -> Strin
         "workspace" => "Workspace source files".to_string(),
         _ => "Uncommitted changes".to_string(),
     }
-}
-
-pub fn task_files(tasks: &[ReviewTask]) -> Vec<String> {
-    let mut seen = HashSet::new();
-    let mut files = Vec::new();
-    for task in tasks {
-        for file in &task.files {
-            if seen.insert(file.clone()) {
-                files.push(file.clone());
-            }
-        }
-    }
-    files
 }
 
 #[cfg(test)]

@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -106,6 +105,7 @@ pub struct PatchRecord {
 #[serde(rename_all = "camelCase")]
 pub struct BugHunterSnapshotRecord {
     pub run_id: String,
+    #[allow(dead_code)]
     pub conversation_id: Option<String>,
     pub review_session_id: Option<String>,
     pub source_kind: String,
@@ -235,14 +235,4 @@ pub fn payload_line_map(payload: &HashMap<String, String>, keys: &[&str]) -> Vec
     keys.iter()
         .filter_map(|key| payload.get(*key).map(|value| format!("{key}: {value}")))
         .collect()
-}
-
-pub fn value_to_string(value: &Value) -> String {
-    match value {
-        Value::Null => String::new(),
-        Value::Bool(flag) => flag.to_string(),
-        Value::Number(number) => number.to_string(),
-        Value::String(text) => text.clone(),
-        _ => value.to_string(),
-    }
 }

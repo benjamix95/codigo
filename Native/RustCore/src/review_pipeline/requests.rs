@@ -30,6 +30,7 @@ pub struct ReviewPipelineSessionRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct ReviewPipelineCallbackResult {
     pub kind: String,
     #[serde(default)]
