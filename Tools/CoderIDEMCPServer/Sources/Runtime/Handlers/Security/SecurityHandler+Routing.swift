@@ -193,56 +193,24 @@ extension CoderIDEMCPServerApp {
         action: String,
         args: [String: String]
     ) -> CallTool.Result {
-        let findingId = sanitizedReviewArg(args, key: "finding_id")
-        let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
-        guard !findingId.isEmpty, !sessionId.isEmpty else {
-            return reviewError("Error: 'finding_id' and 'session_id' are required")
-        }
-        do {
-            let queued = try SecurityWorkflowService.queueLifecycleCommand(
+        let toolName = "security_\(action)"
+        if let bridged = rustSecurityToolResult(name: toolName, args: args) {
+            if bridged.isError == true {
+                return bridged
+            }
+            let findingId = sanitizedReviewArg(args, key: "finding_id")
+            let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
+            guard !findingId.isEmpty, !sessionId.isEmpty else {
+                return reviewError("Error: 'finding_id' and 'session_id' are required")
+            }
+            _ = MCPSharedState.enqueueCodeReviewCommand(
                 action: action,
                 sessionId: sessionId,
-                findingId: findingId,
                 conversationId: resolveReviewConversationId(args),
                 payload: args
             )
-            var parts = [
-                "OK — security command queued",
-                "action=\(action)",
-                "command_id=\(queued.commandId)",
-                "session_id=\(queued.sessionId)",
-            ]
-            if let patchId = queued.patchId {
-                parts.append("patch_id=\(patchId)")
-            }
-            if let verifyStatus = queued.patchVerifyStatus {
-                parts.append("verify_status=\(verifyStatus)")
-            }
-            if let riskScore = queued.patchRiskScore {
-                parts.append("risk_score=\(String(format: "%.2f", riskScore))")
-            }
-            return reviewOK(parts.joined(separator: ", "))
-        } catch let lifecycleError as VerifiedFindingsLifecycleCommandError {
-            switch lifecycleError {
-            case .missingIdentifiers:
-                return reviewError("Error: 'finding_id' and 'session_id' are required")
-            case .sessionNotFound(let sessionId):
-                return reviewError("Error: session_id '\(sessionId)' was not found")
-            case .conversationRequired(let sessionId):
-                return reviewError("Error: 'conversation_id' is required for session_id '\(sessionId)'")
-            case .conversationMismatch(let sessionId):
-                return reviewError("Error: session_id '\(sessionId)' does not belong to the requested conversation")
-            case .findingNotOwned(let findingId, let sessionId):
-                return reviewError("Error: finding_id '\(findingId)' does not belong to session_id '\(sessionId)'")
-            case .missingPreparedPatch:
-                return reviewError("Error: no prepared patch artifact found. Run security_prepare_patch first.")
-            case .patchNotVerified:
-                return reviewError("Error: patch artifact is not verified. Run security_prepare_patch or security_verify_patch first.")
-            case .findingNotClosable:
-                return reviewError("Error: finding cannot be closed until it is merged, dismissed, or validated after apply.")
-            }
-        } catch {
-            return reviewError(error.localizedDescription)
+            return bridged
         }
+        return reviewError("Error: Rust review core unavailable for \(toolName)")
     }
 }

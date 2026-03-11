@@ -12,46 +12,29 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewApplyPatch(args: [String: String]) -> CallTool.Result {
+        if let bridged = rustReviewToolResult(name: "review_apply_patch", args: args) {
+            if bridged.isError == true {
+                return bridged
+            }
+            let findingId = sanitizedReviewArg(args, key: "finding_id")
+            let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
+            guard !findingId.isEmpty, !sessionId.isEmpty else {
+                return reviewError("Error: 'finding_id' and 'session_id' are required")
+            }
+            _ = MCPSharedState.enqueueCodeReviewCommand(
+                action: "apply_patch",
+                sessionId: sessionId,
+                conversationId: resolveReviewConversationId(args),
+                payload: args
+            )
+            return bridged
+        }
         let findingId = sanitizedReviewArg(args, key: "finding_id")
         let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
         guard !findingId.isEmpty, !sessionId.isEmpty else {
             return reviewError("Error: 'finding_id' and 'session_id' are required")
         }
-        do {
-            let queued = try VerifiedFindingsLifecycleCommandService.queueApplyPatchCommand(
-                sessionId: sessionId,
-                findingId: findingId,
-                conversationId: resolveReviewConversationId(args),
-                payload: args
-            )
-            var parts = [
-                "OK — review command queued",
-                "action=apply_patch",
-                "command_id=\(queued.commandId)",
-                "session_id=\(queued.sessionId)",
-            ]
-            if let patchId = queued.patchId {
-                parts.append("patch_id=\(patchId)")
-            }
-            if let verifyStatus = queued.patchVerifyStatus {
-                parts.append("verify_status=\(verifyStatus)")
-            }
-            if let riskScore = queued.patchRiskScore {
-                parts.append("risk_score=\(String(format: "%.2f", riskScore))")
-            }
-            if let severity = queued.findingSeverity {
-                parts.append("severity=\(severity)")
-            }
-            if let category = queued.findingCategory {
-                parts.append("category=\(category)")
-            }
-            if let message = queued.findingMessage {
-                parts.append("message=\(message)")
-            }
-            return reviewOK(parts.joined(separator: ", "))
-        } catch {
-            return reviewError(reviewLifecycleErrorMessage(error))
-        }
+        return reviewError("Error: Rust review core unavailable for review_apply_patch")
     }
 
     static func handleReviewVerifyPatch(args: [String: String]) -> CallTool.Result {
@@ -150,35 +133,39 @@ extension CoderIDEMCPServerApp {
         action: String,
         args: [String: String]
     ) -> CallTool.Result {
-        let findingId = sanitizedReviewArg(args, key: "finding_id")
-        let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
-        guard !findingId.isEmpty, !sessionId.isEmpty else {
-            return reviewError("Error: 'finding_id' and 'session_id' are required")
-        }
-        do {
-            let queued = try VerifiedFindingsLifecycleCommandService.queueFindingCommand(
+        let toolName = reviewToolName(for: action)
+        if let bridged = rustReviewToolResult(name: toolName, args: args) {
+            if bridged.isError == true {
+                return bridged
+            }
+            let findingId = sanitizedReviewArg(args, key: "finding_id")
+            let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
+            guard !findingId.isEmpty, !sessionId.isEmpty else {
+                return reviewError("Error: 'finding_id' and 'session_id' are required")
+            }
+            _ = MCPSharedState.enqueueCodeReviewCommand(
                 action: action,
                 sessionId: sessionId,
-                findingId: findingId,
                 conversationId: resolveReviewConversationId(args),
                 payload: args
             )
-            var parts = [
-                "OK — review command queued",
-                "action=\(action)",
-                "command_id=\(queued.commandId)",
-                "session_id=\(queued.sessionId)",
-            ]
-            if let severity = queued.findingSeverity {
-                parts.append("severity=\(severity)")
-            }
-            if let category = queued.findingCategory {
-                parts.append("category=\(category)")
-            }
-            return reviewOK(parts.joined(separator: ", "))
-        } catch {
-            return reviewError(reviewLifecycleErrorMessage(error))
+            return bridged
         }
+        return reviewError("Error: Rust review core unavailable for \(toolName)")
+    }
+
+    private static func reviewToolName(for action: String) -> String {
+        switch action {
+        case "verify_finding": return "review_verify_finding"
+        case "prepare_patch": return "review_prepare_patch"
+        case "verify_patch": return "review_verify_patch"
+        case "revalidate_finding": return "review_revalidate_finding"
+        case "rollback_patch": return "review_rollback_patch"
+        case "close_finding": return "review_close_finding"
+        case "open_pr": return "review_open_pr"
+        case "merge_pr": return "review_merge_pr"
+        case "resolve_conflicts": return "review_resolve_conflicts"
+        default: return "review_\(action)"
     }
 
     private static func reviewLifecycleErrorMessage(_ error: Error) -> String {

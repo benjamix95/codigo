@@ -4,8 +4,34 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleBugHunterStart(args: [String: String]) -> CallTool.Result {
-        if let bridged = rustBugHunterToolResult(name: "bughunter_start", args: args),
-           bridged.isError == true {
+        if let bridged = rustBugHunterToolResult(name: "bughunter_start", args: args) {
+            if bridged.isError == true {
+                return bridged
+            }
+            let sourceKind = (args["source_kind"] ?? "uncommitted")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            let gitRoot = (args["git_root"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let runId = "bughunter-\(UUID().uuidString.lowercased())"
+            _ = MCPSharedState.enqueueBugHunterCommand(
+                action: "start",
+                runId: runId,
+                conversationId: parseConversationId(args["conversation_id"]),
+                payload: args.merging(["source_kind": sourceKind, "git_root": gitRoot]) { _, new in new }
+            )
+            MCPSharedState.writeBugHunterSnapshot(
+                MCPSharedBugHunterSnapshot(
+                    runId: runId,
+                    conversationId: parseConversationId(args["conversation_id"])?.uuidString.lowercased(),
+                    sourceKind: MCPSharedBugHunterSourceKind(rawValue: sourceKind) ?? .uncommitted,
+                    triggerKind: .manual,
+                    gitRoot: gitRoot,
+                    branchName: args["branch_name"],
+                    primaryCommit: args["primary_commit"],
+                    status: .queued,
+                    lastMessage: "Queued BugHunter run"
+                )
+            )
             return bridged
         }
         let sourceKind = (args["source_kind"] ?? "uncommitted")
@@ -73,23 +99,27 @@ extension CoderIDEMCPServerApp {
         _ action: String,
         args: [String: String]
     ) -> CallTool.Result {
-        if let bridged = rustBugHunterToolResult(name: "bughunter_\(action)", args: args),
-           bridged.isError == true {
+        let toolName = "bughunter_\(action)"
+        if let bridged = rustBugHunterToolResult(name: toolName, args: args) {
+            if bridged.isError == true {
+                return bridged
+            }
+            let runId = (args["run_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !runId.isEmpty else {
+                return bugHunterError("Error: 'run_id' is required")
+            }
+            _ = MCPSharedState.enqueueBugHunterCommand(
+                action: action,
+                runId: runId,
+                conversationId: parseConversationId(args["conversation_id"]),
+                payload: args
+            )
             return bridged
         }
         let runId = (args["run_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !runId.isEmpty else {
             return bugHunterError("Error: 'run_id' is required")
         }
-        guard MCPSharedState.readBugHunterSnapshot(runId: runId) != nil else {
-            return bugHunterError("Error: run_id '\(runId)' was not found")
-        }
-        _ = MCPSharedState.enqueueBugHunterCommand(
-            action: action,
-            runId: runId,
-            conversationId: parseConversationId(args["conversation_id"]),
-            payload: args
-        )
-        return bugHunterOK("OK — bugHunter command queued (action=\(action), run_id=\(runId))")
+        return bugHunterError("Error: Rust review core unavailable for \(toolName)")
     }
 }
