@@ -1,7 +1,6 @@
 use crate::review_mcp::commands::build_review_index;
 use crate::review_mcp::models::{
-    CommandRecord, ReviewMCPCommandQueueRequest, ReviewMCPCommandQueueResponse, ReviewMCPIndexRequest,
-    ReviewMCPIndexResponse, ReviewSnapshotRecord,
+    CommandRecord, ReviewMCPIndexRequest, ReviewMCPIndexResponse, ReviewSnapshotRecord,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
