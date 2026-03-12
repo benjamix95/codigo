@@ -44,34 +44,17 @@ extension CodeReviewPanelStore {
         }
         let sessionId = plan.sessionId
         let sessionConfig = plan.config
-
-        let sessionState = CodeReviewSessionState(
+        let sessionState = makePanelReviewSessionState(
             sessionId: sessionId,
             conversationId: conversationId,
-            config: sessionConfig,
-            onStateChange: { [weak self] snapshot in
-                Task { @MainActor in
-                    await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                    self?.taskActivityStore.scheduleCodeReviewSnapshotIngest(
-                        snapshot,
-                        conversationId: self?.conversationId
-                    )
-                    self?.schedulePanelSessionBinding(snapshot.sessionId)
-                }
-            }
+            config: sessionConfig
         )
 
         await ReviewSessionRegistry.shared.register(sessionState)
 
-        let config = providerFactoryConfigBuilder()
-        guard let provider = ProviderFactory.codeReviewMultiSwarmProvider(
-            config: config,
-            executionController: executionController,
-            agentProviderId: effectivePanelProviderId,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+        guard let provider = makePanelReviewProvider(
             sessionState: sessionState,
-            initialSessionConfig: sessionConfig
+            sessionConfig: sessionConfig
         ) else {
             isRunning = false
             lastError = "Failed to create review provider"
@@ -82,8 +65,7 @@ extension CodeReviewPanelStore {
         let prompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
         let context = buildWorkspaceContext()
 
-        panelSessionId = sessionId
-        taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
+        activatePanelRunSession(sessionId: sessionId, conversationId: conversationId)
 
         coordinator.runReview(
             provider: provider,

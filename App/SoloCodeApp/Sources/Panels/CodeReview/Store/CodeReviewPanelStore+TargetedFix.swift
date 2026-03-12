@@ -7,36 +7,23 @@ extension CodeReviewPanelStore {
         findings: [CodeReviewFinding]
     ) async -> Bool {
         guard executionController != nil else { return false }
-        let cfg = providerFactoryConfigBuilder()
         guard let plan = planPanelTargetedFixLaunch(sourceSnapshot: sourceSnapshot) else {
             return false
         }
         let sessionConfig = plan.config
         let fixSessionId = plan.sessionId
-        let fixSessionState = CodeReviewSessionState(
+        let runConversationId = panelRunConversationId(
+            sourceConversationId: sourceSnapshot.conversationId
+        )
+        let fixSessionState = makePanelReviewSessionState(
             sessionId: fixSessionId,
-            conversationId: conversationId ?? sourceSnapshot.conversationId,
-            config: sessionConfig,
-            onStateChange: { [weak self] snapshot in
-                Task { @MainActor in
-                    await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
-                    self?.taskActivityStore.scheduleCodeReviewSnapshotIngest(
-                        snapshot,
-                        conversationId: self?.conversationId ?? snapshot.conversationId
-                    )
-                    self?.schedulePanelSessionBinding(snapshot.sessionId)
-                }
-            }
+            conversationId: runConversationId,
+            config: sessionConfig
         )
 
-        guard let provider = ProviderFactory.codeReviewMultiSwarmProvider(
-            config: cfg,
-            executionController: executionController,
-            agentProviderId: effectivePanelProviderId,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+        guard let provider = makePanelReviewProvider(
             sessionState: fixSessionState,
-            initialSessionConfig: sessionConfig
+            sessionConfig: sessionConfig
         ) else {
             return false
         }
@@ -44,7 +31,7 @@ extension CodeReviewPanelStore {
         await ReviewSessionRegistry.shared.register(fixSessionState)
         taskActivityStore.scheduleCodeReviewSnapshotIngest(
             await fixSessionState.snapshot(),
-            conversationId: conversationId ?? sourceSnapshot.conversationId
+            conversationId: runConversationId
         )
 
         let prompt = CodeReviewPromptBuilder.targetedFixPrompt(
@@ -63,12 +50,7 @@ extension CodeReviewPanelStore {
             line: "Preparing targeted fix run..."
         )
 
-        panelSessionId = fixSessionId
-        taskActivityStore.setSelectedCodeReviewSessionId(fixSessionId, for: conversationId)
-        isRunning = true
-        runStartedAt = Date()
-        frozenTimerText = nil
-        lastError = nil
+        activatePanelRunSession(sessionId: fixSessionId, conversationId: conversationId)
 
         coordinator.runReview(
             provider: provider,

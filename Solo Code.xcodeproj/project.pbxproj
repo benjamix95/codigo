@@ -149,6 +149,7 @@
 		1453CFB7525A8D6314BCDDD9 /* PlanPanelView+HistorySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9F6824249010B7D42585D4F /* PlanPanelView+HistorySection.swift */; };
 		147499A779E770D919405701 /* CodeReviewPanelSessionScopingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4807A899A937A62AEB71C07 /* CodeReviewPanelSessionScopingTests.swift */; };
 		147499A779E770D919405702 /* CodeReviewPanelLiveMutationRustTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4807A899A937A62AEB71C08 /* CodeReviewPanelLiveMutationRustTests.swift */; };
+		147499A779E770D919405703 /* CodeReviewPanelLiveRunExecutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4807A899A937A62AEB71C09 /* CodeReviewPanelLiveRunExecutionTests.swift */; };
 		14870A387C34D9784356B73E /* PromptOptimizerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C7412170D22222946390A2 /* PromptOptimizerService.swift */; };
 		1493ECC7A090EF0882AA9321 /* CodexUsageFetcher+AppServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C9CC06CAB24D46AF9CCA97 /* CodexUsageFetcher+AppServer.swift */; };
 		14A9D89FE1C5FAC19184A706 /* MerkleTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322F2E360395ED45C62F15F4 /* MerkleTree.swift */; };
@@ -481,6 +482,7 @@
 		40A1D06CC0C8A6112D699E62 /* CodeReviewPanelStore+RustChatFindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E63 /* CodeReviewPanelStore+RustChatFindings.swift */; };
 		40A1D06CC0C8A6112D699E64 /* CodeReviewPanelStore+RustLaunchPlanning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E65 /* CodeReviewPanelStore+RustLaunchPlanning.swift */; };
 		40A1D06CC0C8A6112D699E66 /* CodeReviewPanelStore+RustCompletionFinalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E67 /* CodeReviewPanelStore+RustCompletionFinalization.swift */; };
+		40A1D06CC0C8A6112D699E68 /* CodeReviewPanelStore+LiveRunExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E69 /* CodeReviewPanelStore+LiveRunExecution.swift */; };
 		40A1D06CC0C8A6112D699E56 /* CodeReviewPanelStore+PipelineJobState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E57 /* CodeReviewPanelStore+PipelineJobState.swift */; };
 		40A5A1747E9D57CC27110EC2 /* LLDBDAPDebugAdapter+ExpressionEval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08B224283E415C33C0A7E844 /* LLDBDAPDebugAdapter+ExpressionEval.swift */; };
 		40AFFBE8E28203595B63D079 /* ProcessSupervisorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 165CEEFA00AD6961F88E8C48 /* ProcessSupervisorTests.swift */; };
@@ -2272,6 +2274,7 @@
 		40A1D06CC0C8A6112D699E63 /* CodeReviewPanelStore+RustChatFindings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustChatFindings.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustChatFindings.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E65 /* CodeReviewPanelStore+RustLaunchPlanning.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustLaunchPlanning.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustLaunchPlanning.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E67 /* CodeReviewPanelStore+RustCompletionFinalization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustCompletionFinalization.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustCompletionFinalization.swift"; sourceTree = "<group>"; };
+		40A1D06CC0C8A6112D699E69 /* CodeReviewPanelStore+LiveRunExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+LiveRunExecution.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+LiveRunExecution.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E57 /* CodeReviewPanelStore+PipelineJobState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+PipelineJobState.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+PipelineJobState.swift"; sourceTree = "<group>"; };
 		4104050BCC14C86E343D2088 /* ManagedPostgresService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ManagedPostgresService.swift; path = Engine/CoderEngine/Sources/PersistenceCore/ManagedPostgresService.swift; sourceTree = "<group>"; };
 		412C5701DE56BD70ED80231C /* BrowserTabManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserTabManager.swift; path = App/SoloCodeApp/Sources/Services/BrowserSessionStore/Manager/BrowserTabManager.swift; sourceTree = "<group>"; };
@@ -2927,6 +2930,7 @@
 		A4734DF69B85506C48BCEEBA /* PlanShortcutAndCommandTests+PlanClarificationRouting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlanShortcutAndCommandTests+PlanClarificationRouting.swift"; path = "Tests/SoloCodeAppTests/PlanShortcutAndCommand/PlanShortcutAndCommandTests+PlanClarificationRouting.swift"; sourceTree = "<group>"; };
 		A4807A899A937A62AEB71C07 /* CodeReviewPanelSessionScopingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPanelSessionScopingTests.swift; path = Tests/SoloCodeAppTests/CodeReviewPanelSessionScopingTests.swift; sourceTree = "<group>"; };
 		A4807A899A937A62AEB71C08 /* CodeReviewPanelLiveMutationRustTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPanelLiveMutationRustTests.swift; path = Tests/SoloCodeAppTests/CodeReviewPanelLiveMutationRustTests.swift; sourceTree = "<group>"; };
+		A4807A899A937A62AEB71C09 /* CodeReviewPanelLiveRunExecutionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPanelLiveRunExecutionTests.swift; path = Tests/SoloCodeAppTests/CodeReviewPanelLiveRunExecutionTests.swift; sourceTree = "<group>"; };
 		A4A435936357402545C6C76C /* CodebaseIndexTools+Reporting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodebaseIndexTools+Reporting.swift"; path = "Engine/CoderEngine/Sources/CodebaseIndex/Tools/CodebaseIndexTools/Reporting/CodebaseIndexTools+Reporting.swift"; sourceTree = "<group>"; };
 		A4AF0FC3D92A9D16825AC8A9 /* BugHunterRunIdentityResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterRunIdentityResolverTests.swift; path = Tests/SoloCodeAppTests/BugHunterRunIdentityResolverTests.swift; sourceTree = "<group>"; };
 		A4E5E095510FD66BED448D16 /* PipelineMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineMetrics.swift; path = Engine/CoderEngine/Sources/Pipeline/Observability/PipelineMetrics.swift; sourceTree = "<group>"; };
@@ -4023,6 +4027,7 @@
 				40A1D06CC0C8A6112D699E63 /* CodeReviewPanelStore+RustChatFindings.swift */,
 				40A1D06CC0C8A6112D699E65 /* CodeReviewPanelStore+RustLaunchPlanning.swift */,
 				40A1D06CC0C8A6112D699E67 /* CodeReviewPanelStore+RustCompletionFinalization.swift */,
+				40A1D06CC0C8A6112D699E69 /* CodeReviewPanelStore+LiveRunExecution.swift */,
 				40A1D06CC0C8A6112D699E57 /* CodeReviewPanelStore+PipelineJobState.swift */,
 				8E07335333853BF76CF9BE7B /* CodeReviewPanelStore+ModesAndChatThreads.swift */,
 				C589264786C4EA242E7849C5 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift */,
@@ -4943,6 +4948,7 @@
 				F7DB42A434D1EBEC4E363DE0 /* CodeReviewPanelChatStateDeferralTests.swift */,
 				A4807A899A937A62AEB71C07 /* CodeReviewPanelSessionScopingTests.swift */,
 				A4807A899A937A62AEB71C08 /* CodeReviewPanelLiveMutationRustTests.swift */,
+				A4807A899A937A62AEB71C09 /* CodeReviewPanelLiveRunExecutionTests.swift */,
 				F7FB692EAA361AED7F3FE18E /* CodeReviewPanelValidationTests.swift */,
 				1CE69BE212430C7FB6284C68 /* CodexCustomModelProfileSyncTests.swift */,
 				2418A852A25B3BFBDE71ECA0 /* CodigoAppCodeReviewCommandLoopCloseFindingTests.swift */,
@@ -6411,6 +6417,7 @@
 				2CB927D770AB60842D36BC1C /* CodeReviewPanelChatStateDeferralTests.swift in Sources */,
 				147499A779E770D919405701 /* CodeReviewPanelSessionScopingTests.swift in Sources */,
 				147499A779E770D919405702 /* CodeReviewPanelLiveMutationRustTests.swift in Sources */,
+				147499A779E770D919405703 /* CodeReviewPanelLiveRunExecutionTests.swift in Sources */,
 				835D0CFF5B130D77ACF3AD29 /* CodeReviewPanelValidationTests.swift in Sources */,
 				2DEB9ABDE369F74D2D6AE53E /* CodexCustomModelProfileSyncTests.swift in Sources */,
 				15DEE478F7A584F15008A1F8 /* CodigoAppCodeReviewCommandLoopCloseFindingTests.swift in Sources */,
@@ -6980,6 +6987,7 @@
 				40A1D06CC0C8A6112D699E62 /* CodeReviewPanelStore+RustChatFindings.swift in Sources */,
 				40A1D06CC0C8A6112D699E64 /* CodeReviewPanelStore+RustLaunchPlanning.swift in Sources */,
 				40A1D06CC0C8A6112D699E66 /* CodeReviewPanelStore+RustCompletionFinalization.swift in Sources */,
+				40A1D06CC0C8A6112D699E68 /* CodeReviewPanelStore+LiveRunExecution.swift in Sources */,
 				40A1D06CC0C8A6112D699E56 /* CodeReviewPanelStore+PipelineJobState.swift in Sources */,
 				4F4303DCCD641FAFBAE9ECA3 /* CodeReviewPanelStore+ModesAndChatThreads.swift in Sources */,
 				5C647009D201CF487505E44C /* CodeReviewPanelStore+PatchWorkflow+Execution.swift in Sources */,
