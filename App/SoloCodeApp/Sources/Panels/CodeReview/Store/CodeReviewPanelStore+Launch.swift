@@ -130,14 +130,17 @@ extension CodeReviewPanelStore {
     ) async {
         let status: FindingStatus = reason.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() == FindingStatus.wontFix.rawValue ? .wontFix : .dismissed
-        if await mutateLiveSessionUsingRust(
+        if await ReviewSessionRegistry.shared.dismissFinding(
             sessionId: sessionId,
-            action: "dismiss",
-            payload: [
-                "finding_id": findingId,
-                "reason": status == .wontFix ? FindingStatus.wontFix.rawValue : reason,
-            ]
+            findingId: findingId,
+            reason: status == .wontFix ? FindingStatus.wontFix.rawValue : reason
         ) {
+            if let snapshot = await ReviewSessionRegistry.shared.snapshot(sessionId: sessionId) {
+                taskActivityStore.scheduleCodeReviewSnapshotIngest(
+                    snapshot,
+                    conversationId: conversationId
+                )
+            }
             appendPanelSystemMessage(
                 "Finding \(findingId) dismissed (\(reason)).",
                 kind: .findingMutation,
