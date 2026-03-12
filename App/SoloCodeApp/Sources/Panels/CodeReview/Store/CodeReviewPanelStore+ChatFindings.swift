@@ -24,13 +24,12 @@ extension CodeReviewPanelStore {
             return
         }
 
-        let merge = mergeChatFindingsWithRust(
+        guard let merge = mergeChatFindingsWithRust(
             existing: snapshot.findings,
             incoming: extraction.findings
-        ) ?? mergeChatFindingsFallback(
-            existing: snapshot.findings,
-            incoming: extraction.findings
-        )
+        ) else {
+            return
+        }
 
         guard merge.insertedCount > 0 else {
             return
@@ -134,29 +133,4 @@ extension CodeReviewPanelStore {
         )
     }
 
-    private func mergeChatFindingsFallback(
-        existing: [CodeReviewFinding],
-        incoming: [CodeReviewFinding]
-    ) -> (all: [CodeReviewFinding], insertedCount: Int) {
-        var seen = Set(existing.map(chatFindingKey))
-        var merged = existing
-        var insertedCount = 0
-        for finding in incoming {
-            let key = chatFindingKey(finding)
-            if seen.insert(key).inserted {
-                merged.append(finding)
-                insertedCount += 1
-            }
-        }
-        return (merged, insertedCount)
-    }
-
-    private func chatFindingKey(_ finding: CodeReviewFinding) -> String {
-        [
-            finding.filePath.lowercased(),
-            String(finding.lineNumber ?? 0),
-            finding.category.rawValue,
-            finding.message.lowercased(),
-        ].joined(separator: "|")
-    }
 }

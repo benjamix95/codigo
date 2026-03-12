@@ -68,4 +68,26 @@ mod tests {
         assert_eq!(merged["insertedCount"].as_i64(), Some(0));
         assert_eq!(merged["findings"].as_array().map(|items| items.len()), Some(1));
     }
+
+    #[test]
+    fn merge_chat_findings_reports_inserted_count_for_new_finding() {
+        let existing = vec![json!({
+            "id": "f-1",
+            "filePath": "Sources/App/Main.swift",
+            "lineNumber": 42,
+            "category": "correctness",
+            "message": "Missing guard before dereferencing the session"
+        })];
+        let incoming = vec![json!({
+            "id": "f-2",
+            "filePath": "Sources/App/Other.swift",
+            "lineNumber": 13,
+            "category": "regression",
+            "message": "Retry emits a duplicate terminal event"
+        })];
+
+        let merged = merge_chat_findings(&existing, &incoming);
+        assert_eq!(merged["insertedCount"].as_i64(), Some(1));
+        assert_eq!(merged["findings"].as_array().map(|items| items.len()), Some(2));
+    }
 }
