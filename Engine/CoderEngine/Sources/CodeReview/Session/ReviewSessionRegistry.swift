@@ -95,8 +95,11 @@ public actor ReviewSessionRegistry {
     }
 
     public func applyFix(sessionId: String, findingId: String) async -> Bool {
-        guard let state = statesBySessionId[sessionId] else { return false }
-        return await state.applyFix(findingId: findingId)
+        await mutateLiveSession(
+            sessionId: sessionId,
+            action: "apply_fix",
+            payload: ["finding_id": findingId]
+        )
     }
 
     public func dismissFinding(
@@ -104,8 +107,11 @@ public actor ReviewSessionRegistry {
         findingId: String,
         reason: String
     ) async -> Bool {
-        guard let state = statesBySessionId[sessionId] else { return false }
-        return await state.dismissFinding(findingId: findingId, reason: reason)
+        await mutateLiveSession(
+            sessionId: sessionId,
+            action: "dismiss",
+            payload: ["finding_id": findingId, "reason": reason]
+        )
     }
 
     public func addComment(
@@ -113,8 +119,15 @@ public actor ReviewSessionRegistry {
         findingId: String,
         comment: FindingComment
     ) async -> Bool {
-        guard let state = statesBySessionId[sessionId] else { return false }
-        return await state.addComment(findingId: findingId, comment: comment)
+        await mutateLiveSession(
+            sessionId: sessionId,
+            action: "comment",
+            payload: [
+                "finding_id": findingId,
+                "author": comment.author,
+                "content": comment.content,
+            ]
+        )
     }
 
     public func updateConfig(
@@ -152,4 +165,49 @@ public actor ReviewSessionRegistry {
         }
         return incoming.lastUpdatedAt < current.lastUpdatedAt
     }
+
+    private func mutateLiveSession(
+        sessionId: String,
+        action: String,
+        payload: [String: String]
+    ) async -> Bool {
+        guard let state = statesBySessionId[sessionId] else { return false }
+        let snapshot = await state.snapshot()
+        guard let response: ReviewSessionRegistryMutationResponse = ReviewCoreBridge.call(
+            functionName: "review_core_command_mutate_snapshot",
+            request: ReviewSessionRegistryMutationRequest(
+                schemaVersion: 1,
+                action: action,
+                snapshot: snapshot,
+                payload: payload
+            )
+        ),
+              !response.isError,
+              let findings = response.findings,
+              let events = response.events else {
+            return false
+        }
+
+        let updated = snapshot.copying(
+            findings: findings,
+            events: events,
+            outcome: snapshot.copying(findings: findings, events: events).buildOutcomeSummary()
+        )
+        await state.replaceCanonicalSnapshot(updated)
+        recordSnapshot(updated)
+        return true
+    }
+}
+
+private struct ReviewSessionRegistryMutationRequest: Encodable {
+    let schemaVersion: Int
+    let action: String
+    let snapshot: CodeReviewSessionSnapshot
+    let payload: [String: String]
+}
+
+private struct ReviewSessionRegistryMutationResponse: Decodable {
+    let isError: Bool
+    let findings: [CodeReviewFinding]?
+    let events: [CodeReviewSessionEvent]?
 }

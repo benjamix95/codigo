@@ -47,6 +47,60 @@ final class ReviewSessionRegistryTests: XCTestCase {
         XCTAssertTrue(snapshots.isEmpty)
     }
 
+    func testDismissFindingUsesRustMutationForLiveSession() async {
+        let registry = ReviewSessionRegistry()
+        let state = CodeReviewSessionState(sessionId: "session-live-dismiss")
+        await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
+        await state.addFinding(
+            CodeReviewFinding(
+                id: "finding-1",
+                severity: .warning,
+                category: .correctness,
+                filePath: "File.swift",
+                message: "Dismiss me"
+            )
+        )
+        await registry.register(state)
+
+        let didDismiss = await registry.dismissFinding(
+            sessionId: "session-live-dismiss",
+            findingId: "finding-1",
+            reason: "wont_fix"
+        )
+
+        XCTAssertTrue(didDismiss)
+        let snapshot = await registry.snapshot(sessionId: "session-live-dismiss")
+        XCTAssertEqual(snapshot?.findings.first?.status, .wontFix)
+        XCTAssertEqual(snapshot?.events.last?.type, .findingDismissed)
+    }
+
+    func testAddCommentUsesRustMutationForLiveSession() async {
+        let registry = ReviewSessionRegistry()
+        let state = CodeReviewSessionState(sessionId: "session-live-comment")
+        await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
+        await state.addFinding(
+            CodeReviewFinding(
+                id: "finding-1",
+                severity: .warning,
+                category: .correctness,
+                filePath: "File.swift",
+                message: "Comment me"
+            )
+        )
+        await registry.register(state)
+
+        let didComment = await registry.addComment(
+            sessionId: "session-live-comment",
+            findingId: "finding-1",
+            comment: FindingComment(author: "agent", content: "note from registry")
+        )
+
+        XCTAssertTrue(didComment)
+        let snapshot = await registry.snapshot(sessionId: "session-live-comment")
+        XCTAssertEqual(snapshot?.findings.first?.comments.last?.content, "note from registry")
+        XCTAssertEqual(snapshot?.events.last?.type, .findingCommented)
+    }
+
     private func makeSnapshot(
         sessionId: String,
         conversationId: UUID,
