@@ -24,6 +24,7 @@ impl Backend {
             "list_servers" => self.list_servers(payload),
             "health" => self.health(payload),
             "list_tools" => self.list_tools(payload),
+            "describe_tool" => self.describe_tool(payload),
             "call_tool" => self.call_tool(payload),
             "call_tools_batch" => self.call_tools_batch(payload),
             "list_resources" => self.list_resources(payload),

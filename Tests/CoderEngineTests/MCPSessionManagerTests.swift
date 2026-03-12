@@ -217,6 +217,8 @@ final class MCPSessionManagerTests: XCTestCase {
 
         let tools = try await manager.listTools(serverId: server.id, idleTTLSeconds: 0)
         XCTAssertTrue(tools.contains(where: { $0.name == "echo" }))
+        let described = try await manager.describeTool(serverId: server.id, toolName: "echo")
+        XCTAssertEqual(described?.name, "echo")
 
         let echoed = try await manager.callToolRich(
             serverId: server.id,

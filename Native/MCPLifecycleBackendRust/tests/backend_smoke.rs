@@ -39,6 +39,13 @@ fn lifecycle_backend_manages_generic_mcp_servers() {
     assert!(tools_array.iter().any(|tool| tool["name"] == "echo"));
     assert!(tools_array.iter().all(|tool| tool["serverId"] == "fake"));
 
+    let described = child.request(
+        "4d",
+        "describe_tool",
+        json!({ "serverId": "fake", "toolName": "echo" }),
+    );
+    assert_eq!(described["payload"]["tool"]["name"], "echo");
+
     let resources = child.request("4r", "list_resources", json!({ "serverId": "fake" }));
     assert_eq!(resources["payload"]["resources"][0]["uri"], "fake://welcome");
 

@@ -55,6 +55,8 @@ pub struct ListToolsRequest {
     pub server_name: Option<String>,
     #[serde(default)]
     pub server: Option<ServerConfig>,
+    #[serde(default)]
+    pub tool_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

@@ -2,6 +2,7 @@ mod backend;
 mod backend_tests;
 mod batch_backend;
 mod error;
+mod describe_backend;
 mod mcp_models;
 mod mcp_process;
 mod protocol;

@@ -43,8 +43,18 @@ extension MCPSessionManager {
         serverId: String? = nil,
         toolName: String
     ) async throws -> MCPToolDescriptor? {
-        let all = try await listTools(serverId: serverId)
-        return all.first { $0.name == toolName }
+        let servers = resolveServers()
+        guard !servers.isEmpty else { return nil }
+
+        let target = try await resolveTargetServer(
+            serverId: serverId,
+            toolName: toolName,
+            servers: servers
+        )
+        return try await rustLifecycleBackend.describeTool(
+            server: target,
+            toolName: toolName
+        )
     }
 
     public func callTool(

@@ -68,6 +68,10 @@ struct MCPLifecycleRustListToolsPayload: Decodable, Sendable {
     let tools: [MCPLifecycleRustToolDescriptor]
 }
 
+struct MCPLifecycleRustDescribeToolPayload: Decodable, Sendable {
+    let tool: MCPLifecycleRustToolDescriptor
+}
+
 struct MCPLifecycleRustCallToolPayload: Decodable, Sendable {
     let serverId: String
     let serverName: String

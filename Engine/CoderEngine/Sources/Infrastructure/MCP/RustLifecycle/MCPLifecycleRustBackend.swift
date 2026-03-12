@@ -40,6 +40,20 @@ public actor MCPLifecycleRustBackend {
         return payload.tools.map { $0.asSessionToolDescriptor() }
     }
 
+    func describeTool(
+        server: MCPConfigLoader.DetectedServer,
+        toolName: String
+    ) async throws -> MCPToolDescriptor {
+        let payload = try await request(
+            op: "describe_tool",
+            payload: [
+                "server": MCPLifecycleRustServerConfig(server: server).jsonObject,
+                "toolName": toolName
+            ]
+        ) as MCPLifecycleRustDescribeToolPayload
+        return payload.tool.asSessionToolDescriptor()
+    }
+
     func callTool(
         server: MCPConfigLoader.DetectedServer,
         toolName: String,
