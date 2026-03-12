@@ -7,6 +7,8 @@ use std::process::Command;
 
 pub fn handle(name: &str, workspace: &Path, arguments: &BTreeMap<String, Value>) -> Option<CallToolResult> {
     match name {
+        "coderide_glob" => Some(glob(workspace, arguments)),
+        "coderide_grep" => Some(grep(workspace, arguments)),
         "coderide_read_range" => Some(read_range(workspace, arguments)),
         "coderide_find_files" => Some(find_files(workspace, arguments)),
         "coderide_find_symbol" => Some(find_symbol(workspace, arguments)),
@@ -14,6 +16,46 @@ pub fn handle(name: &str, workspace: &Path, arguments: &BTreeMap<String, Value>)
         "coderide_file_outline" => Some(file_outline(workspace, arguments)),
         "coderide_codebase_search" => Some(codebase_search(workspace, arguments)),
         _ => None,
+    }
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn supports(name: &str) -> bool {
+    matches!(
+        name,
+        "coderide_glob"
+            | "coderide_grep"
+            | "coderide_read_range"
+            | "coderide_find_files"
+            | "coderide_find_symbol"
+            | "coderide_find_references"
+            | "coderide_file_outline"
+            | "coderide_codebase_search"
+    )
+}
+
+fn glob(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    let pattern = string_arg(arguments, "pattern");
+    if pattern.is_empty() {
+        return CallToolResult::error("Error: 'pattern' parameter is required");
+    }
+    match run_rg(workspace, &["--files", "-g", pattern.as_str()]) {
+        Ok(output) if output.is_empty() => CallToolResult::text("No matches found."),
+        Ok(output) => CallToolResult::text(output),
+        Err(()) => CallToolResult::error("Error: failed to execute rg"),
+    }
+}
+
+fn grep(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    let query = string_arg(arguments, "query");
+    let pattern = if query.is_empty() { string_arg(arguments, "pattern") } else { query };
+    if pattern.is_empty() {
+        return CallToolResult::error("Error: 'query' parameter is required");
+    }
+    match run_rg(workspace, &["-n", "--no-heading", pattern.as_str()]) {
+        Ok(output) if output.is_empty() => CallToolResult::text("No matches found."),
+        Ok(output) => CallToolResult::text(output),
+        Err(()) => CallToolResult::error("Error: failed to execute rg"),
     }
 }
 

@@ -39,6 +39,9 @@ pub fn handle(
     match name {
         "coderide_debug_log" => Some(debug_log(arguments)),
         "coderide_debug_query" => Some(debug_query(arguments)),
+        "coderide_debug_set_phase" => Some(debug_set_phase(arguments)),
+        "coderide_debug_request_user" => Some(debug_request_user(arguments)),
+        "coderide_debug_resolve" => Some(CallToolResult::text("OK — debug session resolved")),
         "coderide_debug_session" => Some(debug_session(arguments)),
         "coderide_debug_hypothesize" => Some(debug_hypothesize(arguments)),
         "coderide_debug_timeline" => Some(debug_timeline()),
@@ -51,6 +54,43 @@ pub fn handle(
         "coderide_debug_instrument" => Some(CallToolResult::text("OK — debug instrumentation inserted")),
         _ => None,
     }
+}
+
+fn debug_set_phase(arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    let phase = string_arg(arguments, "phase").to_lowercase();
+    let valid = [
+        "describing",
+        "reproducing",
+        "fixing",
+        "instrumenting",
+        "verifying",
+        "resolved",
+    ];
+    if phase.is_empty() {
+        return CallToolResult::error("Error: 'phase' parameter is required");
+    }
+    if !valid.contains(&phase.as_str()) {
+        return CallToolResult::error(format!(
+            "Error: invalid phase '{phase}'. Use: {}",
+            valid.join(", ")
+        ));
+    }
+    let mut store = read_store();
+    store.phase = Some(phase.clone());
+    let _ = write_store(&store);
+    CallToolResult::text(format!("OK — debug phase set to {phase}"))
+}
+
+fn debug_request_user(arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    let kind = string_arg(arguments, "kind").to_lowercase();
+    let prompt = string_arg(arguments, "prompt");
+    if kind.is_empty() || prompt.is_empty() {
+        return CallToolResult::error("Error: 'kind' and 'prompt' are required");
+    }
+    if !["question", "reproduce"].contains(&kind.as_str()) {
+        return CallToolResult::error("Error: invalid kind. Use: question or reproduce");
+    }
+    CallToolResult::text(format!("OK — debug user request queued ({kind})"))
 }
 
 fn debug_log(arguments: &BTreeMap<String, Value>) -> CallToolResult {

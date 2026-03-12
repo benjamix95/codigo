@@ -3,7 +3,9 @@ mod catalog;
 mod debug_tools;
 mod diagnostics_tools;
 mod edit_tools;
+mod file_tools;
 mod handlers;
+mod ide_tools;
 mod plan_state;
 mod review_tools;
 mod search_tools;
@@ -11,6 +13,8 @@ mod server;
 mod shared_review_state;
 mod skill_tools;
 mod shared_state;
+mod subagent_tools;
+mod todo_tools;
 mod web_tools;
 
 use server::{run_stdio_server, ServerConfig};
