@@ -1,4 +1,8 @@
 use crate::error::BackendError;
+use crate::mcp_models::{
+    PromptDescriptor, PromptResultPayload, ResourceContentPayload, ResourceDescriptor,
+    ResourceTemplateDescriptor,
+};
 use crate::protocol::{ServerConfig, ToolDescriptor};
 use app_core_protocol::mcp::{
     CallToolResult, InitializeResult, ListToolsResult, ToolContent,
@@ -93,6 +97,101 @@ impl McpProcess {
             "arguments": arguments,
         });
         let response = self.send_request("tools/call", params)?;
+        serde_json::from_value(response).map_err(BackendError::from)
+    }
+
+    pub fn list_resources(
+        &mut self,
+        server_id: &str,
+        server_name: &str,
+    ) -> Result<Vec<ResourceDescriptor>, BackendError> {
+        let response = self.send_request("resources/list", Value::Object(Map::new()))?;
+        let resources = response
+            .get("resources")
+            .cloned()
+            .ok_or_else(|| BackendError::protocol("missing resources/list payload"))?;
+        let listed = serde_json::from_value::<Vec<ResourceDescriptor>>(resources)?;
+        Ok(listed
+            .into_iter()
+            .map(|resource| ResourceDescriptor {
+                server_id: server_id.to_string(),
+                server_name: server_name.to_string(),
+                ..resource
+            })
+            .collect())
+    }
+
+    pub fn read_resource(&mut self, uri: &str) -> Result<Vec<ResourceContentPayload>, BackendError> {
+        let response = self.send_request("resources/read", serde_json::json!({ "uri": uri }))?;
+        let contents = response
+            .get("contents")
+            .cloned()
+            .ok_or_else(|| BackendError::protocol("missing resources/read payload"))?;
+        serde_json::from_value(contents).map_err(BackendError::from)
+    }
+
+    pub fn subscribe_resource(&mut self, uri: &str) -> Result<(), BackendError> {
+        let _ = self.send_request("resources/subscribe", serde_json::json!({ "uri": uri }))?;
+        Ok(())
+    }
+
+    pub fn unsubscribe_resource(&mut self, uri: &str) -> Result<(), BackendError> {
+        let _ = self.send_request("resources/unsubscribe", serde_json::json!({ "uri": uri }))?;
+        Ok(())
+    }
+
+    pub fn list_resource_templates(
+        &mut self,
+        server_id: &str,
+        server_name: &str,
+    ) -> Result<Vec<ResourceTemplateDescriptor>, BackendError> {
+        let response = self.send_request("resources/templates/list", Value::Object(Map::new()))?;
+        let templates = response
+            .get("resourceTemplates")
+            .or_else(|| response.get("templates"))
+            .cloned()
+            .ok_or_else(|| BackendError::protocol("missing resources/templates/list payload"))?;
+        let listed = serde_json::from_value::<Vec<ResourceTemplateDescriptor>>(templates)?;
+        Ok(listed
+            .into_iter()
+            .map(|template| ResourceTemplateDescriptor {
+                server_id: server_id.to_string(),
+                server_name: server_name.to_string(),
+                ..template
+            })
+            .collect())
+    }
+
+    pub fn list_prompts(
+        &mut self,
+        server_id: &str,
+        server_name: &str,
+    ) -> Result<Vec<PromptDescriptor>, BackendError> {
+        let response = self.send_request("prompts/list", Value::Object(Map::new()))?;
+        let prompts = response
+            .get("prompts")
+            .cloned()
+            .ok_or_else(|| BackendError::protocol("missing prompts/list payload"))?;
+        let listed = serde_json::from_value::<Vec<PromptDescriptor>>(prompts)?;
+        Ok(listed
+            .into_iter()
+            .map(|prompt| PromptDescriptor {
+                server_id: server_id.to_string(),
+                server_name: server_name.to_string(),
+                ..prompt
+            })
+            .collect())
+    }
+
+    pub fn get_prompt(
+        &mut self,
+        name: &str,
+        arguments: Map<String, Value>,
+    ) -> Result<PromptResultPayload, BackendError> {
+        let response = self.send_request(
+            "prompts/get",
+            serde_json::json!({ "name": name, "arguments": arguments }),
+        )?;
         serde_json::from_value(response).map_err(BackendError::from)
     }
 

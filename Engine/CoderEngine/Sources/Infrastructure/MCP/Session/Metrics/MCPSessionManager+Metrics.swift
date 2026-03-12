@@ -22,13 +22,8 @@ extension MCPSessionManager {
             if rustStatus == "ready" || rustStatus == "disconnected" || rustStatus == "stopped" || rustStatus == "failed" {
                 status = rustStatus ?? "disconnected"
                 toolCount = (try? await rustToolDescriptors(for: cfg).count) ?? 0
-                if sessions[cfg.id] != nil {
-                    resourceCount = (try? await resourcesForServer(cfg).count) ?? 0
-                    promptCount = (try? await promptsForServer(cfg).count) ?? 0
-                } else {
-                    resourceCount = 0
-                    promptCount = 0
-                }
+                resourceCount = (try? await rustListResources(for: cfg).count) ?? 0
+                promptCount = (try? await rustListPrompts(for: cfg).count) ?? 0
                 capabilities = MCPServerCapabilities(
                     supportsTools: toolCount > 0,
                     supportsResources: resourceCount > 0,

@@ -30,6 +30,70 @@ extension MCPSessionManager {
         try await rustLifecycleBackend.shutdownAll()
     }
 
+    func rustListResources(
+        for server: MCPConfigLoader.DetectedServer
+    ) async throws -> [MCPResourceDescriptor] {
+        let payload = try await rustLifecycleBackend.listResources(server: server)
+        return payload.resources.map { $0.asSessionResourceDescriptor() }
+    }
+
+    func rustReadResource(
+        server: MCPConfigLoader.DetectedServer,
+        uri: String
+    ) async throws -> MCPResourceContent {
+        let payload = try await rustLifecycleBackend.readResource(server: server, uri: uri)
+        guard let first = payload.contents.first else {
+            throw ToolRuntimeError.transport("MCP resource response vuota")
+        }
+        return first.asSessionResourceContent(serverId: server.id, serverName: server.name)
+    }
+
+    func rustSubscribeResource(
+        server: MCPConfigLoader.DetectedServer,
+        uri: String
+    ) async throws {
+        try await rustLifecycleBackend.subscribeResource(server: server, uri: uri)
+    }
+
+    func rustUnsubscribeResource(
+        server: MCPConfigLoader.DetectedServer,
+        uri: String
+    ) async throws {
+        try await rustLifecycleBackend.unsubscribeResource(server: server, uri: uri)
+    }
+
+    func rustListResourceTemplates(
+        for server: MCPConfigLoader.DetectedServer
+    ) async throws -> [MCPResourceTemplate] {
+        let payload = try await rustLifecycleBackend.listResourceTemplates(server: server)
+        return payload.templates.map { $0.asSessionResourceTemplate() }
+    }
+
+    func rustListPrompts(
+        for server: MCPConfigLoader.DetectedServer
+    ) async throws -> [MCPPromptDescriptor] {
+        let payload = try await rustLifecycleBackend.listPrompts(server: server)
+        return payload.prompts.map { $0.asSessionPromptDescriptor() }
+    }
+
+    func rustGetPrompt(
+        server: MCPConfigLoader.DetectedServer,
+        name: String,
+        arguments: [String: Any]
+    ) async throws -> MCPPromptResult {
+        let payload = try await rustLifecycleBackend.getPrompt(
+            server: server,
+            name: name,
+            arguments: arguments
+        )
+        return MCPPromptResult(
+            description: payload.description,
+            messages: payload.messages.map { $0.asSessionPromptMessage() },
+            serverId: server.id,
+            serverName: server.name
+        )
+    }
+
     func rustCallTool(
         server: MCPConfigLoader.DetectedServer,
         toolName: String,
@@ -132,5 +196,59 @@ extension MCPSessionManager {
         arguments.reduce(into: [String: Any]()) { partialResult, kv in
             partialResult[kv.key] = valueToJSONObject(toValue(kv.value))
         }
+    }
+
+    func resolveTargetServerByResource(
+        serverId: String?,
+        uri: String,
+        servers: [MCPConfigLoader.DetectedServer]
+    ) async throws -> MCPConfigLoader.DetectedServer {
+        if let serverId, !serverId.isEmpty {
+            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+            }
+            return cfg
+        }
+
+        var matches: [MCPConfigLoader.DetectedServer] = []
+        for cfg in servers {
+            let resources = try await rustListResources(for: cfg)
+            if resources.contains(where: { $0.uri == uri }) {
+                matches.append(cfg)
+            }
+        }
+
+        return try MCPSessionManager.requireUniqueServerMatch(
+            matches: matches,
+            notFoundMessage: "MCP resource not found: \(uri)",
+            ambiguityLabel: "MCP resource '\(uri)'"
+        )
+    }
+
+    func resolveTargetServerByPrompt(
+        serverId: String?,
+        name: String,
+        servers: [MCPConfigLoader.DetectedServer]
+    ) async throws -> MCPConfigLoader.DetectedServer {
+        if let serverId, !serverId.isEmpty {
+            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+            }
+            return cfg
+        }
+
+        var matches: [MCPConfigLoader.DetectedServer] = []
+        for cfg in servers {
+            let prompts = try await rustListPrompts(for: cfg)
+            if prompts.contains(where: { $0.name == name }) {
+                matches.append(cfg)
+            }
+        }
+
+        return try MCPSessionManager.requireUniqueServerMatch(
+            matches: matches,
+            notFoundMessage: "MCP prompt not found: \(name)",
+            ambiguityLabel: "MCP prompt '\(name)'"
+        )
     }
 }

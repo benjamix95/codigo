@@ -1,7 +1,10 @@
 mod backend;
+mod backend_tests;
 mod error;
+mod mcp_models;
 mod mcp_process;
 mod protocol;
+mod resource_prompt_backend;
 mod service;
 mod state;
 

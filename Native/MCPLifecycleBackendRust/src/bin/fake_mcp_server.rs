@@ -1,7 +1,6 @@
 use app_core_protocol::jsonrpc::{JsonRpcInbound, JsonRpcResponse};
 use app_core_protocol::mcp::{
-    CallToolResult, InitializeResult, ListToolsResult, MCP_LATEST_PROTOCOL_VERSION, ServerCapabilities,
-    ServerInfo, ToolCallParams, ToolDefinition, ToolAnnotations, ToolsCapability,
+    CallToolResult, ListToolsResult, ToolCallParams, ToolDefinition, ToolAnnotations,
 };
 use serde_json::{json, Value};
 use std::fs;
@@ -29,18 +28,19 @@ fn run() -> Result<(), String> {
             JsonRpcInbound::Notification(_) => continue,
             JsonRpcInbound::Request(request) => match request.method.as_str() {
                 "initialize" => {
-                    let result = InitializeResult {
-                        protocol_version: MCP_LATEST_PROTOCOL_VERSION.to_string(),
-                        capabilities: ServerCapabilities {
-                            tools: Some(ToolsCapability { list_changed: Some(false) }),
+                    let result = json!({
+                        "protocolVersion": "2025-11-25",
+                        "capabilities": {
+                            "tools": { "listChanged": false },
+                            "resources": { "subscribe": true, "listChanged": false },
+                            "prompts": { "listChanged": false }
                         },
-                        server_info: ServerInfo {
-                            name: "fake-mcp-server".to_string(),
-                            version: "1.0.0".to_string(),
-                            title: Some("Fake MCP Server".to_string()),
-                        },
-                        instructions: None,
-                    };
+                        "serverInfo": {
+                            "name": "fake-mcp-server",
+                            "version": "1.0.0",
+                            "title": "Fake MCP Server"
+                        }
+                    });
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
                 }
                 "ping" => write_line(&mut stdout, &JsonRpcResponse::ok(request.id, json!({})))?,
@@ -55,6 +55,95 @@ fn run() -> Result<(), String> {
                         ],
                         next_cursor: None,
                     };
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
+                }
+                "resources/list" => {
+                    let result = json!({
+                        "resources": [
+                            {
+                                "uri": "fake://welcome",
+                                "name": "welcome",
+                                "title": "Welcome Resource",
+                                "description": "Simple fake resource",
+                                "mimeType": "text/plain"
+                            }
+                        ]
+                    });
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
+                }
+                "resources/read" => {
+                    let params = request.params.unwrap_or_else(|| json!({}));
+                    let uri = params.get("uri").and_then(Value::as_str).unwrap_or_default();
+                    let result = json!({
+                        "contents": [
+                            {
+                                "uri": uri,
+                                "mimeType": "text/plain",
+                                "text": format!("resource:{uri}")
+                            }
+                        ]
+                    });
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
+                }
+                "resources/subscribe" => {
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, json!({})))?;
+                }
+                "resources/unsubscribe" => {
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, json!({})))?;
+                }
+                "resources/templates/list" => {
+                    let result = json!({
+                        "resourceTemplates": [
+                            {
+                                "uriTemplate": "fake://template/{id}",
+                                "name": "fake-template",
+                                "title": "Fake Template",
+                                "description": "Template resource",
+                                "mimeType": "text/plain"
+                            }
+                        ]
+                    });
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
+                }
+                "prompts/list" => {
+                    let result = json!({
+                        "prompts": [
+                            {
+                                "name": "review_summary",
+                                "title": "Review Summary",
+                                "description": "Fake prompt for testing",
+                                "arguments": [
+                                    {
+                                        "name": "topic",
+                                        "description": "Topic to summarize",
+                                        "required": true
+                                    }
+                                ]
+                            }
+                        ]
+                    });
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
+                }
+                "prompts/get" => {
+                    let params = request.params.unwrap_or_else(|| json!({}));
+                    let topic = params
+                        .get("arguments")
+                        .and_then(Value::as_object)
+                        .and_then(|arguments| arguments.get("topic"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("missing");
+                    let result = json!({
+                        "description": "Prompt response",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": {
+                                    "type": "text",
+                                    "text": format!("summary:{topic}")
+                                }
+                            }
+                        ]
+                    });
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
                 }
                 "tools/call" => {

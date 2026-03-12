@@ -82,6 +82,34 @@ pub struct ServerActionRequest {
     pub server: Option<ServerConfig>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceRequest {
+    #[serde(default)]
+    pub server_id: Option<String>,
+    #[serde(default)]
+    pub server_name: Option<String>,
+    #[serde(default)]
+    pub server: Option<ServerConfig>,
+    #[serde(default)]
+    pub uri: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptRequest {
+    #[serde(default)]
+    pub server_id: Option<String>,
+    #[serde(default)]
+    pub server_name: Option<String>,
+    #[serde(default)]
+    pub server: Option<ServerConfig>,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub arguments: Map<String, Value>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListedServer {

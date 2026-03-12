@@ -39,6 +39,29 @@ fn lifecycle_backend_manages_generic_mcp_servers() {
     assert!(tools_array.iter().any(|tool| tool["name"] == "echo"));
     assert!(tools_array.iter().all(|tool| tool["serverId"] == "fake"));
 
+    let resources = child.request("4r", "list_resources", json!({ "serverId": "fake" }));
+    assert_eq!(resources["payload"]["resources"][0]["uri"], "fake://welcome");
+
+    let resource_content = child.request(
+        "4rr",
+        "read_resource",
+        json!({ "serverId": "fake", "uri": "fake://welcome" }),
+    );
+    assert_eq!(resource_content["payload"]["contents"][0]["text"], "resource:fake://welcome");
+
+    let templates = child.request("4rt", "list_resource_templates", json!({ "serverId": "fake" }));
+    assert_eq!(templates["payload"]["templates"][0]["uriTemplate"], "fake://template/{id}");
+
+    let prompts = child.request("4p", "list_prompts", json!({ "serverId": "fake" }));
+    assert_eq!(prompts["payload"]["prompts"][0]["name"], "review_summary");
+
+    let prompt = child.request(
+        "4pg",
+        "get_prompt",
+        json!({ "serverId": "fake", "name": "review_summary", "arguments": { "topic": "scope" } }),
+    );
+    assert_eq!(prompt["payload"]["messages"][0]["content"]["text"], "summary:scope");
+
     let echoed = child.request(
         "5",
         "call_tool",

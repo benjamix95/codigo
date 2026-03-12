@@ -71,10 +71,23 @@
 ## Gap residuo
 - il gap non è più la copertura dei nomi tool del server MCP locale
 - il lifecycle MCP è ora parzialmente migrato:
-  - `MCPSessionManager` usa il backend Rust `mcp-lifecycle-backend-rust` per `health`, `listTools`, `callTool`, `callToolRich`, `reconnect`, `restartServer`, `shutdownAll`
-  - `resources` e `prompts` restano ancora su path Swift diretto
+  - `MCPSessionManager` usa il backend Rust `mcp-lifecycle-backend-rust` per:
+    - `health`
+    - `listTools`
+    - `callTool`
+    - `callToolRich`
+    - `reconnect`
+    - `restartServer`
+    - `shutdownAll`
+    - `listResources`
+    - `readResource`
+    - `subscribeResource`
+    - `unsubscribeResource`
+    - `listResourceTemplates`
+    - `listPrompts`
+    - `getPrompt`
+    - `getPromptRich`
 - restano ancora da migrare fuori da Swift:
-  - `resources` / `prompts` MCP e le subscription resource-side
   - runtime locale generale (`UnifiedToolRuntime`)
   - pipeline/code panel/app core
   - fallback e bridge Swift residui fuori dalla sola UI
@@ -85,7 +98,7 @@
   - `SOLOCODE_USE_SWIFT_MCP_SERVER=1`
 
 ## Prossimo passo richiesto
-- chiudere `resources/prompts` e spostare fuori da Swift il runtime locale generale, poi il code panel/app core
+- spostare fuori da Swift il runtime locale generale, poi il code panel/app core
 
 ## Stato
 - aperto

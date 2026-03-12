@@ -9,13 +9,13 @@ extension MCPSessionManager {
 
         if let serverId, !serverId.isEmpty {
             guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else { return [] }
-            return try await resourcesForServer(cfg)
+            return try await rustListResources(for: cfg)
         }
 
         var all: [MCPResourceDescriptor] = []
         for cfg in servers {
             do {
-                let resources = try await resourcesForServer(cfg)
+                let resources = try await rustListResources(for: cfg)
                 all.append(contentsOf: resources)
             } catch {
                 Self.logger.warning("Failed to list resources for \(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -31,38 +31,12 @@ extension MCPSessionManager {
             throw ToolRuntimeError.mcpUnavailable("No MCP server configured")
         }
 
-        let target: MCPConfigLoader.DetectedServer
-        if let serverId, !serverId.isEmpty {
-            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
-                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
-            }
-            target = cfg
-        } else {
-            var matches: [MCPConfigLoader.DetectedServer] = []
-            for cfg in servers {
-                let resources = try await resourcesForServer(cfg)
-                if resources.contains(where: { $0.uri == uri }) {
-                    matches.append(cfg)
-                }
-            }
-            target = try MCPSessionManager.requireUniqueServerMatch(
-                matches: matches,
-                notFoundMessage: "MCP resource not found: \(uri)",
-                ambiguityLabel: "MCP resource '\(uri)'"
-            )
-        }
-
-        let s = try await session(for: target)
-        let contents = try await s.client.readResource(uri: uri)
-        let first = contents.first
-        return MCPResourceContent(
+        let target = try await resolveTargetServerByResource(
+            serverId: serverId,
             uri: uri,
-            mimeType: first?.mimeType,
-            text: first?.text,
-            blob: first?.blob,
-            serverId: target.id,
-            serverName: target.name
+            servers: servers
         )
+        return try await rustReadResource(server: target, uri: uri)
     }
 
     public func subscribeResource(serverId: String, uri: String) async throws {
@@ -70,8 +44,7 @@ extension MCPSessionManager {
         guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
             throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
         }
-        let s = try await session(for: cfg)
-        try await s.client.subscribeToResource(uri: uri)
+        try await rustSubscribeResource(server: cfg, uri: uri)
         resourceSubscriptions[cfg.id, default: []].insert(uri)
     }
 
@@ -88,28 +61,20 @@ extension MCPSessionManager {
             resourceSubscriptions.removeValue(forKey: cfg.id)
         }
 
-        guard sessions[cfg.id] != nil else { return }
-
-        // The current MCP SDK surface exposes subscribe but no direct unsubscribe.
-        // Rebuild the session to guarantee server-side listeners are dropped, then
-        // restore only the remaining local subscriptions.
         do {
-            try await resetSession(cfg.id)
-            if !remaining.isEmpty {
-                let refreshed = try await session(for: cfg)
-                for remainingURI in remaining {
-                    do {
-                        try await refreshed.client.subscribeToResource(uri: remainingURI)
-                    } catch {
-                        Self.logger.warning(
-                            "Failed to restore subscription uri=\(remainingURI, privacy: .public) on server=\(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
-                        )
-                    }
+            try await rustUnsubscribeResource(server: cfg, uri: uri)
+            for remainingURI in remaining {
+                do {
+                    try await rustSubscribeResource(server: cfg, uri: remainingURI)
+                } catch {
+                    Self.logger.warning(
+                        "Failed to restore subscription uri=\(remainingURI, privacy: .public) on server=\(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                    )
                 }
             }
         } catch {
             Self.logger.warning(
-                "Failed to rebuild MCP session after unsubscribe uri=\(uri, privacy: .public) on server=\(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                "Failed to unsubscribe MCP resource uri=\(uri, privacy: .public) on server=\(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
         }
     }
@@ -127,11 +92,7 @@ extension MCPSessionManager {
         var all: [MCPResourceTemplate] = []
         for cfg in targets {
             do {
-                let s = try await session(for: cfg)
-                let result = try await s.client.listResourceTemplates()
-                all.append(contentsOf: result.templates.map {
-                    MCPResourceTemplate(uriTemplate: $0.uriTemplate, name: $0.name, description: $0.description, mimeType: $0.mimeType, serverId: cfg.id, serverName: cfg.name)
-                })
+                all.append(contentsOf: try await rustListResourceTemplates(for: cfg))
             } catch {
                 Self.logger.warning("Failed to list resource templates for \(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }

@@ -25,6 +25,13 @@ impl Backend {
             "health" => self.health(payload),
             "list_tools" => self.list_tools(payload),
             "call_tool" => self.call_tool(payload),
+            "list_resources" => self.list_resources(payload),
+            "read_resource" => self.read_resource(payload),
+            "subscribe_resource" => self.subscribe_resource(payload),
+            "unsubscribe_resource" => self.unsubscribe_resource(payload),
+            "list_resource_templates" => self.list_resource_templates(payload),
+            "list_prompts" => self.list_prompts(payload),
+            "get_prompt" => self.get_prompt(payload),
             "reconnect" => self.reconnect(payload),
             "restart_server" => self.restart_server(payload),
             "shutdown_all" => self.shutdown_all(),
@@ -165,7 +172,7 @@ impl Backend {
         Ok(())
     }
 
-    fn resolve_server_identity(
+    pub(crate) fn resolve_server_identity(
         &mut self,
         server_id: Option<String>,
         server_name: Option<String>,
@@ -204,7 +211,7 @@ impl Backend {
         ))
     }
 
-    fn ensure_connected(&mut self, server_id: &str) -> Result<&mut ManagedServer, BackendError> {
+    pub(crate) fn ensure_connected(&mut self, server_id: &str) -> Result<&mut ManagedServer, BackendError> {
         let needs_restart = match self.managed_server_mut(server_id)?.process.as_mut() {
             Some(process) => !process.is_running()?,
             None => true,
@@ -272,23 +279,5 @@ impl Backend {
         self.servers
             .get_mut(server_id)
             .ok_or_else(|| BackendError::not_found(format!("unknown serverId: {server_id}")))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Backend;
-    use serde_json::json;
-
-    #[test]
-    fn list_servers_registers_new_entries() {
-        let mut backend = Backend::new();
-        let response = backend.handle(
-            "1".to_string(),
-            "list_servers",
-            json!({"servers":[{"id":"a","name":"A","command":"/bin/echo"}]}),
-        );
-        assert!(response.ok);
-        assert_eq!(response.payload["servers"][0]["id"], "a");
     }
 }

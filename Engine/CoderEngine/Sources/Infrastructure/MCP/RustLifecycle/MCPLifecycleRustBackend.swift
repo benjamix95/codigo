@@ -76,6 +76,87 @@ public actor MCPLifecycleRustBackend {
         )
     }
 
+    func listResources(
+        server: MCPConfigLoader.DetectedServer
+    ) async throws -> MCPLifecycleRustListResourcesPayload {
+        try await request(
+            op: "list_resources",
+            payload: ["server": MCPLifecycleRustServerConfig(server: server).jsonObject]
+        )
+    }
+
+    func readResource(
+        server: MCPConfigLoader.DetectedServer,
+        uri: String
+    ) async throws -> MCPLifecycleRustReadResourcePayload {
+        try await request(
+            op: "read_resource",
+            payload: [
+                "server": MCPLifecycleRustServerConfig(server: server).jsonObject,
+                "uri": uri
+            ]
+        )
+    }
+
+    func subscribeResource(
+        server: MCPConfigLoader.DetectedServer,
+        uri: String
+    ) async throws {
+        let _: MCPLifecycleRustURIAckPayload = try await request(
+            op: "subscribe_resource",
+            payload: [
+                "server": MCPLifecycleRustServerConfig(server: server).jsonObject,
+                "uri": uri
+            ]
+        )
+    }
+
+    func unsubscribeResource(
+        server: MCPConfigLoader.DetectedServer,
+        uri: String
+    ) async throws {
+        let _: MCPLifecycleRustURIAckPayload = try await request(
+            op: "unsubscribe_resource",
+            payload: [
+                "server": MCPLifecycleRustServerConfig(server: server).jsonObject,
+                "uri": uri
+            ]
+        )
+    }
+
+    func listResourceTemplates(
+        server: MCPConfigLoader.DetectedServer
+    ) async throws -> MCPLifecycleRustListResourceTemplatesPayload {
+        try await request(
+            op: "list_resource_templates",
+            payload: ["server": MCPLifecycleRustServerConfig(server: server).jsonObject]
+        )
+    }
+
+    func listPrompts(
+        server: MCPConfigLoader.DetectedServer
+    ) async throws -> MCPLifecycleRustListPromptsPayload {
+        try await request(
+            op: "list_prompts",
+            payload: ["server": MCPLifecycleRustServerConfig(server: server).jsonObject]
+        )
+    }
+
+    func getPrompt(
+        server: MCPConfigLoader.DetectedServer,
+        name: String,
+        arguments: [String: Any]
+    ) async throws -> MCPLifecycleRustGetPromptPayload {
+        try await request(
+            op: "get_prompt",
+            payload: [
+                "server": MCPLifecycleRustServerConfig(server: server).jsonObject,
+                "name": name,
+                "arguments": arguments
+            ]
+        )
+    }
+
     private func request<Response: Decodable>(
         op: String,
         payload: [String: Any]
