@@ -36,8 +36,14 @@ extension CodeReviewPanelStore {
         selectedModes = modes
         selectTab(.findings)
 
-        let sessionId = generateSessionId()
-        let sessionConfig = buildSessionConfig()
+        guard let plan = planPanelReviewLaunch() else {
+            isRunning = false
+            lastError = "Failed to plan review session"
+            freezeTimer()
+            return
+        }
+        let sessionId = plan.sessionId
+        let sessionConfig = plan.config
 
         let sessionState = CodeReviewSessionState(
             sessionId: sessionId,
@@ -215,17 +221,6 @@ extension CodeReviewPanelStore {
 
     // MARK: - Private Helpers
 
-    private func buildSessionConfig() -> SessionConfig {
-        let selectedBackend = selectedProviderOverrideId ?? ""
-        return SessionConfig(
-            maxWorkers: settings.maxWorkers,
-            maxRounds: settings.maxRounds,
-            analysisBackend: selectedBackend.isEmpty ? settings.analysisBackend : selectedBackend,
-            executionBackend: selectedBackend.isEmpty ? settings.executionBackend : selectedBackend,
-            analysisOnly: settings.analysisOnly
-        )
-    }
-
     private func buildPrompt(
         scope: ReviewScopeTarget,
         modes: Set<CodeReviewPanelMode>
@@ -236,17 +231,6 @@ extension CodeReviewPanelStore {
             selectedModes: modes,
             customInstructions: settings.customInstructions
         )
-    }
-
-    private func generateSessionId() -> String {
-        let prefix: String = if selectedModes == [.standard] {
-            "panel"
-        } else {
-            primarySelectedMode.rawValue
-                .lowercased()
-                .replacingOccurrences(of: " ", with: "-")
-        }
-        return "\(prefix)-\(UUID().uuidString.lowercased().prefix(12))"
     }
 
     func freezeTimer() {

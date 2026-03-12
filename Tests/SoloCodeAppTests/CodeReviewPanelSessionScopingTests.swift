@@ -357,6 +357,38 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         )
     }
 
+    func testPanelLaunchPlanUsesRustPlannerForPrefixAndConfig() throws {
+        let taskStore = TaskActivityStore()
+        let workspaceStore = WorkspaceStore()
+        let workspace = Workspace(name: "Review", rootPath: "/tmp/review-launch")
+        workspaceStore.workspaces = [workspace]
+        workspaceStore.activeWorkspaceId = workspace.id
+
+        let store = CodeReviewPanelStore(
+            taskActivityStore: taskStore,
+            providerRegistry: ProviderRegistry(),
+            executionController: nil,
+            workspaceStore: workspaceStore,
+            openFilesStore: OpenFilesStore(),
+            conversationId: nil,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+        store.selectedModes = [.bugFinder]
+        store.settings.maxWorkers = 4
+        store.settings.maxRounds = 5
+        store.settings.analysisBackend = "openai-api"
+        store.settings.executionBackend = "anthropic-api"
+        store.settings.analysisOnly = true
+
+        let plan = try XCTUnwrap(store.planPanelReviewLaunch())
+        XCTAssertTrue(plan.sessionId.hasPrefix("bug-finder-"))
+        XCTAssertEqual(plan.config.maxWorkers, 4)
+        XCTAssertEqual(plan.config.maxRounds, 5)
+        XCTAssertEqual(plan.config.analysisBackend, "openai-api")
+        XCTAssertEqual(plan.config.executionBackend, "anthropic-api")
+        XCTAssertTrue(plan.config.analysisOnly)
+    }
+
     private func makePanelStore(
         taskActivityStore: TaskActivityStore,
         conversationId: UUID?

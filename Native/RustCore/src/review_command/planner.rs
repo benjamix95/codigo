@@ -18,7 +18,7 @@ fn plan_start(request: ReviewCommandPlanRequest) -> ReviewCommandPlanResponse {
         return ReviewCommandPlanResponse::error("No active workspace is available for code review");
     }
     let session_id = sanitize_session_id(request.session_id)
-        .unwrap_or_else(|| uuid_like_fallback(&request.payload));
+        .unwrap_or_else(|| generated_session_id(&request.payload));
     let mut response = ReviewCommandPlanResponse::success("start");
     response.session_id = Some(session_id);
     response.config = Some(resolve_config(&request.payload, request.default_config));
@@ -139,10 +139,22 @@ fn non_empty(value: Option<&String>) -> Option<String> {
     if value.is_empty() { None } else { Some(value) }
 }
 
-fn uuid_like_fallback(payload: &std::collections::HashMap<String, String>) -> String {
-    non_empty(payload.get("session_id"))
-        .or_else(|| non_empty(payload.get("sessionId")))
-        .unwrap_or_else(|| "generated-review-session".to_string())
+fn generated_session_id(payload: &std::collections::HashMap<String, String>) -> String {
+    let prefix = non_empty(payload.get("session_prefix"))
+        .unwrap_or_else(|| "review".to_string())
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
+        .collect::<String>();
+    let normalized_prefix = if prefix.is_empty() {
+        "review".to_string()
+    } else {
+        prefix
+    };
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    format!("{normalized_prefix}-{:x}", nanos)
 }
 
 #[cfg(test)]
@@ -233,5 +245,22 @@ mod tests {
         assert_eq!(response.session_id.as_deref(), Some("session-1"));
         assert_eq!(response.finding_id.as_deref(), Some("finding-1"));
         assert_eq!(response.action.as_deref(), Some("apply_patch"));
+    }
+
+    #[test]
+    fn plan_start_generates_prefixed_session_when_missing() {
+        let response = plan_command(ReviewCommandPlanRequest {
+            schema_version: 1,
+            action: "start".to_string(),
+            session_id: None,
+            payload: HashMap::from([("session_prefix".to_string(), "panel".to_string())]),
+            workspace_available: true,
+            snapshot_exists: false,
+            current_config: None,
+            default_config: default_config(),
+        });
+        assert!(!response.is_error);
+        assert_eq!(response.kind, "start");
+        assert!(response.session_id.as_deref().unwrap_or_default().starts_with("panel-"));
     }
 }
