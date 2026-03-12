@@ -2,7 +2,7 @@ use super::common::{
     encode_raw, with_raw_json_input, ReviewFindDuplicateRequest, BACKEND_VERSION,
 };
 use crate::review_audit::run_audit;
-use crate::review_history::shape_historical_findings;
+use crate::review_history::{derive_history_live_state, shape_historical_findings};
 use crate::review_identity::find_duplicate;
 use crate::review_models::{
     ReviewAuditRequest, ReviewCoreAuditResponse, ReviewCoreListResponse,
@@ -136,6 +136,17 @@ pub extern "C" fn review_core_reduce_panel_state(input: *const c_char) -> *mut c
                 request.primary.unwrap_or_default(),
                 request.fallback.unwrap_or_default(),
             ))),
+            "derive_history_live_state" => {
+                let Some(snapshot) = request.snapshot else {
+                    return encode_raw(&ReviewCoreReduceResponse::error(
+                        "missing_snapshot",
+                        "snapshot is required",
+                    ));
+                };
+                encode_raw(&ReviewCoreReduceResponse::success_panel_state(
+                    derive_history_live_state(&snapshot),
+                ))
+            }
             "derive_review_panel_state" => {
                 let Some(snapshot) = request.snapshot else {
                     return encode_raw(&ReviewCoreReduceResponse::error(

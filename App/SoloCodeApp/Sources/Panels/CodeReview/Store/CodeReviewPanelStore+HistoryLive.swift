@@ -20,6 +20,11 @@ extension CodeReviewPanelStore {
             return nil
         }
 
+        if !snapshot.fileLedger.isEmpty,
+           let rustBoard = ReviewPanelHistoryLiveRustAdapter.derive(snapshot: snapshot) {
+            return rustBoard.makeBoardState(pipeline: pipeline)
+        }
+
         let workers = liveReviewWorkers()
         let cards = liveReviewCards()
         let ledgerWorkers = historicalLiveWorkers(from: snapshot)
