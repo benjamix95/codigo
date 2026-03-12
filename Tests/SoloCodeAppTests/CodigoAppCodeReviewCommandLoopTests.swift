@@ -135,6 +135,42 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertTrue(snapshot.config.analysisOnly)
     }
 
+    func testConfigureCommandUpdatesPersistedSnapshotThroughRustMutation() async throws {
+        let app = makeApp()
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, _, _ in
+            ValidationOnlyProvider()
+        }
+
+        let snapshot = makeSnapshot(
+            sessionId: "persisted-config-session",
+            findings: []
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "configure",
+            sessionId: "persisted-config-session",
+            conversationId: nil,
+            payload: [
+                "session_id": "persisted-config-session",
+                "max_workers": "5",
+                "max_rounds": "4",
+                "analysis_only": "true",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .completed)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: "persisted-config-session")
+        )
+        XCTAssertEqual(updatedSnapshot.config.maxWorkers, 5)
+        XCTAssertEqual(updatedSnapshot.config.maxRounds, 4)
+        XCTAssertTrue(updatedSnapshot.config.analysisOnly)
+        XCTAssertEqual(updatedSnapshot.events.last?.type, .configUpdated)
+    }
+
     func testDeferredReviewMarksCommandFailedWhenSessionFails() async throws {
         let app = makeApp()
         CodeReviewCommandRuntimeHooks.workspaceContextOverride = { [workspaceURL] _ in

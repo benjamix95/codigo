@@ -1,3 +1,6 @@
+use super::config::config_from_snapshot;
+use super::mutator_configure::configure_snapshot;
+use super::mutator_support::{event, find_finding, find_patch, required};
 use super::models::{ReviewCommandMutationRequest, ReviewCommandMutationResponse};
 use serde_json::{json, Value};
 
@@ -22,11 +25,18 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
         .to_string();
     let mut findings = findings.clone();
     let mut events = events.clone();
+    let mut resolved_config = config_from_snapshot(&request.snapshot).ok();
 
     let result = match request.action.as_str() {
         "apply_fix" => apply_fix(&mut findings, &mut events, &request.payload, &timestamp),
         "dismiss" => dismiss(&mut findings, &mut events, &request.payload, &timestamp),
         "comment" => comment(&mut findings, &mut events, &request.payload, &timestamp),
+        "configure" => configure_snapshot(
+            &mut events,
+            &request.payload,
+            &mut resolved_config,
+            &timestamp,
+        ),
         "close_finding" => close_finding(
             &mut findings,
             &mut events,
@@ -40,7 +50,7 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
         return error;
     }
 
-    ReviewCommandMutationResponse::success(findings, events)
+    ReviewCommandMutationResponse::success(findings, events, resolved_config)
 }
 
 fn apply_fix(
@@ -154,43 +164,6 @@ fn close_finding(
     Ok(())
 }
 
-fn required(
-    payload: &std::collections::HashMap<String, String>,
-    key: &str,
-) -> Result<String, ReviewCommandMutationResponse> {
-    payload
-        .get(key)
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| ReviewCommandMutationResponse::error(format!("Missing {}", key)))
-}
-
-fn find_finding<'a>(
-    findings: &'a mut [Value],
-    finding_id: &str,
-) -> Result<&'a mut Value, ReviewCommandMutationResponse> {
-    findings
-        .iter_mut()
-        .find(|finding| finding.get("id").and_then(Value::as_str) == Some(finding_id))
-        .ok_or_else(|| ReviewCommandMutationResponse::error("Finding not found"))
-}
-
-fn find_patch<'a>(patches: &'a [Value], finding_id: &str) -> Option<&'a Value> {
-    patches
-        .iter()
-        .find(|patch| patch.get("findingId").and_then(Value::as_str) == Some(finding_id))
-}
-
-fn event(event_type: &str, detail: String, metadata: Value, timestamp: &str) -> Value {
-    json!({
-        "id": format!("command-event-{}-{}", event_type, timestamp),
-        "type": event_type,
-        "timestamp": timestamp,
-        "detail": detail,
-        "metadata": metadata,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,6 +246,43 @@ mod tests {
         assert_eq!(
             response.findings.unwrap()[0].get("status").and_then(Value::as_str),
             Some("closed")
+        );
+    }
+
+    #[test]
+    fn configure_returns_normalized_config_and_event() {
+        let response = mutate_snapshot(ReviewCommandMutationRequest {
+            schema_version: 1,
+            action: "configure".to_string(),
+            snapshot: json!({
+                "sessionId": "session-1",
+                "lastUpdatedAt": "2026-03-11T12:00:00Z",
+                "findings": [{
+                    "id": "finding-1",
+                    "status": "open",
+                    "comments": []
+                }],
+                "patches": [],
+                "events": [],
+                "config": {
+                    "maxWorkers": 2,
+                    "maxRounds": 1,
+                    "analysisBackend": "codex",
+                    "executionBackend": "codex",
+                    "analysisOnly": false
+                }
+            }),
+            payload: std::collections::HashMap::from([
+                ("max_workers".to_string(), "7".to_string()),
+                ("analysis_only".to_string(), "true".to_string()),
+            ]),
+        });
+        assert!(!response.is_error);
+        assert_eq!(response.config.as_ref().map(|config| config.max_workers), Some(7));
+        assert_eq!(response.config.as_ref().map(|config| config.analysis_only), Some(true));
+        assert_eq!(
+            response.events.unwrap()[0].get("type").and_then(Value::as_str),
+            Some("config_updated")
         );
     }
 }

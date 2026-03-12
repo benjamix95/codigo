@@ -135,7 +135,28 @@ public actor ReviewSessionRegistry {
         config: SessionConfig
     ) async -> Bool {
         guard let state = statesBySessionId[sessionId] else { return false }
-        await state.updateConfig(config)
+        let snapshot = await state.snapshot()
+        guard let response: ReviewSessionRegistryMutationResponse = ReviewCoreBridge.call(
+            functionName: "review_core_command_mutate_snapshot",
+            request: ReviewSessionRegistryMutationRequest(
+                schemaVersion: 1,
+                action: "configure",
+                snapshot: snapshot,
+                payload: config.reviewCommandPayload
+            )
+        ),
+              !response.isError,
+              let updatedConfig = response.config,
+              let events = response.events else {
+            return false
+        }
+        let updated = snapshot.copying(
+            events: events,
+            config: updatedConfig,
+            outcome: snapshot.copying(events: events, config: updatedConfig).buildOutcomeSummary()
+        )
+        await state.replaceCanonicalSnapshot(updated)
+        recordSnapshot(updated)
         return true
     }
 
@@ -208,6 +229,7 @@ private struct ReviewSessionRegistryMutationRequest: Encodable {
 
 private struct ReviewSessionRegistryMutationResponse: Decodable {
     let isError: Bool
+    let config: SessionConfig?
     let findings: [CodeReviewFinding]?
     let events: [CodeReviewSessionEvent]?
 }

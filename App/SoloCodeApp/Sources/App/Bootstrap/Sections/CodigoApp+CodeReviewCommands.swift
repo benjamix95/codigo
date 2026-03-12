@@ -135,7 +135,15 @@ extension CodigoApp {
                 )
             }
             if let liveState = await ReviewSessionRegistry.shared.state(sessionId: sessionId) {
-                await liveState.updateConfig(updatedConfig)
+                guard await ReviewSessionRegistry.shared.updateConfig(
+                    sessionId: sessionId,
+                    config: updatedConfig
+                ) else {
+                    return .immediate(
+                        success: false,
+                        message: "Live review configuration update failed"
+                    )
+                }
                 await persistLiveReviewState(
                     liveState,
                     conversationId: commandConversationId
@@ -146,10 +154,10 @@ extension CodigoApp {
                 sessionId: sessionId,
                 conversationId: commandConversationId
             ) { snapshot in
-                snapshot.copying(
-                    events: snapshot.events + [
-                        CodeReviewSessionEvent(type: .configUpdated, detail: "Config updated from command bus")
-                    ],
+                configuredReviewSnapshot(
+                    snapshot: snapshot,
+                    sessionId: sessionId,
+                    conversationId: commandConversationId,
                     config: updatedConfig
                 )
             }
@@ -269,5 +277,4 @@ extension CodigoApp {
             """
         }
     }
-
 }

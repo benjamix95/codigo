@@ -69,6 +69,7 @@ pub struct ReviewCommandMutationResponse {
     pub schema_version: i32,
     pub is_error: bool,
     pub message: Option<String>,
+    pub config: Option<ReviewCommandConfig>,
     pub findings: Option<Vec<serde_json::Value>>,
     pub events: Option<Vec<serde_json::Value>>,
 }
@@ -124,16 +125,22 @@ impl ReviewCommandMutationResponse {
             schema_version: 1,
             is_error: true,
             message: Some(message.into()),
+            config: None,
             findings: None,
             events: None,
         }
     }
 
-    pub fn success(findings: Vec<serde_json::Value>, events: Vec<serde_json::Value>) -> Self {
+    pub fn success(
+        findings: Vec<serde_json::Value>,
+        events: Vec<serde_json::Value>,
+        config: Option<ReviewCommandConfig>,
+    ) -> Self {
         Self {
             schema_version: 1,
             is_error: false,
             message: None,
+            config,
             findings: Some(findings),
             events: Some(events),
         }

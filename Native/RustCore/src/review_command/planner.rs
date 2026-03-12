@@ -1,4 +1,5 @@
-use super::models::{ReviewCommandConfig, ReviewCommandPlanRequest, ReviewCommandPlanResponse};
+use super::config::{non_empty, resolve_config_from_payload, sanitize_session_id, trim};
+use super::models::{ReviewCommandPlanRequest, ReviewCommandPlanResponse};
 
 pub fn plan_command(request: ReviewCommandPlanRequest) -> ReviewCommandPlanResponse {
     match request.action.as_str() {
@@ -21,7 +22,7 @@ fn plan_start(request: ReviewCommandPlanRequest) -> ReviewCommandPlanResponse {
         .unwrap_or_else(|| generated_session_id(&request.payload));
     let mut response = ReviewCommandPlanResponse::success("start");
     response.session_id = Some(session_id);
-    response.config = Some(resolve_config(&request.payload, request.default_config));
+    response.config = Some(resolve_config_from_payload(&request.payload, request.default_config));
     response.deferred = true;
     response
 }
@@ -36,7 +37,7 @@ fn plan_configure(request: ReviewCommandPlanRequest) -> ReviewCommandPlanRespons
     let current = request.current_config.unwrap_or(request.default_config);
     let mut response = ReviewCommandPlanResponse::success("configure");
     response.session_id = Some(session_id);
-    response.config = Some(resolve_config(&request.payload, current));
+    response.config = Some(resolve_config_from_payload(&request.payload, current));
     response
 }
 
@@ -87,56 +88,6 @@ fn plan_patch_action(request: ReviewCommandPlanRequest) -> ReviewCommandPlanResp
     response.finding_id = Some(finding_id);
     response.action = Some(request.action);
     response
-}
-
-fn resolve_config(payload: &std::collections::HashMap<String, String>, fallback: ReviewCommandConfig) -> ReviewCommandConfig {
-    ReviewCommandConfig {
-        max_workers: payload
-            .get("max_workers")
-            .and_then(|value| value.trim().parse::<i32>().ok())
-            .unwrap_or(fallback.max_workers),
-        max_rounds: payload
-            .get("max_rounds")
-            .and_then(|value| value.trim().parse::<i32>().ok())
-            .unwrap_or(fallback.max_rounds),
-        analysis_backend: non_empty(payload.get("analysis_backend")).unwrap_or(fallback.analysis_backend),
-        execution_backend: non_empty(payload.get("execution_backend")).unwrap_or(fallback.execution_backend),
-        analysis_only: payload
-            .get("analysis_only")
-            .and_then(|value| parse_bool(value))
-            .unwrap_or(fallback.analysis_only),
-    }
-}
-
-fn parse_bool(value: &str) -> Option<bool> {
-    match value.trim().to_lowercase().as_str() {
-        "1" | "true" | "yes" | "y" => Some(true),
-        "0" | "false" | "no" | "n" => Some(false),
-        _ => None,
-    }
-}
-
-fn sanitize_session_id(session_id: Option<String>) -> Option<String> {
-    let session_id = session_id.map(|value| value.trim().to_string()).filter(|value| !value.is_empty())?;
-    let mut chars = session_id.chars();
-    let first = chars.next()?;
-    if !first.is_ascii_alphanumeric() || session_id.len() > 128 {
-        return None;
-    }
-    if chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') {
-        Some(session_id)
-    } else {
-        None
-    }
-}
-
-fn trim(value: Option<&String>) -> String {
-    value.map(|value| value.trim().to_string()).unwrap_or_default()
-}
-
-fn non_empty(value: Option<&String>) -> Option<String> {
-    let value = trim(value);
-    if value.is_empty() { None } else { Some(value) }
 }
 
 fn generated_session_id(payload: &std::collections::HashMap<String, String>) -> String {

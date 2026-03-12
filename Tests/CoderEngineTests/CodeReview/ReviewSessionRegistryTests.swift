@@ -101,6 +101,31 @@ final class ReviewSessionRegistryTests: XCTestCase {
         XCTAssertEqual(snapshot?.events.last?.type, .findingCommented)
     }
 
+    func testUpdateConfigUsesRustMutationForLiveSession() async {
+        let registry = ReviewSessionRegistry()
+        let state = CodeReviewSessionState(sessionId: "session-live-config")
+        await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
+        await registry.register(state)
+
+        let didUpdate = await registry.updateConfig(
+            sessionId: "session-live-config",
+            config: SessionConfig(
+                maxWorkers: 4,
+                maxRounds: 5,
+                analysisBackend: "codex",
+                executionBackend: "codex",
+                analysisOnly: true
+            )
+        )
+
+        XCTAssertTrue(didUpdate)
+        let snapshot = await registry.snapshot(sessionId: "session-live-config")
+        XCTAssertEqual(snapshot?.config.maxWorkers, 4)
+        XCTAssertEqual(snapshot?.config.maxRounds, 5)
+        XCTAssertTrue(snapshot?.config.analysisOnly == true)
+        XCTAssertEqual(snapshot?.events.last?.type, .configUpdated)
+    }
+
     private func makeSnapshot(
         sessionId: String,
         conversationId: UUID,

@@ -263,6 +263,7 @@
 		2583DE4A36E56E327A0BC9FF /* PipelineIntegrationServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5383F73D318B5D1C84E9A919 /* PipelineIntegrationServiceModels.swift */; };
 		25B0F8C09852B3A3C866715F /* AppUpdateCenter+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0AC200D065BE1091F9BB3EC /* AppUpdateCenter+Helpers.swift */; };
 		25B22386C2CA86F3A9D51EBE /* CodigoApp+CodeReviewCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3983E5E77F95332C832DE0C6 /* CodigoApp+CodeReviewCommands.swift */; };
+		F1A0C8E1B72F4D9A8C3E11A1 /* CodigoApp+CodeReviewCommandConfigure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A0C8E1B72F4D9A8C3E11A2 /* CodigoApp+CodeReviewCommandConfigure.swift */; };
 		25C2BCBBC3606B6AB3B97E87 /* ChatBackgroundStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE0B9219231A0893753E7E1 /* ChatBackgroundStyleTests.swift */; };
 		25DED4DDFA715856016F7254 /* CodexCLIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326B36FCC4BE69F5E120D6ED /* CodexCLIProvider+Execution.swift */; };
 		25F3EC7486245A11CC058D65 /* DesignSystem+Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = C600F50E2AE25746BDCD3998 /* DesignSystem+Components.swift */; };
@@ -1011,6 +1012,7 @@
 		8EEC1F215B4E403E5F426F89 /* ExtensionManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188F4ED8F083244D01259410 /* ExtensionManifest.swift */; };
 		8EF724D4053967080F03C585 /* CodeReviewPanelStore+SnapshotMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0CD6BB0B2629C6966BEB02 /* CodeReviewPanelStore+SnapshotMutation.swift */; };
 		8F30CD40783BEFFC9C90DD9D /* ReviewCommandRustBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46257CCFFBE628428E5E5824 /* ReviewCommandRustBridge.swift */; };
+		F1A0C8E1B72F4D9A8C3E11B1 /* SessionConfig+ReviewCommandPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A0C8E1B72F4D9A8C3E11B2 /* SessionConfig+ReviewCommandPayload.swift */; };
 		8F499CB9F881B24B3EFF00BF /* DebugPipelineNativeContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3764D1B134FB8640D02D9CC6 /* DebugPipelineNativeContracts.swift */; };
 		8F600926897C5568215D5153 /* ReviewPipelineNoFilesMessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDC75059D9F14A3AB9D10858 /* ReviewPipelineNoFilesMessageTests.swift */; };
 		8FB0FC76928A3A70CF616987 /* SymbolExtractor+CSharp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77199AFC3329450740249B7A /* SymbolExtractor+CSharp.swift */; };
@@ -2216,6 +2218,7 @@
 		395E18DF59664A7B0D17C49E /* TaskActivityPanel+Standard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "TaskActivityPanel+Standard.swift"; path = "App/SoloCodeApp/Sources/Chat/TaskStatus/TaskActivityPanel+Standard.swift"; sourceTree = "<group>"; };
 		397FD851EF7B97A3111167CB /* MessageToolTraceView+Diff.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MessageToolTraceView+Diff.swift"; path = "App/SoloCodeApp/Sources/Chat/MessageToolTrace/MessageToolTraceView+Diff.swift"; sourceTree = "<group>"; };
 		3983E5E77F95332C832DE0C6 /* CodigoApp+CodeReviewCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodigoApp+CodeReviewCommands.swift"; path = "App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommands.swift"; sourceTree = "<group>"; };
+		F1A0C8E1B72F4D9A8C3E11A2 /* CodigoApp+CodeReviewCommandConfigure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodigoApp+CodeReviewCommandConfigure.swift"; path = "App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewCommandConfigure.swift"; sourceTree = "<group>"; };
 		39A7637512FD27D00CFCC5D3 /* ToolEnabledLLMProvider+SubagentExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProvider+SubagentExecution.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/Subagents/ToolEnabledLLMProvider+SubagentExecution.swift"; sourceTree = "<group>"; };
 		39E9A3F93577E9A22746AD3D /* ToolEnabledLLMProviderPolicyAckTests+Finalization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProviderPolicyAckTests+Finalization.swift"; path = "Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+Finalization.swift"; sourceTree = "<group>"; };
 		3A31B6DFAA5DCB1EE0F682F1 /* PipelineMetricsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineMetricsTests.swift; path = Tests/CoderEngineTests/Pipeline/Observability/PipelineMetricsTests.swift; sourceTree = "<group>"; };
@@ -2315,6 +2318,7 @@
 		456C8B52D988A1F6CDEB408C /* CodeReviewPanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPanelView.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/CodeReviewPanelView.swift; sourceTree = "<group>"; };
 		457F8008FE18591EDCD783B9 /* ClaudeModelsCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ClaudeModelsCache.swift; path = Engine/CoderEngine/Sources/Providers/ClaudeCLI/ClaudeModelsCache.swift; sourceTree = "<group>"; };
 		46257CCFFBE628428E5E5824 /* ReviewCommandRustBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewCommandRustBridge.swift; path = App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/ReviewCommandRustBridge.swift; sourceTree = "<group>"; };
+		F1A0C8E1B72F4D9A8C3E11B2 /* SessionConfig+ReviewCommandPayload.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SessionConfig+ReviewCommandPayload.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Session/SessionConfig+ReviewCommandPayload.swift"; sourceTree = "<group>"; };
 		46381742512DC1744DF8995F /* CoderEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CoderEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4646A501916AA6F4800FCC76 /* ChatPanelView+PartN_PlanPrompts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartN_PlanPrompts.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartN_PlanPrompts.swift"; sourceTree = "<group>"; };
 		465DED29B0570D1B7CBC01DA /* RollbackRecord.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RollbackRecord.swift; path = Engine/CoderEngine/Sources/Pipeline/Contracts/RollbackRecord.swift; sourceTree = "<group>"; };
@@ -3655,6 +3659,7 @@
 				12F2F3AB60498FD32286CC15 /* CodeReviewCommandLoopDriver.swift */,
 				48B273B46D00613EAC8D8DAF /* CodeReviewCommandRuntimeHooks.swift */,
 				FA85A7E419E70F730593D983 /* CodigoApp+CodeReviewDeferredCommands.swift */,
+				F1A0C8E1B72F4D9A8C3E11A2 /* CodigoApp+CodeReviewCommandConfigure.swift */,
 				F4F64E5BA9946815AA0B17A2 /* CodigoApp+CodeReviewPatchCommands.swift */,
 				46257CCFFBE628428E5E5824 /* ReviewCommandRustBridge.swift */,
 				2C1BD5BFD128AD2B93C8CD43 /* CodigoApp+Appearance.swift */,
@@ -4451,6 +4456,7 @@
 				503E3E0F86F228F87C5771B3 /* ReviewLifecycleModels.swift */,
 				3FF9AA5E4C0E4A6B8D2F1030 /* ReviewPipelineLedgerModels.swift */,
 				E1136CB0540080162E67CCB9 /* ReviewSessionRegistry.swift */,
+				F1A0C8E1B72F4D9A8C3E11B2 /* SessionConfig+ReviewCommandPayload.swift */,
 				F88526FF1473A4D0D863D32C /* ReviewSessionTypes.swift */,
 				AE76EAE4473A9383B23E39B0 /* ReviewCandidateVerificationService.swift */,
 				D8332B7BFD513959F11FA995 /* CodebaseIndex+ResultTypes.swift */,
@@ -5679,6 +5685,7 @@
 				3FF3BE27392D51AE1C4FAF81 /* ReviewLifecycleModels.swift in Sources */,
 				3FF9AA5E4C0E4A6B8D2F1031 /* ReviewPipelineLedgerModels.swift in Sources */,
 				C9AB587ECDDBA613FBE3912E /* ReviewSessionRegistry.swift in Sources */,
+				F1A0C8E1B72F4D9A8C3E11B1 /* SessionConfig+ReviewCommandPayload.swift in Sources */,
 				B6100C221AE5974902147D30 /* ReviewSessionTypes.swift in Sources */,
 				1D01F79687FB763D40CC9337 /* ReviewCandidateVerificationService.swift in Sources */,
 				D21DF00FD4E3364A43B45718 /* CodebaseIndex+ResultTypes.swift in Sources */,
@@ -6615,6 +6622,7 @@
 				7AAC5E1527B65A1D5AF22BBC /* CodeReviewCommandLoopDriver.swift in Sources */,
 				00EFE30B0922F29801A21FB9 /* CodeReviewCommandRuntimeHooks.swift in Sources */,
 				1752162C28AFAF22F6E9EE3D /* CodigoApp+CodeReviewDeferredCommands.swift in Sources */,
+				F1A0C8E1B72F4D9A8C3E11A1 /* CodigoApp+CodeReviewCommandConfigure.swift in Sources */,
 				070C22752221E1148FE35B75 /* CodigoApp+CodeReviewPatchCommands.swift in Sources */,
 				8F30CD40783BEFFC9C90DD9D /* ReviewCommandRustBridge.swift in Sources */,
 				5C55C280624CD92AB14D8980 /* CodigoApp+Appearance.swift in Sources */,
