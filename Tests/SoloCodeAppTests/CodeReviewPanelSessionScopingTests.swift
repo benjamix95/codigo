@@ -389,6 +389,35 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertTrue(plan.config.analysisOnly)
     }
 
+    func testRerunScopeTargetUsesAgainstRefWhenSnapshotCarriesRef() {
+        let store = makePanelStore(
+            taskActivityStore: TaskActivityStore(),
+            conversationId: nil
+        )
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "rerun-session",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [],
+            events: [],
+            config: .default,
+            scope: ReviewSessionScope(type: .againstRef, files: ["Sources/A.swift"], ref: "HEAD~2"),
+            workspacePath: "/tmp/review-rerun",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: nil,
+            completedAt: nil,
+            analysisCompletedAt: nil,
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: nil,
+            lastUpdatedAt: Date()
+        )
+
+        XCTAssertEqual(store.rerunScopeTarget(for: snapshot), .againstRef("HEAD~2"))
+    }
+
     private func makePanelStore(
         taskActivityStore: TaskActivityStore,
         conversationId: UUID?

@@ -64,6 +64,19 @@ extension CodeReviewPanelStore {
             .lowercased()
             .replacingOccurrences(of: " ", with: "-")
     }
+
+    func rerunScopeTarget(for snapshot: CodeReviewSessionSnapshot) -> ReviewScopeTarget {
+        switch snapshot.scope?.type {
+        case .againstRef:
+            return .againstRef(snapshot.scope?.ref ?? "HEAD~1")
+        case .staged:
+            return .staged
+        case .workspace:
+            return .workspace
+        case .uncommitted, .none:
+            return .uncommitted
+        }
+    }
 }
 
 private struct ReviewPanelStartPlanRequest: Encodable {

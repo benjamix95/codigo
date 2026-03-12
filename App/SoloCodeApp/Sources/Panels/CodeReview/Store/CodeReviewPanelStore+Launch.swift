@@ -123,20 +123,7 @@ extension CodeReviewPanelStore {
         guard let snapshot = taskActivityStore.codeReviewSnapshot(
             sessionId: sessionId, conversationId: conversationId
         ) else { return }
-
-        let scope: ReviewScopeTarget
-        switch snapshot.scope?.type {
-        case .againstRef:
-            scope = .againstRef(snapshot.scope?.ref ?? "HEAD~1")
-        case .staged:
-            scope = .staged
-        case .workspace:
-            scope = .workspace
-        case .uncommitted, .none:
-            scope = .uncommitted
-        }
-
-        await startReview(scope: scope, modes: selectedModes)
+        await startReview(scope: rerunScopeTarget(for: snapshot), modes: selectedModes)
     }
 
     func runQuickCommand(_ command: ReviewPanelSlashCommand) async {
