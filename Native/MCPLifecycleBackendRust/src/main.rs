@@ -1,5 +1,6 @@
 mod backend;
 mod backend_tests;
+mod batch_backend;
 mod error;
 mod mcp_models;
 mod mcp_process;

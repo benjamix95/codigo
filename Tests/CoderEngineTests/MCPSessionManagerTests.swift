@@ -307,6 +307,54 @@ final class MCPSessionManagerTests: XCTestCase {
         XCTAssertEqual(prompt.messages.first?.content, "summary:scope")
     }
 
+    func testCallToolsBatchUsesRustLifecycleBackend() async throws {
+        guard let lifecycleBinaryPath = locateRustLifecycleBinary(named: "mcp-lifecycle-backend-rust"),
+              let fakeServerBinaryPath = locateRustLifecycleBinary(named: "fake-mcp-server") else {
+            throw XCTSkip("Rust lifecycle backend binaries not found in Native/target")
+        }
+
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp-rust-lifecycle-batch-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let bootCountFile = workspace.appendingPathComponent("boot-count.txt")
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-rust-lifecycle-batch.json",
+            name: "fake-mcp-batch",
+            command: fakeServerBinaryPath,
+            args: [bootCountFile.path]
+        )
+        let manager = MCPSessionManager(
+            serverResolver: { [server] },
+            rustLifecycleBackend: MCPLifecycleRustBackend(
+                binaryURL: URL(fileURLWithPath: lifecycleBinaryPath)
+            )
+        )
+        defer {
+            Task {
+                await manager.shutdownAll()
+            }
+        }
+
+        let results = await manager.callToolsBatch(
+            calls: [
+                (serverId: server.id, toolName: "echo", arguments: ["message": "batch-one"]),
+                (serverId: server.id, toolName: "fail", arguments: ["message": "batch-two"])
+            ],
+            timeoutMs: 5_000,
+            idleTTLSeconds: 0
+        )
+
+        XCTAssertEqual(results.count, 2)
+        XCTAssertEqual(results[0].content, "batch-one")
+        XCTAssertFalse(results[0].isError)
+        XCTAssertEqual(results[1].content, "batch-two")
+        XCTAssertTrue(results[1].isError)
+    }
+
     func testReconnectClearsNativeToolRegistry() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
             throw XCTSkip("coderide-mcp-server binary not found in .build")

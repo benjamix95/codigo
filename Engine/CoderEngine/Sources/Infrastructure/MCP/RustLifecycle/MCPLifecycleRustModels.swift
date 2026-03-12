@@ -236,3 +236,32 @@ struct MCPLifecycleRustGetPromptPayload: Decodable, Sendable {
     let description: String?
     let messages: [MCPLifecycleRustPromptMessage]
 }
+
+struct MCPLifecycleRustBatchCallRequestItem: Sendable {
+    let index: Int
+    let server: MCPLifecycleRustServerConfig
+    let toolName: String
+    let arguments: [String: Any]
+
+    var jsonObject: [String: Any] {
+        [
+            "index": index,
+            "server": server.jsonObject,
+            "toolName": toolName,
+            "arguments": arguments
+        ]
+    }
+}
+
+struct MCPLifecycleRustBatchCallResultItem: Decodable, Sendable {
+    let index: Int
+    let serverId: String
+    let serverName: String
+    let content: String
+    let isError: Bool
+    let error: String?
+}
+
+struct MCPLifecycleRustBatchCallPayload: Decodable, Sendable {
+    let results: [MCPLifecycleRustBatchCallResultItem]
+}

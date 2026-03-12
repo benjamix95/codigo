@@ -110,6 +110,39 @@ pub struct PromptRequest {
     pub arguments: Map<String, Value>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchCallItem {
+    pub index: usize,
+    #[serde(default)]
+    pub server_id: Option<String>,
+    #[serde(default)]
+    pub server_name: Option<String>,
+    #[serde(default)]
+    pub server: Option<ServerConfig>,
+    pub tool_name: String,
+    #[serde(default)]
+    pub arguments: Map<String, Value>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchCallRequest {
+    #[serde(default)]
+    pub calls: Vec<BatchCallItem>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchCallResultItem {
+    pub index: usize,
+    pub server_id: String,
+    pub server_name: String,
+    pub content: String,
+    pub is_error: bool,
+    pub error: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListedServer {

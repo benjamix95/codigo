@@ -14,7 +14,14 @@
 
 ## Osservazione
 - il problema è distinto dal crash `SIGPIPE`
-- i test MCP mirati erano passati prima che il runner entrasse in questo stato
+- il problema non è stato eliminato dal fix su `bootstrap_test_bundles.sh`
+- anche dopo build `build-for-testing`, bootstrap esplicito e rifirma manuale del bundle, `xctest` continua a rifiutare `CoderEngineTests.xctest`
+- il runner `xcodebuild test` costruisce e tenta di caricare un bundle che il sistema considera ancora `not valid for use in process`
+
+## Evidenza aggiornata
+- `xcodebuild build-for-testing -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS'` passa
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/MCPSessionManagerTests` continua a fallire al load del bundle
+- anche `xcodebuild test-without-building` sul file `.xctestrun` fallisce con lo stesso `library load denied by system policy`
 
 ## Stato
 - aperto

@@ -78,6 +78,21 @@ fn lifecycle_backend_manages_generic_mcp_servers() {
     assert_eq!(failed["payload"]["isError"], true);
     assert_eq!(failed["payload"]["content"], "boom");
 
+    let batch = child.request(
+        "6b",
+        "call_tools_batch",
+        json!({
+            "calls": [
+                { "index": 0, "serverId": "fake", "toolName": "echo", "arguments": { "message": "batch-ok" } },
+                { "index": 1, "serverId": "fake", "toolName": "fail", "arguments": { "message": "batch-fail" } }
+            ]
+        }),
+    );
+    assert_eq!(batch["payload"]["results"][0]["content"], "batch-ok");
+    assert_eq!(batch["payload"]["results"][0]["isError"], false);
+    assert_eq!(batch["payload"]["results"][1]["isError"], true);
+    assert_eq!(batch["payload"]["results"][1]["content"], "batch-fail");
+
     let cwd_value = child.request(
         "7",
         "call_tool",

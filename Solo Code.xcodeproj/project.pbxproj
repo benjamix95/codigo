@@ -102,6 +102,7 @@
 		0D9F2663E28EE607F137CB56 /* EventNormalizerLiveStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45F5999B0488B0037C7A791 /* EventNormalizerLiveStateTests.swift */; };
 		0DCC5409F89FF586836E4B7A /* ReviewPanelChatBubble+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF0D5235AE01A588D528325 /* ReviewPanelChatBubble+Helpers.swift */; };
 		0E0A9D5D39FACBA5FD0897A5 /* AgentSwarmHelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4CD89B59BCB6128645524E7 /* AgentSwarmHelpView.swift */; };
+		0E2067383B535E8DA38BF5EB /* MCPSessionManager+RustLifecycleBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAF070D15D0A6103203A959 /* MCPSessionManager+RustLifecycleBatch.swift */; };
 		0E48A86E0B4D43EC6D53758F /* ChatStorePlansMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B030CBEB106D37828F1FD0C9 /* ChatStorePlansMutationTests.swift */; };
 		0EAD47C71272E91B0CBA706F /* CoderEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 46381742512DC1744DF8995F /* CoderEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		0EC28A516C41BCA19E047EB0 /* StreamEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 845AB6F956ED8F7AA68FA1EC /* StreamEvent.swift */; };
@@ -876,6 +877,7 @@
 		79CB500443BD328B697B1E45 /* GeminiCLIProvider+JSONParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B41D5B7D550E3F6733E16FF5 /* GeminiCLIProvider+JSONParsing.swift */; };
 		7A091EDF3CFC4D32C4351112 /* PromptDomains.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83BB79EE0FB5F3678F55BE70 /* PromptDomains.swift */; };
 		7A24CDE316F074BB53C82697 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22096B4C048D8A4D0CBC2332 /* Cocoa.framework */; };
+		7A2B8658901822BECF227543 /* MCPLifecycleRustBackend+Batch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD6E1ED33F4030C669086C0B /* MCPLifecycleRustBackend+Batch.swift */; };
 		7A71D9FAAAAF0F2B3B70F030 /* SwarmBudgetManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A4193CBE605B4EF991390A /* SwarmBudgetManagerTests.swift */; };
 		7A791082CCDA0F703C67B828 /* MermaidDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB45C1DBDE1C739CA827884 /* MermaidDiagramView.swift */; };
 		7A7C0250B7345555D8DB2CFD /* TaskActivityStoreSwarmCardsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B45664135FF454961EBAC69 /* TaskActivityStoreSwarmCardsTests.swift */; };
@@ -2974,6 +2976,7 @@
 		AD0CD5CABBA09BA0E8E00CD4 /* CLIAccountAuthDetector+Detection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CLIAccountAuthDetector+Detection.swift"; path = "App/SoloCodeApp/Sources/Accounts/Authentication/CLIAccountAuthDetector+Detection.swift"; sourceTree = "<group>"; };
 		AD2176FA8AC3762B1A414C88 /* ToolEnabledLLMProvider+SendRoundProcessing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProvider+SendRoundProcessing.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/Send/ToolEnabledLLMProvider+SendRoundProcessing.swift"; sourceTree = "<group>"; };
 		AD6ADE7E4ED1CEB117782CCD /* PipelineLockManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineLockManagerTests.swift; path = Tests/CoderEngineTests/Pipeline/Locking/PipelineLockManagerTests.swift; sourceTree = "<group>"; };
+		AD6E1ED33F4030C669086C0B /* MCPLifecycleRustBackend+Batch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPLifecycleRustBackend+Batch.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/RustLifecycle/MCPLifecycleRustBackend+Batch.swift"; sourceTree = "<group>"; };
 		AD9F41C9478A5D408E2E41C5 /* TaskActivityPanel+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "TaskActivityPanel+Helpers.swift"; path = "App/SoloCodeApp/Sources/Chat/TaskStatus/TaskActivityPanel+Helpers.swift"; sourceTree = "<group>"; };
 		ADB36F04368D544311E48FDA /* ReviewPanelFindingsHistoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelFindingsHistoryTests.swift; sourceTree = "<group>"; };
 		ADC996E961CE9B26FC7BB88E /* CoderIDETools+Execution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CoderIDETools+Execution.swift"; path = "Tools/CoderIDEMCPServer/Sources/Tools/Catalog/CoderIDETools+Execution.swift"; sourceTree = "<group>"; };
@@ -3364,6 +3367,7 @@
 		EA818A8BBA1902B2568EF2E3 /* PipelineJobFactory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineJobFactory.swift; path = Engine/CoderEngine/Sources/Pipeline/Bridge/PipelineJobFactory.swift; sourceTree = "<group>"; };
 		EA8C54032ACAEE983C53D131 /* SettingsView+Sync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SettingsView+Sync.swift"; path = "App/SoloCodeApp/Sources/Settings/Actions/SettingsView+Sync.swift"; sourceTree = "<group>"; };
 		EAA5E38767D1D35EDBA1D08A /* WorktreeMergeAIService+Prompts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "WorktreeMergeAIService+Prompts.swift"; path = "App/SoloCodeApp/Sources/Git/Worktree/Services/WorktreeMergeAIService+Prompts.swift"; sourceTree = "<group>"; };
+		EAAF070D15D0A6103203A959 /* MCPSessionManager+RustLifecycleBatch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSessionManager+RustLifecycleBatch.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/RustLifecycle/MCPSessionManager+RustLifecycleBatch.swift"; sourceTree = "<group>"; };
 		EAC9E30BBA8761C1C3847089 /* SwarmProgressSummarySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwarmProgressSummarySection.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SwarmProgressSummarySection.swift; sourceTree = "<group>"; };
 		EAFE397DC6348EDF2EFBC5C9 /* BugHunterIOErrorHandlingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterIOErrorHandlingTests.swift; path = Tests/CoderEngineTests/CodeReview/BugHunterIOErrorHandlingTests.swift; sourceTree = "<group>"; };
 		EB200141565E916A018CF763 /* PostgresPersistenceStore+ReviewAndPlan.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PostgresPersistenceStore+ReviewAndPlan.swift"; path = "Engine/CoderEngine/Sources/PersistenceCore/PostgresPersistenceStore+ReviewAndPlan.swift"; sourceTree = "<group>"; };
@@ -4850,6 +4854,8 @@
 				401D91F7366D97BA6FC5283B /* MCPLifecycleRustBinaryLocator.swift */,
 				7CB89734A32DE20800AC19B9 /* MCPLifecycleRustBackend.swift */,
 				B68715DB1B0311CD0F90C6BF /* MCPSessionManager+RustLifecycleBridge.swift */,
+				AD6E1ED33F4030C669086C0B /* MCPLifecycleRustBackend+Batch.swift */,
+				EAAF070D15D0A6103203A959 /* MCPSessionManager+RustLifecycleBatch.swift */,
 			);
 			name = Engine;
 			sourceTree = "<group>";
@@ -6071,6 +6077,8 @@
 				E8A476700C89DC20E43EF483 /* MCPLifecycleRustBinaryLocator.swift in Sources */,
 				C28F2F9F6A2E0FC52A1BB0BF /* MCPLifecycleRustBackend.swift in Sources */,
 				BBBC964A42E4622A041120FE /* MCPSessionManager+RustLifecycleBridge.swift in Sources */,
+				7A2B8658901822BECF227543 /* MCPLifecycleRustBackend+Batch.swift in Sources */,
+				0E2067383B535E8DA38BF5EB /* MCPSessionManager+RustLifecycleBatch.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

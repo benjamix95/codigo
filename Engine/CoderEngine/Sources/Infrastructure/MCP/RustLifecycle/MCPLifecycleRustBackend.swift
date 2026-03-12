@@ -157,7 +157,7 @@ public actor MCPLifecycleRustBackend {
         )
     }
 
-    private func request<Response: Decodable>(
+    func request<Response: Decodable>(
         op: String,
         payload: [String: Any]
     ) async throws -> Response {

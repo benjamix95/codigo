@@ -78,31 +78,37 @@ extension MCPSessionManager {
         timeoutMs: Int,
         idleTTLSeconds: Int = 300
     ) async -> [(index: Int, serverId: String, serverName: String, content: String, isError: Bool, error: String?)] {
-        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
-
-        return await withTaskGroup(of: (Int, String, String, String, Bool, String?).self) { group in
-            for (index, call) in calls.enumerated() {
-                group.addTask {
-                    do {
-                        let result = try await self.callToolRich(
-                            serverId: call.serverId,
-                            toolName: call.toolName,
-                            arguments: call.arguments,
-                            timeoutMs: timeoutMs,
-                            idleTTLSeconds: idleTTLSeconds
-                        )
-                        return (index, result.serverId, result.serverName, result.content, result.isError, nil)
-                    } catch {
-                        return (index, call.serverId ?? "", "", "", true, error.localizedDescription)
+        _ = timeoutMs
+        do {
+            return try await rustCallToolsBatch(
+                calls: calls,
+                idleTTLSeconds: idleTTLSeconds
+            )
+        } catch {
+            return await withTaskGroup(of: (Int, String, String, String, Bool, String?).self) { group in
+                for (index, call) in calls.enumerated() {
+                    group.addTask {
+                        do {
+                            let result = try await self.callToolRich(
+                                serverId: call.serverId,
+                                toolName: call.toolName,
+                                arguments: call.arguments,
+                                timeoutMs: timeoutMs,
+                                idleTTLSeconds: idleTTLSeconds
+                            )
+                            return (index, result.serverId, result.serverName, result.content, result.isError, nil)
+                        } catch {
+                            return (index, call.serverId ?? "", "", "", true, error.localizedDescription)
+                        }
                     }
                 }
-            }
 
-            var results: [(index: Int, serverId: String, serverName: String, content: String, isError: Bool, error: String?)] = []
-            for await result in group {
-                results.append((index: result.0, serverId: result.1, serverName: result.2, content: result.3, isError: result.4, error: result.5))
+                var results: [(index: Int, serverId: String, serverName: String, content: String, isError: Bool, error: String?)] = []
+                for await result in group {
+                    results.append((index: result.0, serverId: result.1, serverName: result.2, content: result.3, isError: result.4, error: result.5))
+                }
+                return results.sorted { $0.index < $1.index }
             }
-            return results.sorted { $0.index < $1.index }
         }
     }
 
