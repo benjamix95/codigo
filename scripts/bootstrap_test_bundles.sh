@@ -13,14 +13,37 @@ strip_xattrs() {
   xattr -dr com.apple.quarantine "$target_path" >/dev/null 2>&1 || true
 }
 
+signature_is_valid() {
+  target_path="$1"
+  codesign --verify --strict "$target_path" >/dev/null 2>&1
+}
+
+resolve_sign_identity() {
+  if [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
+    printf '%s' "$EXPANDED_CODE_SIGN_IDENTITY"
+    return
+  fi
+
+  if [ -n "${CODE_SIGN_IDENTITY:-}" ] && [ "$CODE_SIGN_IDENTITY" != "Sign to Run Locally" ]; then
+    printf '%s' "$CODE_SIGN_IDENTITY"
+    return
+  fi
+
+  printf '%s' "-"
+}
+
 resign_path() {
   target_path="$1"
   if [ ! -e "$target_path" ]; then
     return
   fi
+  if signature_is_valid "$target_path"; then
+    return
+  fi
+  sign_identity="$(resolve_sign_identity)"
   codesign \
     --force \
-    --sign - \
+    --sign "$sign_identity" \
     --timestamp=none \
     --preserve-metadata=identifier,entitlements,flags \
     --generate-entitlement-der \
