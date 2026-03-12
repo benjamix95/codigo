@@ -1,15 +1,13 @@
-use super::common::{
-    encode_raw, with_raw_json_input, ReviewFindDuplicateRequest, BACKEND_VERSION,
-};
+use super::common::{encode_raw, with_raw_json_input, BACKEND_VERSION};
 use crate::review_audit::run_audit;
-use crate::review_history::{derive_history_live_state, shape_historical_findings};
-use crate::review_identity::find_duplicate;
+use crate::review_history::{
+    derive_historical_findings_from_snapshot, derive_history_live_state,
+};
 use crate::review_models::{
     ReviewAuditRequest, ReviewCoreAuditResponse, ReviewCoreListResponse,
     ReviewCoreProjectionResponse, ReviewCoreReduceResponse, ReviewCoreReplayResponse,
-    ReviewCoreSecurityGateResponse, ReviewCoreSyncResponse, ReviewHistoricalShapeRequest,
-    ReviewProjectionRequest, ReviewReplayRequest, ReviewSecurityGateRequest, ReviewSyncRequest,
-    ReviewVerifyRequest,
+    ReviewCoreSecurityGateResponse, ReviewCoreSyncResponse, ReviewProjectionRequest,
+    ReviewReplayRequest, ReviewSecurityGateRequest, ReviewSyncRequest, ReviewVerifyRequest,
 };
 use crate::review_projection::build_projection;
 use crate::review_reduce::{derive_review_panel_state, merge_history};
@@ -136,6 +134,17 @@ pub extern "C" fn review_core_reduce_panel_state(input: *const c_char) -> *mut c
                 request.primary.unwrap_or_default(),
                 request.fallback.unwrap_or_default(),
             ))),
+            "derive_history_records_from_snapshot" => {
+                let Some(snapshot) = request.snapshot else {
+                    return encode_raw(&ReviewCoreReduceResponse::error(
+                        "missing_snapshot",
+                        "snapshot is required",
+                    ));
+                };
+                encode_raw(&ReviewCoreReduceResponse::success(
+                    derive_historical_findings_from_snapshot(&snapshot),
+                ))
+            }
             "derive_history_live_state" => {
                 let Some(snapshot) = request.snapshot else {
                     return encode_raw(&ReviewCoreReduceResponse::error(
@@ -240,60 +249,5 @@ pub extern "C" fn review_core_evaluate_security_gate(input: *const c_char) -> *m
                 &ReviewCoreSecurityGateResponse::error("security_gate_failed", &message),
             ),
         }
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn review_core_shape_historical_findings(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| {
-        let request: ReviewHistoricalShapeRequest = match serde_json::from_str(raw) {
-            Ok(request) => request,
-            Err(err) => {
-                return encode_raw(&ReviewCoreReduceResponse::error(
-                    "decode_failed",
-                    &err.to_string(),
-                ));
-            }
-        };
-        if request.schema_version != 1 {
-            return encode_raw(&ReviewCoreReduceResponse::error(
-                "unsupported_schema",
-                "schemaVersion must be 1",
-            ));
-        }
-        encode_raw(&ReviewCoreReduceResponse::success(shape_historical_findings(
-            request.records,
-        )))
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn review_core_find_duplicate(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| {
-        let request: ReviewFindDuplicateRequest = match serde_json::from_str(raw) {
-            Ok(request) => request,
-            Err(err) => {
-                return encode_raw(&ReviewCoreAuditResponse::error(
-                    "decode_failed",
-                    &err.to_string(),
-                ));
-            }
-        };
-        if request.schema_version != 1 {
-            return encode_raw(&ReviewCoreAuditResponse::error(
-                "unsupported_schema",
-                "schemaVersion must be 1",
-            ));
-        }
-        let result = find_duplicate(
-            &request.candidate,
-            &request.existing,
-            request.minimum_score.unwrap_or(0.75),
-        );
-        encode_raw(&ReviewCoreAuditResponse {
-            schema_version: 1,
-            error: None,
-            result,
-        })
     })
 }

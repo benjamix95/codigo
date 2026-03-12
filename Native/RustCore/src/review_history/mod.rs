@@ -1,3 +1,7 @@
+mod snapshot;
+
+pub use snapshot::derive_historical_findings_from_snapshot;
+
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -17,7 +21,7 @@ pub fn shape_historical_findings(records: Vec<Value>) -> Vec<Value> {
         }
     }
     let mut items = merged.into_values().collect::<Vec<_>>();
-    items.sort_by(|lhs, rhs| compare_records(lhs, rhs));
+    items.sort_by(compare_records);
     items
 }
 
@@ -137,7 +141,7 @@ fn derive_live_files(file_ledger: &[Value]) -> Vec<Value> {
         })
         .collect::<Vec<_>>();
 
-    files.sort_by(|lhs, rhs| compare_live_files(lhs, rhs));
+    files.sort_by(compare_live_files);
     files
 }
 
@@ -215,20 +219,8 @@ mod tests {
         let state = derive_history_live_state(&json!({
             "phase": "completed",
             "fileLedger": [
-                {
-                    "path": "Sources/A.swift",
-                    "phaseId": "verification",
-                    "status": "running",
-                    "workerIds": ["worker-1"],
-                    "severity": "warning"
-                },
-                {
-                    "path": "Sources/B.swift",
-                    "phaseId": "publish_ready",
-                    "status": "completed",
-                    "workerIds": ["worker-1"],
-                    "severity": "critical"
-                }
+                {"path": "Sources/A.swift", "phaseId": "verification", "status": "running", "workerIds": ["worker-1"], "severity": "warning"},
+                {"path": "Sources/B.swift", "phaseId": "publish_ready", "status": "completed", "workerIds": ["worker-1"], "severity": "critical"}
             ]
         }));
         assert_eq!(state["workers"][0]["id"].as_str(), Some("worker-1"));

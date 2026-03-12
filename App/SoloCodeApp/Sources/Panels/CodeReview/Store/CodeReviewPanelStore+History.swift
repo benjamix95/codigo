@@ -2,10 +2,7 @@ import CoderEngine
 import Foundation
 extension CodeReviewPanelStore {
     var findingsHistoryRefreshKey: String {
-        let workspaceKey = historyWorkspaceId ?? "no-workspace"
-        let sessionKey = selectedSessionId ?? "no-session"
-        let snapshotKey = currentSnapshot?.lastUpdatedAt.timeIntervalSince1970.description ?? "0"
-        return [workspaceKey, sessionKey, snapshotKey].joined(separator: "|")
+        historyAutomaticRefreshKey
     }
 
     var selectedHistoricalFinding: HistoricalFindingRecord? {
@@ -78,24 +75,31 @@ extension CodeReviewPanelStore {
 
     func refreshHistoricalFindings() async {
         let refreshKey = findingsHistoryRefreshKey
+        guard !isHistoryRefreshInFlight else { return }
         guard let workspaceId = historyWorkspaceId else {
-            historyRecords = fallbackHistoricalFindings()
-            historyLoadError = nil
+            scheduleHistoricalFindingsSnapshot(
+                fallbackHistoricalFindings(),
+                error: nil,
+                refreshKey: refreshKey
+            )
             return
         }
+        isHistoryRefreshInFlight = true
         let fallback = fallbackHistoricalFindings()
-        isHistoryLoading = true
+        scheduleHistoryLoadingState(true, refreshKey: refreshKey)
         defer {
-            if findingsHistoryRefreshKey == refreshKey {
-                isHistoryLoading = false
-            }
+            isHistoryRefreshInFlight = false
+            scheduleHistoryLoadingState(false, refreshKey: refreshKey)
         }
         let dbRecords = await ReviewPanelHistoricalFindingsLoader.list(
             query: HistoricalFindingsQuery(workspaceId: workspaceId)
         )
         guard !Task.isCancelled, findingsHistoryRefreshKey == refreshKey else { return }
-        historyRecords = mergeHistoricalFindings(primary: dbRecords, fallback: fallback)
-        historyLoadError = nil
+        scheduleHistoricalFindingsSnapshot(
+            mergeHistoricalFindings(primary: dbRecords, fallback: fallback),
+            error: nil,
+            refreshKey: refreshKey
+        )
     }
 
     var historyWorkspaceId: String? {
@@ -136,139 +140,6 @@ extension CodeReviewPanelStore {
         }
     }
 
-    private func mergeHistoricalFindingsWithRust(
-        primary: [HistoricalFindingRecord],
-        fallback: [HistoricalFindingRecord]
-    ) -> [HistoricalFindingRecord]? {
-        let request = ReviewCoreReduceHistoryRequest(
-            schemaVersion: 1,
-            operation: "merge_history",
-            primary: primary,
-            fallback: fallback
-        )
-        let response: ReviewCoreReduceHistoryResponse? = ReviewCoreBridge.call(
-            functionName: "review_core_reduce_panel_state",
-            request: request
-        )
-        return response?.mergedHistory
-    }
-
-    private func fallbackHistoricalFindings() -> [HistoricalFindingRecord] {
-        let snapshots = availableSnapshots
-        guard !snapshots.isEmpty else { return [] }
-        var recordsById: [String: HistoricalFindingRecord] = [:]
-        for snapshot in snapshots {
-            let eventsByFindingId = Dictionary(grouping: snapshot.events) { event in
-                event.metadata["finding_id"] ?? event.metadata["candidate_id"] ?? ""
-            }
-            for finding in snapshot.findings {
-                let patch = snapshot.patches.first(where: { $0.findingId == finding.id })
-                let domain: VerifiedFindingDomain =
-                    finding.origin == .securityAuditor || finding.category == .security ? .security : .bug
-                let candidateTimeline = (eventsByFindingId[finding.id] ?? []).map { event in
-                    HistoricalFindingTimelineItem(
-                        eventId: event.id,
-                        eventType: event.type.rawValue,
-                        detail: event.detail,
-                        createdAt: event.timestamp,
-                        metadata: event.metadata
-                    )
-                }
-                let status = historicalStatus(for: finding, patch: patch)
-                let record = HistoricalFindingRecord(
-                    findingId: finding.id,
-                    sessionId: snapshot.sessionId,
-                    workspaceId: snapshot.workspacePath ?? historyWorkspaceId ?? "workspace",
-                    domain: domain,
-                    severity: historicalSeverity(from: finding.severity),
-                    title: finding.message,
-                    summary: finding.evidence ?? finding.message,
-                    status: status,
-                    filePath: finding.filePath,
-                    lineStart: finding.lineNumber,
-                    sourceOrigin: finding.origin.rawValue,
-                    closedReason: historicalClosedReason(for: finding.status),
-                    patchId: patch?.id,
-                    patchApplyStatus: patch.map { historicalPatchApplyStatus(from: $0) },
-                    revalidationReportId: patch?.validationRunId,
-                    revalidationVerdict: historicalRevalidationVerdict(for: patch),
-                    createdAt: finding.createdAt,
-                    updatedAt: patch?.updatedAt ?? finding.verifiedAt ?? finding.createdAt,
-                    resolvedAt: finding.status.isAppliedState ? (patch?.updatedAt ?? finding.verifiedAt) : nil,
-                    resumeEligible: !status.isTerminalHistoryStatus,
-                    timeline: candidateTimeline
-                )
-                if let existing = recordsById[record.id], existing.updatedAt > record.updatedAt { continue }
-                recordsById[record.id] = record
-            }
-        }
-        return recordsById.values.sorted { $0.updatedAt > $1.updatedAt }
-    }
-
-    private func historicalSeverity(from severity: FindingSeverity) -> VerifiedFindingSeverity {
-        switch severity {
-        case .critical: return .critical
-        case .warning: return .medium
-        case .suggestion: return .low
-        case .info: return .info
-        }
-    }
-
-    private func historicalStatus(
-        for finding: CodeReviewFinding,
-        patch: ReviewPatchArtifact?
-    ) -> VerifiedFindingStatus {
-        if let patch {
-            if patch.status == .applied {
-                switch patch.validationStatus {
-                case .passed: return .fixedVerified
-                case .failed: return .fixFailed
-                case .pending: return .patchApplied
-                }
-            }
-            if patch.status == .rolledBack { return .rollbackApplied }
-        }
-        switch finding.status {
-        case .open: return .verified
-        case .fixApplied, .patchApplied: return .patchApplied
-        case .patchPreparing: return .patchPreparing
-        case .patchReady: return .patchPrepared
-        case .patchApplying: return .patchReviewed
-        case .patchFailed: return .fixFailed
-        case .prOpened, .merged, .closed: return .closed
-        case .blocked: return .needsManualReview
-        case .dismissed, .wontFix: return .rejected
-        }
-    }
-
-    private func historicalPatchApplyStatus(from patch: ReviewPatchArtifact) -> VerifiedPatchApplyStatus {
-        switch patch.status {
-        case .draft, .verified, .prOpened, .merged, .conflict: return .notApplied
-        case .applied: return .applied
-        case .applyFailed: return .failed
-        case .rolledBack: return .rolledBack
-        }
-    }
-
-    private func historicalRevalidationVerdict(for patch: ReviewPatchArtifact?) -> RevalidationVerdict? {
-        guard let patch, patch.status == .applied || patch.status == .applyFailed else { return nil }
-        switch patch.validationStatus {
-        case .passed: return .fixedVerified
-        case .failed: return .fixFailed
-        case .pending: return nil
-        }
-    }
-
-    private func historicalClosedReason(for status: FindingStatus) -> String? {
-        switch status {
-        case .dismissed: return "dismissed"
-        case .wontFix: return "wont_fix"
-        case .merged: return "merged"
-        case .prOpened: return "pr_opened"
-        case .closed: return "closed"
-        default: return nil
-        }
-    }
 }
 enum ReviewPanelHistoricalFindingsLoader {
     static var fetch: @Sendable (HistoricalFindingsQuery) async -> [HistoricalFindingRecord] = { query in
@@ -277,24 +148,5 @@ enum ReviewPanelHistoricalFindingsLoader {
 
     static func list(query: HistoricalFindingsQuery) async -> [HistoricalFindingRecord] {
         await Task.detached(priority: .userInitiated) { await fetch(query) }.value
-    }
-}
-
-private struct ReviewCoreReduceHistoryRequest: Encodable {
-    let schemaVersion: Int
-    let operation: String
-    let primary: [HistoricalFindingRecord]
-    let fallback: [HistoricalFindingRecord]
-}
-private struct ReviewCoreReduceHistoryResponse: Decodable {
-    let mergedHistory: [HistoricalFindingRecord]
-}
-
-private extension VerifiedFindingStatus {
-    var isTerminalHistoryStatus: Bool {
-        switch self {
-        case .fixedVerified, .closed, .rejected: return true
-        case .candidate, .verifying, .verified, .needsManualReview, .patchPreparing, .patchPrepared, .patchReviewed, .patchApplied, .revalidating, .fixFailed, .rollbackApplied: return false
-        }
     }
 }
