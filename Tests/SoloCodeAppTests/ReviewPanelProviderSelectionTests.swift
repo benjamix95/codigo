@@ -319,6 +319,74 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
         XCTAssertEqual(finalized.findings.first?.status, .patchReady)
     }
 
+    func testPatchFinalizationTargetsUseRustReducer() throws {
+        let registry = ProviderRegistry()
+        registry.register(MockReviewPanelProvider(id: "openai-api", displayName: "OpenAI"))
+        registry.selectedProviderId = "openai-api"
+        let store = CodeReviewPanelStore(
+            taskActivityStore: TaskActivityStore(),
+            providerRegistry: registry,
+            executionController: nil,
+            workspaceStore: WorkspaceStore(),
+            openFilesStore: OpenFilesStore(),
+            conversationId: nil,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "review-finalization-targets",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-open",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/Authz.swift",
+                    message: "Needs patch preview",
+                    verificationReport: "verified",
+                    verifiedAt: Date()
+                ),
+                CodeReviewFinding(
+                    id: "finding-ready",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/Authz.swift",
+                    message: "Already prepared",
+                    verificationReport: "verified",
+                    verifiedAt: Date(),
+                    patchArtifactId: "patch-ready"
+                )
+            ],
+            patches: [
+                ReviewPatchArtifact(
+                    id: "patch-ready",
+                    findingId: "finding-ready",
+                    patchText: "diff",
+                    diffPreview: "@@",
+                    touchedFiles: ["Sources/Authz.swift"],
+                    status: .verified,
+                    verifyStatus: .verified
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: "job-targets",
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        XCTAssertEqual(store.patchFinalizationTargets(for: snapshot), ["finding-open"])
+    }
+
     private static func makeProviderFactoryConfig() -> ProviderFactoryConfig {
         ProviderFactoryConfig(
             openaiApiKey: "",

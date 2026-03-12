@@ -10,7 +10,7 @@ extension CodeReviewPanelStore {
             return snapshot
         }
 
-        let targetIds = snapshot.findings.compactMap { finding -> String? in
+        let targetIds = patchFinalizationTargets(for: snapshot) ?? snapshot.findings.compactMap { finding -> String? in
             let isVerified = finding.verifiedAt != nil || finding.verificationReport != nil
             guard isVerified else { return nil }
             let patch = snapshot.patches.first(where: { $0.findingId == finding.id })

@@ -11,6 +11,7 @@ mod review_replay;
 mod review_models;
 mod review_reduce;
 mod review_chat;
+mod review_finalize;
 mod review_security_gate;
 mod review_history;
 mod review_sync;

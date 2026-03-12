@@ -1,6 +1,7 @@
 use super::common::{encode_raw, with_raw_json_input, BACKEND_VERSION};
 use crate::review_audit::run_audit;
 use crate::review_chat::merge_chat_findings;
+use crate::review_finalize::select_patch_finalization_targets;
 use crate::review_history::{
     derive_historical_findings_from_snapshot, derive_history_live_state,
 };
@@ -141,6 +142,17 @@ pub extern "C" fn review_core_reduce_panel_state(input: *const c_char) -> *mut c
                     request.fallback.as_deref().unwrap_or(&[]),
                 ),
             )),
+            "derive_patch_finalization_targets" => {
+                let Some(snapshot) = request.snapshot else {
+                    return encode_raw(&ReviewCoreReduceResponse::error(
+                        "missing_snapshot",
+                        "snapshot is required",
+                    ));
+                };
+                encode_raw(&ReviewCoreReduceResponse::success_panel_state(
+                    select_patch_finalization_targets(&snapshot),
+                ))
+            }
             "derive_history_records_from_snapshot" => {
                 let Some(snapshot) = request.snapshot else {
                     return encode_raw(&ReviewCoreReduceResponse::error(
