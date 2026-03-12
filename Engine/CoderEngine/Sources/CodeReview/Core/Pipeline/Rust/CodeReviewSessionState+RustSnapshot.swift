@@ -1,7 +1,7 @@
 import Foundation
 
 extension CodeReviewSessionState {
-    func replaceCanonicalSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
+    public func replaceCanonicalSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
         guard snapshot.sessionId == sessionId else { return }
         mutationSequence = snapshot.mutationSequence
         phase = snapshot.phase
