@@ -100,33 +100,10 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewGetOutcome(args: [String: String]) -> CallTool.Result {
-        if let bridged = rustReviewToolResult(name: "review_get_outcome", args: args) {
-            return bridged
+        guard let bridged = rustReviewToolResult(name: "review_get_outcome", args: args) else {
+            return reviewError("Error: Rust review core unavailable for review_get_outcome")
         }
-        let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
-        guard !sessionId.isEmpty else {
-            return reviewError("Error: 'session_id' parameter is required")
-        }
-        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
-            return reviewError(accessError)
-        }
-        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
-            return reviewError("Error: unable to load the requested review session")
-        }
-        let outcome = snapshot.outcome
-        let lines = [
-            "summary: \(outcome.summary)",
-            "verified_findings: \(outcome.verifiedFindings)",
-            "false_positives: \(outcome.falsePositives)",
-            "patches_ready: \(outcome.patchesReady)",
-            "patches_applied: \(outcome.patchesApplied)",
-            "prs_opened: \(outcome.prsOpened)",
-            "merged_patches: \(outcome.mergedPatches)",
-            "conflicts_detected: \(outcome.conflictsDetected)",
-            "manual_action_required: \(outcome.manualActionRequired ? "true" : "false")",
-            "tests_status: \(outcome.testsStatus?.rawValue ?? "unknown")",
-        ]
-        return reviewOK(lines.joined(separator: "\n"))
+        return bridged
     }
 
     private static func queueFindingScopedReviewCommand(

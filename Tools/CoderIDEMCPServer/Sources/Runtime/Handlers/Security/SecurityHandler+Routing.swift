@@ -53,86 +53,17 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleSecurityStatus(args: [String: String]) -> CallTool.Result {
-        if let bridged = rustSecurityToolResult(name: "security_status", args: args) {
-            return bridged
+        guard let bridged = rustSecurityToolResult(name: "security_status", args: args) else {
+            return reviewError("Error: Rust review core unavailable for security_status")
         }
-        let base = handleReviewStatus(args: args)
-        let text = textContent(from: base)
-        guard !text.contains("security_gate_ready:") else { return base }
-        guard let gate = currentSecurityGate(args: args) else {
-            if text.isEmpty || text == "No active review session." {
-                return reviewOK(
-                    """
-                    No active review session.
-                    security_gate_ready: false
-                    security_gate_summary: security_gate=blocked, no verified bughunter baseline is available
-                    """
-                )
-            }
-            return reviewOK(
-                """
-                \(text)
-                security_gate_ready: false
-                security_gate_summary: security_gate=blocked, no verified bughunter baseline is available
-                """
-            )
-        }
-        if text.isEmpty || text == "No active review session." {
-            return reviewOK(
-                """
-                No active review session.
-                security_gate_ready: \(gate.ready ? "true" : "false")
-                security_gate_summary: \(gate.summary)
-                """
-            )
-        }
-        return reviewOK(
-            """
-            \(text)
-            security_gate_ready: \(gate.ready ? "true" : "false")
-            security_gate_summary: \(gate.summary)
-            """
-        )
+        return bridged
     }
 
     static func handleSecurityFindings(args: [String: String]) -> CallTool.Result {
-        if let bridged = rustSecurityToolResult(name: "security_findings", args: args) {
-            return bridged
+        guard let bridged = rustSecurityToolResult(name: "security_findings", args: args) else {
+            return reviewError("Error: Rust review core unavailable for security_findings")
         }
-        let sessionId = sanitizedReviewArg(
-            args,
-            key: args["session_id"] != nil ? "session_id" : "sessionId"
-        )
-        guard !sessionId.isEmpty else {
-            return reviewError("Error: 'session_id' is required")
-        }
-        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
-            return reviewError(accessError)
-        }
-        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
-            return reviewError("Error: unable to load the requested review session")
-        }
-        let findings = SecurityWorkflowService.findings(
-            snapshot: snapshot,
-            kind: args["kind"],
-            severity: args["severity"],
-            status: args["status"],
-            file: nil,
-            limit: 50,
-            includeSensitiveDetails: false,
-            entryPoint: .mcp
-        )
-        guard !findings.isEmpty else {
-            return reviewOK("No security findings match the query.")
-        }
-        let lines = findings.enumerated().map { index, finding in
-            let message = finding["message"] ?? finding["message_summary"] ?? "n/a"
-            let file = finding["file_path"] ?? finding["file_label"] ?? "redacted"
-            let line = finding["line_number"].map { ":\($0)" } ?? ""
-            let staleStatus = finding["stale_status"].map { ", stale: \($0)" } ?? ""
-            return "[\(index + 1)] [\(finding["severity"] ?? "?")] \(file)\(line) — \(message) (domain: security, status: \(finding["status"] ?? "?")\(staleStatus), id: \(finding["id"] ?? "?"))"
-        }
-        return reviewOK(lines.joined(separator: "\n"))
+        return bridged
     }
 
     static func handleSecurityPreparePatch(args: [String: String]) -> CallTool.Result {

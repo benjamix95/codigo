@@ -52,32 +52,10 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewStatus(args: [String: String]) -> CallTool.Result {
-        if let bridged = rustReviewToolResult(name: "review_status", args: args) {
-            return bridged
+        guard let bridged = rustReviewToolResult(name: "review_status", args: args) else {
+            return reviewError("Error: Rust review core unavailable for review_status")
         }
-        let explicitSessionId = sanitizedReviewArg(
-            args,
-            key: args["session_id"] != nil ? "session_id" : "sessionId"
-        )
-        if !explicitSessionId.isEmpty,
-           let formatError = validateReviewSessionIdFormat(explicitSessionId) {
-            return reviewError(formatError)
-        }
-        let resolved = resolveReviewSessionId(
-            args: args,
-            requireExplicitWhenAmbiguous: true
-        )
-        if let message = resolved.error {
-            return message == "No active review session."
-                ? reviewOK(message)
-                : reviewError(message)
-        }
-        guard let sessionId = resolved.sessionId,
-              let status = MCPSharedState.readCodeReviewStatus(sessionId: sessionId) else {
-            return reviewOK("No active review session.")
-        }
-        let lines = status.sorted(by: { $0.key < $1.key }).map { "\($0.key): \($0.value)" }
-        return reviewOK(lines.joined(separator: "\n"))
+        return bridged
     }
 
     static func handleReviewDiffSummary(args: [String: String]) -> CallTool.Result {
@@ -148,22 +126,9 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewListSessions(args: [String: String]) -> CallTool.Result {
-        if let bridged = rustReviewToolResult(name: "review_list_sessions", args: args) {
-            return bridged
+        guard let bridged = rustReviewToolResult(name: "review_list_sessions", args: args) else {
+            return reviewError("Error: Rust review core unavailable for review_list_sessions")
         }
-        if hasInvalidConversationIdArgument(args["conversation_id"] ?? args["conversationId"]) {
-            return reviewError("Error: 'conversation_id' must be a valid UUID")
-        }
-        let snapshots = MCPSharedState.readCodeReviewSnapshots(
-            conversationId: resolveReviewConversationId(args)
-        )
-        guard !snapshots.isEmpty else {
-            return reviewOK("No review sessions found.")
-        }
-        let lines = snapshots.map { snapshot in
-            let scope = snapshot.scope?.type.rawValue ?? "unknown"
-            return "\(snapshot.sessionId) | phase=\(snapshot.phase.rawValue) | stage=\(snapshot.stage.rawValue) | scope=\(scope) | findings=\(snapshot.findings.count)"
-        }
-        return reviewOK(lines.joined(separator: "\n"))
+        return bridged
     }
 }
