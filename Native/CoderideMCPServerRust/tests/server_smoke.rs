@@ -190,7 +190,7 @@ fn plan_tools_and_ide_acks_work() {
     assert_eq!(read_json["conversation_id"], conversation_id);
     assert_eq!(read_json["snapshot"]["goal"], "Migrare MCP runtime");
 
-    let snapshot_id = read_json["snapshot"]["snapshot_id"].as_str().expect("snapshot id");
+    let snapshot_id = read_json["snapshot"]["snapshotId"].as_str().expect("snapshot id");
     write_message(
         child.stdin.as_mut().expect("stdin"),
         json!({
@@ -247,6 +247,126 @@ fn plan_tools_and_ide_acks_work() {
     assert_eq!(
         mermaid["result"]["content"][0]["text"].as_str(),
         Some("OK — mermaid diagram rendered in IDE (Flow)")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 16,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_step_batch_update",
+                "arguments": {
+                    "conversation_id": conversation_id,
+                    "updates": [
+                        { "stepId": "1", "status": "running", "targetFile": "Sources/New.swift" }
+                    ]
+                }
+            }
+        }),
+    );
+    let batch = read_message(&mut child);
+    assert_eq!(
+        batch["result"]["content"][0]["text"].as_str(),
+        Some("OK — batch plan update applied (1 steps)")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 17,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_step_dependency_set",
+                "arguments": {
+                    "conversation_id": conversation_id,
+                    "step_id": "1",
+                    "depends_on": ["0"]
+                }
+            }
+        }),
+    );
+    let deps = read_message(&mut child);
+    assert_eq!(
+        deps["result"]["content"][0]["text"].as_str(),
+        Some("OK — dependencies set for step 1")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 18,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_step_reorder",
+                "arguments": {
+                    "conversation_id": conversation_id,
+                    "ordered_step_ids": ["2", "1"]
+                }
+            }
+        }),
+    );
+    let reorder = read_message(&mut child);
+    assert_eq!(
+        reorder["result"]["content"][0]["text"].as_str(),
+        Some("OK — plan step order updated")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 19,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_set_walkthrough",
+                "arguments": {
+                    "conversation_id": conversation_id,
+                    "markdown": "## Done",
+                    "summary": "Stored",
+                    "outcome": "done"
+                }
+            }
+        }),
+    );
+    let walkthrough = read_message(&mut child);
+    assert_eq!(
+        walkthrough["result"]["content"][0]["text"].as_str(),
+        Some("OK — walkthrough stored")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 20,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_request_user_input",
+                "arguments": {
+                    "title": "Clarify deployment",
+                    "phase": "post-analysis",
+                    "round": "2",
+                    "questions": [
+                        {
+                            "prompt": "Target environment?",
+                            "options": [
+                                { "label": "Production" },
+                                { "label": "Staging" }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }),
+    );
+    let questionnaire = read_message(&mut child);
+    assert_eq!(
+        questionnaire["result"]["content"][0]["text"].as_str(),
+        Some("OK — queued 1 clarification question(s) [title: Clarify deployment | phase: post-analysis | round: 2]")
     );
     terminate(child);
 }
