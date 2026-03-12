@@ -2,6 +2,7 @@
 members = [
     "AppCoreProtocol",
     "CoderideMCPServerRust",
+    "MCPLifecycleBackendRust",
     "RustCore",
 ]
 resolver = "2"
