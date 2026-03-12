@@ -437,6 +437,8 @@
 		3C3DB8E9968E58F48550D492 /* BackpressureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151C775A233330C926555C4D /* BackpressureController.swift */; };
 		3C4989480394536945EEE722 /* UnifiedToolRuntime+LanguageServiceSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBDFF586B969494E1BDDD6AE /* UnifiedToolRuntime+LanguageServiceSearch.swift */; };
 		3C8EC157B315FA51E389E318 /* UnifiedToolRuntime+RunDispatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31C5C5F134A066F931F49D6 /* UnifiedToolRuntime+RunDispatch.swift */; };
+		3C8EC157B315FA51E389E319 /* UnifiedToolRuntime+RunCoreDispatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31C5C5F134A066F931F49D7 /* UnifiedToolRuntime+RunCoreDispatch.swift */; };
+		3C8EC157B315FA51E389E320 /* UnifiedToolRuntime+MCPCanonicalAliasRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31C5C5F134A066F931F49D8 /* UnifiedToolRuntime+MCPCanonicalAliasRouting.swift */; };
 		3C999DE0BC8676C77DF12DD3 /* EditorNavigationDispatchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FDD3CBA81F9B5E122F3555 /* EditorNavigationDispatchStore.swift */; };
 		3CAE63B090EE74F5729B55DD /* ReviewPanelHistoricalFindingDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7BB54C55EB479580171E1FA /* ReviewPanelHistoricalFindingDetail.swift */; };
 		3CCF3785A047D4DA0F08EA0A /* OpenAIAPIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45E485244363BA766154588 /* OpenAIAPIProvider+Execution.swift */; };
@@ -1371,6 +1373,7 @@
 		C84E4F63488A19666132EDFC /* CoderIDETools+AdvancedEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B6B3ABE604FEA4C251EFD56 /* CoderIDETools+AdvancedEditing.swift */; };
 		C86504C45291B34613845A17 /* RawArtifactEventAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EBA8DFF4097BC604B46F0AC /* RawArtifactEventAdapter.swift */; };
 		C8950AA5CD1BD5BDA1139548 /* ToolSchemaCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABD36D003413F15B8003F5F /* ToolSchemaCatalog.swift */; };
+		C8950AA5CD1BD5BDA1139549 /* ToolSchemaCatalog+Exports.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABD36D003413F15B8003F60 /* ToolSchemaCatalog+Exports.swift */; };
 		C8CC64EB99BFD95E8A5603DA /* ChatPanelSupport+UIHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E302C0346E93BE803023FDEF /* ChatPanelSupport+UIHelpers.swift */; };
 		C8FD8777FE9BC714A2A089F8 /* GitPanelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221FA4B41CE5FDF3F617D629 /* GitPanelStore.swift */; };
 		C9153EB7595798EAD2E0A681 /* DebugPanelView+NativeConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89585D2EBEBBA54FBC6B2620 /* DebugPanelView+NativeConfiguration.swift */; };
@@ -3122,6 +3125,8 @@
 		C2B1040D9029216EC0485F2C /* ReviewPanelSessionBrowser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelSessionBrowser.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Sessions/ReviewPanelSessionBrowser.swift; sourceTree = "<group>"; };
 		C2CB65FE0EB8D0580FB21F45 /* ContentView+Layout+Panels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ContentView+Layout+Panels.swift"; path = "App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+Panels.swift"; sourceTree = "<group>"; };
 		C31C5C5F134A066F931F49D6 /* UnifiedToolRuntime+RunDispatch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+RunDispatch.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Core/Execution/Dispatch/UnifiedToolRuntime+RunDispatch.swift"; sourceTree = "<group>"; };
+		C31C5C5F134A066F931F49D7 /* UnifiedToolRuntime+RunCoreDispatch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+RunCoreDispatch.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Core/Execution/Dispatch/UnifiedToolRuntime+RunCoreDispatch.swift"; sourceTree = "<group>"; };
+		C31C5C5F134A066F931F49D8 /* UnifiedToolRuntime+MCPCanonicalAliasRouting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+MCPCanonicalAliasRouting.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Core/UnifiedToolRuntime+MCPCanonicalAliasRouting.swift"; sourceTree = "<group>"; };
 		C33E25B5235692F770045B2F /* PriorityCalculatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PriorityCalculatorTests.swift; path = Tests/CoderEngineTests/Pipeline/Scheduler/PriorityCalculatorTests.swift; sourceTree = "<group>"; };
 		C38F84742086247844ED44D4 /* Tool.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Tool.xcconfig; path = Config/xcconfigs/Tool.xcconfig; sourceTree = "<group>"; };
 		C3925BEE6529A13F0B6078E7 /* PipelineIntegrationService+ReviewArtifacts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PipelineIntegrationService+ReviewArtifacts.swift"; path = "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+ReviewArtifacts.swift"; sourceTree = "<group>"; };
@@ -3166,6 +3171,7 @@
 		CA31CF073E0920B4363AAB76 /* PersistenceTestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PersistenceTestSupport.swift; path = Tests/CoderEngineTests/Persistence/PersistenceTestSupport.swift; sourceTree = "<group>"; };
 		CA963EC8FFA9D90B347072F8 /* PlanOptionsParser+Todos.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlanOptionsParser+Todos.swift"; path = "App/SoloCodeApp/Sources/Planning/Parser/PlanOptionsParser+Todos.swift"; sourceTree = "<group>"; };
 		CABD36D003413F15B8003F5F /* ToolSchemaCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToolSchemaCatalog.swift; path = Engine/CoderEngine/Sources/Tools/Catalog/ToolSchemaCatalog.swift; sourceTree = "<group>"; };
+		CABD36D003413F15B8003F60 /* ToolSchemaCatalog+Exports.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolSchemaCatalog+Exports.swift"; path = "Engine/CoderEngine/Sources/Tools/Catalog/ToolSchemaCatalog+Exports.swift"; sourceTree = "<group>"; };
 		CAE978EA49BD5C228D310017 /* VerifiedFindingsCommandCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsCommandCoordinator.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsCommandCoordinator.swift; sourceTree = "<group>"; };
 		CB1FE45474BE4862E19A7B7F /* Codigo.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = Codigo.icns; path = App/SoloCodeApp/Resources/Codigo.icns; sourceTree = "<group>"; };
 		CB5C5724C0DDAD9808FCB3C0 /* WindowTitlebarChatAccessory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WindowTitlebarChatAccessory.swift; path = App/SoloCodeApp/Sources/App/Utilities/WindowTitlebarChatAccessory.swift; sourceTree = "<group>"; };
@@ -4734,7 +4740,10 @@
 				E334ADE394633E71DEEEA429 /* ToolSchemaCatalog+PlanTools.swift */,
 				5491C717CF96265BC53819D8 /* ToolSchemaCatalog+IntegrationTools.swift */,
 				CABD36D003413F15B8003F5F /* ToolSchemaCatalog.swift */,
+				CABD36D003413F15B8003F60 /* ToolSchemaCatalog+Exports.swift */,
 				C31C5C5F134A066F931F49D6 /* UnifiedToolRuntime+RunDispatch.swift */,
+				C31C5C5F134A066F931F49D7 /* UnifiedToolRuntime+RunCoreDispatch.swift */,
+				C31C5C5F134A066F931F49D8 /* UnifiedToolRuntime+MCPCanonicalAliasRouting.swift */,
 				D355F38232AC20BA3F701EBB /* UnifiedToolRuntime+LanguageServiceContracts.swift */,
 				1D7B441DA7091CA81C0686CB /* UnifiedToolRuntime+RuntimeContracts.swift */,
 				C74D8D47738B43B38A31684B /* UnifiedToolRuntime+RuntimeLifecycle.swift */,
@@ -5957,7 +5966,10 @@
 				E10313574ED71B80E882A711 /* ToolSchemaCatalog+PlanTools.swift in Sources */,
 				09B395B4401DADB0AA0D21E6 /* ToolSchemaCatalog+IntegrationTools.swift in Sources */,
 				C8950AA5CD1BD5BDA1139548 /* ToolSchemaCatalog.swift in Sources */,
+				C8950AA5CD1BD5BDA1139549 /* ToolSchemaCatalog+Exports.swift in Sources */,
 				3C8EC157B315FA51E389E318 /* UnifiedToolRuntime+RunDispatch.swift in Sources */,
+				3C8EC157B315FA51E389E319 /* UnifiedToolRuntime+RunCoreDispatch.swift in Sources */,
+				3C8EC157B315FA51E389E320 /* UnifiedToolRuntime+MCPCanonicalAliasRouting.swift in Sources */,
 				1DDB5C06A82F3E1DA6C7ADA0 /* UnifiedToolRuntime+LanguageServiceContracts.swift in Sources */,
 				BAFE6C09D0BA19B303DC0321 /* UnifiedToolRuntime+RuntimeContracts.swift in Sources */,
 				C95CF8F72DDFF29BECDA23BC /* UnifiedToolRuntime+RuntimeLifecycle.swift in Sources */,

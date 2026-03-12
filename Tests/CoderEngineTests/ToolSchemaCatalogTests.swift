@@ -253,4 +253,23 @@ final class ToolSchemaCatalogTests: XCTestCase {
         XCTAssertTrue(names.contains("existing_tool"))
         XCTAssertTrue(names.contains("fresh_tool"))
     }
+
+    func testNativeRegistryBuildsCanonicalAliasForCoderideTool() throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let descriptor = MCPToolDescriptor(
+            name: "coderide_read",
+            description: "read file",
+            schema: #"{"type":"object","properties":{"path":{"type":"string"}}}"#,
+            serverId: "coderide-server",
+            serverName: "coderide"
+        )
+
+        XCTAssertTrue(registry.register(tools: [descriptor]))
+        let alias = try XCTUnwrap(registry.aliasRoute(for: "read"))
+        XCTAssertEqual(alias.serverId, "coderide-server")
+        XCTAssertEqual(alias.toolName, "coderide_read")
+    }
 }

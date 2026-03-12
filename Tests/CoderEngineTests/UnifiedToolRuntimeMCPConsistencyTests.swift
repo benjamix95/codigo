@@ -262,4 +262,39 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["error_code"], "validation")
         XCTAssertEqual(completed?["is_mcp"], "true")
     }
+
+    func testCanonicalReadPrefersCoderideAliasWhenRegistryIsWarm() async throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let descriptor = MCPToolDescriptor(
+            name: "coderide_read",
+            description: "read file",
+            schema: #"{"type":"object","properties":{"path":{"type":"string"}}}"#,
+            serverId: "missing-server",
+            serverName: "coderide"
+        )
+        XCTAssertTrue(registry.register(tools: [descriptor]))
+
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let file = tmp.appendingPathComponent("Sample.swift")
+        try "let value = 42\n".write(to: file, atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "read",
+            args: ["path": file.path],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["tool"], "read")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+        XCTAssertEqual(completed?["mcp_tool"], "coderide_read")
+    }
 }

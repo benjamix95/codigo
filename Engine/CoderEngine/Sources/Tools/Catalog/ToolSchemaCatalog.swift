@@ -16,6 +16,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
     private var _descriptors: [MCPToolDescriptor] = []
     private var _entries: [ToolSchemaEntry] = []
     private var _routing: [String: (serverId: String, toolName: String)] = [:]
+    private var _aliasRouting: [String: (serverId: String, toolName: String)] = [:]
     private var _rawSchemas: [String: [String: Any]] = [:]
     private var _sourceFingerprint = ""
 
@@ -29,6 +30,12 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _routing
+    }
+
+    func aliasRoute(for toolName: String) -> (serverId: String, toolName: String)? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _aliasRouting[toolName]
     }
 
     /// Full JSON Schema dict for a native MCP tool, used in OpenAI/Anthropic function params.
@@ -50,6 +57,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
         _descriptors.removeAll()
         _entries.removeAll()
         _routing.removeAll()
+        _aliasRouting.removeAll()
         _rawSchemas.removeAll()
         _sourceFingerprint = ""
     }
@@ -93,6 +101,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
         _descriptors = tools
         _entries.removeAll()
         _routing.removeAll()
+        _aliasRouting.removeAll()
         _rawSchemas.removeAll()
         _sourceFingerprint = fingerprint
 
@@ -133,6 +142,10 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
             ))
 
             _routing[functionName] = (serverId: tool.serverId, toolName: tool.name)
+            if let alias = Self.runtimeAlias(for: tool.name),
+               _aliasRouting[alias] == nil {
+                _aliasRouting[alias] = (serverId: tool.serverId, toolName: tool.name)
+            }
 
             if let schemaDict = tool.inputSchemaDict {
                 _rawSchemas[functionName] = schemaDict
@@ -143,6 +156,14 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
 
     private static func descriptorIdentityKey(for descriptor: MCPToolDescriptor) -> String {
         "\(descriptor.serverId)|\(descriptor.name)|\(descriptor.schema)"
+    }
+
+    private static func runtimeAlias(for toolName: String) -> String? {
+        guard toolName.hasPrefix("coderide_") else { return nil }
+        let alias = String(toolName.dropFirst("coderide_".count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !alias.isEmpty else { return nil }
+        return alias
     }
 
     /// MCP tool metadata comes from external servers and must not be injected
@@ -247,77 +268,5 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
 
         let required = (schema["required"] as? [String]) ?? []
         return (properties: simplified, required: required)
-    }
-}
-
-
-enum ToolSchemaCatalog {
-    /// Core built-in tool entries (static).
-    static let coreEntries: [ToolSchemaEntry] =
-        fileTools + runtimeTools + auditTools + indexTools + debugTools + advancedTools + planTools + integrationTools
-
-    /// All tool entries: core built-in tools + registered native MCP tools.
-    static var entries: [ToolSchemaEntry] {
-        coreEntries + MCPNativeToolRegistry.shared.entries
-    }
-
-    static var openAIFunctionTools: [[String: Any]] {
-        let core = coreEntries.map { formatOpenAI($0) }
-        let mcpNative = MCPNativeToolRegistry.shared.entries.map { entry -> [String: Any] in
-            if let rawSchema = MCPNativeToolRegistry.shared.rawSchema(for: entry.name) {
-                return [
-                    "type": "function",
-                    "function": [
-                        "name": entry.name,
-                        "description": entry.description,
-                        "parameters": rawSchema
-                    ] as [String: Any]
-                ]
-            }
-            return formatOpenAI(entry)
-        }
-        return core + mcpNative
-    }
-
-    static var anthropicTools: [[String: Any]] {
-        let core = coreEntries.map { formatAnthropic($0) }
-        let mcpNative = MCPNativeToolRegistry.shared.entries.map { entry -> [String: Any] in
-            if let rawSchema = MCPNativeToolRegistry.shared.rawSchema(for: entry.name) {
-                return [
-                    "name": entry.name,
-                    "description": entry.description,
-                    "input_schema": rawSchema
-                ] as [String: Any]
-            }
-            return formatAnthropic(entry)
-        }
-        return core + mcpNative
-    }
-
-    private static func formatOpenAI(_ entry: ToolSchemaEntry) -> [String: Any] {
-        [
-            "type": "function",
-            "function": [
-                "name": entry.name,
-                "description": entry.description,
-                "parameters": [
-                    "type": "object",
-                    "properties": entry.properties,
-                    "required": entry.required
-                ]
-            ] as [String: Any]
-        ]
-    }
-
-    private static func formatAnthropic(_ entry: ToolSchemaEntry) -> [String: Any] {
-        [
-            "name": entry.name,
-            "description": entry.description,
-            "input_schema": [
-                "type": "object",
-                "properties": entry.properties,
-                "required": entry.required
-            ]
-        ]
     }
 }
