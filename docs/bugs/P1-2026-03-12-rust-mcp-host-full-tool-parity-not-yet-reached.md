@@ -20,6 +20,10 @@
   - `todo_write`
   - `read`
   - `read_range`
+  - `create_file`
+  - `write`
+  - `str_replace`
+  - `regex_replace`
   - `list_dir`
   - `glob`
   - `grep`

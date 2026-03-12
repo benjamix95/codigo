@@ -1,4 +1,5 @@
 mod catalog;
+mod edit_tools;
 mod handlers;
 mod plan_state;
 mod search_tools;

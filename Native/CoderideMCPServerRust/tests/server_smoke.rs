@@ -429,6 +429,49 @@ fn search_tools_work() {
     terminate(child);
 }
 
+#[test]
+fn editing_tools_work() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":40,"method":"tools/call",
+        "params":{"name":"coderide_create_file","arguments":{"path":"Created.swift","content":"struct Created {}\n"}}
+    }));
+    let created = read_message(&mut child);
+    assert!(created["result"]["content"][0]["text"].as_str().unwrap_or("").contains("Created"));
+    assert_eq!(
+        fs::read_to_string(workspace.join("Created.swift")).expect("created file"),
+        "struct Created {}\n"
+    );
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":41,"method":"tools/call",
+        "params":{"name":"coderide_write","arguments":{"path":"Created.swift","content":"struct Created { let value = 1 }\n"}}
+    }));
+    let wrote = read_message(&mut child);
+    assert!(wrote["result"]["content"][0]["text"].as_str().unwrap_or("").contains("Edit"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":42,"method":"tools/call",
+        "params":{"name":"coderide_str_replace","arguments":{"path":"Created.swift","old_string":"let value = 1","new_string":"let value = 2"}}
+    }));
+    let replaced = read_message(&mut child);
+    assert!(replaced["result"]["content"][0]["text"].as_str().unwrap_or("").contains("str_replace"));
+    assert!(fs::read_to_string(workspace.join("Created.swift")).expect("replaced file").contains("value = 2"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":43,"method":"tools/call",
+        "params":{"name":"coderide_regex_replace","arguments":{"path":"Created.swift","pattern":"value = 2","replacement":"value = 3"}}
+    }));
+    let regex = read_message(&mut child);
+    assert!(regex["result"]["content"][0]["text"].as_str().unwrap_or("").contains("regex_replace"));
+    assert!(fs::read_to_string(workspace.join("Created.swift")).expect("regex file").contains("value = 3"));
+    terminate(child);
+}
+
 fn initialize(child: &mut std::process::Child) {
     write_message(
         child.stdin.as_mut().expect("stdin"),

@@ -1,3 +1,4 @@
+use crate::edit_tools;
 use crate::plan_state;
 use crate::search_tools;
 use crate::shared_state;
@@ -13,6 +14,9 @@ use std::process::Command;
 
 pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolResult {
     let arguments = params.arguments.unwrap_or_default();
+    if let Some(result) = edit_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
     if let Some(result) = search_tools::handle(params.name.as_str(), workspace, &arguments) {
         return result;
     }
