@@ -8,8 +8,11 @@ extension CodeReviewPanelStore {
     ) async -> Bool {
         guard executionController != nil else { return false }
         let cfg = providerFactoryConfigBuilder()
-        let sessionConfig = sourceSnapshot.config
-        let fixSessionId = makePanelTargetedFixSessionId(sourceSessionId: sourceSnapshot.sessionId)
+        guard let plan = planPanelTargetedFixLaunch(sourceSnapshot: sourceSnapshot) else {
+            return false
+        }
+        let sessionConfig = plan.config
+        let fixSessionId = plan.sessionId
         let fixSessionState = CodeReviewSessionState(
             sessionId: fixSessionId,
             conversationId: conversationId ?? sourceSnapshot.conversationId,
@@ -109,14 +112,5 @@ extension CodeReviewPanelStore {
             }
         )
         return true
-    }
-
-    func makePanelTargetedFixSessionId(sourceSessionId: String) -> String {
-        let suffix = String(UUID().uuidString.lowercased().prefix(8))
-        let candidate = "\(sourceSessionId)-fix-\(suffix)"
-        if let sanitized = MCPSharedState.sanitizedCodeReviewSessionId(candidate) {
-            return sanitized
-        }
-        return UUID().uuidString.lowercased()
     }
 }

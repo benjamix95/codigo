@@ -418,6 +418,59 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(store.rerunScopeTarget(for: snapshot), .againstRef("HEAD~2"))
     }
 
+    func testPanelTargetedFixLaunchUsesRustPlannerWithSourcePrefixAndConfig() throws {
+        let taskStore = TaskActivityStore()
+        let workspaceStore = WorkspaceStore()
+        let workspace = Workspace(name: "Review", rootPath: "/tmp/review-targeted-fix")
+        workspaceStore.workspaces = [workspace]
+        workspaceStore.activeWorkspaceId = workspace.id
+
+        let store = CodeReviewPanelStore(
+            taskActivityStore: taskStore,
+            providerRegistry: ProviderRegistry(),
+            executionController: nil,
+            workspaceStore: workspaceStore,
+            openFilesStore: OpenFilesStore(),
+            conversationId: nil,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "source-session",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [],
+            events: [],
+            config: SessionConfig(
+                maxWorkers: 5,
+                maxRounds: 4,
+                analysisBackend: "openai-api",
+                executionBackend: "anthropic-api",
+                analysisOnly: true
+            ),
+            scope: nil,
+            workspacePath: "/tmp/review-targeted-fix",
+            currentRound: 0,
+            activeWorkerCount: 0,
+            startedAt: nil,
+            completedAt: nil,
+            analysisCompletedAt: nil,
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: nil,
+            lastUpdatedAt: Date()
+        )
+
+        let plan = try XCTUnwrap(store.planPanelTargetedFixLaunch(sourceSnapshot: snapshot))
+        XCTAssertTrue(plan.sessionId.hasPrefix("source-session-fix-"))
+        XCTAssertEqual(plan.config.maxWorkers, 5)
+        XCTAssertEqual(plan.config.maxRounds, 4)
+        XCTAssertEqual(plan.config.analysisBackend, "openai-api")
+        XCTAssertEqual(plan.config.executionBackend, "anthropic-api")
+        XCTAssertTrue(plan.config.analysisOnly)
+    }
+
     private func makePanelStore(
         taskActivityStore: TaskActivityStore,
         conversationId: UUID?

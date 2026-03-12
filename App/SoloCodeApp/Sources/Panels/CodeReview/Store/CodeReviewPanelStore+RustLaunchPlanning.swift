@@ -4,13 +4,33 @@ import Foundation
 extension CodeReviewPanelStore {
     func planPanelReviewLaunch() -> (sessionId: String, config: SessionConfig)? {
         let selectedBackend = selectedProviderOverrideId ?? ""
-        let resolvedAnalysisBackend = selectedBackend.isEmpty
-            ? settings.analysisBackend
-            : selectedBackend
-        let resolvedExecutionBackend = selectedBackend.isEmpty
-            ? settings.executionBackend
-            : selectedBackend
+        let resolvedAnalysisBackend = selectedBackend.isEmpty ? settings.analysisBackend : selectedBackend
+        let resolvedExecutionBackend = selectedBackend.isEmpty ? settings.executionBackend : selectedBackend
+        return planPanelLaunch(
+            sessionPrefix: panelSessionPrefix,
+            config: SessionConfig(
+                maxWorkers: settings.maxWorkers,
+                maxRounds: settings.maxRounds,
+                analysisBackend: resolvedAnalysisBackend,
+                executionBackend: resolvedExecutionBackend,
+                analysisOnly: settings.analysisOnly
+            )
+        )
+    }
 
+    func planPanelTargetedFixLaunch(
+        sourceSnapshot: CodeReviewSessionSnapshot
+    ) -> (sessionId: String, config: SessionConfig)? {
+        planPanelLaunch(
+            sessionPrefix: "\(sourceSnapshot.sessionId)-fix",
+            config: sourceSnapshot.config
+        )
+    }
+
+    private func planPanelLaunch(
+        sessionPrefix: String,
+        config: SessionConfig
+    ) -> (sessionId: String, config: SessionConfig)? {
         let response: ReviewPanelStartPlanResponse? = ReviewCoreBridge.call(
             functionName: "review_core_command_plan",
             request: ReviewPanelStartPlanRequest(
@@ -18,22 +38,22 @@ extension CodeReviewPanelStore {
                 action: "start",
                 sessionId: nil,
                 payload: [
-                    "max_workers": "\(settings.maxWorkers)",
-                    "max_rounds": "\(settings.maxRounds)",
-                    "analysis_backend": resolvedAnalysisBackend,
-                    "execution_backend": resolvedExecutionBackend,
-                    "analysis_only": settings.analysisOnly ? "true" : "false",
-                    "session_prefix": panelSessionPrefix,
+                    "max_workers": "\(config.maxWorkers)",
+                    "max_rounds": "\(config.maxRounds)",
+                    "analysis_backend": config.analysisBackend,
+                    "execution_backend": config.executionBackend,
+                    "analysis_only": config.analysisOnly ? "true" : "false",
+                    "session_prefix": sessionPrefix,
                 ],
                 workspaceAvailable: !workspaceStore.activeWorkspacePaths.isEmpty,
                 snapshotExists: false,
                 currentConfig: nil,
                 defaultConfig: ReviewPanelStartPlanConfig(
-                    maxWorkers: settings.maxWorkers,
-                    maxRounds: settings.maxRounds,
-                    analysisBackend: resolvedAnalysisBackend,
-                    executionBackend: resolvedExecutionBackend,
-                    analysisOnly: settings.analysisOnly
+                    maxWorkers: config.maxWorkers,
+                    maxRounds: config.maxRounds,
+                    analysisBackend: config.analysisBackend,
+                    executionBackend: config.executionBackend,
+                    analysisOnly: config.analysisOnly
                 )
             )
         )
