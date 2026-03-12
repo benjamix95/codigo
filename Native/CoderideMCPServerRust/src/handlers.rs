@@ -1,4 +1,5 @@
 use crate::plan_state;
+use crate::search_tools;
 use crate::shared_state;
 use app_core_protocol::mcp::{CallToolResult, ToolCallParams};
 use serde_json::Value;
@@ -12,6 +13,9 @@ use std::process::Command;
 
 pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolResult {
     let arguments = params.arguments.unwrap_or_default();
+    if let Some(result) = search_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
     match params.name.as_str() {
         "coderide_todo_read" => CallToolResult::text(shared_state::read_todos_text()),
         "coderide_todo_write" => match shared_state::write_todos(&arguments) {

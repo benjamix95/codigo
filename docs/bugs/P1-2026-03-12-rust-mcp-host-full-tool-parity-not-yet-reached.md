@@ -19,9 +19,15 @@
   - `todo_read`
   - `todo_write`
   - `read`
+  - `read_range`
   - `list_dir`
   - `glob`
   - `grep`
+  - `find_files`
+  - `find_symbol`
+  - `find_references`
+  - `file_outline`
+  - `codebase_search`
   - `plan_create`
   - `plan_read`
   - `plan_history_read`

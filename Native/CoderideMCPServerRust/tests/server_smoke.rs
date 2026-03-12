@@ -371,6 +371,64 @@ fn plan_tools_and_ide_acks_work() {
     terminate(child);
 }
 
+#[test]
+fn search_tools_work() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let source = workspace.join("Sample.swift");
+    fs::write(
+        &source,
+        "import Foundation\nstruct Sample {}\nfunc greet() {\n    let token = Sample()\n    print(token)\n}\n",
+    )
+    .expect("write source");
+
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":30,"method":"tools/call",
+        "params":{"name":"coderide_read_range","arguments":{"path":"Sample.swift","start_line":2,"end_line":4}}
+    }));
+    let read_range = read_message(&mut child);
+    assert!(read_range["result"]["content"][0]["text"].as_str().unwrap_or("").contains("2: struct Sample {}"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":31,"method":"tools/call",
+        "params":{"name":"coderide_find_files","arguments":{"query":"Sample.swift"}}
+    }));
+    let find_files = read_message(&mut child);
+    assert!(find_files["result"]["content"][0]["text"].as_str().unwrap_or("").contains("Sample.swift"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":32,"method":"tools/call",
+        "params":{"name":"coderide_find_symbol","arguments":{"query":"Sample"}}
+    }));
+    let find_symbol = read_message(&mut child);
+    assert!(find_symbol["result"]["content"][0]["text"].as_str().unwrap_or("").contains("Sample.swift:2"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":33,"method":"tools/call",
+        "params":{"name":"coderide_find_references","arguments":{"query":"Sample"}}
+    }));
+    let references = read_message(&mut child);
+    assert!(references["result"]["content"][0]["text"].as_str().unwrap_or("").contains("Sample.swift:4"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":34,"method":"tools/call",
+        "params":{"name":"coderide_file_outline","arguments":{"path":"Sample.swift"}}
+    }));
+    let outline = read_message(&mut child);
+    assert!(outline["result"]["content"][0]["text"].as_str().unwrap_or("").contains("2: struct Sample {}"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":35,"method":"tools/call",
+        "params":{"name":"coderide_codebase_search","arguments":{"query":"token"}}
+    }));
+    let codebase = read_message(&mut child);
+    assert!(codebase["result"]["content"][0]["text"].as_str().unwrap_or("").contains("Sample.swift:4"));
+    terminate(child);
+}
+
 fn initialize(child: &mut std::process::Child) {
     write_message(
         child.stdin.as_mut().expect("stdin"),
