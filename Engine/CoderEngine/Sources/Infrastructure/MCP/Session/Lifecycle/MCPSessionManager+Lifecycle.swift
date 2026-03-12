@@ -4,17 +4,27 @@ import MCP
 extension MCPSessionManager {
     public func health(serverId: String? = nil) async -> [String: String] {
         let servers = resolveServers()
+        guard !servers.isEmpty else { return [:] }
+
+        let targets: [MCPConfigLoader.DetectedServer]
         if let serverId, !serverId.isEmpty {
             guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
                 return [:]
             }
-            return [cfg.id: await healthForServer(cfg)]
+            targets = [cfg]
+        } else {
+            targets = servers
         }
-        var out: [String: String] = [:]
-        for cfg in servers {
-            out[cfg.id] = await healthForServer(cfg)
+
+        do {
+            return try await rustHealthStates(for: targets)
+        } catch {
+            var fallback: [String: String] = [:]
+            for cfg in targets {
+                fallback[cfg.id] = await healthForServer(cfg)
+            }
+            return fallback
         }
-        return out
     }
 
     public func listServers() -> [(id: String, name: String, source: String)] {
@@ -28,7 +38,7 @@ extension MCPSessionManager {
         }
         try await resetSession(cfg.id, waitForExit: true)
         invalidateNativeToolRegistry()
-        _ = try await session(for: cfg)
+        try await rustReconnect(server: cfg)
     }
 
     public func restartServer(serverId: String) async throws {
@@ -36,15 +46,13 @@ extension MCPSessionManager {
         guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
             throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
         }
-        await awaitSessionTeardownIfNeeded(for: cfg.id)
-        if let existing = sessions.removeValue(forKey: cfg.id) {
-            await disposeSession(existing, waitForExit: true)
-        }
+        try await resetSession(cfg.id, waitForExit: true)
         invalidateNativeToolRegistry()
-        _ = try await session(for: cfg)
+        try await rustRestart(server: cfg)
     }
 
     public func shutdownAll() async {
+        try? await rustShutdownAllServers()
         let storedSessions = Array(sessions.values)
         sessions.removeAll()
         for session in storedSessions {
@@ -131,51 +139,7 @@ extension MCPSessionManager {
     }
 
     public func tools(for cfg: MCPConfigLoader.DetectedServer) async throws -> [MCPToolDescriptor] {
-        var s = try await session(for: cfg)
-        if !shouldBypassToolCache(for: cfg), !s.cachedTools.isEmpty {
-            if let ts = s.cachedToolsTimestamp, Date().timeIntervalSince(ts) < toolCacheTTL {
-                s.lastUsedAt = Date()
-                sessions[cfg.id] = s
-                return s.cachedTools
-            }
-        }
-        let tools: [Tool]
-        do {
-            let listed = try await s.client.listTools()
-            tools = listed.0
-        } catch {
-            let category = classifyMCPError(error)
-            if shouldRetry(error: error, category: category, attempt: 1) {
-                try? await resetSession(cfg.id)
-                s = try await session(for: cfg)
-                let listed = try await s.client.listTools()
-                tools = listed.0
-            } else {
-                throw normalizeMCPError(error, category: category, toolName: "list_tools", timeoutMs: 30_000)
-            }
-        }
-        let descriptors = tools.map { tool in
-            let schemaJSON: String
-            let dict = valueToJSONObject(tool.inputSchema)
-            if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]),
-               let str = String(data: data, encoding: .utf8) {
-                schemaJSON = str
-            } else {
-                schemaJSON = "{\"type\":\"object\",\"properties\":{}}"
-            }
-            return MCPToolDescriptor(
-                name: tool.name,
-                description: tool.description ?? "",
-                schema: schemaJSON,
-                serverId: cfg.id,
-                serverName: cfg.name
-            )
-        }
-        s.cachedTools = descriptors
-        s.cachedToolsTimestamp = Date()
-        s.lastUsedAt = Date()
-        sessions[cfg.id] = s
-        return descriptors
+        try await rustToolDescriptors(for: cfg)
     }
 
     static func requireUniqueServerMatch(

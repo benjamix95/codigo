@@ -70,19 +70,22 @@
 
 ## Gap residuo
 - il gap non è più la copertura dei nomi tool del server MCP locale
+- il lifecycle MCP è ora parzialmente migrato:
+  - `MCPSessionManager` usa il backend Rust `mcp-lifecycle-backend-rust` per `health`, `listTools`, `callTool`, `callToolRich`, `reconnect`, `restartServer`, `shutdownAll`
+  - `resources` e `prompts` restano ancora su path Swift diretto
 - restano ancora da migrare fuori da Swift:
-  - lifecycle/session manager MCP
+  - `resources` / `prompts` MCP e le subscription resource-side
   - runtime locale generale (`UnifiedToolRuntime`)
   - pipeline/code panel/app core
   - fallback e bridge Swift residui fuori dalla sola UI
 
 ## Decisione di contenimento
-- il launcher Swift `coderide-mcp-server` resta il path di default
-- l’exec del binario Rust sibling è attivabile solo con:
-  - `SOLOCODE_USE_RUST_MCP_SERVER=1`
+- il launcher `coderide-mcp-server` usa Rust di default
+- il rollback al server Swift legacy resta possibile con:
+  - `SOLOCODE_USE_SWIFT_MCP_SERVER=1`
 
 ## Prossimo passo richiesto
-- completare la parità dei tool MCP in Rust prima di eliminare il launcher Swift legacy
+- chiudere `resources/prompts` e spostare fuori da Swift il runtime locale generale, poi il code panel/app core
 
 ## Stato
 - aperto

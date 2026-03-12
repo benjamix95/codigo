@@ -19,6 +19,7 @@ required_paths=(
   "$APP_PATH/Contents/MacOS/Solo Code"
   "$APP_PATH/Contents/MacOS/coderide-mcp-server"
   "$APP_PATH/Contents/MacOS/coderide-mcp-server-rust"
+  "$APP_PATH/Contents/MacOS/mcp-lifecycle-backend-rust"
   "$APP_PATH/Contents/Frameworks/CoderEngine.framework/CoderEngine"
   "$APP_PATH/Contents/Frameworks/CoderIDEMCPServer.framework/CoderIDEMCPServer"
 )

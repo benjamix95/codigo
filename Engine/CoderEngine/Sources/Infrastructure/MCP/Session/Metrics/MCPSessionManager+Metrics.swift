@@ -7,6 +7,7 @@ extension MCPSessionManager {
         if let serverId, !serverId.isEmpty {
             targets = servers.filter { $0.id == serverId || $0.name == serverId }
         }
+        let states = (try? await rustHealthStates(for: targets)) ?? [:]
 
         var results: [MCPServerMetrics] = []
         for cfg in targets {
@@ -17,13 +18,19 @@ extension MCPSessionManager {
             let promptCount: Int
             var capabilities = MCPServerCapabilities(supportsTools: false, supportsResources: false, supportsPrompts: false, supportsLogging: false, supportsResourceSubscriptions: false)
 
-            if let s = sessions[cfg.id], s.process.isRunning {
-                status = stats.failedCalls > 0 && Double(stats.failedCalls) / max(1, Double(stats.totalCalls)) > 0.5 ? "degraded" : "ok"
-                toolCount = s.cachedTools.count
-                resourceCount = (try? await resourcesForServer(cfg).count) ?? 0
-                promptCount = (try? await promptsForServer(cfg).count) ?? 0
+            let rustStatus = states[cfg.id]?.lowercased()
+            if rustStatus == "ready" || rustStatus == "disconnected" || rustStatus == "stopped" || rustStatus == "failed" {
+                status = rustStatus ?? "disconnected"
+                toolCount = (try? await rustToolDescriptors(for: cfg).count) ?? 0
+                if sessions[cfg.id] != nil {
+                    resourceCount = (try? await resourcesForServer(cfg).count) ?? 0
+                    promptCount = (try? await promptsForServer(cfg).count) ?? 0
+                } else {
+                    resourceCount = 0
+                    promptCount = 0
+                }
                 capabilities = MCPServerCapabilities(
-                    supportsTools: true,
+                    supportsTools: toolCount > 0,
                     supportsResources: resourceCount > 0,
                     supportsPrompts: promptCount > 0,
                     supportsLogging: true,

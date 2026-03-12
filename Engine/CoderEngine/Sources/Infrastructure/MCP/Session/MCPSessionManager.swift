@@ -12,6 +12,7 @@ public actor MCPSessionManager {
     var sessionTeardownHook: (@Sendable (String) async -> Void)?
     let retryPolicy: MCPRetryPolicy
     let serverResolver: () -> [MCPConfigLoader.DetectedServer]
+    let rustLifecycleBackend: MCPLifecycleRustBackend
     /// TTL for cached tool lists before re-fetching (seconds).
     let toolCacheTTL: TimeInterval = 300
 
@@ -21,11 +22,13 @@ public actor MCPSessionManager {
 
     public init(
         retryPolicy: MCPRetryPolicy = .default,
-        serverResolver: (() -> [MCPConfigLoader.DetectedServer])? = nil
+        serverResolver: (() -> [MCPConfigLoader.DetectedServer])? = nil,
+        rustLifecycleBackend: MCPLifecycleRustBackend? = nil
     ) {
         self.retryPolicy = retryPolicy
         self.serverResolver = serverResolver ?? {
             MCPSessionManager.defaultResolveServers()
         }
+        self.rustLifecycleBackend = rustLifecycleBackend ?? MCPLifecycleRustBackend()
     }
 }

@@ -10,7 +10,7 @@ extension MCPSessionManager {
         var all: [MCPToolDescriptor] = []
         for cfg in servers {
             do {
-                let serverTools = try await tools(for: cfg)
+                let serverTools = try await rustToolDescriptors(for: cfg)
                 all.append(contentsOf: serverTools)
             } catch {
                 Self.logger.warning("Failed to discover tools for \(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -28,12 +28,12 @@ extension MCPSessionManager {
             guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
                 return []
             }
-            return try await tools(for: cfg)
+            return try await rustToolDescriptors(for: cfg)
         }
 
         var all: [MCPToolDescriptor] = []
         for cfg in servers {
-            let tools = try await tools(for: cfg)
+            let tools = try await rustToolDescriptors(for: cfg)
             all.append(contentsOf: tools)
         }
         return all
@@ -60,85 +60,16 @@ extension MCPSessionManager {
             throw ToolRuntimeError.mcpUnavailable("No MCP server configured")
         }
 
-        let target: MCPConfigLoader.DetectedServer
-        if let serverId, !serverId.isEmpty {
-            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
-                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
-            }
-            target = cfg
-        } else {
-            var matches: [MCPConfigLoader.DetectedServer] = []
-            for cfg in servers {
-                let tools = try await tools(for: cfg)
-                if tools.contains(where: { $0.name == toolName }) {
-                    matches.append(cfg)
-                }
-            }
-            if matches.isEmpty {
-                throw ToolRuntimeError.mcpUnavailable("MCP tool not found: \(toolName)")
-            }
-            if matches.count > 1 {
-                let names = matches.map(\.name).joined(separator: ", ")
-                throw ToolRuntimeError.validation(
-                    "Ambiguous MCP tool '\(toolName)' found on multiple servers. Specify serverId, one of: \(names)")
-            }
-            target = matches[0]
-        }
-
-        let valueArgs = arguments.reduce(into: [String: Value]()) { partialResult, kv in
-            partialResult[kv.key] = parseValue(kv.value)
-        }
-
-        let callStartedAt = Date()
-        var finalResult: (content: [Tool.Content], isError: Bool?)?
-        var attempt = 0
-        while true {
-            attempt += 1
-            var currentSession = try await session(for: target)
-            do {
-                let callResult = try await withThrowingTaskGroup(of: (content: [Tool.Content], isError: Bool?).self) { group in
-                    group.addTask {
-                        try await currentSession.client.callTool(name: toolName, arguments: valueArgs)
-                    }
-                    group.addTask {
-                        try await Task.sleep(nanoseconds: UInt64(max(1_000, timeoutMs)) * 1_000_000)
-                        throw ToolRuntimeError.timeout(tool: "mcp:\(toolName)", ms: timeoutMs)
-                    }
-                    guard let first = try await group.next() else {
-                        throw ToolRuntimeError.transport("MCP call interrupted")
-                    }
-                    group.cancelAll()
-                    return first
-                }
-                currentSession.lastUsedAt = Date()
-                sessions[target.id] = currentSession
-                finalResult = callResult
-                break
-            } catch {
-                let category = classifyMCPError(error)
-                let canRetry = shouldRetry(error: error, category: category, attempt: attempt)
-                let logMessage = "MCP call failed server=\(target.id) tool=\(toolName) attempt=\(attempt) category=\(category.rawValue) retry=\(canRetry) error=\(error.localizedDescription)"
-                Self.logger.error("\(logMessage, privacy: .public)")
-                guard canRetry else {
-                    throw normalizeMCPError(error, category: category, toolName: toolName, timeoutMs: timeoutMs)
-                }
-                try? await resetSession(target.id)
-                try await backoffBeforeRetry(forAttempt: attempt)
-            }
-        }
-        guard let result = finalResult else {
-            await callMetrics.record(serverId: target.id, latencyMs: 0, success: false, error: "No result received")
-            throw ToolRuntimeError.transport("MCP call interrupted — no result received")
-        }
-        let latencyMs = max(1, Int(Date().timeIntervalSince(callStartedAt) * 1000))
-        let isErr = result.isError ?? false
-        await callMetrics.record(serverId: target.id, latencyMs: latencyMs, success: !isErr, error: isErr ? "isError=true" : nil)
-        let text = flattenContent(result.content)
-        return (
-            serverId: target.id,
-            serverName: target.name,
-            content: text,
-            isError: isErr
+        let target = try await resolveTargetServer(
+            serverId: serverId,
+            toolName: toolName,
+            servers: servers
+        )
+        return try await rustCallTool(
+            server: target,
+            toolName: toolName,
+            arguments: jsonObjectArguments(from: arguments),
+            timeoutMs: timeoutMs
         )
     }
 
@@ -190,84 +121,16 @@ extension MCPSessionManager {
             throw ToolRuntimeError.mcpUnavailable("No MCP server configured")
         }
 
-        let target: MCPConfigLoader.DetectedServer
-        if let serverId, !serverId.isEmpty {
-            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
-                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
-            }
-            target = cfg
-        } else {
-            var matches: [MCPConfigLoader.DetectedServer] = []
-            for cfg in servers {
-                let tools = try await tools(for: cfg)
-                if tools.contains(where: { $0.name == toolName }) {
-                    matches.append(cfg)
-                }
-            }
-            if matches.isEmpty {
-                throw ToolRuntimeError.mcpUnavailable("MCP tool not found: \(toolName)")
-            }
-            if matches.count > 1 {
-                let names = matches.map(\.name).joined(separator: ", ")
-                throw ToolRuntimeError.validation(
-                    "Ambiguous MCP tool '\(toolName)' found on multiple servers. Specify serverId, one of: \(names)")
-            }
-            target = matches[0]
-        }
-
-        let valueArgs = arguments.reduce(into: [String: Value]()) { partialResult, kv in
-            partialResult[kv.key] = toValue(kv.value)
-        }
-
-        let callStartedAt = Date()
-        var finalResult: (content: [Tool.Content], isError: Bool?)?
-        var attempt = 0
-        while true {
-            attempt += 1
-            var currentSession = try await session(for: target)
-            do {
-                let callResult = try await withThrowingTaskGroup(of: (content: [Tool.Content], isError: Bool?).self) { group in
-                    group.addTask {
-                        try await currentSession.client.callTool(name: toolName, arguments: valueArgs)
-                    }
-                    group.addTask {
-                        try await Task.sleep(nanoseconds: UInt64(max(1_000, timeoutMs)) * 1_000_000)
-                        throw ToolRuntimeError.timeout(tool: "mcp:\(toolName)", ms: timeoutMs)
-                    }
-                    guard let first = try await group.next() else {
-                        throw ToolRuntimeError.transport("MCP call interrupted")
-                    }
-                    group.cancelAll()
-                    return first
-                }
-                currentSession.lastUsedAt = Date()
-                sessions[target.id] = currentSession
-                finalResult = callResult
-                break
-            } catch {
-                let category = classifyMCPError(error)
-                let canRetry = shouldRetry(error: error, category: category, attempt: attempt)
-                Self.logger.error("MCP callRich failed server=\(target.id, privacy: .public) tool=\(toolName, privacy: .public) attempt=\(attempt) category=\(category.rawValue, privacy: .public) retry=\(canRetry) error=\(error.localizedDescription, privacy: .public)")
-                guard canRetry else {
-                    throw normalizeMCPError(error, category: category, toolName: toolName, timeoutMs: timeoutMs)
-                }
-                try? await resetSession(target.id)
-                try await backoffBeforeRetry(forAttempt: attempt)
-            }
-        }
-        guard let result = finalResult else {
-            await callMetrics.record(serverId: target.id, latencyMs: 0, success: false, error: "No result received")
-            throw ToolRuntimeError.transport("MCP call interrupted — no result received")
-        }
-        let latencyMs = max(1, Int(Date().timeIntervalSince(callStartedAt) * 1000))
-        let isErr = result.isError ?? false
-        await callMetrics.record(serverId: target.id, latencyMs: latencyMs, success: !isErr, error: isErr ? "isError=true" : nil)
-        let text = flattenContent(result.content)
-        return (
-            serverId: target.id,
-            serverName: target.name,
-            content: text,
-            isError: isErr
+        let target = try await resolveTargetServer(
+            serverId: serverId,
+            toolName: toolName,
+            servers: servers
+        )
+        return try await rustCallTool(
+            server: target,
+            toolName: toolName,
+            arguments: jsonObjectArguments(fromRich: arguments),
+            timeoutMs: timeoutMs
         )
     }
 }
