@@ -1,7 +1,12 @@
+use crate::audit_tools;
+use crate::debug_tools;
+use crate::diagnostics_tools;
 use crate::edit_tools;
 use crate::plan_state;
 use crate::search_tools;
 use crate::shared_state;
+use crate::skill_tools;
+use crate::web_tools;
 use app_core_protocol::mcp::{CallToolResult, ToolCallParams};
 use serde_json::Value;
 use solocode_rust_core::review_mcp::{
@@ -14,10 +19,25 @@ use std::process::Command;
 
 pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolResult {
     let arguments = params.arguments.unwrap_or_default();
+    if let Some(result) = audit_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
+    if let Some(result) = diagnostics_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
+    if let Some(result) = debug_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
     if let Some(result) = edit_tools::handle(params.name.as_str(), workspace, &arguments) {
         return result;
     }
     if let Some(result) = search_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
+    if let Some(result) = web_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
+    if let Some(result) = skill_tools::handle(params.name.as_str(), workspace, &arguments) {
         return result;
     }
     match params.name.as_str() {

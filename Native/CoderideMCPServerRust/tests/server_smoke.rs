@@ -472,6 +472,86 @@ fn editing_tools_work() {
     terminate(child);
 }
 
+#[test]
+fn diagnostics_and_audit_tools_work() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    fs::write(
+        workspace.join("Cargo.toml"),
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write cargo");
+    fs::create_dir_all(workspace.join("src")).expect("mkdir src");
+    fs::write(workspace.join("src").join("lib.rs"), "pub fn demo() {}\n").expect("write rust file");
+    fs::write(workspace.join("Security.swift"), "let digest = md5(password)\n").expect("write audit file");
+
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":50,"method":"tools/call",
+        "params":{"name":"coderide_audit_security_crypto","arguments":{"scope_files":["Security.swift"]}}
+    }));
+    let audit = read_message(&mut child);
+    assert!(audit["result"]["content"][0]["text"].as_str().unwrap_or("").contains("audit_security_crypto"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":51,"method":"tools/call",
+        "params":{"name":"coderide_diagnostics","arguments":{"manager":"cargo"}}
+    }));
+    let diagnostics = read_message(&mut child);
+    assert!(diagnostics["result"]["content"][0]["text"].as_str().is_some());
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":52,"method":"tools/call",
+        "params":{"name":"coderide_read_lints","arguments":{}}
+    }));
+    let read_lints = read_message(&mut child);
+    assert!(read_lints["result"]["content"][0]["text"].as_str().is_some());
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":53,"method":"tools/call",
+        "params":{"name":"coderide_git_diff","arguments":{}}
+    }));
+    let git_diff = read_message(&mut child);
+    assert!(git_diff["result"]["content"][0]["text"].as_str().is_some());
+    terminate(child);
+}
+
+#[test]
+fn debug_and_skill_tools_work() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let skill_dir = home.join(".codex").join("skills").join("demo-skill");
+    fs::create_dir_all(&skill_dir).expect("mkdir skill");
+    fs::write(skill_dir.join("SKILL.md"), "# Demo\nbody-content\n").expect("write skill");
+
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":60,"method":"tools/call",
+        "params":{"name":"coderide_debug_log","arguments":{"severity":"info","source":"test","message":"hello debug"}}
+    }));
+    let debug_log = read_message(&mut child);
+    assert_eq!(debug_log["result"]["content"][0]["text"].as_str(), Some("OK — debug log entry recorded"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":61,"method":"tools/call",
+        "params":{"name":"coderide_debug_query","arguments":{"search":"hello"}}
+    }));
+    let debug_query = read_message(&mut child);
+    assert!(debug_query["result"]["content"][0]["text"].as_str().unwrap_or("").contains("hello debug"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":62,"method":"tools/call",
+        "params":{"name":"coderide_skill","arguments":{"skill":"demo-skill","task":"run checks"}}
+    }));
+    let skill = read_message(&mut child);
+    assert!(skill["result"]["content"][0]["text"].as_str().unwrap_or("").contains("Demo"));
+    terminate(child);
+}
+
 fn initialize(child: &mut std::process::Child) {
     write_message(
         child.stdin.as_mut().expect("stdin"),

@@ -16,6 +16,7 @@
 - il server Rust implementa oggi:
   - bootstrap MCP
   - `tools/list`
+  - `audit_*` coperti dal review core Rust dove supportati
   - `todo_read`
   - `todo_write`
   - `read`
@@ -32,6 +33,10 @@
   - `find_references`
   - `file_outline`
   - `codebase_search`
+  - `semantic_search`
+  - `git_diff`
+  - `diagnostics`
+  - `read_lints`
   - `plan_create`
   - `plan_read`
   - `plan_history_read`
@@ -45,7 +50,21 @@
   - `plan_diff`
   - `policy_ack`
   - `mermaid_render`
+  - `debug_log`
+  - `debug_query`
   - `debug_session`
+  - `debug_hypothesize`
+  - `debug_timeline`
+  - `debug_snapshot`
+  - `debug_trace_analyze`
+  - `debug_context`
+  - `debug_test_check`
+  - `debug_mark`
+  - `debug_clean`
+  - `debug_instrument`
+  - `web_fetch`
+  - `web_search`
+  - `skill`
   - ack IDE/subagent
   - bridge minimo review/security/bughunter
 - gli altri tool restano da migrare e rispondono con errore esplicito se invocati nel path Rust

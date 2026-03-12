@@ -1,6 +1,6 @@
 mod ffi;
 pub mod review_mcp;
-mod review_audit;
+pub mod review_audit;
 mod review_command;
 mod review_identity;
 mod review_patch;

@@ -1,10 +1,15 @@
+mod audit_tools;
 mod catalog;
+mod debug_tools;
+mod diagnostics_tools;
 mod edit_tools;
 mod handlers;
 mod plan_state;
 mod search_tools;
 mod server;
+mod skill_tools;
 mod shared_state;
+mod web_tools;
 
 use server::{run_stdio_server, ServerConfig};
 use std::env;
