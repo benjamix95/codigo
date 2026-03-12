@@ -1614,6 +1614,7 @@
 		EC9367DA0A3F42AB59F47E00 /* CodeReviewPanelStore+BugHunter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3354AFFCD0ECB4CC1B84A452 /* CodeReviewPanelStore+BugHunter.swift */; };
 		ECA1AC5618EF1643F5B55AC6 /* OpenAIAPIProvider+ToolDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A535A4001E4153D9126736 /* OpenAIAPIProvider+ToolDefinitions.swift */; };
 		ED06F109DA6826564B2F309B /* BugHunterHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 402B1E9AA049129B49510023 /* BugHunterHandlerTests.swift */; };
+		F1A0C8E1B72F4D9A8C3E11F1 /* BugHunterHandlerTests+Start.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A0C8E1B72F4D9A8C3E11F2 /* BugHunterHandlerTests+Start.swift */; };
 		ED2C1CFD834FF7A8229C344A /* DebugStore+Hypotheses.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06E1AF9896A942FCF388DAF /* DebugStore+Hypotheses.swift */; };
 		ED7470F76B37DA8AC1A459AE /* ProviderToolEventMapper+Plan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691451B3C0B988DF4DBCE4E0 /* ProviderToolEventMapper+Plan.swift */; };
 		ED967EB9C6A005D1C17EF4E6 /* GeminiDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70528FFEE08916A74C150654 /* GeminiDetector.swift */; };
@@ -2270,6 +2271,7 @@
 		3FF9AA5E4C0E4A6B8D2F1030 /* ReviewPipelineLedgerModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPipelineLedgerModels.swift; path = Engine/CoderEngine/Sources/CodeReview/Session/ReviewPipelineLedgerModels.swift; sourceTree = "<group>"; };
 		401D91F7366D97BA6FC5283B /* MCPLifecycleRustBinaryLocator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MCPLifecycleRustBinaryLocator.swift; path = Engine/CoderEngine/Sources/Infrastructure/MCP/RustLifecycle/MCPLifecycleRustBinaryLocator.swift; sourceTree = "<group>"; };
 		402B1E9AA049129B49510023 /* BugHunterHandlerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterHandlerTests.swift; path = Tests/CoderEngineTests/BugHunter/BugHunterHandlerTests.swift; sourceTree = "<group>"; };
+		F1A0C8E1B72F4D9A8C3E11F2 /* BugHunterHandlerTests+Start.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "BugHunterHandlerTests+Start.swift"; path = "Tests/CoderEngineTests/BugHunter/BugHunterHandlerTests+Start.swift"; sourceTree = "<group>"; };
 		408FD23473AD9FF2826904CA /* ReviewPanelHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelHelpers.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Shared/ReviewPanelHelpers.swift; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E51 /* CodeReviewPanelStore+CompletionFinalization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+CompletionFinalization.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+CompletionFinalization.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E53 /* CodeReviewPanelStore+TargetedFix.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+TargetedFix.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+TargetedFix.swift"; sourceTree = "<group>"; };
@@ -5106,6 +5108,7 @@
 				3F00D951DBFC201838ACD73B /* AnthropicAPIProviderTests.swift */,
 				A761150C30F5F7C04F053F61 /* AsyncTimeoutTests.swift */,
 				402B1E9AA049129B49510023 /* BugHunterHandlerTests.swift */,
+				F1A0C8E1B72F4D9A8C3E11F2 /* BugHunterHandlerTests+Start.swift */,
 				51AB39BCF6D62C916A3D6A29 /* MCPSharedBugHunterCommandsTests.swift */,
 				7B7C09BFC2EBA921FEE7B7D4 /* ClaudeCLIProviderTests.swift */,
 				36414ADDB69615596C43E46B /* BugHunterAutofixFilterTests.swift */,
@@ -6137,6 +6140,7 @@
 				A82753A8D93CAD6C1C6810C0 /* AnthropicAPIProviderTests.swift in Sources */,
 				D055A130A9D5BCF1EBFFCA4D /* AsyncTimeoutTests.swift in Sources */,
 				ED06F109DA6826564B2F309B /* BugHunterHandlerTests.swift in Sources */,
+				F1A0C8E1B72F4D9A8C3E11F1 /* BugHunterHandlerTests+Start.swift in Sources */,
 				C686926E5AEAAADECBC2B01A /* MCPSharedBugHunterCommandsTests.swift in Sources */,
 				19E6C4F61CCD0276B9EC74EE /* ClaudeCLIProviderTests.swift in Sources */,
 				2D04DEF6715F30D59B64A341 /* BugHunterAutofixFilterTests.swift in Sources */,

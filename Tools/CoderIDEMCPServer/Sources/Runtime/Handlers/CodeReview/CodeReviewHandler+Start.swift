@@ -4,8 +4,11 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleReviewStart(args: [String: String]) -> CallTool.Result {
-        if hasInvalidConversationIdArgument(args["conversation_id"] ?? args["conversationId"]) {
-            return reviewError("Error: 'conversation_id' must be a valid UUID")
+        guard let bridged = rustReviewToolResult(name: "review_start", args: args) else {
+            return reviewError("Error: Rust review core unavailable for review_start")
+        }
+        if bridged.isError == true {
+            return bridged
         }
         do {
             let request = try VerifiedFindingsStartCommandService.makeRequest(

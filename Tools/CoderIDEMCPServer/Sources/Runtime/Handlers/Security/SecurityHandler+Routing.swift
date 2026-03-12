@@ -4,13 +4,11 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleSecurityStart(args: [String: String]) -> CallTool.Result {
-        if let bridged = rustSecurityToolResult(name: "security_start", args: args),
-           bridged.isError == true || !textContent(from: bridged).isEmpty {
-            if bridged.isError == nil || bridged.isError == false {
-                // keep existing enqueue path for the actual start command, but preserve Rust gate validation
-            } else {
-                return bridged
-            }
+        guard let bridged = rustSecurityToolResult(name: "security_start", args: args) else {
+            return reviewError("Error: Rust review core unavailable for security_start")
+        }
+        if bridged.isError == true {
+            return bridged
         }
         guard let gate = currentSecurityGate(args: args), gate.ready else {
             let summary = currentSecurityGate(args: args)?.summary
