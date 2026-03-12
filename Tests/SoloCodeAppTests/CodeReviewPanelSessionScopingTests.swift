@@ -187,6 +187,46 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(updated.findings.first(where: { $0.id == "f-2" })?.status, .open)
     }
 
+    func testPanelDismissFallbackUsesRustMutationAndMarksWontFix() async throws {
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let snapshot = makeSnapshot(
+            sessionId: "session-dismiss",
+            conversationId: conversationId,
+            findings: [
+                CodeReviewFinding(
+                    id: "f-1",
+                    severity: .warning,
+                    category: .bug,
+                    filePath: "Sources/A.swift",
+                    message: "Dismiss me"
+                )
+            ]
+        )
+        taskStore.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+
+        let store = makePanelStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId
+        )
+
+        await store.dismissFinding(
+            sessionId: "session-dismiss",
+            findingId: "f-1",
+            reason: "wont_fix"
+        )
+
+        let updated = try XCTUnwrap(
+            taskStore.codeReviewSnapshot(
+                sessionId: "session-dismiss",
+                conversationId: conversationId
+            )
+        )
+        XCTAssertEqual(updated.findings.first?.status, .wontFix)
+        XCTAssertEqual(updated.events.last?.type, .findingDismissed)
+        XCTAssertEqual(updated.events.last?.metadata["finding_id"], "f-1")
+    }
+
     func testPanelModeSelectionAllowsMultiSelectAndSecondTapTurnsModeOff() {
         let store = makePanelStore(
             taskActivityStore: TaskActivityStore(),

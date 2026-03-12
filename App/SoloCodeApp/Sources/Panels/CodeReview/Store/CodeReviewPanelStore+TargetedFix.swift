@@ -88,14 +88,11 @@ extension CodeReviewPanelStore {
                 )
                 Task { @MainActor in
                     for finding in findings {
-                        await self.mutateSnapshot(
+                        await self.mutateSnapshotUsingRust(
                             sessionId: sourceSnapshot.sessionId,
-                            findingId: finding.id
-                        ) { finding in
-                            finding.status = .fixApplied
-                        } event: {
-                            .findingFixApplied(findingId: finding.id)
-                        }
+                            action: "apply_fix",
+                            payload: ["finding_id": finding.id]
+                        )
                     }
                     self.appendPanelSystemMessage(
                         "Applied targeted fix run for \(findings.count) finding(s).",

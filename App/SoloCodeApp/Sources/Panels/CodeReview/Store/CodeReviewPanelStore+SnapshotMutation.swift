@@ -2,24 +2,34 @@ import CoderEngine
 import Foundation
 
 extension CodeReviewPanelStore {
-    func mutateSnapshot(
+    func mutateSnapshotUsingRust(
         sessionId: String,
-        findingId: String,
-        mutate: (inout CodeReviewFinding) -> Void,
-        event: () -> CodeReviewSessionEvent
+        action: String,
+        payload: [String: String]
     ) async {
         guard let snapshot = taskActivityStore.codeReviewSnapshot(
             sessionId: sessionId,
             conversationId: conversationId
         ) else { return }
 
-        var findings = snapshot.findings
-        guard let index = findings.firstIndex(where: { $0.id == findingId }) else { return }
-        mutate(&findings[index])
+        guard let mutation: ReviewPanelCommandMutationResponse = ReviewCoreBridge.call(
+            functionName: "review_core_command_mutate_snapshot",
+            request: ReviewPanelCommandMutationRequest(
+                schemaVersion: 1,
+                action: action,
+                snapshot: snapshot,
+                payload: payload
+            )
+        ),
+              !mutation.isError,
+              let findings = mutation.findings,
+              let events = mutation.events else {
+            return
+        }
 
         let updated = snapshot.copying(
             findings: findings,
-            events: snapshot.events + [event()],
+            events: events,
             outcome: snapshot.copying(findings: findings).buildOutcomeSummary()
         )
         taskActivityStore.scheduleCodeReviewSnapshotIngest(
@@ -27,4 +37,18 @@ extension CodeReviewPanelStore {
             conversationId: conversationId
         )
     }
+}
+
+private struct ReviewPanelCommandMutationRequest: Encodable {
+    let schemaVersion: Int
+    let action: String
+    let snapshot: CodeReviewSessionSnapshot
+    let payload: [String: String]
+}
+
+private struct ReviewPanelCommandMutationResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let findings: [CodeReviewFinding]?
+    let events: [CodeReviewSessionEvent]?
 }

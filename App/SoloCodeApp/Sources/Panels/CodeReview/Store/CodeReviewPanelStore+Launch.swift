@@ -171,11 +171,14 @@ extension CodeReviewPanelStore {
         }
         let status: FindingStatus = reason.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() == FindingStatus.wontFix.rawValue ? .wontFix : .dismissed
-        await mutateSnapshot(sessionId: sessionId, findingId: findingId) { finding in
-            finding.status = status
-        } event: {
-            .findingDismissed(findingId: findingId, reason: reason)
-        }
+        await mutateSnapshotUsingRust(
+            sessionId: sessionId,
+            action: "dismiss",
+            payload: [
+                "finding_id": findingId,
+                "reason": status == .wontFix ? FindingStatus.wontFix.rawValue : reason,
+            ]
+        )
         appendPanelSystemMessage(
             "Finding \(findingId) dismissed (\(reason)).",
             kind: .findingMutation,
