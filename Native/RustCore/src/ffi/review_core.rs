@@ -1,5 +1,6 @@
 use super::common::{encode_raw, with_raw_json_input, BACKEND_VERSION};
 use crate::review_audit::run_audit;
+use crate::review_chat::merge_chat_findings;
 use crate::review_history::{
     derive_historical_findings_from_snapshot, derive_history_live_state,
 };
@@ -134,6 +135,12 @@ pub extern "C" fn review_core_reduce_panel_state(input: *const c_char) -> *mut c
                 request.primary.unwrap_or_default(),
                 request.fallback.unwrap_or_default(),
             ))),
+            "merge_chat_findings" => encode_raw(&ReviewCoreReduceResponse::success_panel_state(
+                merge_chat_findings(
+                    request.primary.as_deref().unwrap_or(&[]),
+                    request.fallback.as_deref().unwrap_or(&[]),
+                ),
+            )),
             "derive_history_records_from_snapshot" => {
                 let Some(snapshot) = request.snapshot else {
                     return encode_raw(&ReviewCoreReduceResponse::error(

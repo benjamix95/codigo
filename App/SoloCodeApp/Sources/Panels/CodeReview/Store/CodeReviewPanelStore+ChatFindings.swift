@@ -24,16 +24,21 @@ extension CodeReviewPanelStore {
             return
         }
 
-        let merge = mergeChatFindings(
+        let merge = mergeChatFindingsWithRust(
+            existing: snapshot.findings,
+            incoming: extraction.findings
+        ) ?? mergeChatFindingsFallback(
             existing: snapshot.findings,
             incoming: extraction.findings
         )
 
-        guard !merge.inserted.isEmpty else {
+        guard merge.insertedCount > 0 else {
             return
         }
 
-        let events = merge.inserted.map {
+        let existingCount = snapshot.findings.count
+        let inserted = Array(merge.all.dropFirst(existingCount))
+        let events = inserted.map {
             CodeReviewSessionEvent.findingAdded(
                 findingId: $0.id,
                 severity: $0.severity.rawValue,
@@ -50,7 +55,7 @@ extension CodeReviewPanelStore {
             conversationId: conversationId
         )
         appendPanelSystemMessage(
-            "Synced \(merge.inserted.count) finding(s) from chat into the Findings tab.",
+            "Synced \(merge.insertedCount) finding(s) from chat into the Findings tab.",
             kind: .statusNote,
             selectChatTab: false
         )
@@ -129,21 +134,21 @@ extension CodeReviewPanelStore {
         )
     }
 
-    private func mergeChatFindings(
+    private func mergeChatFindingsFallback(
         existing: [CodeReviewFinding],
         incoming: [CodeReviewFinding]
-    ) -> (all: [CodeReviewFinding], inserted: [CodeReviewFinding]) {
+    ) -> (all: [CodeReviewFinding], insertedCount: Int) {
         var seen = Set(existing.map(chatFindingKey))
         var merged = existing
-        var inserted: [CodeReviewFinding] = []
+        var insertedCount = 0
         for finding in incoming {
             let key = chatFindingKey(finding)
             if seen.insert(key).inserted {
                 merged.append(finding)
-                inserted.append(finding)
+                insertedCount += 1
             }
         }
-        return (merged, inserted)
+        return (merged, insertedCount)
     }
 
     private func chatFindingKey(_ finding: CodeReviewFinding) -> String {
