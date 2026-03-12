@@ -54,10 +54,11 @@ pub fn run_stdio_server(config: ServerConfig) -> Result<(), String> {
                             version: "0.1.0".to_string(),
                             title: Some("CoderIDE Tools (Rust)".to_string()),
                         },
-                        instructions: Some(
-                            "Rust MCP server for CoderIDE. Prefer native Rust tools over shell when available."
-                                .to_string(),
-                        ),
+                        instructions: Some(format!(
+                            "Rust MCP server for CoderIDE. Prefer native Rust tools over shell when available. Catalog version: {}. Tool count: {}.",
+                            catalog::CATALOG_VERSION,
+                            catalog::CATALOG_TOOL_COUNT
+                        )),
                     };
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
                 }

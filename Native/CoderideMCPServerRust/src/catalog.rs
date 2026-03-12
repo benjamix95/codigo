@@ -1,22 +1,105 @@
 use app_core_protocol::mcp::ToolDefinition;
 
 const TOOL_NAMES: &str = include_str!("tool_names.txt");
+pub const CATALOG_VERSION: &str = "2026-03-12";
+pub const CATALOG_TOOL_COUNT: usize = 131;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ToolFamily {
+    Audit,
+    BugHunter,
+    Codebase,
+    Debug,
+    Diagnostics,
+    Edit,
+    File,
+    Git,
+    Plan,
+    Policy,
+    Review,
+    Search,
+    Security,
+    Skill,
+    Subagent,
+    Todo,
+    Ui,
+    Web,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ToolSpec {
+    pub name: &'static str,
+    pub family: ToolFamily,
+    pub description: &'static str,
+    pub read_only: bool,
+}
 
 pub fn all_tools() -> Vec<ToolDefinition> {
-    TOOL_NAMES
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .map(tool_definition)
+    tool_specs()
+        .into_iter()
+        .map(|spec| ToolDefinition::new(spec.name, Some(spec.description.to_string()), spec.read_only))
         .collect()
 }
 
-fn tool_definition(name: &str) -> ToolDefinition {
-    ToolDefinition::new(
-        name.to_string(),
-        Some(description_for(name).to_string()),
-        is_read_only(name),
-    )
+pub fn tool_specs() -> Vec<ToolSpec> {
+    TOOL_NAMES.lines().map(str::trim).filter(|line| !line.is_empty()).map(tool_spec).collect()
+}
+
+fn tool_spec(name: &'static str) -> ToolSpec {
+    ToolSpec {
+        name,
+        family: family_for(name),
+        description: description_for(name),
+        read_only: is_read_only(name),
+    }
+}
+
+fn family_for(name: &str) -> ToolFamily {
+    if name.starts_with("coderide_audit_") {
+        ToolFamily::Audit
+    } else if name.starts_with("coderide_bughunter_") {
+        ToolFamily::BugHunter
+    } else if name.starts_with("coderide_debug_") {
+        ToolFamily::Debug
+    } else if name.starts_with("coderide_diagnostics") {
+        ToolFamily::Diagnostics
+    } else if name.starts_with("coderide_plan_") || name == "coderide_activate_plan_mode" {
+        ToolFamily::Plan
+    } else if name.starts_with("coderide_review_") {
+        ToolFamily::Review
+    } else if name.starts_with("coderide_security_") {
+        ToolFamily::Security
+    } else if name.starts_with("coderide_skill") {
+        ToolFamily::Skill
+    } else if name.starts_with("coderide_subagent_") {
+        ToolFamily::Subagent
+    } else if name.starts_with("coderide_todo_") {
+        ToolFamily::Todo
+    } else if name.starts_with("coderide_web_") {
+        ToolFamily::Web
+    } else {
+        match name {
+            "coderide_codebase_search"
+            | "coderide_file_outline"
+            | "coderide_find_files"
+            | "coderide_find_references"
+            | "coderide_find_symbol"
+            | "coderide_read_lints"
+            | "coderide_semantic_search" => ToolFamily::Codebase,
+            "coderide_create_file"
+            | "coderide_regex_replace"
+            | "coderide_str_replace"
+            | "coderide_write" => ToolFamily::Edit,
+            "coderide_git_diff" => ToolFamily::Git,
+            "coderide_glob" | "coderide_grep" => ToolFamily::Search,
+            "coderide_mermaid_render"
+            | "coderide_policy_ack"
+            | "coderide_activate_debug_mode" => ToolFamily::Policy,
+            "coderide_list_dir" | "coderide_read" | "coderide_read_range" => ToolFamily::File,
+            "coderide_show_swarm_panel" | "coderide_show_task_panel" => ToolFamily::Ui,
+            _ => ToolFamily::Policy,
+        }
+    }
 }
 
 fn description_for(name: &str) -> &'static str {
@@ -75,4 +158,43 @@ fn is_read_only(name: &str) -> bool {
             | "coderide_web_fetch"
             | "coderide_web_search"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{all_tools, tool_specs, CATALOG_TOOL_COUNT, CATALOG_VERSION, ToolFamily};
+    use std::collections::HashSet;
+
+    #[test]
+    fn catalog_version_is_frozen_for_tranche() {
+        assert_eq!(CATALOG_VERSION, "2026-03-12");
+    }
+
+    #[test]
+    fn every_tool_name_has_exactly_one_spec() {
+        let specs = tool_specs();
+        let unique_names: HashSet<_> = specs.iter().map(|spec| spec.name).collect();
+        assert_eq!(specs.len(), unique_names.len());
+        assert_eq!(specs.len(), CATALOG_TOOL_COUNT);
+        assert!(specs.iter().all(|spec| !spec.description.trim().is_empty()));
+    }
+
+    #[test]
+    fn all_tools_expose_read_only_annotations() {
+        let tools = all_tools();
+        assert_eq!(tools.len(), CATALOG_TOOL_COUNT);
+        assert!(tools.iter().all(|tool| tool.annotations.is_some()));
+        assert!(tools.iter().all(|tool| tool.description.is_some()));
+    }
+
+    #[test]
+    fn catalog_covers_core_families() {
+        let specs = tool_specs();
+        let families: HashSet<_> = specs.iter().map(|spec| spec.family).collect();
+        assert!(families.contains(&ToolFamily::Review));
+        assert!(families.contains(&ToolFamily::Plan));
+        assert!(families.contains(&ToolFamily::Debug));
+        assert!(families.contains(&ToolFamily::File));
+        assert!(families.contains(&ToolFamily::Web));
+    }
 }
