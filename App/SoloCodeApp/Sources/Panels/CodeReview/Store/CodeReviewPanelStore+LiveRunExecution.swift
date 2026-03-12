@@ -55,4 +55,54 @@ extension CodeReviewPanelStore {
         frozenTimerText = nil
         lastError = nil
     }
+
+    func completePanelRun(selectTab targetTab: CodeReviewTab) {
+        isRunning = false
+        freezeTimer()
+        if selectedTab != .chat {
+            selectedTab = targetTab
+        }
+    }
+
+    func failPanelRun(error: String, selectTab targetTab: CodeReviewTab) {
+        isRunning = false
+        lastError = error
+        freezeTimer()
+        selectedTab = targetTab
+    }
+
+    func runPanelReview(
+        provider: any LLMProvider,
+        prompt: String,
+        context: WorkspaceContext,
+        sessionState: CodeReviewSessionState,
+        sessionId: String,
+        conversationId: UUID?,
+        selectedTabOnStart: CodeReviewTab,
+        selectedTabOnFinish: CodeReviewTab,
+        onEvent: @escaping @MainActor (StreamEvent) -> Void,
+        onComplete: @escaping @MainActor (CodeReviewSessionSnapshot) -> Void,
+        onError: @escaping @MainActor (String) -> Void
+    ) {
+        activatePanelRunSession(sessionId: sessionId, conversationId: conversationId)
+        coordinator.runReview(
+            provider: provider,
+            prompt: prompt,
+            context: context,
+            sessionState: sessionState,
+            onEvent: onEvent,
+            onStart: { [weak self] in
+                self?.selectedTab = selectedTabOnStart
+            },
+            onComplete: { [weak self] snapshot in
+                guard let self else { return }
+                self.completePanelRun(selectTab: selectedTabOnFinish)
+                onComplete(snapshot)
+            },
+            onError: { [weak self] error in
+                self?.failPanelRun(error: error, selectTab: selectedTabOnFinish)
+                onError(error)
+            }
+        )
+    }
 }

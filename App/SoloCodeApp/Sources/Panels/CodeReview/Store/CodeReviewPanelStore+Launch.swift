@@ -64,31 +64,19 @@ extension CodeReviewPanelStore {
 
         let prompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
         let context = buildWorkspaceContext()
-
-        activatePanelRunSession(sessionId: sessionId, conversationId: conversationId)
-
-        coordinator.runReview(
+        runPanelReview(
             provider: provider,
             prompt: prompt,
             context: context,
             sessionState: sessionState,
+            sessionId: sessionId,
+            conversationId: conversationId,
+            selectedTabOnStart: .findings,
+            selectedTabOnFinish: .findings,
             onEvent: { _ in },
-            onStart: { [weak self] in
-                self?.selectedTab = .findings
+            onComplete: { _ in
             },
-            onComplete: { [weak self] snapshot in
-                guard let self else { return }
-                self.isRunning = false
-                self.freezeTimer()
-                if self.selectedTab != .chat {
-                    self.selectedTab = .findings
-                }
-            },
-            onError: { [weak self] error in
-                self?.isRunning = false
-                self?.lastError = error
-                self?.freezeTimer()
-                self?.selectedTab = .findings
+            onError: { _ in
             }
         )
     }
@@ -96,8 +84,7 @@ extension CodeReviewPanelStore {
     /// Cancel the current running review.
     func cancelReview() {
         coordinator.cancelReview()
-        isRunning = false
-        freezeTimer()
+        completePanelRun(selectTab: .findings)
     }
 
     /// Re-run a review session with the same scope.

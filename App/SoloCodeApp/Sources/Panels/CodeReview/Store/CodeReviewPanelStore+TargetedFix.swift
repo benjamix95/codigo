@@ -50,23 +50,20 @@ extension CodeReviewPanelStore {
             line: "Preparing targeted fix run..."
         )
 
-        activatePanelRunSession(sessionId: fixSessionId, conversationId: conversationId)
-
-        coordinator.runReview(
+        runPanelReview(
             provider: provider,
             prompt: prompt,
             context: buildWorkspaceContext(),
             sessionState: fixSessionState,
+            sessionId: fixSessionId,
+            conversationId: conversationId,
+            selectedTabOnStart: .chat,
+            selectedTabOnFinish: .chat,
             onEvent: { [weak self] event in
                 self?.streamPanelActionOutput(id: outputMessageId, event: event)
             },
-            onStart: { [weak self] in
-                self?.selectedTab = .chat
-            },
             onComplete: { [weak self] _ in
                 guard let self else { return }
-                self.isRunning = false
-                self.freezeTimer()
                 self.finishPanelActionOutput(
                     id: outputMessageId,
                     fallbackContent: "Targeted fix completed."
@@ -87,9 +84,6 @@ extension CodeReviewPanelStore {
                 }
             },
             onError: { [weak self] error in
-                self?.isRunning = false
-                self?.lastError = error
-                self?.freezeTimer()
                 self?.failPanelActionOutput(id: outputMessageId, error: error)
             }
         )

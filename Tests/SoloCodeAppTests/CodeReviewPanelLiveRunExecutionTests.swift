@@ -51,6 +51,33 @@ final class CodeReviewPanelLiveRunExecutionTests: XCTestCase {
         XCTAssertNil(store.lastError)
     }
 
+    func testCompletePanelRunKeepsChatSelectionAndFreezesTimer() {
+        let store = makeStore(conversationId: nil)
+        store.selectedTab = .chat
+        store.isRunning = true
+        store.runStartedAt = Date().addingTimeInterval(-5)
+
+        store.completePanelRun(selectTab: .findings)
+
+        XCTAssertFalse(store.isRunning)
+        XCTAssertEqual(store.selectedTab, .chat)
+        XCTAssertNotNil(store.frozenTimerText)
+    }
+
+    func testFailPanelRunSetsErrorAndSelection() {
+        let store = makeStore(conversationId: nil)
+        store.selectedTab = .chat
+        store.isRunning = true
+        store.runStartedAt = Date().addingTimeInterval(-5)
+
+        store.failPanelRun(error: "boom", selectTab: .findings)
+
+        XCTAssertFalse(store.isRunning)
+        XCTAssertEqual(store.selectedTab, .findings)
+        XCTAssertEqual(store.lastError, "boom")
+        XCTAssertNotNil(store.frozenTimerText)
+    }
+
     private func makeStore(conversationId: UUID?) -> CodeReviewPanelStore {
         CodeReviewPanelStore(
             taskActivityStore: TaskActivityStore(),
