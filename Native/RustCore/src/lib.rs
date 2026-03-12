@@ -1,8 +1,8 @@
 mod ffi;
+pub mod review_mcp;
 mod review_audit;
 mod review_command;
 mod review_identity;
-mod review_mcp;
 mod review_patch;
 mod review_persistence;
 mod review_pipeline;

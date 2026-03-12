@@ -12,4 +12,11 @@ xcodebuild \
   -derivedDataPath "$DERIVED_DATA" \
   build
 
-open -na "$DERIVED_DATA/Build/Products/Debug/Solo Code.app"
+APP_PATH="$DERIVED_DATA/Build/Products/Debug/Solo Code.app"
+CONFIGURATION=Debug \
+SOLOCODE_MCP_SERVER_BUNDLE_DIR="$APP_PATH/Contents/MacOS" \
+  "$REPO_ROOT/scripts/build_rust_mcp_server.sh"
+codesign --force --deep --sign - "$APP_PATH"
+"$REPO_ROOT/scripts/validate_app_bundle.sh" "$APP_PATH"
+
+open -na "$APP_PATH"

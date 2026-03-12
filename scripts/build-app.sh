@@ -14,7 +14,14 @@ xcodebuild \
   -derivedDataPath "$DERIVED_DATA" \
   build
 
+APP_PATH="$DERIVED_DATA/Build/Products/Release/$APP_NAME"
+CONFIGURATION=Release \
+SOLOCODE_MCP_SERVER_BUNDLE_DIR="$APP_PATH/Contents/MacOS" \
+  "$REPO_ROOT/scripts/build_rust_mcp_server.sh"
+codesign --force --deep --sign "${CODESIGN_IDENTITY:--}" "$APP_PATH"
+"$REPO_ROOT/scripts/validate_app_bundle.sh" "$APP_PATH"
+
 mkdir -p "$OUTPUT_DIR"
 rm -rf "$OUTPUT_DIR/$APP_NAME"
-cp -R "$DERIVED_DATA/Build/Products/Release/$APP_NAME" "$OUTPUT_DIR/$APP_NAME"
+cp -R "$APP_PATH" "$OUTPUT_DIR/$APP_NAME"
 echo "Built: $OUTPUT_DIR/$APP_NAME"

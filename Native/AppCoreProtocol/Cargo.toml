@@ -1,11 +1,7 @@
 [package]
-name = "solocode_rust_core"
+name = "app_core_protocol"
 version = "0.1.0"
 edition = "2021"
-
-[lib]
-name = "solocode_rust_core"
-crate-type = ["rlib", "staticlib", "cdylib"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "AppCoreProtocol",
+    "CoderideMCPServerRust",
+    "RustCore",
+]
+resolver = "2"
