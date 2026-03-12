@@ -552,6 +552,62 @@ fn debug_and_skill_tools_work() {
     terminate(child);
 }
 
+#[test]
+fn review_security_and_bughunter_tools_work() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let shared = home.join("Library").join("Application Support").join("CoderIDE").join("mcp-shared");
+    let review_dir = shared.join("code-review").join("sessions");
+    let bughunter_dir = shared.join("bughunter").join("runs");
+    fs::create_dir_all(&review_dir).expect("mkdir review");
+    fs::create_dir_all(&bughunter_dir).expect("mkdir bughunter");
+    let review_snapshot = json!({
+        "sessionId":"review-1",
+        "conversationId":"11111111-1111-1111-1111-111111111111",
+        "phase":"fixing",
+        "stage":"fixing",
+        "statusSummary":"Review in progress",
+        "findings":[{"id":"security-1","severity":"critical","category":"security","origin":"securityAuditor","filePath":"Sources/Auth.swift","lineNumber":12,"message":"Missing authz check","status":"open"}],
+        "candidates":[{"id":"candidate-1","severity":"warning","category":"correctness","origin":"bugHunter","filePath":"Sources/App.swift","lineNumber":7,"message":"Crash path","verificationStatus":"new"}],
+        "patches":[{"id":"patch-1","findingId":"security-1","status":"verified","verifyStatus":"verified","validationStatus":"passed","diffPreview":"@@"}],
+        "outcome":{"summary":"done","verifiedFindings":1,"falsePositives":0,"patchesReady":1,"patchesApplied":0,"prsOpened":0,"mergedPatches":0,"conflictsDetected":0,"manualActionRequired":false,"testsStatus":"passed"},
+        "verifiedFindings":{"canonicalSnapshot":{"findings":{"bug-1":{"id":"bug-1","domain":"bug","title":"Crash in loader. path A","category":"correctness","confidence":0.96,"filePath":"Sources/Loader.swift","status":"verified"},"bug-2":{"id":"bug-2","domain":"bug","title":"Crash in loader. path B","category":"correctness","confidence":0.90,"filePath":"Sources/Loader.swift","status":"verified"}}}}
+    });
+    fs::write(review_dir.join("review-1.json"), serde_json::to_vec_pretty(&review_snapshot).unwrap()).expect("write review");
+    let bughunter_snapshot = json!({
+        "runId":"run-1","reviewSessionId":"review-1","sourceKind":"uncommitted","triggerKind":"manual","gitRoot":workspace.display().to_string(),"status":"running","verifiedFindingsCount":2,"candidateFindingsCount":1,"lastRevalidationVerdict":"fixed_verified","securityGateReady":true,"lastUpdatedAt":"2026-03-12T12:00:00Z"
+    });
+    fs::write(bughunter_dir.join("run-1.json"), serde_json::to_vec_pretty(&bughunter_snapshot).unwrap()).expect("write bughunter");
+
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":70,"method":"tools/call","params":{"name":"coderide_review_status","arguments":{"session_id":"review-1"}}}));
+    let review_status = read_message(&mut child);
+    assert!(review_status["result"]["content"][0]["text"].as_str().unwrap_or("").contains("session_id: review-1"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":71,"method":"tools/call","params":{"name":"coderide_review_findings","arguments":{"session_id":"review-1"}}}));
+    let review_findings = read_message(&mut child);
+    assert!(review_findings["result"]["content"][0]["text"].as_str().unwrap_or("").contains("redacted-swift-file-"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":72,"method":"tools/call","params":{"name":"coderide_review_apply_patch","arguments":{"session_id":"review-1","finding_id":"security-1"}}}));
+    let apply_patch = read_message(&mut child);
+    assert!(apply_patch["result"]["content"][0]["text"].as_str().unwrap_or("").contains("queued"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":73,"method":"tools/call","params":{"name":"coderide_security_status","arguments":{"session_id":"review-1"}}}));
+    let security_status = read_message(&mut child);
+    assert!(security_status["result"]["content"][0]["text"].as_str().unwrap_or("").contains("security_gate_ready"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":74,"method":"tools/call","params":{"name":"coderide_bughunter_status","arguments":{"run_id":"run-1"}}}));
+    let bughunter_status = read_message(&mut child);
+    assert!(bughunter_status["result"]["content"][0]["text"].as_str().unwrap_or("").contains("verified_findings_count: 2"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":75,"method":"tools/call","params":{"name":"coderide_bughunter_explain_cluster","arguments":{"run_id":"run-1"}}}));
+    let cluster = read_message(&mut child);
+    assert!(cluster["result"]["content"][0]["text"].as_str().unwrap_or("").contains("cluster_title: Crash in loader"));
+    terminate(child);
+}
+
 fn initialize(child: &mut std::process::Child) {
     write_message(
         child.stdin.as_mut().expect("stdin"),

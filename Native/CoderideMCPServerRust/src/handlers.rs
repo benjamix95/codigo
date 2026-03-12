@@ -3,17 +3,14 @@ use crate::debug_tools;
 use crate::diagnostics_tools;
 use crate::edit_tools;
 use crate::plan_state;
+use crate::review_tools;
 use crate::search_tools;
 use crate::shared_state;
 use crate::skill_tools;
 use crate::web_tools;
 use app_core_protocol::mcp::{CallToolResult, ToolCallParams};
 use serde_json::Value;
-use solocode_rust_core::review_mcp::{
-    handle_bughunter_tool, handle_review_tool, handle_security_tool,
-    models::ReviewMCPToolRequest,
-};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Command;
 
@@ -38,6 +35,9 @@ pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolRes
         return result;
     }
     if let Some(result) = skill_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
+    if let Some(result) = review_tools::handle(params.name.as_str(), workspace, &arguments) {
         return result;
     }
     match params.name.as_str() {
@@ -72,9 +72,6 @@ pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolRes
         "coderide_glob" => glob(workspace, &arguments),
         "coderide_grep" => grep(workspace, &arguments),
         name if name.starts_with("coderide_subagent_") => subagent_ack(name, &arguments),
-        name if name.starts_with("coderide_review_") => review_tool(name, &arguments),
-        name if name.starts_with("coderide_security_") => security_tool(name, &arguments),
-        name if name.starts_with("coderide_bughunter_") => bughunter_tool(name, &arguments),
         name => CallToolResult::error(format!("tool not yet migrated to rust server: {name}")),
     }
 }
@@ -185,57 +182,6 @@ fn mermaid_render(arguments: &BTreeMap<String, Value>) -> CallToolResult {
         .map(|value| format!(" ({value})"))
         .unwrap_or_default();
     CallToolResult::text(format!("OK — mermaid diagram rendered in IDE{title}"))
-}
-
-fn review_tool(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let request = review_request(name.trim_start_matches("coderide_"), arguments);
-    let response = handle_review_tool(request);
-    if response.is_error {
-        CallToolResult::error(response.message)
-    } else {
-        CallToolResult::text(response.message)
-    }
-}
-
-fn security_tool(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let request = review_request(name.trim_start_matches("coderide_"), arguments);
-    let response = handle_security_tool(request);
-    if response.is_error {
-        CallToolResult::error(response.message)
-    } else {
-        CallToolResult::text(response.message)
-    }
-}
-
-fn bughunter_tool(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let request = review_request(name.trim_start_matches("coderide_"), arguments);
-    let response = handle_bughunter_tool(request);
-    if response.is_error {
-        CallToolResult::error(response.message)
-    } else {
-        CallToolResult::text(response.message)
-    }
-}
-
-fn review_request(tool_name: &str, arguments: &BTreeMap<String, Value>) -> ReviewMCPToolRequest {
-    ReviewMCPToolRequest {
-        schema_version: 1,
-        tool_name: tool_name.to_string(),
-        args: arguments
-            .iter()
-            .map(|(key, value)| (key.clone(), json_value_to_string(value)))
-            .collect::<HashMap<_, _>>(),
-        review_snapshots: Vec::new(),
-        active_review_snapshot: None,
-        review_findings_payload: Vec::new(),
-        review_status_payload: None,
-        review_outcome_payload: None,
-        bughunter_snapshots: Vec::new(),
-        active_bughunter_snapshot: None,
-        bughunter_findings_payload: Vec::new(),
-        bughunter_cluster_payload: None,
-        security_gate_payload: None,
-    }
 }
 
 fn resolve_path(workspace: &Path, input: String) -> std::path::PathBuf {

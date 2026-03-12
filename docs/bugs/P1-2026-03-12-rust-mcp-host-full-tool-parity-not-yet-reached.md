@@ -13,7 +13,7 @@
 - un’attivazione forzata senza completare la parità tool introdurrebbe regressioni funzionali nel code panel
 
 ## Evidenza
-- il server Rust implementa oggi:
+- il server Rust implementa oggi l’intero catalogo di nomi `coderide_*` esposto dal server MCP locale Swift, inclusi:
   - bootstrap MCP
   - `tools/list`
   - `audit_*` coperti dal review core Rust dove supportati
@@ -66,8 +66,15 @@
   - `web_search`
   - `skill`
   - ack IDE/subagent
-  - bridge minimo review/security/bughunter
-- gli altri tool restano da migrare e rispondono con errore esplicito se invocati nel path Rust
+  - review/security/bughunter con shared state reale su disco, queue commands e risultati MCP osservabili
+
+## Gap residuo
+- il gap non è più la copertura dei nomi tool del server MCP locale
+- restano ancora da migrare fuori da Swift:
+  - lifecycle/session manager MCP
+  - runtime locale generale (`UnifiedToolRuntime`)
+  - pipeline/code panel/app core
+  - fallback e bridge Swift residui fuori dalla sola UI
 
 ## Decisione di contenimento
 - il launcher Swift `coderide-mcp-server` resta il path di default

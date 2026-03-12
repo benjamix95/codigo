@@ -4,8 +4,8 @@ import Foundation
 @main
 struct CoderIDEMCPServerExecutableMain {
     static func main() async throws {
-        let useRustServer = ProcessInfo.processInfo.environment["SOLOCODE_USE_RUST_MCP_SERVER"] == "1"
-        if !useRustServer {
+        let forceSwiftServer = ProcessInfo.processInfo.environment["SOLOCODE_USE_SWIFT_MCP_SERVER"] == "1"
+        if forceSwiftServer {
             try await CoderIDEMCPServerApp.main()
             return
         }
