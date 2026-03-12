@@ -27,8 +27,12 @@ extension MCPSessionManager {
         }
     }
 
-    public func listServers() -> [(id: String, name: String, source: String)] {
-        resolveServers().map { ($0.id, $0.name, $0.source) }
+    public func listServers() async -> [(id: String, name: String, source: String)] {
+        let servers = resolveServers()
+        if let rust = try? await rustListServers(using: servers) {
+            return rust.map { ($0.id, $0.name, $0.source) }
+        }
+        return servers.map { ($0.id, $0.name, $0.source) }
     }
 
     public func reconnect(serverId: String) async throws {

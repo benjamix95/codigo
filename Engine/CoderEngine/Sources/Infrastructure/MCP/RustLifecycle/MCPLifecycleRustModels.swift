@@ -4,6 +4,7 @@ struct MCPLifecycleRustServerConfig: Sendable {
     let id: String
     let name: String
     let command: String
+    let source: String
     let args: [String]
     let cwd: String?
     let env: [String: String]
@@ -12,6 +13,7 @@ struct MCPLifecycleRustServerConfig: Sendable {
         self.id = server.id
         self.name = server.name
         self.command = server.command
+        self.source = server.source
         self.args = server.args
         self.cwd = cwd
         self.env = server.env
@@ -22,6 +24,7 @@ struct MCPLifecycleRustServerConfig: Sendable {
             "id": id,
             "name": name,
             "command": command,
+            "source": source,
             "args": args,
             "env": env
         ]
@@ -35,6 +38,7 @@ struct MCPLifecycleRustServerConfig: Sendable {
 struct MCPLifecycleRustListedServer: Decodable, Sendable {
     let id: String
     let name: String
+    let source: String
     let status: String
 }
 

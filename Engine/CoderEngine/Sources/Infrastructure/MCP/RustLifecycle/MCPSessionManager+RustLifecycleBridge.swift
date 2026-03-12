@@ -2,6 +2,16 @@ import Foundation
 import MCP
 
 extension MCPSessionManager {
+    func rustListServers(
+        using servers: [MCPConfigLoader.DetectedServer]
+    ) async throws -> [(id: String, name: String, source: String, status: String)] {
+        let payload = try await rustLifecycleBackend.request(
+            op: "list_servers",
+            payload: ["servers": servers.map { MCPLifecycleRustServerConfig(server: $0).jsonObject }]
+        ) as MCPLifecycleRustListServersPayload
+        return payload.servers.map { ($0.id, $0.name, $0.source, $0.status) }
+    }
+
     func rustHealthStates(
         for servers: [MCPConfigLoader.DetectedServer]
     ) async throws -> [String: String] {

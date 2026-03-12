@@ -55,6 +55,7 @@ impl Backend {
             .map(|server| ListedServer {
                 id: server.config.id.clone(),
                 name: server.config.name.clone(),
+                source: server.config.source.clone(),
                 status: server.status.as_str().to_string(),
             })
             .collect::<Vec<_>>();

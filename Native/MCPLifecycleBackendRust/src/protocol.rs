@@ -25,6 +25,8 @@ pub struct ServerConfig {
     pub name: String,
     pub command: String,
     #[serde(default)]
+    pub source: String,
+    #[serde(default)]
     pub args: Vec<String>,
     #[serde(default)]
     pub cwd: Option<String>,
@@ -150,6 +152,7 @@ pub struct BatchCallResultItem {
 pub struct ListedServer {
     pub id: String,
     pub name: String,
+    pub source: String,
     pub status: String,
 }
 

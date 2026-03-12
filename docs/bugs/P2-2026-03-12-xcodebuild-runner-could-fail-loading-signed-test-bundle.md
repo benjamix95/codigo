@@ -22,6 +22,10 @@
 - `xcodebuild build-for-testing -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS'` passa
 - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/MCPSessionManagerTests` continua a fallire al load del bundle
 - anche `xcodebuild test-without-building` sul file `.xctestrun` fallisce con lo stesso `library load denied by system policy`
+- durante il build dei target test, Xcode continua a rifirmare `CoderEngineTests.xctest` e i framework annidati con:
+  - `codesign --sign -`
+  - `builtin-swiftStdLibTool --sign -`
+- quindi il problema residuo non è più il bootstrap script ma la catena di signing usata dal runner/toolchain per i test bundle su questa macchina
 
 ## Stato
 - aperto
