@@ -113,6 +113,144 @@ fn todo_read_and_subagent_ack_work() {
     terminate(child);
 }
 
+#[test]
+fn plan_tools_and_ide_acks_work() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    let conversation_id = "11111111-1111-1111-1111-111111111111";
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_create",
+                "arguments": {
+                    "conversation_id": conversation_id,
+                    "goal": "Migrare MCP runtime",
+                    "steps": [
+                        { "id": "1", "title": "Analisi", "status": "pending" }
+                    ]
+                }
+            }
+        }),
+    );
+    let create = read_message(&mut child);
+    assert_eq!(
+        create["result"]["content"][0]["text"].as_str(),
+        Some("OK — plan snapshot created")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_step_upsert",
+                "arguments": {
+                    "conversation_id": conversation_id,
+                    "step_id": "2",
+                    "status": "running",
+                    "title": "Implementazione"
+                }
+            }
+        }),
+    );
+    let upsert = read_message(&mut child);
+    assert_eq!(
+        upsert["result"]["content"][0]["text"].as_str(),
+        Some("OK — plan step 2 upserted")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_read",
+                "arguments": {
+                    "conversation_id": conversation_id,
+                    "include_history": true,
+                    "history_limit": 5
+                }
+            }
+        }),
+    );
+    let read = read_message(&mut child);
+    let read_text = read["result"]["content"][0]["text"].as_str().expect("plan read text");
+    let read_json: Value = serde_json::from_str(read_text).expect("plan read json");
+    assert_eq!(read_json["conversation_id"], conversation_id);
+    assert_eq!(read_json["snapshot"]["goal"], "Migrare MCP runtime");
+
+    let snapshot_id = read_json["snapshot"]["snapshot_id"].as_str().expect("snapshot id");
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 13,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_diff",
+                "arguments": {
+                    "from_snapshot_id": snapshot_id
+                }
+            }
+        }),
+    );
+    let diff = read_message(&mut child);
+    let diff_text = diff["result"]["content"][0]["text"].as_str().expect("plan diff text");
+    let diff_json: Value = serde_json::from_str(diff_text).expect("plan diff json");
+    assert_eq!(diff_json["from_snapshot_id"], snapshot_id);
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 14,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_policy_ack",
+                "arguments": { "hash": "abc123" }
+            }
+        }),
+    );
+    let policy = read_message(&mut child);
+    assert_eq!(
+        policy["result"]["content"][0]["text"].as_str(),
+        Some("OK — policy acknowledged")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 15,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_mermaid_render",
+                "arguments": {
+                    "code": "graph TD; A-->B;",
+                    "title": "Flow"
+                }
+            }
+        }),
+    );
+    let mermaid = read_message(&mut child);
+    assert_eq!(
+        mermaid["result"]["content"][0]["text"].as_str(),
+        Some("OK — mermaid diagram rendered in IDE (Flow)")
+    );
+    terminate(child);
+}
+
 fn initialize(child: &mut std::process::Child) {
     write_message(
         child.stdin.as_mut().expect("stdin"),

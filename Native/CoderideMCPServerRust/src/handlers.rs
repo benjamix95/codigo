@@ -1,3 +1,4 @@
+use crate::plan_state;
 use crate::shared_state;
 use app_core_protocol::mcp::{CallToolResult, ToolCallParams};
 use serde_json::Value;
@@ -21,9 +22,18 @@ pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolRes
         "coderide_show_swarm_panel" => CallToolResult::text("OK — swarm panel opened"),
         "coderide_activate_plan_mode" => CallToolResult::text("OK — plan mode activated"),
         "coderide_activate_debug_mode" => CallToolResult::text("OK — debug mode activated"),
+        "coderide_policy_ack" => CallToolResult::text("OK — policy acknowledged"),
+        "coderide_mermaid_render" => mermaid_render(&arguments),
         "coderide_debug_set_phase" => debug_set_phase(&arguments),
         "coderide_debug_request_user" => debug_request_user(&arguments),
         "coderide_debug_resolve" => CallToolResult::text("OK — debug session resolved"),
+        "coderide_debug_session" => CallToolResult::text("OK — debug session updated"),
+        "coderide_plan_create" => wrap(plan_state::create_snapshot(&arguments)),
+        "coderide_plan_read" => wrap(plan_state::read_latest(&arguments)),
+        "coderide_plan_history_read" => wrap(plan_state::read_history(&arguments)),
+        "coderide_plan_step_update" => wrap(plan_state::step_update(&arguments)),
+        "coderide_plan_step_upsert" => wrap(plan_state::step_upsert(&arguments)),
+        "coderide_plan_diff" => wrap(plan_state::diff(&arguments)),
         "coderide_read" => file_read(workspace, &arguments),
         "coderide_list_dir" => list_dir(workspace, &arguments),
         "coderide_glob" => glob(workspace, &arguments),
@@ -134,6 +144,16 @@ fn debug_request_user(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     CallToolResult::text(format!("OK — debug user request queued ({kind})"))
 }
 
+fn mermaid_render(arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    if non_empty(string_arg(arguments, "code")).is_none() {
+        return CallToolResult::error("Error: 'code' parameter is required and must contain valid mermaid syntax");
+    }
+    let title = non_empty(string_arg(arguments, "title"))
+        .map(|value| format!(" ({value})"))
+        .unwrap_or_default();
+    CallToolResult::text(format!("OK — mermaid diagram rendered in IDE{title}"))
+}
+
 fn review_tool(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let request = review_request(name.trim_start_matches("coderide_"), arguments);
     let response = handle_review_tool(request);
@@ -215,4 +235,11 @@ fn json_value_to_string(value: &Value) -> String {
 fn non_empty(value: String) -> Option<String> {
     let trimmed = value.trim().to_string();
     if trimmed.is_empty() { None } else { Some(trimmed) }
+}
+
+fn wrap(result: Result<String, String>) -> CallToolResult {
+    match result {
+        Ok(message) => CallToolResult::text(message),
+        Err(message) => CallToolResult::error(message),
+    }
 }

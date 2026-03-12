@@ -1,5 +1,6 @@
 mod catalog;
 mod handlers;
+mod plan_state;
 mod server;
 mod shared_state;
 

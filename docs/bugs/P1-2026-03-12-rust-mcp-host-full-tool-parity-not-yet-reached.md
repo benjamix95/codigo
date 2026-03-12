@@ -22,6 +22,15 @@
   - `list_dir`
   - `glob`
   - `grep`
+  - `plan_create`
+  - `plan_read`
+  - `plan_history_read`
+  - `plan_step_update`
+  - `plan_step_upsert`
+  - `plan_diff`
+  - `policy_ack`
+  - `mermaid_render`
+  - `debug_session`
   - ack IDE/subagent
   - bridge minimo review/security/bughunter
 - gli altri tool restano da migrare e rispondono con errore esplicito se invocati nel path Rust
