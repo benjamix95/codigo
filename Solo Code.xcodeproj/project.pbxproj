@@ -273,6 +273,7 @@
 		26DB93E05A09041CE6C2EAC3 /* PlanHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E2AEB77DE16F49249C67422 /* PlanHistoryStore.swift */; };
 		26F7C45EBC643DDD1566A41D /* MessageRow+ThinkingBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1834B9B524E08B44E2288AA4 /* MessageRow+ThinkingBlocks.swift */; };
 		2709768DE621C94B113966C9 /* ReviewPanelFindingsHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB36F04368D544311E48FDA /* ReviewPanelFindingsHistoryTests.swift */; };
+		F1A0C8E1B72F4D9A8C3E11D1 /* ReviewPanelFindingsHistoryRustFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A0C8E1B72F4D9A8C3E11D2 /* ReviewPanelFindingsHistoryRustFallbackTests.swift */; };
 		27159FDB5B033CC0D4482B5A /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA9C31E9BCF84676EBA7FE1 /* ProcessRunner.swift */; };
 		2750FA219CBDE477C450BC58 /* CodeReviewMultiSwarmProviderTests+Parsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920F7DAEBD654DDD0D74C9C6 /* CodeReviewMultiSwarmProviderTests+Parsing.swift */; };
 		2767C16CA4AB79CF021EDC45 /* WebSearchLiveView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75F34B66A8FF583C39699DFE /* WebSearchLiveView+Helpers.swift */; };
@@ -2019,6 +2020,7 @@
 		1BC38BA244E3C2A64009CD19 /* EditorPathResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorPathResolverTests.swift; path = Tests/SoloCodeAppTests/EditorPathResolverTests.swift; sourceTree = "<group>"; };
 		1BD16A39B4988D0FFFAF732D /* VerifiedFindingsStatusService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStatusService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsStatusService.swift; sourceTree = "<group>"; };
 		1BE128F757C1067809F2B6D0 /* ReviewPanelFindingsHistoryLiveBoardTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryLiveBoardTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelFindingsHistoryLiveBoardTests.swift; sourceTree = "<group>"; };
+		F1A0C8E1B72F4D9A8C3E11D2 /* ReviewPanelFindingsHistoryRustFallbackTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelFindingsHistoryRustFallbackTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelFindingsHistoryRustFallbackTests.swift; sourceTree = "<group>"; };
 		1BE1D66821F3B7DBE8EBE5E9 /* TaskActivityStore+Swarm.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "TaskActivityStore+Swarm.swift"; path = "App/SoloCodeApp/Sources/Tasking/Stores/TaskActivityStore+Swarm.swift"; sourceTree = "<group>"; };
 		1C082D2AECBC3CB584B4332C /* PipelineEnums.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineEnums.swift; path = Engine/CoderEngine/Sources/Pipeline/Contracts/PipelineEnums.swift; sourceTree = "<group>"; };
 		1C2417875DC84303B949E9E6 /* ReviewPanelActionsBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelActionsBar.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Actions/ReviewPanelActionsBar.swift; sourceTree = "<group>"; };
@@ -5057,6 +5059,7 @@
 				7AF380ABE171D7685C6389AE /* ReviewPanelChatStructuredContentTests.swift */,
 				1BE128F757C1067809F2B6D0 /* ReviewPanelFindingsHistoryLiveBoardTests.swift */,
 				ADB36F04368D544311E48FDA /* ReviewPanelFindingsHistoryTests.swift */,
+				F1A0C8E1B72F4D9A8C3E11D2 /* ReviewPanelFindingsHistoryRustFallbackTests.swift */,
 				0F91DDAFD43F0AC0BAE79C78 /* ReviewPanelLifecycleE2ETests.swift */,
 				9ACDD68F9B82000CAA7937C4 /* ReviewPanelProviderSelectionTests.swift */,
 				C0D69A3E8D679763F7230AC5 /* ReviewPatchWorkflowServiceTests.swift */,
@@ -6527,6 +6530,7 @@
 				F1260584F08DC1E7AB2E0E3E /* ReviewPanelChatStructuredContentTests.swift in Sources */,
 				655FEAC1417FCAC839E33C64 /* ReviewPanelFindingsHistoryLiveBoardTests.swift in Sources */,
 				2709768DE621C94B113966C9 /* ReviewPanelFindingsHistoryTests.swift in Sources */,
+				F1A0C8E1B72F4D9A8C3E11D1 /* ReviewPanelFindingsHistoryRustFallbackTests.swift in Sources */,
 				D20C11822B18CD0F0C5E0BA6 /* ReviewPanelLifecycleE2ETests.swift in Sources */,
 				5A0AD49957DD6D3648DF0773 /* ReviewPanelProviderSelectionTests.swift in Sources */,
 				B7056DCF5F0D1BCCB0A36CBC /* ReviewPatchWorkflowServiceTests.swift in Sources */,

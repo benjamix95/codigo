@@ -172,3 +172,51 @@ fn terminal_historical_status(status: &str) -> bool {
 fn finding_applied(status: Option<&str>) -> bool {
     matches!(status, Some("fix_applied") | Some("patch_applied") | Some("merged"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::derive_historical_findings_from_snapshot;
+    use serde_json::json;
+
+    #[test]
+    fn derives_fixed_verified_history_from_applied_validated_patch() {
+        let records = derive_historical_findings_from_snapshot(&json!({
+            "sessionId": "history-session",
+            "workspacePath": "/tmp/history-fallback-rust",
+            "findings": [{
+                "id": "finding-1",
+                "severity": "warning",
+                "category": "correctness",
+                "origin": "bugHunter",
+                "filePath": "Sources/Fallback.swift",
+                "lineNumber": 33,
+                "message": "Fallback history should be rust derived",
+                "status": "patch_applied",
+                "createdAt": 40.0,
+                "verifiedAt": 50.0
+            }],
+            "patches": [{
+                "id": "patch-1",
+                "findingId": "finding-1",
+                "status": "applied",
+                "validationStatus": "passed",
+                "updatedAt": 60.0
+            }],
+            "events": [{
+                "id": "event-1",
+                "type": "finding_added",
+                "detail": "Finding added",
+                "timestamp": 41.0,
+                "metadata": {
+                    "finding_id": "finding-1"
+                }
+            }]
+        }));
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0]["findingId"].as_str(), Some("finding-1"));
+        assert_eq!(records[0]["status"].as_str(), Some("fixed_verified"));
+        assert_eq!(records[0]["patchApplyStatus"].as_str(), Some("applied"));
+        assert_eq!(records[0]["timeline"].as_array().map(|items| items.len()), Some(1));
+    }
+}

@@ -122,22 +122,10 @@ extension CodeReviewPanelStore {
         primary: [HistoricalFindingRecord],
         fallback: [HistoricalFindingRecord]
     ) -> [HistoricalFindingRecord] {
-        if let bridged = mergeHistoricalFindingsWithRust(
+        mergeHistoricalFindingsWithRust(
             primary: primary,
             fallback: fallback
-        ) {
-            return bridged
-        }
-        var merged = Dictionary(uniqueKeysWithValues: primary.map { ($0.id, $0) })
-        for record in fallback where merged[record.id] == nil {
-            merged[record.id] = record
-        }
-        return merged.values.sorted { lhs, rhs in
-            if lhs.resumeEligible != rhs.resumeEligible {
-                return lhs.resumeEligible && !rhs.resumeEligible
-            }
-            return lhs.updatedAt > rhs.updatedAt
-        }
+        ) ?? primary
     }
 
 }
