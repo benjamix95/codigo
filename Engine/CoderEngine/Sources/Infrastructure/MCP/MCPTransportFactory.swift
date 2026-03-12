@@ -2,6 +2,14 @@ import Foundation
 import MCP
 import os
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
+
 #if canImport(System)
 import System
 #else
@@ -11,6 +19,11 @@ import System
 /// Creates an MCP transport connected to a subprocess
 public enum MCPTransportFactory {
     private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPTransportFactory")
+    private static let ignoreSIGPIPE: Void = {
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        _ = signal(SIGPIPE, SIG_IGN)
+        #endif
+    }()
 
     /// Starts an MCP server as a subprocess and returns a connected transport
     public static func connectToProcess(
@@ -25,6 +38,7 @@ public enum MCPTransportFactory {
         process: Process,
         resources: MCPTransportResources
     ) {
+        _ = ignoreSIGPIPE
         let (clientRead, serverWrite) = try FileDescriptor.pipe()
         let (serverRead, clientWrite) = try FileDescriptor.pipe()
         let stderrPipe = Pipe()
