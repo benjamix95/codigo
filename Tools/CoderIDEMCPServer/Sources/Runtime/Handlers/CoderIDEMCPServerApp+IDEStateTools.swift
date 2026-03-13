@@ -114,37 +114,20 @@ extension CoderIDEMCPServerApp {
                     isError: true
                 )
             }
-            return CallTool.Result(content: [.text("OK — todo list updated")], isError: nil)
+            var rustArgs = args
+            if richArgs["todos"] != nil || !todosRaw.isEmpty {
+                guard let parsedTodos = IDEStateTodoArgumentParser.parse(richArgs["todos"] ?? todosRaw) else {
+                    return CallTool.Result(
+                        content: [.text("Error: 'todos' must be a valid todo collection. Use a JSON array, a single JSON object, or a checklist string.")],
+                        isError: true
+                    )
+                }
+                rustArgs["todos"] = encodeJSONAny(parsedTodos) ?? "[]"
+            }
+            return handleTodoToolWithRust(action: "todo_write", arguments: rustArgs)
 
         case "todo_read":
-            // Read from the shared state file written by the main IDE app.
-            let todos = MCPSharedState.readTodos()
-            if todos.isEmpty {
-                return CallTool.Result(content: [.text("No todos found.")], isError: nil)
-            }
-            var lines: [String] = []
-            var doneCount = 0
-            for todo in todos {
-                let title = (todo["title"] as? String) ?? "(untitled)"
-                let status = (todo["status"] as? String) ?? "pending"
-                let priority = (todo["priority"] as? String) ?? "medium"
-                let activeForm = (todo["activeForm"] as? String) ?? ""
-                let icon: String
-                switch status {
-                case "done":
-                    icon = "[x]"
-                    doneCount += 1
-                case "in_progress": icon = "[~]"
-                case "blocked": icon = "[!]"
-                default: icon = "[ ]"
-                }
-                let formSuffix = status == "in_progress" && !activeForm.isEmpty ? " — \(activeForm)" : ""
-                let linkedFiles = (todo["linkedFiles"] as? [String]) ?? []
-                let filesSuffix = linkedFiles.isEmpty ? "" : " [files: \(linkedFiles.joined(separator: ", "))]"
-                lines.append("\(icon) \(title)\(formSuffix) (\(priority))\(filesSuffix)")
-            }
-            lines.append("--- \(todos.count) total, \(doneCount) done ---")
-            return CallTool.Result(content: [.text(lines.joined(separator: "\n"))], isError: nil)
+            return handleTodoToolWithRust(action: "todo_read", arguments: args)
 
         case "plan_step_update":
             let stepId = (args["step_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -261,4 +244,48 @@ extension CoderIDEMCPServerApp {
             return CallTool.Result(content: [.text("Unknown IDE state tool: \(name)")], isError: true)
         }
     }
+}
+
+private extension CoderIDEMCPServerApp {
+    static func handleTodoToolWithRust(
+        action: String,
+        arguments: [String: String]
+    ) -> CallTool.Result {
+        let response: TodoStateRustResponse? = ReviewCoreBridge.call(
+            functionName: "todo_state_handle_action",
+            request: TodoStateRustRequest(
+                schemaVersion: 1,
+                action: action,
+                arguments: arguments
+            )
+        )
+
+        guard let response else {
+            return CallTool.Result(
+                content: [.text("Error: Rust todo state core unavailable for \(action)")],
+                isError: true
+            )
+        }
+        if let error = response.error {
+            return CallTool.Result(content: [.text(error.message)], isError: true)
+        }
+        return CallTool.Result(content: [.text(response.message ?? "OK")], isError: nil)
+    }
+}
+
+private struct TodoStateRustRequest: Encodable {
+    let schemaVersion: Int
+    let action: String
+    let arguments: [String: String]
+}
+
+private struct TodoStateRustResponse: Decodable {
+    let schemaVersion: Int
+    let error: TodoStateRustError?
+    let message: String?
+}
+
+private struct TodoStateRustError: Decodable {
+    let code: String
+    let message: String
 }
