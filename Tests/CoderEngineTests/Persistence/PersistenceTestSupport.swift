@@ -4,7 +4,7 @@ import Foundation
 enum PersistenceTestSupport {
     static func enablePersistenceForTests() {
         let rootDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("solocode-postgres-tests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("scpg-\(String(UUID().uuidString.prefix(8)))", isDirectory: true)
         let port = 56000 + Int.random(in: 0...999)
         unsetenv("SOLOCODE_DISABLE_POSTGRES_PERSISTENCE")
         setenv("SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS", "1", 1)
@@ -51,7 +51,7 @@ enum PersistenceTestSupport {
         }
         return FileManager.default.temporaryDirectory
             .appendingPathComponent(
-                "solocode-postgres-tests-\(ProcessInfo.processInfo.processIdentifier)",
+                "scpg-\(ProcessInfo.processInfo.processIdentifier)",
                 isDirectory: true
             )
     }

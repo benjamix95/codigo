@@ -8,6 +8,8 @@
   - [P1-2026-03-13-review-panel-structured-chat-extraction-was-still-owned-by-swift.md](/Users/benjaminstoica/SoloCode/docs/bugs/P1-2026-03-13-review-panel-structured-chat-extraction-was-still-owned-by-swift.md)
   - [P1-2026-03-13-rustcore-plan-and-todo-tests-shared-home-were-flaky.md](/Users/benjaminstoica/SoloCode/docs/bugs/P1-2026-03-13-rustcore-plan-and-todo-tests-shared-home-were-flaky.md)
   - [P1-2026-03-13-rust-search-build-script-copied-stale-target-artifacts.md](/Users/benjaminstoica/SoloCode/docs/bugs/P1-2026-03-13-rust-search-build-script-copied-stale-target-artifacts.md)
+  - [P1-2026-03-13-postgres-test-socket-path-was-too-long-for-embedded-bootstrap.md](/Users/benjaminstoica/SoloCode/docs/bugs/P1-2026-03-13-postgres-test-socket-path-was-too-long-for-embedded-bootstrap.md)
+  - [P1-2026-03-13-solocode-validate-build-for-testing-used-ephemeral-spm-working-copies.md](/Users/benjaminstoica/SoloCode/docs/bugs/P1-2026-03-13-solocode-validate-build-for-testing-used-ephemeral-spm-working-copies.md)
 - aggiornati:
   - [CodeReviewPanelStore+ChatFindings.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+ChatFindings.swift)
   - [CodeReviewPanelStore+RustChatFindings.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustChatFindings.swift)
@@ -21,6 +23,10 @@
   - [lib.rs](/Users/benjaminstoica/SoloCode/Native/RustCore/src/lib.rs)
   - [mod.rs](/Users/benjaminstoica/SoloCode/Native/RustCore/src/ffi/mod.rs)
   - [build_rust_search_backend.sh](/Users/benjaminstoica/SoloCode/scripts/build_rust_search_backend.sh)
+  - [PersistenceModels.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/PersistenceCore/PersistenceModels.swift)
+  - [PersistenceTestSupport.swift](/Users/benjaminstoica/SoloCode/Tests/CoderEngineTests/Persistence/PersistenceTestSupport.swift)
+  - [ReviewPanelFindingsHistoryTests.swift](/Users/benjaminstoica/SoloCode/Tests/SoloCodeAppTests/ReviewPanelFindingsHistoryTests.swift)
+  - [solocode-validate](/Users/benjaminstoica/SoloCode/scripts/solocode-validate)
   - [RUST_CUTOVER_BOUNDARY_BASELINE_2026-03-13.md](/Users/benjaminstoica/SoloCode/docs/migration/RUST_CUTOVER_BOUNDARY_BASELINE_2026-03-13.md)
 
 ## Cosa cambia
@@ -30,6 +36,8 @@
 - `review_core_patch_workflow` introduce un entrypoint esplicito per il workflow patch, mantenendo compatibile il planner/runtime Rust esistente
 - il test harness Rust usa ora un lock condiviso per i test che mutano `HOME`, eliminando la flakiness tra `plan_state` e `todo_state`
 - `build_rust_search_backend.sh` copia ora la dylib dal target workspace corretto, evitando bundle/test run con artefatti Rust stale
+- i test persistence usano ora un root PostgreSQL piu' corto in ambiente XCTest, evitando failure di bootstrap dovuti al path del socket Unix
+- `solocode-validate` risolve ora SwiftPM in un clone dir stabile prima di `build-for-testing`, riducendo i failure random di checkout durante il commit guard
 
 ## Validazione eseguita
 - `cargo test --manifest-path Native/RustCore/Cargo.toml`

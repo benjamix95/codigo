@@ -7,7 +7,6 @@ FILES_CSV=""
 PATCH_FILE=""
 FORMAT="text"
 STAGED="false"
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --trigger) TRIGGER="$2"; shift 2 ;;
@@ -27,7 +26,6 @@ if [[ -z "$TRIGGER" || -z "$WORKSPACE" ]]; then
   echo "Usage: solocode-validate --trigger <reviewPatchPreview|reviewPatchApply|gitCommit|ciFull> --workspace <path> [--files csv] [--patch-file path] [--staged] [--format text|json]" >&2
   exit 1
 fi
-
 cd "$WORKSPACE"
 
 if [[ "$STAGED" == "true" ]]; then
@@ -66,16 +64,17 @@ fail() {
 pass() {
   log "[PASSED] $1"
 }
-
-DERIVED_DATA_PATH="${TMPDIR%/}/solocode-validate-derived-data"
+DERIVED_DATA_PATH="${TMPDIR%/}/solocode-validate-derived-data"; SOURCE_PACKAGES_DIR="${TMPDIR%/}/solocode-validate-source-packages-$$"
 
 build_for_testing() {
-  rm -rf "$DERIVED_DATA_PATH"
+  chmod -R u+w "$DERIVED_DATA_PATH" "$SOURCE_PACKAGES_DIR" 2>/dev/null || true; python3 -c 'import shutil,sys; [shutil.rmtree(path, ignore_errors=True) for path in sys.argv[1:]]' "$DERIVED_DATA_PATH" "$SOURCE_PACKAGES_DIR"
+  xcodebuild -resolvePackageDependencies -workspace "Solo Code.xcworkspace" -scheme "Solo Code-Debug" -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" >/tmp/solocode-validate-resolve-packages.log 2>&1 \
+    || fail "packageResolve" "$(tail -n 60 /tmp/solocode-validate-resolve-packages.log)"
   xcodebuild build-for-testing \
     -workspace "Solo Code.xcworkspace" \
     -scheme "Solo Code-Debug" \
     -destination "platform=macOS" \
-    -derivedDataPath "$DERIVED_DATA_PATH" >/tmp/solocode-validate-build-for-testing.log 2>&1 \
+    -derivedDataPath "$DERIVED_DATA_PATH" -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" >/tmp/solocode-validate-build-for-testing.log 2>&1 \
     || fail "buildForTesting" "$(tail -n 60 /tmp/solocode-validate-build-for-testing.log)"
   ./scripts/bootstrap_test_bundles.sh "$DERIVED_DATA_PATH/Build/Products/Debug" \
     || fail "testBootstrap" "bootstrap_test_bundles.sh fallito"
@@ -89,8 +88,8 @@ run_tests_without_building() {
   xcodebuild test-without-building \
     -workspace "Solo Code.xcworkspace" \
     -scheme "Solo Code-Debug" \
-    -destination "platform=macOS" \
-    -derivedDataPath "$DERIVED_DATA_PATH" \
+    -destination "platform=macOS" -parallel-testing-enabled NO \
+    -derivedDataPath "$DERIVED_DATA_PATH" -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
     "$@" >"$log_file" 2>&1 \
     || fail "$stage" "$(tail -n 60 "$log_file")"
 }
@@ -103,7 +102,6 @@ if [[ -n "$PATCH_FILE" && "$TRIGGER" != "reviewPatchPreview" ]]; then
   git apply --check "$PATCH_FILE" || fail "patchSafety" "git apply --check fallito per $PATCH_FILE"
   pass "patchSafety"
 fi
-
 is_code_file() {
   local path="$1"
   [[ "$path" == App/SoloCodeApp/Resources/* ]] && return 1
@@ -175,6 +173,9 @@ for file in "${FILES[@]}"; do
         "-only-testing:CoderEngineTests/ValidationPerformanceTests"
       )
       ;;
+    Engine/CoderEngine/Sources/PersistenceCore/*|Tests/CoderEngineTests/Persistence/*|Tests/CoderEngineTests/VerifiedFindings/HistoricalFindingsQueryServiceTests.swift)
+      TEST_ARGS+=("-only-testing:CoderEngineTests/HistoricalFindingsQueryServiceTests")
+      ;;
     Engine/CoderEngine/Sources/Pipeline/*)
       TEST_ARGS+=("-only-testing:CoderEngineTests/Pipeline")
       ;;
@@ -196,11 +197,7 @@ for file in "${FILES[@]}"; do
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/GitServiceTests" "-only-testing:SoloCodeAppTests/GitServiceValidationGuardTests")
       ;;
     App/SoloCodeApp/Sources/Panels/CodeReview/Coordinator/*|App/SoloCodeApp/Sources/Panels/CodeReview/Store/*)
-      TEST_ARGS+=(
-        "-only-testing:SoloCodeAppTests/CodeReviewPanelLiveRunExecutionTests"
-        "-only-testing:SoloCodeAppTests/CodeReviewPanelChatStateDeferralTests"
-        "-only-testing:SoloCodeAppTests/ReviewPanelLifecycleE2ETests"
-      )
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/CodeReviewPanelLiveRunExecutionTests" "-only-testing:SoloCodeAppTests/CodeReviewPanelChatStateDeferralTests" "-only-testing:SoloCodeAppTests/ReviewPanelLifecycleE2ETests")
       ;;
     App/SoloCodeApp/Sources/CodeReview/*|App/SoloCodeApp/Sources/Panels/CodeReview/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests")
