@@ -8,12 +8,14 @@ use std::path::{Path, PathBuf};
 pub fn audit_request(request: BoundaryAuditRequest) -> Result<BoundaryAuditResponse, String> {
     let workspace = PathBuf::from(&request.workspace_root);
     let allowlist = load_allowlist(Path::new(&request.allowlist_path))?;
-    let candidate_files = collect_candidate_files(&workspace, &request.candidate_files)?;
+    let enforced_prefixes = normalize_prefixes(&request.enforce_legacy_zero_prefixes);
+    let candidate_files = collect_candidate_files(&workspace, &request.candidate_files, &enforced_prefixes)?;
     let new_files = request.new_files.into_iter().collect::<BTreeSet<_>>();
 
     let mut summary = BoundaryAuditSummary::default();
     let mut findings = Vec::<SwiftBoundaryFinding>::new();
     let mut legacy_domain_counts = BTreeMap::<String, usize>::new();
+    let mut enforced_prefix_counts = BTreeMap::<String, usize>::new();
 
     for path in candidate_files {
         match classify_path(&path, &allowlist, &new_files) {
@@ -31,6 +33,10 @@ pub fn audit_request(request: BoundaryAuditRequest) -> Result<BoundaryAuditRespo
                 summary.total_swift_files += 1;
                 summary.legacy_non_ui_files += 1;
                 *legacy_domain_counts.entry(derive_domain(&finding.path)).or_insert(0) += 1;
+                if let Some(prefix) = matching_enforced_prefix(&finding.path, &enforced_prefixes) {
+                    summary.enforced_legacy_non_ui_files += 1;
+                    *enforced_prefix_counts.entry(prefix.to_string()).or_insert(0) += 1;
+                }
                 findings.push(finding);
             }
             BoundaryDisposition::NewViolation(finding) => {
@@ -46,6 +52,7 @@ pub fn audit_request(request: BoundaryAuditRequest) -> Result<BoundaryAuditRespo
         summary,
         findings,
         legacy_domain_counts,
+        enforced_prefix_counts,
     })
 }
 
@@ -56,12 +63,20 @@ pub fn format_text_report(report: &BoundaryAuditResponse) -> String {
         format!("Allowlist UI/bootstrap: {}", report.summary.allowed_swift_files),
         format!("Legacy non-UI: {}", report.summary.legacy_non_ui_files),
         format!("Nuove violazioni: {}", report.summary.new_non_ui_files),
+        format!("Legacy hard-fail attivi: {}", report.summary.enforced_legacy_non_ui_files),
     ];
 
     if !report.legacy_domain_counts.is_empty() {
         lines.push("Legacy non-UI per dominio:".to_string());
         for (domain, count) in &report.legacy_domain_counts {
             lines.push(format!("- {domain}: {count}"));
+        }
+    }
+
+    if !report.enforced_prefix_counts.is_empty() {
+        lines.push("Legacy non-UI nei prefix hard-fail:".to_string());
+        for (prefix, count) in &report.enforced_prefix_counts {
+            lines.push(format!("- {prefix}: {count}"));
         }
     }
 
@@ -82,19 +97,48 @@ pub fn format_text_report(report: &BoundaryAuditResponse) -> String {
     lines.join("\n")
 }
 
-fn collect_candidate_files(workspace: &Path, candidate_files: &[String]) -> Result<Vec<String>, String> {
+fn collect_candidate_files(
+    workspace: &Path,
+    candidate_files: &[String],
+    enforced_prefixes: &[String],
+) -> Result<Vec<String>, String> {
     if !candidate_files.is_empty() {
-        return Ok(candidate_files
+        let mut collected = candidate_files
             .iter()
             .map(|file| file.trim().trim_start_matches("./").to_string())
             .filter(|file| !file.is_empty())
-            .collect());
+            .collect::<BTreeSet<_>>();
+        collect_enforced_prefix_files(workspace, enforced_prefixes, &mut collected)?;
+        return Ok(collected.into_iter().collect());
     }
 
     let mut output = Vec::new();
     walk_swift_files(workspace, workspace, &mut output)?;
     output.sort();
     Ok(output)
+}
+
+fn collect_enforced_prefix_files(
+    workspace: &Path,
+    prefixes: &[String],
+    output: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    for prefix in prefixes {
+        let path = workspace.join(prefix);
+        if !path.exists() {
+            continue;
+        }
+        if path.is_dir() {
+            let mut scoped = Vec::new();
+            walk_swift_files(workspace, &path, &mut scoped)?;
+            output.extend(scoped);
+            continue;
+        }
+        if prefix.ends_with(".swift") {
+            output.insert(prefix.clone());
+        }
+    }
+    Ok(())
 }
 
 fn walk_swift_files(root: &Path, current: &Path, output: &mut Vec<String>) -> Result<(), String> {
@@ -124,4 +168,19 @@ fn should_skip_dir(path: &Path, relative: &str) -> bool {
         && ["Native/target", ".build", ".xcodebuild", "tmp", "DerivedData"]
             .iter()
             .any(|prefix| relative == *prefix || relative.starts_with(&format!("{prefix}/")))
+}
+
+fn normalize_prefixes(prefixes: &[String]) -> Vec<String> {
+    prefixes
+        .iter()
+        .map(|prefix| prefix.trim().trim_start_matches("./").trim_end_matches('/').to_string())
+        .filter(|prefix| !prefix.is_empty())
+        .collect()
+}
+
+fn matching_enforced_prefix<'a>(path: &str, prefixes: &'a [String]) -> Option<&'a str> {
+    prefixes
+        .iter()
+        .find(|prefix| path == prefix.as_str() || path.starts_with(&format!("{prefix}/")))
+        .map(String::as_str)
 }

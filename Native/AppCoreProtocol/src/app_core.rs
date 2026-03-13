@@ -21,6 +21,8 @@ pub struct BoundaryAuditRequest {
     pub candidate_files: Vec<String>,
     #[serde(default)]
     pub new_files: Vec<String>,
+    #[serde(default)]
+    pub enforce_legacy_zero_prefixes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -30,6 +32,7 @@ pub struct BoundaryAuditSummary {
     pub allowed_swift_files: usize,
     pub legacy_non_ui_files: usize,
     pub new_non_ui_files: usize,
+    pub enforced_legacy_non_ui_files: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -65,4 +68,6 @@ pub struct BoundaryAuditResponse {
     pub findings: Vec<SwiftBoundaryFinding>,
     #[serde(default)]
     pub legacy_domain_counts: BTreeMap<String, usize>,
+    #[serde(default)]
+    pub enforced_prefix_counts: BTreeMap<String, usize>,
 }

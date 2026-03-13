@@ -36,6 +36,7 @@ fn boundary_audit_flags_new_non_ui_swift_file() {
             "App/SoloCodeApp/Sources/Runtime/NewLogic.swift".to_string(),
         ],
         new_files: vec!["App/SoloCodeApp/Sources/Runtime/NewLogic.swift".to_string()],
+        enforce_legacy_zero_prefixes: vec![],
     }))
     .expect("boundary dispatch should succeed");
 
@@ -70,6 +71,7 @@ fn boundary_audit_keeps_existing_non_ui_swift_as_legacy() {
             .to_string(),
         candidate_files: vec!["Engine/CoderEngine/Sources/CodeReview/LegacyService.swift".to_string()],
         new_files: vec![],
+        enforce_legacy_zero_prefixes: vec![],
     }))
     .expect("boundary dispatch should succeed");
 
@@ -79,6 +81,52 @@ fn boundary_audit_keeps_existing_non_ui_swift_as_legacy() {
     assert_eq!(
         report.legacy_domain_counts.get("Engine/CoderEngine/Sources/CodeReview"),
         Some(&1)
+    );
+}
+
+#[test]
+fn boundary_audit_enforces_zero_legacy_for_review_prefixes() {
+    let workspace = make_workspace("enforced-review-prefix");
+    write_file(
+        &workspace,
+        "Config/validation/rust-cutover-swift-allowlist.txt",
+        "ui_view|App/SoloCodeApp/Sources/**/Views/**|SwiftUI views only\n",
+    );
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Panels/CodeReview/Views/AllowedView.swift",
+        "import SwiftUI\nstruct AllowedView: View { var body: some View { EmptyView() } }\n",
+    );
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Panels/CodeReview/Store/LegacyStore.swift",
+        "import Foundation\nfinal class LegacyStore {}\n",
+    );
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Panels/CodeReview/Coordinator/LegacyCoordinator.swift",
+        "import Foundation\nstruct LegacyCoordinator {}\n",
+    );
+
+    let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
+        workspace_root: workspace.to_string_lossy().to_string(),
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec!["App/SoloCodeApp/Sources/Panels/CodeReview/Views/AllowedView.swift".to_string()],
+        new_files: vec![],
+        enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Panels/CodeReview".to_string()],
+    }))
+    .expect("boundary dispatch should succeed");
+
+    let AppCoreResponse::BoundaryAudit(report) = response;
+    assert_eq!(report.summary.allowed_swift_files, 1);
+    assert_eq!(report.summary.legacy_non_ui_files, 2);
+    assert_eq!(report.summary.enforced_legacy_non_ui_files, 2);
+    assert_eq!(
+        report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Panels/CodeReview"),
+        Some(&2)
     );
 }
 

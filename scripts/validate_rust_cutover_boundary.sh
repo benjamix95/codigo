@@ -6,6 +6,13 @@ WORKSPACE=""
 FILES_CSV=""
 FORMAT="text"
 STAGED="false"
+REVIEW_CUTOVER_PREFIXES=(
+  "App/SoloCodeApp/Sources/Panels/CodeReview"
+  "App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview"
+  "Engine/CoderEngine/Sources/CodeReview"
+  "Engine/CoderEngine/Sources/VerifiedFindingsCore"
+  "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview"
+)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,17 +56,37 @@ if [[ -n "$candidate_files" ]]; then
   [[ "$swift_candidate_count" == "0" ]] && exit 0
 fi
 
+enforced_prefixes=""
+if [[ -n "$candidate_files" ]]; then
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    for prefix in "${REVIEW_CUTOVER_PREFIXES[@]}"; do
+      if [[ "$file" == "$prefix" || "$file" == "$prefix/"* ]]; then
+        enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
+      fi
+    done
+  done < <(printf '%s' "$candidate_files" | tr ',' '\n')
+fi
+
 cargo test --manifest-path Native/AppCoreRust/Cargo.toml >/tmp/solocode-rust-cutover-guard-tests.log 2>&1 || {
   tail -n 80 /tmp/solocode-rust-cutover-guard-tests.log >&2
   exit 1
 }
 
+guard_args=(
+  --workspace "$WORKSPACE"
+  --allowlist "Config/validation/rust-cutover-swift-allowlist.txt"
+  --candidate-files "$candidate_files"
+  --new-files "$new_files"
+  --format "$FORMAT"
+)
+
+if [[ -n "$enforced_prefixes" ]]; then
+  guard_args+=(--enforce-legacy-zero-prefixes "$enforced_prefixes")
+fi
+
 cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutover_guard -- \
-  --workspace "$WORKSPACE" \
-  --allowlist "Config/validation/rust-cutover-swift-allowlist.txt" \
-  --candidate-files "$candidate_files" \
-  --new-files "$new_files" \
-  --format "$FORMAT" >/tmp/solocode-rust-cutover-guard.log 2>&1 || {
+  "${guard_args[@]}" >/tmp/solocode-rust-cutover-guard.log 2>&1 || {
     cat /tmp/solocode-rust-cutover-guard.log >&2
     exit 1
   }

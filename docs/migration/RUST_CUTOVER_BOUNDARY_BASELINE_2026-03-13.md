@@ -35,3 +35,15 @@
   - `review_core_patch_workflow`
 - il panel `CodeReview` usa ora boundary Rust espliciti per launch, estrazione finding strutturati da chat, live board storico e derivazione history da snapshot
 - il debito residuo Swift non-UI del dominio review resta ancora presente e impedisce l'attivazione del gate finale hard-fail; la tranche successiva deve drenare engine review/session/verified findings prima del blocco definitivo
+
+## Avanzamento tranche 2 review cutover
+- il guard `rust_cutover_guard` supporta ora prefissi `hard-fail` per domini specifici
+- la validation attiva automaticamente il gate review quando il diff tocca uno di questi prefissi:
+  - `App/SoloCodeApp/Sources/Panels/CodeReview`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview`
+  - `Engine/CoderEngine/Sources/CodeReview`
+  - `Engine/CoderEngine/Sources/VerifiedFindingsCore`
+  - `Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview`
+- comportamento atteso della tranche:
+  - fuori dal dominio review: restano bloccati solo i nuovi file Swift non-UI
+  - dentro il dominio review: il backlog legacy diventa errore hard-fail fino al drenaggio reale verso Rust
