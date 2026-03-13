@@ -1,4 +1,5 @@
 mod ffi;
+mod plan_state;
 pub mod review_mcp;
 pub mod review_audit;
 mod review_command;

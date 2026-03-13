@@ -65,24 +65,20 @@ extension CoderIDEMCPServerApp {
             from: args,
             createIfMissing: true,
             allowLatestFallback: false
-        ),
-              var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: true) else {
+        ) else {
             return planError("Error: unable to resolve target plan snapshot")
         }
-
-        upsertStep(
-            in: &snapshot,
-            stepId: stepId,
-            status: status,
-            title: sanitizedText(args["title"]),
-            description: nil,
-            targetFile: nil,
-            linkedFiles: nil,
-            dependsOn: nil,
-            notes: nil
+        var rustArgs = normalizedConversationArgs(args)
+        rustArgs["conversation_id"] = conversationId.uuidString.lowercased()
+        rustArgs["step_id"] = stepId
+        rustArgs["status"] = status
+        if let title = sanitizedText(args["title"]) {
+            rustArgs["title"] = title
+        }
+        return handlePlanToolWithRust(
+            action: "plan_step_update",
+            arguments: rustArgs
         )
-        writeMutableSnapshot(snapshot)
-        return planOK("OK — plan step \(stepId) updated to \(status)")
     }
 
     private static func handlePlanCreate(args: [String: String]) -> CallTool.Result {
@@ -112,38 +108,18 @@ extension CoderIDEMCPServerApp {
         let replaceExisting = parsedReplaceExisting.value
         let chosenPath = sanitizedText(args["chosen_path"] ?? args["chosenPath"])
 
-        var steps = incomingSteps
-        var addedStepCount = incomingSteps.count
-        var mergedWithExisting = false
-        if !replaceExisting,
-           let existing = loadMutableSnapshot(conversationId: conversationId, createIfMissing: false) {
-            mergedWithExisting = true
-            let existingIds = Set(existing.steps.compactMap {
-                ($0["id"] as? String ?? $0["step_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            })
-            let filteredIncoming = incomingSteps.filter {
-                let id = ($0["id"] as? String ?? $0["step_id"] as? String)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                return !id.isEmpty && !existingIds.contains(id)
-            }
-            addedStepCount = filteredIncoming.count
-            steps = deduplicatePlanStepsById(existing.steps + filteredIncoming)
+        var rustArgs = normalizedArgs
+        rustArgs["conversation_id"] = conversationId.uuidString.lowercased()
+        rustArgs["goal"] = goal
+        rustArgs["steps"] = encodeJSONAny(incomingSteps) ?? "[]"
+        rustArgs["replace_existing"] = replaceExisting ? "true" : "false"
+        if let chosenPath {
+            rustArgs["chosen_path"] = chosenPath
         }
-
-        MCPSharedState.writePlanSnapshotFromIDE(
-            conversationId: conversationId,
-            goal: goal,
-            chosenPath: chosenPath,
-            steps: steps,
-            walkthroughMarkdown: nil,
-            summary: nil,
-            outcome: nil,
-            maxHistoryPerConversation: 50
+        return handlePlanToolWithRust(
+            action: "plan_create",
+            arguments: rustArgs
         )
-        if replaceExisting || !mergedWithExisting {
-            return planOK("OK — plan snapshot created")
-        }
-        return planOK("OK — plan snapshot updated (\(addedStepCount) new step(s) merged)")
     }
 
     private static func handlePlanStepUpsert(args: [String: String]) -> CallTool.Result {
@@ -161,11 +137,9 @@ extension CoderIDEMCPServerApp {
             from: normalizedArgs,
             createIfMissing: true,
             allowLatestFallback: false
-        ),
-              var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: true) else {
+        ) else {
             return planError("Error: unable to resolve target plan snapshot")
         }
-
         let rawLinkedFiles = args["linked_files"] ?? args["linkedFiles"]
         let linkedFiles = parseJSONStringArray(rawLinkedFiles)
         if rawLinkedFiles != nil, linkedFiles == nil {
@@ -179,20 +153,91 @@ extension CoderIDEMCPServerApp {
         if let dependsOn, let error = validatePlanStepIdList(dependsOn, fieldName: "'depends_on'") {
             return planError(error)
         }
-
-        upsertStep(
-            in: &snapshot,
-            stepId: stepId,
-            status: status,
-            title: sanitizedText(args["title"]),
-            description: sanitizedText(args["description"]),
-            targetFile: sanitizedText(args["target_file"] ?? args["targetFile"]),
-            linkedFiles: linkedFiles,
-            dependsOn: dependsOn,
-            notes: sanitizedText(args["notes"])
+        var rustArgs = normalizedArgs
+        rustArgs["conversation_id"] = conversationId.uuidString.lowercased()
+        rustArgs["step_id"] = stepId
+        rustArgs["status"] = status
+        if let title = sanitizedText(args["title"]) {
+            rustArgs["title"] = title
+        }
+        if let description = sanitizedText(args["description"]) {
+            rustArgs["description"] = description
+        }
+        if let targetFile = sanitizedText(args["target_file"] ?? args["targetFile"]) {
+            rustArgs["target_file"] = targetFile
+        }
+        if let linkedFiles {
+            rustArgs["linked_files"] = encodeJSONString(linkedFiles) ?? "[]"
+        }
+        if let dependsOn {
+            rustArgs["depends_on"] = encodeJSONString(dependsOn) ?? "[]"
+        }
+        if let notes = sanitizedText(args["notes"]) {
+            rustArgs["notes"] = notes
+        }
+        return handlePlanToolWithRust(
+            action: "plan_step_upsert",
+            arguments: rustArgs
         )
-        writeMutableSnapshot(snapshot)
-        return planOK("OK — plan step \(stepId) upserted")
     }
 
+}
+
+extension CoderIDEMCPServerApp {
+    static func handlePlanToolWithRust(
+        action: String,
+        arguments: [String: String]
+    ) -> CallTool.Result {
+        let response: PlanStateRustResponse? = ReviewCoreBridge.call(
+            functionName: "plan_state_handle_action",
+            request: PlanStateRustRequest(
+                schemaVersion: 1,
+                action: action,
+                arguments: arguments
+            )
+        )
+
+        guard let response else {
+            return planError("Error: Rust plan state core unavailable for \(action)")
+        }
+        if let error = response.error {
+            return planError(error.message)
+        }
+        guard let message = response.message else {
+            return planError("Error: Rust plan state core returned no payload for \(action)")
+        }
+        return CallTool.Result(content: [.text(message)], isError: nil)
+    }
+
+    static func encodeJSONString<T: Encodable>(_ value: T) -> String? {
+        guard let data = try? JSONEncoder().encode(value) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func encodeJSONAny(_ value: Any) -> String? {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
+private struct PlanStateRustRequest: Encodable {
+    let schemaVersion: Int
+    let action: String
+    let arguments: [String: String]
+}
+
+private struct PlanStateRustResponse: Decodable {
+    let schemaVersion: Int
+    let error: PlanStateRustError?
+    let message: String?
+}
+
+private struct PlanStateRustError: Decodable {
+    let code: String
+    let message: String
 }

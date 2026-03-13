@@ -4,53 +4,31 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handlePlanRead(args: [String: String]) -> CallTool.Result {
-        let conversationId = parseConversationId(args["conversation_id"] ?? args["conversationId"])
         let parsedIncludeHistory = parseBool(args["include_history"] ?? args["includeHistory"], defaultValue: false)
         if parsedIncludeHistory.isInvalid {
             return planError("Error: 'include_history' must be true/false")
         }
-        let includeHistory = parsedIncludeHistory.value
-        let historyLimit = min(50, max(1, parseInt(args["history_limit"] ?? args["historyLimit"], defaultValue: 10)))
-        guard let object = MCPSharedState.readLatestPlanSnapshotJSONObject(
-            conversationId: conversationId,
-            includeHistory: includeHistory,
-            historyLimit: historyLimit
-        ) else {
-            return CallTool.Result(content: [.text("No plan snapshots found.")], isError: nil)
-        }
-        guard let json = MCPSharedState.encodedPlanJSONObject(object) else {
-            return planError("Error: failed to serialize plan snapshot")
-        }
-        return CallTool.Result(content: [.text(json)], isError: nil)
+        var rustArgs = normalizedConversationArgs(args)
+        rustArgs["include_history"] = parsedIncludeHistory.value ? "true" : "false"
+        rustArgs["history_limit"] = String(min(50, max(1, parseInt(args["history_limit"] ?? args["historyLimit"], defaultValue: 10))))
+        return handlePlanToolWithRust(action: "plan_read", arguments: rustArgs)
     }
 
     static func handlePlanHistoryRead(args: [String: String]) -> CallTool.Result {
-        let conversationId = parseConversationId(args["conversation_id"] ?? args["conversationId"])
-        let limit = min(50, max(1, parseInt(args["limit"], defaultValue: 10)))
-        let history = MCPSharedState.readPlanHistoryJSONObject(conversationId: conversationId, limit: limit)
-        guard let json = MCPSharedState.encodedPlanJSONObject(history) else {
-            return planError("Error: failed to serialize plan history")
-        }
-        return CallTool.Result(content: [.text(json)], isError: nil)
+        var rustArgs = normalizedConversationArgs(args)
+        rustArgs["limit"] = String(min(50, max(1, parseInt(args["limit"], defaultValue: 10))))
+        return handlePlanToolWithRust(action: "plan_history_read", arguments: rustArgs)
     }
 
     static func handlePlanDiff(args: [String: String]) -> CallTool.Result {
         guard let fromSnapshotId = sanitizedText(args["from_snapshot_id"] ?? args["fromSnapshotId"]), !fromSnapshotId.isEmpty else {
             return planError("Error: 'from_snapshot_id' is required")
         }
-        let conversationId = parseConversationId(args["conversation_id"] ?? args["conversationId"])
-        let toSnapshotId = sanitizedText(args["to_snapshot_id"] ?? args["toSnapshotId"])
-        guard let diff = MCPSharedState.readPlanDiffJSONObject(
-            conversationId: conversationId,
-            fromSnapshotId: fromSnapshotId,
-            toSnapshotId: toSnapshotId
-        ) else {
-            let targetSuffix = toSnapshotId.map { " and to_snapshot_id '\($0)'" } ?? ""
-            return planError("Error: unable to compute plan diff for from_snapshot_id '\(fromSnapshotId)'\(targetSuffix)")
+        var rustArgs = normalizedConversationArgs(args)
+        rustArgs["from_snapshot_id"] = fromSnapshotId
+        if let toSnapshotId = sanitizedText(args["to_snapshot_id"] ?? args["toSnapshotId"]) {
+            rustArgs["to_snapshot_id"] = toSnapshotId
         }
-        guard let json = MCPSharedState.encodedPlanJSONObject(diff) else {
-            return planError("Error: failed to serialize plan diff")
-        }
-        return CallTool.Result(content: [.text(json)], isError: nil)
+        return handlePlanToolWithRust(action: "plan_diff", arguments: rustArgs)
     }
 }

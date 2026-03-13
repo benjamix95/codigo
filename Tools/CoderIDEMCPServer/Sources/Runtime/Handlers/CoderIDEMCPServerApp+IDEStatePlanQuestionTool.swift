@@ -15,16 +15,23 @@ extension CoderIDEMCPServerApp {
             return planError(validationError)
         }
 
-        let title = sanitizedText(args["title"]) ?? "Clarification questions"
-        let phase = sanitizedText(args["phase"]) ?? "questioning"
-        let round = sanitizedText(args["round"]) ?? "n/a"
-        let conversationId = sanitizedText(args["conversation_id"] ?? args["conversationId"])
-        let context = sanitizedText(args["context"])
-        let contextSuffix = context.map { " | context: \($0)" } ?? ""
-        let conversationSuffix = conversationId.map { " | conversation_id: \($0)" } ?? ""
-
-        return planOK(
-            "OK — queued \(questions.count) clarification question(s) [title: \(title) | phase: \(phase) | round: \(round)]\(conversationSuffix)\(contextSuffix)"
+        var rustArgs = normalizedConversationArgs(args)
+        rustArgs["questions"] = args["questions"] ?? "[]"
+        if let title = sanitizedText(args["title"]) {
+            rustArgs["title"] = title
+        }
+        if let phase = sanitizedText(args["phase"]) {
+            rustArgs["phase"] = phase
+        }
+        if let round = sanitizedText(args["round"]) {
+            rustArgs["round"] = round
+        }
+        if let context = sanitizedText(args["context"]) {
+            rustArgs["context"] = context
+        }
+        return handlePlanToolWithRust(
+            action: "plan_request_user_input",
+            arguments: rustArgs
         )
     }
 

@@ -1,0 +1,930 @@
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanDocument {
+    pub version: i32,
+    pub latest_conversation_id: Option<String>,
+    pub snapshots_by_conversation: BTreeMap<String, Vec<PlanSnapshot>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanSnapshot {
+    pub snapshot_id: String,
+    pub conversation_id: String,
+    pub goal: String,
+    pub chosen_path: Option<String>,
+    pub steps: Vec<PlanStep>,
+    pub walkthrough_markdown: Option<String>,
+    pub summary: Option<String>,
+    pub outcome: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanStep {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub target_file: Option<String>,
+    pub status: String,
+    pub linked_files: Vec<String>,
+    pub depends_on: Vec<String>,
+    pub notes: String,
+    pub updated_at: String,
+}
+
+pub fn handle_action(
+    action: &str,
+    arguments: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    match action {
+        "plan_create" => create_snapshot(arguments),
+        "plan_read" => read_latest(arguments),
+        "plan_history_read" => read_history(arguments),
+        "plan_step_update" => step_update(arguments),
+        "plan_step_upsert" => step_upsert(arguments),
+        "plan_step_batch_update" => step_batch_update(arguments),
+        "plan_step_reorder" => step_reorder(arguments),
+        "plan_step_dependency_set" => step_dependency_set(arguments),
+        "plan_set_walkthrough" => set_walkthrough(arguments),
+        "plan_diff" => diff(arguments),
+        "plan_request_user_input" => request_user_input(arguments),
+        _ => Err(format!("Error: unsupported plan action '{action}'")),
+    }
+}
+
+pub fn create_snapshot(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let goal = required_string(arguments, "goal")?;
+    let conversation_id = required_conversation_id(arguments)?;
+    let chosen_path = non_empty(string_arg(arguments, "chosen_path"))
+        .or_else(|| non_empty(string_arg(arguments, "chosenPath")));
+    let steps = parse_steps(string_arg(arguments, "steps").as_str())?;
+    let replace_existing = bool_arg(arguments, "replace_existing")
+        .or_else(|| bool_arg(arguments, "replaceExisting"))
+        .unwrap_or(true);
+
+    let mut document = read_document();
+    let history = document
+        .snapshots_by_conversation
+        .entry(conversation_id.clone())
+        .or_default();
+
+    let now = iso_now();
+    let next_snapshot = if !replace_existing {
+        if let Some(previous) = history.last().cloned() {
+            let existing_ids = previous
+                .steps
+                .iter()
+                .map(|step| step.id.clone())
+                .collect::<BTreeSet<_>>();
+            let filtered = steps
+                .into_iter()
+                .filter(|step| !existing_ids.contains(&step.id))
+                .collect::<Vec<_>>();
+            let added_count = filtered.len();
+            let mut merged_steps = previous.steps.clone();
+            merged_steps.extend(filtered);
+            let updated = PlanSnapshot {
+                snapshot_id: next_id("snapshot"),
+                conversation_id: conversation_id.clone(),
+                goal: goal.clone(),
+                chosen_path,
+                steps: merged_steps,
+                walkthrough_markdown: previous.walkthrough_markdown.clone(),
+                summary: previous.summary.clone(),
+                outcome: previous.outcome.clone(),
+                created_at: now.clone(),
+                updated_at: now,
+            };
+            history.push(updated);
+            document.latest_conversation_id = Some(conversation_id);
+            write_document(&document)?;
+            return Ok(format!(
+                "OK — plan snapshot updated ({added_count} new step(s) merged)"
+            ));
+        }
+        PlanSnapshot {
+            snapshot_id: next_id("snapshot"),
+            conversation_id: conversation_id.clone(),
+            goal,
+            chosen_path,
+            steps,
+            walkthrough_markdown: None,
+            summary: None,
+            outcome: None,
+            created_at: now.clone(),
+            updated_at: now,
+        }
+    } else {
+        PlanSnapshot {
+            snapshot_id: next_id("snapshot"),
+            conversation_id: conversation_id.clone(),
+            goal,
+            chosen_path,
+            steps,
+            walkthrough_markdown: None,
+            summary: None,
+            outcome: None,
+            created_at: now.clone(),
+            updated_at: now,
+        }
+    };
+
+    history.push(next_snapshot);
+    document.latest_conversation_id = Some(conversation_id);
+    write_document(&document)?;
+    Ok("OK — plan snapshot created".to_string())
+}
+
+pub fn read_latest(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let document = read_document();
+    let Some(conversation_id) = resolve_conversation_id(arguments, &document) else {
+        return Ok("No plan snapshots found.".to_string());
+    };
+    let include_history = bool_arg(arguments, "include_history")
+        .or_else(|| bool_arg(arguments, "includeHistory"))
+        .unwrap_or(false);
+    let history_limit = int_arg(arguments, "history_limit")
+        .or_else(|| int_arg(arguments, "historyLimit"))
+        .unwrap_or(10)
+        .clamp(1, 50) as usize;
+    let Some(history) = document.snapshots_by_conversation.get(&conversation_id) else {
+        return Ok("No plan snapshots found.".to_string());
+    };
+    let Some(latest) = history.last() else {
+        return Ok("No plan snapshots found.".to_string());
+    };
+    let payload = json!({
+        "version": document.version,
+        "latest_conversation_id": document.latest_conversation_id,
+        "conversation_id": conversation_id,
+        "snapshot": latest,
+        "history": if include_history {
+            Value::Array(
+                history.iter()
+                    .rev()
+                    .take(history_limit)
+                    .rev()
+                    .map(|snapshot| serde_json::to_value(snapshot).unwrap_or(Value::Null))
+                    .collect()
+            )
+        } else {
+            Value::Null
+        }
+    });
+    Ok(pretty_json(payload))
+}
+
+pub fn read_history(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let document = read_document();
+    let Some(conversation_id) = resolve_conversation_id(arguments, &document) else {
+        return Ok("[]".to_string());
+    };
+    let limit = int_arg(arguments, "limit").unwrap_or(10).clamp(1, 50) as usize;
+    let history = document
+        .snapshots_by_conversation
+        .get(&conversation_id)
+        .cloned()
+        .unwrap_or_default();
+    let recent = history.into_iter().rev().take(limit).collect::<Vec<_>>();
+    Ok(pretty_json(json!(recent.into_iter().rev().collect::<Vec<_>>())))
+}
+
+pub fn step_update(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let step_id = required_string(arguments, "step_id")
+        .or_else(|_| required_string(arguments, "stepId"))?;
+    let status = required_string(arguments, "status")?;
+    let conversation_id = required_conversation_id(arguments)?;
+    let title = non_empty(string_arg(arguments, "title"));
+    mutate_latest_snapshot(&conversation_id, true, |snapshot| {
+        upsert_step(snapshot, &step_id, &status, title, None, None, None, None, None);
+    })?;
+    Ok(format!("OK — plan step {step_id} updated to {status}"))
+}
+
+pub fn step_upsert(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let step_id = required_string(arguments, "step_id")
+        .or_else(|_| required_string(arguments, "stepId"))?;
+    let status = required_string(arguments, "status")?;
+    let conversation_id = required_conversation_id(arguments)?;
+    mutate_latest_snapshot(&conversation_id, true, |snapshot| {
+        upsert_step(
+            snapshot,
+            &step_id,
+            &status,
+            non_empty(string_arg(arguments, "title")),
+            non_empty(string_arg(arguments, "description")),
+            non_empty(string_arg(arguments, "target_file"))
+                .or_else(|| non_empty(string_arg(arguments, "targetFile"))),
+            parse_string_array(
+                non_empty(string_arg(arguments, "linked_files"))
+                    .or_else(|| non_empty(string_arg(arguments, "linkedFiles")))
+                    .as_deref(),
+            ),
+            parse_string_array(
+                non_empty(string_arg(arguments, "depends_on"))
+                    .or_else(|| non_empty(string_arg(arguments, "dependsOn")))
+                    .as_deref(),
+            ),
+            non_empty(string_arg(arguments, "notes")),
+        );
+    })?;
+    Ok(format!("OK — plan step {step_id} upserted"))
+}
+
+pub fn step_batch_update(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let updates = parse_value_array(arguments.get("updates").map(String::as_str), "updates")?;
+    if updates.is_empty() {
+        return Err("Error: 'updates' must be a non-empty JSON array".to_string());
+    }
+    let conversation_id = required_conversation_id(arguments)?;
+    mutate_latest_snapshot(&conversation_id, true, |snapshot| {
+        for update in &updates {
+            let step_id = string_value(update, "stepId")
+                .or_else(|| string_value(update, "step_id"))
+                .unwrap_or_default();
+            let status = string_value(update, "status").unwrap_or_else(|| "pending".to_string());
+            upsert_step(
+                snapshot,
+                &step_id,
+                &status,
+                string_value(update, "title"),
+                string_value(update, "description"),
+                string_value(update, "targetFile")
+                    .or_else(|| string_value(update, "target_file")),
+                parse_value_string_array(update.get("linkedFiles"))
+                    .or_else(|| parse_value_string_array(update.get("linked_files"))),
+                parse_value_string_array(update.get("dependsOn"))
+                    .or_else(|| parse_value_string_array(update.get("depends_on"))),
+                string_value(update, "notes"),
+            );
+        }
+    })?;
+    Ok(format!(
+        "OK — batch plan update applied ({} steps)",
+        updates.len()
+    ))
+}
+
+pub fn step_reorder(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let ordered = parse_string_array(
+        non_empty(string_arg(arguments, "ordered_step_ids"))
+            .or_else(|| non_empty(string_arg(arguments, "orderedStepIds")))
+            .as_deref(),
+    )
+    .ok_or_else(|| "Error: 'ordered_step_ids' must be a non-empty JSON array".to_string())?;
+    if ordered.is_empty() {
+        return Err("Error: 'ordered_step_ids' must contain at least one id".to_string());
+    }
+    let conversation_id = required_conversation_id(arguments)?;
+    mutate_latest_snapshot(&conversation_id, false, |snapshot| {
+        let mut reordered = Vec::new();
+        let mut used = BTreeSet::new();
+        for step_id in &ordered {
+            if let Some(existing) = snapshot.steps.iter().find(|step| &step.id == step_id) {
+                reordered.push(existing.clone());
+            } else {
+                reordered.push(PlanStep {
+                    id: step_id.clone(),
+                    title: format!("Step {step_id}"),
+                    description: format!("Step {step_id}"),
+                    target_file: None,
+                    status: "pending".to_string(),
+                    linked_files: Vec::new(),
+                    depends_on: Vec::new(),
+                    notes: String::new(),
+                    updated_at: iso_now(),
+                });
+            }
+            used.insert(step_id.clone());
+        }
+        reordered.extend(
+            snapshot
+                .steps
+                .iter()
+                .filter(|step| !used.contains(&step.id))
+                .cloned(),
+        );
+        snapshot.steps = reordered;
+    })?;
+    Ok("OK — plan step order updated".to_string())
+}
+
+pub fn step_dependency_set(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let step_id = required_string(arguments, "step_id")
+        .or_else(|_| required_string(arguments, "stepId"))?;
+    let depends_on = parse_string_array(
+        non_empty(string_arg(arguments, "depends_on"))
+            .or_else(|| non_empty(string_arg(arguments, "dependsOn")))
+            .as_deref(),
+    )
+    .ok_or_else(|| "Error: 'depends_on' must be a valid JSON string array".to_string())?;
+    let conversation_id = required_conversation_id(arguments)?;
+    mutate_latest_snapshot(&conversation_id, true, |snapshot| {
+        let existing_status = snapshot
+            .steps
+            .iter()
+            .find(|step| step.id == step_id)
+            .map(|step| step.status.clone())
+            .unwrap_or_else(|| "pending".to_string());
+        upsert_step(
+            snapshot,
+            &step_id,
+            &existing_status,
+            None,
+            None,
+            None,
+            None,
+            Some(depends_on),
+            None,
+        );
+    })?;
+    Ok(format!("OK — dependencies set for step {step_id}"))
+}
+
+pub fn set_walkthrough(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let markdown = required_string(arguments, "markdown")?;
+    let conversation_id = required_conversation_id(arguments)?;
+    mutate_latest_snapshot(&conversation_id, true, |snapshot| {
+        snapshot.walkthrough_markdown = Some(markdown);
+        snapshot.summary = non_empty(string_arg(arguments, "summary"));
+        snapshot.outcome = Some(parse_outcome(&string_arg(arguments, "outcome")));
+    })?;
+    Ok("OK — walkthrough stored".to_string())
+}
+
+pub fn request_user_input(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let questions = parse_value_array(arguments.get("questions").map(String::as_str), "questions")?;
+    if questions.is_empty() {
+        return Err("Error: 'questions' must be a non-empty JSON array".to_string());
+    }
+    if questions.len() > 6 {
+        return Err("Error: 'questions' supports up to 6 items per call".to_string());
+    }
+    for (index, question) in questions.iter().enumerate() {
+        let prompt = string_value(question, "prompt")
+            .or_else(|| string_value(question, "question"))
+            .or_else(|| string_value(question, "title"))
+            .unwrap_or_default();
+        if prompt.is_empty() {
+            return Err(format!(
+                "Error: questions[{index}] requires a non-empty 'prompt' (or 'question')"
+            ));
+        }
+        let options = question
+            .get("options")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items.iter()
+                    .filter_map(|item| {
+                        item.as_str()
+                            .map(ToString::to_string)
+                            .or_else(|| string_value(item, "label"))
+                            .or_else(|| string_value(item, "text"))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if options.len() < 2 {
+            return Err(format!(
+                "Error: questions[{index}] must provide at least 2 options"
+            ));
+        }
+        if options.len() > 5 {
+            return Err(format!(
+                "Error: questions[{index}] supports at most 5 options"
+            ));
+        }
+    }
+
+    let title = non_empty(string_arg(arguments, "title"))
+        .unwrap_or_else(|| "Clarification questions".to_string());
+    let phase = non_empty(string_arg(arguments, "phase"))
+        .unwrap_or_else(|| "questioning".to_string());
+    let round = non_empty(string_arg(arguments, "round"))
+        .unwrap_or_else(|| "n/a".to_string());
+    let context = non_empty(string_arg(arguments, "context"))
+        .map(|value| format!(" | context: {value}"))
+        .unwrap_or_default();
+    let conversation = non_empty(string_arg(arguments, "conversation_id"))
+        .or_else(|| non_empty(string_arg(arguments, "conversationId")))
+        .map(|value| format!(" | conversation_id: {value}"))
+        .unwrap_or_default();
+
+    Ok(format!(
+        "OK — queued {} clarification question(s) [title: {} | phase: {} | round: {}]{}{}",
+        questions.len(),
+        title,
+        phase,
+        round,
+        conversation,
+        context
+    ))
+}
+
+pub fn diff(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    let from_snapshot_id = required_string(arguments, "from_snapshot_id")
+        .or_else(|_| required_string(arguments, "fromSnapshotId"))?;
+    let to_snapshot_id = non_empty(string_arg(arguments, "to_snapshot_id"))
+        .or_else(|| non_empty(string_arg(arguments, "toSnapshotId")));
+    let document = read_document();
+    let snapshots = document
+        .snapshots_by_conversation
+        .values()
+        .flat_map(|items| items.iter())
+        .collect::<Vec<_>>();
+    let Some(from) = snapshots
+        .iter()
+        .copied()
+        .find(|snapshot| snapshot.snapshot_id == from_snapshot_id)
+    else {
+        return diff_error(&from_snapshot_id, to_snapshot_id.as_deref());
+    };
+    let to = if let Some(to_snapshot_id) = to_snapshot_id.as_ref() {
+        snapshots
+            .iter()
+            .copied()
+            .find(|snapshot| snapshot.snapshot_id == *to_snapshot_id)
+    } else {
+        document
+            .snapshots_by_conversation
+            .get(&from.conversation_id)
+            .and_then(|history| history.last())
+    };
+    let Some(to) = to else {
+        return diff_error(&from_snapshot_id, to_snapshot_id.as_deref());
+    };
+
+    let added = to
+        .steps
+        .iter()
+        .filter(|step| !from.steps.iter().any(|prev| prev.id == step.id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let removed = from
+        .steps
+        .iter()
+        .filter(|step| !to.steps.iter().any(|next| next.id == step.id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let status_changes = to
+        .steps
+        .iter()
+        .filter_map(|step| {
+            from.steps
+                .iter()
+                .find(|prev| prev.id == step.id && prev.status != step.status)
+                .map(|prev| {
+                    json!({
+                        "stepId": step.id,
+                        "title": step.title,
+                        "fromStatus": prev.status,
+                        "toStatus": step.status
+                    })
+                })
+        })
+        .collect::<Vec<_>>();
+    Ok(pretty_json(json!({
+        "from_snapshot_id": from.snapshot_id,
+        "to_snapshot_id": to.snapshot_id,
+        "goal_changed": from.goal != to.goal,
+        "added_steps": added,
+        "removed_steps": removed,
+        "status_changes": status_changes
+    })))
+}
+
+fn diff_error(from_snapshot_id: &str, to_snapshot_id: Option<&str>) -> Result<String, String> {
+    let target_suffix = to_snapshot_id
+        .map(|value| format!(" and to_snapshot_id '{value}'"))
+        .unwrap_or_default();
+    Err(format!(
+        "Error: unable to compute plan diff for from_snapshot_id '{from_snapshot_id}'{target_suffix}"
+    ))
+}
+
+fn mutate_latest_snapshot<F>(
+    conversation_id: &str,
+    create_if_missing: bool,
+    mutate: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&mut PlanSnapshot),
+{
+    let mut document = read_document();
+    if create_if_missing
+        && !document.snapshots_by_conversation.contains_key(conversation_id)
+    {
+        let now = iso_now();
+        document
+            .snapshots_by_conversation
+            .insert(
+                conversation_id.to_string(),
+                vec![PlanSnapshot {
+                    snapshot_id: next_id("snapshot"),
+                    conversation_id: conversation_id.to_string(),
+                    goal: "Operational plan in progress".to_string(),
+                    chosen_path: None,
+                    steps: Vec::new(),
+                    walkthrough_markdown: None,
+                    summary: None,
+                    outcome: None,
+                    created_at: now.clone(),
+                    updated_at: now,
+                }],
+            );
+        document.latest_conversation_id = Some(conversation_id.to_string());
+    }
+    let history = document
+        .snapshots_by_conversation
+        .get_mut(conversation_id)
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
+    let base = history
+        .last()
+        .cloned()
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
+    let now = iso_now();
+    let mut next = PlanSnapshot {
+        snapshot_id: next_id("snapshot"),
+        conversation_id: base.conversation_id,
+        goal: base.goal,
+        chosen_path: base.chosen_path,
+        steps: base.steps,
+        walkthrough_markdown: base.walkthrough_markdown,
+        summary: base.summary,
+        outcome: base.outcome,
+        created_at: now.clone(),
+        updated_at: now,
+    };
+    mutate(&mut next);
+    next.updated_at = iso_now();
+    history.push(next);
+    write_document(&document)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn upsert_step(
+    snapshot: &mut PlanSnapshot,
+    step_id: &str,
+    status: &str,
+    title: Option<String>,
+    description: Option<String>,
+    target_file: Option<String>,
+    linked_files: Option<Vec<String>>,
+    depends_on: Option<Vec<String>>,
+    notes: Option<String>,
+) {
+    if let Some(step) = snapshot.steps.iter_mut().find(|step| step.id == step_id) {
+        step.status = status.to_string();
+        if let Some(title) = title {
+            step.title = title;
+        }
+        if let Some(description) = description {
+            step.description = description;
+        }
+        if let Some(target_file) = target_file {
+            step.target_file = Some(target_file);
+        }
+        if let Some(linked_files) = linked_files {
+            step.linked_files = linked_files;
+        }
+        if let Some(depends_on) = depends_on {
+            step.depends_on = depends_on;
+        }
+        if let Some(notes) = notes {
+            step.notes = notes;
+        }
+        step.updated_at = iso_now();
+        return;
+    }
+
+    let resolved_title = title.clone().unwrap_or_else(|| format!("Step {step_id}"));
+    snapshot.steps.push(PlanStep {
+        id: step_id.to_string(),
+        title: resolved_title.clone(),
+        description: description.unwrap_or(resolved_title),
+        target_file,
+        status: status.to_string(),
+        linked_files: linked_files.unwrap_or_default(),
+        depends_on: depends_on.unwrap_or_default(),
+        notes: notes.unwrap_or_default(),
+        updated_at: iso_now(),
+    });
+}
+
+fn parse_steps(raw: &str) -> Result<Vec<PlanStep>, String> {
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let parsed = serde_json::from_str::<Value>(raw)
+        .map_err(|_| "Error: 'steps' must be a valid JSON array".to_string())?;
+    let Some(items) = parsed.as_array() else {
+        return Err("Error: 'steps' must be a valid JSON array".to_string());
+    };
+    Ok(items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| PlanStep {
+            id: string_value(item, "id")
+                .or_else(|| string_value(item, "step_id"))
+                .unwrap_or_else(|| format!("{}", index + 1)),
+            title: string_value(item, "title")
+                .unwrap_or_else(|| format!("Step {}", index + 1)),
+            description: string_value(item, "description")
+                .or_else(|| string_value(item, "title"))
+                .unwrap_or_else(|| format!("Step {}", index + 1)),
+            target_file: string_value(item, "target_file")
+                .or_else(|| string_value(item, "targetFile")),
+            status: string_value(item, "status").unwrap_or_else(|| "pending".to_string()),
+            linked_files: parse_value_string_array(item.get("linked_files"))
+                .or_else(|| parse_value_string_array(item.get("linkedFiles")))
+                .unwrap_or_default(),
+            depends_on: parse_value_string_array(item.get("depends_on"))
+                .or_else(|| parse_value_string_array(item.get("dependsOn")))
+                .unwrap_or_default(),
+            notes: string_value(item, "notes").unwrap_or_default(),
+            updated_at: iso_now(),
+        })
+        .collect())
+}
+
+fn parse_string_array(raw: Option<&str>) -> Option<Vec<String>> {
+    raw.and_then(|text| {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return Some(Vec::new());
+        }
+        let parsed = serde_json::from_str::<Value>(trimmed).ok()?;
+        parsed.as_array().map(|items| {
+            items.iter()
+                .filter_map(|item| item.as_str().map(|text| text.trim().to_string()))
+                .filter(|text| !text.is_empty())
+                .collect::<Vec<_>>()
+        })
+    })
+}
+
+fn parse_value_string_array(value: Option<&Value>) -> Option<Vec<String>> {
+    value.and_then(|value| {
+        if let Some(items) = value.as_array() {
+            return Some(
+                items.iter()
+                    .filter_map(|item| item.as_str().map(|text| text.trim().to_string()))
+                    .filter(|text| !text.is_empty())
+                    .collect::<Vec<_>>(),
+            );
+        }
+        value.as_str().and_then(|text| parse_string_array(Some(text)))
+    })
+}
+
+fn parse_value_array(raw: Option<&str>, field_name: &str) -> Result<Vec<Value>, String> {
+    let Some(raw) = raw else {
+        return Err(format!("Error: '{field_name}' must be a non-empty JSON array"));
+    };
+    let parsed = serde_json::from_str::<Value>(raw)
+        .map_err(|_| format!("Error: '{field_name}' must be a non-empty JSON array"))?;
+    let Some(items) = parsed.as_array() else {
+        return Err(format!("Error: '{field_name}' must be a non-empty JSON array"));
+    };
+    Ok(items.clone())
+}
+
+fn required_conversation_id(arguments: &BTreeMap<String, String>) -> Result<String, String> {
+    required_string(arguments, "conversation_id")
+        .or_else(|_| required_string(arguments, "conversationId"))
+}
+
+fn required_string(arguments: &BTreeMap<String, String>, key: &str) -> Result<String, String> {
+    non_empty(string_arg(arguments, key))
+        .ok_or_else(|| format!("Error: '{key}' is required"))
+}
+
+fn resolve_conversation_id(
+    arguments: &BTreeMap<String, String>,
+    document: &PlanDocument,
+) -> Option<String> {
+    non_empty(string_arg(arguments, "conversation_id"))
+        .or_else(|| non_empty(string_arg(arguments, "conversationId")))
+        .or_else(|| document.latest_conversation_id.clone())
+        .or_else(|| document.snapshots_by_conversation.keys().last().cloned())
+}
+
+fn read_document() -> PlanDocument {
+    let path = plan_state_file_path();
+    let Ok(data) = fs::read(path) else {
+        return PlanDocument {
+            version: 1,
+            ..PlanDocument::default()
+        };
+    };
+    serde_json::from_slice(&data).unwrap_or(PlanDocument {
+        version: 1,
+        ..PlanDocument::default()
+    })
+}
+
+fn write_document(document: &PlanDocument) -> Result<(), String> {
+    let path = plan_state_file_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let data = serde_json::to_vec_pretty(document).map_err(|error| error.to_string())?;
+    fs::write(path, data).map_err(|error| error.to_string())
+}
+
+fn plan_state_file_path() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home)
+        .join("Library")
+        .join("Application Support")
+        .join("CoderIDE")
+        .join("mcp-shared")
+        .join("plan_state.json")
+}
+
+fn iso_now() -> String {
+    next_id("ts")
+}
+
+fn next_id(prefix: &str) -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!("{prefix}-{nanos}")
+}
+
+fn pretty_json(value: Value) -> String {
+    serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string())
+}
+
+fn string_arg(arguments: &BTreeMap<String, String>, key: &str) -> String {
+    arguments
+        .get(key)
+        .map(String::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn string_value(value: &Value, key: &str) -> Option<String> {
+    value.get(key)
+        .and_then(Value::as_str)
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
+}
+
+fn parse_outcome(raw: &str) -> String {
+    match raw.trim().to_lowercase().as_str() {
+        "failed" => "failed".to_string(),
+        "cancelled" => "cancelled".to_string(),
+        _ => "done".to_string(),
+    }
+}
+
+fn non_empty(value: String) -> Option<String> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn int_arg(arguments: &BTreeMap<String, String>, key: &str) -> Option<i64> {
+    arguments.get(key).and_then(|value| value.parse::<i64>().ok())
+}
+
+fn bool_arg(arguments: &BTreeMap<String, String>, key: &str) -> Option<bool> {
+    arguments.get(key).and_then(|value| match value.trim().to_lowercase().as_str() {
+        "1" | "true" | "yes" | "y" => Some(true),
+        "0" | "false" | "no" | "n" => Some(false),
+        _ => None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn with_temp_home<T>(test: impl FnOnce() -> T) -> T {
+        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let original = std::env::var("HOME").ok();
+        let temp_home = std::env::temp_dir().join(format!("plan-state-home-{}", next_id("test")));
+        std::fs::create_dir_all(&temp_home).unwrap();
+        std::env::set_var("HOME", &temp_home);
+        let result = test();
+        if let Some(original) = original {
+            std::env::set_var("HOME", original);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        let _ = std::fs::remove_dir_all(temp_home);
+        result
+    }
+
+    #[test]
+    fn create_snapshot_merges_unique_steps_when_replace_existing_is_false() {
+        with_temp_home(|| {
+            let mut create_args = BTreeMap::new();
+            create_args.insert("conversation_id".to_string(), "conv-1".to_string());
+            create_args.insert("goal".to_string(), "Goal".to_string());
+            create_args.insert(
+                "steps".to_string(),
+                r#"[{"step_id":"1","title":"Audit","status":"pending"}]"#.to_string(),
+            );
+            assert_eq!(
+                create_snapshot(&create_args).unwrap(),
+                "OK — plan snapshot created"
+            );
+
+            create_args.insert("replace_existing".to_string(), "false".to_string());
+            create_args.insert(
+                "steps".to_string(),
+                r#"[{"step_id":"1","title":"Audit","status":"pending"},{"step_id":"2","title":"Patch","status":"pending"}]"#.to_string(),
+            );
+            let message = create_snapshot(&create_args).unwrap();
+            assert_eq!(message, "OK — plan snapshot updated (1 new step(s) merged)");
+
+            let history = read_document()
+                .snapshots_by_conversation
+                .get("conv-1")
+                .cloned()
+                .unwrap_or_default();
+            let latest = history.last().unwrap();
+            let step_ids = latest.steps.iter().map(|step| step.id.as_str()).collect::<Vec<_>>();
+            assert_eq!(step_ids, vec!["1", "2"]);
+        });
+    }
+
+    #[test]
+    fn step_upsert_creates_snapshot_when_missing() {
+        with_temp_home(|| {
+            let mut args = BTreeMap::new();
+            args.insert("conversation_id".to_string(), "conv-2".to_string());
+            args.insert("step_id".to_string(), "7".to_string());
+            args.insert("status".to_string(), "running".to_string());
+            args.insert("title".to_string(), "Plan".to_string());
+            let message = step_upsert(&args).unwrap();
+            assert_eq!(message, "OK — plan step 7 upserted");
+
+            let latest = read_document()
+                .snapshots_by_conversation
+                .get("conv-2")
+                .and_then(|items| items.last())
+                .cloned()
+                .unwrap();
+            assert_eq!(latest.goal, "Operational plan in progress");
+            assert_eq!(latest.steps.first().map(|step| step.id.as_str()), Some("7"));
+            assert_eq!(latest.steps.first().map(|step| step.status.as_str()), Some("running"));
+        });
+    }
+
+    #[test]
+    fn diff_reports_status_change() {
+        with_temp_home(|| {
+            let mut create_args = BTreeMap::new();
+            create_args.insert("conversation_id".to_string(), "conv-3".to_string());
+            create_args.insert("goal".to_string(), "Goal".to_string());
+            create_args.insert(
+                "steps".to_string(),
+                r#"[{"step_id":"1","title":"Audit","status":"pending"}]"#.to_string(),
+            );
+            create_snapshot(&create_args).unwrap();
+
+            let first_snapshot = read_document()
+                .snapshots_by_conversation
+                .get("conv-3")
+                .and_then(|items| items.first())
+                .map(|snapshot| snapshot.snapshot_id.clone())
+                .unwrap();
+
+            let mut update_args = BTreeMap::new();
+            update_args.insert("conversation_id".to_string(), "conv-3".to_string());
+            update_args.insert("step_id".to_string(), "1".to_string());
+            update_args.insert("status".to_string(), "done".to_string());
+            step_update(&update_args).unwrap();
+
+            let mut diff_args = BTreeMap::new();
+            diff_args.insert("from_snapshot_id".to_string(), first_snapshot);
+            let diff_payload = diff(&diff_args).unwrap();
+            assert!(diff_payload.contains("\"fromStatus\": \"pending\""));
+            assert!(diff_payload.contains("\"toStatus\": \"done\""));
+        });
+    }
+}
