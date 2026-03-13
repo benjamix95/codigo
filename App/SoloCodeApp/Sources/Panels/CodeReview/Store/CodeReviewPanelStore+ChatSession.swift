@@ -22,17 +22,19 @@ extension CodeReviewPanelStore {
             content: trimmed
         ))
 
-        // Create streaming assistant message
         let assistantId = UUID()
-        appendChatMessage(ReviewPanelMessage(
-            id: assistantId,
-            role: .assistant,
-            kind: .reviewRun,
-            content: "",
-            isStreaming: true
-        ))
         let startedAt = Date()
-        setChatProcessing(true, startedAt: startedAt)
+        guard applyPanelChatStart(
+            assistantId: assistantId,
+            startedAt: startedAt
+        ) else {
+            appendPanelSystemMessage(
+                ReviewPanelStateRustAdapter.runtimeUnavailableMessage,
+                kind: .statusNote,
+                selectChatTab: true
+            )
+            return
+        }
 
         // Resolve provider - use the currently selected provider
         guard let provider = effectivePanelProvider else {
@@ -59,27 +61,40 @@ extension CodeReviewPanelStore {
             prompt: prompt,
             context: context,
             onEvent: { [weak self] event in
-                self?.streamPanelActionOutput(id: assistantId, event: event)
-            },
-            onComplete: { [weak self] in
-                guard let self else { return }
-                self.finishPanelActionOutput(
+                self?.streamPanelActionOutput(
                     id: assistantId,
+                    event: event,
+                    runtime: .chat
+                )
+            },
+            onFinish: { [weak self] result in
+                guard let self else { return }
+                if result.wasCancelled {
+                    return
+                }
+                if let error = result.error {
+                    _ = self.failPanelActionOutput(
+                        id: assistantId,
+                        error: error,
+                        runtime: .chat,
+                        wasCancelled: false
+                    )
+                    return
+                }
+                let outcome = self.finishPanelActionOutput(
+                    id: assistantId,
+                    runtime: .chat,
                     fallbackContent: "Chat response completed."
                 )
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    await self.syncStructuredFindingsFromChatResponse(
-                        messageId: assistantId,
-                        sessionId: pinnedSessionId
-                    )
-                    self.setChatProcessing(false, startedAt: nil)
+                if outcome?.status == "completed" {
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        await self.syncStructuredFindingsFromChatResponse(
+                            messageId: assistantId,
+                            sessionId: pinnedSessionId
+                        )
+                    }
                 }
-            },
-            onError: { [weak self] error in
-                guard let self else { return }
-                self.failPanelActionOutput(id: assistantId, error: error)
-                self.setChatProcessing(false, startedAt: nil)
             }
         )
     }
@@ -92,34 +107,13 @@ extension CodeReviewPanelStore {
     /// Cancel the current chat stream.
     func cancelChatStream() {
         coordinator.cancelChat()
-        setChatProcessing(false, startedAt: nil)
-
-        // Finalize ALL streaming assistant messages (reviewRun + response)
-        for index in chatMessages.indices.reversed() {
-            guard chatMessages[index].role == .assistant,
-                  chatMessages[index].isStreaming
-            else { continue }
-
-            chatMessages[index].isStreaming = false
-
-            if chatMessages[index].kind == .reviewRun {
-                if chatMessages[index].content.isEmpty {
-                    chatMessages[index].content = "Cancelled."
-                }
-                ReviewPanelChatMessageFactory.finalizeReviewRunMessage(
-                    &chatMessages[index]
-                )
-            } else if chatMessages[index].kind == .plain,
-                      chatMessages[index].content
-                          .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                // Remove empty response bubble on cancel
-                chatMessages.remove(at: index)
-            }
-        }
-        // Clear any pending response mappings
-        responseMessageIds.removeAll()
-        persistChatState()
+        _ = applyPanelChatFinish(
+            assistantId: nil,
+            fallbackContent: nil,
+            error: nil,
+            wasCancelled: true,
+            finishAllStreaming: true
+        )
     }
 
     /// Clear chat history.

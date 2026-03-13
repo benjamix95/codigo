@@ -9,6 +9,13 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         ReviewPanelChatSessionStore.shared.clearAll()
     }
 
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
     func testSessionStoreEchoDoesNotSynchronouslyRewriteThreadMirror() async {
         let store = makePanelStore()
 
@@ -97,8 +104,8 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
             "L'echo identico del session store non deve schedulare un nuovo publish sul panel store."
         )
     }
-
     func testFinishPanelActionFlushesDeferredReviewRunSections() async throws {
+        try requireReviewCore()
         let store = makePanelStore()
         let outputId = store.beginPanelActionOutput(title: "Run review")
 
@@ -118,8 +125,8 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         )
         XCTAssertEqual(plannedWork.lines, ["- [ ] Late planned work"])
     }
-
     func testFinishPanelActionDoesNotRecreateDeferredResponseBubble() async throws {
+        try requireReviewCore()
         let store = makePanelStore()
         let outputId = store.beginPanelActionOutput(title: "Run review")
 
@@ -138,8 +145,8 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         XCTAssertEqual(responseMessages.first?.content, "Late final response")
         XCTAssertFalse(responseMessages.first?.isStreaming ?? true)
     }
-
     func testAssistantUpdateAfterFinishDoesNotOverwriteFinalizedResponse() async throws {
+        try requireReviewCore()
         let store = makePanelStore()
         let outputId = store.beginPanelActionOutput(title: "Run review")
 
@@ -169,8 +176,8 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         XCTAssertEqual(plainMessages.first?.content, "Final response")
         XCTAssertTrue(verdictMessages.contains(where: { $0.content == "Final verdict" }))
     }
-
     func testTextReplaceAfterFinishDoesNotOverwriteFinalizedResponse() async throws {
+        try requireReviewCore()
         let store = makePanelStore()
         let outputId = store.beginPanelActionOutput(title: "Run review")
 
@@ -208,14 +215,11 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
             store.chatThreads.count == 1
         }
 
-        // Build a new conversation state with an extra thread.
         let extraThread = ReviewPanelChatThreadState(title: "Extra Thread")
         let newConversation = ReviewPanelChatConversationState(
             threads: store.chatThreads + [extraThread],
             activeThreadId: store.activeChatThreadId
         )
-
-        // Call the deferred handler – state should NOT apply synchronously.
         store.handleIncomingChatConversation(newConversation)
         XCTAssertEqual(
             store.chatThreads.count,
@@ -226,8 +230,6 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
             store.pendingChatConversationApplyTask,
             "A deferred task should be scheduled."
         )
-
-        // After yielding, the deferred Task should have applied the state.
         await waitUntil("deferred conversation state is applied") {
             store.chatThreads.count == 2
         }
@@ -257,8 +259,6 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
             threads: store.chatThreads + [thread2, thread3],
             activeThreadId: store.activeChatThreadId
         )
-
-        // Send two rapid updates – only the last one should take effect.
         store.handleIncomingChatConversation(conversation1)
         store.handleIncomingChatConversation(conversation2)
 
@@ -271,8 +271,8 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
             "The last deferred conversation state should win."
         )
     }
-
     func testTextDeltaAfterFinishDoesNotAppendToFinalizedResponse() async throws {
+        try requireReviewCore()
         let store = makePanelStore()
         let outputId = store.beginPanelActionOutput(title: "Run review")
 
@@ -329,51 +329,19 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
         )
     }
 
+    private func requireReviewCore() throws {
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
+    private func reviewCoreLibraryPath() -> String {
+        URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib").path
+    }
+
     private static func makeProviderFactoryConfig() -> ProviderFactoryConfig {
-        ProviderFactoryConfig(
-            openaiApiKey: "",
-            openaiModel: "gpt-4o-mini",
-            anthropicApiKey: "",
-            anthropicModel: "claude-3-5-haiku-latest",
-            googleApiKey: "",
-            googleModel: "gemini-2.0-flash",
-            minimaxApiKey: "",
-            minimaxModel: "MiniMax-M1",
-            openrouterApiKey: "",
-            openrouterModel: "openai/gpt-4o-mini",
-            grokApiKey: "",
-            grokModel: "grok-3-mini",
-            codexPath: "",
-            codexSandbox: "workspace-write",
-            codexSessionFullAccess: false,
-            codexAskForApproval: "never",
-            codexModelOverride: "",
-            codexReasoningEffort: "",
-            codexFastMode: true,
-            codexModelProvider: "",
-            codexPreferResponsesWireAPI: false,
-            planModeBackend: "openai-api",
-            swarmOrchestrator: "openai-api",
-            swarmWorkerBackend: "openai-api",
-            swarmEnabledRoles: "",
-            globalYolo: false,
-            codeReviewPartitions: 2,
-            codeReviewAnalysisOnly: false,
-            codeReviewMaxRounds: 2,
-            codeReviewAnalysisBackend: "openai-api",
-            codeReviewExecutionBackend: "openai-api",
-            claudePath: "",
-            claudeModel: "claude-3-5-sonnet-latest",
-            claudeAllowedTools: [],
-            geminiCliPath: "",
-            geminiModelOverride: "",
-            unifiedToolRuntimeEnabled: true,
-            agentsHardBlockEnabled: true,
-            mcpEditEnforcementEnabled: true,
-            webSearchProvider: "duckduckgo",
-            braveSearchApiKey: "",
-            tavilyApiKey: "",
-            serperApiKey: ""
-        )
+        ProviderFactoryConfig(openaiApiKey: "", openaiModel: "gpt-4o-mini", anthropicApiKey: "", anthropicModel: "claude-3-5-haiku-latest", googleApiKey: "", googleModel: "gemini-2.0-flash", minimaxApiKey: "", minimaxModel: "MiniMax-M1", openrouterApiKey: "", openrouterModel: "openai/gpt-4o-mini", grokApiKey: "", grokModel: "grok-3-mini", codexPath: "", codexSandbox: "workspace-write", codexSessionFullAccess: false, codexAskForApproval: "never", codexModelOverride: "", codexReasoningEffort: "", codexFastMode: true, codexModelProvider: "", codexPreferResponsesWireAPI: false, planModeBackend: "openai-api", swarmOrchestrator: "openai-api", swarmWorkerBackend: "openai-api", swarmEnabledRoles: "", globalYolo: false, codeReviewPartitions: 2, codeReviewAnalysisOnly: false, codeReviewMaxRounds: 2, codeReviewAnalysisBackend: "openai-api", codeReviewExecutionBackend: "openai-api", claudePath: "", claudeModel: "claude-3-5-sonnet-latest", claudeAllowedTools: [], geminiCliPath: "", geminiModelOverride: "", unifiedToolRuntimeEnabled: true, agentsHardBlockEnabled: true, mcpEditEnforcementEnabled: true, webSearchProvider: "duckduckgo", braveSearchApiKey: "", tavilyApiKey: "", serperApiKey: "")
     }
 }

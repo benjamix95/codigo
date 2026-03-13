@@ -44,31 +44,45 @@ extension CodeReviewPanelStore {
         )
     }
 
-    func activatePanelRunSession(
+    func bindPanelRunSession(
         sessionId: String,
         conversationId: UUID?
     ) {
         panelSessionId = sessionId
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
-        isRunning = true
-        runStartedAt = Date()
-        frozenTimerText = nil
-        lastError = nil
+    }
+
+    func activatePanelRunSession(
+        sessionId: String,
+        conversationId: UUID?,
+        selectedTabOnStart: CodeReviewTab = .findings,
+        startedAt: Date = Date()
+    ) {
+        bindPanelRunSession(sessionId: sessionId, conversationId: conversationId)
+        _ = applyPanelRunStart(
+            selectedTabOnStart: selectedTabOnStart,
+            startedAt: startedAt
+        )
     }
 
     func completePanelRun(selectTab targetTab: CodeReviewTab) {
-        isRunning = false
-        freezeTimer()
-        if selectedTab != .chat {
-            selectedTab = targetTab
-        }
+        _ = applyPanelRunFinish(
+            selectedTabOnFinish: targetTab,
+            finishedAt: Date(),
+            snapshot: nil,
+            error: nil,
+            wasCancelled: false
+        )
     }
 
     func failPanelRun(error: String, selectTab targetTab: CodeReviewTab) {
-        isRunning = false
-        lastError = error
-        freezeTimer()
-        selectedTab = targetTab
+        _ = applyPanelRunFinish(
+            selectedTabOnFinish: targetTab,
+            finishedAt: Date(),
+            snapshot: nil,
+            error: error,
+            wasCancelled: false
+        )
     }
 
     func runPanelReview(
@@ -84,25 +98,115 @@ extension CodeReviewPanelStore {
         onComplete: @escaping @MainActor (CodeReviewSessionSnapshot) -> Void,
         onError: @escaping @MainActor (String) -> Void
     ) {
-        activatePanelRunSession(sessionId: sessionId, conversationId: conversationId)
+        bindPanelRunSession(sessionId: sessionId, conversationId: conversationId)
+        guard applyPanelRunStart(
+            selectedTabOnStart: selectedTabOnStart,
+            startedAt: Date()
+        ) else {
+            let message = ReviewPanelStateRustAdapter.runtimeUnavailableMessage
+            applyUnavailableRunError(message, targetTab: selectedTabOnFinish)
+            onError(message)
+            return
+        }
         coordinator.runReview(
             provider: provider,
             prompt: prompt,
             context: context,
             sessionState: sessionState,
             onEvent: onEvent,
-            onStart: { [weak self] in
-                self?.selectedTab = selectedTabOnStart
-            },
-            onComplete: { [weak self] snapshot in
+            onStart: { },
+            onFinish: { [weak self] result in
                 guard let self else { return }
-                self.completePanelRun(selectTab: selectedTabOnFinish)
-                onComplete(snapshot)
-            },
-            onError: { [weak self] error in
-                self?.failPanelRun(error: error, selectTab: selectedTabOnFinish)
-                onError(error)
+                let outcome = self.applyPanelRunFinish(
+                    selectedTabOnFinish: selectedTabOnFinish,
+                    finishedAt: Date(),
+                    snapshot: result.snapshot,
+                    error: result.error,
+                    wasCancelled: result.wasCancelled
+                )
+                switch outcome?.status {
+                case "completed":
+                    onComplete(result.snapshot)
+                case "failed":
+                    onError(outcome?.message ?? ReviewPanelStateRustAdapter.runtimeUnavailableMessage)
+                default:
+                    break
+                }
             }
         )
     }
+}
+
+private extension CodeReviewPanelStore {
+    func applyPanelRunStart(
+        selectedTabOnStart: CodeReviewTab,
+        startedAt: Date
+    ) -> Bool {
+        let response: ReviewPanelRuntimeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_panel_run_start",
+            request: ReviewPanelRunStartRequest(
+                state: makeRuntimeStateSnapshot(),
+                selectedTabOnStart: selectedTabOnStart.rawValue,
+                startedAt: startedAt
+            )
+        )
+        guard response?.error == nil, let state = response?.state else {
+            return false
+        }
+        applyRuntimeState(state)
+        return true
+    }
+
+    func applyPanelRunFinish(
+        selectedTabOnFinish: CodeReviewTab,
+        finishedAt: Date,
+        snapshot: CodeReviewSessionSnapshot?,
+        error: String?,
+        wasCancelled: Bool
+    ) -> ReviewPanelRuntimeOutcome? {
+        let response: ReviewPanelRuntimeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_panel_run_finish",
+            request: ReviewPanelRunFinishRequest(
+                state: makeRuntimeStateSnapshot(),
+                selectedTabOnFinish: selectedTabOnFinish.rawValue,
+                finishedAt: finishedAt,
+                snapshotPhase: snapshot?.phase.rawValue,
+                snapshotLastError: snapshot?.lastError,
+                errorMessage: error,
+                wasCancelled: wasCancelled
+            )
+        )
+        guard response?.error == nil, let state = response?.state else {
+            let message = error ?? ReviewPanelStateRustAdapter.runtimeUnavailableMessage
+            applyUnavailableRunError(message, targetTab: selectedTabOnFinish)
+            return ReviewPanelRuntimeOutcome(status: "failed", message: message)
+        }
+        applyRuntimeState(state)
+        return response?.outcome
+    }
+
+    func applyUnavailableRunError(_ message: String, targetTab: CodeReviewTab) {
+        isRunning = false
+        lastError = message
+        frozenTimerText = nil
+        selectedTab = targetTab
+    }
+}
+
+private struct ReviewPanelRunStartRequest: Encodable {
+    let schemaVersion: Int = 1
+    let state: ReviewPanelRuntimeStateSnapshot
+    let selectedTabOnStart: String
+    let startedAt: Date
+}
+
+private struct ReviewPanelRunFinishRequest: Encodable {
+    let schemaVersion: Int = 1
+    let state: ReviewPanelRuntimeStateSnapshot
+    let selectedTabOnFinish: String
+    let finishedAt: Date
+    let snapshotPhase: String?
+    let snapshotLastError: String?
+    let errorMessage: String?
+    let wasCancelled: Bool
 }

@@ -88,6 +88,7 @@ extension CodeReviewPanelStore {
     /// Defers the actual state mutation to avoid view-update reentrancy.
     func handleIncomingChatConversation(_ conversation: ReviewPanelChatConversationState) {
         guard currentChatConversationState != conversation else { return }
+        guard !isIncomingChatConversationStale(conversation) else { return }
         pendingChatConversationApplyTask?.cancel()
         pendingChatConversationApplyTask = Task { @MainActor [weak self] in
             await Task.yield()
@@ -109,5 +110,35 @@ extension CodeReviewPanelStore {
             conversation.threads.first(where: { $0.id == activeId })?.sessionState
         } ?? .empty
         applyChatSessionState(activeState)
+    }
+
+    private func isIncomingChatConversationStale(
+        _ conversation: ReviewPanelChatConversationState
+    ) -> Bool {
+        let incomingState = conversation.activeThreadId.flatMap { activeId in
+            conversation.threads.first(where: { $0.id == activeId })?.sessionState
+        } ?? .empty
+        let currentState = currentChatSessionState
+
+        guard !currentState.messages.isEmpty else { return false }
+        guard incomingState.messages.count >= currentState.messages.count else { return true }
+
+        let incomingById = Dictionary(
+            uniqueKeysWithValues: incomingState.messages.map { ($0.id, $0) }
+        )
+
+        for current in currentState.messages {
+            guard let incoming = incomingById[current.id] else { return true }
+            if current.presentation != nil && incoming.presentation == nil {
+                return true
+            }
+            if current.content.count > incoming.content.count {
+                return true
+            }
+            if !current.isStreaming && incoming.isStreaming {
+                return true
+            }
+        }
+        return false
     }
 }

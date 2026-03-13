@@ -291,7 +291,7 @@ public enum ReviewCoreBridge {
         return !forceSwift && loadedVersion() != nil
     }
 
-    static func resetForTests() {
+    public static func resetForTests() {
         RustSearchFFIClient.shared.resetForTests()
     }
 }

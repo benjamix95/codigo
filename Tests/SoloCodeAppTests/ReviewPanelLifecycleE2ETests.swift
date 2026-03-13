@@ -9,7 +9,14 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         ReviewPanelChatSessionStore.shared.clearAll()
     }
 
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
     func testPanelReviewLifecycleStreamsIntoPanelChatAndPublishesSummary() async throws {
+        try requireReviewCore()
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
         let store = makePanelStore(
@@ -46,7 +53,6 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         store.runStartedAt = Date()
         store.panelSessionId = sessionId
         taskStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
-
         store.coordinator.runReview(
             provider: provider,
             prompt: prompt,
@@ -55,22 +61,26 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
             onEvent: { [weak store] event in
                 store?.streamPanelActionOutput(id: outputId, event: event)
             },
-            onStart: { [weak store] in
-                store?.selectedTab = .chat
-            },
-            onComplete: { [weak store] _ in
+            onStart: { },
+            onFinish: { [weak store] result in
                 store?.isRunning = false
-                store?.finishPanelActionOutput(
-                    id: outputId,
-                    fallbackContent: "Review completed."
-                )
-            },
-            onError: { [weak store] error in
-                store?.isRunning = false
-                store?.failPanelActionOutput(id: outputId, error: error)
+                if result.wasCancelled {
+                    _ = store?.failPanelActionOutput(
+                        id: outputId,
+                        error: "Review cancelled",
+                        runtime: .run,
+                        wasCancelled: true
+                    )
+                } else if let error = result.error {
+                    _ = store?.failPanelActionOutput(id: outputId, error: error)
+                } else {
+                    _ = store?.finishPanelActionOutput(
+                        id: outputId,
+                        fallbackContent: "Review completed."
+                    )
+                }
             }
         )
-
         try await waitUntil("panel review completes") {
             store.isRunning == false
                 && taskStore.codeReviewSnapshot(
@@ -81,10 +91,8 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
 
         XCTAssertEqual(store.selectedTab, .chat)
         XCTAssertEqual(store.panelSessionId, sessionId)
-
         let commandMessage = try XCTUnwrap(store.chatMessages.first)
         XCTAssertEqual(commandMessage.kind, .commandInvocation)
-
         let reviewMessage = try XCTUnwrap(
             store.chatMessages.first(where: { $0.id == outputId })
         )
@@ -92,14 +100,11 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         XCTAssertFalse(reviewMessage.isStreaming)
         XCTAssertTrue(reviewMessage.presentation?.sections.map(\.title).contains("Activity") == true)
         XCTAssertFalse(reviewMessage.presentation?.sections.isEmpty ?? true)
-
-        // Response/verdict content now lives in a separate plain message
         let responseMessage = try XCTUnwrap(
             store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .plain })
         )
         XCTAssertFalse(responseMessage.isStreaming)
         XCTAssertFalse(responseMessage.content.isEmpty)
-
         let snapshot = try XCTUnwrap(
             taskStore.codeReviewSnapshot(
                 sessionId: sessionId,
@@ -117,15 +122,14 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
             store.chatMessages.last(where: { $0.kind == .summary })
         )
         XCTAssertEqual(summaryMessage.presentation?.sections.map(\.title), ["Outcome", "Findings"])
-
         let storedState = ReviewPanelChatSessionStore.shared.state(
             for: CodeReviewPanelStore.chatSessionKey(conversationId: conversationId)
         )
         XCTAssertEqual(storedState.messages, store.chatMessages)
         XCTAssertFalse(storedState.isProcessing)
     }
-
     func testPanelChatStreamUsesRawToolEventsAndTodoSync() async throws {
+        try requireReviewCore()
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
         let providerRegistry = ProviderRegistry()
@@ -147,16 +151,12 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         try await waitUntil("panel chat stream completes") {
             store.isChatProcessing == false && store.chatMessages.count >= 2
         }
-
-        // The reviewRun message contains Activity/Thinking sections
         let reviewRun = try XCTUnwrap(
             store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .reviewRun })
         )
         XCTAssertFalse(reviewRun.isStreaming)
         XCTAssertTrue(reviewRun.presentation?.sections.map(\.title).contains("Activity") == true)
         XCTAssertFalse(reviewRun.presentation?.sections.isEmpty ?? true)
-
-        // The response content lives in a separate plain message
         let response = try XCTUnwrap(
             store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .plain })
         )
@@ -182,54 +182,6 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         )
     }
 
-    private func makeProviderFactoryConfig() -> ProviderFactoryConfig {
-        ProviderFactoryConfig(
-            openaiApiKey: "",
-            openaiModel: "gpt-4o-mini",
-            anthropicApiKey: "",
-            anthropicModel: "claude-3-5-haiku-latest",
-            googleApiKey: "",
-            googleModel: "gemini-2.0-flash",
-            minimaxApiKey: "",
-            minimaxModel: "MiniMax-M1",
-            openrouterApiKey: "",
-            openrouterModel: "openai/gpt-4o-mini",
-            grokApiKey: "",
-            grokModel: "grok-3-mini",
-            codexPath: "",
-            codexSandbox: "workspace-write",
-            codexSessionFullAccess: false,
-            codexAskForApproval: "never",
-            codexModelOverride: "",
-            codexReasoningEffort: "",
-            codexFastMode: true,
-            codexModelProvider: "",
-            codexPreferResponsesWireAPI: false,
-            planModeBackend: "openai-api",
-            swarmOrchestrator: "openai-api",
-            swarmWorkerBackend: "openai-api",
-            swarmEnabledRoles: "",
-            globalYolo: false,
-            codeReviewPartitions: 2,
-            codeReviewAnalysisOnly: false,
-            codeReviewMaxRounds: 2,
-            codeReviewAnalysisBackend: "openai-api",
-            codeReviewExecutionBackend: "openai-api",
-            claudePath: "",
-            claudeModel: "claude-3-5-sonnet-latest",
-            claudeAllowedTools: [],
-            geminiCliPath: "",
-            geminiModelOverride: "",
-            unifiedToolRuntimeEnabled: true,
-            agentsHardBlockEnabled: true,
-            mcpEditEnforcementEnabled: true,
-            webSearchProvider: "duckduckgo",
-            braveSearchApiKey: "",
-            tavilyApiKey: "",
-            serperApiKey: ""
-        )
-    }
-
     private func waitUntil(
         _ description: String,
         timeoutNanoseconds: UInt64 = 2_000_000_000,
@@ -242,6 +194,23 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         }
         XCTFail("Timed out waiting for \(description)")
     }
+
+    private func makeProviderFactoryConfig() -> ProviderFactoryConfig {
+        ProviderFactoryConfig(openaiApiKey: "", openaiModel: "gpt-4o-mini", anthropicApiKey: "", anthropicModel: "claude-3-5-haiku-latest", googleApiKey: "", googleModel: "gemini-2.0-flash", minimaxApiKey: "", minimaxModel: "MiniMax-M1", openrouterApiKey: "", openrouterModel: "openai/gpt-4o-mini", grokApiKey: "", grokModel: "grok-3-mini", codexPath: "", codexSandbox: "workspace-write", codexSessionFullAccess: false, codexAskForApproval: "never", codexModelOverride: "", codexReasoningEffort: "", codexFastMode: true, codexModelProvider: "", codexPreferResponsesWireAPI: false, planModeBackend: "openai-api", swarmOrchestrator: "openai-api", swarmWorkerBackend: "openai-api", swarmEnabledRoles: "", globalYolo: false, codeReviewPartitions: 2, codeReviewAnalysisOnly: false, codeReviewMaxRounds: 2, codeReviewAnalysisBackend: "openai-api", codeReviewExecutionBackend: "openai-api", claudePath: "", claudeModel: "claude-3-5-sonnet-latest", claudeAllowedTools: [], geminiCliPath: "", geminiModelOverride: "", unifiedToolRuntimeEnabled: true, agentsHardBlockEnabled: true, mcpEditEnforcementEnabled: true, webSearchProvider: "duckduckgo", braveSearchApiKey: "", tavilyApiKey: "", serperApiKey: "")
+    }
+
+    private func requireReviewCore() throws {
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
+    private func reviewCoreLibraryPath() -> String {
+        URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib").path
+    }
+
 }
 
 private final class PanelLifecycleMockProvider: LLMProvider, @unchecked Sendable {

@@ -1,6 +1,17 @@
 import CoderEngine
 import Foundation
 
+struct ReviewPanelReviewTaskResult {
+    let snapshot: CodeReviewSessionSnapshot
+    let error: String?
+    let wasCancelled: Bool
+}
+
+struct ReviewPanelChatTaskResult {
+    let error: String?
+    let wasCancelled: Bool
+}
+
 /// Lightweight coordinator that owns running review and chat Tasks.
 /// All state flows back through `CodeReviewSessionState.onStateChange`.
 @MainActor
@@ -23,14 +34,14 @@ final class ReviewPanelCoordinator {
         sessionState: CodeReviewSessionState,
         onEvent: @escaping @MainActor (StreamEvent) -> Void,
         onStart: @escaping @MainActor () -> Void,
-        onComplete: @escaping @MainActor (CodeReviewSessionSnapshot) async -> Void,
-        onError: @escaping @MainActor (String) -> Void
+        onFinish: @escaping @MainActor (ReviewPanelReviewTaskResult) -> Void
     ) {
         cancelReview()
         isReviewRunning = true
 
         reviewTask = Task { @MainActor in
             onStart()
+            var streamError: String?
             do {
                 let stream = try await provider.send(
                     prompt: prompt,
@@ -41,26 +52,21 @@ final class ReviewPanelCoordinator {
                     if Task.isCancelled { break }
                     onEvent(event)
                 }
-
-                let snapshot = await sessionState.snapshot()
-                isReviewRunning = false
-
-                if snapshot.phase == .completed {
-                    await onComplete(snapshot)
-                } else if Task.isCancelled {
-                    onError("Review cancelled")
-                } else {
-                    let msg = snapshot.lastError
-                        ?? "Review did not complete (phase: \(snapshot.phase.rawValue))"
-                    onError(msg)
-                }
             } catch {
-                isReviewRunning = false
                 if !Task.isCancelled {
                     await sessionState.fail(error: error.localizedDescription)
-                    onError(error.localizedDescription)
+                    streamError = error.localizedDescription
                 }
             }
+            let snapshot = await sessionState.snapshot()
+            isReviewRunning = false
+            onFinish(
+                ReviewPanelReviewTaskResult(
+                    snapshot: snapshot,
+                    error: streamError,
+                    wasCancelled: Task.isCancelled
+                )
+            )
         }
     }
 
@@ -78,12 +84,12 @@ final class ReviewPanelCoordinator {
         prompt: String,
         context: WorkspaceContext,
         onEvent: @escaping @MainActor (StreamEvent) -> Void,
-        onComplete: @escaping @MainActor () -> Void,
-        onError: @escaping @MainActor (String) -> Void
+        onFinish: @escaping @MainActor (ReviewPanelChatTaskResult) -> Void
     ) {
         cancelChat()
 
         chatTask = Task { @MainActor in
+            var streamError: String?
             do {
                 let stream = try await provider.send(
                     prompt: prompt,
@@ -94,14 +100,17 @@ final class ReviewPanelCoordinator {
                     if Task.isCancelled { break }
                     onEvent(event)
                 }
-                if !Task.isCancelled {
-                    onComplete()
-                }
             } catch {
                 if !Task.isCancelled {
-                    onError(error.localizedDescription)
+                    streamError = error.localizedDescription
                 }
             }
+            onFinish(
+                ReviewPanelChatTaskResult(
+                    error: streamError,
+                    wasCancelled: Task.isCancelled
+                )
+            )
         }
     }
 

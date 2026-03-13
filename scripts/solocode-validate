@@ -139,12 +139,7 @@ for file in "${FILES[@]}"; do
 done
 pass "codeSize"
 
-./scripts/validate_rust_cutover_boundary.sh \
-  --trigger "$TRIGGER" \
-  --workspace "$WORKSPACE" \
-  --files "$FILES_CSV" \
-  --format "$FORMAT" \
-  $([[ "$STAGED" == "true" ]] && printf '%s' --staged)
+./scripts/validate_rust_cutover_boundary.sh --trigger "$TRIGGER" --workspace "$WORKSPACE" --files "$FILES_CSV" --format "$FORMAT" $([[ "$STAGED" == "true" ]] && printf '%s' --staged)
 pass "rustCutoverBoundary"
 
 xcodebuild build \
@@ -186,6 +181,8 @@ for file in "${FILES[@]}"; do
     Engine/CoderEngine/Sources/CodeReview/*)
       TEST_ARGS+=("-only-testing:CoderEngineTests/CodeReview")
       ;;
+    Engine/CoderEngine/Sources/CodebaseIndex/Indexing/RustSearchFFIClient.swift)
+      ;;
     Engine/CoderEngine/Sources/Tools/*|Tools/CoderIDEMCPServer/Sources/*)
       TEST_ARGS+=("-only-testing:CoderEngineTests/UnifiedToolRuntime")
       ;;
@@ -197,6 +194,13 @@ for file in "${FILES[@]}"; do
   case "$file" in
     App/SoloCodeApp/Sources/Git/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/GitServiceTests" "-only-testing:SoloCodeAppTests/GitServiceValidationGuardTests")
+      ;;
+    App/SoloCodeApp/Sources/Panels/CodeReview/Coordinator/*|App/SoloCodeApp/Sources/Panels/CodeReview/Store/*)
+      TEST_ARGS+=(
+        "-only-testing:SoloCodeAppTests/CodeReviewPanelLiveRunExecutionTests"
+        "-only-testing:SoloCodeAppTests/CodeReviewPanelChatStateDeferralTests"
+        "-only-testing:SoloCodeAppTests/ReviewPanelLifecycleE2ETests"
+      )
       ;;
     App/SoloCodeApp/Sources/CodeReview/*|App/SoloCodeApp/Sources/Panels/CodeReview/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests")
@@ -224,9 +228,7 @@ fi
 [[ "$need_engine_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
 [[ "$need_app_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeAppTests")
 [[ "$need_integration" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeIntegrationTests")
-if [[ ${#TEST_ARGS[@]} -eq 0 && "$native_only_validation" != "true" ]]; then
-  TEST_ARGS+=("-only-testing:CoderEngineTests")
-fi
+[[ ${#TEST_ARGS[@]} -eq 0 && "$native_only_validation" != "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
 
 deduped_args=()
 for arg in "${TEST_ARGS[@]-}"; do
