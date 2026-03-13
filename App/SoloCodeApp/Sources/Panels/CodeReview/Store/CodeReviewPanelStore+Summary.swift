@@ -230,3 +230,39 @@ enum ReviewPanelDerivedStateBuilder {
         return "Avvia una revisione per analizzare il codice"
     }
 }
+
+extension String {
+    var reviewToolStatus: ReviewPipelineToolExecution.Status {
+        switch self {
+        case "completed":
+            return .completed
+        case "running":
+            return .running
+        default:
+            return .pending
+        }
+    }
+
+    var reviewPanelWarmState: ReviewPanelWarmState {
+        switch self {
+        case "warming":
+            return .warming
+        case "failed":
+            return .failed
+        case "idle":
+            return .idle
+        default:
+            return .ready
+        }
+    }
+}
+
+extension Dictionary where Key == String, Value == Int {
+    var findingSeverityCounts: [FindingSeverity: Int] {
+        reduce(into: [FindingSeverity: Int]()) { partialResult, entry in
+            if let severity = FindingSeverity(rawValue: entry.key) {
+                partialResult[severity] = entry.value
+            }
+        }
+    }
+}

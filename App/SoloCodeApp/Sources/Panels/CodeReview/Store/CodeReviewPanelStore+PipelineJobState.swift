@@ -1,6 +1,21 @@
 import CoderEngine
 import Foundation
 
+enum ReviewPanelStateRustAdapter {
+    static func reduce(
+        snapshot: CodeReviewSessionSnapshot
+    ) -> ReviewPanelRustPanelState? {
+        let response: ReviewPanelReduceResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_reduce_panel_state",
+            request: ReviewPanelReduceRequest(snapshot: snapshot)
+        )
+        guard response?.error == nil else { return nil }
+        return response?.panelState
+    }
+
+    static let runtimeUnavailableMessage = "Rust review panel runtime required but unavailable."
+}
+
 enum ReviewPanelHistoryLiveRustAdapter {
     static func derive(
         snapshot: CodeReviewSessionSnapshot
@@ -182,4 +197,88 @@ private func reviewRustStatus(_ status: String) -> SwarmCardStatus {
     default:
         return .idle
     }
+}
+
+struct ReviewPanelReduceRequest: Encodable {
+    let schemaVersion: Int = 1
+    let operation: String = "derive_review_panel_state"
+    let snapshot: CodeReviewSessionSnapshot
+}
+
+struct ReviewPanelReduceResponse: Decodable {
+    let schemaVersion: Int
+    let error: ReviewPanelReduceError?
+    let panelState: ReviewPanelRustPanelState?
+}
+
+struct ReviewPanelReduceError: Decodable {
+    let code: String
+    let message: String
+}
+
+struct ReviewPanelRustPanelState: Decodable {
+    let liveCandidateIds: [String]
+    let verifiedFindingIds: [String]
+    let publishReadyFindingIds: [String]
+    let publishedFindingIds: [String]
+    let publishedSeverityCounts: [String: Int]
+    let pipelinePhase: String
+    let progressPercent: Int
+    let stepsCompleted: Int
+    let stepsTotal: Int
+    let toolsTotal: Int
+    let toolsCompleted: Int
+    let toolsRunning: Int
+    let candidateCount: Int
+    let verifiedCount: Int
+    let publishedFindingCount: Int
+    let hiddenFindingCount: Int
+    let verificationGateReady: Bool
+    let patchGateReady: Bool
+    let bundleModes: [String]
+    let toolExecutions: [ReviewPanelRustToolExecution]
+    let isTerminal: Bool
+    let phaseLedger: [ReviewPipelinePhaseLedgerEntry]
+    let fileLedger: [ReviewPipelineFileLedgerEntry]
+    let warmState: String
+    let emptyStateTitle: String
+    let emptyStateSubtitle: String
+
+    func makePipelineJobState() -> ReviewPipelineJobState {
+        ReviewPipelineJobState(
+            title: "Stato revisione",
+            phase: pipelinePhase,
+            progressPercent: progressPercent,
+            stepsCompleted: stepsCompleted,
+            stepsTotal: stepsTotal,
+            toolsTotal: toolsTotal,
+            toolsCompleted: toolsCompleted,
+            toolsRunning: toolsRunning,
+            candidateCount: candidateCount,
+            verifiedCount: verifiedCount,
+            publishedFindingCount: publishedFindingCount,
+            hiddenFindingCount: hiddenFindingCount,
+            gates: [
+                ReviewPipelineGateState(title: "Verification", isReady: verificationGateReady),
+                ReviewPipelineGateState(title: "Patch", isReady: patchGateReady),
+            ],
+            tools: toolExecutions.map {
+                ReviewPipelineToolExecution(
+                    id: $0.id,
+                    title: ReviewPipelineJobStateBuilder.displayTitle(for: $0.id),
+                    status: $0.status.reviewToolStatus,
+                    findingsCount: $0.findingsCount
+                )
+            },
+            phaseLedger: phaseLedger,
+            bundleModes: bundleModes,
+            isTerminal: isTerminal
+        )
+    }
+}
+
+struct ReviewPanelRustToolExecution: Decodable {
+    let id: String
+    let status: String
+    let findingsCount: Int
 }

@@ -91,3 +91,16 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 7 review cutover
+- assorbito `CodeReviewPanelStore+RustPanelState.swift` nei file store gia' esistenti:
+  - `CodeReviewPanelStore+PipelineJobState.swift`
+  - `CodeReviewPanelStore+SnapshotMutation.swift`
+  - `CodeReviewPanelStore+Summary.swift`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del panel review:
+  - prima della tranche: `31` file legacy non-UI
+  - dopo la tranche: `30` file legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
