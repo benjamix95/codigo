@@ -480,9 +480,6 @@
 		40A1D06CC0C8A6112D699E52 /* CodeReviewPanelStore+TargetedFix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E53 /* CodeReviewPanelStore+TargetedFix.swift */; };
 		40A1D06CC0C8A6112D699E54 /* CodeReviewPanelStore+RustPanelState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E55 /* CodeReviewPanelStore+RustPanelState.swift */; };
 		40A1D06CC0C8A6112D699E58 /* CodeReviewPanelStore+RustHistoryLiveState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E59 /* CodeReviewPanelStore+RustHistoryLiveState.swift */; };
-		40A1D06CC0C8A6112D699E60 /* CodeReviewPanelStore+RustHistoricalFindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E61 /* CodeReviewPanelStore+RustHistoricalFindings.swift */; };
-		40A1D06CC0C8A6112D699E62 /* CodeReviewPanelStore+RustChatFindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E63 /* CodeReviewPanelStore+RustChatFindings.swift */; };
-		40A1D06CC0C8A6112D699E64 /* CodeReviewPanelStore+RustLaunchPlanning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E65 /* CodeReviewPanelStore+RustLaunchPlanning.swift */; };
 		40A1D06CC0C8A6112D699E66 /* CodeReviewPanelStore+RustCompletionFinalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E67 /* CodeReviewPanelStore+RustCompletionFinalization.swift */; };
 		40A1D06CC0C8A6112D699E68 /* CodeReviewPanelStore+LiveRunExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E69 /* CodeReviewPanelStore+LiveRunExecution.swift */; };
 		40A1D06CC0C8A6112D699E56 /* CodeReviewPanelStore+PipelineJobState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E57 /* CodeReviewPanelStore+PipelineJobState.swift */; };
@@ -2277,9 +2274,6 @@
 		40A1D06CC0C8A6112D699E53 /* CodeReviewPanelStore+TargetedFix.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+TargetedFix.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+TargetedFix.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E55 /* CodeReviewPanelStore+RustPanelState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustPanelState.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustPanelState.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E59 /* CodeReviewPanelStore+RustHistoryLiveState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustHistoryLiveState.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustHistoryLiveState.swift"; sourceTree = "<group>"; };
-		40A1D06CC0C8A6112D699E61 /* CodeReviewPanelStore+RustHistoricalFindings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustHistoricalFindings.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustHistoricalFindings.swift"; sourceTree = "<group>"; };
-		40A1D06CC0C8A6112D699E63 /* CodeReviewPanelStore+RustChatFindings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustChatFindings.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustChatFindings.swift"; sourceTree = "<group>"; };
-		40A1D06CC0C8A6112D699E65 /* CodeReviewPanelStore+RustLaunchPlanning.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustLaunchPlanning.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustLaunchPlanning.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E67 /* CodeReviewPanelStore+RustCompletionFinalization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+RustCompletionFinalization.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+RustCompletionFinalization.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E69 /* CodeReviewPanelStore+LiveRunExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+LiveRunExecution.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+LiveRunExecution.swift"; sourceTree = "<group>"; };
 		40A1D06CC0C8A6112D699E57 /* CodeReviewPanelStore+PipelineJobState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+PipelineJobState.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+PipelineJobState.swift"; sourceTree = "<group>"; };
@@ -4032,9 +4026,6 @@
 				BB210C2360360ABF186B7610 /* CodeReviewPanelStore+Launch.swift */,
 				40A1D06CC0C8A6112D699E55 /* CodeReviewPanelStore+RustPanelState.swift */,
 				40A1D06CC0C8A6112D699E59 /* CodeReviewPanelStore+RustHistoryLiveState.swift */,
-				40A1D06CC0C8A6112D699E61 /* CodeReviewPanelStore+RustHistoricalFindings.swift */,
-				40A1D06CC0C8A6112D699E63 /* CodeReviewPanelStore+RustChatFindings.swift */,
-				40A1D06CC0C8A6112D699E65 /* CodeReviewPanelStore+RustLaunchPlanning.swift */,
 				40A1D06CC0C8A6112D699E67 /* CodeReviewPanelStore+RustCompletionFinalization.swift */,
 				40A1D06CC0C8A6112D699E69 /* CodeReviewPanelStore+LiveRunExecution.swift */,
 				40A1D06CC0C8A6112D699E57 /* CodeReviewPanelStore+PipelineJobState.swift */,
@@ -6999,9 +6990,6 @@
 				40A1D06CC0C8A6112D699E49 /* CodeReviewPanelStore+Launch.swift in Sources */,
 				40A1D06CC0C8A6112D699E54 /* CodeReviewPanelStore+RustPanelState.swift in Sources */,
 				40A1D06CC0C8A6112D699E58 /* CodeReviewPanelStore+RustHistoryLiveState.swift in Sources */,
-				40A1D06CC0C8A6112D699E60 /* CodeReviewPanelStore+RustHistoricalFindings.swift in Sources */,
-				40A1D06CC0C8A6112D699E62 /* CodeReviewPanelStore+RustChatFindings.swift in Sources */,
-				40A1D06CC0C8A6112D699E64 /* CodeReviewPanelStore+RustLaunchPlanning.swift in Sources */,
 				40A1D06CC0C8A6112D699E66 /* CodeReviewPanelStore+RustCompletionFinalization.swift in Sources */,
 				40A1D06CC0C8A6112D699E68 /* CodeReviewPanelStore+LiveRunExecution.swift in Sources */,
 				40A1D06CC0C8A6112D699E56 /* CodeReviewPanelStore+PipelineJobState.swift in Sources */,

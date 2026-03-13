@@ -57,3 +57,13 @@
 - risultato operativo:
   - il target finale resta `zero Swift non-UI`
   - il dominio review torna migrabile in passi piccoli, ciascuno obbligato a ridurre il debito rispetto alla baseline precedente
+
+## Avanzamento tranche 4 review cutover
+- consolidati i bridge review gia' Rust-backed dentro file Swift legacy gia' esistenti
+- rimossi tre file Swift non-UI dal panel review senza introdurre nuovi file Swift non-UI
+- conteggio osservato del panel review:
+  - prima della tranche: `36` file legacy non-UI
+  - dopo la tranche: `33` file legacy non-UI
+- la validation review passa con:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
