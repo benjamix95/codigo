@@ -146,3 +146,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 11 review cutover
+- assorbito `CodeReviewPanelStore+BugHunter.swift` in `CodeReviewPanelStore+PatchWorkflow+Execution.swift`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del panel review:
+  - prima della tranche: `27` file legacy non-UI
+  - dopo la tranche: `26` file legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

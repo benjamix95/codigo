@@ -1602,7 +1602,6 @@
 		EC67DE6CD35FB12FA4D26504 /* DebugPipelineContractsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67117E3FE334670BC8389133 /* DebugPipelineContractsTests.swift */; };
 		EC7786636B23164B2A82E788 /* CodeReviewMultiSwarmProvider+WorkerOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BC7BBAAAC15226B1CEC949 /* CodeReviewMultiSwarmProvider+WorkerOrdering.swift */; };
 		EC788209B6CE781A8A2C691C /* MCPSharedPlanStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1A8976B6AAFDEE0A9875C2 /* MCPSharedPlanStateTests.swift */; };
-		EC9367DA0A3F42AB59F47E00 /* CodeReviewPanelStore+BugHunter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3354AFFCD0ECB4CC1B84A452 /* CodeReviewPanelStore+BugHunter.swift */; };
 		ECA1AC5618EF1643F5B55AC6 /* OpenAIAPIProvider+ToolDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A535A4001E4153D9126736 /* OpenAIAPIProvider+ToolDefinitions.swift */; };
 		ED06F109DA6826564B2F309B /* BugHunterHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 402B1E9AA049129B49510023 /* BugHunterHandlerTests.swift */; };
 		F1A0C8E1B72F4D9A8C3E11F1 /* BugHunterHandlerTests+Start.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A0C8E1B72F4D9A8C3E11F2 /* BugHunterHandlerTests+Start.swift */; };
@@ -2164,7 +2163,6 @@
 		326B36FCC4BE69F5E120D6ED /* CodexCLIProvider+Execution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProvider+Execution.swift"; path = "Engine/CoderEngine/Sources/Providers/CodexCLI/StreamSupport/CodexCLIProvider+Execution.swift"; sourceTree = "<group>"; };
 		32CCFA1396A383963A5E7881 /* ChatPipelineReducerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPipelineReducerTests.swift; path = Tests/SoloCodeAppTests/ChatPipelineReducerTests.swift; sourceTree = "<group>"; };
 		330C7A7A266A8D48AC7EFA2A /* WebSearchService+Tavily.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "WebSearchService+Tavily.swift"; path = "Engine/CoderEngine/Sources/Tools/Web/Search/WebSearchService+Tavily.swift"; sourceTree = "<group>"; };
-		3354AFFCD0ECB4CC1B84A452 /* CodeReviewPanelStore+BugHunter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+BugHunter.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+BugHunter.swift"; sourceTree = "<group>"; };
 		3376C5E26CE14B863ED97603 /* ProjectMemory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProjectMemory.swift; path = Engine/CoderEngine/Sources/Pipeline/Contracts/ProjectMemory.swift; sourceTree = "<group>"; };
 		337C6D1935D5B95099830816 /* AppUpdateCenter+Checks.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppUpdateCenter+Checks.swift"; path = "App/SoloCodeApp/Sources/Services/AppUpdateCenter/Engine/AppUpdateCenter+Checks.swift"; sourceTree = "<group>"; };
 		338CBA6FC4A762426D1583D6 /* BrowserPanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserPanelView.swift; path = App/SoloCodeApp/Sources/Panels/Browser/BrowserPanelView.swift; sourceTree = "<group>"; };
@@ -4002,7 +4000,6 @@
 				6F3740CE94C54402AE6AF369 /* CodeReviewPanelChatSessionStore.swift */,
 				12300C1395637CDB88742A0A /* CodeReviewPanelStore+ActionOutput.swift */,
 				D48499F9213134D5FF45229D /* CodeReviewPanelStore+ActionOutputFormatting.swift */,
-				3354AFFCD0ECB4CC1B84A452 /* CodeReviewPanelStore+BugHunter.swift */,
 				257E65E57EE186D6C62F46F5 /* CodeReviewPanelStore+ChatFindings.swift */,
 				5000642BD2FD5C07E8A26094 /* CodeReviewPanelStore+ChatMessages.swift */,
 				EA6DB2B690B7C37745FBDDD8 /* CodeReviewPanelStore+GitContext.swift */,
@@ -6960,7 +6957,6 @@
 				BF3BD6FF09E6D42115D16436 /* CodeReviewPanelChatSessionStore.swift in Sources */,
 				8C6AD1C680F4C4193E166EC7 /* CodeReviewPanelStore+ActionOutput.swift in Sources */,
 				771070743562D288C622DBE0 /* CodeReviewPanelStore+ActionOutputFormatting.swift in Sources */,
-				EC9367DA0A3F42AB59F47E00 /* CodeReviewPanelStore+BugHunter.swift in Sources */,
 				752F97D2B8E91DEB30107A74 /* CodeReviewPanelStore+ChatFindings.swift in Sources */,
 				54D1232264C65934913C9363 /* CodeReviewPanelStore+ChatMessages.swift in Sources */,
 				EA04BC2722B23A20F26F743F /* CodeReviewPanelStore+GitContext.swift in Sources */,
