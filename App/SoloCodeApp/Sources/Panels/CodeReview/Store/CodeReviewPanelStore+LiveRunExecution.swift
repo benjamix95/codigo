@@ -2,6 +2,85 @@ import CoderEngine
 import Foundation
 
 extension CodeReviewPanelStore {
+    func consumePendingLaunchRequestIfNeeded() async {
+        guard let request = ReviewPanelLaunchRequestStore.shared.consume(conversationId: conversationId) else {
+            return
+        }
+        scopeTarget = request.scope
+        selectedModes = request.modes
+        selectTab(.findings)
+        await startReview(
+            scope: request.scope,
+            modes: request.modes,
+            promptOverride: request.promptOverride,
+            invocationLabel: request.invocationLabel
+        )
+    }
+
+    func startReview(
+        scope: ReviewScopeTarget,
+        modes: Set<CodeReviewPanelMode>,
+        promptOverride: String? = nil,
+        invocationLabel: String? = nil
+    ) async {
+        guard !isRunning else { return }
+
+        lastError = nil
+        isRunning = true
+        runStartedAt = Date()
+        frozenTimerText = nil
+        scopeTarget = scope
+        selectedModes = modes
+        selectTab(.findings)
+
+        guard let plan = planPanelReviewLaunch() else {
+            isRunning = false
+            lastError = "Failed to plan review session"
+            freezeTimer()
+            return
+        }
+        let sessionId = plan.sessionId
+        let sessionConfig = plan.config
+        let sessionState = makePanelReviewSessionState(
+            sessionId: sessionId,
+            conversationId: conversationId,
+            config: sessionConfig
+        )
+
+        await ReviewSessionRegistry.shared.register(sessionState)
+
+        guard let provider = makePanelReviewProvider(
+            sessionState: sessionState,
+            sessionConfig: sessionConfig
+        ) else {
+            isRunning = false
+            lastError = "Failed to create review provider"
+            freezeTimer()
+            return
+        }
+
+        let prompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
+        let context = buildWorkspaceContext()
+        runPanelReview(
+            provider: provider,
+            prompt: prompt,
+            context: context,
+            sessionState: sessionState,
+            sessionId: sessionId,
+            conversationId: conversationId,
+            selectedTabOnStart: .findings,
+            selectedTabOnFinish: .findings,
+            onEvent: { _ in },
+            onComplete: { _ in },
+            onError: { _ in }
+        )
+    }
+
+    func cancelReview() {
+        coordinator.cancelReview()
+        completePanelRun(selectTab: .findings)
+    }
+
     func panelRunConversationId(sourceConversationId: UUID?) -> UUID? {
         conversationId ?? sourceConversationId
     }

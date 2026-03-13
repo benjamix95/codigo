@@ -2,6 +2,22 @@ import CoderEngine
 import Foundation
 
 extension CodeReviewPanelStore {
+    func rerunSession(_ sessionId: String) async {
+        guard let snapshot = taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId, conversationId: conversationId
+        ) else { return }
+        await startReview(scope: rerunScopeTarget(for: snapshot), modes: selectedModes)
+    }
+
+    func runQuickCommand(_ command: ReviewPanelSlashCommand) async {
+        await startReview(
+            scope: scopeTarget,
+            modes: selectedModes,
+            promptOverride: command.prompt,
+            invocationLabel: command.displayCommand
+        )
+    }
+
     func planPanelReviewLaunch() -> (sessionId: String, config: SessionConfig)? {
         let selectedBackend = selectedProviderOverrideId ?? ""
         let resolvedAnalysisBackend = selectedBackend.isEmpty ? settings.analysisBackend : selectedBackend
@@ -47,6 +63,18 @@ extension CodeReviewPanelStore {
         case .uncommitted, .none:
             return .uncommitted
         }
+    }
+
+    func buildPrompt(
+        scope: ReviewScopeTarget,
+        modes: Set<CodeReviewPanelMode>
+    ) -> String {
+        ReviewPanelCoordinator.combinedPrompt(
+            scope: scope,
+            currentBranch: currentGitBranch,
+            selectedModes: modes,
+            customInstructions: settings.customInstructions
+        )
     }
 
     func launchTargetedFixRun(
@@ -135,6 +163,17 @@ extension CodeReviewPanelStore {
             }
         )
         return true
+    }
+
+    func reviewInvocationLabel(
+        scope: ReviewScopeTarget,
+        modes: Set<CodeReviewPanelMode>
+    ) -> String {
+        let label = CodeReviewPanelMode.allCases
+            .filter { modes.contains($0) }
+            .map(\.displayName)
+            .joined(separator: " + ")
+        return "Run \(label) on \(scope.displayDescription)"
     }
 
     private func planPanelLaunch(
