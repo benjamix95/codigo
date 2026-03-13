@@ -4,6 +4,7 @@ mod review_command;
 mod review_core;
 mod review_history;
 mod review_mcp;
+mod review_panel;
 mod review_panel_runtime;
 mod review_patch;
 mod review_persistence;

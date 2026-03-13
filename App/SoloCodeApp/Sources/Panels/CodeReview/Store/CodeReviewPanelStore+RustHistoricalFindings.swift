@@ -34,11 +34,10 @@ extension CodeReviewPanelStore {
     ) -> [HistoricalFindingRecord]? {
         let request = ReviewCoreSnapshotHistoryRequest(
             schemaVersion: 1,
-            operation: "derive_history_records_from_snapshot",
             snapshot: snapshot
         )
         let response: ReviewCoreReduceHistoryResponse? = ReviewCoreBridge.call(
-            functionName: "review_core_reduce_panel_state",
+            functionName: "review_core_panel_history_records",
             request: request
         )
         return response?.mergedHistory
@@ -61,7 +60,6 @@ extension CodeReviewPanelStore {
 
 private struct ReviewCoreSnapshotHistoryRequest: Encodable {
     let schemaVersion: Int
-    let operation: String
     let snapshot: CodeReviewSessionSnapshot
 }
 

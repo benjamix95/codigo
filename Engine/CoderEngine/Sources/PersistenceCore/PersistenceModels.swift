@@ -53,7 +53,7 @@ public struct ManagedPostgresConfiguration: Sendable, Equatable {
                environment["SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS"] == "1" {
                 return FileManager.default.temporaryDirectory
                     .appendingPathComponent(
-                        "solocode-postgres-tests-\(ProcessInfo.processInfo.processIdentifier)",
+                        "scpg-\(ProcessInfo.processInfo.processIdentifier)",
                         isDirectory: true
                     )
             }

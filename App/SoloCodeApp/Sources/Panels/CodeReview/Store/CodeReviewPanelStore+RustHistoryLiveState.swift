@@ -6,17 +6,16 @@ enum ReviewPanelHistoryLiveRustAdapter {
         snapshot: CodeReviewSessionSnapshot
     ) -> ReviewPanelRustHistoryLiveBoardState? {
         let response: ReviewPanelHistoryLiveReduceResponse? = ReviewCoreBridge.call(
-            functionName: "review_core_reduce_panel_state",
-            request: ReviewPanelHistoryLiveReduceRequest(snapshot: snapshot)
+            functionName: "review_core_panel_history_live",
+            request: ReviewPanelHistoryLiveSnapshotRequest(snapshot: snapshot)
         )
         guard response?.error == nil else { return nil }
         return response?.panelState
     }
 }
 
-private struct ReviewPanelHistoryLiveReduceRequest: Encodable {
+private struct ReviewPanelHistoryLiveSnapshotRequest: Encodable {
     let schemaVersion: Int = 1
-    let operation: String = "derive_history_live_state"
     let snapshot: CodeReviewSessionSnapshot
 }
 

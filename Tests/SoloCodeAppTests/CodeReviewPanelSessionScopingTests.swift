@@ -7,6 +7,14 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
     override func setUp() {
         super.setUp()
         ReviewPanelChatSessionStore.shared.clearAll()
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
     }
 
     func testScopedReviewActivitiesForSessionFiltersMismatchedSession() {
@@ -19,7 +27,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         let scoped = scopedReviewActivitiesForSession(activities, sessionId: "s1")
         XCTAssertEqual(scoped.map(\.title), ["a"])
     }
-
     func testReviewCardBelongsToSessionUsesRecentEvents() {
         let card = SwarmLiveCardState(
             swarmId: "worker-1",
@@ -32,7 +39,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertTrue(reviewCardBelongsToSession(card, sessionId: "s1"))
         XCTAssertFalse(reviewCardBelongsToSession(card, sessionId: "missing"))
     }
-
     func testCodeReviewSnapshotRejectsExplicitSessionFromDifferentConversation() {
         let store = TaskActivityStore()
         let conversationA = UUID()
@@ -67,7 +73,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
 
         XCTAssertNil(resolved)
     }
-
     func testPanelStoreScopesSnapshotsToConversation() {
         let taskStore = TaskActivityStore()
         let conversationA = UUID()
@@ -89,7 +94,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(store.availableSnapshots.map(\.sessionId), ["session-a"])
         XCTAssertEqual(store.selectedSessionId, "session-a")
     }
-
     func testPanelStoreRestoresCachedChatSessionState() {
         let conversationId = UUID()
         let sessionKey = CodeReviewPanelStore.chatSessionKey(conversationId: conversationId)
@@ -117,7 +121,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertTrue(store.chatMessages.last?.isStreaming == true)
         XCTAssertEqual(store.chatThreads.count, 1)
     }
-
     func testDeleteSessionRemovesSnapshotAndClearsSelection() async {
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
@@ -144,7 +147,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
             )
         )
     }
-
     func testPanelApplyFixFailsClosedWithoutWorkspaceAndDoesNotTouchOtherFindings() async throws {
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
@@ -186,7 +188,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(updated.findings.first(where: { $0.id == "f-1" })?.status, .patchFailed)
         XCTAssertEqual(updated.findings.first(where: { $0.id == "f-2" })?.status, .open)
     }
-
     func testPanelDismissFallbackUsesRustMutationAndMarksWontFix() async throws {
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
@@ -226,7 +227,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(updated.events.last?.type, .findingDismissed)
         XCTAssertEqual(updated.events.last?.metadata["finding_id"], "f-1")
     }
-
     func testPanelModeSelectionAllowsMultiSelectAndSecondTapTurnsModeOff() {
         let store = makePanelStore(
             taskActivityStore: TaskActivityStore(),
@@ -245,7 +245,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertFalse(store.hasSelectedMode(.securityAudit))
         XCTAssertTrue(store.hasSelectedMode(.bugFinder))
     }
-
     func testStructuredChatFindingsSyncsIntoFindingsTimelineAndDeduplicates() async throws {
         let taskStore = TaskActivityStore()
         let conversationId = UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!
@@ -356,7 +355,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
             1
         )
     }
-
     func testPanelLaunchPlanUsesRustPlannerForPrefixAndConfig() throws {
         let taskStore = TaskActivityStore()
         let workspaceStore = WorkspaceStore()
@@ -388,7 +386,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(plan.config.executionBackend, "anthropic-api")
         XCTAssertTrue(plan.config.analysisOnly)
     }
-
     func testRerunScopeTargetUsesAgainstRefWhenSnapshotCarriesRef() {
         let store = makePanelStore(
             taskActivityStore: TaskActivityStore(),
@@ -417,7 +414,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
 
         XCTAssertEqual(store.rerunScopeTarget(for: snapshot), .againstRef("HEAD~2"))
     }
-
     func testPanelTargetedFixLaunchUsesRustPlannerWithSourcePrefixAndConfig() throws {
         let taskStore = TaskActivityStore()
         let workspaceStore = WorkspaceStore()
@@ -512,7 +508,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
             lastUpdatedAt: Date()
         )
     }
-
     private static func makeProviderFactoryConfig() -> ProviderFactoryConfig {
         ProviderFactoryConfig(
             openaiApiKey: "",
@@ -559,5 +554,10 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
             tavilyApiKey: "",
             serperApiKey: ""
         )
+    }
+    private func reviewCoreLibraryPath() -> String {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib").path
     }
 }

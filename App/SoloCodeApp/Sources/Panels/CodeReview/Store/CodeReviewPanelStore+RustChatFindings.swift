@@ -2,42 +2,58 @@ import CoderEngine
 import Foundation
 
 extension CodeReviewPanelStore {
-    func mergeChatFindingsWithRust(
-        existing: [CodeReviewFinding],
-        incoming: [CodeReviewFinding]
-    ) -> (all: [CodeReviewFinding], insertedCount: Int)? {
-        let request = ReviewCoreChatFindingsRequest(
+    func extractAndMergeChatFindingsWithRust(
+        content: String,
+        existing: [CodeReviewFinding]
+    ) -> ReviewCoreChatExtractionPayload? {
+        let request = ReviewCoreChatExtractionRequest(
             schemaVersion: 1,
-            operation: "merge_chat_findings",
-            primary: existing,
-            fallback: incoming
+            content: content,
+            existingFindings: existing
         )
-        let response: ReviewCoreChatFindingsResponse? = ReviewCoreBridge.call(
-            functionName: "review_core_reduce_panel_state",
+        let response: ReviewCoreChatExtractionResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_panel_chat_extract",
             request: request
         )
         guard response?.error == nil,
-              let payload = response?.panelState else {
+              let payload = response?.payload,
+              payload.foundBlock else {
             return nil
         }
-        return (payload.findings, payload.insertedCount)
+        return payload
     }
 }
 
-private struct ReviewCoreChatFindingsRequest: Encodable {
+private struct ReviewCoreChatExtractionRequest: Encodable {
     let schemaVersion: Int
-    let operation: String
-    let primary: [CodeReviewFinding]
-    let fallback: [CodeReviewFinding]
+    let content: String
+    let existingFindings: [CodeReviewFinding]
 }
 
-private struct ReviewCoreChatFindingsResponse: Decodable {
+private struct ReviewCoreChatExtractionResponse: Decodable {
     let schemaVersion: Int
     let error: ReviewPanelReduceError?
-    let panelState: ReviewCoreChatFindingsPayload?
-}
-
-private struct ReviewCoreChatFindingsPayload: Decodable {
+    let foundBlock: Bool
+    let visibleContent: String
     let findings: [CodeReviewFinding]
     let insertedCount: Int
+    let extractedCount: Int
+
+    var payload: ReviewCoreChatExtractionPayload {
+        ReviewCoreChatExtractionPayload(
+            foundBlock: foundBlock,
+            visibleContent: visibleContent,
+            findings: findings,
+            insertedCount: insertedCount,
+            extractedCount: extractedCount
+        )
+    }
+}
+
+struct ReviewCoreChatExtractionPayload {
+    let foundBlock: Bool
+    let visibleContent: String
+    let findings: [CodeReviewFinding]
+    let insertedCount: Int
+    let extractedCount: Int
 }

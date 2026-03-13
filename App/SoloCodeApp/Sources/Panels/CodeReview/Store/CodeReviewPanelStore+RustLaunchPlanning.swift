@@ -32,7 +32,7 @@ extension CodeReviewPanelStore {
         config: SessionConfig
     ) -> (sessionId: String, config: SessionConfig)? {
         let response: ReviewPanelStartPlanResponse? = ReviewCoreBridge.call(
-            functionName: "review_core_command_plan",
+            functionName: "review_core_panel_launch",
             request: ReviewPanelStartPlanRequest(
                 schemaVersion: 1,
                 action: "start",

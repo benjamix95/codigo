@@ -90,7 +90,7 @@ public struct ReviewPatchRustBridge {
         snapshot: CodeReviewSessionSnapshot
     ) -> ReviewPatchRustResponse? {
         ReviewCoreBridge.call(
-            functionName: "review_core_patch_handle_action",
+            functionName: "review_core_patch_workflow",
             request: ReviewPatchRustRequest(
                 schemaVersion: 1,
                 operation: operation,
