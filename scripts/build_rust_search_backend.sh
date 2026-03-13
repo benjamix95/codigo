@@ -37,15 +37,21 @@ fi
 echo "[rust-search] build profilo=$TARGET_PROFILE"
 cargo "${BUILD_ARGS[@]}"
 
-ARTIFACT_DIR="$CRATE_DIR/target/$TARGET_PROFILE"
+ARTIFACT_DIRS=(
+  "$ROOT_DIR/Native/target/$TARGET_PROFILE"
+  "$CRATE_DIR/target/$TARGET_PROFILE"
+)
 for ext in "$DYLIB_EXT" a; do
-  SRC="$ARTIFACT_DIR/$LIB_NAME.$ext"
-  if [[ -f "$SRC" ]]; then
-    cp "$SRC" "$OUT_DIR/"
-    if [[ -n "${BUILT_PRODUCTS_DIR:-}" ]]; then
-      cp "$SRC" "$PRODUCTS_OUT/"
+  for ARTIFACT_DIR in "${ARTIFACT_DIRS[@]}"; do
+    SRC="$ARTIFACT_DIR/$LIB_NAME.$ext"
+    if [[ -f "$SRC" ]]; then
+      cp "$SRC" "$OUT_DIR/"
+      if [[ -n "${BUILT_PRODUCTS_DIR:-}" ]]; then
+        cp "$SRC" "$PRODUCTS_OUT/"
+      fi
+      break
     fi
-  fi
+  done
 done
 
 echo "[rust-search] artifact pronti in $OUT_DIR"

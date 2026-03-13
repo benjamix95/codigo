@@ -8,6 +8,7 @@ mod review_identity;
 mod review_patch;
 mod review_persistence;
 mod review_pipeline;
+mod review_panel;
 mod review_projection;
 mod review_replay;
 mod review_models;
@@ -21,4 +22,6 @@ mod review_sync;
 mod review_value;
 mod review_verify;
 mod scoring;
+#[cfg(test)]
+mod test_support;
 mod tokenize;

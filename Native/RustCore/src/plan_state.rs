@@ -3,8 +3,8 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
-
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanDocument {
@@ -757,11 +757,10 @@ fn iso_now() -> String {
 }
 
 fn next_id(prefix: &str) -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    format!("{prefix}-{nanos}")
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("{prefix}-{nanos}-{sequence}")
 }
 
 fn pretty_json(value: Value) -> String {
@@ -815,15 +814,11 @@ fn bool_arg(arguments: &BTreeMap<String, String>, key: &str) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
-
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
 
     fn with_temp_home<T>(test: impl FnOnce() -> T) -> T {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = crate::test_support::env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let original = std::env::var("HOME").ok();
         let temp_home = std::env::temp_dir().join(format!("plan-state-home-{}", next_id("test")));
         std::fs::create_dir_all(&temp_home).unwrap();

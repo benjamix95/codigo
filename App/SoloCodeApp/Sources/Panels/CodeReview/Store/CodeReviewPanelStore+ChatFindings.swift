@@ -10,33 +10,27 @@ extension CodeReviewPanelStore {
             return
         }
         let originalContent = chatMessages[index].content
-        let extraction = extractChatFindingsPayload(from: originalContent)
-        guard let extraction else { return }
-
-        chatMessages[index].content = extraction.visibleContent
-        persistChatState()
-
         guard let sessionId = sessionId ?? selectedSessionId,
               let snapshot = taskActivityStore.codeReviewSnapshot(
                 sessionId: sessionId,
                 conversationId: conversationId
+              ),
+              let extraction = extractAndMergeChatFindingsWithRust(
+                content: originalContent,
+                existing: snapshot.findings
               ) else {
             return
         }
 
-        guard let merge = mergeChatFindingsWithRust(
-            existing: snapshot.findings,
-            incoming: extraction.findings
-        ) else {
-            return
-        }
+        chatMessages[index].content = extraction.visibleContent
+        persistChatState()
 
-        guard merge.insertedCount > 0 else {
+        guard extraction.insertedCount > 0 else {
             return
         }
 
         let existingCount = snapshot.findings.count
-        let inserted = Array(merge.all.dropFirst(existingCount))
+        let inserted = Array(extraction.findings.dropFirst(existingCount))
         let events = inserted.map {
             CodeReviewSessionEvent.findingAdded(
                 findingId: $0.id,
@@ -45,92 +39,18 @@ extension CodeReviewPanelStore {
             )
         }
         let updated = snapshot.copying(
-            findings: merge.all,
+            findings: extraction.findings,
             events: snapshot.events + events,
-            outcome: snapshot.copying(findings: merge.all).buildOutcomeSummary()
+            outcome: snapshot.copying(findings: extraction.findings).buildOutcomeSummary()
         )
-        taskActivityStore.scheduleCodeReviewSnapshotIngest(
+        taskActivityStore.ingestCodeReviewSnapshot(
             updated,
             conversationId: conversationId
         )
         appendPanelSystemMessage(
-            "Synced \(merge.insertedCount) finding(s) from chat into the Findings tab.",
+            "Synced \(extraction.insertedCount) finding(s) from chat into the Findings tab.",
             kind: .statusNote,
             selectChatTab: false
         )
     }
-
-    private func extractChatFindingsPayload(
-        from content: String
-    ) -> (visibleContent: String, findings: [CodeReviewFinding])? {
-        let pattern = #"```review_findings\s*(?:\r?\n)(\{[\s\S]*?\})\s*(?:\r?\n)```"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(
-                in: content,
-                range: NSRange(content.startIndex..., in: content)
-              ),
-              let jsonRange = Range(match.range(at: 1), in: content),
-              let fullRange = Range(match.range(at: 0), in: content)
-        else {
-            return nil
-        }
-
-        let json = String(content[jsonRange])
-        guard let data = json.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rawFindings = object["findings"] as? [[String: Any]]
-        else {
-            return nil
-        }
-
-        let findings = rawFindings.compactMap(parseChatFinding)
-        guard !findings.isEmpty else { return nil }
-
-        var visible = content
-        visible.removeSubrange(fullRange)
-        visible = visible.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (visible, findings)
-    }
-
-    private func parseChatFinding(_ raw: [String: Any]) -> CodeReviewFinding? {
-        guard let file = raw["file"] as? String,
-              let message = raw["message"] as? String else {
-            return nil
-        }
-        let severity = raw["severity"] as? String ?? "warning"
-        let category = raw["category"] as? String
-        let line = raw["line"] as? Int
-        let confidence = raw["confidence"] as? Double
-        let suggestedFix = raw["suggested_fix"] as? String
-        let baseFinding = CodeReviewFinding.fromRawTask(
-            id: "chat-\(UUID().uuidString.prefix(8))",
-            description: message,
-            files: [file],
-            severity: severity,
-            category: category,
-            origin: .reviewer,
-            filePath: file,
-            lineNumber: line,
-            confidence: confidence,
-            evidence: "Structured findings block from review panel chat",
-            sourceTool: "review-panel-chat",
-            blocking: nil
-        )
-        return CodeReviewFinding(
-            id: baseFinding.id,
-            severity: baseFinding.severity,
-            category: baseFinding.category,
-            origin: baseFinding.origin,
-            filePath: baseFinding.filePath,
-            lineNumber: baseFinding.lineNumber,
-            endLineNumber: baseFinding.endLineNumber,
-            message: baseFinding.message,
-            suggestedFix: suggestedFix,
-            confidence: baseFinding.confidence,
-            evidence: baseFinding.evidence,
-            sourceTool: baseFinding.sourceTool,
-            blocking: baseFinding.blocking
-        )
-    }
-
 }

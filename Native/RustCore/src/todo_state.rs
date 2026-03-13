@@ -2,8 +2,8 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
-
 pub fn handle_action(
     action: &str,
     arguments: &BTreeMap<String, String>,
@@ -357,11 +357,10 @@ fn string_arg(arguments: &BTreeMap<String, String>, key: &str) -> String {
 }
 
 fn new_id() -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    format!("todo-{nanos}")
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("todo-{nanos}-{sequence}")
 }
 
 fn iso_now() -> String {
@@ -371,15 +370,11 @@ fn iso_now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
-
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
 
     fn with_temp_home<T>(test: impl FnOnce() -> T) -> T {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = crate::test_support::env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let original = std::env::var("HOME").ok();
         let temp_home = std::env::temp_dir().join(format!("todo-state-home-{}", new_id()));
         std::fs::create_dir_all(&temp_home).unwrap();

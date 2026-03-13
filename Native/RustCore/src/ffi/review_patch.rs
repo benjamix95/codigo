@@ -26,6 +26,11 @@ pub extern "C" fn review_core_patch_handle_action(input: *const c_char) -> *mut 
 }
 
 #[no_mangle]
+pub extern "C" fn review_core_patch_workflow(input: *const c_char) -> *mut c_char {
+    review_core_patch_handle_action(input)
+}
+
+#[no_mangle]
 pub extern "C" fn review_core_patch_start_runtime(input: *const c_char) -> *mut c_char {
     runtime_request_call(input, start_runtime)
 }
