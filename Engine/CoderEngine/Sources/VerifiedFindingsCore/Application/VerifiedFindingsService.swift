@@ -1,5 +1,19 @@
 import Foundation
 
+enum VerifiedFindingsPatchCommandError: LocalizedError {
+    case reviewNotVerified
+    case findingNotClosable
+
+    var errorDescription: String? {
+        switch self {
+        case .reviewNotVerified:
+            return "Finding is not verified or available."
+        case .findingNotClosable:
+            return "Finding cannot be closed until the patch is validated or the finding is already resolved."
+        }
+    }
+}
+
 public struct VerifiedFindingsResolvedState: Sendable, Equatable {
     public let recovered: VerifiedFindingsRecoveredEnvelope
     public let securityGate: VerifiedFindingsSecurityGateReport
@@ -65,5 +79,87 @@ public enum VerifiedFindingsService {
         entryPoint: VerifiedFindingOriginEntryPoint = .reviewChat
     ) -> VerifiedFindingsCanonicalSnapshot {
         resolve(snapshot: snapshot, entryPoint: entryPoint).recovered.envelope.canonicalSnapshot
+    }
+
+    public static func upsertingPatch(
+        in snapshot: CodeReviewSessionSnapshot,
+        artifact: ReviewPatchArtifact
+    ) -> CodeReviewSessionSnapshot {
+        var patches = snapshot.patches
+        if let index = patches.firstIndex(where: { $0.id == artifact.id || $0.findingId == artifact.findingId }) {
+            patches[index] = artifact
+        } else {
+            patches.append(artifact)
+        }
+
+        var findings = snapshot.findings
+        if let index = findings.firstIndex(where: { $0.id == artifact.findingId }) {
+            findings[index].patchArtifactId = artifact.id
+            findings[index].status = switch artifact.status {
+            case .draft: .patchPreparing
+            case .verified: .patchReady
+            case .applied: .patchApplied
+            case .applyFailed: .patchFailed
+            case .prOpened: .prOpened
+            case .merged: .merged
+            case .conflict, .rolledBack: .blocked
+            }
+        }
+
+        return snapshot.copying(
+            findings: findings,
+            patches: patches,
+            events: snapshot.events + [
+                CodeReviewSessionEvent.patchPrepared(
+                    patchId: artifact.id,
+                    findingId: artifact.findingId
+                ),
+            ],
+            outcome: snapshot.copying(findings: findings, patches: patches).buildOutcomeSummary()
+        )
+    }
+
+    public static func closeFinding(
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String
+    ) throws -> CodeReviewSessionSnapshot {
+        guard let findingIndex = snapshot.findings.firstIndex(where: { $0.id == findingId }) else {
+            throw VerifiedFindingsPatchCommandError.reviewNotVerified
+        }
+        let currentStatus = snapshot.findings[findingIndex].status
+        let patch = snapshot.findings[findingIndex].patchArtifactId.flatMap { patchId in
+            snapshot.patches.first(where: { $0.id == patchId })
+        } ?? snapshot.patches.first(where: { $0.findingId == findingId })
+
+        let canClose: Bool
+        switch currentStatus {
+        case .merged, .dismissed, .wontFix, .closed:
+            canClose = true
+        case .patchApplied, .fixApplied:
+            canClose = patch?.validationStatus == .passed
+        default:
+            canClose = false
+        }
+        guard canClose else {
+            throw VerifiedFindingsPatchCommandError.findingNotClosable
+        }
+
+        var findings = snapshot.findings
+        findings[findingIndex].status = .closed
+        let updated = snapshot.copying(
+            findings: findings,
+            events: snapshot.events + [
+                CodeReviewSessionEvent(
+                    type: .outcomePublished,
+                    detail: "Finding \(findingId) closed",
+                    metadata: ["finding_id": findingId, "reason": "closed"]
+                )
+            ]
+        )
+        return updated.copying(
+            mutationSequence: updated.mutationSequence,
+            outcome: updated.buildOutcomeSummary(),
+            lastUpdatedAt: Date()
+        )
     }
 }

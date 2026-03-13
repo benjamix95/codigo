@@ -106,7 +106,7 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
             verifyStatus: .verified
         )
 
-        let updated = VerifiedFindingsPatchExecutionService.upsertingPatch(
+        let updated = VerifiedFindingsService.upsertingPatch(
             in: snapshot,
             artifact: artifact
         )

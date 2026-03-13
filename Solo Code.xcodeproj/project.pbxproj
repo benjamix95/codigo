@@ -681,7 +681,6 @@
 		5D2541B6DD00FF17BB2A3926 /* ReviewPanelSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D84E17451CA77B0295815B0 /* ReviewPanelSettingsModel.swift */; };
 		5D4396EBCC420E45771F02CB /* CLIAccountAuthDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FB780AB082F7DAA2D94CC64 /* CLIAccountAuthDetectorTests.swift */; };
 		5D51283FF5F74B3AEFA90F50 /* DebugService+Variables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1B83D319930548437515E6 /* DebugService+Variables.swift */; };
-		5D566F25F57FF1893F5712B1 /* ReviewPatchRustBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D07B6F9D37314A8F881E8C20 /* ReviewPatchRustBridge.swift */; };
 		5DBA3C60DF55BE0157FF4F70 /* EditorCommandNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C28C67C4FF1AD6B06266143 /* EditorCommandNotifications.swift */; };
 		5DE5FD8B693D274D30573F3B /* WebFetchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBA1C331193D76D63EC68CB /* WebFetchService.swift */; };
 		5E09B5939B9903ADDF8F176E /* ProjectContextStore+Recents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7023C559BD216F18653F5B2B /* ProjectContextStore+Recents.swift */; };
@@ -3211,7 +3210,6 @@
 		D053218B945022CA002BD036 /* SubagentChatCard+SnapshotCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SubagentChatCard+SnapshotCard.swift"; path = "App/SoloCodeApp/Sources/Swarm/Views/SubagentChatCard+SnapshotCard.swift"; sourceTree = "<group>"; };
 		D06E1AF9896A942FCF388DAF /* DebugStore+Hypotheses.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugStore+Hypotheses.swift"; path = "App/SoloCodeApp/Sources/Debug/Stores/DebugStore+Hypotheses.swift"; sourceTree = "<group>"; };
 		D07043AAD76F35B3E20D063D /* GitCommitSheetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitCommitSheetView.swift; path = App/SoloCodeApp/Sources/Git/GitCommitSheetView.swift; sourceTree = "<group>"; };
-		D07B6F9D37314A8F881E8C20 /* ReviewPatchRustBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPatchRustBridge.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/ReviewPatchRustBridge.swift; sourceTree = "<group>"; };
 		D0AC200D065BE1091F9BB3EC /* AppUpdateCenter+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AppUpdateCenter+Helpers.swift"; path = "App/SoloCodeApp/Sources/Services/AppUpdateCenter/Helpers/AppUpdateCenter+Helpers.swift"; sourceTree = "<group>"; };
 		D0B84C7DE0AEACFF08C2DC6B /* DebugRoleAndStageStrategy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugRoleAndStageStrategy.swift; path = Engine/CoderEngine/Sources/Pipeline/Debug/Strategy/DebugRoleAndStageStrategy.swift; sourceTree = "<group>"; };
 		D0C43A5063FF878A5C6F7915 /* PatchManifest.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PatchManifest.swift; path = Engine/CoderEngine/Sources/Pipeline/Contracts/PatchManifest.swift; sourceTree = "<group>"; };
@@ -4826,7 +4824,6 @@
 				C7F51A2B72C15705398DE518 /* EntityExecutionCoordinator.swift */,
 				1A70B132E650DFAF6E7FF574 /* FindingIdentityService.swift */,
 				990261D420BEFF98E3B04B0E /* HistoricalFindingsQueryService.swift */,
-				D07B6F9D37314A8F881E8C20 /* ReviewPatchRustBridge.swift */,
 				A1017401641DABF0C80B6259 /* SecurityWorkflowService.swift */,
 				A8DCA4B02445D944646523CB /* SensitiveDataRedactionService.swift */,
 				F70FDBA961C13758E7C8B1C6 /* VerifiedFindingAdmissionPolicy.swift */,
@@ -6057,7 +6054,6 @@
 				34AD76F903ECA2725A2848A9 /* EntityExecutionCoordinator.swift in Sources */,
 				AEEC91DD4D1A53E7CD36F609 /* FindingIdentityService.swift in Sources */,
 				110A8F087BF39E1738F4D58C /* HistoricalFindingsQueryService.swift in Sources */,
-				5D566F25F57FF1893F5712B1 /* ReviewPatchRustBridge.swift in Sources */,
 				6BFEA2AD2A74A54C4CFFB4B4 /* SecurityWorkflowService.swift in Sources */,
 				876FBE3A1A0750A7076555F3 /* SensitiveDataRedactionService.swift in Sources */,
 				47B6226186B4D2C48B73B63F /* VerifiedFindingAdmissionPolicy.swift in Sources */,

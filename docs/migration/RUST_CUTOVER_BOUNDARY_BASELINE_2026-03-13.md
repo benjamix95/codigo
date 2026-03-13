@@ -184,3 +184,12 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 14 review cutover
+- eliminato il bridge engine-side `ReviewPatchRustBridge.swift`
+- DTO patch runtime consolidati in `VerifiedFindingsCanonicalStore.swift`
+- queue context rust consolidato in `VerifiedFindingsLifecycleCommandService.swift`
+- runtime start/result e fallback `close_finding` consolidati in `VerifiedFindingsPatchExecutionService.swift`
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

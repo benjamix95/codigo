@@ -71,3 +71,170 @@ public actor VerifiedFindingsCanonicalStore {
         )
     }
 }
+
+struct ReviewPatchRustRequest: Encodable {
+    let schemaVersion: Int
+    let operation: String
+    let action: String
+    let sessionId: String
+    let findingId: String
+    let conversationId: String?
+    let snapshot: ReviewPatchRustSnapshot
+}
+
+public struct ReviewPatchRuntimeStartRequest: Encodable {
+    public let schemaVersion: Int
+    public let action: String
+    public let sessionId: String
+    public let findingId: String
+    public let conversationId: String?
+    public let snapshot: ReviewPatchRustSnapshot
+
+    public init(
+        schemaVersion: Int,
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: String?,
+        snapshot: ReviewPatchRustSnapshot
+    ) {
+        self.schemaVersion = schemaVersion
+        self.action = action
+        self.sessionId = sessionId
+        self.findingId = findingId
+        self.conversationId = conversationId
+        self.snapshot = snapshot
+    }
+}
+
+public struct ReviewPatchRuntimeResultRequest: Encodable {
+    public let schemaVersion: Int
+    public let runtimeId: String
+    public let succeeded: Bool
+    public let errorMessage: String?
+
+    public init(
+        schemaVersion: Int,
+        runtimeId: String,
+        succeeded: Bool,
+        errorMessage: String?
+    ) {
+        self.schemaVersion = schemaVersion
+        self.runtimeId = runtimeId
+        self.succeeded = succeeded
+        self.errorMessage = errorMessage
+    }
+}
+
+struct ReviewPatchRuntimeStateRequest: Encodable {
+    let schemaVersion: Int
+    let runtimeId: String
+}
+
+public struct ReviewPatchRustSnapshot: Encodable {
+    public let sessionId: String
+    public let conversationId: String?
+    public let findingIds: [String]
+    public let candidateIds: [String]
+    public let patches: [ReviewPatchRustPatch]
+    public let findings: [ReviewPatchRustFinding]
+
+    public init(snapshot: CodeReviewSessionSnapshot) {
+        self.sessionId = snapshot.sessionId
+        self.conversationId = snapshot.conversationId?.uuidString.lowercased()
+        self.findingIds = snapshot.findings.map(\.id)
+        self.candidateIds = snapshot.candidates.map(\.id)
+        self.patches = snapshot.patches.map {
+            ReviewPatchRustPatch(
+                id: $0.id,
+                findingId: $0.findingId,
+                status: $0.status.rawValue,
+                verifyStatus: $0.verifyStatus.rawValue,
+                validationStatus: $0.validationStatus.rawValue,
+                riskScore: $0.riskScore
+            )
+        }
+        self.findings = snapshot.findings.map {
+            ReviewPatchRustFinding(
+                id: $0.id,
+                status: $0.status.rawValue,
+                severity: $0.severity.rawValue,
+                category: $0.category.rawValue,
+                message: $0.message,
+                patchArtifactId: $0.patchArtifactId
+            )
+        }
+    }
+}
+
+public struct ReviewPatchRustPatch: Encodable {
+    public let id: String
+    public let findingId: String
+    public let status: String
+    public let verifyStatus: String
+    public let validationStatus: String
+    public let riskScore: Double
+
+    public init(
+        id: String,
+        findingId: String,
+        status: String,
+        verifyStatus: String,
+        validationStatus: String,
+        riskScore: Double
+    ) {
+        self.id = id
+        self.findingId = findingId
+        self.status = status
+        self.verifyStatus = verifyStatus
+        self.validationStatus = validationStatus
+        self.riskScore = riskScore
+    }
+}
+
+public struct ReviewPatchRustFinding: Encodable {
+    public let id: String
+    public let status: String
+    public let severity: String
+    public let category: String
+    public let message: String
+    public let patchArtifactId: String?
+
+    public init(
+        id: String,
+        status: String,
+        severity: String,
+        category: String,
+        message: String,
+        patchArtifactId: String?
+    ) {
+        self.id = id
+        self.status = status
+        self.severity = severity
+        self.category = category
+        self.message = message
+        self.patchArtifactId = patchArtifactId
+    }
+}
+
+public struct ReviewPatchRustResponse: Decodable {
+    public let isError: Bool
+    public let errorCode: String?
+    public let errorMessage: String?
+    public let steps: [String]
+    public let patchId: String?
+    public let patchVerifyStatus: String?
+    public let patchRiskScore: Double?
+    public let findingSeverity: String?
+    public let findingCategory: String?
+    public let findingMessage: String?
+}
+
+public struct ReviewPatchRuntimeResponse: Decodable {
+    public let isError: Bool
+    public let errorCode: String?
+    public let errorMessage: String?
+    public let runtimeId: String?
+    public let status: String
+    public let currentStep: String?
+}

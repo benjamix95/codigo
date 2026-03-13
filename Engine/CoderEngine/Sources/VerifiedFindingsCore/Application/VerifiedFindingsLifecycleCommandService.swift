@@ -177,7 +177,7 @@ public enum VerifiedFindingsLifecycleCommandService {
         guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
             return nil
         }
-        guard let response = ReviewPatchRustBridge.queueContext(
+        guard let response = queuePatchContextWithRust(
             action: action,
             sessionId: sessionId,
             findingId: findingId,
@@ -220,6 +220,27 @@ public enum VerifiedFindingsLifecycleCommandService {
             findingId: findingId,
             conversationId: conversationId,
             payload: payload
+        )
+    }
+
+    private static func queuePatchContextWithRust(
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        snapshot: CodeReviewSessionSnapshot
+    ) -> ReviewPatchRustResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_patch_workflow",
+            request: ReviewPatchRustRequest(
+                schemaVersion: 1,
+                operation: "queue_context",
+                action: action,
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: conversationId?.uuidString.lowercased(),
+                snapshot: ReviewPatchRustSnapshot(snapshot: snapshot)
+            )
         )
     }
 

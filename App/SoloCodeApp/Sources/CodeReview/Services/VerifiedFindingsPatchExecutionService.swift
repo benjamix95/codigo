@@ -3,14 +3,7 @@ import Foundation
 
 @MainActor
 enum VerifiedFindingsPatchExecutionService {
-    typealias ExecuteHandler = @MainActor (
-        String,
-        CodeReviewSessionSnapshot,
-        String,
-        String,
-        String?,
-        ProviderRegistry
-    ) async throws -> CodeReviewSessionSnapshot
+    typealias ExecuteHandler = @MainActor (String, CodeReviewSessionSnapshot, String, String, String?, ProviderRegistry) async throws -> CodeReviewSessionSnapshot
 
     static var executeHandler: ExecuteHandler = defaultExecute
 
@@ -35,7 +28,6 @@ enum VerifiedFindingsPatchExecutionService {
     static func resetForTests() {
         executeHandler = defaultExecute
     }
-
     private static func defaultExecute(
         action: String,
         snapshot: CodeReviewSessionSnapshot,
@@ -45,7 +37,7 @@ enum VerifiedFindingsPatchExecutionService {
         providerRegistry: ProviderRegistry
     ) async throws -> CodeReviewSessionSnapshot {
         let service = ReviewPatchWorkflowService()
-        let runtime = ReviewPatchRustBridge.startRuntime(
+        let runtime = startPatchRuntime(
             action: action,
             sessionId: snapshot.sessionId,
             findingId: findingId,
@@ -53,6 +45,12 @@ enum VerifiedFindingsPatchExecutionService {
             snapshot: snapshot
         )
         guard let runtime else {
+            if action == "close_finding" {
+                return try VerifiedFindingsService.closeFinding(
+                    snapshot: snapshot,
+                    findingId: findingId
+                )
+            }
             throw ReviewPatchWorkflowError.invalidPatch
         }
         if runtime.isError {
@@ -80,25 +78,25 @@ enum VerifiedFindingsPatchExecutionService {
                     throw ReviewPatchWorkflowError.invalidPatch
                 }
                 let verified = try await service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                currentSnapshot = upsertingPatch(in: currentSnapshot, artifact: verified)
+                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: verified)
             case "apply_patch":
                 guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                     throw ReviewPatchWorkflowError.invalidPatch
                 }
                 let applied = try await service.applyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                currentSnapshot = upsertingPatch(in: currentSnapshot, artifact: applied)
+                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: applied)
             case "revalidate_finding":
                 guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                     throw ReviewPatchWorkflowError.invalidPatch
                 }
                 let revalidated = try await service.revalidatePatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                currentSnapshot = upsertingPatch(in: currentSnapshot, artifact: revalidated)
+                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: revalidated)
             case "rollback_patch":
                 guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                     throw ReviewPatchWorkflowError.invalidPatch
                 }
                 let rolledBack = try await service.rollbackPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                currentSnapshot = upsertingPatch(in: currentSnapshot, artifact: rolledBack)
+                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: rolledBack)
             case "open_pr":
                 guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }),
                       let finding = currentSnapshot.findings.first(where: { $0.id == findingId }) else {
@@ -112,7 +110,7 @@ enum VerifiedFindingsPatchExecutionService {
                     body: body,
                     workspaceRoot: workspaceRoot
                 )
-                currentSnapshot = upsertingPatch(in: currentSnapshot, artifact: opened)
+                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: opened)
             case "merge_pr":
                 guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                     throw ReviewPatchWorkflowError.invalidPatch
@@ -124,7 +122,7 @@ enum VerifiedFindingsPatchExecutionService {
                     workspaceRoot: workspaceRoot,
                     safeOnly: true
                 )
-                currentSnapshot = upsertingPatch(in: currentSnapshot, artifact: merged)
+                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: merged)
             case "resolve_conflicts":
                 guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                     throw ReviewPatchWorkflowError.invalidPatch
@@ -134,16 +132,16 @@ enum VerifiedFindingsPatchExecutionService {
                     preferredProviderId: preferredProviderId,
                     providerRegistry: providerRegistry
                 )
-                currentSnapshot = upsertingPatch(in: currentSnapshot, artifact: resolved)
+                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: resolved)
             case "close_finding":
-                currentSnapshot = try closeFinding(
+                currentSnapshot = try VerifiedFindingsService.closeFinding(
                     snapshot: currentSnapshot,
                     findingId: findingId
                 )
             default:
                 break
             }
-                let updated = ReviewPatchRustBridge.applyRuntimeResult(
+                let updated = applyPatchRuntimeResult(
                     runtimeId: runtimeId ?? "",
                     succeeded: true,
                     errorMessage: nil
@@ -151,7 +149,7 @@ enum VerifiedFindingsPatchExecutionService {
                 runtimeId = updated?.runtimeId ?? runtimeId
                 currentStep = updated?.currentStep
             } catch {
-                let failed = ReviewPatchRustBridge.applyRuntimeResult(
+                let failed = applyPatchRuntimeResult(
                     runtimeId: runtimeId ?? "",
                     succeeded: false,
                     errorMessage: error.localizedDescription
@@ -162,44 +160,6 @@ enum VerifiedFindingsPatchExecutionService {
             }
         }
         return currentSnapshot
-    }
-
-    static func upsertingPatch(
-        in snapshot: CodeReviewSessionSnapshot,
-        artifact: ReviewPatchArtifact
-    ) -> CodeReviewSessionSnapshot {
-        var patches = snapshot.patches
-        if let index = patches.firstIndex(where: { $0.id == artifact.id || $0.findingId == artifact.findingId }) {
-            patches[index] = artifact
-        } else {
-            patches.append(artifact)
-        }
-
-        var findings = snapshot.findings
-        if let index = findings.firstIndex(where: { $0.id == artifact.findingId }) {
-            findings[index].patchArtifactId = artifact.id
-            findings[index].status = switch artifact.status {
-            case .draft: .patchPreparing
-            case .verified: .patchReady
-            case .applied: .patchApplied
-            case .applyFailed: .patchFailed
-            case .prOpened: .prOpened
-            case .merged: .merged
-            case .conflict, .rolledBack: .blocked
-            }
-        }
-
-        return snapshot.copying(
-            findings: findings,
-            patches: patches,
-            events: snapshot.events + [
-                CodeReviewSessionEvent.patchPrepared(
-                    patchId: artifact.id,
-                    findingId: artifact.findingId
-                ),
-            ],
-            outcome: snapshot.copying(findings: findings, patches: patches).buildOutcomeSummary()
-        )
     }
 
     private static func preparePatch(
@@ -221,50 +181,41 @@ enum VerifiedFindingsPatchExecutionService {
             workspaceRoot: workspaceRoot
         )
         let verified = try await service.verifyPatch(artifact: prepared, workspaceRoot: workspaceRoot)
-        return upsertingPatch(in: snapshot, artifact: verified)
+        return VerifiedFindingsService.upsertingPatch(in: snapshot, artifact: verified)
     }
 
-    private static func closeFinding(
-        snapshot: CodeReviewSessionSnapshot,
-        findingId: String
-    ) throws -> CodeReviewSessionSnapshot {
-        guard let findingIndex = snapshot.findings.firstIndex(where: { $0.id == findingId }) else {
-            throw ReviewPatchWorkflowError.reviewNotVerified
-        }
-        let currentStatus = snapshot.findings[findingIndex].status
-        let patch = snapshot.findings[findingIndex].patchArtifactId.flatMap { patchId in
-            snapshot.patches.first(where: { $0.id == patchId })
-        } ?? snapshot.patches.first(where: { $0.findingId == findingId })
-
-        let canClose: Bool
-        switch currentStatus {
-        case .merged, .dismissed, .wontFix, .closed:
-            canClose = true
-        case .patchApplied, .fixApplied:
-            canClose = patch?.validationStatus == .passed
-        default:
-            canClose = false
-        }
-        guard canClose else {
-            throw ReviewPatchWorkflowError.applyFailed("Finding cannot be closed until the patch is validated or the finding is already resolved.")
-        }
-
-        var findings = snapshot.findings
-        findings[findingIndex].status = .closed
-        let updated = snapshot.copying(
-            findings: findings,
-            events: snapshot.events + [
-                CodeReviewSessionEvent(
-                    type: .outcomePublished,
-                    detail: "Finding \(findingId) closed",
-                    metadata: ["finding_id": findingId, "reason": "closed"]
-                )
-            ]
+    private static func startPatchRuntime(
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        snapshot: CodeReviewSessionSnapshot
+    ) -> ReviewPatchRuntimeResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_patch_start_runtime",
+            request: ReviewPatchRuntimeStartRequest(
+                schemaVersion: 1,
+                action: action,
+                sessionId: sessionId,
+                findingId: findingId,
+                conversationId: conversationId?.uuidString.lowercased(),
+                snapshot: ReviewPatchRustSnapshot(snapshot: snapshot)
+            )
         )
-        return updated.copying(
-            mutationSequence: updated.mutationSequence,
-            outcome: updated.buildOutcomeSummary(),
-            lastUpdatedAt: Date()
+    }
+    private static func applyPatchRuntimeResult(
+        runtimeId: String,
+        succeeded: Bool,
+        errorMessage: String?
+    ) -> ReviewPatchRuntimeResponse? {
+        ReviewCoreBridge.call(
+            functionName: "review_core_patch_apply_runtime_result",
+            request: ReviewPatchRuntimeResultRequest(
+                schemaVersion: 1,
+                runtimeId: runtimeId,
+                succeeded: succeeded,
+                errorMessage: errorMessage
+            )
         )
     }
 }

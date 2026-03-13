@@ -54,7 +54,7 @@ enum ReviewPatchRuntimeFinalizationService {
                     artifact: prepared,
                     workspaceRoot: workspaceRoot
                 )
-                current = VerifiedFindingsPatchExecutionService.upsertingPatch(
+                current = VerifiedFindingsService.upsertingPatch(
                     in: current,
                     artifact: verified
                 )
