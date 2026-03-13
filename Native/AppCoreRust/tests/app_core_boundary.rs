@@ -37,6 +37,7 @@ fn boundary_audit_flags_new_non_ui_swift_file() {
         ],
         new_files: vec!["App/SoloCodeApp/Sources/Runtime/NewLogic.swift".to_string()],
         enforce_legacy_zero_prefixes: vec![],
+        legacy_non_ui_budget_by_prefix: Default::default(),
     }))
     .expect("boundary dispatch should succeed");
 
@@ -72,6 +73,7 @@ fn boundary_audit_keeps_existing_non_ui_swift_as_legacy() {
         candidate_files: vec!["Engine/CoderEngine/Sources/CodeReview/LegacyService.swift".to_string()],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec![],
+        legacy_non_ui_budget_by_prefix: Default::default(),
     }))
     .expect("boundary dispatch should succeed");
 
@@ -117,6 +119,7 @@ fn boundary_audit_enforces_zero_legacy_for_review_prefixes() {
         candidate_files: vec!["App/SoloCodeApp/Sources/Panels/CodeReview/Views/AllowedView.swift".to_string()],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Panels/CodeReview".to_string()],
+        legacy_non_ui_budget_by_prefix: Default::default(),
     }))
     .expect("boundary dispatch should succeed");
 
@@ -128,6 +131,43 @@ fn boundary_audit_enforces_zero_legacy_for_review_prefixes() {
         report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Panels/CodeReview"),
         Some(&2)
     );
+    assert_eq!(report.summary.budget_exceeded_legacy_non_ui_files, 2);
+}
+
+#[test]
+fn boundary_audit_allows_tranche_when_legacy_budget_is_not_exceeded() {
+    let workspace = make_workspace("budgeted-review-prefix");
+    write_file(
+        &workspace,
+        "Config/validation/rust-cutover-swift-allowlist.txt",
+        "ui_view|App/SoloCodeApp/Sources/**/Views/**|SwiftUI views only\n",
+    );
+    write_file(
+        &workspace,
+        "Engine/CoderEngine/Sources/CodeReview/LegacyAudit.swift",
+        "import Foundation\nstruct LegacyAudit {}\n",
+    );
+
+    let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
+        workspace_root: workspace.to_string_lossy().to_string(),
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec!["Engine/CoderEngine/Sources/CodeReview/LegacyAudit.swift".to_string()],
+        new_files: vec![],
+        enforce_legacy_zero_prefixes: vec!["Engine/CoderEngine/Sources/CodeReview".to_string()],
+        legacy_non_ui_budget_by_prefix: std::collections::BTreeMap::from([(
+            "Engine/CoderEngine/Sources/CodeReview".to_string(),
+            1,
+        )]),
+    }))
+    .expect("boundary dispatch should succeed");
+
+    let AppCoreResponse::BoundaryAudit(report) = response;
+    assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
+    assert_eq!(report.summary.budget_exceeded_legacy_non_ui_files, 0);
+    assert!(report.budget_exceeded_prefix_counts.is_empty());
 }
 
 fn make_workspace(label: &str) -> PathBuf {

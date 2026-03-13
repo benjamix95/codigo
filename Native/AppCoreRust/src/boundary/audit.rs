@@ -9,6 +9,7 @@ pub fn audit_request(request: BoundaryAuditRequest) -> Result<BoundaryAuditRespo
     let workspace = PathBuf::from(&request.workspace_root);
     let allowlist = load_allowlist(Path::new(&request.allowlist_path))?;
     let enforced_prefixes = normalize_prefixes(&request.enforce_legacy_zero_prefixes);
+    let budgets = normalize_budgets(&request.legacy_non_ui_budget_by_prefix);
     let candidate_files = collect_candidate_files(&workspace, &request.candidate_files, &enforced_prefixes)?;
     let new_files = request.new_files.into_iter().collect::<BTreeSet<_>>();
 
@@ -48,11 +49,14 @@ pub fn audit_request(request: BoundaryAuditRequest) -> Result<BoundaryAuditRespo
     }
 
     findings.sort_by(|lhs, rhs| lhs.path.cmp(&rhs.path));
+    let budget_exceeded_prefix_counts = budget_exceeded_counts(&enforced_prefix_counts, &budgets);
+    summary.budget_exceeded_legacy_non_ui_files = budget_exceeded_prefix_counts.values().sum();
     Ok(BoundaryAuditResponse {
         summary,
         findings,
         legacy_domain_counts,
         enforced_prefix_counts,
+        budget_exceeded_prefix_counts,
     })
 }
 
@@ -64,6 +68,10 @@ pub fn format_text_report(report: &BoundaryAuditResponse) -> String {
         format!("Legacy non-UI: {}", report.summary.legacy_non_ui_files),
         format!("Nuove violazioni: {}", report.summary.new_non_ui_files),
         format!("Legacy hard-fail attivi: {}", report.summary.enforced_legacy_non_ui_files),
+        format!(
+            "Legacy oltre budget nel tranche gate: {}",
+            report.summary.budget_exceeded_legacy_non_ui_files
+        ),
     ];
 
     if !report.legacy_domain_counts.is_empty() {
@@ -76,6 +84,13 @@ pub fn format_text_report(report: &BoundaryAuditResponse) -> String {
     if !report.enforced_prefix_counts.is_empty() {
         lines.push("Legacy non-UI nei prefix hard-fail:".to_string());
         for (prefix, count) in &report.enforced_prefix_counts {
+            lines.push(format!("- {prefix}: {count}"));
+        }
+    }
+
+    if !report.budget_exceeded_prefix_counts.is_empty() {
+        lines.push("Legacy non-UI oltre budget nei prefix hard-fail:".to_string());
+        for (prefix, count) in &report.budget_exceeded_prefix_counts {
             lines.push(format!("- {prefix}: {count}"));
         }
     }
@@ -178,9 +193,35 @@ fn normalize_prefixes(prefixes: &[String]) -> Vec<String> {
         .collect()
 }
 
+fn normalize_budgets(input: &BTreeMap<String, usize>) -> BTreeMap<String, usize> {
+    input
+        .iter()
+        .map(|(prefix, budget)| {
+            (
+                prefix.trim().trim_start_matches("./").trim_end_matches('/').to_string(),
+                *budget,
+            )
+        })
+        .filter(|(prefix, _)| !prefix.is_empty())
+        .collect()
+}
+
 fn matching_enforced_prefix<'a>(path: &str, prefixes: &'a [String]) -> Option<&'a str> {
     prefixes
         .iter()
         .find(|prefix| path == prefix.as_str() || path.starts_with(&format!("{prefix}/")))
         .map(String::as_str)
+}
+
+fn budget_exceeded_counts(
+    current_counts: &BTreeMap<String, usize>,
+    budgets: &BTreeMap<String, usize>,
+) -> BTreeMap<String, usize> {
+    current_counts
+        .iter()
+        .filter_map(|(prefix, count)| {
+            let budget = budgets.get(prefix).copied().unwrap_or(0);
+            (*count > budget).then(|| (prefix.clone(), count - budget))
+        })
+        .collect()
 }

@@ -47,3 +47,13 @@
 - comportamento atteso della tranche:
   - fuori dal dominio review: restano bloccati solo i nuovi file Swift non-UI
   - dentro il dominio review: il backlog legacy diventa errore hard-fail fino al drenaggio reale verso Rust
+
+## Avanzamento tranche 3 review cutover
+- il gate review non usa piu' il criterio "zero legacy in un solo commit"
+- quando il diff tocca uno dei prefissi review, la validation:
+  - calcola la baseline dei file Swift legacy del prefisso su `HEAD`
+  - impone un budget di tranche pari a `baseline - 1`
+  - fallisce se il nuovo diff non riduce il backlog almeno di 1
+- risultato operativo:
+  - il target finale resta `zero Swift non-UI`
+  - il dominio review torna migrabile in passi piccoli, ciascuno obbligato a ridurre il debito rispetto alla baseline precedente

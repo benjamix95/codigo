@@ -13,6 +13,7 @@ REVIEW_CUTOVER_PREFIXES=(
   "Engine/CoderEngine/Sources/VerifiedFindingsCore"
   "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview"
 )
+ALLOWLIST_PATH="Config/validation/rust-cutover-swift-allowlist.txt"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -57,6 +58,7 @@ if [[ -n "$candidate_files" ]]; then
 fi
 
 enforced_prefixes=""
+baseline_budget_prefixes=""
 if [[ -n "$candidate_files" ]]; then
   while IFS= read -r file; do
     [[ -z "$file" ]] && continue
@@ -65,7 +67,59 @@ if [[ -n "$candidate_files" ]]; then
         enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
       fi
     done
-  done < <(printf '%s' "$candidate_files" | tr ',' '\n')
+  done < <(printf '%s\n' "$candidate_files" | tr ',' '\n')
+fi
+
+if [[ -n "$enforced_prefixes" ]]; then
+  baseline_workspace="$(mktemp -d "${TMPDIR%/}/review-cutover-baseline.XXXXXX")"
+  mkdir -p "$baseline_workspace/Config/validation"
+  cp "$ALLOWLIST_PATH" "$baseline_workspace/$ALLOWLIST_PATH"
+  baseline_candidate_files=""
+  while IFS= read -r prefix; do
+    [[ -z "$prefix" ]] && continue
+    prefix_head_files="$(
+      git ls-tree -r --name-only HEAD -- "$prefix" |
+        rg '\.swift$' |
+        paste -sd, - || true
+    )"
+    if [[ -n "$prefix_head_files" ]]; then
+      baseline_candidate_files="$(
+        printf '%s\n%s\n' "$baseline_candidate_files" "$prefix_head_files" |
+          tr ',' '\n' |
+          awk 'NF && !seen[$0]++' |
+          paste -sd, -
+      )"
+    fi
+  done < <(printf '%s\n' "$enforced_prefixes" | tr ',' '\n')
+
+  baseline_json="$(
+    cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutover_guard -- \
+      --workspace "$baseline_workspace" \
+      --allowlist "$baseline_workspace/$ALLOWLIST_PATH" \
+      --candidate-files "$baseline_candidate_files" \
+      --enforce-legacy-zero-prefixes "$enforced_prefixes" \
+      --format json
+  )" || {
+    rm -rf "$baseline_workspace"
+    echo "$baseline_json" >&2
+    exit 1
+  }
+
+  baseline_budget_prefixes="$(
+    python3 - <<'PY' "$baseline_json"
+import json
+import sys
+
+payload = json.loads(sys.argv[1] or "{}")
+counts = payload.get("enforced_prefix_counts") or {}
+parts = []
+for prefix in sorted(counts):
+    budget = max(int(counts[prefix]) - 1, 0)
+    parts.append(f"{prefix}={budget}")
+print(";".join(parts))
+PY
+  )"
+  rm -rf "$baseline_workspace"
 fi
 
 cargo test --manifest-path Native/AppCoreRust/Cargo.toml >/tmp/solocode-rust-cutover-guard-tests.log 2>&1 || {
@@ -75,7 +129,7 @@ cargo test --manifest-path Native/AppCoreRust/Cargo.toml >/tmp/solocode-rust-cut
 
 guard_args=(
   --workspace "$WORKSPACE"
-  --allowlist "Config/validation/rust-cutover-swift-allowlist.txt"
+  --allowlist "$ALLOWLIST_PATH"
   --candidate-files "$candidate_files"
   --new-files "$new_files"
   --format "$FORMAT"
@@ -83,6 +137,7 @@ guard_args=(
 
 if [[ -n "$enforced_prefixes" ]]; then
   guard_args+=(--enforce-legacy-zero-prefixes "$enforced_prefixes")
+  [[ -n "$baseline_budget_prefixes" ]] && guard_args+=(--legacy-budget-prefixes "$baseline_budget_prefixes")
 fi
 
 cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutover_guard -- \

@@ -23,6 +23,8 @@ pub struct BoundaryAuditRequest {
     pub new_files: Vec<String>,
     #[serde(default)]
     pub enforce_legacy_zero_prefixes: Vec<String>,
+    #[serde(default)]
+    pub legacy_non_ui_budget_by_prefix: BTreeMap<String, usize>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -33,6 +35,7 @@ pub struct BoundaryAuditSummary {
     pub legacy_non_ui_files: usize,
     pub new_non_ui_files: usize,
     pub enforced_legacy_non_ui_files: usize,
+    pub budget_exceeded_legacy_non_ui_files: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -70,4 +73,6 @@ pub struct BoundaryAuditResponse {
     pub legacy_domain_counts: BTreeMap<String, usize>,
     #[serde(default)]
     pub enforced_prefix_counts: BTreeMap<String, usize>,
+    #[serde(default)]
+    pub budget_exceeded_prefix_counts: BTreeMap<String, usize>,
 }
