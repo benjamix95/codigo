@@ -2,6 +2,7 @@ mod common;
 mod plan_state;
 mod review_command;
 mod review_core;
+mod review_panel_git;
 mod review_history;
 mod review_mcp;
 mod review_panel;

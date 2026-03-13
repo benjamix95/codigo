@@ -1579,7 +1579,6 @@
 		E9DA61D2AD1489EEFB30074F /* CodebaseIndexIndexingTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D04AFF5697FBC4C8F81C426 /* CodebaseIndexIndexingTransactionTests.swift */; };
 		E9F64DE6B91DB0B443E2481F /* ContextCompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03355FA5DECCA5837B5C251E /* ContextCompressor.swift */; };
 		E9FF29FE2BFEC5880ACAD6E4 /* EditorPlaceholderView+Diff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15690B1F6B70E4ABFE9C603F /* EditorPlaceholderView+Diff.swift */; };
-		EA04BC2722B23A20F26F743F /* CodeReviewPanelStore+GitContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6DB2B690B7C37745FBDDD8 /* CodeReviewPanelStore+GitContext.swift */; };
 		EA0D1A6362738FE20392CB26 /* FileNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB35AED1E01D29F0404B7235 /* FileNode.swift */; };
 		EA22B09805FD2F0CC85F060F /* GitPanelView+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5072184472C7FF5194AD0D53 /* GitPanelView+Header.swift */; };
 		EA37354EE7AC18522308D4F8 /* CodeReviewPromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B0F87BC26C2FA87A55066DB /* CodeReviewPromptBuilder.swift */; };
@@ -3373,7 +3372,6 @@
 		E9B64AC68D929809CD989C98 /* ExecutionController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExecutionController.swift; path = Engine/CoderEngine/Sources/Runtime/ExecutionController.swift; sourceTree = "<group>"; };
 		E9CEFB2292DE942FB250C8D0 /* AgentActionEnvelopeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AgentActionEnvelopeTests.swift; path = Tests/CoderEngineTests/Pipeline/Contracts/AgentActionEnvelopeTests.swift; sourceTree = "<group>"; };
 		EA2257FEC5292E2F65BB9D38 /* PrimaryTextBlockView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PrimaryTextBlockView.swift; path = App/SoloCodeApp/Sources/Chat/Timeline/Blocks/PrimaryTextBlockView.swift; sourceTree = "<group>"; };
-		EA6DB2B690B7C37745FBDDD8 /* CodeReviewPanelStore+GitContext.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+GitContext.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+GitContext.swift"; sourceTree = "<group>"; };
 		EA818A8BBA1902B2568EF2E3 /* PipelineJobFactory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineJobFactory.swift; path = Engine/CoderEngine/Sources/Pipeline/Bridge/PipelineJobFactory.swift; sourceTree = "<group>"; };
 		EA8C54032ACAEE983C53D131 /* SettingsView+Sync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SettingsView+Sync.swift"; path = "App/SoloCodeApp/Sources/Settings/Actions/SettingsView+Sync.swift"; sourceTree = "<group>"; };
 		EAA5E38767D1D35EDBA1D08A /* WorktreeMergeAIService+Prompts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "WorktreeMergeAIService+Prompts.swift"; path = "App/SoloCodeApp/Sources/Git/Worktree/Services/WorktreeMergeAIService+Prompts.swift"; sourceTree = "<group>"; };
@@ -4002,7 +4000,6 @@
 				D48499F9213134D5FF45229D /* CodeReviewPanelStore+ActionOutputFormatting.swift */,
 				257E65E57EE186D6C62F46F5 /* CodeReviewPanelStore+ChatFindings.swift */,
 				5000642BD2FD5C07E8A26094 /* CodeReviewPanelStore+ChatMessages.swift */,
-				EA6DB2B690B7C37745FBDDD8 /* CodeReviewPanelStore+GitContext.swift */,
 				6C3350A589709826A77B8417 /* CodeReviewPanelStore+History.swift */,
 				40A1D06CC0C8A6112D699E51 /* CodeReviewPanelStore+CompletionFinalization.swift */,
 				40A1D06CC0C8A6112D699E53 /* CodeReviewPanelStore+TargetedFix.swift */,
@@ -6959,7 +6956,6 @@
 				771070743562D288C622DBE0 /* CodeReviewPanelStore+ActionOutputFormatting.swift in Sources */,
 				752F97D2B8E91DEB30107A74 /* CodeReviewPanelStore+ChatFindings.swift in Sources */,
 				54D1232264C65934913C9363 /* CodeReviewPanelStore+ChatMessages.swift in Sources */,
-				EA04BC2722B23A20F26F743F /* CodeReviewPanelStore+GitContext.swift in Sources */,
 				FDDAC9A4B92984C2402224D3 /* CodeReviewPanelStore+History.swift in Sources */,
 				40A1D06CC0C8A6112D699E50 /* CodeReviewPanelStore+CompletionFinalization.swift in Sources */,
 				40A1D06CC0C8A6112D699E52 /* CodeReviewPanelStore+TargetedFix.swift in Sources */,

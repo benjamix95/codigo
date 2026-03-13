@@ -1,8 +1,37 @@
+import CoderEngine
 import Foundation
 
 // MARK: - Panel Settings Management
 
 extension CodeReviewPanelStore {
+    var historyAutomaticRefreshKey: String {
+        let workspaceKey = historyWorkspaceId ?? "no-workspace"
+        let sessionKey = selectedSessionId ?? "no-session"
+        return [workspaceKey, sessionKey].joined(separator: "|")
+    }
+
+    func scheduleHistoryLoadingState(
+        _ isLoading: Bool,
+        refreshKey: String
+    ) {
+        scheduleDeferredMutation { store in
+            guard store.historyAutomaticRefreshKey == refreshKey else { return }
+            guard store.isHistoryLoading != isLoading else { return }
+            store.isHistoryLoading = isLoading
+        }
+    }
+
+    func scheduleHistoricalFindingsSnapshot(
+        _ records: [HistoricalFindingRecord],
+        error: String?,
+        refreshKey: String
+    ) {
+        scheduleDeferredMutation { store in
+            guard store.historyAutomaticRefreshKey == refreshKey else { return }
+            store.historyRecords = records
+            store.historyLoadError = error
+        }
+    }
 
     /// Add a new custom command.
     func addCustomCommand(_ command: ReviewPanelCustomCommand) {

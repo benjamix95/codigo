@@ -18,6 +18,7 @@ mod review_chat;
 mod review_finalize;
 mod review_security_gate;
 mod review_history;
+mod review_git_context;
 mod review_sync;
 mod review_value;
 mod review_verify;

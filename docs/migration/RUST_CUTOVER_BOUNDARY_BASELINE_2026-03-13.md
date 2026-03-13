@@ -156,3 +156,19 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 12 review cutover
+- introdotto un boundary Rust dedicato per il Git context del panel review:
+  - `Native/RustCore/src/review_git_context.rs`
+  - `Native/RustCore/src/ffi/review_panel_git.rs`
+- assorbito `CodeReviewPanelStore+GitContext.swift` nei file store gia' esistenti:
+  - `CodeReviewPanelStore+ProviderSelection.swift`
+  - `CodeReviewPanelStore+Settings.swift`
+  - `CodeReviewPanelStore+TargetedFix.swift`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del panel review:
+  - prima della tranche: `26` file legacy non-UI
+  - dopo la tranche: `25` file legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
