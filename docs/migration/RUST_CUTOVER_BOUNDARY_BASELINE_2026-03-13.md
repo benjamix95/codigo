@@ -172,3 +172,15 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 13 review cutover
+- assorbito `CodeReviewPanelStore+PatchWorkflow.swift` nei file store gia' esistenti:
+  - `CodeReviewPanelStore+PatchWorkflow+Execution.swift`
+  - `CodeReviewPanelStore+Settings.swift`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del panel review:
+  - prima della tranche: `25` file legacy non-UI
+  - dopo la tranche: `24` file legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

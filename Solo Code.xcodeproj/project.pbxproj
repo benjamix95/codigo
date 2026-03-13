@@ -891,7 +891,6 @@
 		7C200DCAFAD18F9568487529 /* ChatPanelScrollSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4F1457889F0E5EBD17C5D45 /* ChatPanelScrollSafetyTests.swift */; };
 		7C421702A804ED3430BFF2C0 /* ProviderFactoryConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E83635CD0370F00FA23CFEA /* ProviderFactoryConfig.swift */; };
 		7C4231AA5339554B5B27A179 /* SemanticChunker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879C8ED97BF3DFBC8B9AD20A /* SemanticChunker.swift */; };
-		7C816CCDE2933FCE0DD10D15 /* CodeReviewPanelStore+PatchWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79EF5D1F1BF4B41E42E87D5E /* CodeReviewPanelStore+PatchWorkflow.swift */; };
 		7C8C4766D9C850E52BE5FAC3 /* ReviewPanelHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FB21D03EEDE7E382F65CD0 /* ReviewPanelHeader.swift */; };
 		7CBD269E3EF2421599464540 /* WebFetchService+NetworkPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4286FC1CA1ED2FC72265513F /* WebFetchService+NetworkPolicy.swift */; };
 		7CDCF45E7B0417F4C905651C /* CodebaseIndex+WorkspaceIndexing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DC8A5EC02731607E1786F5B /* CodebaseIndex+WorkspaceIndexing.swift */; };
@@ -2658,7 +2657,6 @@
 		7961760B0DD42380D67FA47A /* LanguageServiceTestDoubles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceTestDoubles.swift; path = Tests/SoloCodeAppTests/LanguageServiceTestDoubles.swift; sourceTree = "<group>"; };
 		79A33F439D47E4E2BA85A8DE /* ProviderSupportTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderSupportTests.swift; path = Tests/SoloCodeAppTests/ProviderSupportTests.swift; sourceTree = "<group>"; };
 		79B047094CEE2A0242573A1B /* CodexCLIProvider+Events.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProvider+Events.swift"; path = "Engine/CoderEngine/Sources/Providers/CodexCLI/StreamSupport/CodexCLIProvider+Events.swift"; sourceTree = "<group>"; };
-		79EF5D1F1BF4B41E42E87D5E /* CodeReviewPanelStore+PatchWorkflow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+PatchWorkflow.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+PatchWorkflow.swift"; sourceTree = "<group>"; };
 		7A0EF44CA3DA1992770ADBA7 /* MCPConfigLoader+CodexParsing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPConfigLoader+CodexParsing.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Config/Parsing/MCPConfigLoader+CodexParsing.swift"; sourceTree = "<group>"; };
 		7A765D2A9E8EBF0103F9E9DB /* UnifiedToolRuntime+SemanticHybridSources.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+SemanticHybridSources.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Index/Search/Semantic/Hybrid/UnifiedToolRuntime+SemanticHybridSources.swift"; sourceTree = "<group>"; };
 		7A8C7C0145336E4A66C6CADA /* ChatStorePlanAttachmentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStorePlanAttachmentTests.swift; path = Tests/SoloCodeAppTests/ChatStorePlanAttachmentTests.swift; sourceTree = "<group>"; };
@@ -4007,7 +4005,6 @@
 				40A1D06CC0C8A6112D699E57 /* CodeReviewPanelStore+PipelineJobState.swift */,
 				8E07335333853BF76CF9BE7B /* CodeReviewPanelStore+ModesAndChatThreads.swift */,
 				C589264786C4EA242E7849C5 /* CodeReviewPanelStore+PatchWorkflow+Execution.swift */,
-				79EF5D1F1BF4B41E42E87D5E /* CodeReviewPanelStore+PatchWorkflow.swift */,
 				8E8D5658698134D2EF586B70 /* CodeReviewPanelStore+ProviderSelection.swift */,
 				925C143F1EFC63B1CDEA45E3 /* CodeReviewPanelStore+Settings.swift */,
 				8C0CD6BB0B2629C6966BEB02 /* CodeReviewPanelStore+SnapshotMutation.swift */,
@@ -6963,7 +6960,6 @@
 				40A1D06CC0C8A6112D699E56 /* CodeReviewPanelStore+PipelineJobState.swift in Sources */,
 				4F4303DCCD641FAFBAE9ECA3 /* CodeReviewPanelStore+ModesAndChatThreads.swift in Sources */,
 				5C647009D201CF487505E44C /* CodeReviewPanelStore+PatchWorkflow+Execution.swift in Sources */,
-				7C816CCDE2933FCE0DD10D15 /* CodeReviewPanelStore+PatchWorkflow.swift in Sources */,
 				1F7A0B6043A34DF765EBD0D4 /* CodeReviewPanelStore+ProviderSelection.swift in Sources */,
 				C2BA1FB0414144D471292FE1 /* CodeReviewPanelStore+Settings.swift in Sources */,
 				8EF724D4053967080F03C585 /* CodeReviewPanelStore+SnapshotMutation.swift in Sources */,

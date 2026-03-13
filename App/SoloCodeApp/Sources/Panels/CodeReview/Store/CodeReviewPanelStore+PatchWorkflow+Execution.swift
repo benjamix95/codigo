@@ -2,6 +2,67 @@ import CoderEngine
 import Foundation
 
 extension CodeReviewPanelStore {
+    func preparePatch(sessionId: String, findingId: String) async {
+        guard workspaceStore.activeWorkspacePaths.first?.path != nil else {
+            await markPatchFailure(
+                sessionId: sessionId,
+                findingId: findingId,
+                message: ReviewPatchWorkflowError.missingWorkspace.localizedDescription
+            )
+            return
+        }
+        guard let snapshot = taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        ), snapshot.findings.contains(where: { $0.id == findingId }),
+        let workspaceRoot = workspaceStore.activeWorkspacePaths.first?.path else {
+            return
+        }
+
+        do {
+            let updated = try await VerifiedFindingsPatchExecutionService.execute(
+                action: "prepare_patch",
+                snapshot: snapshot,
+                findingId: findingId,
+                workspaceRoot: workspaceRoot,
+                preferredProviderId: effectivePanelProviderId,
+                providerRegistry: providerRegistry
+            )
+            await ingestUpdatedPatchSnapshot(updated)
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Patch pronta",
+                detail: "La patch proposta e il diff preview sono ora disponibili prima dell'apply.",
+                selectChatTab: false
+            )
+        } catch {
+            await markPatchFailure(
+                sessionId: sessionId,
+                findingId: findingId,
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    func applyPatch(sessionId: String, findingId: String) async {
+        guard let workspaceRoot = workspaceStore.activeWorkspacePaths.first?.path else {
+            await markPatchFailure(
+                sessionId: sessionId,
+                findingId: findingId,
+                message: ReviewPatchWorkflowError.missingWorkspace.localizedDescription
+            )
+            return
+        }
+        guard let artifact = patchesForSession(sessionId).first(where: { $0.findingId == findingId }) else {
+            await preparePatch(sessionId: sessionId, findingId: findingId)
+            guard let prepared = patchesForSession(sessionId).first(where: { $0.findingId == findingId }) else { return }
+            await applyPreparedPatch(sessionId: sessionId, artifact: prepared, workspaceRoot: workspaceRoot)
+            return
+        }
+        await applyPreparedPatch(sessionId: sessionId, artifact: artifact, workspaceRoot: workspaceRoot)
+    }
+
     func startBugHunterUncommitted() {
         guard let gitRoot = workspaceStore.activeWorkspacePaths.first?.path else { return }
         let runId = "bughunter-panel-\(UUID().uuidString.lowercased())"
