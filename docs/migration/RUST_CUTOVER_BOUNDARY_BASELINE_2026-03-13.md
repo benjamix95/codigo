@@ -67,3 +67,15 @@
 - la validation review passa con:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 5 review cutover
+- assorbito `CodeReviewPanelStore+RustHistoryLiveState.swift` in `CodeReviewPanelStore+PipelineJobState.swift`
+- corretto il boundary guard per il caso di file cancellati nel diff:
+  - il report corrente ignora i candidate gia' rimossi dal workspace
+  - il baseline `HEAD` puo' includerli tramite flag esplicito
+- conteggio osservato del panel review:
+  - prima della tranche: `33` file legacy non-UI
+  - dopo la tranche: `32` file legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

@@ -10,7 +10,12 @@ pub fn audit_request(request: BoundaryAuditRequest) -> Result<BoundaryAuditRespo
     let allowlist = load_allowlist(Path::new(&request.allowlist_path))?;
     let enforced_prefixes = normalize_prefixes(&request.enforce_legacy_zero_prefixes);
     let budgets = normalize_budgets(&request.legacy_non_ui_budget_by_prefix);
-    let candidate_files = collect_candidate_files(&workspace, &request.candidate_files, &enforced_prefixes)?;
+    let candidate_files = collect_candidate_files(
+        &workspace,
+        &request.candidate_files,
+        &enforced_prefixes,
+        request.include_missing_candidate_files,
+    )?;
     let new_files = request.new_files.into_iter().collect::<BTreeSet<_>>();
 
     let mut summary = BoundaryAuditSummary::default();
@@ -116,12 +121,14 @@ fn collect_candidate_files(
     workspace: &Path,
     candidate_files: &[String],
     enforced_prefixes: &[String],
+    include_missing_candidate_files: bool,
 ) -> Result<Vec<String>, String> {
     if !candidate_files.is_empty() {
         let mut collected = candidate_files
             .iter()
             .map(|file| file.trim().trim_start_matches("./").to_string())
             .filter(|file| !file.is_empty())
+            .filter(|file| include_missing_candidate_files || workspace.join(file).exists())
             .collect::<BTreeSet<_>>();
         collect_enforced_prefix_files(workspace, enforced_prefixes, &mut collected)?;
         return Ok(collected.into_iter().collect());

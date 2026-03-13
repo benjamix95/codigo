@@ -71,10 +71,7 @@ if [[ -n "$candidate_files" ]]; then
 fi
 
 if [[ -n "$enforced_prefixes" ]]; then
-  baseline_workspace="$(mktemp -d "${TMPDIR%/}/review-cutover-baseline.XXXXXX")"
   baseline_json_file="$(mktemp "${TMPDIR%/}/review-cutover-baseline-json.XXXXXX")"
-  mkdir -p "$baseline_workspace/Config/validation"
-  cp "$ALLOWLIST_PATH" "$baseline_workspace/$ALLOWLIST_PATH"
   baseline_candidate_files=""
   while IFS= read -r prefix; do
     [[ -z "$prefix" ]] && continue
@@ -95,22 +92,21 @@ if [[ -n "$enforced_prefixes" ]]; then
 
   set +e
   cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutover_guard -- \
-    --workspace "$baseline_workspace" \
-    --allowlist "$baseline_workspace/$ALLOWLIST_PATH" \
+    --workspace "$WORKSPACE" \
+    --allowlist "$ALLOWLIST_PATH" \
     --candidate-files "$baseline_candidate_files" \
     --enforce-legacy-zero-prefixes "$enforced_prefixes" \
+    --include-missing-candidate-files \
     --format json >"$baseline_json_file"
   baseline_status=$?
   set -e
   if [[ "$baseline_status" -ne 0 && "$baseline_status" -ne 2 ]]; then
     cat "$baseline_json_file" >&2
-    rm -rf "$baseline_workspace"
     rm -f "$baseline_json_file"
     exit 1
   fi
   baseline_json="$(cat "$baseline_json_file")"
   if [[ -z "$baseline_json" ]]; then
-    rm -rf "$baseline_workspace"
     rm -f "$baseline_json_file"
     exit 1
   fi
@@ -129,7 +125,6 @@ for prefix in sorted(counts):
 print(";".join(parts))
 PY
   )"
-  rm -rf "$baseline_workspace"
   rm -f "$baseline_json_file"
 fi
 

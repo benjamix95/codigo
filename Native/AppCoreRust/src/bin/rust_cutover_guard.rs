@@ -23,6 +23,7 @@ fn run() -> Result<ExitCode, String> {
         new_files: split_csv(&args.new_files),
         enforce_legacy_zero_prefixes: split_csv(&args.enforce_legacy_zero_prefixes),
         legacy_non_ui_budget_by_prefix: split_budget_csv(&args.legacy_budget_prefixes)?,
+        include_missing_candidate_files: args.include_missing_candidate_files,
     }))
     .map_err(|error| error.to_string())?;
 
@@ -49,6 +50,7 @@ struct Args {
     new_files: String,
     enforce_legacy_zero_prefixes: String,
     legacy_budget_prefixes: String,
+    include_missing_candidate_files: bool,
     format: String,
 }
 
@@ -59,20 +61,29 @@ fn parse_args(args: Vec<String>) -> Result<Args, String> {
     let mut new_files = String::new();
     let mut enforce_legacy_zero_prefixes = String::new();
     let mut legacy_budget_prefixes = String::new();
+    let mut include_missing_candidate_files = false;
     let mut format = "text".to_string();
     let mut index = 0usize;
 
     while index < args.len() {
         let key = &args[index];
-        let value = args.get(index + 1).cloned().unwrap_or_default();
         match key.as_str() {
-            "--workspace" => workspace = value,
-            "--allowlist" => allowlist = value,
-            "--candidate-files" => candidate_files = value,
-            "--new-files" => new_files = value,
-            "--enforce-legacy-zero-prefixes" => enforce_legacy_zero_prefixes = value,
-            "--legacy-budget-prefixes" => legacy_budget_prefixes = value,
-            "--format" => format = value,
+            "--include-missing-candidate-files" => {
+                include_missing_candidate_files = true;
+                index += 1;
+                continue;
+            }
+            "--workspace" => workspace = args.get(index + 1).cloned().unwrap_or_default(),
+            "--allowlist" => allowlist = args.get(index + 1).cloned().unwrap_or_default(),
+            "--candidate-files" => candidate_files = args.get(index + 1).cloned().unwrap_or_default(),
+            "--new-files" => new_files = args.get(index + 1).cloned().unwrap_or_default(),
+            "--enforce-legacy-zero-prefixes" => {
+                enforce_legacy_zero_prefixes = args.get(index + 1).cloned().unwrap_or_default()
+            }
+            "--legacy-budget-prefixes" => {
+                legacy_budget_prefixes = args.get(index + 1).cloned().unwrap_or_default()
+            }
+            "--format" => format = args.get(index + 1).cloned().unwrap_or_default(),
             other => return Err(format!("Argomento sconosciuto per rust_cutover_guard: {other}")),
         }
         index += 2;
@@ -89,6 +100,7 @@ fn parse_args(args: Vec<String>) -> Result<Args, String> {
         new_files,
         enforce_legacy_zero_prefixes,
         legacy_budget_prefixes,
+        include_missing_candidate_files,
         format,
     })
 }

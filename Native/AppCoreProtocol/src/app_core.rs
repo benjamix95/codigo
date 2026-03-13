@@ -25,6 +25,8 @@ pub struct BoundaryAuditRequest {
     pub enforce_legacy_zero_prefixes: Vec<String>,
     #[serde(default)]
     pub legacy_non_ui_budget_by_prefix: BTreeMap<String, usize>,
+    #[serde(default)]
+    pub include_missing_candidate_files: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]

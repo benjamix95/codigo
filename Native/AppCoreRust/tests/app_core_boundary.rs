@@ -38,6 +38,7 @@ fn boundary_audit_flags_new_non_ui_swift_file() {
         new_files: vec!["App/SoloCodeApp/Sources/Runtime/NewLogic.swift".to_string()],
         enforce_legacy_zero_prefixes: vec![],
         legacy_non_ui_budget_by_prefix: Default::default(),
+        include_missing_candidate_files: false,
     }))
     .expect("boundary dispatch should succeed");
 
@@ -74,6 +75,7 @@ fn boundary_audit_keeps_existing_non_ui_swift_as_legacy() {
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec![],
         legacy_non_ui_budget_by_prefix: Default::default(),
+        include_missing_candidate_files: false,
     }))
     .expect("boundary dispatch should succeed");
 
@@ -120,6 +122,7 @@ fn boundary_audit_enforces_zero_legacy_for_review_prefixes() {
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Panels/CodeReview".to_string()],
         legacy_non_ui_budget_by_prefix: Default::default(),
+        include_missing_candidate_files: false,
     }))
     .expect("boundary dispatch should succeed");
 
@@ -161,6 +164,7 @@ fn boundary_audit_allows_tranche_when_legacy_budget_is_not_exceeded() {
             "Engine/CoderEngine/Sources/CodeReview".to_string(),
             1,
         )]),
+        include_missing_candidate_files: false,
     }))
     .expect("boundary dispatch should succeed");
 
@@ -168,6 +172,78 @@ fn boundary_audit_allows_tranche_when_legacy_budget_is_not_exceeded() {
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
     assert_eq!(report.summary.budget_exceeded_legacy_non_ui_files, 0);
     assert!(report.budget_exceeded_prefix_counts.is_empty());
+}
+
+#[test]
+fn boundary_audit_ignores_missing_candidate_files() {
+    let workspace = make_workspace("missing-candidate-file");
+    write_file(
+        &workspace,
+        "Config/validation/rust-cutover-swift-allowlist.txt",
+        "ui_view|App/SoloCodeApp/Sources/**/Views/**|SwiftUI views only\n",
+    );
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Panels/CodeReview/Store/StillPresent.swift",
+        "import Foundation\nstruct StillPresent {}\n",
+    );
+
+    let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
+        workspace_root: workspace.to_string_lossy().to_string(),
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Panels/CodeReview/Store/Deleted.swift".to_string(),
+        ],
+        new_files: vec![],
+        enforce_legacy_zero_prefixes: vec![
+            "App/SoloCodeApp/Sources/Panels/CodeReview".to_string(),
+        ],
+        legacy_non_ui_budget_by_prefix: std::collections::BTreeMap::from([(
+            "App/SoloCodeApp/Sources/Panels/CodeReview".to_string(),
+            1,
+        )]),
+        include_missing_candidate_files: false,
+    }))
+    .expect("boundary dispatch should succeed");
+
+    let AppCoreResponse::BoundaryAudit(report) = response;
+    assert_eq!(report.summary.legacy_non_ui_files, 1);
+    assert_eq!(report.summary.budget_exceeded_legacy_non_ui_files, 0);
+}
+
+#[test]
+fn boundary_audit_can_include_missing_candidate_files_when_requested() {
+    let workspace = make_workspace("include-missing-candidate-file");
+    write_file(
+        &workspace,
+        "Config/validation/rust-cutover-swift-allowlist.txt",
+        "ui_view|App/SoloCodeApp/Sources/**/Views/**|SwiftUI views only\n",
+    );
+
+    let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
+        workspace_root: workspace.to_string_lossy().to_string(),
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Panels/CodeReview/Store/Deleted.swift".to_string(),
+        ],
+        new_files: vec![],
+        enforce_legacy_zero_prefixes: vec![
+            "App/SoloCodeApp/Sources/Panels/CodeReview".to_string(),
+        ],
+        legacy_non_ui_budget_by_prefix: Default::default(),
+        include_missing_candidate_files: true,
+    }))
+    .expect("boundary dispatch should succeed");
+
+    let AppCoreResponse::BoundaryAudit(report) = response;
+    assert_eq!(report.summary.legacy_non_ui_files, 1);
+    assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
 }
 
 fn make_workspace(label: &str) -> PathBuf {
