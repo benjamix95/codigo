@@ -117,3 +117,16 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 9 review cutover
+- assorbito `CodeReviewPanelStore+ChatSession.swift` nei file store gia' esistenti:
+  - `CodeReviewPanelStore+ChatMessages.swift`
+  - `CodeReviewPanelStore+SnapshotMutation.swift`
+  - `CodeReviewPanelStore+CompletionFinalization.swift`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del panel review:
+  - prima della tranche: `29` file legacy non-UI
+  - dopo la tranche: `28` file legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

@@ -2,6 +2,75 @@ import CoderEngine
 import Foundation
 
 extension CodeReviewPanelStore {
+    @MainActor
+    func normalizedPanelChatUserMessage(
+        _ userMessage: String,
+        selectedSessionId: String?
+    ) -> String {
+        guard let selectedSessionId,
+              makeAutoCodeReviewRequest(
+                userText: userMessage,
+                coderMode: .agent
+              ).prefersCodeReviewRuntimeProvider else {
+            return userMessage
+        }
+
+        return """
+        Treat the request as analysis over the CURRENT active review session.
+        Reuse session_id \(selectedSessionId) and the current findings context.
+        Do NOT call review_start or create a new review session unless the user explicitly asks for a new session or a new run.
+        If more evidence is needed, inspect files directly and update findings within the current session.
+
+        User request:
+        \(userMessage)
+        """
+    }
+
+    func buildChatPrompt(
+        userMessage: String,
+        sessionId: String? = nil
+    ) -> String {
+        let snapshot = snapshot(for: sessionId)
+        let findingsCount = snapshot?.findings.count ?? 0
+        let openCount = snapshot?.findings.filter { $0.status == .open }.count ?? 0
+        let candidateCount = snapshot?.candidates.count ?? 0
+        let patchCount = snapshot?.patches.count ?? 0
+
+        var summary = "Phase: \(snapshot?.phase.rawValue ?? "none")"
+        if let scope = snapshot?.scope {
+            summary += "\nScope: \(scope.description)"
+        }
+        summary += "\nCandidates: \(candidateCount)"
+        summary += "\nPatches: \(patchCount)"
+        if findingsCount > 0 {
+            let critCount = snapshot?.findings
+                .filter { $0.severity == .critical }.count ?? 0
+            let warnCount = snapshot?.findings
+                .filter { $0.severity == .warning }.count ?? 0
+            summary += "\nFindings breakdown: \(critCount) critical, \(warnCount) warning"
+        }
+
+        let findingsContext: String
+        if let findings = snapshot?.findings.prefix(10), !findings.isEmpty {
+            let lines = findings.map { f in
+                let line = f.lineNumber.map { ":\($0)" } ?? ""
+                return "[\(f.severity.rawValue)] \(f.filePath)\(line) - \(f.message)"
+            }
+            findingsContext = "\nRecent findings:\n" + lines.joined(separator: "\n")
+        } else {
+            findingsContext = ""
+        }
+
+        return ReviewPanelCoordinator.chatContextPrompt(
+            userMessage: userMessage,
+            sessionSummary: summary + findingsContext,
+            findingsCount: findingsCount,
+            openCount: openCount,
+            activeSessionId: sessionId ?? selectedSessionId,
+            conversationId: conversationId
+        )
+    }
+
     func applyFix(sessionId: String, findingId: String) async {
         await applyPatch(sessionId: sessionId, findingId: findingId)
     }
@@ -162,6 +231,14 @@ extension CodeReviewPanelStore {
         let minutes = elapsed / 60
         let seconds = elapsed % 60
         frozenTimerText = String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func snapshot(for sessionId: String?) -> CodeReviewSessionSnapshot? {
+        guard let sessionId else { return nil }
+        return taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        )
     }
 }
 

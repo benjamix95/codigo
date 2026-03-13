@@ -246,7 +246,6 @@
 		22630C309BEBD133FF9753F3 /* SemanticIndexTests+Tokenization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F4F9CBCF6F9B38CE517414E /* SemanticIndexTests+Tokenization.swift */; };
 		228992BF39D71D88750E2688 /* NativeDebugAdapter+Extended.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD5D9E595D3F14F5293FE57C /* NativeDebugAdapter+Extended.swift */; };
 		22B6BD62EBBE19CD31127B8B /* GitPanelStore+Stash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254EA42D4C708027864D9DCB /* GitPanelStore+Stash.swift */; };
-		2305B84208312FDB22015666 /* CodeReviewPanelStore+ChatSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42894895CEB3CE63A8ED9F2B /* CodeReviewPanelStore+ChatSession.swift */; };
 		231D3062F941DE530D00F87F /* OpenRouterModelPickerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F32D90F20AC31636B8191B3A /* OpenRouterModelPickerStore.swift */; };
 		234BA3D27EA11B751A6E8B1F /* CommandDeduplicationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B413304CCDA5379360D3697 /* CommandDeduplicationService.swift */; };
 		238A614EAB8B81BB474A151F /* VerifiedFindingsSharedStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B7B07B91620FD522783399 /* VerifiedFindingsSharedStateTests.swift */; };
@@ -2286,7 +2285,6 @@
 		427625A4F78A212D5265F8AE /* ToolEnabledLLMProvider+Policy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProvider+Policy.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/Policies/ToolEnabledLLMProvider+Policy.swift"; sourceTree = "<group>"; };
 		4276266DBE9FF0BA573F6515 /* ChatStoreStreamingTargetTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreStreamingTargetTests.swift; path = Tests/SoloCodeAppTests/ChatStoreStreamingTargetTests.swift; sourceTree = "<group>"; };
 		4286FC1CA1ED2FC72265513F /* WebFetchService+NetworkPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "WebFetchService+NetworkPolicy.swift"; path = "Engine/CoderEngine/Sources/Tools/Web/Fetch/WebFetchService+NetworkPolicy.swift"; sourceTree = "<group>"; };
-		42894895CEB3CE63A8ED9F2B /* CodeReviewPanelStore+ChatSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewPanelStore+ChatSession.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Store/CodeReviewPanelStore+ChatSession.swift"; sourceTree = "<group>"; };
 		42A1B3C3DD1E0332646E6C08 /* OpenAIAPIProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OpenAIAPIProviderTests.swift; path = Tests/CoderEngineTests/OpenAIAPIProviderTests.swift; sourceTree = "<group>"; };
 		42A6F43EF4D664A4B62BD479 /* RegressionStage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RegressionStage.swift; path = Engine/CoderEngine/Sources/Validation/Stages/RegressionStage.swift; sourceTree = "<group>"; };
 		42C98465DA9302BE09003DCF /* ChatPanelReasoningMergeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPanelReasoningMergeTests.swift; path = Tests/SoloCodeAppTests/ChatPanelReasoningMergeTests.swift; sourceTree = "<group>"; };
@@ -4009,7 +4007,6 @@
 				3354AFFCD0ECB4CC1B84A452 /* CodeReviewPanelStore+BugHunter.swift */,
 				257E65E57EE186D6C62F46F5 /* CodeReviewPanelStore+ChatFindings.swift */,
 				5000642BD2FD5C07E8A26094 /* CodeReviewPanelStore+ChatMessages.swift */,
-				42894895CEB3CE63A8ED9F2B /* CodeReviewPanelStore+ChatSession.swift */,
 				EA6DB2B690B7C37745FBDDD8 /* CodeReviewPanelStore+GitContext.swift */,
 				6C3350A589709826A77B8417 /* CodeReviewPanelStore+History.swift */,
 				156D66933E35A648D79074AA /* CodeReviewPanelStore+HistoryLive.swift */,
@@ -6969,7 +6966,6 @@
 				EC9367DA0A3F42AB59F47E00 /* CodeReviewPanelStore+BugHunter.swift in Sources */,
 				752F97D2B8E91DEB30107A74 /* CodeReviewPanelStore+ChatFindings.swift in Sources */,
 				54D1232264C65934913C9363 /* CodeReviewPanelStore+ChatMessages.swift in Sources */,
-				2305B84208312FDB22015666 /* CodeReviewPanelStore+ChatSession.swift in Sources */,
 				EA04BC2722B23A20F26F743F /* CodeReviewPanelStore+GitContext.swift in Sources */,
 				FDDAC9A4B92984C2402224D3 /* CodeReviewPanelStore+History.swift in Sources */,
 				60066CBCDC504DEA3BFE057B /* CodeReviewPanelStore+HistoryLive.swift in Sources */,

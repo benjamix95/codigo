@@ -2,6 +2,85 @@ import CoderEngine
 import Foundation
 
 extension CodeReviewPanelStore {
+    func insertLineInSection(
+        logPart: String,
+        heading: String,
+        line: String
+    ) -> String {
+        guard let headingRange = logPart.range(of: heading) else {
+            return logPart + "\n" + line + "\n"
+        }
+
+        let afterHeading = logPart[headingRange.upperBound...]
+        if let nextHeadingRange = afterHeading.range(of: "\n### ") {
+            let insertPoint = nextHeadingRange.lowerBound
+            var result = String(logPart[..<insertPoint])
+            if !result.hasSuffix("\n") { result += "\n" }
+            result += line + "\n"
+            result += String(logPart[insertPoint...])
+            return result
+        } else {
+            var result = logPart
+            if !result.hasSuffix("\n") { result += "\n" }
+            result += line + "\n"
+            return result
+        }
+    }
+
+    func isDuplicateLine(
+        _ line: String,
+        inSection sectionTitle: String,
+        ofLog logPart: String
+    ) -> Bool {
+        let heading = "### \(sectionTitle)"
+        guard let headingRange = logPart.range(of: heading) else {
+            return false
+        }
+        let afterHeading = logPart[headingRange.upperBound...]
+
+        let sectionContent: Substring
+        if let nextRange = afterHeading.range(of: "\n### ") {
+            sectionContent = afterHeading[..<nextRange.lowerBound]
+        } else {
+            sectionContent = afterHeading
+        }
+
+        return sectionContent.contains(line)
+    }
+
+    func setChatProcessing(_ isProcessing: Bool, startedAt: Date?) {
+        isChatProcessing = isProcessing
+        chatStartedAt = startedAt
+        persistChatState()
+    }
+
+    func persistChatState() {
+        chatSessionStore.replaceActiveState(
+            ReviewPanelChatSessionState(
+                messages: chatMessages,
+                isProcessing: isChatProcessing,
+                startedAt: chatStartedAt
+            ),
+            for: chatSessionKey
+        )
+    }
+
+    func ensureActiveChatThread() {
+        if activeChatThreadId == nil {
+            activeChatThreadId = chatSessionStore.createThread(for: chatSessionKey)
+        }
+    }
+
+    func firstNonEmpty(_ values: [String?]) -> String? {
+        for value in values {
+            let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
     func makeRuntimeStateSnapshot() -> ReviewPanelRuntimeStateSnapshot {
         ReviewPanelRuntimeStateSnapshot(
             selectedTab: selectedTab.rawValue,

@@ -4,6 +4,115 @@ import Foundation
 // MARK: - Chat Message Operations
 
 extension CodeReviewPanelStore {
+    func sendChatMessage(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isChatProcessing else { return }
+        ensureActiveChatThread()
+        let pinnedSessionId = panelSessionId ?? selectedSessionId
+        if panelSessionId == nil, let pinnedSessionId {
+            panelSessionId = pinnedSessionId
+        }
+
+        appendChatMessage(ReviewPanelMessage(
+            role: .user,
+            kind: .plain,
+            content: trimmed
+        ))
+
+        let assistantId = UUID()
+        let startedAt = Date()
+        guard applyPanelChatStart(
+            assistantId: assistantId,
+            startedAt: startedAt
+        ) else {
+            appendPanelSystemMessage(
+                ReviewPanelStateRustAdapter.runtimeUnavailableMessage,
+                kind: .statusNote,
+                selectChatTab: true
+            )
+            return
+        }
+
+        guard let provider = effectivePanelProvider else {
+            finalizeChatMessage(
+                id: assistantId,
+                content: "No provider available. Please configure a provider.",
+                isError: true
+            )
+            return
+        }
+
+        let prompt = buildChatPrompt(
+            userMessage: normalizedPanelChatUserMessage(
+                trimmed,
+                selectedSessionId: pinnedSessionId
+            ),
+            sessionId: pinnedSessionId
+        )
+        let context = buildWorkspaceContext()
+
+        coordinator.runChatStream(
+            provider: provider,
+            prompt: prompt,
+            context: context,
+            onEvent: { [weak self] event in
+                self?.streamPanelActionOutput(
+                    id: assistantId,
+                    event: event,
+                    runtime: .chat
+                )
+            },
+            onFinish: { [weak self] result in
+                guard let self else { return }
+                if result.wasCancelled {
+                    return
+                }
+                if let error = result.error {
+                    _ = self.failPanelActionOutput(
+                        id: assistantId,
+                        error: error,
+                        runtime: .chat,
+                        wasCancelled: false
+                    )
+                    return
+                }
+                let outcome = self.finishPanelActionOutput(
+                    id: assistantId,
+                    runtime: .chat,
+                    fallbackContent: "Chat response completed."
+                )
+                if outcome?.status == "completed" {
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        await self.syncStructuredFindingsFromChatResponse(
+                            messageId: assistantId,
+                            sessionId: pinnedSessionId
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    func sendPresetMessage(_ preset: ReviewChatPreset) async {
+        await sendChatMessage(preset.prompt)
+    }
+
+    func cancelChatStream() {
+        coordinator.cancelChat()
+        _ = applyPanelChatFinish(
+            assistantId: nil,
+            fallbackContent: nil,
+            error: nil,
+            wasCancelled: true,
+            finishAllStreaming: true
+        )
+    }
+
+    func clearChatHistory() {
+        guard let activeChatThreadId else { return }
+        chatSessionStore.deleteThread(activeChatThreadId, for: chatSessionKey)
+    }
 
     func appendChatMessage(_ message: ReviewPanelMessage) {
         chatMessages.append(message)
@@ -144,56 +253,4 @@ extension CodeReviewPanelStore {
         persistChatState()
     }
 
-    /// Insert a line at the end of a specific ### section,
-    /// before the next ### heading or end of logPart.
-    private func insertLineInSection(
-        logPart: String,
-        heading: String,
-        line: String
-    ) -> String {
-        guard let headingRange = logPart.range(of: heading) else {
-            return logPart + "\n" + line + "\n"
-        }
-
-        // Find the end of this section: the next ### heading
-        let afterHeading = logPart[headingRange.upperBound...]
-        if let nextHeadingRange = afterHeading.range(of: "\n### ") {
-            // Insert before the next section
-            let insertPoint = nextHeadingRange.lowerBound
-            var result = String(logPart[..<insertPoint])
-            if !result.hasSuffix("\n") { result += "\n" }
-            result += line + "\n"
-            result += String(logPart[insertPoint...])
-            return result
-        } else {
-            // This is the last section — append at end
-            var result = logPart
-            if !result.hasSuffix("\n") { result += "\n" }
-            result += line + "\n"
-            return result
-        }
-    }
-
-    /// Check if a line already exists within a specific section.
-    private func isDuplicateLine(
-        _ line: String,
-        inSection sectionTitle: String,
-        ofLog logPart: String
-    ) -> Bool {
-        let heading = "### \(sectionTitle)"
-        guard let headingRange = logPart.range(of: heading) else {
-            return false
-        }
-        let afterHeading = logPart[headingRange.upperBound...]
-
-        // Find the section content (up to next heading or end)
-        let sectionContent: Substring
-        if let nextRange = afterHeading.range(of: "\n### ") {
-            sectionContent = afterHeading[..<nextRange.lowerBound]
-        } else {
-            sectionContent = afterHeading
-        }
-
-        return sectionContent.contains(line)
-    }
 }
