@@ -15,7 +15,7 @@ struct ReviewPanelFindingsHistoryTab: View {
             )
         } else {
             content
-                .task(id: store.historyLiveRefreshKey) {
+                .task(id: store.findingsHistoryRefreshKey) {
                     await store.refreshHistoricalFindings()
                 }
         }

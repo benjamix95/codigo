@@ -187,6 +187,6 @@ extension MCPSessionManager {
         if normalizedId == "coderide" || normalizedName == "coderide" || normalizedName == "coderide-tools" {
             return true
         }
-        return normalizedCommand.contains("coderide-mcp-server")
+        return normalizedCommand.contains("coderide-mcp-server-rust")
     }
 }

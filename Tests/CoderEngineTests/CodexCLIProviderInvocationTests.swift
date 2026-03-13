@@ -76,7 +76,7 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
         model = "gpt-5.4"
 
         [mcp_servers.coderide]
-        command = "/tmp/coderide-mcp-server"
+        command = "/tmp/coderide-mcp-server-rust"
         args = [ "--workspace", "." ]
         enabled = false
         """

@@ -2,7 +2,7 @@ import Foundation
 
 extension CLIProfileProvisioner {
     /// Self-heal all managed CLI profiles.
-    /// - Restores bundled `coderide-mcp-server` when missing.
+    /// - Restores bundled `coderide-mcp-server-rust` when missing.
     /// - Repairs Codex/Claude/Gemini managed profile configs to point to a valid MCP command.
     static func selfHealManagedProfiles() {
         // Test/debug overrides are intended for isolated profile provisioning calls.

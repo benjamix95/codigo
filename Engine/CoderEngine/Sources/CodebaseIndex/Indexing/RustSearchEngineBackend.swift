@@ -2,7 +2,6 @@ import Foundation
 
 struct RustSearchEngineBackend: SearchEngineBackend {
     let kind: SearchEngineBackendKind = .rust
-    private let fallback = SwiftSearchEngineBackend()
 
     func search(
         query: SearchQueryInput,
@@ -12,17 +11,16 @@ struct RustSearchEngineBackend: SearchEngineBackend {
             return response
         }
 
-        SemanticIndex.logger.notice("rust search backend unavailable; using swift fallback")
-        let fallbackResponse = fallback.search(query: query, snapshot: snapshot)
+        SemanticIndex.logger.error("rust search backend unavailable; semantic search aborted")
         return SearchEngineBackendResponse(
-            hits: fallbackResponse.hits,
+            hits: [],
             metrics: SearchBackendMetrics(
                 backendKind: .rust,
-                elapsedMs: fallbackResponse.metrics.elapsedMs,
-                hitCount: fallbackResponse.hits.count,
-                usedFallback: true,
+                elapsedMs: 0,
+                hitCount: 0,
+                usedFallback: false,
                 loadedRustLibrary: false,
-                errorMessage: "Rust backend unavailable; fallback to Swift"
+                errorMessage: "Rust backend unavailable; semantic search requires Rust core"
             )
         )
     }

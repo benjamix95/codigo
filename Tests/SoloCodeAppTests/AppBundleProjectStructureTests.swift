@@ -43,6 +43,9 @@ struct AppBundleProjectStructureTests {
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Solo Code.xcworkspace").path))
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Config/TestPlans/Solo Code.xctestplan").path))
         #expect(FileManager.default.isExecutableFile(
+            atPath: root.appendingPathComponent("scripts/validate_app_bundle.sh").path
+        ))
+        #expect(FileManager.default.isExecutableFile(
             atPath: root.appendingPathComponent("scripts/bootstrap_test_bundles.sh").path
         ))
     }
@@ -82,6 +85,29 @@ struct AppBundleProjectStructureTests {
         #expect(pbxproj.contains("Embed Frameworks"))
         #expect(pbxproj.contains("CoderEngine.framework"))
         #expect(pbxproj.contains("CoderIDEMCPServer.framework"))
+    }
+
+    @Test
+    func appTargetEmbedsRequiredRuntimeFrameworks() throws {
+        let projectURL = repoRootURL()
+            .appendingPathComponent("Solo Code.xcodeproj", isDirectory: true)
+            .appendingPathComponent("project.pbxproj")
+        let generatorURL = repoRootURL()
+            .appendingPathComponent("scripts", isDirectory: true)
+            .appendingPathComponent("generate_xcode_project.rb")
+        let runScriptURL = repoRootURL()
+            .appendingPathComponent("scripts", isDirectory: true)
+            .appendingPathComponent("run-app.sh")
+
+        let pbxproj = try String(contentsOf: projectURL)
+        let generator = try String(contentsOf: generatorURL)
+        let runScript = try String(contentsOf: runScriptURL)
+
+        #expect(pbxproj.contains("Solo Code"))
+        #expect(pbxproj.contains("CoderEngine.framework in Embed Frameworks"))
+        #expect(pbxproj.contains("CoderIDEMCPServer.framework in Embed Frameworks"))
+        #expect(generator.contains("add_embed_frameworks_phase(project, app_target, [engine_target, helper_framework_target])"))
+        #expect(runScript.contains("validate_app_bundle.sh"))
     }
 
     @Test

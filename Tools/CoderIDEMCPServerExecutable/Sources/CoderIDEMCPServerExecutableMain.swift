@@ -4,12 +4,6 @@ import Foundation
 @main
 struct CoderIDEMCPServerExecutableMain {
     static func main() async throws {
-        let forceSwiftServer = ProcessInfo.processInfo.environment["SOLOCODE_USE_SWIFT_MCP_SERVER"] == "1"
-        if forceSwiftServer {
-            try await CoderIDEMCPServerApp.main()
-            return
-        }
-
         let targetURL = resolveRustBinaryURL()
         guard FileManager.default.isExecutableFile(atPath: targetURL.path) else {
             FileHandle.standardError.write(

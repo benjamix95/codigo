@@ -4,7 +4,7 @@ extension CLIProfileProvisioner {
     static func bundledMCPServerSiblingPath() -> String? {
         guard let execURL = Bundle.main.executableURL else { return nil }
         return execURL.deletingLastPathComponent()
-            .appendingPathComponent("coderide-mcp-server")
+            .appendingPathComponent("coderide-mcp-server-rust")
             .path
     }
 

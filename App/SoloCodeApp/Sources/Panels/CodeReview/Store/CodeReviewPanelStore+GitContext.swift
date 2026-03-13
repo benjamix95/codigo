@@ -34,16 +34,74 @@ final class ReviewPanelLaunchRequestStore {
 // MARK: - Git Context Loading
 
 extension CodeReviewPanelStore {
+    var historyAutomaticRefreshKey: String {
+        let workspaceKey = historyWorkspaceId ?? "no-workspace"
+        let sessionKey = selectedSessionId ?? "no-session"
+        return [workspaceKey, sessionKey].joined(separator: "|")
+    }
+
+    func scheduleGitLoadingState(_ isLoading: Bool) {
+        scheduleDeferredMutation { store in
+            guard store.isLoadingGit != isLoading else { return }
+            store.isLoadingGit = isLoading
+        }
+    }
+
+    func scheduleGitContextSnapshot(
+        branches: [GitBranch],
+        remotes: [GitBranch],
+        commits: [GitLogEntry],
+        currentBranch: String
+    ) {
+        scheduleDeferredMutation { store in
+            store.gitBranches = branches
+            store.gitRemoteBranches = remotes
+            store.gitCommitLog = commits
+            store.currentGitBranch = currentBranch
+        }
+    }
+
+    func scheduleCommitLogSnapshot(_ commits: [GitLogEntry]) {
+        scheduleDeferredMutation { store in
+            store.gitCommitLog = commits
+        }
+    }
+
+    func scheduleHistoryLoadingState(
+        _ isLoading: Bool,
+        refreshKey: String
+    ) {
+        scheduleDeferredMutation { store in
+            guard store.historyAutomaticRefreshKey == refreshKey else { return }
+            guard store.isHistoryLoading != isLoading else { return }
+            store.isHistoryLoading = isLoading
+        }
+    }
+
+    func scheduleHistoricalFindingsSnapshot(
+        _ records: [HistoricalFindingRecord],
+        error: String?,
+        refreshKey: String
+    ) {
+        scheduleDeferredMutation { store in
+            guard store.historyAutomaticRefreshKey == refreshKey else { return }
+            store.historyRecords = records
+            store.historyLoadError = error
+        }
+    }
 
     /// Load branches, commits, and current branch from git.
     func refreshGitContext() async {
-        guard !isLoadingGit else { return }
-        isLoadingGit = true
-        defer { isLoadingGit = false }
-
         let git = GitService()
         guard let rootPath = workspaceStore.activeWorkspacePaths.first?.path else {
             return
+        }
+        guard !isGitContextRefreshInFlight else { return }
+        isGitContextRefreshInFlight = true
+        scheduleGitLoadingState(true)
+        defer {
+            isGitContextRefreshInFlight = false
+            scheduleGitLoadingState(false)
         }
 
         do {
@@ -70,12 +128,12 @@ extension CodeReviewPanelStore {
             let commits = (try? await commitsResult) ?? []
             let current = (try? await currentResult) ?? ""
 
-            await MainActor.run {
-                self.gitBranches = branches
-                self.gitRemoteBranches = remotes
-                self.gitCommitLog = commits
-                self.currentGitBranch = current
-            }
+            scheduleGitContextSnapshot(
+                branches: branches,
+                remotes: remotes,
+                commits: commits,
+                currentBranch: current
+            )
         } catch {
             // Silently fail - git context is optional
         }
@@ -90,9 +148,7 @@ extension CodeReviewPanelStore {
         do {
             let gitRoot = try git.resolveGitRoot(from: rootPath)
             let commits = try git.commitHistory(gitRoot: gitRoot, limit: limit)
-            await MainActor.run {
-                self.gitCommitLog = commits
-            }
+            scheduleCommitLogSnapshot(commits)
         } catch {
             // Silently fail
         }

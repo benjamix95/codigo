@@ -5,7 +5,7 @@ final class MCPConfigLoaderParsingTests: XCTestCase {
     func testStrictParserParsesArgsEnvAndComments() throws {
         let toml = """
         [mcp_servers.coderide]
-        command = "/usr/local/bin/coderide-mcp-server" # inline comment
+        command = "/usr/local/bin/coderide-mcp-server-rust" # inline comment
         args = ["--workspace", ".", "--mode", "strict"]
         env = { API_KEY = "abc", LOG_LEVEL = "debug" }
         """
@@ -13,7 +13,7 @@ final class MCPConfigLoaderParsingTests: XCTestCase {
         let servers = try MCPConfigLoader.parseCodexMCPConfigForTests(toml)
         XCTAssertEqual(servers.count, 1)
         XCTAssertEqual(servers.first?.name, "coderide")
-        XCTAssertEqual(servers.first?.command, "/usr/local/bin/coderide-mcp-server")
+        XCTAssertEqual(servers.first?.command, "/usr/local/bin/coderide-mcp-server-rust")
         XCTAssertEqual(servers.first?.args, ["--workspace", ".", "--mode", "strict"])
         XCTAssertEqual(servers.first?.env["API_KEY"], "abc")
         XCTAssertEqual(servers.first?.env["LOG_LEVEL"], "debug")

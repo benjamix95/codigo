@@ -32,66 +32,10 @@ public enum ReviewCandidateVerificationService {
         ) {
             return bridged
         }
-
-        let normalizedPath = normalizedRelativePath(candidate.filePath)
-        if !scopeFiles.isEmpty && !scopeFiles.contains(normalizedPath) {
-            return ReviewCandidateVerificationResult(
-                status: .rejectedFalsePositive,
-                method: "scope_guard",
-                report: "Il file del candidate è fuori dallo scope corrente della review.",
-                falsePositiveReason: "outside_review_scope"
-            )
-        }
-
-        let absoluteURL = workspacePath.appendingPathComponent(normalizedPath)
-        guard let content = try? String(contentsOf: absoluteURL, encoding: .utf8) else {
-            return ReviewCandidateVerificationResult(
-                status: .rejectedFalsePositive,
-                method: "file_presence",
-                report: "Il file associato al candidate non esiste più nel workspace.",
-                falsePositiveReason: "file_missing"
-            )
-        }
-
-        let lines = content.components(separatedBy: .newlines)
-        guard let lineNumber = candidate.lineNumber, lineNumber > 0, lineNumber <= lines.count else {
-            if let evidence = trimmedEvidence(candidate.evidence),
-               content.localizedCaseInsensitiveContains(evidence) {
-                return ReviewCandidateVerificationResult(
-                    status: .inconclusive,
-                    method: "file_evidence_search",
-                    report: "L'evidenza del candidate compare nel file \(normalizedPath), ma senza un contesto di riga valido la verifica automatica non può promuoverlo a finding verificato."
-                )
-            }
-            return ReviewCandidateVerificationResult(
-                status: .inconclusive,
-                method: "missing_line_context",
-                report: "Il candidate non ha un contesto di riga sufficiente per una verifica automatica affidabile."
-            )
-        }
-
-        let lineText = lines[lineNumber - 1]
-        if let evidence = trimmedEvidence(candidate.evidence),
-           lineText.localizedCaseInsensitiveContains(evidence) {
-            return ReviewCandidateVerificationResult(
-                status: .verified,
-                method: "line_evidence_match",
-                report: "L'evidenza del candidate coincide con il contesto della riga \(lineNumber)."
-            )
-        }
-
-        if matchesKnownRisk(message: candidate.message, line: lineText) {
-            return ReviewCandidateVerificationResult(
-                status: .inconclusive,
-                method: "semantic_risk_match",
-                report: "La riga \(lineNumber) contiene un pattern coerente con il rischio segnalato, ma la corrispondenza euristica non è sufficiente per promuovere automaticamente il candidate a finding verificato."
-            )
-        }
-
         return ReviewCandidateVerificationResult(
             status: .inconclusive,
-            method: "context_mismatch",
-            report: "Il candidate non è stato smentito, ma l'automazione non ha trovato prova sufficiente per promuoverlo a finding verificato."
+            method: "rust_core_unavailable",
+            report: "La verifica automatica richiede il review core Rust. Nessun fallback Swift locale è consentito."
         )
     }
 
@@ -116,40 +60,6 @@ public enum ReviewCandidateVerificationService {
             signalType: signalType
         )
     }
-
-    private static func normalizedRelativePath(_ raw: String) -> String {
-        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if value.hasPrefix("./") {
-            value.removeFirst(2)
-        }
-        return value
-    }
-
-    private static func trimmedEvidence(_ evidence: String?) -> String? {
-        let trimmed = (evidence ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func matchesKnownRisk(message: String, line: String) -> Bool {
-        let lowerMessage = message.lowercased()
-        let lowerLine = line.lowercased()
-        let knownPairs: [(needle: String, tokens: [String])] = [
-            ("fatal", ["fatalerror("]),
-            ("force-try", ["try!"]),
-            ("forced cast", [" as! "]),
-            ("deadlock", ["dispatchqueue.main.sync"]),
-            ("html injection", ["innerhtml"]),
-            ("secret", ["api_key", "access_token", "client_secret", "ghp_", "sk_live_"]),
-            ("http", ["http://"]),
-        ]
-        for pair in knownPairs where lowerMessage.contains(pair.needle) {
-            if pair.tokens.contains(where: { lowerLine.contains($0) }) {
-                return true
-            }
-        }
-        return false
-    }
-
     private static func verifyWithRust(
         candidate: ReviewCandidate,
         workspacePath: URL,

@@ -15,7 +15,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     func testCodexEnvironmentOverridesSeedsMissingProfileFiles() throws {
         let profile = try makeTemporaryProfileDirectory()
-        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
 
         let env = withMCPServerPathOverride(fakeMCP.path) {
             CLIProfileProvisioner.environmentOverrides(
@@ -39,7 +39,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     func testReseedCodexProfileOverwritesStaleFiles() throws {
         let profile = try makeTemporaryProfileDirectory()
-        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
         let configURL = profile.appendingPathComponent("config.toml")
         let agentsURL = profile.appendingPathComponent("AGENTS.md")
         let instructionsURL = profile.appendingPathComponent("instructions.md")
@@ -60,7 +60,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     func testCodexEnvironmentOverridesRepairsMissingMCPBlockInExistingConfig() throws {
         let profile = try makeTemporaryProfileDirectory()
-        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
         let configURL = profile.appendingPathComponent("config.toml")
 
         try """
@@ -87,8 +87,8 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     func testCodexEnvironmentOverridesUpdatesExistingCoderIDEMCPPath() throws {
         let profile = try makeTemporaryProfileDirectory()
-        let oldMCP = try makeTemporaryExecutable(named: "old-coderide-mcp-server")
-        let newMCP = try makeTemporaryExecutable(named: "new-coderide-mcp-server")
+        let oldMCP = try makeTemporaryExecutable(named: "old-coderide-mcp-server-rust")
+        let newMCP = try makeTemporaryExecutable(named: "new-coderide-mcp-server-rust")
         let configURL = profile.appendingPathComponent("config.toml")
 
         try """
@@ -120,7 +120,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     func testCodexEnvironmentOverridesRemovesUnsupportedCoderIDEMCPEnabledFlag() throws {
         let profile = try makeTemporaryProfileDirectory()
-        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
         let configURL = profile.appendingPathComponent("config.toml")
 
         try """
@@ -149,7 +149,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     func testCodexEnvironmentOverridesRepairsLegacyManagedConfigToCurrentTemplate() throws {
         let profile = try makeTemporaryProfileDirectory()
-        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
         let configURL = profile.appendingPathComponent("config.toml")
 
         try """
@@ -184,7 +184,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
 
     func testCodexMCPFallbackBinaryPathIsAbsolute() {
-        XCTAssertEqual(CLIProfileProvisioner.codexProfileMCPFallbackBinaryPath, "/usr/bin/coderide-mcp-server")
+        XCTAssertEqual(CLIProfileProvisioner.codexProfileMCPFallbackBinaryPath, "/usr/bin/coderide-mcp-server-rust")
         XCTAssertTrue(CLIProfileProvisioner.codexProfileMCPFallbackBinaryPath.hasPrefix("/"))
     }
 
@@ -211,7 +211,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
         let profile = managedRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
         temporaryDirectories.append(profile)
-        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
         let staleFile = profile.appendingPathComponent("stale.txt")
         try "stale".write(to: staleFile, atomically: true, encoding: .utf8)
 

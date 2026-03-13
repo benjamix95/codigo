@@ -38,7 +38,6 @@ fi
 
 TEST_OUT_DIR="${SOLOCODE_RUST_MCP_TEST_OUT_DIR:-$ROOT_DIR/.build/rust-mcp-server/$TARGET_PROFILE}"
 mkdir -p "$TEST_OUT_DIR"
-cp "$SRC" "$TEST_OUT_DIR/coderide-mcp-server"
 cp "$SRC" "$TEST_OUT_DIR/coderide-mcp-server-rust"
 
 if [[ -n "${SOLOCODE_MCP_SERVER_BUNDLE_DIR:-}" ]]; then

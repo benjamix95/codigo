@@ -14,7 +14,7 @@ extension CLIProfileProvisioner {
         ("fast_mode", "true"),
     ]
 
-    static let codexProfileMCPFallbackBinaryPath = "/usr/bin/coderide-mcp-server"
+    static let codexProfileMCPFallbackBinaryPath = "/usr/bin/coderide-mcp-server-rust"
 
     static func preferredCodexProfileMCPBinaryPath() -> String {
         mcpServerBinaryPath() ?? bundledMCPServerSiblingPath() ?? codexProfileMCPFallbackBinaryPath

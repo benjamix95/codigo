@@ -145,6 +145,7 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
 
         let store = makeStore(workspacePath: "/tmp/history-workspace")
         await store.refreshHistoricalFindings()
+        await drainMainQueue()
 
         XCTAssertFalse(store.isHistoryLoading)
         XCTAssertNil(store.historyLoadError)
@@ -272,6 +273,107 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
         }
     }
 
+    func testHistoryRefreshKeyStaysStableAcrossSnapshotTimestampUpdates() {
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let store = makeStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId,
+            workspacePath: "/tmp/history-refresh-key"
+        )
+        let sessionId = "history-session"
+        taskStore.ingestCodeReviewSnapshot(
+            CodeReviewSessionSnapshot(
+                sessionId: sessionId,
+                conversationId: conversationId,
+                phase: .analyzing,
+                stage: .analysis,
+                findings: [],
+                events: [],
+                config: .default,
+                scope: ReviewSessionScope(type: .workspace, files: ["Sources/A.swift"]),
+                workspacePath: "/tmp/history-refresh-key",
+                currentRound: 0,
+                activeWorkerCount: 1,
+                startedAt: Date(timeIntervalSince1970: 0),
+                completedAt: nil,
+                analysisCompletedAt: nil,
+                lastError: nil,
+                currentJobId: "job-history",
+                lastTestStatus: nil,
+                lastUpdatedAt: Date(timeIntervalSince1970: 100)
+            ),
+            conversationId: conversationId
+        )
+        taskStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
+        store.panelSessionId = sessionId
+        let initialKey = store.findingsHistoryRefreshKey
+
+        taskStore.ingestCodeReviewSnapshot(
+            CodeReviewSessionSnapshot(
+                sessionId: sessionId,
+                conversationId: conversationId,
+                phase: .analyzing,
+                stage: .analysis,
+                findings: [],
+                events: [],
+                config: .default,
+                scope: ReviewSessionScope(type: .workspace, files: ["Sources/A.swift"]),
+                workspacePath: "/tmp/history-refresh-key",
+                currentRound: 0,
+                activeWorkerCount: 1,
+                startedAt: Date(timeIntervalSince1970: 0),
+                completedAt: nil,
+                analysisCompletedAt: nil,
+                lastError: nil,
+                currentJobId: "job-history",
+                lastTestStatus: nil,
+                lastUpdatedAt: Date(timeIntervalSince1970: 200)
+            ),
+            conversationId: conversationId
+        )
+
+        XCTAssertEqual(store.findingsHistoryRefreshKey, initialKey)
+    }
+
+    func testRefreshHistoricalFindingsLoadsDeferredSnapshotFromLoader() async {
+        let store = makeStore(workspacePath: "/tmp/deferred-history")
+        let record = HistoricalFindingRecord(
+            findingId: "deferred-1",
+            sessionId: "session-deferred",
+            workspaceId: "/tmp/deferred-history",
+            domain: .bug,
+            severity: .medium,
+            title: "Deferred history refresh",
+            summary: "History should publish after the current view update finishes.",
+            status: .verified,
+            filePath: "Sources/Deferred.swift",
+            lineStart: 12,
+            sourceOrigin: "reviewer",
+            closedReason: nil,
+            patchId: nil,
+            patchApplyStatus: nil,
+            revalidationReportId: nil,
+            revalidationVerdict: nil,
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 20),
+            resolvedAt: nil,
+            resumeEligible: true,
+            timeline: []
+        )
+        let previousFetch = ReviewPanelHistoricalFindingsLoader.fetch
+        ReviewPanelHistoricalFindingsLoader.fetch = { _ in [record] }
+        defer { ReviewPanelHistoricalFindingsLoader.fetch = previousFetch }
+
+        await store.refreshHistoricalFindings()
+        await drainMainQueue()
+
+        XCTAssertEqual(store.historyRecords.map(\.findingId), ["deferred-1"])
+        XCTAssertEqual(store.historyRecords.first?.filePath, "Sources/Deferred.swift")
+        XCTAssertFalse(store.isHistoryLoading)
+        XCTAssertNil(store.historyLoadError)
+    }
+
     private func makeStore(
         taskActivityStore: TaskActivityStore? = nil,
         conversationId: UUID = UUID(),
@@ -347,20 +449,41 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
     }
 
     private func enablePersistenceForTests() {
+        let rootDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("solocode-postgres-tests-\(UUID().uuidString)", isDirectory: true)
+        let port = 56000 + Int.random(in: 0...999)
         unsetenv("SOLOCODE_DISABLE_POSTGRES_PERSISTENCE")
         setenv("SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS", "1", 1)
+        setenv("SOLOCODE_POSTGRES_ROOT_DIRECTORY", rootDirectory.path, 1)
+        setenv("SOLOCODE_POSTGRES_PORT", String(port), 1)
     }
 
     private func resetPersistenceEnvironment() {
+        let temporaryRoot = temporaryRootDirectory()
+        try? ManagedPostgresService.shared.shutdownIfRunning()
+        try? FileManager.default.removeItem(at: temporaryRoot)
+        unsetenv("SOLOCODE_POSTGRES_ROOT_DIRECTORY")
+        unsetenv("SOLOCODE_POSTGRES_PORT")
         unsetenv("SOLOCODE_ENABLE_POSTGRES_PERSISTENCE_IN_TESTS")
         setenv("SOLOCODE_DISABLE_POSTGRES_PERSISTENCE", "1", 1)
-        try? ManagedPostgresService.shared.shutdownIfRunning()
         removeIfPresent(ManagedPostgresConfiguration.default.rootDirectory)
         removeIfPresent(MCPSharedState.codeReviewDirectoryPath)
         removeIfPresent(MCPSharedState.verifiedFindingsDirectoryPath)
         removeIfPresent(MCPSharedState.bugHunterDirectoryPath)
         let planStatePath = MCPSharedState.planStateFilePath
         removeIfPresent(planStatePath)
+    }
+
+    private func temporaryRootDirectory() -> URL {
+        if let override = ProcessInfo.processInfo.environment["SOLOCODE_POSTGRES_ROOT_DIRECTORY"],
+           !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "solocode-postgres-tests-\(ProcessInfo.processInfo.processIdentifier)",
+                isDirectory: true
+            )
     }
 
     private func measureSamples(iterations: Int, _ work: () -> Void) -> [Double] {
@@ -390,5 +513,13 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
         let sorted = samples.sorted()
         let index = min(sorted.count - 1, Int(Double(sorted.count - 1) * 0.95))
         return sorted[index]
+    }
+
+    private func drainMainQueue() async {
+        let expectation = expectation(description: "drain main queue")
+        DispatchQueue.main.async {
+            expectation.fulfill()
+        }
+        await fulfillment(of: [expectation], timeout: 1.0)
     }
 }

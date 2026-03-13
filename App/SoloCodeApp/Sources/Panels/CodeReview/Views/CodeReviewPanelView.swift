@@ -226,8 +226,5 @@ struct ReviewPanelHost: View {
         .task {
             await store.consumePendingLaunchRequestIfNeeded()
         }
-        .task {
-            await store.refreshHistoricalFindings()
-        }
     }
 }

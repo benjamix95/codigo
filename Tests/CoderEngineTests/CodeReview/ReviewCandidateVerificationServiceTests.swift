@@ -10,15 +10,27 @@ final class ReviewCandidateVerificationServiceTests: XCTestCase {
         workspaceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("review-candidate-verifier-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workspaceURL, withIntermediateDirectories: true)
+        let path = reviewCoreLibraryPath(from: #filePath)
+        if FileManager.default.fileExists(atPath: path) {
+            setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        }
+        ReviewCoreBridge.resetForTests()
     }
 
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: workspaceURL)
         workspaceURL = nil
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
         try super.tearDownWithError()
     }
 
     func testMissingLineContextStaysInconclusiveEvenWhenEvidenceExistsInFile() throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Review core Rust non disponibile in build/lib")
+        }
         let fileURL = workspaceURL.appendingPathComponent("Sample.swift")
         try """
         let token = "SECRET_MATCH"
@@ -45,6 +57,9 @@ final class ReviewCandidateVerificationServiceTests: XCTestCase {
     }
 
     func testSemanticRiskHeuristicDoesNotPromoteToVerified() throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Review core Rust non disponibile in build/lib")
+        }
         let fileURL = workspaceURL.appendingPathComponent("Risky.swift")
         try """
         let value = try! expensiveCall()
@@ -71,6 +86,9 @@ final class ReviewCandidateVerificationServiceTests: XCTestCase {
     }
 
     func testExactLineEvidenceStillPromotesToVerified() throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Review core Rust non disponibile in build/lib")
+        }
         let fileURL = workspaceURL.appendingPathComponent("Exact.swift")
         try """
         let apiKey = "abc"
@@ -95,4 +113,47 @@ final class ReviewCandidateVerificationServiceTests: XCTestCase {
         XCTAssertEqual(result.status, .verified)
         XCTAssertEqual(result.method, "line_evidence_match")
     }
+
+    func testVerificationFailsExplicitlyWhenRustCoreIsDisabled() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            ReviewCoreBridge.resetForTests()
+        }
+        ReviewCoreBridge.resetForTests()
+
+        let candidate = ReviewCandidate(
+            severity: .warning,
+            category: .correctness,
+            origin: .reviewer,
+            filePath: "Sample.swift",
+            lineNumber: 1,
+            message: "Potential issue",
+            evidence: "SECRET_MATCH"
+        )
+
+        let result = ReviewCandidateVerificationService.verify(
+            candidate: candidate,
+            workspacePath: workspaceURL,
+            scopeFiles: ["Sample.swift"]
+        )
+
+        XCTAssertEqual(result.status, .inconclusive)
+        XCTAssertEqual(result.method, "rust_core_unavailable")
+        XCTAssertEqual(
+            result.report,
+            "La verifica automatica richiede il review core Rust. Nessun fallback Swift locale è consentito."
+        )
+    }
+}
+
+private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
+    let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
+    return sourceURL
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
+        .path
 }

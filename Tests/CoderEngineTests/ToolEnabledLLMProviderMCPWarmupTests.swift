@@ -5,7 +5,7 @@ import XCTest
 final class ToolEnabledLLMProviderMCPWarmupTests: XCTestCase {
     func testSendPrewarmsCoderideToolsBeforeBuildingPrompt() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
-            throw XCTSkip("coderide-mcp-server binary not found in .build")
+            throw XCTSkip("coderide-mcp-server-rust binary not found in .build")
         }
 
         let workspace = try makeTemporaryDirectory(prefix: "mcp-warmup-good")
@@ -153,7 +153,7 @@ final class ToolEnabledLLMProviderMCPWarmupTests: XCTestCase {
         }
 
         for case let fileURL as URL in enumerator {
-            guard fileURL.lastPathComponent == "coderide-mcp-server" else { continue }
+            guard fileURL.lastPathComponent == "coderide-mcp-server-rust" else { continue }
             if FileManager.default.isExecutableFile(atPath: fileURL.path) {
                 return fileURL.path
             }

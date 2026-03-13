@@ -8,7 +8,7 @@ final class MCPSessionManagerToolCacheTests: XCTestCase {
             id: "coderide",
             identity: .make(source: "codex", name: "coderide", origin: "codex"),
             name: "coderide",
-            command: "/tmp/coderide-mcp-server",
+            command: "/tmp/coderide-mcp-server-rust",
             args: ["--workspace", "."],
             env: [:],
             source: "Codex"

@@ -2,7 +2,27 @@ import XCTest
 @testable import CoderEngine
 
 final class ReviewPipelineCoordinatorTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        let path = reviewCoreLibraryPath(from: #filePath)
+        if FileManager.default.fileExists(atPath: path) {
+            setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        }
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDownWithError() throws {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        try super.tearDownWithError()
+    }
+
     func testRunCompletesSessionWhenReviewScopeHasNoFiles() async throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Review core Rust non disponibile in build/lib")
+        }
         let workspacePath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(
@@ -85,6 +105,9 @@ final class ReviewPipelineCoordinatorTests: XCTestCase {
     }
 
     func testRunEmitsSingleTextReplaceWhenWorkspaceScopeHasNoFiles() async throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Review core Rust non disponibile in build/lib")
+        }
         let workspacePath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(
@@ -131,6 +154,62 @@ final class ReviewPipelineCoordinatorTests: XCTestCase {
         let snapshot = await sessionState.snapshot()
         XCTAssertEqual(snapshot.scope?.type, .workspace)
     }
+
+    func testRunFailsExplicitlyWhenRustReviewPipelineIsDisabled() async {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            ReviewCoreBridge.resetForTests()
+        }
+        ReviewCoreBridge.resetForTests()
+
+        let workspacePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(
+            at: workspacePath,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: workspacePath) }
+
+        let sessionState = CodeReviewSessionState()
+        let provider = SilentLLMProvider()
+        let stream = AsyncThrowingStream<StreamEvent, Error> { continuation in
+            Task {
+                do {
+                    try await ReviewPipelineCoordinator.shared.run(
+                        prompt: "[REVIEW_SCOPE:uncommitted] Review the patch",
+                        context: WorkspaceContext(workspacePath: workspacePath),
+                        config: MultiSwarmReviewConfig(
+                            maxWorkers: 1,
+                            enabledPhases: .analysisOnly,
+                            maxReviewRounds: 1
+                        ),
+                        analysisProvider: provider,
+                        executionProvider: provider,
+                        runtimeResolver: nil,
+                        execController: nil,
+                        fileLockCoordinator: FileLockCoordinator(),
+                        sessionState: sessionState,
+                        continuation: continuation
+                    )
+                    XCTFail("Expected Rust pipeline requirement failure")
+                } catch {
+                    guard case CodeReviewMultiSwarmProvider.ReviewPipelineError.analysisTransportFailed(let reason) = error else {
+                        return XCTFail("Unexpected error: \(error)")
+                    }
+                    XCTAssertEqual(reason, "Rust review pipeline required but unavailable.")
+                    continuation.finish()
+                }
+            }
+        }
+
+        do {
+            for try await _ in stream {
+            }
+        } catch {
+            XCTFail("Unexpected stream error: \(error)")
+        }
+    }
 }
 
 private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {
@@ -148,4 +227,15 @@ private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {
             continuation.finish()
         }
     }
+}
+
+private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
+    let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
+    return sourceURL
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
+        .path
 }

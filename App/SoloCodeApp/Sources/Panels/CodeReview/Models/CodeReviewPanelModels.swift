@@ -212,12 +212,14 @@ struct ReviewPipelineJobState: Equatable {
 
     var visibleStepNumber: Int {
         switch phase {
-        case "queued", "discovery": return 1
-        case "audit": return 2
+        case "queued", "discovery": return 5
+        case "audit": return 4
         case "verification": return 3
-        case "patch_preparation": return 4
-        case "publish_ready", "completed": return 5
-        default: return min(max(stepsCompleted, 1), visibleStepsTotal)
+        case "patch_preparation": return 2
+        case "publish_ready", "completed": return 1
+        default:
+            let normalized = min(max(stepsCompleted, 1), visibleStepsTotal)
+            return visibleStepsTotal - normalized + 1
         }
     }
 

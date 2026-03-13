@@ -98,10 +98,12 @@ enum SearchEngineBackendFactory {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         switch raw {
+        case SearchEngineBackendKind.swift.rawValue:
+            return SwiftSearchEngineBackend()
         case SearchEngineBackendKind.rust.rawValue:
             return RustSearchEngineBackend()
         default:
-            return SwiftSearchEngineBackend()
+            return RustSearchEngineBackend()
         }
     }
 }

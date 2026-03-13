@@ -45,7 +45,8 @@ final class CodeReviewPanelLiveMutationRustTests: XCTestCase {
             reason: "wont_fix"
         )
 
-        let liveSnapshot = try XCTUnwrap(await ReviewSessionRegistry.shared.snapshot(sessionId: "live-dismiss-session"))
+        let liveSnapshotValue = await ReviewSessionRegistry.shared.snapshot(sessionId: "live-dismiss-session")
+        let liveSnapshot = try XCTUnwrap(liveSnapshotValue)
         XCTAssertEqual(liveSnapshot.findings.first?.status, .wontFix)
         XCTAssertEqual(liveSnapshot.events.last?.type, .findingDismissed)
         XCTAssertEqual(liveSnapshot.events.last?.metadata["finding_id"], "f-live")

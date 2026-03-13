@@ -106,7 +106,7 @@ final class MCPSessionManagerTests: XCTestCase {
 
     func testCallToolRichRecordsMetrics() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
-            throw XCTSkip("coderide-mcp-server binary not found in .build")
+            throw XCTSkip("coderide-mcp-server-rust binary not found in .build")
         }
 
         let workspace = FileManager.default.temporaryDirectory
@@ -145,7 +145,7 @@ final class MCPSessionManagerTests: XCTestCase {
 
     func testSubagentExplorerToolReturnsImmediateAck() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
-            throw XCTSkip("coderide-mcp-server binary not found in .build")
+            throw XCTSkip("coderide-mcp-server-rust binary not found in .build")
         }
 
         let workspace = FileManager.default.temporaryDirectory
@@ -359,7 +359,7 @@ final class MCPSessionManagerTests: XCTestCase {
 
     func testReconnectClearsNativeToolRegistry() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
-            throw XCTSkip("coderide-mcp-server binary not found in .build")
+            throw XCTSkip("coderide-mcp-server-rust binary not found in .build")
         }
 
         let workspace = FileManager.default.temporaryDirectory
@@ -404,7 +404,7 @@ final class MCPSessionManagerTests: XCTestCase {
 
     func testRestartServerClearsNativeToolRegistry() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
-            throw XCTSkip("coderide-mcp-server binary not found in .build")
+            throw XCTSkip("coderide-mcp-server-rust binary not found in .build")
         }
 
         let workspace = FileManager.default.temporaryDirectory
@@ -449,7 +449,7 @@ final class MCPSessionManagerTests: XCTestCase {
 
     func testResetSessionTerminatesSpawnedProcess() async throws {
         guard let binaryPath = locateCoderideMCPServerBinary() else {
-            throw XCTSkip("coderide-mcp-server binary not found in .build")
+            throw XCTSkip("coderide-mcp-server-rust binary not found in .build")
         }
 
         let workspace = FileManager.default.temporaryDirectory
@@ -788,7 +788,7 @@ final class MCPSessionManagerTests: XCTestCase {
         }
 
         for case let fileURL as URL in enumerator {
-            guard fileURL.lastPathComponent == "coderide-mcp-server" else { continue }
+            guard fileURL.lastPathComponent == "coderide-mcp-server-rust" else { continue }
             if FileManager.default.isExecutableFile(atPath: fileURL.path) {
                 return fileURL.path
             }
