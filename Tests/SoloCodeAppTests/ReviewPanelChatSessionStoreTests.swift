@@ -1,4 +1,5 @@
 import XCTest
+import CoderEngine
 @testable import CoderIDE
 
 @MainActor
@@ -66,5 +67,127 @@ final class ReviewPanelChatSessionStoreTests: XCTestCase {
 
         XCTAssertEqual(conversation.activeThreadId, threadId)
         XCTAssertEqual(conversation.threads.first?.title, "panel-123")
+    }
+
+    func testPanelModeSelectionSupportsUnifiedDefaultsAndReselection() {
+        let store = makePanelStore(conversationId: nil)
+
+        XCTAssertEqual(store.selectedModes, [.standard, .bugFinder, .securityAudit])
+
+        store.toggleModeSelection(.securityAudit)
+
+        XCTAssertTrue(store.hasSelectedMode(.standard))
+        XCTAssertFalse(store.hasSelectedMode(.securityAudit))
+        XCTAssertTrue(store.hasSelectedMode(.bugFinder))
+
+        store.toggleModeSelection(.securityAudit)
+
+        XCTAssertTrue(store.hasSelectedMode(.securityAudit))
+    }
+
+    func testPanelCreateAndSelectChatThreadActivatesChatTab() async throws {
+        let conversationId = UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!
+        let store = makePanelStore(conversationId: conversationId)
+
+        store.createNewChatThread(title: "Investigazione")
+        let createdThreadId = try XCTUnwrap(store.activeChatThreadId)
+        await waitUntil("created thread mirror becomes available") {
+            store.chatThreads.first?.title == "Investigazione"
+        }
+
+        XCTAssertEqual(store.selectedTab, .chat)
+        XCTAssertEqual(store.chatThreads.first?.title, "Investigazione")
+        XCTAssertEqual(store.activeChatThreadId, createdThreadId)
+
+        let secondThreadId = ReviewPanelChatSessionStore.shared.createThread(
+            for: CodeReviewPanelStore.chatSessionKey(conversationId: conversationId),
+            title: "Secondaria"
+        )
+
+        store.selectTab(.findings)
+        store.selectChatThread(secondThreadId)
+        await waitUntil("selected thread mirror becomes active") {
+            store.activeChatThreadId == secondThreadId
+        }
+
+        XCTAssertEqual(store.selectedTab, .chat)
+        XCTAssertEqual(store.activeChatThreadId, secondThreadId)
+    }
+
+    private func makePanelStore(conversationId: UUID?) -> CodeReviewPanelStore {
+        CodeReviewPanelStore(
+            taskActivityStore: TaskActivityStore(),
+            providerRegistry: ProviderRegistry(),
+            executionController: nil,
+            workspaceStore: WorkspaceStore(),
+            openFilesStore: OpenFilesStore(),
+            conversationId: conversationId,
+            providerFactoryConfigBuilder: { Self.makeProviderFactoryConfig() }
+        )
+    }
+
+    private static func makeProviderFactoryConfig() -> ProviderFactoryConfig {
+        ProviderFactoryConfig(
+            openaiApiKey: "",
+            openaiModel: "gpt-4o-mini",
+            anthropicApiKey: "",
+            anthropicModel: "claude-3-5-haiku-latest",
+            googleApiKey: "",
+            googleModel: "gemini-2.0-flash",
+            minimaxApiKey: "",
+            minimaxModel: "MiniMax-M1",
+            openrouterApiKey: "",
+            openrouterModel: "openai/gpt-4o-mini",
+            grokApiKey: "",
+            grokModel: "grok-3-mini",
+            codexPath: "",
+            codexSandbox: "workspace-write",
+            codexSessionFullAccess: false,
+            codexAskForApproval: "never",
+            codexModelOverride: "",
+            codexReasoningEffort: "",
+            codexFastMode: true,
+            codexModelProvider: "",
+            codexPreferResponsesWireAPI: false,
+            planModeBackend: "openai-api",
+            swarmOrchestrator: "openai-api",
+            swarmWorkerBackend: "openai-api",
+            swarmEnabledRoles: "",
+            globalYolo: false,
+            codeReviewPartitions: 2,
+            codeReviewAnalysisOnly: false,
+            codeReviewMaxRounds: 2,
+            codeReviewAnalysisBackend: "openai-api",
+            codeReviewExecutionBackend: "openai-api",
+            claudePath: "",
+            claudeModel: "claude-3-5-sonnet-latest",
+            claudeAllowedTools: [],
+            geminiCliPath: "",
+            geminiModelOverride: "",
+            unifiedToolRuntimeEnabled: true,
+            agentsHardBlockEnabled: true,
+            mcpEditEnforcementEnabled: true,
+            webSearchProvider: "duckduckgo",
+            braveSearchApiKey: "",
+            tavilyApiKey: "",
+            serperApiKey: ""
+        )
+    }
+
+    private func waitUntil(
+        _ description: String,
+        timeoutNanoseconds: UInt64 = 2_000_000_000,
+        pollNanoseconds: UInt64 = 20_000_000,
+        predicate: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+        while !predicate() {
+            if DispatchTime.now().uptimeNanoseconds >= deadline {
+                XCTFail("Timed out waiting for \(description)")
+                return
+            }
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: pollNanoseconds)
+        }
     }
 }

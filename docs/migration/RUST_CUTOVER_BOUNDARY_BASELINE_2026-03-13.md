@@ -193,3 +193,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 15 review cutover
+- eliminato il file panel-side `CodeReviewPanelStore+ModesAndChatThreads.swift`
+- helper di mode selection, chat session key e thread conversation consolidati in `CodeReviewPanelStore+ChatFindings.swift`
+- conteggio osservato del panel review:
+  - prima della tranche: `24` file legacy non-UI
+  - dopo la tranche: `23` file legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
