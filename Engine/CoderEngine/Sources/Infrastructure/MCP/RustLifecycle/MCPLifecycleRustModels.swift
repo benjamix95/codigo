@@ -249,14 +249,22 @@ struct MCPLifecycleRustBatchCallRequestItem: Sendable {
     let index: Int
     let server: MCPLifecycleRustServerConfig
     let toolName: String
-    let arguments: [String: Any]
+    private let argumentsData: Data
+
+    init(index: Int, server: MCPLifecycleRustServerConfig, toolName: String, arguments: [String: Any]) {
+        self.index = index
+        self.server = server
+        self.toolName = toolName
+        self.argumentsData = (try? JSONSerialization.data(withJSONObject: arguments)) ?? Data()
+    }
 
     var jsonObject: [String: Any] {
-        [
+        let args = (try? JSONSerialization.jsonObject(with: argumentsData) as? [String: Any]) ?? [:]
+        return [
             "index": index,
             "server": server.jsonObject,
             "toolName": toolName,
-            "arguments": arguments
+            "arguments": args
         ]
     }
 }
