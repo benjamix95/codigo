@@ -203,3 +203,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 16 review cutover
+- eliminato il file engine-side `CodeReviewMultiSwarmProvider+WorkerOrdering.swift`
+- helper di worker ordering consolidati in `CodeReviewMultiSwarmProvider+Types.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `84` file Swift
+  - dopo la tranche: `83` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

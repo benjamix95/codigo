@@ -1596,7 +1596,6 @@
 		EC2057639385805B0446F4E3 /* IndexedSymbol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55CA70AAC956026A7644BFB2 /* IndexedSymbol.swift */; };
 		EC35A4C0983DDFD5BCBB7C97 /* SecurityHandlerTests+Gate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EA200B191F7A8DA4A36F0C /* SecurityHandlerTests+Gate.swift */; };
 		EC67DE6CD35FB12FA4D26504 /* DebugPipelineContractsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67117E3FE334670BC8389133 /* DebugPipelineContractsTests.swift */; };
-		EC7786636B23164B2A82E788 /* CodeReviewMultiSwarmProvider+WorkerOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BC7BBAAAC15226B1CEC949 /* CodeReviewMultiSwarmProvider+WorkerOrdering.swift */; };
 		EC788209B6CE781A8A2C691C /* MCPSharedPlanStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1A8976B6AAFDEE0A9875C2 /* MCPSharedPlanStateTests.swift */; };
 		ECA1AC5618EF1643F5B55AC6 /* OpenAIAPIProvider+ToolDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A535A4001E4153D9126736 /* OpenAIAPIProvider+ToolDefinitions.swift */; };
 		ED06F109DA6826564B2F309B /* BugHunterHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 402B1E9AA049129B49510023 /* BugHunterHandlerTests.swift */; };
@@ -2417,7 +2416,6 @@
 		5528E92B16CD1C05D80DBF5D /* MermaidWebView+Coordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MermaidWebView+Coordinator.swift"; path = "App/SoloCodeApp/Sources/Utilities/Mermaid/MermaidWebView+Coordinator.swift"; sourceTree = "<group>"; };
 		553DD6562444020C1DFEBBCA /* CoderIDETools+Subagent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CoderIDETools+Subagent.swift"; path = "Tools/CoderIDEMCPServer/Sources/Tools/Catalog/CoderIDETools+Subagent.swift"; sourceTree = "<group>"; };
 		5559B5707C409CD58EDDB846 /* GitPanelStore+BugHunterTrigger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitPanelStore+BugHunterTrigger.swift"; path = "App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+BugHunterTrigger.swift"; sourceTree = "<group>"; };
-		55BC7BBAAAC15226B1CEC949 /* CodeReviewMultiSwarmProvider+WorkerOrdering.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProvider+WorkerOrdering.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/CodeReviewMultiSwarmProvider+WorkerOrdering.swift"; sourceTree = "<group>"; };
 		55CA70AAC956026A7644BFB2 /* IndexedSymbol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IndexedSymbol.swift; path = Engine/CoderEngine/Sources/CodebaseIndex/Core/Domain/IndexedSymbol.swift; sourceTree = "<group>"; };
 		56F7A6CBD8D73311C4D8728E /* ChatPanelView+PartI_ProviderSync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartI_ProviderSync.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartI_ProviderSync.swift"; sourceTree = "<group>"; };
 		570E32B2E663383C109777CE /* CodeReviewMultiSwarmProvider+Diagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProvider+Diagnostics.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/CodeReviewMultiSwarmProvider+Diagnostics.swift"; sourceTree = "<group>"; };
@@ -4385,7 +4383,6 @@
 				C675BC8E891081D40B395201 /* CodeReviewAuditService.swift */,
 				570E32B2E663383C109777CE /* CodeReviewMultiSwarmProvider+Diagnostics.swift */,
 				80AEB66F119739D746ED528E /* CodeReviewMultiSwarmProvider+Types.swift */,
-				55BC7BBAAAC15226B1CEC949 /* CodeReviewMultiSwarmProvider+WorkerOrdering.swift */,
 				87DC66FA6A74625E7134FC20 /* CodeReviewMultiSwarmProvider.swift */,
 				B69B9A5B7D94A557C1806213 /* CodeReviewRuntimeResources.swift */,
 				5AE148CBE52F0E897B0D910F /* MultiSwarmReviewConfig.swift */,
@@ -5615,7 +5612,6 @@
 				FB3765BD2449E1C303F9B175 /* CodeReviewAuditService.swift in Sources */,
 				2E1FE2A961AEA52FE599097D /* CodeReviewMultiSwarmProvider+Diagnostics.swift in Sources */,
 				70100D637CC5963B139DFD0D /* CodeReviewMultiSwarmProvider+Types.swift in Sources */,
-				EC7786636B23164B2A82E788 /* CodeReviewMultiSwarmProvider+WorkerOrdering.swift in Sources */,
 				3168684DBB040E2A05D5ABCE /* CodeReviewMultiSwarmProvider.swift in Sources */,
 				9F7D2FDB97F208DD80184A5F /* CodeReviewRuntimeResources.swift in Sources */,
 				CEB0893408EE82F267276479 /* MultiSwarmReviewConfig.swift in Sources */,
