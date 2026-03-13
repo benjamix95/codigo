@@ -109,7 +109,7 @@ is_code_file() {
   [[ "$path" == App/SoloCodeApp/Resources/* ]] && return 1
   [[ "$path" == *".xcassets/"* ]] && return 1
   [[ "$path" == App/SoloCodeApp/Resources/monaco/* ]] && return 1
-  [[ "$path" == *.swift || "$path" == *.sh || "$path" == *.rb ]] || return 1
+  [[ "$path" == *.swift || "$path" == *.sh || "$path" == *.rb || "$path" == *.rs ]] || return 1
   return 0
 }
 
@@ -139,6 +139,14 @@ for file in "${FILES[@]}"; do
 done
 pass "codeSize"
 
+./scripts/validate_rust_cutover_boundary.sh \
+  --trigger "$TRIGGER" \
+  --workspace "$WORKSPACE" \
+  --files "$FILES_CSV" \
+  --format "$FORMAT" \
+  $([[ "$STAGED" == "true" ]] && printf '%s' --staged)
+pass "rustCutoverBoundary"
+
 xcodebuild build \
   -workspace "Solo Code.xcworkspace" \
   -scheme "$([[ "$TRIGGER" == "ciFull" ]] && echo "Solo Code-Release" || echo "Solo Code-Debug")" \
@@ -150,8 +158,17 @@ TEST_ARGS=()
 need_engine_fallback="false"
 need_app_fallback="false"
 need_integration="false"
+native_only_validation="true"
 
 for file in "${FILES[@]}"; do
+  case "$file" in
+    Native/*|Config/validation/*|scripts/solocode-validate|scripts/validate_rust_cutover_boundary.sh|.github/workflows/validation.yml|.gitignore|docs/*)
+      ;;
+    *)
+      native_only_validation="false"
+      ;;
+  esac
+
   case "$file" in
     Engine/CoderEngine/Sources/Validation/*)
       TEST_ARGS+=(
@@ -207,21 +224,33 @@ fi
 [[ "$need_engine_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
 [[ "$need_app_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeAppTests")
 [[ "$need_integration" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeIntegrationTests")
-[[ ${#TEST_ARGS[@]} -eq 0 ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
+if [[ ${#TEST_ARGS[@]} -eq 0 && "$native_only_validation" != "true" ]]; then
+  TEST_ARGS+=("-only-testing:CoderEngineTests")
+fi
 
 deduped_args=()
-for arg in "${TEST_ARGS[@]}"; do
+for arg in "${TEST_ARGS[@]-}"; do
+  [[ -z "$arg" ]] && continue
   skip="false"
   for existing in "${deduped_args[@]-}"; do
     [[ "$existing" == "$arg" ]] && skip="true"
   done
   [[ "$skip" == "false" ]] && deduped_args+=("$arg")
 done
-TEST_ARGS=("${deduped_args[@]}")
+test_args_count="${#deduped_args[@]}"
+if [[ "$test_args_count" -gt 0 ]]; then
+  TEST_ARGS=("${deduped_args[@]}")
+else
+  TEST_ARGS=()
+fi
 
-build_for_testing
-run_tests_without_building targetedTests /tmp/solocode-validate-tests.log "${TEST_ARGS[@]}"
-pass "targetedTests"
+if [[ "$test_args_count" -gt 0 ]]; then
+  build_for_testing
+  run_tests_without_building targetedTests /tmp/solocode-validate-tests.log "${TEST_ARGS[@]}"
+  pass "targetedTests"
+else
+  log "[SKIPPED] targetedTests"
+fi
 
 needs_security="false"
 for file in "${FILES[@]}"; do

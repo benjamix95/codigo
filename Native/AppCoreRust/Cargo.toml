@@ -1,0 +1,16 @@
+[package]
+name = "app_core_rust"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "app_core_rust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rust_cutover_guard"
+path = "src/bin/rust_cutover_guard.rs"
+
+[dependencies]
+app_core_protocol = { path = "../AppCoreProtocol" }
+serde_json = "1"

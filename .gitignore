@@ -4,6 +4,8 @@
 .xcodebuild/
 .xcodebuild-test-*/
 build/
+Native/target/
+Native/**/target/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
 DerivedData/
@@ -15,6 +17,7 @@ firebase-debug.log
 # Local agent worktrees
 .claude/worktrees/
 .tmp_*
+tmp/
 
 # macOS
 .DS_Store

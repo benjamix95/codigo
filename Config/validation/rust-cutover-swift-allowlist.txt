@@ -1,0 +1,7 @@
+# kind|pattern|reason
+ui_view|App/SoloCodeApp/Sources/**/Views/**|SwiftUI/AppKit views are allowed during the Rust cutover.
+ui_view|Sidebar/**|Sidebar is presentation-only UI.
+binding_adapter|App/SoloCodeApp/Sources/**/View+*.swift|View compatibility helpers are allowed as binding glue.
+binding_adapter|App/SoloCodeApp/Sources/**/Views/**/*.swift|Nested view helpers remain UI-only.
+apple_bootstrap|App/SoloCodeApp/Sources/App/AppDelegate*.swift|Apple app lifecycle bootstrap remains in Swift.
+apple_bootstrap|App/SoloCodeApp/Sources/App/Content/**|Window composition and AppKit shell remain in Swift.
