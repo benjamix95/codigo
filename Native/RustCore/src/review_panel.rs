@@ -20,6 +20,17 @@ pub struct ReviewPanelSnapshotRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPanelHistoryLiveRequest {
+    pub schema_version: i32,
+    pub snapshot: Value,
+    #[serde(default)]
+    pub worker_plans: Vec<Value>,
+    #[serde(default)]
+    pub live_cards: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPanelChatExtractRequest {
     pub schema_version: i32,
     pub content: String,
@@ -43,8 +54,8 @@ pub fn plan_panel_launch(request: ReviewCommandPlanRequest) -> crate::review_com
     plan_command(request)
 }
 
-pub fn derive_panel_history_live(snapshot: Value) -> Value {
-    derive_history_live_state(&snapshot)
+pub fn derive_panel_history_live(request: ReviewPanelHistoryLiveRequest) -> Value {
+    derive_history_live_state(&request.snapshot, &request.worker_plans, &request.live_cards)
 }
 
 pub fn derive_panel_history_records(snapshot: Value) -> Vec<Value> {

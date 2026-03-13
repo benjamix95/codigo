@@ -1,7 +1,8 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::review_panel::{
     derive_panel_history_live, derive_panel_history_records, extract_panel_chat_findings,
-    plan_panel_launch, ReviewPanelChatExtractRequest, ReviewPanelSnapshotRequest,
+    plan_panel_launch, ReviewPanelChatExtractRequest, ReviewPanelHistoryLiveRequest,
+    ReviewPanelSnapshotRequest,
 };
 use crate::review_command::models::ReviewCommandPlanRequest;
 use crate::review_models::ReviewCoreReduceResponse;
@@ -65,8 +66,25 @@ pub extern "C" fn review_core_panel_chat_extract(input: *const c_char) -> *mut c
 
 #[no_mangle]
 pub extern "C" fn review_core_panel_history_live(input: *const c_char) -> *mut c_char {
-    snapshot_call(input, |request| {
-        ReviewCoreReduceResponse::success_panel_state(derive_panel_history_live(request.snapshot))
+    with_raw_json_input(input, |raw| {
+        let request: ReviewPanelHistoryLiveRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => {
+                return encode_raw(&ReviewCoreReduceResponse::error(
+                    "decode_failed",
+                    &err.to_string(),
+                ));
+            }
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&ReviewCoreReduceResponse::error(
+                "unsupported_schema",
+                "schemaVersion must be 1",
+            ));
+        }
+        encode_raw(&ReviewCoreReduceResponse::success_panel_state(
+            derive_panel_history_live(request),
+        ))
     })
 }
 

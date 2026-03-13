@@ -130,3 +130,19 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 10 review cutover
+- esteso il boundary Rust del live board storico review per supportare:
+  - `fileLedger`
+  - `workerPlans`
+  - `liveCards`
+- assorbito `CodeReviewPanelStore+HistoryLive.swift` in `CodeReviewPanelStore+History.swift`
+- spezzato il supporto Rust del live board in:
+  - `Native/RustCore/src/review_history/live.rs`
+  - `Native/RustCore/src/review_history/live_inputs.rs`
+- conteggio osservato del panel review:
+  - prima della tranche: `28` file legacy non-UI
+  - dopo la tranche: `27` file legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

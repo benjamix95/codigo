@@ -172,7 +172,7 @@ pub extern "C" fn review_core_reduce_panel_state(input: *const c_char) -> *mut c
                     ));
                 };
                 encode_raw(&ReviewCoreReduceResponse::success_panel_state(
-                    derive_history_live_state(&snapshot),
+                    derive_history_live_state(&snapshot, &[], &[]),
                 ))
             }
             "derive_review_panel_state" => {

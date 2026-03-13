@@ -240,6 +240,23 @@ extension CodeReviewPanelStore {
             conversationId: conversationId
         )
     }
+
+    func historyLiveFiles(from card: SwarmLiveCardState) -> [String] {
+        Array(Set(card.recentEvents.compactMap { event -> [String]? in
+            let raw = event.payload["files_raw"] ?? event.payload["files"]
+            guard let raw, !raw.isEmpty else { return nil }
+            return raw.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }.flatMap { $0 })).sorted()
+    }
+
+    func historyLiveWorkerId(for card: SwarmLiveCardState) -> String? {
+        if !card.swarmId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return card.swarmId
+        }
+        return card.recentEvents.compactMap { $0.payload["worker_id"] }.first
+    }
 }
 
 private struct ReviewPanelPatchFinalizationTargetsRequest: Encodable {

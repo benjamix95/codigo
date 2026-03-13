@@ -2,9 +2,7 @@ import CoderEngine
 import Foundation
 
 enum ReviewPanelStateRustAdapter {
-    static func reduce(
-        snapshot: CodeReviewSessionSnapshot
-    ) -> ReviewPanelRustPanelState? {
+    static func reduce(snapshot: CodeReviewSessionSnapshot) -> ReviewPanelRustPanelState? {
         let response: ReviewPanelReduceResponse? = ReviewCoreBridge.call(
             functionName: "review_core_reduce_panel_state",
             request: ReviewPanelReduceRequest(snapshot: snapshot)
@@ -17,12 +15,14 @@ enum ReviewPanelStateRustAdapter {
 }
 
 enum ReviewPanelHistoryLiveRustAdapter {
-    static func derive(
-        snapshot: CodeReviewSessionSnapshot
-    ) -> ReviewPanelRustHistoryLiveBoardState? {
+    static func derive(snapshot: CodeReviewSessionSnapshot, workerPlans: [ReviewPanelHistoryWorkerPlanInput], liveCards: [ReviewPanelHistoryLiveCardInput]) -> ReviewPanelRustHistoryLiveBoardState? {
         let response: ReviewPanelHistoryLiveReduceResponse? = ReviewCoreBridge.call(
             functionName: "review_core_panel_history_live",
-            request: ReviewPanelHistoryLiveSnapshotRequest(snapshot: snapshot)
+            request: ReviewPanelHistoryLiveRequest(
+                snapshot: snapshot,
+                workerPlans: workerPlans,
+                liveCards: liveCards
+            )
         )
         guard response?.error == nil else { return nil }
         return response?.panelState
@@ -118,9 +118,11 @@ enum ReviewPipelineJobStateBuilder {
     }
 }
 
-private struct ReviewPanelHistoryLiveSnapshotRequest: Encodable {
+private struct ReviewPanelHistoryLiveRequest: Encodable {
     let schemaVersion: Int = 1
     let snapshot: CodeReviewSessionSnapshot
+    let workerPlans: [ReviewPanelHistoryWorkerPlanInput]
+    let liveCards: [ReviewPanelHistoryLiveCardInput]
 }
 
 private struct ReviewPanelHistoryLiveReduceResponse: Decodable {
@@ -188,14 +190,10 @@ struct ReviewPanelRustHistoryLiveFile: Decodable {
 
 private func reviewRustStatus(_ status: String) -> SwarmCardStatus {
     switch status {
-    case "completed":
-        return .completed
-    case "running":
-        return .running
-    case "failed":
-        return .failed
-    default:
-        return .idle
+    case "completed": return .completed
+    case "running": return .running
+    case "failed": return .failed
+    default: return .idle
     }
 }
 

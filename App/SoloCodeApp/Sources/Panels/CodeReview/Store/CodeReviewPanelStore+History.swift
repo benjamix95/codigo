@@ -1,6 +1,35 @@
 import CoderEngine
 import Foundation
 extension CodeReviewPanelStore {
+    var historyLiveRefreshKey: String {
+        let sessionKey = selectedSessionId ?? "no-session"
+        let snapshotKey = currentSnapshot?.lastUpdatedAt.timeIntervalSince1970.description ?? "0"
+        let workerKey = currentHistoryLiveWorkerPlans
+            .map { "\($0.workerId):\($0.fileCount):\($0.files.joined(separator: ","))" }
+            .joined(separator: "|")
+        let cardKey = currentHistoryLiveCards
+            .map { "\($0.swarmId):\($0.status):\($0.currentStepTitle)" }
+            .joined(separator: "|")
+        return [findingsHistoryRefreshKey, sessionKey, snapshotKey, workerKey, cardKey].joined(separator: "|")
+    }
+
+    var currentHistoricalLiveRunState: ReviewHistoricalLiveBoardState? {
+        guard let snapshot = currentSnapshot,
+              let pipeline = currentPipelineJobState else { return nil }
+        let workerPlans = currentHistoryLiveWorkerPlans
+        let liveCards = currentHistoryLiveCards
+        let hasArtifacts = snapshot.isActive
+            || snapshot.phase == .completed
+            || snapshot.phase == .failed
+            || !snapshot.fileLedger.isEmpty
+            || !workerPlans.isEmpty
+            || !liveCards.isEmpty
+        guard hasArtifacts else { return nil }
+        return ReviewPanelHistoryLiveRustAdapter
+            .derive(snapshot: snapshot, workerPlans: workerPlans, liveCards: liveCards)?
+            .makeBoardState(pipeline: pipeline)
+    }
+
     func fallbackHistoricalFindings() -> [HistoricalFindingRecord] {
         let snapshots = availableSnapshots
         guard !snapshots.isEmpty else { return [] }
@@ -181,6 +210,50 @@ extension CodeReviewPanelStore {
             request: request
         )
         return response?.mergedHistory
+    }
+
+    private var currentHistoryLiveWorkerPlans: [ReviewPanelHistoryWorkerPlanInput] {
+        let reviewActivities = scopedReviewActivitiesForSession(
+            taskActivityStore.activities + taskActivityStore.pendingActivities,
+            sessionId: selectedSessionId
+        )
+        return sortedReviewWorkerPlanActivitiesForDisplay(
+            selectReviewWorkerActivities(from: reviewActivities)
+        ).compactMap { activity in
+            guard let workerId = activity.payload["worker_id"],
+                  let description = activity.payload["description"],
+                  let severity = activity.payload["severity"],
+                  let fileCountRaw = activity.payload["fileCount"] else { return nil }
+            let files = (activity.payload["files_raw"] ?? "")
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            return ReviewPanelHistoryWorkerPlanInput(
+                workerId: workerId,
+                description: description,
+                severity: severity.lowercased(),
+                files: files,
+                fileCount: Int(fileCountRaw) ?? files.count
+            )
+        }
+    }
+
+    private var currentHistoryLiveCards: [ReviewPanelHistoryLiveCardInput] {
+        let sessionId = selectedSessionId
+        return taskActivityStore
+            .swarmCardStatesIncludingPending(for: conversationId)
+            .filter { isCodeReviewSwarmCard($0) && reviewCardBelongsToSession($0, sessionId: sessionId) }
+            .map { card in
+                ReviewPanelHistoryLiveCardInput(
+                    swarmId: card.swarmId,
+                    displayName: card.displayName,
+                    status: card.status.rawValue,
+                    currentStepTitle: card.currentStepTitle,
+                    warningCount: card.warningCount,
+                    files: historyLiveFiles(from: card),
+                    workerId: historyLiveWorkerId(for: card)
+                )
+            }
     }
 }
 enum ReviewPanelHistoricalFindingsLoader {

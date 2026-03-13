@@ -231,6 +231,31 @@ enum ReviewPanelDerivedStateBuilder {
     }
 }
 
+struct ReviewPanelHistoryWorkerPlanInput: Encodable {
+    let workerId: String
+    let description: String
+    let severity: String
+    let files: [String]
+    let fileCount: Int
+}
+
+struct ReviewPanelHistoryLiveCardInput: Encodable {
+    let swarmId: String
+    let displayName: String
+    let status: String
+    let currentStepTitle: String
+    let warningCount: Int
+    let files: [String]
+    let workerId: String?
+}
+
+private struct ReviewPanelHistoryLiveRequest: Encodable {
+    let schemaVersion: Int = 1
+    let snapshot: CodeReviewSessionSnapshot
+    let workerPlans: [ReviewPanelHistoryWorkerPlanInput]
+    let liveCards: [ReviewPanelHistoryLiveCardInput]
+}
+
 extension String {
     var reviewToolStatus: ReviewPipelineToolExecution.Status {
         switch self {
