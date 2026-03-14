@@ -323,3 +323,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 28 review cutover
+- eliminato il file pipeline-side `CodeReviewMultiSwarmProvider+Pipeline.swift`
+- bridge `runReviewPipeline(...)` consolidato in `CodeReviewMultiSwarmProvider+PipelineBridge.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `72` file Swift
+  - dopo la tranche: `71` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

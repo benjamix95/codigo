@@ -1099,7 +1099,6 @@
 		A057C101DD5F2A22C21315C3 /* DebugServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BC716E9D8D7C58E829F7A0 /* DebugServiceModels.swift */; };
 		A0A24D033D7FEEB9543E5831 /* UnifiedToolRuntime+MCPCallsPrimary.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED2E373EB354DEC558DC4380 /* UnifiedToolRuntime+MCPCallsPrimary.swift */; };
 		A0A6F140C3073A271E065E66 /* CoderIDEMCPServer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 472B9A9F5850DF463DC11599 /* CoderIDEMCPServer.framework */; };
-		A0BE41B9C1B9D28EBA4178A6 /* CodeReviewMultiSwarmProvider+Pipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B2FBD6F32C8C80B1A8BB196 /* CodeReviewMultiSwarmProvider+Pipeline.swift */; };
 		A0C75054123FAC2F9A767565 /* MCPSharedState+RustBugHunterQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CF82D7AF0B294B188388A4F /* MCPSharedState+RustBugHunterQueue.swift */; };
 		A0D8BF4BA965A75E1DB41136 /* ArtifactCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E774629B94C05BC2D23521 /* ArtifactCardView.swift */; };
 		A0F20ABBC03A7C7E6F8789BF /* CodeReviewStreamTextAccumulatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 422C53A890691D769DFCC5E7 /* CodeReviewStreamTextAccumulatorTests.swift */; };
@@ -2432,7 +2431,6 @@
 		5AF0D633312745469C81E2D4 /* MarkdownContentView+Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MarkdownContentView+Views.swift"; path = "App/SoloCodeApp/Sources/Editor/Markdown/MarkdownContentView+Views.swift"; sourceTree = "<group>"; };
 		5B0E9E3ACA80F80D183013BA /* ReviewPanelCommitPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelCommitPicker.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Git/ReviewPanelCommitPicker.swift; sourceTree = "<group>"; };
 		5B2A33EBB4AA7B32FF7DD003 /* PlanClarificationWizardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanClarificationWizardView.swift; path = App/SoloCodeApp/Sources/Planning/Views/PlanClarificationWizardView.swift; sourceTree = "<group>"; };
-		5B2FBD6F32C8C80B1A8BB196 /* CodeReviewMultiSwarmProvider+Pipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProvider+Pipeline.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/CodeReviewMultiSwarmProvider+Pipeline.swift"; sourceTree = "<group>"; };
 		5BEE92F6C3864224833161F6 /* CodeReviewHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewHandler.swift; path = Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview/CodeReviewHandler.swift; sourceTree = "<group>"; };
 		5CAED9A960700EFC378EC733 /* MCPSharedState+PlanHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSharedState+PlanHelpers.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Plan/MCPSharedState+PlanHelpers.swift"; sourceTree = "<group>"; };
 		5CE46AAC4DA1BD159F6FBFE6 /* ToolEnabledLLMProvider+SubagentRouting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProvider+SubagentRouting.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/Tools/ToolEnabledLLMProvider+SubagentRouting.swift"; sourceTree = "<group>"; };
@@ -4365,7 +4363,6 @@
 				707AF94934E8F352353F4ADA /* CodeReviewMultiSwarmProvider+Parsing.swift */,
 				E095C293A78F0462FAADC7D6 /* CodeReviewMultiSwarmProvider+Fixes.swift */,
 				9A3A527EC0C52E6FA9AEE145 /* CodeReviewMultiSwarmProvider+Pipeline+Loop.swift */,
-				5B2FBD6F32C8C80B1A8BB196 /* CodeReviewMultiSwarmProvider+Pipeline.swift */,
 				0353776B4F4D215FDA7E2EC1 /* CodeReviewMultiSwarmProvider+PipelineBridge.swift */,
 				AC9C9D1EB0DB1D859DC31F03 /* ReviewPipelineCoordinator+CandidateVerification.swift */,
 				75B9EC91A4E1F94E90E21560 /* ReviewPipelineCoordinator+FixStage.swift */,
@@ -5583,7 +5580,6 @@
 				FB5E5C584B5D1E312C6E1EEC /* CodeReviewMultiSwarmProvider+Parsing.swift in Sources */,
 				C383F870D9FB74463348248C /* CodeReviewMultiSwarmProvider+Fixes.swift in Sources */,
 				9349BB06D38A2E3927D83305 /* CodeReviewMultiSwarmProvider+Pipeline+Loop.swift in Sources */,
-				A0BE41B9C1B9D28EBA4178A6 /* CodeReviewMultiSwarmProvider+Pipeline.swift in Sources */,
 				DD36FAECE4A4FE19E98AE57F /* CodeReviewMultiSwarmProvider+PipelineBridge.swift in Sources */,
 				4ECB24002C1F0979B2E7D100 /* ReviewPipelineCoordinator+CandidateVerification.swift in Sources */,
 				F825800272F0FB197C71727C /* ReviewPipelineCoordinator+FixStage.swift in Sources */,
