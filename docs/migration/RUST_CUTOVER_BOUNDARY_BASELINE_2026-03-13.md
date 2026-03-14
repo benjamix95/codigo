@@ -255,6 +255,17 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 21 review cutover
+- corretto il loader history panel per usare `VerifiedFindingsQueryService.listHistoricalFindings(query:)`
+- assorbito `ReviewPanelChatPresentationModels.swift` in `ReviewPanelChatModels.swift`
+- rimosso il file residuale dal filesystem e dal progetto Xcode
+- conteggio osservato del prefix panel review hard-fail:
+  - prima della tranche: `23` file Swift legacy non-UI
+  - dopo la tranche: `22` file Swift legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
   - prima della tranche: `83` file Swift
   - dopo la tranche: `82` file Swift
 - stato validation review:

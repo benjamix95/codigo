@@ -1,5 +1,9 @@
 import Foundation
 
+struct ReviewPanelMessagePresentation: Equatable, Codable {
+    let sections: [ReviewPanelChatStructuredSection]
+}
+
 // MARK: - Panel Chat Message
 
 struct ReviewPanelMessage: Identifiable, Equatable, Codable {

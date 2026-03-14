@@ -258,7 +258,7 @@ extension CodeReviewPanelStore {
 }
 enum ReviewPanelHistoricalFindingsLoader {
     static var fetch: @Sendable (HistoricalFindingsQuery) async -> [HistoricalFindingRecord] = { query in
-        HistoricalFindingsQueryService.list(query: query)
+        VerifiedFindingsQueryService.listHistoricalFindings(query: query)
     }
 
     static func list(query: HistoricalFindingsQuery) async -> [HistoricalFindingRecord] {
