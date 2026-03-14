@@ -648,3 +648,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 49 review cutover
+- eliminato il file test-side `AutoCodeReviewRoutingTests.swift`
+- test auto-routing review consolidati in `ProviderFactoryCodeReviewTests.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `51` file Swift
+  - dopo la tranche: `50` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

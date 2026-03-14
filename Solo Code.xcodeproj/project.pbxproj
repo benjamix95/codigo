@@ -941,7 +941,6 @@
 		8A87CA7771575788E92FA8B0 /* ProviderToolEventMapperTests+Plan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2210453A2C6AFAB8F3CE20A /* ProviderToolEventMapperTests+Plan.swift */; };
 		8AC959DC6BE744B3B27F418A /* PlanOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B7699B4B3DF36D7074D7C5 /* PlanOptionsView.swift */; };
 		8AEEB39EC49508DB5DD13429 /* VerifiedFindingsQueryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DAD95F196367E2EE88ADB3E /* VerifiedFindingsQueryService.swift */; };
-		8AFA7FC7ACE9C12DC4B288DB /* AutoCodeReviewRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D83CC65085094449F4A58F9 /* AutoCodeReviewRoutingTests.swift */; };
 		8B26D870E03D16B1E47D4F8C /* TaskStatusModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE93AC8273BAD18AB960396A /* TaskStatusModifiers.swift */; };
 		8B2BA22471EB31F8A8B2C64B /* DagSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3767E61CDD0E742BBD173FF0 /* DagSchedulerTests.swift */; };
 		8B52A93DB98F48D3D8AF83A4 /* MCPSharedBugHunterFallbackLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E591618BF26B491C03A49A46 /* MCPSharedBugHunterFallbackLockTests.swift */; };
@@ -2703,7 +2702,6 @@
 		8D39D9DF93BDC8AC4799ECC3 /* SemanticIndex.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SemanticIndex.swift; path = Engine/CoderEngine/Sources/CodebaseIndex/Indexing/SemanticIndex.swift; sourceTree = "<group>"; };
 		8D613AB4A03731EE70B12EB3 /* EventNormalizerTodo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventNormalizerTodo.swift; path = App/SoloCodeApp/Sources/Services/EventNormalizer/Todo/EventNormalizerTodo.swift; sourceTree = "<group>"; };
 		8D7179D0864F824A9FF4FA2D /* PipelineDirectTaskExecutor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineDirectTaskExecutor.swift; path = Engine/CoderEngine/Sources/Pipeline/Bridge/PipelineDirectTaskExecutor.swift; sourceTree = "<group>"; };
-		8D83CC65085094449F4A58F9 /* AutoCodeReviewRoutingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AutoCodeReviewRoutingTests.swift; path = Tests/SoloCodeAppTests/AutoCodeReviewRoutingTests.swift; sourceTree = "<group>"; };
 		8D8EDE771CDFE2341F7A551B /* ModeControlsBarView+Buttons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ModeControlsBarView+Buttons.swift"; path = "App/SoloCodeApp/Sources/App/ModeControls/Sections/ModeControlsBarView+Buttons.swift"; sourceTree = "<group>"; };
 		8DC8A5EC02731607E1786F5B /* CodebaseIndex+WorkspaceIndexing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodebaseIndex+WorkspaceIndexing.swift"; path = "Engine/CoderEngine/Sources/CodebaseIndex/Core/Operations/Indexing/CodebaseIndex+WorkspaceIndexing.swift"; sourceTree = "<group>"; };
 		8DD9A31B12086F85F6D38729 /* ChatPanelView+PartP_PolicyEnforcement.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartP_PolicyEnforcement.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/Streaming/ChatPanelView+PartP_PolicyEnforcement.swift"; sourceTree = "<group>"; };
@@ -4740,7 +4738,6 @@
 				F9C72FBD6655C7BE138335EB /* AppBundleProjectStructureTests.swift */,
 				21993214F20DA2585A034FCC /* AppDelegateWindowStyleTests.swift */,
 				85ECD961534DB6320F50667D /* AppUpdateCenterTests.swift */,
-				8D83CC65085094449F4A58F9 /* AutoCodeReviewRoutingTests.swift */,
 				91802DA67989BBC71DEF0C50 /* BreadcrumbComponentTests.swift */,
 				B6170FDD4968AF194885B9D1 /* BrowserToolbarLayoutTests.swift */,
 				304B5EA050652FEC8D365A21 /* BugHunterHookServiceTests.swift */,
@@ -6163,7 +6160,6 @@
 				9785ACBEBAB4EB8E96F9AFDE /* AppBundleProjectStructureTests.swift in Sources */,
 				97A82647F03209C80A7D82BE /* AppDelegateWindowStyleTests.swift in Sources */,
 				EF70F50A75338DE10475262A /* AppUpdateCenterTests.swift in Sources */,
-				8AFA7FC7ACE9C12DC4B288DB /* AutoCodeReviewRoutingTests.swift in Sources */,
 				6E1E5B9F9E2B48CEBC8CD1A0 /* BreadcrumbComponentTests.swift in Sources */,
 				B4E1BB79988F364790CF15DE /* BrowserToolbarLayoutTests.swift in Sources */,
 				3B115633C085BD8D1E31F4C1 /* BugHunterHookServiceTests.swift in Sources */,
