@@ -21,7 +21,6 @@
 		01AD3FA4035207E414653494 /* SwarmWorkerRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D8A7B28DA3A4088DB0BCB59 /* SwarmWorkerRunner.swift */; };
 		01BA29DBE1E7D35AE8C2CA6D /* PipelineValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB569212FC4E4AF48A5E261E /* PipelineValidation.swift */; };
 		02048A7A2B492137767CC0FF /* MessageRowModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1184124510D49D809F3EB7E8 /* MessageRowModels.swift */; };
-		0227D735FE01EDBD98131D8E /* CodeReviewMultiSwarmProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAC748A2508E3657855C90F /* CodeReviewMultiSwarmProviderTests.swift */; };
 		024BE7AAEF81A5CD9764CD79 /* VoiceInputControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B63B34E3D600CA56FC67F9F9 /* VoiceInputControllerTests.swift */; };
 		0264B4B9BE75E507586184C7 /* ChatPanelSupport+Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = C612B6BE23F3DD9219319848 /* ChatPanelSupport+Core.swift */; };
 		028B264B89810045DC333E10 /* ProviderFactory+Lightweight.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE02EFDD48D09DA3464D6DB /* ProviderFactory+Lightweight.swift */; };
@@ -3213,7 +3212,6 @@
 		DD494C16FB4C8312BF26BE58 /* SecurityStage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SecurityStage.swift; path = Engine/CoderEngine/Sources/Validation/Stages/SecurityStage.swift; sourceTree = "<group>"; };
 		DD74912E128B48032F0478FA /* LanguageServiceSemanticFallbackTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceSemanticFallbackTests.swift; path = Tests/SoloCodeAppTests/LanguageServiceSemanticFallbackTests.swift; sourceTree = "<group>"; };
 		DDA8100BC451C0CCDA422FED /* CoderIDEMCPServerApp+ValueConversion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CoderIDEMCPServerApp+ValueConversion.swift"; path = "Tools/CoderIDEMCPServer/Sources/Runtime/Helpers/CoderIDEMCPServerApp+ValueConversion.swift"; sourceTree = "<group>"; };
-		DDAC748A2508E3657855C90F /* CodeReviewMultiSwarmProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewMultiSwarmProviderTests.swift; path = Tests/CoderEngineTests/CodeReview/CodeReviewMultiSwarmProviderTests.swift; sourceTree = "<group>"; };
 		DDC8EB81ABD71A131CCB2B2E /* SettingsView+Behavior.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SettingsView+Behavior.swift"; path = "App/SoloCodeApp/Sources/Settings/Sections/SettingsView+Behavior.swift"; sourceTree = "<group>"; };
 		DE258826188E58EFB52D2439 /* TaskActivityConversationScope.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaskActivityConversationScope.swift; path = App/SoloCodeApp/Sources/Tasking/Support/TaskActivityConversationScope.swift; sourceTree = "<group>"; };
 		DE3E6F18463F97855F21934F /* TerminalSessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TerminalSessionStore.swift; path = App/SoloCodeApp/Sources/Tasking/TerminalSessionStore.swift; sourceTree = "<group>"; };
@@ -4958,7 +4956,6 @@
 				7FC359D678F44F499002CFBC /* CodeReviewMultiSwarmProviderTests+Outcomes.swift */,
 				920F7DAEBD654DDD0D74C9C6 /* CodeReviewMultiSwarmProviderTests+Parsing.swift */,
 				6B36604B28B3B35731D9FB4E /* CodeReviewMultiSwarmProviderTests+TaskExtraction.swift */,
-				DDAC748A2508E3657855C90F /* CodeReviewMultiSwarmProviderTests.swift */,
 				87299AD3DD967EA11A48C3FB /* CodeReviewSessionStateTests+ScopedFindings.swift */,
 				341F87362E5C2559FE071661 /* CodeReviewSessionStateTests+TerminalLifecycle.swift */,
 				65466AD69D54EB23C94B2019 /* CodeReviewSessionStateTests.swift */,
@@ -5950,7 +5947,6 @@
 				6FD2A3C204B5589A72C80559 /* CodeReviewMultiSwarmProviderTests+Outcomes.swift in Sources */,
 				2750FA219CBDE477C450BC58 /* CodeReviewMultiSwarmProviderTests+Parsing.swift in Sources */,
 				DC628A2D2F5647D01CD0D812 /* CodeReviewMultiSwarmProviderTests+TaskExtraction.swift in Sources */,
-				0227D735FE01EDBD98131D8E /* CodeReviewMultiSwarmProviderTests.swift in Sources */,
 				057E019AA101C06DE5D2874A /* CodeReviewSessionStateTests+ScopedFindings.swift in Sources */,
 				9768463776DE0BD9EF388956 /* CodeReviewSessionStateTests+TerminalLifecycle.swift in Sources */,
 				50E6BFD3E1E403F6B97DBF2D /* CodeReviewSessionStateTests.swift in Sources */,

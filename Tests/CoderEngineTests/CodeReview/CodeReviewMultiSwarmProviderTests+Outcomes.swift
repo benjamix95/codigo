@@ -1,6 +1,8 @@
 import XCTest
 @testable import CoderEngine
 
+final class CodeReviewMultiSwarmProviderTests: XCTestCase {}
+
 extension CodeReviewMultiSwarmProviderTests {
     // MARK: - gitDiffFiles argument order
 
