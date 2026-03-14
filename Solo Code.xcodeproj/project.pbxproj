@@ -983,7 +983,6 @@
 		8FB1890FA8B95A17E0109295 /* MarkdownContentView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80E6FCFEA2899E3D1270D5C /* MarkdownContentView+Helpers.swift */; };
 		8FC025E936D8EC6D90840E0C /* MCPSharedStateTodoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C974652AE4CD6489620AF6 /* MCPSharedStateTodoTests.swift */; };
 		8FD0CE902D65616DC0454101 /* PlanHistoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7F7131A39B668510F96705 /* PlanHistoryStoreTests.swift */; };
-		90128E7223009F9B0BCF6512 /* FileLockCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C2C27C25F826D16FC2096F /* FileLockCoordinator.swift */; };
 		90292BF511C3B9A56CF4DB62 /* SwarmStepRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F4EE65BA88DD3D040F334D /* SwarmStepRow.swift */; };
 		90715C281DF6BB39D667C233 /* MCPServerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E810185BD740C93CDDC680C /* MCPServerConfig.swift */; };
 		90940A05683E8F8A36DF0E66 /* UnifiedToolRuntime+IndexQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371BFBAF22696CEDE0F52593 /* UnifiedToolRuntime+IndexQueries.swift */; };
@@ -2484,7 +2483,6 @@
 		67450ED76E144001C371DBFB /* ConversationCheckpointGitStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationCheckpointGitStore.swift; path = App/SoloCodeApp/Sources/Git/ConversationCheckpointGitStore.swift; sourceTree = "<group>"; };
 		679DD1F2FC10F7018D3CA6BB /* UnifiedToolRuntime+IndexReadLints.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+IndexReadLints.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Index/Search/Diagnostics/UnifiedToolRuntime+IndexReadLints.swift"; sourceTree = "<group>"; };
 		679E6DBD7D5F155DC3611F63 /* MCPConfigLoader+Sources.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPConfigLoader+Sources.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Config/MCPConfigLoader+Sources.swift"; sourceTree = "<group>"; };
-		67C2C27C25F826D16FC2096F /* FileLockCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FileLockCoordinator.swift; path = Engine/CoderEngine/Sources/CodeReview/Locking/FileLockCoordinator.swift; sourceTree = "<group>"; };
 		67C7412170D22222946390A2 /* PromptOptimizerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PromptOptimizerService.swift; path = App/SoloCodeApp/Sources/Planning/PromptOptimizerService.swift; sourceTree = "<group>"; };
 		67C9F986E1B41746E518893E /* EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.swift"; path = "Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests+DebugPayloadKeyFallbacks.swift"; sourceTree = "<group>"; };
 		67F3F0D38E2F50F67E27575A /* FileChangePreviewResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FileChangePreviewResolverTests.swift; path = Tests/SoloCodeAppTests/FileChangePreviewResolverTests.swift; sourceTree = "<group>"; };
@@ -4322,7 +4320,6 @@
 				CCEFBB28FB9981B9622A71AE /* ReviewPipelineRustModels.swift */,
 				371B6C2256F05C207287A7FB /* ReviewRuntimeAdapter.swift */,
 				01138A53AC701E39111394CF /* CodeReviewMultiSwarmProvider+Scope.swift */,
-				67C2C27C25F826D16FC2096F /* FileLockCoordinator.swift */,
 				BE930528B1D1CD896CE2D14F /* ReviewDiffSummaryService.swift */,
 				349D9C4246E3EF7365E52FE6 /* CodeReviewFinding+Factories.swift */,
 				51D9CCA47FEFE7C82E8DC710 /* CodeReviewFinding.swift */,
@@ -5521,7 +5518,6 @@
 				E93985E20CB690E93DCC1C21 /* ReviewPipelineRustModels.swift in Sources */,
 				CAD5C6DB7C525A25454013AD /* ReviewRuntimeAdapter.swift in Sources */,
 				B591712DBCBD0D75220BB08A /* CodeReviewMultiSwarmProvider+Scope.swift in Sources */,
-				90128E7223009F9B0BCF6512 /* FileLockCoordinator.swift in Sources */,
 				7440DED19BDB0E1D9C50AC65 /* ReviewDiffSummaryService.swift in Sources */,
 				5EFADA1A8582753F20EDCAB1 /* CodeReviewFinding+Factories.swift in Sources */,
 				CAB97B46A14A7E5B7B1AA08B /* CodeReviewFinding.swift in Sources */,

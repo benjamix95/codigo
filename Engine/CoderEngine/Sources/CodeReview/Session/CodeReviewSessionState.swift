@@ -1,5 +1,114 @@
 import Foundation
 
+/// Coordinates exclusive file access between parallel swarms.
+/// Uses exponential backoff with jitter to reduce contention and starvation.
+/// Locks have a 10-minute lease; stale locks from crashed workers are auto-evicted.
+public actor FileLockCoordinator {
+    public init() {}
+
+    private var lockedFiles: [String: String] = [:]
+    private var lockTimestamps: [String: UInt64] = [:]
+    private let maxLockLeaseNs: UInt64 = 600_000_000_000
+    private var waitQueue: [String] = []
+    private var waitingRequests: [String: Set<String>] = [:]
+    private var waiterTimestamps: [String: UInt64] = [:]
+
+    @discardableResult
+    public func acquireLock(
+        files: Set<String>,
+        swarmId: String,
+        isCancelled: (@Sendable () -> Bool)? = nil
+    ) async -> Bool {
+        guard !files.isEmpty else { return true }
+        if !waitQueue.contains(swarmId) {
+            waitQueue.append(swarmId)
+            waiterTimestamps[swarmId] = DispatchTime.now().uptimeNanoseconds
+        }
+        waitingRequests[swarmId] = files
+
+        let maxDuration: UInt64 = 300_000_000_000
+        let startTime = DispatchTime.now().uptimeNanoseconds
+        var backoffNs: UInt64 = 100_000_000
+
+        while (DispatchTime.now().uptimeNanoseconds - startTime) < maxDuration {
+            if isCancelled?() == true || Task.isCancelled {
+                removeWaitingRequest(swarmId)
+                return false
+            }
+
+            evictStaleLocks()
+            let intersection = files.filter { lockedFiles[$0] != nil && lockedFiles[$0] != swarmId }
+            let hasConflictingWaiterAhead = hasOverlappingWaiterAhead(of: swarmId, files: files)
+            if intersection.isEmpty && !hasConflictingWaiterAhead {
+                let now = DispatchTime.now().uptimeNanoseconds
+                for file in files {
+                    lockedFiles[file] = swarmId
+                    lockTimestamps[file] = now
+                }
+                removeWaitingRequest(swarmId)
+                return true
+            }
+
+            let jitter = UInt64.random(in: 0...(backoffNs / 4))
+            try? await Task.sleep(nanoseconds: backoffNs + jitter)
+            backoffNs = min(backoffNs * 2, 2_000_000_000)
+        }
+
+        removeWaitingRequest(swarmId)
+        return false
+    }
+
+    public func releaseLock(files: Set<String>, swarmId: String) async {
+        for file in files where lockedFiles[file] == swarmId {
+            lockedFiles.removeValue(forKey: file)
+            lockTimestamps.removeValue(forKey: file)
+        }
+    }
+
+    public func releaseAllLocks(swarmId: String) {
+        let removedFiles = lockedFiles.filter { $0.value == swarmId }.map(\.key)
+        lockedFiles = lockedFiles.filter { $0.value != swarmId }
+        for file in removedFiles {
+            lockTimestamps.removeValue(forKey: file)
+        }
+        removeWaitingRequest(swarmId)
+    }
+
+    private func hasOverlappingWaiterAhead(of swarmId: String, files: Set<String>) -> Bool {
+        for queuedSwarmId in waitQueue {
+            if queuedSwarmId == swarmId {
+                return false
+            }
+            guard let queuedFiles = waitingRequests[queuedSwarmId] else {
+                continue
+            }
+            if !queuedFiles.isDisjoint(with: files) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func evictStaleLocks() {
+        let now = DispatchTime.now().uptimeNanoseconds
+        let staleFiles = lockTimestamps.filter { now - $0.value > maxLockLeaseNs }.map(\.key)
+        for file in staleFiles {
+            lockedFiles.removeValue(forKey: file)
+            lockTimestamps.removeValue(forKey: file)
+        }
+        let staleWaiters = waiterTimestamps.filter { now - $0.value > maxLockLeaseNs }.map(\.key)
+        for swarmId in staleWaiters {
+            removeWaitingRequest(swarmId)
+        }
+    }
+
+    private func removeWaitingRequest(_ swarmId: String) {
+        waitQueue.removeAll { $0 == swarmId }
+        waitingRequests.removeValue(forKey: swarmId)
+        waiterTimestamps.removeValue(forKey: swarmId)
+    }
+}
+
 // MARK: - CodeReviewSessionState
 
 /// Thread-safe actor managing the state of a code review session.

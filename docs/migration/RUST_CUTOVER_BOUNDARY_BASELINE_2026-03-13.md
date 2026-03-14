@@ -548,3 +548,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 39 review cutover
+- eliminato il file locking-side `FileLockCoordinator.swift`
+- `FileLockCoordinator` consolidato in `CodeReviewSessionState.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `61` file Swift
+  - dopo la tranche: `60` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
