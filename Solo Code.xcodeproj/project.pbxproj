@@ -944,7 +944,6 @@
 		865AA2625B687E7523CEA633 /* ContextRankingEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB3D1B238B98F12A7B1CA689 /* ContextRankingEngineTests.swift */; };
 		866D2FD87303F599DCA01EFA /* TodoListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFFB34EAD38E82431736D2A /* TodoListView.swift */; };
 		87155FBB0204B813B59EEE42 /* EventNormalizer+DebugNativeParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0478FECC5ED334AC6B2C3F /* EventNormalizer+DebugNativeParsers.swift */; };
-		876FBE3A1A0750A7076555F3 /* SensitiveDataRedactionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8DCA4B02445D944646523CB /* SensitiveDataRedactionService.swift */; };
 		8772545606976CFC55E0B80C /* ContentView+SidebarChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42D17410C961E521800494B6 /* ContentView+SidebarChrome.swift */; };
 		87C4C35789419DF3DC3EC793 /* DebugLogServer+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FADD6BCDA39C464BBED1BC9 /* DebugLogServer+Persistence.swift */; };
 		87CE87AEC10C71CA2CD03822 /* PatchWorkflowRaceConditionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D47AE11757567184BB5E82DA /* PatchWorkflowRaceConditionTests.swift */; };
@@ -2939,7 +2938,6 @@
 		A8A4193CBE605B4EF991390A /* SwarmBudgetManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwarmBudgetManagerTests.swift; path = Tests/CoderEngineTests/Pipeline/Agents/SwarmBudgetManagerTests.swift; sourceTree = "<group>"; };
 		A8ADFC560A464E840F46D036 /* LanguageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageService.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageService.swift; sourceTree = "<group>"; };
 		A8D596EDB2BAA71B69EA4546 /* BugHunterScopeResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterScopeResolver.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/BugHunterScopeResolver.swift; sourceTree = "<group>"; };
-		A8DCA4B02445D944646523CB /* SensitiveDataRedactionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SensitiveDataRedactionService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/SensitiveDataRedactionService.swift; sourceTree = "<group>"; };
 		A9116BC647F86015A360DBBA /* ReviewPanelChatMessageContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatMessageContextTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelChatMessageContextTests.swift; sourceTree = "<group>"; };
 		A95B030EBAD6010089ACAB92 /* CodexCustomModelProfileSync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodexCustomModelProfileSync.swift; path = App/SoloCodeApp/Sources/Settings/CodexCustomModel/CodexCustomModelProfileSync.swift; sourceTree = "<group>"; };
 		A95D6ABBE92252C1D70E7D20 /* DebugPipelineContracts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugPipelineContracts.swift; path = Engine/CoderEngine/Sources/Pipeline/Debug/Contracts/DebugPipelineContracts.swift; sourceTree = "<group>"; };
@@ -4811,7 +4809,6 @@
 				1A70B132E650DFAF6E7FF574 /* FindingIdentityService.swift */,
 				990261D420BEFF98E3B04B0E /* HistoricalFindingsQueryService.swift */,
 				A1017401641DABF0C80B6259 /* SecurityWorkflowService.swift */,
-				A8DCA4B02445D944646523CB /* SensitiveDataRedactionService.swift */,
 				384C596993827517B59FC363 /* VerifiedFindingsCanonicalStore.swift */,
 				88DF445DA464C89C9A4BE9E0 /* VerifiedFindingsCheckpointService.swift */,
 				CAE978EA49BD5C228D310017 /* VerifiedFindingsCommandCoordinator.swift */,
@@ -6037,7 +6034,6 @@
 				AEEC91DD4D1A53E7CD36F609 /* FindingIdentityService.swift in Sources */,
 				110A8F087BF39E1738F4D58C /* HistoricalFindingsQueryService.swift in Sources */,
 				6BFEA2AD2A74A54C4CFFB4B4 /* SecurityWorkflowService.swift in Sources */,
-				876FBE3A1A0750A7076555F3 /* SensitiveDataRedactionService.swift in Sources */,
 				3BB45B74706821F8B9B7F7EA /* VerifiedFindingsCanonicalStore.swift in Sources */,
 				44D84B292A64C063C9A4A780 /* VerifiedFindingsCheckpointService.swift in Sources */,
 				3579190CFA90BFC8C76E6846 /* VerifiedFindingsCommandCoordinator.swift in Sources */,
