@@ -287,6 +287,16 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 24 review cutover
+- assorbito `ReviewPipelineLedgerModels.swift` in `CodeReviewSessionSnapshot+Derived.swift`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del dominio `CodeReview`:
+  - prima della tranche: `37` file Swift
+  - dopo la tranche: `36` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
   - prima della tranche: `83` file Swift
   - dopo la tranche: `82` file Swift
 - stato validation review:
