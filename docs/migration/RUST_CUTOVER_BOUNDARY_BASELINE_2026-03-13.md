@@ -518,3 +518,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 36 review cutover
+- eliminato il file domain-side `VerifiedFindingEnums.swift`
+- enum verified findings consolidati tra `VerifiedFindingModels.swift` e `VerifiedFindingModels+PatchRun.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `64` file Swift
+  - dopo la tranche: `63` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

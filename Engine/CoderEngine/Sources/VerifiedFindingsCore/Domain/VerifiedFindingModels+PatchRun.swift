@@ -1,5 +1,42 @@
 import Foundation
 
+public enum VerifiedPatchStrategy: String, Sendable, Codable, CaseIterable {
+    case minimalFix = "minimal_fix"
+    case hardeningFix = "hardening_fix"
+    case guardFix = "guard_fix"
+    case rollbackFix = "rollback_fix"
+}
+
+public enum VerifiedRegressionRisk: String, Sendable, Codable, CaseIterable {
+    case low
+    case medium
+    case high
+}
+
+public enum VerifiedPatchApplyStatus: String, Sendable, Codable, CaseIterable {
+    case notApplied = "not_applied"
+    case applying
+    case applied
+    case failed
+    case rolledBack = "rolled_back"
+}
+
+public enum VerifiedRunStatus: String, Sendable, Codable, CaseIterable {
+    case queued
+    case running
+    case completed
+    case failed
+    case timedOut = "timed_out"
+    case cancelled
+}
+
+public enum VerifiedEntityType: String, Sendable, Codable, CaseIterable {
+    case run
+    case finding
+    case patch
+    case evidence
+}
+
 public struct VerifiedPatchHunk: Sendable, Codable, Equatable {
     public let startLineOld: Int?
     public let startLineNew: Int?

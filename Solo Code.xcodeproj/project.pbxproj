@@ -1372,7 +1372,6 @@
 		CCCD7BC828E5706F6D1B80EB /* CDPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65BB0A203646C2105057FBFD /* CDPClient.swift */; };
 		CCEE95E63A3DA87C4C1244AB /* EditorPlaceholderView+Tabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98871627468C4637EF9D5A48 /* EditorPlaceholderView+Tabs.swift */; };
 		CCFEFEBC104602D56806B1AA /* monaco in Resources */ = {isa = PBXBuildFile; fileRef = 7EE8A745586E6B830E373E95 /* monaco */; };
-		CD6E2418C7248513E37893EC /* VerifiedFindingEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = A069F2B95FD8B687D5FE16DE /* VerifiedFindingEnums.swift */; };
 		CD7C039C0B416B1F7485D1FB /* ChatPanelView+PartP_Streaming2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413DFD0DC6E15FC15227945D /* ChatPanelView+PartP_Streaming2.swift */; };
 		CD832CA667349B1CDA3F8C06 /* CoderIDETools+CodeReviewWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48485442F20C73670E038DBE /* CoderIDETools+CodeReviewWorkflow.swift */; };
 		CDB97F5E3536BA171E179D87 /* SourceKitLSPAdapter+Decoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8403D209B3951A3BDBDAF5A8 /* SourceKitLSPAdapter+Decoding.swift */; };
@@ -2838,7 +2837,6 @@
 		A02DFE97A7F7E5F6876EB473 /* UnifiedToolRuntime+SearchGrep.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+SearchGrep.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Search/Execution/UnifiedToolRuntime+SearchGrep.swift"; sourceTree = "<group>"; };
 		A05642E0777B62EC32AA3701 /* SidePanelView+SourceControl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SidePanelView+SourceControl.swift"; path = "App/SoloCodeApp/Sources/App/SidePanel/Sections/SidePanelView+SourceControl.swift"; sourceTree = "<group>"; };
 		A058EC8C4C3302376E081275 /* PatchApplyTransaction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PatchApplyTransaction.swift; path = Engine/CoderEngine/Sources/Pipeline/Patching/PatchApplyTransaction.swift; sourceTree = "<group>"; };
-		A069F2B95FD8B687D5FE16DE /* VerifiedFindingEnums.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingEnums.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Domain/VerifiedFindingEnums.swift; sourceTree = "<group>"; };
 		A089970AEDC8E261562089AF /* DebugServiceFlowTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugServiceFlowTests.swift; path = Tests/SoloCodeAppTests/DebugService/DebugServiceFlowTests.swift; sourceTree = "<group>"; };
 		A1017401641DABF0C80B6259 /* SecurityWorkflowService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SecurityWorkflowService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/SecurityWorkflowService.swift; sourceTree = "<group>"; };
 		A13186E2BB3726C67D040BF5 /* DebugStore+ExtendedDebug.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugStore+ExtendedDebug.swift"; path = "App/SoloCodeApp/Sources/Debug/Stores/DebugStore+ExtendedDebug.swift"; sourceTree = "<group>"; };
@@ -4747,7 +4745,6 @@
 				C54D56EEEF000C084E614F74 /* VerifiedFindingsSessionSyncService.swift */,
 				3F950E3DE5946FCCE8C56245 /* VerifiedFindingsStartCommandService.swift */,
 				1BD16A39B4988D0FFFAF732D /* VerifiedFindingsStatusService.swift */,
-				A069F2B95FD8B687D5FE16DE /* VerifiedFindingEnums.swift */,
 				D18A8907AD1E492D596E66EA /* VerifiedFindingModels+PatchRun.swift */,
 				B3AC88125075B00AEABE82D0 /* VerifiedFindingModels.swift */,
 				C803B4A1BBC1D284528F2F39 /* VerifiedFindingsProjectionBuilder.swift */,
@@ -5948,7 +5945,6 @@
 				70999D54AF124881328E5A9B /* VerifiedFindingsSessionSyncService.swift in Sources */,
 				C4B994FC061BC110DA71BF72 /* VerifiedFindingsStartCommandService.swift in Sources */,
 				11720050EA800E5804859B92 /* VerifiedFindingsStatusService.swift in Sources */,
-				CD6E2418C7248513E37893EC /* VerifiedFindingEnums.swift in Sources */,
 				15DDAF4B3A78015E761B6B4E /* VerifiedFindingModels+PatchRun.swift in Sources */,
 				A6E1CD2C12FF2DA908F3657C /* VerifiedFindingModels.swift in Sources */,
 				009144A8CE6972A3088394AF /* VerifiedFindingsProjectionBuilder.swift in Sources */,

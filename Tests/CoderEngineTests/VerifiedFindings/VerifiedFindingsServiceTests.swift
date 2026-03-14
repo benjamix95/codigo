@@ -63,6 +63,55 @@ final class VerifiedFindingsServiceTests: XCTestCase {
         XCTAssertEqual(resolved.replayReport.verifiedCount, 1)
     }
 
+    func testVerifiedDomainModelsRemainCodableAcrossFindingAndRunEnums() throws {
+        struct ModelEnvelope: Codable {
+            let finding: VerifiedFinding
+            let run: VerifiedPipelineRun
+        }
+
+        let finding = VerifiedFinding(
+            id: "finding-codable",
+            domain: .security,
+            title: "Guard missing",
+            summary: "summary",
+            category: "security",
+            severity: .critical,
+            confidence: 0.9,
+            status: .verified,
+            filePath: "Sources/Auth.swift",
+            reproducibility: .partial,
+            originEntryPoint: .panel,
+            staleStatus: .active,
+            findingFingerprint: "fingerprint"
+        )
+        let run = VerifiedPipelineRun(
+            id: "run-codable",
+            status: .completed,
+            domainScope: [.bug, .security],
+            workspaceId: "/tmp/repo",
+            entryPoint: .mcp,
+            budgetPolicy: VerifiedRunBudgetPolicy(),
+            maxDuration: 60,
+            maxToolCalls: 5,
+            maxVerificationAttempts: 2,
+            maxPatchAttempts: 1,
+            maxRevalidationAttempts: 1,
+            timeoutAt: nil,
+            cancelledAt: nil,
+            cancelReason: nil,
+            toolCallCount: 1,
+            verificationAttemptCount: 1,
+            patchAttemptCount: 0,
+            revalidationAttemptCount: 0,
+            isCancellable: false,
+            createdAt: stableDate,
+            updatedAt: stableDate
+        )
+
+        let encoded = try JSONEncoder().encode(ModelEnvelope(finding: finding, run: run))
+        XCTAssertFalse(encoded.isEmpty)
+    }
+
     private func makeEnvelope(sessionId: String) -> VerifiedFindingsSessionEnvelope {
         let finding = VerifiedFinding(
             id: "finding-1",
