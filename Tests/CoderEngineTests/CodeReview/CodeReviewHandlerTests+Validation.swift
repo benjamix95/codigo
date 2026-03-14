@@ -111,4 +111,71 @@ extension CodeReviewHandlerTests {
         XCTAssertNil(result?.isError)
         XCTAssertTrue(textContent(result).contains("queued"))
     }
+
+    func testReviewStatusFallsBackWhenRustCoreIsForcedOff() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        let snapshot = seedSnapshot(phase: .analyzing)
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_status",
+            args: reviewSessionArgs(snapshot)
+        )
+
+        XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains("session_id: \(snapshot.sessionId)"))
+    }
+
+    func testReviewFindingsFallsBackWhenRustCoreIsForcedOff() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        let snapshot = seedSnapshot()
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_findings",
+            args: reviewSessionArgs(snapshot)
+        )
+
+        XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains("Findings"))
+        XCTAssertTrue(textContent(result).contains("redacted-swift-file-"))
+    }
+
+    func testReviewRevalidateFindingFallsBackWhenRustCoreIsForcedOff() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        let patch = ReviewPatchArtifact(
+            id: "patch-fallback-1",
+            findingId: "f123",
+            patchText: "diff --git a/Package.swift b/Package.swift",
+            diffPreview: "@@",
+            touchedFiles: ["Package.swift"],
+            status: .applied,
+            verifyStatus: .verified,
+            validationStatus: .passed
+        )
+        let snapshot = seedSnapshot().copying(patches: [patch])
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_revalidate_finding",
+            args: reviewSessionArgs(snapshot, extras: ["finding_id": "f123"])
+        )
+
+        XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains("queued"))
+    }
 }

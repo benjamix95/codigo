@@ -586,7 +586,6 @@
 		50E6BFD3E1E403F6B97DBF2D /* CodeReviewSessionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65466AD69D54EB23C94B2019 /* CodeReviewSessionStateTests.swift */; };
 		50F7A2D28B20F87A70F76C96 /* CheckpointGitStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E0E418C236DA72025FE617 /* CheckpointGitStoreTests.swift */; };
 		51971AC5EC39BFB332406F70 /* EventNormalizerLiveStateTests+Activities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF33EB4163752E692A892522 /* EventNormalizerLiveStateTests+Activities.swift */; };
-		51AEBC364E438EDFE3D325BB /* CodeReviewHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BEE92F6C3864224833161F6 /* CodeReviewHandler.swift */; };
 		51EB433680CF2568C4AFCA02 /* ChatThreadUIStateDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA52ACB086C970B394635A80 /* ChatThreadUIStateDefaultsTests.swift */; };
 		51EC276ECD37C01F449E62F2 /* CodexConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 670E541949E1F6F079D791A7 /* CodexConfig.swift */; };
 		52013309927F5AC8E2737040 /* GitPanelView+Commit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DBF6B68DF2DE517F9600FD5 /* GitPanelView+Commit.swift */; };
@@ -926,7 +925,6 @@
 		83D02C2F5A2091107E1B4306 /* CircularProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5FB71B0BE782E6909A7A5E /* CircularProgressView.swift */; };
 		84493A727A6F9F992E0D4B00 /* SemanticDiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA298BD3266EC81F126975F /* SemanticDiffEngine.swift */; };
 		84A1154FA74710660AC90AAE /* PipelineExecutionContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDEB29C30380A342D8A352D3 /* PipelineExecutionContracts.swift */; };
-		84A4989B79D50D062BAACEC1 /* CodeReviewHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BEE92F6C3864224833161F6 /* CodeReviewHandler.swift */; };
 		85D87495743F5BFC3ABE9A9C /* MCPSessionManager+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85FD60F39A048DEF10B15D6C /* MCPSessionManager+Lifecycle.swift */; };
 		8623335F188F6CB8431BED51 /* CLIAccountModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A415E9C8BCE51BCF46880E /* CLIAccountModels.swift */; };
 		8641781410A87551BF66ACB2 /* UnifiedToolRuntime+ShellDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0918F79FCDA44378AE0F3E81 /* UnifiedToolRuntime+ShellDiagnostics.swift */; };
@@ -2426,7 +2424,6 @@
 		5AF0D633312745469C81E2D4 /* MarkdownContentView+Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MarkdownContentView+Views.swift"; path = "App/SoloCodeApp/Sources/Editor/Markdown/MarkdownContentView+Views.swift"; sourceTree = "<group>"; };
 		5B0E9E3ACA80F80D183013BA /* ReviewPanelCommitPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelCommitPicker.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Git/ReviewPanelCommitPicker.swift; sourceTree = "<group>"; };
 		5B2A33EBB4AA7B32FF7DD003 /* PlanClarificationWizardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanClarificationWizardView.swift; path = App/SoloCodeApp/Sources/Planning/Views/PlanClarificationWizardView.swift; sourceTree = "<group>"; };
-		5BEE92F6C3864224833161F6 /* CodeReviewHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewHandler.swift; path = Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview/CodeReviewHandler.swift; sourceTree = "<group>"; };
 		5CAED9A960700EFC378EC733 /* MCPSharedState+PlanHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSharedState+PlanHelpers.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Plan/MCPSharedState+PlanHelpers.swift"; sourceTree = "<group>"; };
 		5CE46AAC4DA1BD159F6FBFE6 /* ToolEnabledLLMProvider+SubagentRouting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProvider+SubagentRouting.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/Tools/ToolEnabledLLMProvider+SubagentRouting.swift"; sourceTree = "<group>"; };
 		5D4DB64EC09C824DB8C715A6 /* ContentView+Layout+Composition.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ContentView+Layout+Composition.swift"; path = "App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+Composition.swift"; sourceTree = "<group>"; };
@@ -5242,7 +5239,6 @@
 				E68C7B886BD0BCD374FEC73A /* CodeReviewHandler+PatchWorkflow.swift */,
 				EDDCD8DC9E09280F3FAD91AB /* CodeReviewHandler+Resolution.swift */,
 				B65E25DDA49A86F960FC2F2F /* CodeReviewHandler+Start.swift */,
-				5BEE92F6C3864224833161F6 /* CodeReviewHandler.swift */,
 				C1ACF1972FD5C1304984D55A /* CodeReviewRustHandlerSupport.swift */,
 				4BD74764CE7D837E3B00EA50 /* CoderIDEMCPServerApp+IDEStatePlanMutations.swift */,
 				6A02D8189B329B20217A6C11 /* CoderIDEMCPServerApp+IDEStatePlanParsing.swift */,
@@ -6218,7 +6214,6 @@
 				54EF0FD2ADB62B416BC757E7 /* CodeReviewHandler+PatchWorkflow.swift in Sources */,
 				1B0360C9262D9D71744E704D /* CodeReviewHandler+Resolution.swift in Sources */,
 				0BBABC0F33C45A246C931B14 /* CodeReviewHandler+Start.swift in Sources */,
-				51AEBC364E438EDFE3D325BB /* CodeReviewHandler.swift in Sources */,
 				3D2B0FFA116F80FF28F144F0 /* CodeReviewRustHandlerSupport.swift in Sources */,
 				898D3744155996580AD3EEE7 /* CoderIDEMCPServerApp+IDEStatePlanMutations.swift in Sources */,
 				C1CB1C0698F8EAB56B7C936E /* CoderIDEMCPServerApp+IDEStatePlanParsing.swift in Sources */,
@@ -7220,7 +7215,6 @@
 				A84177D1F2DB93EB448A432F /* CodeReviewHandler+PatchWorkflow.swift in Sources */,
 				6EA41F24E8A6AA0F1EF4D9D6 /* CodeReviewHandler+Resolution.swift in Sources */,
 				919C2D487FFD6ABAF273999A /* CodeReviewHandler+Start.swift in Sources */,
-				84A4989B79D50D062BAACEC1 /* CodeReviewHandler.swift in Sources */,
 				A69B6FD172C5B141037F9F4B /* CodeReviewRustHandlerSupport.swift in Sources */,
 				18A069BCA5ED31C04D9B6F83 /* CoderIDEMCPServerApp+IDEStatePlanMutations.swift in Sources */,
 				C4BFA801F4A9C4261FD96626 /* CoderIDEMCPServerApp+IDEStatePlanParsing.swift in Sources */,

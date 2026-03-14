@@ -34,7 +34,21 @@ extension CoderIDEMCPServerApp {
         guard !findingId.isEmpty, !sessionId.isEmpty else {
             return reviewError("Error: 'finding_id' and 'session_id' are required")
         }
-        return reviewError("Error: Rust review core unavailable for review_apply_patch")
+        if let ownershipError = validateFindingOwnership(
+            sessionId: sessionId,
+            findingId: findingId,
+            args: args
+        ) {
+            return reviewError(ownershipError)
+        }
+        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId),
+              let patch = snapshot.patches.first(where: { $0.findingId == findingId }) else {
+            return reviewError("Error: no prepared patch artifact found. Run review_prepare_patch first.")
+        }
+        guard patch.verifyStatus == .verified else {
+            return reviewError("Error: patch artifact is not verified. Run review_prepare_patch or review_verify_patch first.")
+        }
+        return reviewCommandQueued(action: "apply_patch", sessionId: sessionId, args: args)
     }
 
     static func handleReviewVerifyPatch(args: [String: String]) -> CallTool.Result {
@@ -128,7 +142,19 @@ extension CoderIDEMCPServerApp {
             )
             return bridged
         }
-        return reviewError("Error: Rust review core unavailable for \(toolName)")
+        let findingId = sanitizedReviewArg(args, key: "finding_id")
+        let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
+        guard !findingId.isEmpty, !sessionId.isEmpty else {
+            return reviewError("Error: 'finding_id' and 'session_id' are required")
+        }
+        if let ownershipError = validateFindingOwnership(
+            sessionId: sessionId,
+            findingId: findingId,
+            args: args
+        ) {
+            return reviewError(ownershipError)
+        }
+        return reviewCommandQueued(action: action, sessionId: sessionId, args: args)
     }
 
     private static func reviewToolName(for action: String) -> String {

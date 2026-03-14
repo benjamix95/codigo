@@ -218,6 +218,23 @@
 - eliminato il file session-side `SessionConfig+ReviewCommandPayload.swift`
 - helper `reviewCommandPayload` consolidato in `ReviewSessionTypes.swift`
 - conteggio osservato del dominio review engine/tooling:
+
+## Avanzamento tranche 18 review cutover
+- irrigidito il boundary MCP review per preservare i contratti del handler quando il bridge Rust non risponde
+- `review_start` usa il percorso locale stabile e non tenta piu' di risolvere sessioni inesistenti
+- rimossi i wrapper dedicati del handler review:
+  - eliminato `CodeReviewHandler.swift`
+  - routing e helper assorbiti in `CodeReviewHandler+Start.swift` e `CodeReviewHandler+Findings.swift`
+- introdotte regression con Rust forzato off per:
+  - `review_status`
+  - `review_findings`
+  - `review_revalidate_finding`
+- conteggio osservato del prefix MCP review hard-fail:
+  - prima della tranche: `6` file Swift legacy non-UI
+  - dopo la tranche: `5` file Swift legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
   - prima della tranche: `83` file Swift
   - dopo la tranche: `82` file Swift
 - stato validation review:

@@ -64,7 +64,15 @@ extension CoderIDEMCPServerApp {
             reviewStatusPayload: statusPayload,
             reviewOutcomePayload: outcomePayload
         ) else {
-            return nil
+            return fallbackReviewToolResult(
+                name: name,
+                args: args,
+                reviewSnapshots: snapshots,
+                activeReviewSnapshot: activeSnapshot,
+                reviewFindingsPayload: findingsPayload,
+                reviewStatusPayload: statusPayload,
+                reviewOutcomePayload: outcomePayload
+            )
         }
         return CallTool.Result(content: [.text(result.message)], isError: result.isError ? true : nil)
     }
