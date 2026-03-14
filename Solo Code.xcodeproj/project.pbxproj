@@ -209,7 +209,6 @@
 		1C3A15B2ED96F3F57988E30E /* JobStateMachineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B580F6F2B16CB7B03EA28C05 /* JobStateMachineTests.swift */; };
 		1C975F4B5A8B3A95D9AAC190 /* PlanOptionsParser+Structured.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBCE479E80E63E6D92DB587 /* PlanOptionsParser+Structured.swift */; };
 		1CCFAF7EF098AD6E8DEA708F /* ReviewPanelChatStructuredContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90250D11B9818DE62880D514 /* ReviewPanelChatStructuredContent.swift */; };
-		1D01F79687FB763D40CC9337 /* ReviewCandidateVerificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE76EAE4473A9383B23E39B0 /* ReviewCandidateVerificationService.swift */; };
 		1D5C56FA8A52E8FEE9C4E2E8 /* ChatPipelineReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A56C27A2A91308E2F4E0EDD /* ChatPipelineReducer.swift */; };
 		1D91F36905574E7687A585C9 /* ReviewPanelChatMessageContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9116BC647F86015A360DBBA /* ReviewPanelChatMessageContextTests.swift */; };
 		1DA0A0F638E5AE11340C7935 /* BrowserTabManager+BrowserBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F88C201C24F9D14D4BC82AF /* BrowserTabManager+BrowserBridge.swift */; };
@@ -2955,7 +2954,6 @@
 		AE5D888305359942E1525162 /* UsageFooterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UsageFooterView.swift; path = App/SoloCodeApp/Sources/Tasking/Views/Usage/UsageFooterView.swift; sourceTree = "<group>"; };
 		AE5EDE2EBA7A5068339C8656 /* ToolEnabledLLMProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToolEnabledLLMProvider.swift; path = Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider.swift; sourceTree = "<group>"; };
 		AE70232311E434A3E4E520FB /* CLIAccountLoginCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIAccountLoginCoordinator.swift; path = App/SoloCodeApp/Sources/Accounts/Login/CLIAccountLoginCoordinator.swift; sourceTree = "<group>"; };
-		AE76EAE4473A9383B23E39B0 /* ReviewCandidateVerificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewCandidateVerificationService.swift; path = Engine/CoderEngine/Sources/CodeReview/Verification/ReviewCandidateVerificationService.swift; sourceTree = "<group>"; };
 		AEEE5B4327190525599B5D2A /* TaskActivityStoreInstantGrepTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaskActivityStoreInstantGrepTests.swift; path = Tests/SoloCodeAppTests/TaskActivityStoreInstantGrepTests.swift; sourceTree = "<group>"; };
 		AEF2247FB64C5753854E3A05 /* ValidationContext.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ValidationContext.swift; path = Engine/CoderEngine/Sources/Validation/Core/ValidationContext.swift; sourceTree = "<group>"; };
 		AF92E185CE9B64C1EB464550 /* RollbackServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RollbackServiceTests.swift; path = Tests/CoderEngineTests/Pipeline/Rollback/RollbackServiceTests.swift; sourceTree = "<group>"; };
@@ -4370,7 +4368,6 @@
 				3FF9AA5E4C0E4A6B8D2F1030 /* ReviewPipelineLedgerModels.swift */,
 				E1136CB0540080162E67CCB9 /* ReviewSessionRegistry.swift */,
 				F88526FF1473A4D0D863D32C /* ReviewSessionTypes.swift */,
-				AE76EAE4473A9383B23E39B0 /* ReviewCandidateVerificationService.swift */,
 				D8332B7BFD513959F11FA995 /* CodebaseIndex+ResultTypes.swift */,
 				BEE9E9EFFBA8741BFE7FABCB /* CodebaseIndex.swift */,
 				C9EA44522250391BA9ACDCD9 /* AccessLevel.swift */,
@@ -5580,7 +5577,6 @@
 				3FF9AA5E4C0E4A6B8D2F1031 /* ReviewPipelineLedgerModels.swift in Sources */,
 				C9AB587ECDDBA613FBE3912E /* ReviewSessionRegistry.swift in Sources */,
 				B6100C221AE5974902147D30 /* ReviewSessionTypes.swift in Sources */,
-				1D01F79687FB763D40CC9337 /* ReviewCandidateVerificationService.swift in Sources */,
 				D21DF00FD4E3364A43B45718 /* CodebaseIndex+ResultTypes.swift in Sources */,
 				6E750828C0CE9C364A6A6554 /* CodebaseIndex.swift in Sources */,
 				97D41C4184FBF3DE54E68C4D /* AccessLevel.swift in Sources */,
