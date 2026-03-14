@@ -481,7 +481,6 @@
 		40AFFBE8E28203595B63D079 /* ProcessSupervisorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 165CEEFA00AD6961F88E8C48 /* ProcessSupervisorTests.swift */; };
 		40B469923D07009B90976CA3 /* ToolSchemaCatalog+DebugAdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52013642FE9A3C0CD3D049C4 /* ToolSchemaCatalog+DebugAdvancedTools.swift */; };
 		4171402B9A8685B2B2A82ED1 /* EffectiveContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE80486F1A013F934EC308D /* EffectiveContext.swift */; };
-		41C978E5838C30AE2EBCDAC1 /* VerifiedFindingsSessionEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03941EF892490533FFEFCFA4 /* VerifiedFindingsSessionEnvelope.swift */; };
 		41DF55B6ECB93515D350E0F8 /* UnifiedToolRuntime+SemanticHybridRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F4C164CE95131A35FDD77EF /* UnifiedToolRuntime+SemanticHybridRendering.swift */; };
 		41EF21E257881A15BC059AF4 /* ReplayRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62BBB1DF0C3FCEDCC67CD8A0 /* ReplayRunner.swift */; };
 		41EFCB5B698EF0098170D384 /* PatchRiskScorerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B053CB47AC1E3A14AD9E1D5 /* PatchRiskScorerTests.swift */; };
@@ -1857,7 +1856,6 @@
 		03355FA5DECCA5837B5C251E /* ContextCompressor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContextCompressor.swift; path = Engine/CoderEngine/Sources/Pipeline/Context/ContextCompressor.swift; sourceTree = "<group>"; };
 		0353776B4F4D215FDA7E2EC1 /* CodeReviewMultiSwarmProvider+PipelineBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProvider+PipelineBridge.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/CodeReviewMultiSwarmProvider+PipelineBridge.swift"; sourceTree = "<group>"; };
 		03693AE9576EED8064143601 /* TaskActivityStore+Query.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "TaskActivityStore+Query.swift"; path = "App/SoloCodeApp/Sources/Tasking/Stores/TaskActivityStore+Query.swift"; sourceTree = "<group>"; };
-		03941EF892490533FFEFCFA4 /* VerifiedFindingsSessionEnvelope.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsSessionEnvelope.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsSessionEnvelope.swift; sourceTree = "<group>"; };
 		03F1BD275B57B03BC422BCEF /* MarkdownContentView+Styles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MarkdownContentView+Styles.swift"; path = "App/SoloCodeApp/Sources/Editor/Markdown/MarkdownContentView+Styles.swift"; sourceTree = "<group>"; };
 		04368FE3E6592253F39ADACC /* CodexMCPHealthStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodexMCPHealthStore.swift; path = App/SoloCodeApp/Sources/Services/CodexMCPHealthStore.swift; sourceTree = "<group>"; };
 		04393668B3E7436E4C8972E8 /* CodigoApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodigoApp.swift; path = App/SoloCodeApp/Sources/App/Bootstrap/CodigoApp.swift; sourceTree = "<group>"; };
@@ -4812,7 +4810,6 @@
 				27B8E59E06921E2F12225442 /* VerifiedFindingsReplayService.swift */,
 				F4AC8CFBD67047E827F2BB46 /* VerifiedFindingsSecurityGateService.swift */,
 				2870A931203FF76CA436A956 /* VerifiedFindingsService.swift */,
-				03941EF892490533FFEFCFA4 /* VerifiedFindingsSessionEnvelope.swift */,
 				8E76D6E2564F94F21E9C90EC /* VerifiedFindingsSessionSyncService+Artifacts.swift */,
 				249AD45B1CFC3E404140A30C /* VerifiedFindingsSessionSyncService+Mappings.swift */,
 				C54D56EEEF000C084E614F74 /* VerifiedFindingsSessionSyncService.swift */,
@@ -6035,7 +6032,6 @@
 				11797420CEF4C6CBA5DEE716 /* VerifiedFindingsReplayService.swift in Sources */,
 				D391D0C9B9DC013E75E6731B /* VerifiedFindingsSecurityGateService.swift in Sources */,
 				7E90F526457D60FFFF8E4788 /* VerifiedFindingsService.swift in Sources */,
-				41C978E5838C30AE2EBCDAC1 /* VerifiedFindingsSessionEnvelope.swift in Sources */,
 				05E72A7579B6C4F2DBEC3336 /* VerifiedFindingsSessionSyncService+Artifacts.swift in Sources */,
 				67A784162AEF76FA1CFA7D2C /* VerifiedFindingsSessionSyncService+Mappings.swift in Sources */,
 				70999D54AF124881328E5A9B /* VerifiedFindingsSessionSyncService.swift in Sources */,
