@@ -281,3 +281,21 @@ public enum VerifiedFindingsLifecycleCommandService {
         }
     }
 }
+
+public extension BugHunterWorkflowService {
+    static func queueLifecycleCommand(
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) throws -> VerifiedFindingsQueuedCommandContext {
+        try VerifiedFindingsLifecycleCommandService.queueCommand(
+            action: action,
+            sessionId: sessionId,
+            findingId: findingId,
+            conversationId: conversationId,
+            payload: payload
+        )
+    }
+}

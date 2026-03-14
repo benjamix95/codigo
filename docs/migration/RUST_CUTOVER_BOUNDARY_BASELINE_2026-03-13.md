@@ -318,6 +318,17 @@
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
 
+## Avanzamento tranche 27 review cutover
+- assorbito `VerifiedFindingsCommandCoordinator.swift` in file verified findings già esistenti
+- ripristinata nel file lifecycle la API pubblica `BugHunterWorkflowService.queueLifecycleCommand(...)`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del dominio `VerifiedFindingsCore`:
+  - prima della tranche: `16` file Swift
+  - dopo la tranche: `15` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
+
 ## Avanzamento tranche 18 review cutover
 - eliminato il file core-side `CodeReviewStreamTextAccumulator.swift`
 - helper stream text accumulator consolidato in `CodeReviewMultiSwarmProvider+Types.swift`
