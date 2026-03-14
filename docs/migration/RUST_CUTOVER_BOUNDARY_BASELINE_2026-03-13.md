@@ -668,3 +668,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 51 review cutover
+- eliminato il file test-side `ReviewPanelChatAutoscrollTests.swift`
+- test autoscroll consolidati in `ReviewPanelChatStructuredContentTests.swift` mantenendo una classe `ReviewPanelChatAutoscrollTests` separata
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `49` file Swift
+  - dopo la tranche: `48` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

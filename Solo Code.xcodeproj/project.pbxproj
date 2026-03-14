@@ -222,7 +222,6 @@
 		1F5D08B012F44CEF723D4FDA /* TaskActivityShimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A8C8810A1E97438B22C0FB /* TaskActivityShimmer.swift */; };
 		1F6F77A8AB11A9F6C60B8019 /* LintingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABBE253B4083E45EC6CCD1EF /* LintingService.swift */; };
 		1F7A0B6043A34DF765EBD0D4 /* CodeReviewPanelStore+ProviderSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8D5658698134D2EF586B70 /* CodeReviewPanelStore+ProviderSelection.swift */; };
-		1F9853226E05A979C03E54F3 /* ReviewPanelChatAutoscrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0417F0E611832DE1451C4E /* ReviewPanelChatAutoscrollTests.swift */; };
 		1FF9989F310D5BEA80AD816E /* AppUpdateCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 633558BF8F59DA6555FAC3EB /* AppUpdateCenter.swift */; };
 		2040F72EEB47FAA1C52B6125 /* GitPanelView+Stash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08390C2624EE9A24DA59B53A /* GitPanelView+Stash.swift */; };
 		204242893419DB2224B290C8 /* ExtensionRuntimeConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46695844ACB6CDE5540539C /* ExtensionRuntimeConfiguration.swift */; };
@@ -2310,7 +2309,6 @@
 		4D9579CC70A2A521A7158B0B /* BugHunterPromptBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterPromptBuilder.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/BugHunterPromptBuilder.swift; sourceTree = "<group>"; };
 		4DED8DDDDC030A2491DD3FC5 /* UnifiedToolRuntime+IndexRefactor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+IndexRefactor.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Index/Search/Refactor/UnifiedToolRuntime+IndexRefactor.swift"; sourceTree = "<group>"; };
 		4DF1C7B1140DC99DCA1B5876 /* PlanOptionsHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanOptionsHelpers.swift; path = App/SoloCodeApp/Sources/Planning/Views/PlanOptionsHelpers.swift; sourceTree = "<group>"; };
-		4E0417F0E611832DE1451C4E /* ReviewPanelChatAutoscrollTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatAutoscrollTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelChatAutoscrollTests.swift; sourceTree = "<group>"; };
 		4E2604CA23748F6933BF8F58 /* CLIAccountSecretsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIAccountSecretsStore.swift; path = App/SoloCodeApp/Sources/Accounts/CLIAccountSecretsStore.swift; sourceTree = "<group>"; };
 		4E34986427E8E8B9EC15AB98 /* PlanBoardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanBoardView.swift; path = App/SoloCodeApp/Sources/Planning/Views/PlanBoardView.swift; sourceTree = "<group>"; };
 		4E482FFFE9ADABCE8058614E /* EditorPanelsStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorPanelsStoreTests.swift; path = Tests/SoloCodeAppTests/EditorPanelsStoreTests.swift; sourceTree = "<group>"; };
@@ -4881,7 +4879,6 @@
 				24190E3134046EBD28E3750A /* ProviderFactoryCodeReviewTests.swift */,
 				AC0A882343B33A0AC584C61C /* ProviderFactoryRuntimeParityTests.swift */,
 				79A33F439D47E4E2BA85A8DE /* ProviderSupportTests.swift */,
-				4E0417F0E611832DE1451C4E /* ReviewPanelChatAutoscrollTests.swift */,
 				EE384690B21D392EE7B1B70D /* ReviewPanelChatMessageFactoryTests.swift */,
 				FEC6833B304B8D4C5026B86F /* ReviewPanelChatSessionStoreTests.swift */,
 				7AF380ABE171D7685C6389AE /* ReviewPanelChatStructuredContentTests.swift */,
@@ -6302,7 +6299,6 @@
 				D1E608B6ADA08DAB0A180DF8 /* ProviderFactoryCodeReviewTests.swift in Sources */,
 				49D90A48441EDA2BEDD6706E /* ProviderFactoryRuntimeParityTests.swift in Sources */,
 				5BFBE5315E291FDC0A8EC698 /* ProviderSupportTests.swift in Sources */,
-				1F9853226E05A979C03E54F3 /* ReviewPanelChatAutoscrollTests.swift in Sources */,
 				C509B9070701495B9C412EE7 /* ReviewPanelChatMessageFactoryTests.swift in Sources */,
 				39169F10F7293A4FD43FD2B6 /* ReviewPanelChatSessionStoreTests.swift in Sources */,
 				F1260584F08DC1E7AB2E0E3E /* ReviewPanelChatStructuredContentTests.swift in Sources */,
