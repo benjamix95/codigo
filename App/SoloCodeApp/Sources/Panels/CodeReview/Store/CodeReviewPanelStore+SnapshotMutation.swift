@@ -1,6 +1,5 @@
 import CoderEngine
 import Foundation
-
 extension CodeReviewPanelStore {
     func insertLineInSection(
         logPart: String,
@@ -26,7 +25,6 @@ extension CodeReviewPanelStore {
             return result
         }
     }
-
     func isDuplicateLine(
         _ line: String,
         inSection sectionTitle: String,
@@ -44,16 +42,13 @@ extension CodeReviewPanelStore {
         } else {
             sectionContent = afterHeading
         }
-
         return sectionContent.contains(line)
     }
-
     func setChatProcessing(_ isProcessing: Bool, startedAt: Date?) {
         isChatProcessing = isProcessing
         chatStartedAt = startedAt
         persistChatState()
     }
-
     func persistChatState() {
         chatSessionStore.replaceActiveState(
             ReviewPanelChatSessionState(
@@ -64,13 +59,11 @@ extension CodeReviewPanelStore {
             for: chatSessionKey
         )
     }
-
     func ensureActiveChatThread() {
         if activeChatThreadId == nil {
             activeChatThreadId = chatSessionStore.createThread(for: chatSessionKey)
         }
     }
-
     func firstNonEmpty(_ values: [String?]) -> String? {
         for value in values {
             let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -212,18 +205,30 @@ extension CodeReviewPanelStore {
               !mutation.isError,
               let findings = mutation.findings,
               let events = mutation.events else {
+            guard action == "dismiss",
+                  let findingId = payload["finding_id"],
+                  let targetIndex = snapshot.findings.firstIndex(where: { $0.id == findingId }) else { return }
+            let reason = payload["reason"] ?? "dismissed"
+            let status: FindingStatus = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() == FindingStatus.wontFix.rawValue ? .wontFix : .dismissed
+            var findings = snapshot.findings
+            findings[targetIndex].status = status
+            let events = snapshot.events + [.findingDismissed(findingId: findingId, reason: reason)]
+            let updated = snapshot.copying(
+                findings: findings,
+                events: events,
+                outcome: snapshot.copying(findings: findings, events: events).buildOutcomeSummary()
+            )
+            taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
             return
         }
 
         let updated = snapshot.copying(
             findings: findings,
             events: events,
-            outcome: snapshot.copying(findings: findings).buildOutcomeSummary()
+            outcome: snapshot.copying(findings: findings, events: events).buildOutcomeSummary()
         )
-        taskActivityStore.scheduleCodeReviewSnapshotIngest(
-            updated,
-            conversationId: conversationId
-        )
+        taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
     }
 }
 

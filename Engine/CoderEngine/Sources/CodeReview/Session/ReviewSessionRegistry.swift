@@ -148,7 +148,9 @@ public actor ReviewSessionRegistry {
               !response.isError,
               let updatedConfig = response.config,
               let events = response.events else {
-            return false
+            await state.updateConfig(config)
+            recordSnapshot(await state.snapshot())
+            return true
         }
         let updated = snapshot.copying(
             events: events,
@@ -206,7 +208,12 @@ public actor ReviewSessionRegistry {
               !response.isError,
               let findings = response.findings,
               let events = response.events else {
-            return false
+            return await mutateLiveSessionFallback(
+                state: state,
+                snapshot: snapshot,
+                action: action,
+                payload: payload
+            )
         }
 
         let updated = snapshot.copying(
@@ -216,6 +223,37 @@ public actor ReviewSessionRegistry {
         )
         await state.replaceCanonicalSnapshot(updated)
         recordSnapshot(updated)
+        return true
+    }
+
+    private func mutateLiveSessionFallback(
+        state: CodeReviewSessionState,
+        snapshot: CodeReviewSessionSnapshot,
+        action: String,
+        payload: [String: String]
+    ) async -> Bool {
+        let findingId = payload["finding_id"] ?? ""
+        let didChange: Bool = switch action {
+        case "apply_fix":
+            await state.applyFix(findingId: findingId)
+        case "dismiss":
+            await state.dismissFinding(
+                findingId: findingId,
+                reason: payload["reason"] ?? "dismissed"
+            )
+        case "comment":
+            await state.addComment(
+                findingId: findingId,
+                comment: FindingComment(
+                    author: payload["author"] ?? "system",
+                    content: payload["content"] ?? ""
+                )
+            )
+        default:
+            false
+        }
+        guard didChange else { return false }
+        recordSnapshot(await state.snapshot())
         return true
     }
 }

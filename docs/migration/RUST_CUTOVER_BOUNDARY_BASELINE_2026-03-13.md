@@ -718,3 +718,17 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 56 review cutover
+- corretto il fallback live del panel review quando `ReviewCoreBridge` non è disponibile
+- corretto il fallback `configure` del `ReviewSessionRegistry`
+- build regression chiusa per `ReviewPipelineNoFilesMessageTests` con `@testable import CoderEngine`
+- eliminato `CodeReviewMultiSwarmProvider+PipelineBridge.swift`, assorbito in `ReviewPipelineRustDriver.swift`
+- eliminato `CodeReviewPanelStore+ActionOutputFormatting.swift`, assorbito in `ReviewPanelCoordinator.swift`
+- conteggio osservato dei prefissi review toccati:
+  - `App/SoloCodeApp/Sources/Panels/CodeReview`: prima `20`, dopo `19`
+  - `Engine/CoderEngine/Sources/CodeReview`: prima `31`, dopo `30`
+  - totale legacy osservato nel boundary audit: prima `52`, dopo `50`
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

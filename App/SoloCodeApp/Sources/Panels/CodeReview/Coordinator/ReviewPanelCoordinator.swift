@@ -119,3 +119,83 @@ final class ReviewPanelCoordinator {
         chatTask = nil
     }
 }
+
+extension CodeReviewPanelStore {
+    func formattedReviewRunEvent(
+        type: String,
+        payload: [String: String]
+    ) -> (sectionTitle: String, line: String)? {
+        switch type {
+        case "reasoning":
+            if let detail = firstNonEmpty([payload["detail"], payload["text"], payload["delta"], payload["content"], payload["summary"]]) { return ("Thinking", detail) }
+        case "assistant_update":
+            if let detail = firstNonEmpty([payload["output"], payload["content"], payload["text"], payload["detail"], payload["summary"]]) { return ("Response", detail) }
+        case "review-worker-plan":
+            let description = firstNonEmpty([payload["description"], payload["title"]]) ?? "Planned worker"
+            let severity = payload["severity"].map { "[\($0)] " } ?? ""
+            let fileCount = payload["fileCount"].map { " (\($0) files)" } ?? ""
+            return ("Planned Work", "- [ ] \(severity)\(description)\(fileCount)")
+        case "review-fix-round":
+            return ("Progress", "Round \(payload["round"] ?? "?")/\(payload["maxRounds"] ?? "?")")
+        case "review-audit-tool":
+            return ("Audit", "\(payload["tool"] ?? "audit"): \(payload["detail"] ?? "completed")")
+        case "agent":
+            return ("Activity", "\(payload["title"] ?? payload["agent_name"] ?? "agent") — \(payload["detail"] ?? payload["status"] ?? "updated")")
+        case "tool_execution_error", "tool_validation_error":
+            return ("Activity", "Error: \(payload["detail"] ?? payload["title"] ?? "Tool error")")
+        default:
+            if let detail = firstNonEmpty([payload["detail"], payload["title"], payload["summary"], payload["status"], payload["tool"], payload["type"]]) {
+                return ("Activity", "\(type): \(detail)")
+            }
+            return ("Activity", type)
+        }
+        return nil
+    }
+
+    func enrichedReviewRawPayload(type: String, payload: [String: String]) -> [String: String] {
+        var enriched = payload
+        switch type {
+        case "review-worker-plan":
+            if let workerId = firstNonEmpty([payload["worker_id"], payload["id"]]) {
+                enriched["swarm_id"] = workerId
+                enriched["group_id"] = payload["group_id"] ?? "swarm-\(workerId)"
+                enriched["agent_name"] = payload["agent_name"] ?? workerId
+                enriched["title"] = payload["title"] ?? payload["description"] ?? workerId
+                if enriched["detail"] == nil { enriched["detail"] = "planned" }
+            }
+        case "review-audit-tool":
+            if let tool = firstNonEmpty([payload["tool"]]) {
+                let swarmId = "audit-\(tool)"
+                enriched["swarm_id"] = swarmId
+                enriched["group_id"] = payload["group_id"] ?? "swarm-\(swarmId)"
+                enriched["agent_name"] = payload["agent_name"] ?? tool
+                enriched["title"] = payload["title"] ?? tool
+            }
+        case "agent":
+            if let swarmId = firstNonEmpty([payload["swarm_id"], payload["swarmId"]]) {
+                enriched["group_id"] = payload["group_id"] ?? "swarm-\(swarmId)"
+                enriched["agent_name"] = payload["agent_name"] ?? payload["title"] ?? swarmId
+            }
+        default:
+            break
+        }
+        return enriched
+    }
+
+    func scopedTaskActivity(_ activity: TaskActivity) -> TaskActivity {
+        guard let conversationId else { return activity }
+        var payload = activity.payload
+        payload["conversation_id"] = conversationId.uuidString.lowercased()
+        return TaskActivity(
+            id: activity.id,
+            type: activity.type,
+            title: activity.title,
+            detail: activity.detail,
+            payload: payload,
+            timestamp: activity.timestamp,
+            phase: activity.phase,
+            isRunning: activity.isRunning,
+            groupId: activity.groupId
+        )
+    }
+}

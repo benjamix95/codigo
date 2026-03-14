@@ -88,7 +88,7 @@ extension CodeReviewPanelStore {
             reason: status == .wontFix ? FindingStatus.wontFix.rawValue : reason
         ) {
             if let snapshot = await ReviewSessionRegistry.shared.snapshot(sessionId: sessionId) {
-                taskActivityStore.scheduleCodeReviewSnapshotIngest(
+                taskActivityStore.ingestCodeReviewSnapshot(
                     snapshot,
                     conversationId: conversationId
                 )

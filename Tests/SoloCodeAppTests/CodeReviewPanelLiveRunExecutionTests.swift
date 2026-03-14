@@ -1,5 +1,5 @@
 import XCTest
-import CoderEngine
+@testable import CoderEngine
 @testable import CoderIDE
 
 @MainActor

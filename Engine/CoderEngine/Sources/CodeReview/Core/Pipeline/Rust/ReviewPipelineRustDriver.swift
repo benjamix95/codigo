@@ -157,3 +157,54 @@ struct ReviewPipelineRustDriver {
         return response
     }
 }
+
+extension CodeReviewMultiSwarmProvider {
+    static func runReviewPipeline(
+        prompt: String,
+        context: WorkspaceContext,
+        config: MultiSwarmReviewConfig,
+        analysisProvider: any LLMProvider,
+        executionProvider: any LLMProvider,
+        execController: ExecutionController?,
+        fileLockCoordinator: FileLockCoordinator,
+        sessionState: CodeReviewSessionState,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) async throws {
+        try await ReviewPipelineCoordinator.shared.run(
+            prompt: prompt,
+            context: context,
+            config: config,
+            analysisProvider: analysisProvider,
+            executionProvider: executionProvider,
+            runtimeResolver: nil,
+            execController: execController,
+            fileLockCoordinator: fileLockCoordinator,
+            sessionState: sessionState,
+            continuation: continuation
+        )
+    }
+
+    static func runReviewPipelineOrchestrated(
+        prompt: String,
+        context: WorkspaceContext,
+        config: MultiSwarmReviewConfig,
+        analysisProvider: any LLMProvider,
+        executionProvider: any LLMProvider,
+        execController: ExecutionController?,
+        fileLockCoordinator: FileLockCoordinator,
+        sessionState: CodeReviewSessionState,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) async throws {
+        try await runReviewPipeline(
+            prompt: prompt,
+            context: context,
+            config: config,
+            analysisProvider: analysisProvider,
+            executionProvider: executionProvider,
+            execController: execController,
+            fileLockCoordinator: fileLockCoordinator,
+            sessionState: sessionState,
+            continuation: continuation
+        )
+    }
+}
