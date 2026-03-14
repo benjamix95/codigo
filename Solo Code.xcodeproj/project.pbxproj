@@ -602,7 +602,6 @@
 		54E97593B460091AD7CE8092 /* UnifiedToolRuntime+ShellReadTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD8C36CFF39437C4DB9C3F6 /* UnifiedToolRuntime+ShellReadTerminal.swift */; };
 		54EF0FD2ADB62B416BC757E7 /* CodeReviewHandler+PatchWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E68C7B886BD0BCD374FEC73A /* CodeReviewHandler+PatchWorkflow.swift */; };
 		54F3DC24B4F8C141821941C6 /* ClaudeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB00494EAECD43162FB37ED /* ClaudeDetector.swift */; };
-		550B144EE02341607B4BEDDE /* CodeReviewAuditService+Impact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4C658A61DB5D2B59D413CE /* CodeReviewAuditService+Impact.swift */; };
 		553314B8B41F3EED601908D1 /* MermaidExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 989AA5B5980A0F54E5500F2B /* MermaidExtractor.swift */; };
 		555883BBB87F9BFBB8585C42 /* DebugServiceSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D09D088B95EA0843A80B47D /* DebugServiceSyncTests.swift */; };
 		555D0F12EB7B64A270A1FFB9 /* UnifiedToolRuntimeTests+FileTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAD36F7BB2EACF34E5AED094 /* UnifiedToolRuntimeTests+FileTools.swift */; };
@@ -1967,7 +1966,6 @@
 		1A6E12164E9AE8E53351D99B /* MCPSessionManager+Prompts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSessionManager+Prompts.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Session/Prompts/MCPSessionManager+Prompts.swift"; sourceTree = "<group>"; };
 		1A70B132E650DFAF6E7FF574 /* FindingIdentityService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FindingIdentityService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/FindingIdentityService.swift; sourceTree = "<group>"; };
 		1AAA776D69D1CCCD886D64EF /* SubagentChatCard+Live.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SubagentChatCard+Live.swift"; path = "App/SoloCodeApp/Sources/Swarm/Views/SubagentChatCard+Live.swift"; sourceTree = "<group>"; };
-		1B4C658A61DB5D2B59D413CE /* CodeReviewAuditService+Impact.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewAuditService+Impact.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Audit/CodeReviewAuditService+Impact.swift"; sourceTree = "<group>"; };
 		1B72052E75E858B05C832771 /* CoderIDEMCPServerPlanToolsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CoderIDEMCPServerPlanToolsTests.swift; path = Tests/CoderEngineTests/CoderIDEMCPServerPlanToolsTests.swift; sourceTree = "<group>"; };
 		1BAE1C9DF29C30AC152CA7D6 /* PlanPanelView+Sections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlanPanelView+Sections.swift"; path = "App/SoloCodeApp/Sources/Panels/PlanPanel/PlanPanelView+Sections.swift"; sourceTree = "<group>"; };
 		1BC38BA244E3C2A64009CD19 /* EditorPathResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorPathResolverTests.swift; path = Tests/SoloCodeAppTests/EditorPathResolverTests.swift; sourceTree = "<group>"; };
@@ -4313,7 +4311,6 @@
 				738C133A1B5FD3AD7C913AFA /* CodeReviewAuditModels.swift */,
 				1619957137F0985A0201FA19 /* CodeReviewAuditService+Bug.swift */,
 				8513C9C09682F20D829C6CAC /* CodeReviewAuditService+BugAdvanced.swift */,
-				1B4C658A61DB5D2B59D413CE /* CodeReviewAuditService+Impact.swift */,
 				22CA06C5D2153DEEBCF1EEEE /* CodeReviewAuditService+Security.swift */,
 				DA85F9114ED7D2014744CCF9 /* CodeReviewAuditService+SecurityAdvanced.swift */,
 				6B17925B9BC3F2A75A1C2280 /* CodeReviewAuditService+Support.swift */,
@@ -5515,7 +5512,6 @@
 				799940B89E497FC328041CB7 /* CodeReviewAuditModels.swift in Sources */,
 				478D45A252617E1342938179 /* CodeReviewAuditService+Bug.swift in Sources */,
 				12550C3E6EFAD7A6D75F7B27 /* CodeReviewAuditService+BugAdvanced.swift in Sources */,
-				550B144EE02341607B4BEDDE /* CodeReviewAuditService+Impact.swift in Sources */,
 				772BBE940C7C0FF0A0589C11 /* CodeReviewAuditService+Security.swift in Sources */,
 				75163897A4FAD12EA0776CB9 /* CodeReviewAuditService+SecurityAdvanced.swift in Sources */,
 				822ADC6F9A1D74CD127BB5A0 /* CodeReviewAuditService+Support.swift in Sources */,

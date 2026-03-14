@@ -59,14 +59,23 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
         }
         """.write(to: file, atomically: true, encoding: .utf8)
 
-        let result = CodeReviewAuditService.runTool(
-            named: ReviewAuditToolName.bugTestImpact,
+        let result = CodeReviewAuditService.runBugTestImpactAudit(
             scopeFiles: ["API.swift"],
             workspacePath: tempDir
         )
 
-        XCTAssertEqual(result.toolName, ReviewAuditToolName.bugTestImpact)
         XCTAssertEqual(result.findings.first?.category, .tests)
+        XCTAssertEqual(result.findings.first?.filePath, "API.swift")
+    }
+
+    func testBugDependencyDriftFlagsChangedLockfile() throws {
+        let result = CodeReviewAuditService.runBugDependencyDriftAudit(
+            scopeFiles: ["Package.resolved"],
+            workspacePath: tempDir
+        )
+
+        XCTAssertEqual(result.findings.first?.category, .regression)
+        XCTAssertEqual(result.findings.first?.filePath, "Package.resolved")
     }
 
     func testCorrelateResultsBuildsClusters() throws {
