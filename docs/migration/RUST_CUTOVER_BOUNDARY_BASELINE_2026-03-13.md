@@ -233,3 +233,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 19 review cutover
+- eliminato il file application-side `VerifiedFindingAdmissionPolicy.swift`
+- policy di admission consolidata in `VerifiedFindingsStatusService.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `81` file Swift
+  - dopo la tranche: `80` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
