@@ -313,3 +313,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 27 review cutover
+- eliminato il file core-side `MultiSwarmReviewConfig.swift`
+- config multi-swarm consolidata in `CodeReviewMultiSwarmProvider.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `73` file Swift
+  - dopo la tranche: `72` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

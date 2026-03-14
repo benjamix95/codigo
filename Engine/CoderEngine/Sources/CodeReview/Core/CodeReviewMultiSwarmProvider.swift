@@ -1,5 +1,34 @@
 import Foundation
 
+/// Enabled phases for multi-swarm review (legacy — renamed to avoid collision with Pipeline ReviewPhase)
+public enum ReviewEnabledPhase: String, Sendable {
+    case analysisOnly = "analysis-only"
+    case analysisAndExecution = "analysis-and-execution"
+}
+
+/// Configuration for Multi-Swarm Code Review
+public struct MultiSwarmReviewConfig: Sendable {
+    public let maxWorkers: Int
+    public let enabledPhases: ReviewEnabledPhase
+    public let maxReviewRounds: Int
+    public let analysisBackend: String
+    public let executionBackend: String
+
+    public init(
+        maxWorkers: Int = 6,
+        enabledPhases: ReviewEnabledPhase = .analysisAndExecution,
+        maxReviewRounds: Int = 3,
+        analysisBackend: String = "codex",
+        executionBackend: String = "codex"
+    ) {
+        self.maxWorkers = min(12, max(1, maxWorkers))
+        self.enabledPhases = enabledPhases
+        self.maxReviewRounds = min(10, max(1, maxReviewRounds))
+        self.analysisBackend = analysisBackend.isEmpty ? "codex" : analysisBackend
+        self.executionBackend = executionBackend.isEmpty ? "codex" : executionBackend
+    }
+}
+
 public struct CodeReviewMultiSwarmDebugSnapshot: Sendable, Equatable {
     public let analysisProviderId: String
     public let executionProviderId: String

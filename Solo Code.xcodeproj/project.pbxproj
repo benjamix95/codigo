@@ -1403,7 +1403,6 @@
 		CE4D877C921384DB53AF6091 /* CodexUsageFetcher+Status.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21EF68057AC58ED9D51FA4F4 /* CodexUsageFetcher+Status.swift */; };
 		CE50D3A777A5A1607AE5C045 /* ProjectTemplateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D042553C256ED4AE808019E5 /* ProjectTemplateService.swift */; };
 		CE8054E89207D96380C14A14 /* ReviewPanelTabSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF38CB3918F25559B9D6D653 /* ReviewPanelTabSelector.swift */; };
-		CEB0893408EE82F267276479 /* MultiSwarmReviewConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AE148CBE52F0E897B0D910F /* MultiSwarmReviewConfig.swift */; };
 		CED47184E3BE534AAF0F85FC /* GitService+Stash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F110FFFD8B672B04811B1F3 /* GitService+Stash.swift */; };
 		CF4CC2F7FAAC12D3BE3E237C /* SwarmConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75BA3694C1E6238BDFD35D37 /* SwarmConfig.swift */; };
 		CF7759BE76C8CA6AC703382F /* ProfileSwitcherView+Avatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 343B5F2BF925BF2C852F062F /* ProfileSwitcherView+Avatar.swift */; };
@@ -2429,7 +2428,6 @@
 		5A3079B6C5FD59698B3754E2 /* MessageToolTraceView+Header.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MessageToolTraceView+Header.swift"; path = "App/SoloCodeApp/Sources/Chat/MessageToolTrace/MessageToolTraceView+Header.swift"; sourceTree = "<group>"; };
 		5A56C27A2A91308E2F4E0EDD /* ChatPipelineReducer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPipelineReducer.swift; path = App/SoloCodeApp/Sources/Chat/Pipeline/Core/ChatPipelineReducer.swift; sourceTree = "<group>"; };
 		5A5D3EA0105C6142232BCD1F /* AppUpdateCenterTypes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppUpdateCenterTypes.swift; path = App/SoloCodeApp/Sources/Services/AppUpdateCenter/State/AppUpdateCenterTypes.swift; sourceTree = "<group>"; };
-		5AE148CBE52F0E897B0D910F /* MultiSwarmReviewConfig.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MultiSwarmReviewConfig.swift; path = Engine/CoderEngine/Sources/CodeReview/Core/MultiSwarmReviewConfig.swift; sourceTree = "<group>"; };
 		5AEAF651794B4D85C1B10346 /* MCPRuntimeServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MCPRuntimeServiceTests.swift; path = Tests/SoloCodeAppTests/MCPRuntimeServiceTests.swift; sourceTree = "<group>"; };
 		5AF0D633312745469C81E2D4 /* MarkdownContentView+Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MarkdownContentView+Views.swift"; path = "App/SoloCodeApp/Sources/Editor/Markdown/MarkdownContentView+Views.swift"; sourceTree = "<group>"; };
 		5B0E9E3ACA80F80D183013BA /* ReviewPanelCommitPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelCommitPicker.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Git/ReviewPanelCommitPicker.swift; sourceTree = "<group>"; };
@@ -4364,7 +4362,6 @@
 				570E32B2E663383C109777CE /* CodeReviewMultiSwarmProvider+Diagnostics.swift */,
 				80AEB66F119739D746ED528E /* CodeReviewMultiSwarmProvider+Types.swift */,
 				87DC66FA6A74625E7134FC20 /* CodeReviewMultiSwarmProvider.swift */,
-				5AE148CBE52F0E897B0D910F /* MultiSwarmReviewConfig.swift */,
 				707AF94934E8F352353F4ADA /* CodeReviewMultiSwarmProvider+Parsing.swift */,
 				E095C293A78F0462FAADC7D6 /* CodeReviewMultiSwarmProvider+Fixes.swift */,
 				9A3A527EC0C52E6FA9AEE145 /* CodeReviewMultiSwarmProvider+Pipeline+Loop.swift */,
@@ -5583,7 +5580,6 @@
 				2E1FE2A961AEA52FE599097D /* CodeReviewMultiSwarmProvider+Diagnostics.swift in Sources */,
 				70100D637CC5963B139DFD0D /* CodeReviewMultiSwarmProvider+Types.swift in Sources */,
 				3168684DBB040E2A05D5ABCE /* CodeReviewMultiSwarmProvider.swift in Sources */,
-				CEB0893408EE82F267276479 /* MultiSwarmReviewConfig.swift in Sources */,
 				FB5E5C584B5D1E312C6E1EEC /* CodeReviewMultiSwarmProvider+Parsing.swift in Sources */,
 				C383F870D9FB74463348248C /* CodeReviewMultiSwarmProvider+Fixes.swift in Sources */,
 				9349BB06D38A2E3927D83305 /* CodeReviewMultiSwarmProvider+Pipeline+Loop.swift in Sources */,
