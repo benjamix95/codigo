@@ -906,7 +906,6 @@
 		822ADC6F9A1D74CD127BB5A0 /* CodeReviewAuditService+Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B17925B9BC3F2A75A1C2280 /* CodeReviewAuditService+Support.swift */; };
 		825D2D113E0D8C8F68CE4BAB /* ReviewPanelSessionBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2B1040D9029216EC0485F2C /* ReviewPanelSessionBrowser.swift */; };
 		82B7056AA001A7076AA518C1 /* GitServiceValidationGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC3BB44B0B280B51B525A325 /* GitServiceValidationGuardTests.swift */; };
-		82BFCCD5F613FF2424776650 /* CodeReviewAuditService+Correlation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D61A56CF2A2099B75CFDABE /* CodeReviewAuditService+Correlation.swift */; };
 		82EE012DEB5F25368AB01706 /* ToolTraceVisibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2E730D887DE0EB80A3C403 /* ToolTraceVisibility.swift */; };
 		82F635B9E9F113BA404035D1 /* MCPSessionManager+Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA3E991862BAC9388CFB9C0 /* MCPSessionManager+Utils.swift */; };
 		830E08C5C6F175839EE26E87 /* PipelineJobFactory+DebugShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72C893599EBA5A2449E9CDD /* PipelineJobFactory+DebugShared.swift */; };
@@ -2824,7 +2823,6 @@
 		9D04AFF5697FBC4C8F81C426 /* CodebaseIndexIndexingTransactionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodebaseIndexIndexingTransactionTests.swift; path = Tests/CoderEngineTests/CodebaseIndexIndexingTransactionTests.swift; sourceTree = "<group>"; };
 		9D0B2E87633BE185B3BFEF32 /* ReviewPanelTimelineTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelTimelineTab.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Timeline/ReviewPanelTimelineTab.swift; sourceTree = "<group>"; };
 		9D0B336E88CCD83230BABADB /* ChatTodoExecutionCardMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatTodoExecutionCardMetrics.swift; path = App/SoloCodeApp/Sources/Chat/Timeline/Blocks/ChatTodoExecutionCardMetrics.swift; sourceTree = "<group>"; };
-		9D61A56CF2A2099B75CFDABE /* CodeReviewAuditService+Correlation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewAuditService+Correlation.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Audit/CodeReviewAuditService+Correlation.swift"; sourceTree = "<group>"; };
 		9D79FC8619EB3EDA147502F8 /* PromptContextCompactionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PromptContextCompactionTests.swift; path = Tests/SoloCodeAppTests/PromptContextCompactionTests.swift; sourceTree = "<group>"; };
 		9D93506DD40E83E2E2B39799 /* SourceKitLSPAdapterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SourceKitLSPAdapterTests.swift; path = Tests/SoloCodeAppTests/SourceKitLSPAdapterTests.swift; sourceTree = "<group>"; };
 		9E2E8BBE41569E88741602A5 /* MemoryLeakDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MemoryLeakDetector.swift; path = App/SoloCodeApp/Sources/Services/Profiling/MemoryLeakDetector.swift; sourceTree = "<group>"; };
@@ -4318,7 +4316,6 @@
 				0B7829A62264C93C56F41562 /* CodeReviewAuditService+Adapters.swift */,
 				1619957137F0985A0201FA19 /* CodeReviewAuditService+Bug.swift */,
 				8513C9C09682F20D829C6CAC /* CodeReviewAuditService+BugAdvanced.swift */,
-				9D61A56CF2A2099B75CFDABE /* CodeReviewAuditService+Correlation.swift */,
 				1B4C658A61DB5D2B59D413CE /* CodeReviewAuditService+Impact.swift */,
 				22CA06C5D2153DEEBCF1EEEE /* CodeReviewAuditService+Security.swift */,
 				DA85F9114ED7D2014744CCF9 /* CodeReviewAuditService+SecurityAdvanced.swift */,
@@ -5522,7 +5519,6 @@
 				291F5DD4735DE63D8125A62F /* CodeReviewAuditService+Adapters.swift in Sources */,
 				478D45A252617E1342938179 /* CodeReviewAuditService+Bug.swift in Sources */,
 				12550C3E6EFAD7A6D75F7B27 /* CodeReviewAuditService+BugAdvanced.swift in Sources */,
-				82BFCCD5F613FF2424776650 /* CodeReviewAuditService+Correlation.swift in Sources */,
 				550B144EE02341607B4BEDDE /* CodeReviewAuditService+Impact.swift in Sources */,
 				772BBE940C7C0FF0A0589C11 /* CodeReviewAuditService+Security.swift in Sources */,
 				75163897A4FAD12EA0776CB9 /* CodeReviewAuditService+SecurityAdvanced.swift in Sources */,
