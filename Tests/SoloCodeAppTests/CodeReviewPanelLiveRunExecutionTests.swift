@@ -165,3 +165,92 @@ private struct PanelNoopProvider: LLMProvider {
         }
     }
 }
+
+final class ReviewPipelineNoFilesMessageTests: XCTestCase {
+    func testErrorMessageIsReturnedWhenPresent() {
+        let msg = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "main",
+            normalizedInput: "main",
+            currentHeadRevision: nil,
+            error: "fatal: bad revision 'main'"
+        )
+        XCTAssertTrue(msg.contains("fatal: bad revision"))
+        XCTAssertTrue(msg.contains("main"))
+    }
+
+    func testEmptyErrorStringIsIgnored() {
+        let msg = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "abc123",
+            normalizedInput: "abc123^..abc123",
+            currentHeadRevision: nil,
+            error: ""
+        )
+        XCTAssertFalse(msg.contains("fatal"))
+        XCTAssertTrue(msg.contains("single-commit range"))
+    }
+
+    func testNilHeadRevisionDoesNotCrash() {
+        let msg = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "abc1234",
+            normalizedInput: "abc1234^..abc1234",
+            currentHeadRevision: nil,
+            error: nil
+        )
+        XCTAssertTrue(msg.contains("single-commit range"))
+        XCTAssertFalse(msg.contains("HEAD"))
+    }
+
+    func testEmptyHeadRevisionFalselyMatchesRef() {
+        let msg = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "abc1234",
+            normalizedInput: "abc1234^..abc1234",
+            currentHeadRevision: "",
+            error: nil
+        )
+        XCTAssertTrue(msg.contains("single-commit range"))
+        XCTAssertTrue(msg.contains("current `HEAD` commit"))
+    }
+
+    func testSingleCommitWithMatchingHead() {
+        let msg = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "1e72c30",
+            normalizedInput: "1e72c30^..1e72c30",
+            currentHeadRevision: "1e72c3016738d6e34ad2b79e0c4a1676ded3e234",
+            error: nil
+        )
+        XCTAssertTrue(msg.contains("current `HEAD` commit"))
+        XCTAssertTrue(msg.contains("single-commit range"))
+    }
+
+    func testSingleCommitWithoutMatchingHead() {
+        let msg = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "1e72c30",
+            normalizedInput: "1e72c30^..1e72c30",
+            currentHeadRevision: "aaaaaaa0000000000000000000000000ffffffff",
+            error: nil
+        )
+        XCTAssertFalse(msg.contains("current `HEAD` commit"))
+        XCTAssertTrue(msg.contains("single-commit range"))
+    }
+
+    func testRangeRefDoesNotMentionSingleCommit() {
+        let msg = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "main..feature",
+            normalizedInput: "main..feature",
+            currentHeadRevision: "abc123",
+            error: nil
+        )
+        XCTAssertFalse(msg.contains("single-commit range"))
+        XCTAssertTrue(msg.contains("No changed source files against"))
+    }
+
+    func testWhitespaceInRefIsTrimmed() {
+        let msg = ReviewPipelineCoordinator.noFilesAgainstRefMessage(
+            againstRef: "  abc1234  ",
+            normalizedInput: "abc1234^..abc1234",
+            currentHeadRevision: nil,
+            error: nil
+        )
+        XCTAssertTrue(msg.contains("single-commit range"))
+    }
+}

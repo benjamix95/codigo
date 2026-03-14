@@ -698,3 +698,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 54 review cutover
+- eliminato il file test-side `ReviewPipelineNoFilesMessageTests.swift`
+- test no-files review consolidati in `CodeReviewPanelLiveRunExecutionTests.swift` mantenendo una classe `ReviewPipelineNoFilesMessageTests` separata
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `46` file Swift
+  - dopo la tranche: `45` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
