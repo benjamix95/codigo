@@ -254,6 +254,37 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
         XCTAssertTrue(result.summary.contains("Unsupported"))
     }
 
+    func testRunOptionalAdapterReturnsUnavailableWhenCommandMissing() throws {
+        let report = CodeReviewAuditService.runOptionalAdapter(
+            name: "definitely-not-installed-codex-audit-binary",
+            arguments: [],
+            workspacePath: tempDir
+        )
+
+        XCTAssertFalse(report.available)
+        XCTAssertEqual(report.output, "")
+    }
+
+    func testParseAdapterHintBuildsSecurityFindingWhenMatcherPresent() throws {
+        let report = CodeReviewAuditService.ReviewAuditAdapterReport(
+            name: "mock-audit",
+            available: true,
+            output: "Potential token leakage detected in output stream"
+        )
+
+        let finding = CodeReviewAuditService.parseAdapterHint(
+            report,
+            matchers: ["token leakage"],
+            findingMessage: "Sensitive token exposed",
+            filePath: "Sources/Auth.swift"
+        )
+
+        XCTAssertEqual(finding?.category, .security)
+        XCTAssertEqual(finding?.origin, .auditTool)
+        XCTAssertEqual(finding?.filePath, "Sources/Auth.swift")
+        XCTAssertEqual(finding?.sourceTool, "mock-audit")
+    }
+
     // MARK: - explainFinding returns explanation with computed durationMs
 
     func testExplainFindingReturnsExplanation() throws {

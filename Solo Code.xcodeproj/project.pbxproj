@@ -285,7 +285,6 @@
 		28FCC9F7F386A08947094A49 /* WorktreeSessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79144B91046387AFE1E7D5F /* WorktreeSessionStoreTests.swift */; };
 		2907692B46757B5847B206C7 /* DebugLogServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECF5EBC8FF4A3164F27EC79 /* DebugLogServer.swift */; };
 		29197DB052167AED0F73936B /* PersistenceSchema+Metadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48D131E6631AA1C5FB9C44A /* PersistenceSchema+Metadata.swift */; };
-		291F5DD4735DE63D8125A62F /* CodeReviewAuditService+Adapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B7829A62264C93C56F41562 /* CodeReviewAuditService+Adapters.swift */; };
 		294873BE6A11052A4C0921D2 /* BrowserTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607833DA8E97D608453A6821 /* BrowserTab.swift */; };
 		29AAB18ACADE0D2E1E6BEACC /* AgentWorkerAdapter+PromptBuilding.swift in Sources */ = {isa = PBXBuildFile; fileRef = F493131F24838160FD817472 /* AgentWorkerAdapter+PromptBuilding.swift */; };
 		29EF15582CF6787A1D231B36 /* ReviewDiffSummaryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A92878EFB6BA7BF9679943C /* ReviewDiffSummaryServiceTests.swift */; };
@@ -1875,7 +1874,6 @@
 		0B0F87BC26C2FA87A55066DB /* CodeReviewPromptBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewPromptBuilder.swift; path = App/SoloCodeApp/Sources/CodeReview/Support/CodeReviewPromptBuilder.swift; sourceTree = "<group>"; };
 		0B3A4FF7400C16E74D3D84E2 /* CLIProfileProvisioner+ProviderProfiles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CLIProfileProvisioner+ProviderProfiles.swift"; path = "App/SoloCodeApp/Sources/Accounts/Provisioning/CLIProfileProvisioner+ProviderProfiles.swift"; sourceTree = "<group>"; };
 		0B6B047386B094CA8C3E9059 /* ReviewPatchWorkflowService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPatchWorkflowService.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchWorkflowService.swift; sourceTree = "<group>"; };
-		0B7829A62264C93C56F41562 /* CodeReviewAuditService+Adapters.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewAuditService+Adapters.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Audit/CodeReviewAuditService+Adapters.swift"; sourceTree = "<group>"; };
 		0BAF756357526B97C9083554 /* PlanPanelWorkspacePolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanPanelWorkspacePolicyTests.swift; path = Tests/SoloCodeAppTests/PlanPanelWorkspacePolicyTests.swift; sourceTree = "<group>"; };
 		0BCAECACD20AAEDABAE0A40C /* CLIAccountLoginSheet+Header.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CLIAccountLoginSheet+Header.swift"; path = "App/SoloCodeApp/Sources/Accounts/CLIAccountLoginSheet/Sections/CLIAccountLoginSheet+Header.swift"; sourceTree = "<group>"; };
 		0BE68F90F691E703AD5E30D6 /* RollbackService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RollbackService.swift; path = Engine/CoderEngine/Sources/Pipeline/Rollback/RollbackService.swift; sourceTree = "<group>"; };
@@ -4313,7 +4311,6 @@
 				FCD35A3A21A692EE659F5E85 /* SubagentPromptBuilder.swift */,
 				65BB0A203646C2105057FBFD /* CDPClient.swift */,
 				738C133A1B5FD3AD7C913AFA /* CodeReviewAuditModels.swift */,
-				0B7829A62264C93C56F41562 /* CodeReviewAuditService+Adapters.swift */,
 				1619957137F0985A0201FA19 /* CodeReviewAuditService+Bug.swift */,
 				8513C9C09682F20D829C6CAC /* CodeReviewAuditService+BugAdvanced.swift */,
 				1B4C658A61DB5D2B59D413CE /* CodeReviewAuditService+Impact.swift */,
@@ -5516,7 +5513,6 @@
 				4837F8BA46AA1BB9C8E2042F /* SubagentPromptBuilder.swift in Sources */,
 				CCCD7BC828E5706F6D1B80EB /* CDPClient.swift in Sources */,
 				799940B89E497FC328041CB7 /* CodeReviewAuditModels.swift in Sources */,
-				291F5DD4735DE63D8125A62F /* CodeReviewAuditService+Adapters.swift in Sources */,
 				478D45A252617E1342938179 /* CodeReviewAuditService+Bug.swift in Sources */,
 				12550C3E6EFAD7A6D75F7B27 /* CodeReviewAuditService+BugAdvanced.swift in Sources */,
 				550B144EE02341607B4BEDDE /* CodeReviewAuditService+Impact.swift in Sources */,

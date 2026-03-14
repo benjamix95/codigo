@@ -498,3 +498,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 34 review cutover
+- eliminato il file audit-side `CodeReviewAuditService+Adapters.swift`
+- helper adapter consolidati in `CodeReviewAuditService.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `66` file Swift
+  - dopo la tranche: `65` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
