@@ -1066,7 +1066,6 @@
 		9B63DEBCD054374BFF713C38 /* ValidationMetricsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABDF7C0CAF56C671FB07DE5E /* ValidationMetricsStore.swift */; };
 		9B696C65684D0B2A72A983A2 /* SymbolExtractor+Go.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36D6B875541E6CAB1DCA873 /* SymbolExtractor+Go.swift */; };
 		9B75EC9C99FC16A8FB1C1CC0 /* DebugProjectionStoreBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63679A915F58596D1C29B69C /* DebugProjectionStoreBinding.swift */; };
-		9BC860EBC6E912970E1648E5 /* ReviewRuntimeAdapter+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 989648EBA1394A059D2AA8E8 /* ReviewRuntimeAdapter+Execution.swift */; };
 		9BCD4E0151DC06F01913BB40 /* EventNormalizerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068C13E9232180685D79A0F8 /* EventNormalizerModels.swift */; };
 		9C5C224A49554851C81A1366 /* DependencyKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15407EDFBA687C16103E02E0 /* DependencyKind.swift */; };
 		9C706D3F16D0C54F2DBE7887 /* ChatAutoTodoSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D4986BD71C00B42ED0A8BB /* ChatAutoTodoSupportTests.swift */; };
@@ -2804,7 +2803,6 @@
 		983349274B953F71981CE9FE /* EditorQuickOpenStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorQuickOpenStore.swift; path = App/SoloCodeApp/Sources/Editor/State/EditorQuickOpenStore.swift; sourceTree = "<group>"; };
 		9837C77DD99C364EFFDFEC7C /* ChatPanelView+PartH_CodeReviewModes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartH_CodeReviewModes.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ComposerUI/ChatPanelView+PartH_CodeReviewModes.swift"; sourceTree = "<group>"; };
 		98871627468C4637EF9D5A48 /* EditorPlaceholderView+Tabs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "EditorPlaceholderView+Tabs.swift"; path = "App/SoloCodeApp/Sources/App/Placeholder/Sections/EditorPlaceholderView+Tabs.swift"; sourceTree = "<group>"; };
-		989648EBA1394A059D2AA8E8 /* ReviewRuntimeAdapter+Execution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ReviewRuntimeAdapter+Execution.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/Pipeline/Rust/ReviewRuntimeAdapter+Execution.swift"; sourceTree = "<group>"; };
 		989AA5B5980A0F54E5500F2B /* MermaidExtractor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MermaidExtractor.swift; path = App/SoloCodeApp/Sources/Utilities/Mermaid/MermaidExtractor.swift; sourceTree = "<group>"; };
 		989C4E74FBAE7AD805C653B5 /* CodeReviewSessionState+CandidatesAndPatches.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewSessionState+CandidatesAndPatches.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Session/CodeReviewSessionState+CandidatesAndPatches.swift"; sourceTree = "<group>"; };
 		990880A90C1C523C1E47F7FB /* SkillScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SkillScanner.swift; path = App/SoloCodeApp/Sources/Swarm/Skills/SkillScanner.swift; sourceTree = "<group>"; };
@@ -4356,7 +4354,6 @@
 				36923BF62F6BC8A29907D9F1 /* ReviewPipelineCoordinator+Runtime.swift */,
 				DEFFF06C32C691F0E55C9B48 /* ReviewPipelineRustDriver.swift */,
 				CCEFBB28FB9981B9622A71AE /* ReviewPipelineRustModels.swift */,
-				989648EBA1394A059D2AA8E8 /* ReviewRuntimeAdapter+Execution.swift */,
 				371B6C2256F05C207287A7FB /* ReviewRuntimeAdapter.swift */,
 				01138A53AC701E39111394CF /* CodeReviewMultiSwarmProvider+Scope.swift */,
 				67C2C27C25F826D16FC2096F /* FileLockCoordinator.swift */,
@@ -5567,7 +5564,6 @@
 				90A281D5B83157972946E2FF /* ReviewPipelineCoordinator+Runtime.swift in Sources */,
 				AB52577A6BDB69A859718C81 /* ReviewPipelineRustDriver.swift in Sources */,
 				E93985E20CB690E93DCC1C21 /* ReviewPipelineRustModels.swift in Sources */,
-				9BC860EBC6E912970E1648E5 /* ReviewRuntimeAdapter+Execution.swift in Sources */,
 				CAD5C6DB7C525A25454013AD /* ReviewRuntimeAdapter.swift in Sources */,
 				B591712DBCBD0D75220BB08A /* CodeReviewMultiSwarmProvider+Scope.swift in Sources */,
 				90128E7223009F9B0BCF6512 /* FileLockCoordinator.swift in Sources */,
