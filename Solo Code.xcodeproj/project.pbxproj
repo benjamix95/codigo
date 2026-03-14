@@ -1182,7 +1182,6 @@
 		B52A34C10AAD274364EABF8D /* DebugPanelView+Input.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498FBDA019741933D38DF0A2 /* DebugPanelView+Input.swift */; };
 		B591712DBCBD0D75220BB08A /* CodeReviewMultiSwarmProvider+Scope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01138A53AC701E39111394CF /* CodeReviewMultiSwarmProvider+Scope.swift */; };
 		B591FF9C0B6BF834ACFC45BA /* GeminiCLIProvider+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72C7F264635147B0591A3EF /* GeminiCLIProvider+Execution.swift */; };
-		B592C3CC5A7EAB5FED3EEAD2 /* BugHunterWorkflowServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06B1A65C6714DC9D7B6F160 /* BugHunterWorkflowServiceTests.swift */; };
 		B5F0C28741A4DF765B120674 /* PlanShortcutAndCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91A74EEB818A5F78330AD2C6 /* PlanShortcutAndCommandTests.swift */; };
 		B60BF09393935DDD605D6BE7 /* TestExplorerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7453D6837034DDC38C8ECD36 /* TestExplorerPanel.swift */; };
 		B6100C221AE5974902147D30 /* ReviewSessionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F88526FF1473A4D0D863D32C /* ReviewSessionTypes.swift */; };
@@ -3205,7 +3204,6 @@
 		E0191BD510E99055DF05CA76 /* ComposerTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ComposerTextView.swift; path = App/SoloCodeApp/Sources/Chat/ComposerTextView.swift; sourceTree = "<group>"; };
 		E03F84D083D069D8F2EFED99 /* SourceKitLSPModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SourceKitLSPModels.swift; path = App/SoloCodeApp/Sources/Services/Language/Adapters/SourceKitLSPModels.swift; sourceTree = "<group>"; };
 		E05FB6F66F91D24CDC64F427 /* SettingsView+CodexCustomModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SettingsView+CodexCustomModel.swift"; path = "App/SoloCodeApp/Sources/Settings/Sections/SettingsView+CodexCustomModel.swift"; sourceTree = "<group>"; };
-		E06B1A65C6714DC9D7B6F160 /* BugHunterWorkflowServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterWorkflowServiceTests.swift; path = Tests/CoderEngineTests/CodeReview/BugHunterWorkflowServiceTests.swift; sourceTree = "<group>"; };
 		E07EAEAE1A213C83D0B34E5A /* PluginRuntime.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PluginRuntime.swift; path = Engine/CoderEngine/Sources/Infrastructure/Extensions/PluginRuntime.swift; sourceTree = "<group>"; };
 		E087E81A1A0548C42633731E /* AgentSwarmTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AgentSwarmTests.swift; path = Tests/CoderEngineTests/AgentSwarmTests.swift; sourceTree = "<group>"; };
 		E08F9706FD7FDC16F5402923 /* ContextEstimator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContextEstimator.swift; path = App/SoloCodeApp/Sources/Context/ContextEstimator.swift; sourceTree = "<group>"; };
@@ -4920,7 +4918,6 @@
 				7B7C09BFC2EBA921FEE7B7D4 /* ClaudeCLIProviderTests.swift */,
 				36414ADDB69615596C43E46B /* BugHunterAutofixFilterTests.swift */,
 				EAFE397DC6348EDF2EFBC5C9 /* BugHunterIOErrorHandlingTests.swift */,
-				E06B1A65C6714DC9D7B6F160 /* BugHunterWorkflowServiceTests.swift */,
 				59C7595612511714163535E6 /* CodeReviewAuditAdvancedTests.swift */,
 				CF6F09DA0A7AA7DCB4273560 /* CodeReviewFindingTests.swift */,
 				F2DB6262CDA2EBC2B97BD2C2 /* CodeReviewHandlerTests+Helpers.swift */,
@@ -5907,7 +5904,6 @@
 				19E6C4F61CCD0276B9EC74EE /* ClaudeCLIProviderTests.swift in Sources */,
 				2D04DEF6715F30D59B64A341 /* BugHunterAutofixFilterTests.swift in Sources */,
 				DA7F7C4D04BAB0435926CF3D /* BugHunterIOErrorHandlingTests.swift in Sources */,
-				B592C3CC5A7EAB5FED3EEAD2 /* BugHunterWorkflowServiceTests.swift in Sources */,
 				5076E08EBD9F2D348C7D5655 /* CodeReviewAuditAdvancedTests.swift in Sources */,
 				D552917956C4062294E5F2F0 /* CodeReviewFindingTests.swift in Sources */,
 				0A4C7BE3A80A984EFCD8293E /* CodeReviewHandlerTests+Helpers.swift in Sources */,

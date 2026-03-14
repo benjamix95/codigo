@@ -732,3 +732,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 57 review cutover
+- eliminato il file test-side `BugHunterWorkflowServiceTests.swift`
+- test workflow bughunter consolidati in `CodeReviewMultiSwarmProviderTests+TaskExtraction.swift` mantenendo una classe XCTest separata
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `50` file Swift
+  - dopo la tranche: `49` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
