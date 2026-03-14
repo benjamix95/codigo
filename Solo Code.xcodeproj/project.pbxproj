@@ -206,7 +206,6 @@
 		1C975F4B5A8B3A95D9AAC190 /* PlanOptionsParser+Structured.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBCE479E80E63E6D92DB587 /* PlanOptionsParser+Structured.swift */; };
 		1CCFAF7EF098AD6E8DEA708F /* ReviewPanelChatStructuredContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90250D11B9818DE62880D514 /* ReviewPanelChatStructuredContent.swift */; };
 		1D5C56FA8A52E8FEE9C4E2E8 /* ChatPipelineReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A56C27A2A91308E2F4E0EDD /* ChatPipelineReducer.swift */; };
-		1D91F36905574E7687A585C9 /* ReviewPanelChatMessageContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9116BC647F86015A360DBBA /* ReviewPanelChatMessageContextTests.swift */; };
 		1DA0A0F638E5AE11340C7935 /* BrowserTabManager+BrowserBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F88C201C24F9D14D4BC82AF /* BrowserTabManager+BrowserBridge.swift */; };
 		1DB792A625B7D205B761E5FA /* TerminalSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE3E6F18463F97855F21934F /* TerminalSessionStore.swift */; };
 		1DDB5C06A82F3E1DA6C7ADA0 /* UnifiedToolRuntime+LanguageServiceContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D355F38232AC20BA3F701EBB /* UnifiedToolRuntime+LanguageServiceContracts.swift */; };
@@ -2868,7 +2867,6 @@
 		A8A4193CBE605B4EF991390A /* SwarmBudgetManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwarmBudgetManagerTests.swift; path = Tests/CoderEngineTests/Pipeline/Agents/SwarmBudgetManagerTests.swift; sourceTree = "<group>"; };
 		A8ADFC560A464E840F46D036 /* LanguageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageService.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageService.swift; sourceTree = "<group>"; };
 		A8D596EDB2BAA71B69EA4546 /* BugHunterScopeResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterScopeResolver.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/BugHunterScopeResolver.swift; sourceTree = "<group>"; };
-		A9116BC647F86015A360DBBA /* ReviewPanelChatMessageContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatMessageContextTests.swift; path = Tests/SoloCodeAppTests/ReviewPanelChatMessageContextTests.swift; sourceTree = "<group>"; };
 		A95B030EBAD6010089ACAB92 /* CodexCustomModelProfileSync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodexCustomModelProfileSync.swift; path = App/SoloCodeApp/Sources/Settings/CodexCustomModel/CodexCustomModelProfileSync.swift; sourceTree = "<group>"; };
 		A95D6ABBE92252C1D70E7D20 /* DebugPipelineContracts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugPipelineContracts.swift; path = Engine/CoderEngine/Sources/Pipeline/Debug/Contracts/DebugPipelineContracts.swift; sourceTree = "<group>"; };
 		A978A61182088369C887D70C /* CodebaseIndex+SymbolQueries.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodebaseIndex+SymbolQueries.swift"; path = "Engine/CoderEngine/Sources/CodebaseIndex/Core/Operations/Queries/CodebaseIndex+SymbolQueries.swift"; sourceTree = "<group>"; };
@@ -4884,7 +4882,6 @@
 				AC0A882343B33A0AC584C61C /* ProviderFactoryRuntimeParityTests.swift */,
 				79A33F439D47E4E2BA85A8DE /* ProviderSupportTests.swift */,
 				4E0417F0E611832DE1451C4E /* ReviewPanelChatAutoscrollTests.swift */,
-				A9116BC647F86015A360DBBA /* ReviewPanelChatMessageContextTests.swift */,
 				EE384690B21D392EE7B1B70D /* ReviewPanelChatMessageFactoryTests.swift */,
 				FEC6833B304B8D4C5026B86F /* ReviewPanelChatSessionStoreTests.swift */,
 				7AF380ABE171D7685C6389AE /* ReviewPanelChatStructuredContentTests.swift */,
@@ -6306,7 +6303,6 @@
 				49D90A48441EDA2BEDD6706E /* ProviderFactoryRuntimeParityTests.swift in Sources */,
 				5BFBE5315E291FDC0A8EC698 /* ProviderSupportTests.swift in Sources */,
 				1F9853226E05A979C03E54F3 /* ReviewPanelChatAutoscrollTests.swift in Sources */,
-				1D91F36905574E7687A585C9 /* ReviewPanelChatMessageContextTests.swift in Sources */,
 				C509B9070701495B9C412EE7 /* ReviewPanelChatMessageFactoryTests.swift in Sources */,
 				39169F10F7293A4FD43FD2B6 /* ReviewPanelChatSessionStoreTests.swift in Sources */,
 				F1260584F08DC1E7AB2E0E3E /* ReviewPanelChatStructuredContentTests.swift in Sources */,
