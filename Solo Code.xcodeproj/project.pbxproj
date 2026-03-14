@@ -397,7 +397,6 @@
 		39169F10F7293A4FD43FD2B6 /* ReviewPanelChatSessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEC6833B304B8D4C5026B86F /* ReviewPanelChatSessionStoreTests.swift */; };
 		39219A609426364B8CE20F98 /* CoderIDETools+CodeReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B784A5C766F2AC0B5099C0 /* CoderIDETools+CodeReview.swift */; };
 		392D908C55BABFF029363ABD /* PlanClarificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD67997296DB8A6DB21653A /* PlanClarificationView.swift */; };
-		395670B534F78A9DF6110565 /* ReviewCandidateVerificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66496200BD9CF2EB90F3C268 /* ReviewCandidateVerificationServiceTests.swift */; };
 		396ABC610733B1D2465B5A73 /* CoderIDETools+CodeReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B784A5C766F2AC0B5099C0 /* CoderIDETools+CodeReview.swift */; };
 		3970B7E21624323AB2CCF254 /* EventDeliveryManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 713631DF02CAC8BC9CE729C5 /* EventDeliveryManagerTests.swift */; };
 		3989D1054E5F6EA7667F153B /* GitServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7136AAF0D5C824441D819D /* GitServiceTests.swift */; };
@@ -2445,7 +2444,6 @@
 		65BB0A203646C2105057FBFD /* CDPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CDPClient.swift; path = Engine/CoderEngine/Sources/Browser/CDPClient.swift; sourceTree = "<group>"; };
 		65F07762F61837AB48FC19CE /* BreadcrumbNavigationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BreadcrumbNavigationView.swift; path = App/SoloCodeApp/Sources/Panels/Navigation/BreadcrumbNavigationView.swift; sourceTree = "<group>"; };
 		66290463AFD746D3B39DE7E8 /* ProviderToolEventMapper+Predicates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ProviderToolEventMapper+Predicates.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ProviderToolEventMapper/ProviderToolEventMapper+Predicates.swift"; sourceTree = "<group>"; };
-		66496200BD9CF2EB90F3C268 /* ReviewCandidateVerificationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewCandidateVerificationServiceTests.swift; path = Tests/CoderEngineTests/CodeReview/ReviewCandidateVerificationServiceTests.swift; sourceTree = "<group>"; };
 		665C547EED09BAC34C5E77F6 /* ReviewPanelCandidatesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelCandidatesSection.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Findings/ReviewPanelCandidatesSection.swift; sourceTree = "<group>"; };
 		66795AFE05B71096C9E1FF71 /* NetworkMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NetworkMonitor.swift; path = App/SoloCodeApp/Sources/Runtime/NetworkMonitor.swift; sourceTree = "<group>"; };
 		6681D315573D957A7248A372 /* App.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = App.xcconfig; path = Config/xcconfigs/App.xcconfig; sourceTree = "<group>"; };
@@ -4940,7 +4938,6 @@
 				65466AD69D54EB23C94B2019 /* CodeReviewSessionStateTests.swift */,
 				5FF41DC69E7A35D7E5F8D802 /* MCPSharedCodeReviewCommandsTests.swift */,
 				00570B82A3C4DB9D7F53AF96 /* MCPSharedCodeReviewSnapshotStoreTests.swift */,
-				66496200BD9CF2EB90F3C268 /* ReviewCandidateVerificationServiceTests.swift */,
 				6A92878EFB6BA7BF9679943C /* ReviewDiffSummaryServiceTests.swift */,
 				5FA3D237F9306F33D46DFBF5 /* ReviewPipelineCoordinatorTests.swift */,
 				3C3CB7F34C904F2152E8D129 /* ReviewSessionRegistryTests.swift */,
@@ -5929,7 +5926,6 @@
 				50E6BFD3E1E403F6B97DBF2D /* CodeReviewSessionStateTests.swift in Sources */,
 				F367AD74ADA5F6083009718C /* MCPSharedCodeReviewCommandsTests.swift in Sources */,
 				3DFCFF50C54B7D2738B050B5 /* MCPSharedCodeReviewSnapshotStoreTests.swift in Sources */,
-				395670B534F78A9DF6110565 /* ReviewCandidateVerificationServiceTests.swift in Sources */,
 				29EF15582CF6787A1D231B36 /* ReviewDiffSummaryServiceTests.swift in Sources */,
 				4AD5E503FD16F59C8077C486 /* ReviewPipelineCoordinatorTests.swift in Sources */,
 				5A2111CA522E5D706EAC3678 /* ReviewSessionRegistryTests.swift in Sources */,

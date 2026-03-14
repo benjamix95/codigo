@@ -708,3 +708,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 55 review cutover
+- eliminato il file test-side `ReviewCandidateVerificationServiceTests.swift`
+- test candidate verification consolidati in `ReviewDiffSummaryServiceTests.swift` mantenendo una classe `ReviewCandidateVerificationServiceTests` separata
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `45` file Swift
+  - dopo la tranche: `44` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
