@@ -638,3 +638,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 48 review cutover
+- eliminato il file test-side `CodeReviewSessionStateTests+ScopedFindings.swift`
+- test scoped findings consolidati in `CodeReviewSessionStateTests+TerminalLifecycle.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `52` file Swift
+  - dopo la tranche: `51` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
