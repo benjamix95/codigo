@@ -26,4 +26,32 @@ final class CommandDeduplicationServiceTests: XCTestCase {
         let sameFingerprintRecord = await service.existingRecord(for: sameFingerprint)
         XCTAssertEqual(sameFingerprintRecord?.resultSummary, "applied")
     }
+
+    func testEntityExecutionCoordinatorSerializesSameEntity() async throws {
+        let coordinator = EntityExecutionCoordinator()
+        let recorder = ExecutionRecorder()
+
+        async let first: Void = coordinator.withExclusiveAccess(entityId: "finding-1") {
+            await recorder.append("first-start")
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            await recorder.append("first-end")
+        }
+        async let second: Void = coordinator.withExclusiveAccess(entityId: "finding-1") {
+            await recorder.append("second-start")
+            await recorder.append("second-end")
+        }
+
+        _ = try await (first, second)
+
+        let events = await recorder.events
+        XCTAssertEqual(events, ["first-start", "first-end", "second-start", "second-end"])
+    }
+}
+
+private actor ExecutionRecorder {
+    private(set) var events: [String] = []
+
+    func append(_ event: String) {
+        events.append(event)
+    }
 }

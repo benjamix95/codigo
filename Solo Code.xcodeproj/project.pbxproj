@@ -372,7 +372,6 @@
 		346A50267FBBB24AE19ED086 /* ChatStreamFailureHandlingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F5CD3361BFCFC6669BE1F3 /* ChatStreamFailureHandlingTests.swift */; };
 		348411D8E41448DC5078997E /* UnifiedToolRuntime+SkillExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5CF6B17D01DD898C364F19 /* UnifiedToolRuntime+SkillExecution.swift */; };
 		34A6A319986DE75F54CC2426 /* ToolEnabledLLMProviderPolicyAckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5656ED53FC36107B1D4F6E /* ToolEnabledLLMProviderPolicyAckTests.swift */; };
-		34AD76F903ECA2725A2848A9 /* EntityExecutionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F51A2B72C15705398DE518 /* EntityExecutionCoordinator.swift */; };
 		34BBCF9B2A18BC63A3C72C63 /* EventNormalizerTodo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D613AB4A03731EE70B12EB3 /* EventNormalizerTodo.swift */; };
 		34C64D2076FC6135C3E69253 /* TodoStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48D427CFEDA57DB95974F63E /* TodoStoreTests.swift */; };
 		34DC0FEBAD5C257DCD9C5502 /* BrowserSessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 921A1F92C7C66063064EC49A /* BrowserSessionModels.swift */; };
@@ -3140,7 +3139,6 @@
 		C74D8D47738B43B38A31684B /* UnifiedToolRuntime+RuntimeLifecycle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+RuntimeLifecycle.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Core/Execution/Runtime/State/UnifiedToolRuntime+RuntimeLifecycle.swift"; sourceTree = "<group>"; };
 		C769BF41934F5C753F4AD213 /* ChatStoreExportMarkdownTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreExportMarkdownTests.swift; path = Tests/SoloCodeAppTests/ChatStoreExportMarkdownTests.swift; sourceTree = "<group>"; };
 		C7E1F4E4D97A34ED28DA2815 /* PlanPanelView+BuildBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlanPanelView+BuildBar.swift"; path = "App/SoloCodeApp/Sources/Panels/PlanPanel/PlanPanelView+BuildBar.swift"; sourceTree = "<group>"; };
-		C7F51A2B72C15705398DE518 /* EntityExecutionCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EntityExecutionCoordinator.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/EntityExecutionCoordinator.swift; sourceTree = "<group>"; };
 		C803B4A1BBC1D284528F2F39 /* VerifiedFindingsProjectionBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsProjectionBuilder.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Projection/VerifiedFindingsProjectionBuilder.swift; sourceTree = "<group>"; };
 		C8912906C9F395F31CB68476 /* WindowSidebarToggleEvents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WindowSidebarToggleEvents.swift; path = App/SoloCodeApp/Sources/App/Utilities/WindowSidebarToggleEvents.swift; sourceTree = "<group>"; };
 		C8C5AC8D400F1612874B54D1 /* FileStats.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FileStats.swift; path = Engine/CoderEngine/Sources/CodebaseIndex/Core/Domain/FileStats.swift; sourceTree = "<group>"; };
@@ -4798,7 +4796,6 @@
 				F17A4D53F6BCEC9C8B71757A /* ValidationCommandExecutor.swift */,
 				4341D4EEC5EA5B9D8B09D244 /* BugHunterAutofixSelectionService.swift */,
 				B1809C165186F2800D886CBF /* BugHunterWorkflowService.swift */,
-				C7F51A2B72C15705398DE518 /* EntityExecutionCoordinator.swift */,
 				1A70B132E650DFAF6E7FF574 /* FindingIdentityService.swift */,
 				990261D420BEFF98E3B04B0E /* HistoricalFindingsQueryService.swift */,
 				A1017401641DABF0C80B6259 /* SecurityWorkflowService.swift */,
@@ -6020,7 +6017,6 @@
 				473A3A45EA077D16D48F4CF9 /* ValidationCommandExecutor.swift in Sources */,
 				6265C5E8AC9703FA6B824BA4 /* BugHunterAutofixSelectionService.swift in Sources */,
 				D58789A91D34E77E95A4E25C /* BugHunterWorkflowService.swift in Sources */,
-				34AD76F903ECA2725A2848A9 /* EntityExecutionCoordinator.swift in Sources */,
 				AEEC91DD4D1A53E7CD36F609 /* FindingIdentityService.swift in Sources */,
 				110A8F087BF39E1738F4D58C /* HistoricalFindingsQueryService.swift in Sources */,
 				6BFEA2AD2A74A54C4CFFB4B4 /* SecurityWorkflowService.swift in Sources */,
