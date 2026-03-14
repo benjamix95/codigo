@@ -887,7 +887,6 @@
 		82271D6AF333AC450F3BD5E8 /* GitBlameAnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC039BA26C91945119200930 /* GitBlameAnnotationView.swift */; };
 		822ADC6F9A1D74CD127BB5A0 /* CodeReviewAuditService+Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B17925B9BC3F2A75A1C2280 /* CodeReviewAuditService+Support.swift */; };
 		825D2D113E0D8C8F68CE4BAB /* ReviewPanelSessionBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2B1040D9029216EC0485F2C /* ReviewPanelSessionBrowser.swift */; };
-		82B7056AA001A7076AA518C1 /* GitServiceValidationGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC3BB44B0B280B51B525A325 /* GitServiceValidationGuardTests.swift */; };
 		82EE012DEB5F25368AB01706 /* ToolTraceVisibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2E730D887DE0EB80A3C403 /* ToolTraceVisibility.swift */; };
 		82F635B9E9F113BA404035D1 /* MCPSessionManager+Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA3E991862BAC9388CFB9C0 /* MCPSessionManager+Utils.swift */; };
 		830E08C5C6F175839EE26E87 /* PipelineJobFactory+DebugShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72C893599EBA5A2449E9CDD /* PipelineJobFactory+DebugShared.swift */; };
@@ -3177,7 +3176,6 @@
 		DC09286BBF1504B14905BEDE /* ChatStoreTaskOwnershipTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreTaskOwnershipTests.swift; path = Tests/SoloCodeAppTests/ChatStoreTaskOwnershipTests.swift; sourceTree = "<group>"; };
 		DC2D4E2C91CC6DC075355115 /* SemanticSearchBenchmarkTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SemanticSearchBenchmarkTests.swift; path = Tests/CoderEngineTests/SemanticSearch/SemanticSearchBenchmarkTests.swift; sourceTree = "<group>"; };
 		DC314C783CF5D4CE30F7403C /* ValidationResults.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ValidationResults.swift; path = Engine/CoderEngine/Sources/Validation/Core/ValidationResults.swift; sourceTree = "<group>"; };
-		DC3BB44B0B280B51B525A325 /* GitServiceValidationGuardTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitServiceValidationGuardTests.swift; path = Tests/SoloCodeAppTests/GitServiceValidationGuardTests.swift; sourceTree = "<group>"; };
 		DC6DE2E5680E6CE593293FD3 /* CodexConfigLoaderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodexConfigLoaderTests.swift; path = Tests/CoderEngineTests/CodexConfigLoaderTests.swift; sourceTree = "<group>"; };
 		DD2BE5EE4607C2C0049476FA /* MCPSharedState+PersistenceBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSharedState+PersistenceBridge.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/MCPSharedState+PersistenceBridge.swift"; sourceTree = "<group>"; };
 		DD2E730D887DE0EB80A3C403 /* ToolTraceVisibility.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToolTraceVisibility.swift; path = App/SoloCodeApp/Sources/Tasking/ToolTraceVisibility.swift; sourceTree = "<group>"; };
@@ -4806,7 +4804,6 @@
 				DB249F59068BBC51C82E70CC /* FontPreferencesTests.swift */,
 				D3E15E2B329A3F6B2E0DF91C /* GitCommitMessageGeneratorTests.swift */,
 				CF7136AAF0D5C824441D819D /* GitServiceTests.swift */,
-				DC3BB44B0B280B51B525A325 /* GitServiceValidationGuardTests.swift */,
 				DD74912E128B48032F0478FA /* LanguageServiceSemanticFallbackTests.swift */,
 				7961760B0DD42380D67FA47A /* LanguageServiceTestDoubles.swift */,
 				DB801D9C56ACD5F39A3A390D /* LanguageServiceTests.swift */,
@@ -6213,7 +6210,6 @@
 				BEFFD08519F29996799B8332 /* FontPreferencesTests.swift in Sources */,
 				DC58E31232F611EFC8A67B69 /* GitCommitMessageGeneratorTests.swift in Sources */,
 				3989D1054E5F6EA7667F153B /* GitServiceTests.swift in Sources */,
-				82B7056AA001A7076AA518C1 /* GitServiceValidationGuardTests.swift in Sources */,
 				C2B3A045662BC28406E7F596 /* LanguageServiceSemanticFallbackTests.swift in Sources */,
 				1B07C51D924E743CB18DDDC2 /* LanguageServiceTestDoubles.swift in Sources */,
 				9B187C4AE627DA004F82860C /* LanguageServiceTests.swift in Sources */,

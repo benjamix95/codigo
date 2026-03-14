@@ -772,3 +772,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 61 review cutover
+- eliminato il file test-side `GitServiceValidationGuardTests.swift`
+- test git validation guard consolidati in `CheckpointGitStoreTests.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `46` file Swift
+  - dopo la tranche: `45` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
