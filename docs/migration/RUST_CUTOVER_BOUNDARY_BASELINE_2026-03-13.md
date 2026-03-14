@@ -213,3 +213,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 17 review cutover
+- eliminato il file session-side `SessionConfig+ReviewCommandPayload.swift`
+- helper `reviewCommandPayload` consolidato in `ReviewSessionTypes.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `83` file Swift
+  - dopo la tranche: `82` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

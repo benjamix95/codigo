@@ -78,6 +78,27 @@ final class VerifiedFindingsStartCommandServiceTests: XCTestCase {
         )
     }
 
+    func testSessionConfigBuildsReviewCommandPayload() {
+        let config = SessionConfig(
+            maxWorkers: 5,
+            maxRounds: 4,
+            analysisBackend: "openai-api",
+            executionBackend: "anthropic-api",
+            analysisOnly: true
+        )
+
+        XCTAssertEqual(
+            config.reviewCommandPayload,
+            [
+                "max_workers": "5",
+                "max_rounds": "4",
+                "analysis_backend": "openai-api",
+                "execution_backend": "anthropic-api",
+                "analysis_only": "true",
+            ]
+        )
+    }
+
     func testSecurityWorkflowServiceInjectsSecurityPromptOverride() throws {
         let request = try SecurityWorkflowService.makeStartRequest(
             args: ["scope": "staged", "session_id": "security-session"],

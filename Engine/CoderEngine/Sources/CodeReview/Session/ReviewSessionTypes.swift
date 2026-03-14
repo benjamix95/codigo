@@ -107,6 +107,16 @@ public struct SessionConfig: Sendable, Codable {
             analysisOnly: try container.decodeIfPresent(Bool.self, forKey: .analysisOnly) ?? false
         )
     }
+
+    public var reviewCommandPayload: [String: String] {
+        [
+            "max_workers": String(maxWorkers),
+            "max_rounds": String(maxRounds),
+            "analysis_backend": analysisBackend,
+            "execution_backend": executionBackend,
+            "analysis_only": analysisOnly ? "true" : "false",
+        ]
+    }
 }
 
 public struct ReviewAuditSnapshot: Sendable, Codable, Equatable {
