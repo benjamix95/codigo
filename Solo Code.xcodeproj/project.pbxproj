@@ -314,7 +314,6 @@
 		2D10E972A7FD28D18D1FA9B4 /* SettingsView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDEF4A7DDDA2F2C6C231AC5C /* SettingsView+Persistence.swift */; };
 		2D54DDE2D5E7DE027D8A24A9 /* CLIProfileProvisioner+Paths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AA1C9A1020943DA3BA04354 /* CLIProfileProvisioner+Paths.swift */; };
 		2D92E5C597C502D350971429 /* VerifiedFindingsLifecycleCommandService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C0BF8FB8633A1C38834808 /* VerifiedFindingsLifecycleCommandService.swift */; };
-		2DA644B96592E2833AE74065 /* CodeReviewHandlerTests+FindingsOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 305707D4E8CA2B52E207F5E9 /* CodeReviewHandlerTests+FindingsOutput.swift */; };
 		2DDB87234975DD46B258B408 /* TodoStore+Mutations+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D0E29B5132A8BEEAB63DDB9 /* TodoStore+Mutations+Lifecycle.swift */; };
 		2DEB9ABDE369F74D2D6AE53E /* CodexCustomModelProfileSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE69BE212430C7FB6284C68 /* CodexCustomModelProfileSyncTests.swift */; };
 		2E06D27017829B5BA0048BB7 /* ContextPathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A71CFACF482A24D047D557A /* ContextPathResolver.swift */; };
@@ -2099,7 +2098,6 @@
 		2FB00494EAECD43162FB37ED /* ClaudeDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ClaudeDetector.swift; path = Engine/CoderEngine/Sources/Providers/ClaudeCLI/ClaudeDetector.swift; sourceTree = "<group>"; };
 		304B5EA050652FEC8D365A21 /* BugHunterHookServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterHookServiceTests.swift; path = Tests/SoloCodeAppTests/BugHunterHookServiceTests.swift; sourceTree = "<group>"; };
 		305285CCC38403135C51FC6B /* PipelineIntegrationService+Diagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PipelineIntegrationService+Diagnostics.swift"; path = "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+Diagnostics.swift"; sourceTree = "<group>"; };
-		305707D4E8CA2B52E207F5E9 /* CodeReviewHandlerTests+FindingsOutput.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewHandlerTests+FindingsOutput.swift"; path = "Tests/CoderEngineTests/CodeReview/CodeReviewHandlerTests+FindingsOutput.swift"; sourceTree = "<group>"; };
 		307A484B36606D0DAC921060 /* EditorPlaceholderView+Notifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "EditorPlaceholderView+Notifications.swift"; path = "App/SoloCodeApp/Sources/App/Placeholder/Sections/EditorPlaceholderView+Notifications.swift"; sourceTree = "<group>"; };
 		30AAF0A25895A9BE983B6FBD /* VerifiedFindingsStartCommandServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsStartCommandServiceTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStartCommandServiceTests.swift; sourceTree = "<group>"; };
 		30FB21D03EEDE7E382F65CD0 /* ReviewPanelHeader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelHeader.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Header/ReviewPanelHeader.swift; sourceTree = "<group>"; };
@@ -4960,7 +4958,6 @@
 				E06B1A65C6714DC9D7B6F160 /* BugHunterWorkflowServiceTests.swift */,
 				59C7595612511714163535E6 /* CodeReviewAuditAdvancedTests.swift */,
 				CF6F09DA0A7AA7DCB4273560 /* CodeReviewFindingTests.swift */,
-				305707D4E8CA2B52E207F5E9 /* CodeReviewHandlerTests+FindingsOutput.swift */,
 				F2DB6262CDA2EBC2B97BD2C2 /* CodeReviewHandlerTests+Helpers.swift */,
 				476A6E957DE4D5D7BCCCE409 /* CodeReviewHandlerTests+PatchLifecycle.swift */,
 				673CA1846D6D4CC868CE3669 /* CodeReviewHandlerTests+SessionResolution.swift */,
@@ -5956,7 +5953,6 @@
 				B592C3CC5A7EAB5FED3EEAD2 /* BugHunterWorkflowServiceTests.swift in Sources */,
 				5076E08EBD9F2D348C7D5655 /* CodeReviewAuditAdvancedTests.swift in Sources */,
 				D552917956C4062294E5F2F0 /* CodeReviewFindingTests.swift in Sources */,
-				2DA644B96592E2833AE74065 /* CodeReviewHandlerTests+FindingsOutput.swift in Sources */,
 				0A4C7BE3A80A984EFCD8293E /* CodeReviewHandlerTests+Helpers.swift in Sources */,
 				2CE3D88CE1C1CEA8F97367B2 /* CodeReviewHandlerTests+PatchLifecycle.swift in Sources */,
 				70FF84EDD0342CF8B119CA79 /* CodeReviewHandlerTests+SessionResolution.swift in Sources */,
