@@ -696,7 +696,6 @@
 		5EFADA1A8582753F20EDCAB1 /* CodeReviewFinding+Factories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 349D9C4246E3EF7365E52FE6 /* CodeReviewFinding+Factories.swift */; };
 		5F5DB11AF0DB6112AE9146F5 /* ReviewPanelOutcomeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA95DA93ED7BF7E3EA5E876 /* ReviewPanelOutcomeCard.swift */; };
 		5F6410D30FAD313ADD8D4D68 /* ProjectMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3376C5E26CE14B863ED97603 /* ProjectMemory.swift */; };
-		5FA0CA6DE70ED2477BDCFF5F /* CodeReviewStreamTextAccumulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F570FE37DBCF9211CE1E57A0 /* CodeReviewStreamTextAccumulator.swift */; };
 		5FE4CCF7208BEA600535D43B /* EventNormalizerPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E872907732110CFC56500DC /* EventNormalizerPlan.swift */; };
 		5FF85E0DC85D648558983443 /* ProjectContextStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 514BD57CD3CBB53D35B043E2 /* ProjectContextStore.swift */; };
 		60166B2ACF397E3D12355CAF /* PersistenceSchema+Planning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373E22F7FBB87AAC2D29F925 /* PersistenceSchema+Planning.swift */; };
@@ -3439,7 +3438,6 @@
 		F51CE59F27FE8563D35B8885 /* ChatStorePersistence.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStorePersistence.swift; path = App/SoloCodeApp/Sources/Chat/Store/Persistence/ChatStorePersistence.swift; sourceTree = "<group>"; };
 		F530D5C27205254B8EAF8289 /* CodigoApp+Persistence.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodigoApp+Persistence.swift"; path = "App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+Persistence.swift"; sourceTree = "<group>"; };
 		F54309777CA4A9A26CE0B7F6 /* PathFinderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PathFinderTests.swift; path = Tests/CoderEngineTests/PathFinderTests.swift; sourceTree = "<group>"; };
-		F570FE37DBCF9211CE1E57A0 /* CodeReviewStreamTextAccumulator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewStreamTextAccumulator.swift; path = Engine/CoderEngine/Sources/CodeReview/Core/Streaming/CodeReviewStreamTextAccumulator.swift; sourceTree = "<group>"; };
 		F5CEAD3B021067653B41E0A1 /* CodexCLIProviderStreamParsingTests+StreamMappings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProviderStreamParsingTests+StreamMappings.swift"; path = "Tests/CoderEngineTests/CodexCLI/CodexCLIProviderStreamParsingTests+StreamMappings.swift"; sourceTree = "<group>"; };
 		F5EC4D6643A662D01693B872 /* DebugStore+Breakpoints.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugStore+Breakpoints.swift"; path = "App/SoloCodeApp/Sources/Debug/Stores/DebugStore+Breakpoints.swift"; sourceTree = "<group>"; };
 		F5EE82E17C62FA0B97B2645E /* EventDeliveryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventDeliveryManager.swift; path = Engine/CoderEngine/Sources/Pipeline/EventBus/EventDeliveryManager.swift; sourceTree = "<group>"; };
@@ -4400,7 +4398,6 @@
 				989648EBA1394A059D2AA8E8 /* ReviewRuntimeAdapter+Execution.swift */,
 				371B6C2256F05C207287A7FB /* ReviewRuntimeAdapter.swift */,
 				01138A53AC701E39111394CF /* CodeReviewMultiSwarmProvider+Scope.swift */,
-				F570FE37DBCF9211CE1E57A0 /* CodeReviewStreamTextAccumulator.swift */,
 				67C2C27C25F826D16FC2096F /* FileLockCoordinator.swift */,
 				BE930528B1D1CD896CE2D14F /* ReviewDiffSummaryService.swift */,
 				349D9C4246E3EF7365E52FE6 /* CodeReviewFinding+Factories.swift */,
@@ -5628,7 +5625,6 @@
 				9BC860EBC6E912970E1648E5 /* ReviewRuntimeAdapter+Execution.swift in Sources */,
 				CAD5C6DB7C525A25454013AD /* ReviewRuntimeAdapter.swift in Sources */,
 				B591712DBCBD0D75220BB08A /* CodeReviewMultiSwarmProvider+Scope.swift in Sources */,
-				5FA0CA6DE70ED2477BDCFF5F /* CodeReviewStreamTextAccumulator.swift in Sources */,
 				90128E7223009F9B0BCF6512 /* FileLockCoordinator.swift in Sources */,
 				7440DED19BDB0E1D9C50AC65 /* ReviewDiffSummaryService.swift in Sources */,
 				5EFADA1A8582753F20EDCAB1 /* CodeReviewFinding+Factories.swift in Sources */,

@@ -223,3 +223,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 18 review cutover
+- eliminato il file core-side `CodeReviewStreamTextAccumulator.swift`
+- helper stream text accumulator consolidato in `CodeReviewMultiSwarmProvider+Types.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `82` file Swift
+  - dopo la tranche: `81` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
