@@ -800,7 +800,6 @@
 		6FEF8CDBDA6E41090D9B3AC7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 00E8A2BD2B8A8A0C7914ABEB /* Assets.xcassets */; };
 		6FFC32555BD68D56F25AA2D2 /* ChatPanelView+PartQ_Finalizers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347C1A14D810FEB641C75643 /* ChatPanelView+PartQ_Finalizers.swift */; };
 		700F40D5180AEFCC3D2289D5 /* PromptSafetyPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B66B9C8C7EFF432CB980FA /* PromptSafetyPolicy.swift */; };
-		70100D637CC5963B139DFD0D /* CodeReviewMultiSwarmProvider+Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80AEB66F119739D746ED528E /* CodeReviewMultiSwarmProvider+Types.swift */; };
 		7016086CBC9B8BDF8BC0623E /* ChatStorePersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51CE59F27FE8563D35B8885 /* ChatStorePersistence.swift */; };
 		702A1A4A246A4FA045589473 /* SwarmLiveBoardStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45654B22AEE9C3A3A4A3CD57 /* SwarmLiveBoardStateTests.swift */; };
 		70602172057B79C9A4A44641 /* EventNormalizerDebug+Native.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152AB093B979CECF54D32B5D /* EventNormalizerDebug+Native.swift */; };
@@ -2677,7 +2676,6 @@
 		8062D5E81941056BA0F0910E /* CodigoPluginProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodigoPluginProtocol.swift; path = App/SoloCodeApp/Sources/Extensions/Plugins/CodigoPluginProtocol.swift; sourceTree = "<group>"; };
 		808104457384DEF80135A739 /* ToolEnabledLLMProvider+SendHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProvider+SendHelpers.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/Send/ToolEnabledLLMProvider+SendHelpers.swift"; sourceTree = "<group>"; };
 		80986D44D98CFA8FA148825B /* ChatBackgroundStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatBackgroundStyle.swift; path = App/SoloCodeApp/Sources/Chat/ChatBackgroundStyle.swift; sourceTree = "<group>"; };
-		80AEB66F119739D746ED528E /* CodeReviewMultiSwarmProvider+Types.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProvider+Types.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Core/CodeReviewMultiSwarmProvider+Types.swift"; sourceTree = "<group>"; };
 		80C6AA99A013F8ACF47CA056 /* BlastRadiusCheckerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BlastRadiusCheckerTests.swift; path = Tests/CoderEngineTests/Pipeline/Patching/BlastRadiusCheckerTests.swift; sourceTree = "<group>"; };
 		816C723C3261DB419CB5EE56 /* SwiftLintAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftLintAdapter.swift; path = App/SoloCodeApp/Sources/Services/Linting/SwiftLintAdapter.swift; sourceTree = "<group>"; };
 		81A49E31E851C1B4E7A85461 /* SwiftFormatAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftFormatAdapter.swift; path = App/SoloCodeApp/Sources/Services/Formatting/SwiftFormatAdapter.swift; sourceTree = "<group>"; };
@@ -4354,7 +4352,6 @@
 				6B17925B9BC3F2A75A1C2280 /* CodeReviewAuditService+Support.swift */,
 				C675BC8E891081D40B395201 /* CodeReviewAuditService.swift */,
 				570E32B2E663383C109777CE /* CodeReviewMultiSwarmProvider+Diagnostics.swift */,
-				80AEB66F119739D746ED528E /* CodeReviewMultiSwarmProvider+Types.swift */,
 				87DC66FA6A74625E7134FC20 /* CodeReviewMultiSwarmProvider.swift */,
 				707AF94934E8F352353F4ADA /* CodeReviewMultiSwarmProvider+Parsing.swift */,
 				E095C293A78F0462FAADC7D6 /* CodeReviewMultiSwarmProvider+Fixes.swift */,
@@ -5569,7 +5566,6 @@
 				822ADC6F9A1D74CD127BB5A0 /* CodeReviewAuditService+Support.swift in Sources */,
 				FB3765BD2449E1C303F9B175 /* CodeReviewAuditService.swift in Sources */,
 				2E1FE2A961AEA52FE599097D /* CodeReviewMultiSwarmProvider+Diagnostics.swift in Sources */,
-				70100D637CC5963B139DFD0D /* CodeReviewMultiSwarmProvider+Types.swift in Sources */,
 				3168684DBB040E2A05D5ABCE /* CodeReviewMultiSwarmProvider.swift in Sources */,
 				FB5E5C584B5D1E312C6E1EEC /* CodeReviewMultiSwarmProvider+Parsing.swift in Sources */,
 				C383F870D9FB74463348248C /* CodeReviewMultiSwarmProvider+Fixes.swift in Sources */,
