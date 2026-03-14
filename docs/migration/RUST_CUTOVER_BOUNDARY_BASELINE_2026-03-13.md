@@ -307,6 +307,16 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 26 review cutover
+- assorbito `BugHunterWorkflowService.swift` in file verified findings già esistenti
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del dominio `VerifiedFindingsCore`:
+  - prima della tranche: `17` file Swift
+  - dopo la tranche: `16` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
   - prima della tranche: `83` file Swift
   - dopo la tranche: `82` file Swift
 - stato validation review:

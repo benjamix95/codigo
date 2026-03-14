@@ -150,3 +150,33 @@ public enum VerifiedFindingsStartCommandService {
         }
     }
 }
+
+public extension BugHunterWorkflowService {
+    static func makeStartRequest(
+        runId: String,
+        reviewSessionId: String,
+        sourceKind: MCPSharedBugHunterSourceKind,
+        againstRef: String?,
+        prompt: String,
+        maxRounds: Int,
+        maxWorkers: Int,
+        conversationId: UUID? = nil
+    ) throws -> VerifiedFindingsStartCommandRequest {
+        try VerifiedFindingsStartCommandService.makeRequest(
+            args: [
+                "scope": againstRef == nil ? "uncommitted" : "against_ref",
+                "ref": againstRef ?? "",
+                "session_id": reviewSessionId,
+                "analysis_only": "true",
+                "max_rounds": String(maxRounds),
+                "max_workers": String(maxWorkers),
+                "bughunter_run_id": runId,
+                "bughunter_profile": sourceKind == .commit ? "commit_review" : "deep",
+                "bughunter_prompt_override": prompt,
+                "auto_prepare_verified_patches": "true",
+                "auto_prepare_origin_filter": FindingOrigin.bugHunter.rawValue,
+            ],
+            conversationId: conversationId
+        )
+    }
+}
