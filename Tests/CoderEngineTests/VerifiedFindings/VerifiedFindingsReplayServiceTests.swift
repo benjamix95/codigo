@@ -57,7 +57,7 @@ final class VerifiedFindingsReplayServiceTests: XCTestCase {
         let rebuilt = try XCTUnwrap(
             VerifiedFindingsCheckpointService.rebuildEnvelope(sessionId: "replay-session")
         )
-        let report = VerifiedFindingsReplayService.replay(rebuilt)
+        let report = VerifiedFindingsService.replay(rebuilt)
 
         XCTAssertEqual(rebuilt.source, .rebuiltFromCanonical)
         XCTAssertEqual(report.sessionId, "replay-session")
@@ -89,7 +89,7 @@ final class VerifiedFindingsReplayServiceTests: XCTestCase {
             checkpoint: nil
         )
 
-        let report = VerifiedFindingsReplayService.replay(recovered)
+        let report = VerifiedFindingsService.replay(recovered)
 
         XCTAssertEqual(report.sessionId, "replay-rust-session")
         XCTAssertEqual(report.candidateCount, 1)

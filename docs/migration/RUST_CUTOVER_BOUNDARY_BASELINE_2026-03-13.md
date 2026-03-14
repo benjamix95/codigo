@@ -293,3 +293,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 25 review cutover
+- eliminato il file application-side `VerifiedFindingsReplayService.swift`
+- replay report e logica di replay consolidati in `VerifiedFindingsService.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `75` file Swift
+  - dopo la tranche: `74` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
