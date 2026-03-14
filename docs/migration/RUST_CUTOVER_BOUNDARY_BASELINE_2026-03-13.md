@@ -752,3 +752,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 59 review cutover
+- eliminato il file test-side `CodeReviewPanelLiveMutationRustTests.swift`
+- test delle mutation live panel consolidati in `ReviewPatchWorkflowServiceTests.swift` mantenendo una classe XCTest separata
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `48` file Swift
+  - dopo la tranche: `47` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
