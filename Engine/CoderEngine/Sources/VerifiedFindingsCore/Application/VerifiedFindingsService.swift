@@ -42,6 +42,29 @@ public struct VerifiedFindingsSessionEnvelope: Sendable, Codable, Equatable {
     }
 }
 
+public enum VerifiedFindingsEnvelopeSource: String, Sendable, Codable, Equatable {
+    case embeddedSnapshot = "embedded_snapshot"
+    case storedEnvelope = "stored_envelope"
+    case rebuiltFromCanonical = "rebuilt_from_canonical"
+    case syncedFromSnapshot = "synced_from_snapshot"
+}
+
+public struct VerifiedFindingsRecoveredEnvelope: Sendable, Equatable {
+    public let source: VerifiedFindingsEnvelopeSource
+    public let envelope: VerifiedFindingsSessionEnvelope
+    public let checkpoint: MCPSharedVerifiedFindingsCheckpoint?
+
+    public init(
+        source: VerifiedFindingsEnvelopeSource,
+        envelope: VerifiedFindingsSessionEnvelope,
+        checkpoint: MCPSharedVerifiedFindingsCheckpoint?
+    ) {
+        self.source = source
+        self.envelope = envelope
+        self.checkpoint = checkpoint
+    }
+}
+
 public struct VerifiedFindingsResolvedState: Sendable, Equatable {
     public let recovered: VerifiedFindingsRecoveredEnvelope
     public let securityGate: VerifiedFindingsSecurityGateReport

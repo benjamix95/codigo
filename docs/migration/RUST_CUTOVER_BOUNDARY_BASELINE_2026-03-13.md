@@ -277,6 +277,16 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 23 review cutover
+- assorbito `VerifiedFindingsCheckpointService.swift` in `VerifiedFindingsService.swift` e `VerifiedFindingsStatusService.swift`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del dominio `VerifiedFindingsCore`:
+  - prima della tranche: `18` file Swift
+  - dopo la tranche: `17` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
   - prima della tranche: `83` file Swift
   - dopo la tranche: `82` file Swift
 - stato validation review:
