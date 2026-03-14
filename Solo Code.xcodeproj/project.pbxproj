@@ -1585,7 +1585,6 @@
 		F2CDAF2607C99A3CC6D28FE9 /* ProjectValidationDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35BD732A7568C378C91B20A /* ProjectValidationDescriptor.swift */; };
 		F342D5ABF6CBB6A419130AA7 /* UsageMenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80542600C27448492193C72 /* UsageMenuBarView.swift */; };
 		F36038B8BD36175954B45E22 /* SymbolExtractor+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BCDA051A4DC8601E8D5F4F0 /* SymbolExtractor+Helpers.swift */; };
-		F367AD74ADA5F6083009718C /* MCPSharedCodeReviewCommandsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF41DC69E7A35D7E5F8D802 /* MCPSharedCodeReviewCommandsTests.swift */; };
 		F39AF3C481C2500DE6E1A302 /* PlanOptionsParserTests+TodosAndDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A3B734083C05B3E63BBE83 /* PlanOptionsParserTests+TodosAndDisplay.swift */; };
 		F3C1419690765E930108AA76 /* ProcessSupervisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5607B7D6020FEDEAB819D70 /* ProcessSupervisor.swift */; };
 		F3E9C2A535421839C72F4139 /* BrowserPanelView+Panels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE21CE2E040D81176919F88F /* BrowserPanelView+Panels.swift */; };
@@ -2403,7 +2402,6 @@
 		5FB248DD0D108E2BB6C25859 /* TaskCompletionNotificationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaskCompletionNotificationServiceTests.swift; path = Tests/SoloCodeAppTests/TaskCompletionNotificationServiceTests.swift; sourceTree = "<group>"; };
 		5FB780AB082F7DAA2D94CC64 /* CLIAccountAuthDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIAccountAuthDetectorTests.swift; path = Tests/SoloCodeAppTests/CLIAccountAuthDetectorTests.swift; sourceTree = "<group>"; };
 		5FCB10D09E9D49AF6B24315F /* DebugPanelView+Actions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugPanelView+Actions.swift"; path = "App/SoloCodeApp/Sources/Panels/DebugPanel/DebugPanelView+Actions.swift"; sourceTree = "<group>"; };
-		5FF41DC69E7A35D7E5F8D802 /* MCPSharedCodeReviewCommandsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MCPSharedCodeReviewCommandsTests.swift; path = Tests/CoderEngineTests/CodeReview/MCPSharedCodeReviewCommandsTests.swift; sourceTree = "<group>"; };
 		602C63717D8884BAA652480F /* UnifiedToolRuntime+MCPCallsBatch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+MCPCallsBatch.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Calls/UnifiedToolRuntime+MCPCallsBatch.swift"; sourceTree = "<group>"; };
 		602C68EB4AD89224C29663C8 /* TodoStore+Queries.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "TodoStore+Queries.swift"; path = "App/SoloCodeApp/Sources/Tasking/Stores/TodoStore+Queries.swift"; sourceTree = "<group>"; };
 		607833DA8E97D608453A6821 /* BrowserTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BrowserTab.swift; path = App/SoloCodeApp/Sources/Services/BrowserSessionStore/Tab/BrowserTab.swift; sourceTree = "<group>"; };
@@ -4927,7 +4925,6 @@
 				6B36604B28B3B35731D9FB4E /* CodeReviewMultiSwarmProviderTests+TaskExtraction.swift */,
 				341F87362E5C2559FE071661 /* CodeReviewSessionStateTests+TerminalLifecycle.swift */,
 				65466AD69D54EB23C94B2019 /* CodeReviewSessionStateTests.swift */,
-				5FF41DC69E7A35D7E5F8D802 /* MCPSharedCodeReviewCommandsTests.swift */,
 				00570B82A3C4DB9D7F53AF96 /* MCPSharedCodeReviewSnapshotStoreTests.swift */,
 				6A92878EFB6BA7BF9679943C /* ReviewDiffSummaryServiceTests.swift */,
 				5FA3D237F9306F33D46DFBF5 /* ReviewPipelineCoordinatorTests.swift */,
@@ -5913,7 +5910,6 @@
 				DC628A2D2F5647D01CD0D812 /* CodeReviewMultiSwarmProviderTests+TaskExtraction.swift in Sources */,
 				9768463776DE0BD9EF388956 /* CodeReviewSessionStateTests+TerminalLifecycle.swift in Sources */,
 				50E6BFD3E1E403F6B97DBF2D /* CodeReviewSessionStateTests.swift in Sources */,
-				F367AD74ADA5F6083009718C /* MCPSharedCodeReviewCommandsTests.swift in Sources */,
 				3DFCFF50C54B7D2738B050B5 /* MCPSharedCodeReviewSnapshotStoreTests.swift in Sources */,
 				29EF15582CF6787A1D231B36 /* ReviewDiffSummaryServiceTests.swift in Sources */,
 				4AD5E503FD16F59C8077C486 /* ReviewPipelineCoordinatorTests.swift in Sources */,

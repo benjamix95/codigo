@@ -742,3 +742,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 58 review cutover
+- eliminato il file test-side `MCPSharedCodeReviewCommandsTests.swift`
+- test dei comandi MCP review consolidati in `CodeReviewSessionStateTests+TerminalLifecycle.swift` mantenendo una classe XCTest separata
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `49` file Swift
+  - dopo la tranche: `48` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
