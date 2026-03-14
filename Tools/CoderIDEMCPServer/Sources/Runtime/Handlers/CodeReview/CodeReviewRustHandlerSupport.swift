@@ -3,6 +3,57 @@ import Foundation
 import MCP
 
 extension CoderIDEMCPServerApp {
+    static func resolveReviewConversationId(_ args: [String: String]) -> UUID? {
+        parseConversationId(args["conversation_id"] ?? args["conversationId"])
+    }
+
+    static func resolveReviewSessionId(
+        args: [String: String],
+        requireExplicitWhenAmbiguous: Bool,
+        allowLatestFallback: Bool = true,
+        activeOnly: Bool = true
+    ) -> (sessionId: String?, error: String?) {
+        let explicitSessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        let conversationId = resolveReviewConversationId(args)
+        let snapshots = reviewScopedSnapshots(
+            conversationId: conversationId,
+            activeOnly: activeOnly
+        )
+
+        if !explicitSessionId.isEmpty {
+            if let formatError = validateReviewSessionIdFormat(explicitSessionId) {
+                return (nil, formatError)
+            }
+            guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: explicitSessionId) else {
+                return (nil, "Error: session_id '\(explicitSessionId)' was not found")
+            }
+            if let snapshotConversationId = snapshot.conversationId {
+                guard let conversationId else {
+                    return (nil, "Error: 'conversation_id' is required for session_id '\(explicitSessionId)'")
+                }
+                guard snapshotConversationId == conversationId else {
+                    return (nil, "Error: session_id '\(explicitSessionId)' does not belong to the requested conversation")
+                }
+            }
+            return (explicitSessionId, nil)
+        }
+
+        guard allowLatestFallback else {
+            return (nil, "Error: 'session_id' is required")
+        }
+        guard !snapshots.isEmpty else {
+            return (nil, activeOnly ? "No active review session." : "No review session found.")
+        }
+        if requireExplicitWhenAmbiguous && snapshots.count > 1 {
+            let ids = snapshots.map(\.sessionId).joined(separator: ", ")
+            return (nil, "Error: multiple review sessions are available. Pass session_id explicitly. Available: \(ids)")
+        }
+        return (snapshots[0].sessionId, nil)
+    }
+
     static func rustReviewToolResult(
         name: String,
         args: [String: String]
@@ -196,6 +247,17 @@ extension CoderIDEMCPServerApp {
                 || error.contains("multiple review sessions")
         }
         return true
+    }
+
+    private static func reviewScopedSnapshots(
+        conversationId: UUID?,
+        activeOnly: Bool
+    ) -> [CodeReviewSessionSnapshot] {
+        MCPSharedState.readCodeReviewSnapshots(
+            conversationId: conversationId
+        ).filter { snapshot in
+            !activeOnly || snapshot.isActive
+        }
     }
 }
 

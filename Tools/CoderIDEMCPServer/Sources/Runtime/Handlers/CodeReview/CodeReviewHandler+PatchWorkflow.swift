@@ -3,6 +3,64 @@ import Foundation
 import MCP
 
 extension CoderIDEMCPServerApp {
+    static func reviewCommandQueued(
+        action: String,
+        sessionId: String?,
+        args: [String: String]
+    ) -> CallTool.Result {
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: action,
+            sessionId: sessionId,
+            conversationId: resolveReviewConversationId(args),
+            payload: args
+        )
+        var parts = ["OK — review command queued", "action=\(action)", "command_id=\(command.id)"]
+        if let sessionId, !sessionId.isEmpty {
+            parts.append("session_id=\(sessionId)")
+        }
+        return reviewOK(parts.joined(separator: ", "))
+    }
+
+    static func validateReviewSessionAccess(
+        sessionId: String,
+        args: [String: String]
+    ) -> String? {
+        if let formatError = validateReviewSessionIdFormat(sessionId) {
+            return formatError
+        }
+        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
+            return "Error: session_id '\(sessionId)' was not found"
+        }
+        if let snapshotConversationId = snapshot.conversationId {
+            guard let conversationId = resolveReviewConversationId(args) else {
+                return "Error: 'conversation_id' is required for session_id '\(sessionId)'"
+            }
+            guard snapshotConversationId == conversationId else {
+                return "Error: session_id '\(sessionId)' does not belong to the requested conversation"
+            }
+        }
+        return nil
+    }
+
+    static func validateFindingOwnership(
+        sessionId: String,
+        findingId: String,
+        args: [String: String]
+    ) -> String? {
+        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
+            return accessError
+        }
+        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
+            return "Error: session_id '\(sessionId)' was not found"
+        }
+        guard snapshot.findings.contains(where: { $0.id == findingId })
+            || snapshot.candidates.contains(where: { $0.id == findingId })
+        else {
+            return "Error: finding_id '\(findingId)' does not belong to session_id '\(sessionId)'"
+        }
+        return nil
+    }
+
     static func handleReviewVerifyFinding(args: [String: String]) -> CallTool.Result {
         queueFindingScopedReviewCommand(action: "verify_finding", args: args)
     }

@@ -3,6 +3,18 @@ import Foundation
 import MCP
 
 extension CoderIDEMCPServerApp {
+    static let reviewSessionIdPattern = #"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"#
+    static let validReviewBackends: Set<String> = [
+        "auto", "codex", "claude", "gemini",
+        "codex-cli", "claude-cli", "gemini-cli",
+        "openrouter", "openrouter-api",
+        "minimax", "minimax-api",
+        "grok", "grok-api",
+        "openai", "openai-api",
+        "anthropic", "anthropic-api",
+        "google", "google-api",
+    ]
+
     static let codeReviewTools: Set<String> = [
         "review_start", "review_status", "review_findings",
         "review_apply_fix", "review_dismiss", "review_configure",
@@ -51,6 +63,24 @@ extension CoderIDEMCPServerApp {
 
     static func reviewError(_ message: String) -> CallTool.Result {
         CallTool.Result(content: [.text(message)], isError: true)
+    }
+
+    static func validateReviewBackend(_ backend: String) -> Bool {
+        validReviewBackends.contains(backend.lowercased())
+    }
+
+    static func validateReviewSessionIdFormat(_ sessionId: String) -> String? {
+        let trimmed = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return "Error: 'session_id' must not be empty"
+        }
+        guard trimmed.range(
+            of: reviewSessionIdPattern,
+            options: .regularExpression
+        ) != nil else {
+            return "Error: 'session_id' may contain only letters, digits, '_' or '-' and must not start with punctuation"
+        }
+        return nil
     }
 
     static func sanitizedReviewArg(_ args: [String: String], key: String) -> String {

@@ -558,3 +558,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 40 review cutover
+- eliminato il file MCP-side `CodeReviewHandler+Resolution.swift`
+- helper di resolution MCP review consolidati tra `CodeReviewHandler+Start.swift`, `CodeReviewRustHandlerSupport.swift` e `CodeReviewHandler+PatchWorkflow.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `60` file Swift
+  - dopo la tranche: `59` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
