@@ -578,3 +578,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 42 review cutover
+- eliminato il file projection-side `VerifiedFindingsProjectionBuilder.swift`
+- tipi projection consolidati in `VerifiedFindingsCanonicalStore.swift` e builder in `VerifiedFindingsStatusService.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `58` file Swift
+  - dopo la tranche: `57` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		009144A8CE6972A3088394AF /* VerifiedFindingsProjectionBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C803B4A1BBC1D284528F2F39 /* VerifiedFindingsProjectionBuilder.swift */; };
 		00A74A4826F0322B5BCA6295 /* ProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754246B525167CF6186F2163 /* ProviderFactory.swift */; };
 		00E030CD663BDF7B8BBA6CBC /* MCPSharedState+PersistenceBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2BE5EE4607C2C0049476FA /* MCPSharedState+PersistenceBridge.swift */; };
 		00EFE30B0922F29801A21FB9 /* CodeReviewCommandRuntimeHooks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B273B46D00613EAC8D8DAF /* CodeReviewCommandRuntimeHooks.swift */; };
@@ -3084,7 +3083,6 @@
 		C74D8D47738B43B38A31684B /* UnifiedToolRuntime+RuntimeLifecycle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+RuntimeLifecycle.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Core/Execution/Runtime/State/UnifiedToolRuntime+RuntimeLifecycle.swift"; sourceTree = "<group>"; };
 		C769BF41934F5C753F4AD213 /* ChatStoreExportMarkdownTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreExportMarkdownTests.swift; path = Tests/SoloCodeAppTests/ChatStoreExportMarkdownTests.swift; sourceTree = "<group>"; };
 		C7E1F4E4D97A34ED28DA2815 /* PlanPanelView+BuildBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlanPanelView+BuildBar.swift"; path = "App/SoloCodeApp/Sources/Panels/PlanPanel/PlanPanelView+BuildBar.swift"; sourceTree = "<group>"; };
-		C803B4A1BBC1D284528F2F39 /* VerifiedFindingsProjectionBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsProjectionBuilder.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Projection/VerifiedFindingsProjectionBuilder.swift; sourceTree = "<group>"; };
 		C8912906C9F395F31CB68476 /* WindowSidebarToggleEvents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WindowSidebarToggleEvents.swift; path = App/SoloCodeApp/Sources/App/Utilities/WindowSidebarToggleEvents.swift; sourceTree = "<group>"; };
 		C8C5AC8D400F1612874B54D1 /* FileStats.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FileStats.swift; path = Engine/CoderEngine/Sources/CodebaseIndex/Core/Domain/FileStats.swift; sourceTree = "<group>"; };
 		C8FE3AEF4833220073F62B46 /* SubagentChatCardHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatCardHelpers.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatCardHelpers.swift; sourceTree = "<group>"; };
@@ -4732,7 +4730,6 @@
 				1BD16A39B4988D0FFFAF732D /* VerifiedFindingsStatusService.swift */,
 				D18A8907AD1E492D596E66EA /* VerifiedFindingModels+PatchRun.swift */,
 				B3AC88125075B00AEABE82D0 /* VerifiedFindingModels.swift */,
-				C803B4A1BBC1D284528F2F39 /* VerifiedFindingsProjectionBuilder.swift */,
 				3D4E76CD4BA545C088E31DCE /* PathFinder.swift */,
 				8C5C768C8FFBD02BBA3B3BD9 /* TestProjectDetector.swift */,
 				D1484E9DF09D588D91EDF065 /* Workspace.swift */,
@@ -5928,7 +5925,6 @@
 				11720050EA800E5804859B92 /* VerifiedFindingsStatusService.swift in Sources */,
 				15DDAF4B3A78015E761B6B4E /* VerifiedFindingModels+PatchRun.swift in Sources */,
 				A6E1CD2C12FF2DA908F3657C /* VerifiedFindingModels.swift in Sources */,
-				009144A8CE6972A3088394AF /* VerifiedFindingsProjectionBuilder.swift in Sources */,
 				6629DB5BC19774E54E317F7F /* PathFinder.swift in Sources */,
 				D86E03DBD0FB0BEE3F85EB30 /* TestProjectDetector.swift in Sources */,
 				2874513745488F93285CB420 /* Workspace.swift in Sources */,
