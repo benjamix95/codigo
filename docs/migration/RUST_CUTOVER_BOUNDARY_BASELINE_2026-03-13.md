@@ -538,3 +538,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 38 review cutover
+- eliminato il file panel-side `ReviewPanelFindingsHistoryModels.swift`
+- tipi e helper history consolidati nelle view `ReviewPanelFindingsHistoryTab.swift`, `ReviewPanelHistoricalFindingDetail.swift` e `ReviewPanelHistoricalLiveBoard.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `62` file Swift
+  - dopo la tranche: `61` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

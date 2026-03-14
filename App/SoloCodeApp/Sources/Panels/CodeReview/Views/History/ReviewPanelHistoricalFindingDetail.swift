@@ -1,6 +1,101 @@
 import CoderEngine
 import SwiftUI
 
+extension HistoricalFindingRecord {
+    var historyBucket: ReviewFindingHistoryStatusFilter {
+        switch status {
+        case .candidate, .verifying, .verified, .needsManualReview:
+            return .open
+        case .patchPreparing, .patchPrepared, .patchReviewed, .patchApplied, .revalidating, .fixFailed, .rollbackApplied:
+            return .inProgress
+        case .fixedVerified, .closed, .rejected:
+            return .resolved
+        }
+    }
+
+    var historyStatusLabel: String {
+        status.rawValue
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+    }
+
+    var historyStatusColor: Color {
+        switch historyBucket {
+        case .resumeQueue:
+            return DesignSystem.Colors.warning
+        case .open:
+            return DesignSystem.Colors.reviewColor
+        case .inProgress:
+            return DesignSystem.Colors.info
+        case .resolved:
+            return DesignSystem.Colors.success
+        case .all:
+            return .secondary
+        }
+    }
+
+    var domainLabel: String {
+        domain == .security ? "Security" : "Bug"
+    }
+
+    var sourceLabel: String {
+        sourceOrigin?.isEmpty == false ? sourceOrigin! : domain.rawValue
+    }
+
+    var latestLifecycleLabel: String {
+        if let verdict = revalidationVerdict?.rawValue {
+            return verdict.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+        if let patchApplyStatus = patchApplyStatus?.rawValue {
+            return patchApplyStatus.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+        return historyStatusLabel
+    }
+
+    func matches(statusFilter: ReviewFindingHistoryStatusFilter) -> Bool {
+        switch statusFilter {
+        case .resumeQueue:
+            return resumeEligible
+        case .open:
+            return historyBucket == .open
+        case .inProgress:
+            return historyBucket == .inProgress
+        case .resolved:
+            return historyBucket == .resolved
+        case .all:
+            return true
+        }
+    }
+
+    func matches(domainFilter: ReviewFindingHistoryDomainFilter) -> Bool {
+        switch domainFilter {
+        case .all:
+            return true
+        case .bug:
+            return domain == .bug
+        case .security:
+            return domain == .security
+        }
+    }
+
+    func matches(severityFilter: ReviewFindingHistorySeverityFilter) -> Bool {
+        switch severityFilter {
+        case .all:
+            return true
+        case .critical:
+            return severity == .critical
+        case .high:
+            return severity == .high
+        case .medium:
+            return severity == .medium
+        case .low:
+            return severity == .low
+        case .info:
+            return severity == .info
+        }
+    }
+}
+
 struct ReviewPanelHistoricalFindingDetail: View {
     @ObservedObject var store: CodeReviewPanelStore
     let record: HistoricalFindingRecord

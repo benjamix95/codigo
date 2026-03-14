@@ -1,6 +1,35 @@
 import CoderEngine
 import SwiftUI
 
+enum ReviewFindingHistoryStatusFilter: String, CaseIterable, Identifiable {
+    case resumeQueue = "Resume"
+    case open = "Open"
+    case inProgress = "In Progress"
+    case resolved = "Resolved"
+    case all = "All"
+
+    var id: String { rawValue }
+}
+
+enum ReviewFindingHistoryDomainFilter: String, CaseIterable, Identifiable {
+    case all = "All Domains"
+    case bug = "Bug"
+    case security = "Security"
+
+    var id: String { rawValue }
+}
+
+enum ReviewFindingHistorySeverityFilter: String, CaseIterable, Identifiable {
+    case all = "All Severities"
+    case critical = "Critical"
+    case high = "High"
+    case medium = "Medium"
+    case low = "Low"
+    case info = "Info"
+
+    var id: String { rawValue }
+}
+
 struct ReviewPanelFindingsHistoryTab: View {
     @ObservedObject var store: CodeReviewPanelStore
     let onOpenFileAtLocation: (String, Int?) -> Void

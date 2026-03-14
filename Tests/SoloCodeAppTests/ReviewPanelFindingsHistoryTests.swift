@@ -97,6 +97,40 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
         XCTAssertTrue(prompt.contains("not_applied"))
     }
 
+    func testHistoricalFindingDerivedLabelsReflectLifecycleState() {
+        let record = HistoricalFindingRecord(
+            findingId: "finding-state",
+            sessionId: "session-state",
+            workspaceId: "/tmp/workspace",
+            domain: .security,
+            severity: .critical,
+            title: "Token leak",
+            summary: "Sensitive token exposed",
+            status: .patchPrepared,
+            filePath: "Sources/Auth.swift",
+            lineStart: 12,
+            sourceOrigin: "securityAuditor",
+            closedReason: nil,
+            patchId: "patch-1",
+            patchApplyStatus: .applying,
+            revalidationReportId: "revalidation-1",
+            revalidationVerdict: .fixFailed,
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 20),
+            resolvedAt: nil,
+            resumeEligible: true,
+            timeline: []
+        )
+
+        XCTAssertEqual(record.historyBucket, .inProgress)
+        XCTAssertEqual(record.domainLabel, "Security")
+        XCTAssertEqual(record.sourceLabel, "securityAuditor")
+        XCTAssertEqual(record.latestLifecycleLabel, "Fix Failed")
+        XCTAssertTrue(record.matches(statusFilter: .resumeQueue))
+        XCTAssertTrue(record.matches(domainFilter: .security))
+        XCTAssertTrue(record.matches(severityFilter: .critical))
+    }
+
     func testRefreshHistoricalFindingsReadsPersistedWorkspaceHistory() async throws {
         resetPersistenceEnvironment()
         enablePersistenceForTests()
