@@ -462,7 +462,6 @@
 		3FA7ADB9CA649F173A6424EF /* CodeReviewPanelModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8CA6A2EBAFC9282EBA49B0 /* CodeReviewPanelModels.swift */; };
 		3FC851562A78A928CF94A68B /* ThreadProviderSelectionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63D244D25B00FCEB78FC0BDD /* ThreadProviderSelectionServiceTests.swift */; };
 		3FF0C02E230E5501C6965356 /* ReviewPanelHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408FD23473AD9FF2826904CA /* ReviewPanelHelpers.swift */; };
-		3FF3BE27392D51AE1C4FAF81 /* ReviewLifecycleModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 503E3E0F86F228F87C5771B3 /* ReviewLifecycleModels.swift */; };
 		4066ABDE9F2416E7185BC36A /* ChatPanelView+PartA_TodoSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B24897DD241008A898294D7 /* ChatPanelView+PartA_TodoSync.swift */; };
 		40797B2D72EDFEA774887317 /* ConversationFlowCoordinator+Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60EED9262E1A400162B6DC6A /* ConversationFlowCoordinator+Support.swift */; };
 		40A1D06CC0C8A6112D699E50 /* CodeReviewPanelStore+CompletionFinalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1D06CC0C8A6112D699E51 /* CodeReviewPanelStore+CompletionFinalization.swift */; };
@@ -2344,7 +2343,6 @@
 		500FCA72103AE115F23BF5FB /* UnifiedToolRuntime+DebugTimelineSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+DebugTimelineSnapshot.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Debug/Analysis/UnifiedToolRuntime+DebugTimelineSnapshot.swift"; sourceTree = "<group>"; };
 		5036731E60EF5C0A4AA5E9B5 /* ChatPanelView+PartL_SendMessageExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartL_SendMessageExecution.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_SendMessageExecution.swift"; sourceTree = "<group>"; };
 		503DC3225C81B359847F8569 /* CodexCLIProvider+Parsing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProvider+Parsing.swift"; path = "Engine/CoderEngine/Sources/Providers/CodexCLI/StreamSupport/CodexCLIProvider+Parsing.swift"; sourceTree = "<group>"; };
-		503E3E0F86F228F87C5771B3 /* ReviewLifecycleModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewLifecycleModels.swift; path = Engine/CoderEngine/Sources/CodeReview/Session/ReviewLifecycleModels.swift; sourceTree = "<group>"; };
 		504579C67D5F9CC4C10225DE /* WebSearchService+Serper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "WebSearchService+Serper.swift"; path = "Engine/CoderEngine/Sources/Tools/Web/Search/WebSearchService+Serper.swift"; sourceTree = "<group>"; };
 		5072184472C7FF5194AD0D53 /* GitPanelView+Header.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitPanelView+Header.swift"; path = "App/SoloCodeApp/Sources/Panels/Git/GitPanelView+Header.swift"; sourceTree = "<group>"; };
 		50A9D8E696F8491DB4C8C569 /* ProviderRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderRouter.swift; path = Engine/CoderEngine/Sources/Pipeline/Providers/ProviderRouter.swift; sourceTree = "<group>"; };
@@ -4337,7 +4335,6 @@
 				7DA6E76A8637B15EBCE6945E /* CodeReviewSessionState+Findings.swift */,
 				86B8E16CE1B62BD370F18D46 /* CodeReviewSessionState+Lifecycle.swift */,
 				41940F7BF27E1F98BB3BBF9F /* CodeReviewSessionState.swift */,
-				503E3E0F86F228F87C5771B3 /* ReviewLifecycleModels.swift */,
 				E1136CB0540080162E67CCB9 /* ReviewSessionRegistry.swift */,
 				F88526FF1473A4D0D863D32C /* ReviewSessionTypes.swift */,
 				D8332B7BFD513959F11FA995 /* CodebaseIndex+ResultTypes.swift */,
@@ -5537,7 +5534,6 @@
 				EAEEA0FA818250E7E0F41A62 /* CodeReviewSessionState+Findings.swift in Sources */,
 				C9F281A0B59F0940CC6D48C5 /* CodeReviewSessionState+Lifecycle.swift in Sources */,
 				F88F411BA498B9CDA9372535 /* CodeReviewSessionState.swift in Sources */,
-				3FF3BE27392D51AE1C4FAF81 /* ReviewLifecycleModels.swift in Sources */,
 				C9AB587ECDDBA613FBE3912E /* ReviewSessionRegistry.swift in Sources */,
 				B6100C221AE5974902147D30 /* ReviewSessionTypes.swift in Sources */,
 				D21DF00FD4E3364A43B45718 /* CodebaseIndex+ResultTypes.swift in Sources */,

@@ -126,6 +126,71 @@ final class ReviewSessionRegistryTests: XCTestCase {
         XCTAssertEqual(snapshot?.events.last?.type, .configUpdated)
     }
 
+    func testBuildOutcomeSummaryCountsPatchStatesAndManualActions() {
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "summary-session",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-1",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "File.swift",
+                    message: "Issue"
+                ),
+            ],
+            candidates: [
+                ReviewCandidate(
+                    id: "candidate-1",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .reviewer,
+                    filePath: "File.swift",
+                    message: "Candidate",
+                    verificationStatus: .inconclusive
+                ),
+            ],
+            patches: [
+                ReviewPatchArtifact(
+                    id: "patch-1",
+                    findingId: "finding-1",
+                    patchText: "diff",
+                    diffPreview: "@@",
+                    touchedFiles: ["File.swift"],
+                    status: .verified,
+                    prStatus: .opened,
+                    mergeStatus: .blocked,
+                    conflicts: ["File.swift"]
+                ),
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: nil,
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .failed,
+            lastUpdatedAt: Date()
+        )
+
+        let outcome = snapshot.buildOutcomeSummary()
+
+        XCTAssertEqual(outcome.verifiedFindings, 1)
+        XCTAssertEqual(outcome.falsePositives, 0)
+        XCTAssertEqual(outcome.patchesReady, 1)
+        XCTAssertEqual(outcome.prsOpened, 1)
+        XCTAssertEqual(outcome.conflictsDetected, 1)
+        XCTAssertTrue(outcome.manualActionRequired)
+        XCTAssertEqual(outcome.testsStatus, .failed)
+    }
+
     private func makeSnapshot(
         sessionId: String,
         conversationId: UUID,

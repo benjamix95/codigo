@@ -528,3 +528,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 37 review cutover
+- eliminato il file session-side `ReviewLifecycleModels.swift`
+- model lifecycle consolidati tra `CodeReviewFinding+Factories.swift`, `CodeReviewSessionState+CandidatesAndPatches.swift` e `CodeReviewSessionSnapshot+Derived.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `63` file Swift
+  - dopo la tranche: `62` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`

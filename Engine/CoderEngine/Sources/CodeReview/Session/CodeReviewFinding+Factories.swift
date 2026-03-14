@@ -1,5 +1,88 @@
 import Foundation
 
+public enum ReviewCandidateStatus: String, Sendable, Codable, CaseIterable {
+    case new
+    case verifying
+    case verified
+    case rejectedFalsePositive = "rejected_false_positive"
+    case inconclusive
+}
+
+public enum ReviewSignalType: String, Sendable, Codable, CaseIterable {
+    case pattern
+    case semantic
+    case testDerived = "test_derived"
+    case llmVerified = "llm_verified"
+    case manual
+}
+
+public struct ReviewCandidate: Sendable, Identifiable, Codable, Equatable {
+    public let id: String
+    public let severity: FindingSeverity
+    public let category: FindingCategory
+    public let origin: FindingOrigin
+    public let filePath: String
+    public let lineNumber: Int?
+    public let endLineNumber: Int?
+    public let message: String
+    public let evidence: String?
+    public let expectedInvariant: String?
+    public let reproOrReasoning: String?
+    public let confidence: Double?
+    public let sourceTool: String?
+    public let signalType: ReviewSignalType
+    public var verificationStatus: ReviewCandidateStatus
+    public var verificationMethod: String?
+    public var verificationReport: String?
+    public var falsePositiveReason: String?
+    public let createdAt: Date
+    public var verifiedAt: Date?
+
+    public init(
+        id: String = UUID().uuidString,
+        severity: FindingSeverity,
+        category: FindingCategory,
+        origin: FindingOrigin,
+        filePath: String,
+        lineNumber: Int? = nil,
+        endLineNumber: Int? = nil,
+        message: String,
+        evidence: String? = nil,
+        expectedInvariant: String? = nil,
+        reproOrReasoning: String? = nil,
+        confidence: Double? = nil,
+        sourceTool: String? = nil,
+        signalType: ReviewSignalType = .semantic,
+        verificationStatus: ReviewCandidateStatus = .new,
+        verificationMethod: String? = nil,
+        verificationReport: String? = nil,
+        falsePositiveReason: String? = nil,
+        createdAt: Date = Date(),
+        verifiedAt: Date? = nil
+    ) {
+        self.id = id
+        self.severity = severity
+        self.category = category
+        self.origin = origin
+        self.filePath = filePath
+        self.lineNumber = lineNumber
+        self.endLineNumber = endLineNumber
+        self.message = message
+        self.evidence = evidence
+        self.expectedInvariant = expectedInvariant
+        self.reproOrReasoning = reproOrReasoning
+        self.confidence = confidence
+        self.sourceTool = sourceTool
+        self.signalType = signalType
+        self.verificationStatus = verificationStatus
+        self.verificationMethod = verificationMethod
+        self.verificationReport = verificationReport
+        self.falsePositiveReason = falsePositiveReason
+        self.createdAt = createdAt
+        self.verifiedAt = verifiedAt
+    }
+}
+
 extension CodeReviewFinding {
     public static func fromRawTask(
         id: String,

@@ -1,5 +1,59 @@
 import Foundation
 
+public struct ReviewSessionOutcome: Sendable, Codable, Equatable {
+    public let summary: String
+    public let verifiedFindings: Int
+    public let falsePositives: Int
+    public let patchesReady: Int
+    public let patchesApplied: Int
+    public let prsOpened: Int
+    public let mergedPatches: Int
+    public let conflictsDetected: Int
+    public let manualActionRequired: Bool
+    public let testsStatus: ReviewSessionTestStatus?
+    public let generatedAt: Date
+
+    public static let empty = ReviewSessionOutcome(
+        summary: "No review outcome available yet.",
+        verifiedFindings: 0,
+        falsePositives: 0,
+        patchesReady: 0,
+        patchesApplied: 0,
+        prsOpened: 0,
+        mergedPatches: 0,
+        conflictsDetected: 0,
+        manualActionRequired: false,
+        testsStatus: nil,
+        generatedAt: .distantPast
+    )
+
+    public init(
+        summary: String,
+        verifiedFindings: Int,
+        falsePositives: Int,
+        patchesReady: Int,
+        patchesApplied: Int,
+        prsOpened: Int,
+        mergedPatches: Int,
+        conflictsDetected: Int,
+        manualActionRequired: Bool,
+        testsStatus: ReviewSessionTestStatus?,
+        generatedAt: Date = Date()
+    ) {
+        self.summary = summary
+        self.verifiedFindings = verifiedFindings
+        self.falsePositives = falsePositives
+        self.patchesReady = patchesReady
+        self.patchesApplied = patchesApplied
+        self.prsOpened = prsOpened
+        self.mergedPatches = mergedPatches
+        self.conflictsDetected = conflictsDetected
+        self.manualActionRequired = manualActionRequired
+        self.testsStatus = testsStatus
+        self.generatedAt = generatedAt
+    }
+}
+
 public enum ReviewPipelineLedgerStatus: String, Sendable, Codable, CaseIterable {
     case pending
     case running
