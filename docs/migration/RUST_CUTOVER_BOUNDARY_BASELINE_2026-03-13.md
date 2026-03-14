@@ -608,3 +608,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 45 review cutover
+- eliminato il file test-side `CodeReviewHandlerTests+PatchLifecycle.swift`
+- test patch lifecycle consolidati in `CodeReviewHandlerTests+Helpers.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `55` file Swift
+  - dopo la tranche: `54` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
