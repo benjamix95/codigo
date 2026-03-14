@@ -774,7 +774,6 @@
 		6F7DA75FC89DD3AC8D2CFCCB /* MCPSharedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139E3F8D680C92AB04F082EE /* MCPSharedState.swift */; };
 		6F8DF6EDCEDA52E9EA94A99D /* ProviderToolEventMapperTests+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0886E0F3EC6419947668D7 /* ProviderToolEventMapperTests+Search.swift */; };
 		6FCD689ABAE66211380E6DF3 /* ToolEnabledLLMProviderPolicyAckTests+SubagentLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2CAEAC51667C0B372970FEE /* ToolEnabledLLMProviderPolicyAckTests+SubagentLifecycle.swift */; };
-		6FD2A3C204B5589A72C80559 /* CodeReviewMultiSwarmProviderTests+Outcomes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC359D678F44F499002CFBC /* CodeReviewMultiSwarmProviderTests+Outcomes.swift */; };
 		6FE4FC11216B1CCC446EBDDD /* InstructionPolicyBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E12A756F982ED51EBEE39F5 /* InstructionPolicyBundleTests.swift */; };
 		6FEC5B439511B51383BCF9F5 /* CodebaseIndexIncrementalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27F2174107132AC906630142 /* CodebaseIndexIncrementalTests.swift */; };
 		6FEF8CDBDA6E41090D9B3AC7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 00E8A2BD2B8A8A0C7914ABEB /* Assets.xcassets */; };
@@ -2620,7 +2619,6 @@
 		7F4E3756336350062056638E /* ChatStoreCheckpoints.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreCheckpoints.swift; path = App/SoloCodeApp/Sources/Chat/Store/Checkpoints/ChatStoreCheckpoints.swift; sourceTree = "<group>"; };
 		7F8DB84C50985D8DF4D03438 /* GitPanelStore+Branches.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitPanelStore+Branches.swift"; path = "App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+Branches.swift"; sourceTree = "<group>"; };
 		7F97E570E79E4A82A2ADC28D /* PipelineIntegrationLifecycleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineIntegrationLifecycleTests.swift; path = Tests/SoloCodeAppTests/PipelineIntegrationLifecycleTests.swift; sourceTree = "<group>"; };
-		7FC359D678F44F499002CFBC /* CodeReviewMultiSwarmProviderTests+Outcomes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProviderTests+Outcomes.swift"; path = "Tests/CoderEngineTests/CodeReview/CodeReviewMultiSwarmProviderTests+Outcomes.swift"; sourceTree = "<group>"; };
 		7FC54EE8096D9A122F1AD6B7 /* MermaidWebView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MermaidWebView.swift; path = App/SoloCodeApp/Sources/Utilities/Mermaid/MermaidWebView.swift; sourceTree = "<group>"; };
 		7FDBAFF274EB6BB86FB5E4D7 /* ToolSchemaCatalogTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToolSchemaCatalogTests.swift; path = Tests/CoderEngineTests/ToolSchemaCatalogTests.swift; sourceTree = "<group>"; };
 		7FED1FDD353127747EE4B606 /* PipelineIntegrationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineIntegrationService.swift; path = App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService.swift; sourceTree = "<group>"; };
@@ -4942,7 +4940,6 @@
 				F2DB6262CDA2EBC2B97BD2C2 /* CodeReviewHandlerTests+Helpers.swift */,
 				8914D81E2189901E6F5E4153 /* CodeReviewHandlerTests+Validation.swift */,
 				04E47B78C47E906B061E7A20 /* CodeReviewHandlerTests.swift */,
-				7FC359D678F44F499002CFBC /* CodeReviewMultiSwarmProviderTests+Outcomes.swift */,
 				920F7DAEBD654DDD0D74C9C6 /* CodeReviewMultiSwarmProviderTests+Parsing.swift */,
 				6B36604B28B3B35731D9FB4E /* CodeReviewMultiSwarmProviderTests+TaskExtraction.swift */,
 				341F87362E5C2559FE071661 /* CodeReviewSessionStateTests+TerminalLifecycle.swift */,
@@ -5932,7 +5929,6 @@
 				0A4C7BE3A80A984EFCD8293E /* CodeReviewHandlerTests+Helpers.swift in Sources */,
 				B6EEFB7AB3BB37C7AB2CE14B /* CodeReviewHandlerTests+Validation.swift in Sources */,
 				BF45B4EEC47A925820772950 /* CodeReviewHandlerTests.swift in Sources */,
-				6FD2A3C204B5589A72C80559 /* CodeReviewMultiSwarmProviderTests+Outcomes.swift in Sources */,
 				2750FA219CBDE477C450BC58 /* CodeReviewMultiSwarmProviderTests+Parsing.swift in Sources */,
 				DC628A2D2F5647D01CD0D812 /* CodeReviewMultiSwarmProviderTests+TaskExtraction.swift in Sources */,
 				9768463776DE0BD9EF388956 /* CodeReviewSessionStateTests+TerminalLifecycle.swift in Sources */,
