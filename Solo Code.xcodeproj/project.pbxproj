@@ -1423,7 +1423,6 @@
 		D2E82A7A04478D5809CECD7B /* DebugStore+RuntimeLogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3A3AB5FC1655F87582E6901 /* DebugStore+RuntimeLogs.swift */; };
 		D3723EE6A94B25FB02D9A1E7 /* CLIAccountLoginSheet+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BCAECACD20AAEDABAE0A40C /* CLIAccountLoginSheet+Header.swift */; };
 		D38C565995F8EE2C67B9721B /* LintingServiceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CA546B1CFEE66A1F5B92CD /* LintingServiceConfiguration.swift */; };
-		D391D0C9B9DC013E75E6731B /* VerifiedFindingsSecurityGateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4AC8CFBD67047E827F2BB46 /* VerifiedFindingsSecurityGateService.swift */; };
 		D3C25E28F2F69C21FDCD9BA1 /* SecurityHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60A9596B02CC4169C065120 /* SecurityHandlerTests.swift */; };
 		D3E0D8424CF26E2F70B03059 /* SwiftSearchEngineBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C28875D17DCA23C88EBFAA /* SwiftSearchEngineBackend.swift */; };
 		D4A50C32E5B916A8E7FDD937 /* TaskCompletionNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F449205A8E9BD5881C7A5275 /* TaskCompletionNotificationService.swift */; };
@@ -3393,7 +3392,6 @@
 		F4922348086F5485D96A8C49 /* TaskActivityPanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaskActivityPanelView.swift; path = App/SoloCodeApp/Sources/Tasking/Views/TaskActivityPanel/TaskActivityPanelView.swift; sourceTree = "<group>"; };
 		F493131F24838160FD817472 /* AgentWorkerAdapter+PromptBuilding.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AgentWorkerAdapter+PromptBuilding.swift"; path = "Engine/CoderEngine/Sources/Pipeline/Bridge/AgentWorkerAdapter+PromptBuilding.swift"; sourceTree = "<group>"; };
 		F496818122CC6BA9B997B60B /* ChatPanelView+PartB_ComposerUI.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartB_ComposerUI.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartB_ComposerUI.swift"; sourceTree = "<group>"; };
-		F4AC8CFBD67047E827F2BB46 /* VerifiedFindingsSecurityGateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsSecurityGateService.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsSecurityGateService.swift; sourceTree = "<group>"; };
 		F4C1DD5E07447F8F73D58D0C /* PlanQuestionPhaseDecisionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlanQuestionPhaseDecisionTests.swift; path = Tests/SoloCodeAppTests/PlanQuestionPhaseDecisionTests.swift; sourceTree = "<group>"; };
 		F4D7644F2EAF9C1E13C69DC4 /* CodebaseIndex+SingleFileIndexing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodebaseIndex+SingleFileIndexing.swift"; path = "Engine/CoderEngine/Sources/CodebaseIndex/Core/Operations/Indexing/CodebaseIndex+SingleFileIndexing.swift"; sourceTree = "<group>"; };
 		F4F64E5BA9946815AA0B17A2 /* CodigoApp+CodeReviewPatchCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodigoApp+CodeReviewPatchCommands.swift"; path = "App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewPatchCommands.swift"; sourceTree = "<group>"; };
@@ -4767,7 +4765,6 @@
 				CAE978EA49BD5C228D310017 /* VerifiedFindingsCommandCoordinator.swift */,
 				14C0BF8FB8633A1C38834808 /* VerifiedFindingsLifecycleCommandService.swift */,
 				0DAD95F196367E2EE88ADB3E /* VerifiedFindingsQueryService.swift */,
-				F4AC8CFBD67047E827F2BB46 /* VerifiedFindingsSecurityGateService.swift */,
 				2870A931203FF76CA436A956 /* VerifiedFindingsService.swift */,
 				8E76D6E2564F94F21E9C90EC /* VerifiedFindingsSessionSyncService+Artifacts.swift */,
 				249AD45B1CFC3E404140A30C /* VerifiedFindingsSessionSyncService+Mappings.swift */,
@@ -5976,7 +5973,6 @@
 				3579190CFA90BFC8C76E6846 /* VerifiedFindingsCommandCoordinator.swift in Sources */,
 				2D92E5C597C502D350971429 /* VerifiedFindingsLifecycleCommandService.swift in Sources */,
 				8AEEB39EC49508DB5DD13429 /* VerifiedFindingsQueryService.swift in Sources */,
-				D391D0C9B9DC013E75E6731B /* VerifiedFindingsSecurityGateService.swift in Sources */,
 				7E90F526457D60FFFF8E4788 /* VerifiedFindingsService.swift in Sources */,
 				05E72A7579B6C4F2DBEC3336 /* VerifiedFindingsSessionSyncService+Artifacts.swift in Sources */,
 				67A784162AEF76FA1CFA7D2C /* VerifiedFindingsSessionSyncService+Mappings.swift in Sources */,

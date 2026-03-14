@@ -266,6 +266,17 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 22 review cutover
+- assorbito `VerifiedFindingsSecurityGateService.swift` in `SecurityWorkflowService.swift`
+- mantenuto uno shim compatibile del nome pubblico nel file consolidato
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del dominio `VerifiedFindingsCore`:
+  - prima della tranche: `19` file Swift
+  - dopo la tranche: `18` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
   - prima della tranche: `83` file Swift
   - dopo la tranche: `82` file Swift
 - stato validation review:
