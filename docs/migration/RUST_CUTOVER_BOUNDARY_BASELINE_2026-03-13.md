@@ -363,3 +363,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 32 review cutover
+- eliminato il file rust-pipeline-side `CodeReviewSessionState+RustSnapshot.swift`
+- bridge snapshot consolidato in `CodeReviewSessionState.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `68` file Swift
+  - dopo la tranche: `67` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
