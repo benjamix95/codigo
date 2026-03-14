@@ -1093,7 +1093,6 @@
 		9EF9DA5C12FA904C3A1B1340 /* SubagentExecutionLiveState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B699AF4644647559477B4C /* SubagentExecutionLiveState.swift */; };
 		9F064F834B0E0F6CF2747E78 /* EditorCommandRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5A8C74BC66E6BA3FA2F497 /* EditorCommandRegistry.swift */; };
 		9F25D161C5AC19D866DAC17B /* PlanTraceItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7575D7861D84333E46B9ECD6 /* PlanTraceItem.swift */; };
-		9F7D2FDB97F208DD80184A5F /* CodeReviewRuntimeResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69B9A5B7D94A557C1806213 /* CodeReviewRuntimeResources.swift */; };
 		9F83C0E294EA6AC290B481B0 /* MonacoEditorCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759E6A4D47B4DADC79899477 /* MonacoEditorCoordinator.swift */; };
 		9FD41324F75649037641D4FD /* CompactActivityTraceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6A0004F498FAEEE271C0978 /* CompactActivityTraceView.swift */; };
 		9FD4254B3C7E419BC36560CC /* SubagentChatCard+SnapshotCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D053218B945022CA002BD036 /* SubagentChatCard+SnapshotCard.swift */; };
@@ -3025,7 +3024,6 @@
 		B63B34E3D600CA56FC67F9F9 /* VoiceInputControllerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VoiceInputControllerTests.swift; path = Tests/SoloCodeAppTests/VoiceInputControllerTests.swift; sourceTree = "<group>"; };
 		B65E25DDA49A86F960FC2F2F /* CodeReviewHandler+Start.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewHandler+Start.swift"; path = "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview/CodeReviewHandler+Start.swift"; sourceTree = "<group>"; };
 		B68715DB1B0311CD0F90C6BF /* MCPSessionManager+RustLifecycleBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSessionManager+RustLifecycleBridge.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/RustLifecycle/MCPSessionManager+RustLifecycleBridge.swift"; sourceTree = "<group>"; };
-		B69B9A5B7D94A557C1806213 /* CodeReviewRuntimeResources.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewRuntimeResources.swift; path = Engine/CoderEngine/Sources/CodeReview/Core/CodeReviewRuntimeResources.swift; sourceTree = "<group>"; };
 		B69C593872D999F568D9FE02 /* CodexUsageFetcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodexUsageFetcher.swift; path = Engine/CoderEngine/Sources/Providers/CodexCLI/CodexUsageFetcher.swift; sourceTree = "<group>"; };
 		B6F37361850D27EC75BC4A6D /* GitRefValidation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitRefValidation.swift; path = App/SoloCodeApp/Sources/Git/Services/GitRefValidation.swift; sourceTree = "<group>"; };
 		B6F5A4CD3CA3F403E50E5485 /* LLDBDAPDebugAdapterSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LLDBDAPDebugAdapterSupport.swift; path = App/SoloCodeApp/Sources/Debug/Services/Adapter/LLDBDAPDebugAdapterSupport.swift; sourceTree = "<group>"; };
@@ -4366,7 +4364,6 @@
 				570E32B2E663383C109777CE /* CodeReviewMultiSwarmProvider+Diagnostics.swift */,
 				80AEB66F119739D746ED528E /* CodeReviewMultiSwarmProvider+Types.swift */,
 				87DC66FA6A74625E7134FC20 /* CodeReviewMultiSwarmProvider.swift */,
-				B69B9A5B7D94A557C1806213 /* CodeReviewRuntimeResources.swift */,
 				5AE148CBE52F0E897B0D910F /* MultiSwarmReviewConfig.swift */,
 				707AF94934E8F352353F4ADA /* CodeReviewMultiSwarmProvider+Parsing.swift */,
 				E095C293A78F0462FAADC7D6 /* CodeReviewMultiSwarmProvider+Fixes.swift */,
@@ -5586,7 +5583,6 @@
 				2E1FE2A961AEA52FE599097D /* CodeReviewMultiSwarmProvider+Diagnostics.swift in Sources */,
 				70100D637CC5963B139DFD0D /* CodeReviewMultiSwarmProvider+Types.swift in Sources */,
 				3168684DBB040E2A05D5ABCE /* CodeReviewMultiSwarmProvider.swift in Sources */,
-				9F7D2FDB97F208DD80184A5F /* CodeReviewRuntimeResources.swift in Sources */,
 				CEB0893408EE82F267276479 /* MultiSwarmReviewConfig.swift in Sources */,
 				FB5E5C584B5D1E312C6E1EEC /* CodeReviewMultiSwarmProvider+Parsing.swift in Sources */,
 				C383F870D9FB74463348248C /* CodeReviewMultiSwarmProvider+Fixes.swift in Sources */,

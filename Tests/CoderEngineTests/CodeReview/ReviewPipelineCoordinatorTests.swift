@@ -210,6 +210,34 @@ final class ReviewPipelineCoordinatorTests: XCTestCase {
             XCTFail("Unexpected stream error: \(error)")
         }
     }
+
+    func testCurrentRuntimeResourcesUsesResolverOverride() async {
+        let sessionState = CodeReviewSessionState(
+            config: SessionConfig(maxWorkers: 4, maxRounds: 2, analysisBackend: "gemini-cli", executionBackend: "claude-cli")
+        )
+        let staticProvider = SilentLLMProvider()
+        let overrideProvider = SilentLLMProvider()
+        let config = MultiSwarmReviewConfig(maxWorkers: 1, enabledPhases: .analysisOnly, maxReviewRounds: 1)
+
+        let resources = await ReviewPipelineCoordinator.shared.currentRuntimeResources(
+            staticConfig: config,
+            staticAnalysisProvider: staticProvider,
+            staticExecutionProvider: staticProvider,
+            runtimeResolver: { sessionConfig in
+                guard sessionConfig.analysisBackend == "gemini-cli" else { return nil }
+                return CodeReviewRuntimeResources(
+                    config: MultiSwarmReviewConfig(maxWorkers: 4, enabledPhases: .analysisAndExecution, maxReviewRounds: 2, analysisBackend: "gemini-cli", executionBackend: "claude-cli"),
+                    analysisProvider: overrideProvider,
+                    executionProvider: overrideProvider
+                )
+            },
+            sessionState: sessionState
+        )
+
+        XCTAssertEqual(resources.config.maxWorkers, 4)
+        XCTAssertEqual(resources.analysisProvider.id, overrideProvider.id)
+        XCTAssertEqual(resources.executionProvider.id, overrideProvider.id)
+    }
 }
 
 private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {

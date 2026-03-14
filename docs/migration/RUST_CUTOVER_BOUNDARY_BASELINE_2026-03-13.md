@@ -303,3 +303,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 26 review cutover
+- eliminato il file core-side `CodeReviewRuntimeResources.swift`
+- runtime resources consolidati in `ReviewPipelineCoordinator+Runtime.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `74` file Swift
+  - dopo la tranche: `73` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
