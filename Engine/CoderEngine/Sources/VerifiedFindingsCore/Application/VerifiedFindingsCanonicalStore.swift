@@ -1,5 +1,13 @@
 import Foundation
 
+public struct VerifiedCommandDeduplicationRecord: Sendable, Codable, Equatable {
+    public let commandId: String
+    public let requestFingerprint: String
+    public let entityId: String
+    public let resultSummary: String
+    public let recordedAt: Date
+}
+
 public struct VerifiedFindingsCanonicalSnapshot: Sendable, Codable, Equatable {
     public let runs: [String: VerifiedPipelineRun]
     public let findings: [String: VerifiedFinding]

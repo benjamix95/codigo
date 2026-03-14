@@ -380,7 +380,6 @@
 		35296FD9DB1F3D3AA131E444 /* CoderIDEMCPServer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 472B9A9F5850DF463DC11599 /* CoderIDEMCPServer.framework */; };
 		35442CD0C96DC89213C99C5D /* ChatPanelView+PartE_ExecutionControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = D653DDC4D83E70A0C093D1EE /* ChatPanelView+PartE_ExecutionControl.swift */; };
 		3552E809E9697168D87CEBAD /* ProviderToolEventMapper+MapContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4A777176045D2C22E64065 /* ProviderToolEventMapper+MapContext.swift */; };
-		3579190CFA90BFC8C76E6846 /* VerifiedFindingsCommandCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE978EA49BD5C228D310017 /* VerifiedFindingsCommandCoordinator.swift */; };
 		357AB156C2BB4AE7151A3F58 /* SystemPromptsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ADCE73F751A063795411270 /* SystemPromptsTests.swift */; };
 		358C7E3FFE293B0AED745D6D /* IDEStateSyntheticEventFactory+PlanLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95BF1A1B4930806A2C361166 /* IDEStateSyntheticEventFactory+PlanLifecycle.swift */; };
 		35BFFD27877A782E748E0CBA /* MCPSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CE896ED5242D47375394A2 /* MCPSettingsSection.swift */; };
@@ -3119,7 +3118,6 @@
 		CA963EC8FFA9D90B347072F8 /* PlanOptionsParser+Todos.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlanOptionsParser+Todos.swift"; path = "App/SoloCodeApp/Sources/Planning/Parser/PlanOptionsParser+Todos.swift"; sourceTree = "<group>"; };
 		CABD36D003413F15B8003F5F /* ToolSchemaCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToolSchemaCatalog.swift; path = Engine/CoderEngine/Sources/Tools/Catalog/ToolSchemaCatalog.swift; sourceTree = "<group>"; };
 		CABD36D003413F15B8003F60 /* ToolSchemaCatalog+Exports.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolSchemaCatalog+Exports.swift"; path = "Engine/CoderEngine/Sources/Tools/Catalog/ToolSchemaCatalog+Exports.swift"; sourceTree = "<group>"; };
-		CAE978EA49BD5C228D310017 /* VerifiedFindingsCommandCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsCommandCoordinator.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsCommandCoordinator.swift; sourceTree = "<group>"; };
 		CB1FE45474BE4862E19A7B7F /* Codigo.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = Codigo.icns; path = App/SoloCodeApp/Resources/Codigo.icns; sourceTree = "<group>"; };
 		CB5C5724C0DDAD9808FCB3C0 /* WindowTitlebarChatAccessory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WindowTitlebarChatAccessory.swift; path = App/SoloCodeApp/Sources/App/Utilities/WindowTitlebarChatAccessory.swift; sourceTree = "<group>"; };
 		CB6A45CF3E32562AF7C9779C /* UsageFooterView+WorktreeModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UsageFooterView+WorktreeModal.swift"; path = "App/SoloCodeApp/Sources/Tasking/Views/Usage/UsageFooterView+WorktreeModal.swift"; sourceTree = "<group>"; };
@@ -4750,7 +4748,6 @@
 				1A70B132E650DFAF6E7FF574 /* FindingIdentityService.swift */,
 				A1017401641DABF0C80B6259 /* SecurityWorkflowService.swift */,
 				384C596993827517B59FC363 /* VerifiedFindingsCanonicalStore.swift */,
-				CAE978EA49BD5C228D310017 /* VerifiedFindingsCommandCoordinator.swift */,
 				14C0BF8FB8633A1C38834808 /* VerifiedFindingsLifecycleCommandService.swift */,
 				0DAD95F196367E2EE88ADB3E /* VerifiedFindingsQueryService.swift */,
 				2870A931203FF76CA436A956 /* VerifiedFindingsService.swift */,
@@ -5955,7 +5952,6 @@
 				AEEC91DD4D1A53E7CD36F609 /* FindingIdentityService.swift in Sources */,
 				6BFEA2AD2A74A54C4CFFB4B4 /* SecurityWorkflowService.swift in Sources */,
 				3BB45B74706821F8B9B7F7EA /* VerifiedFindingsCanonicalStore.swift in Sources */,
-				3579190CFA90BFC8C76E6846 /* VerifiedFindingsCommandCoordinator.swift in Sources */,
 				2D92E5C597C502D350971429 /* VerifiedFindingsLifecycleCommandService.swift in Sources */,
 				8AEEB39EC49508DB5DD13429 /* VerifiedFindingsQueryService.swift in Sources */,
 				7E90F526457D60FFFF8E4788 /* VerifiedFindingsService.swift in Sources */,

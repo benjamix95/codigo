@@ -12,6 +12,16 @@ public struct VerifiedFindingsQueuedCommandContext: Sendable, Equatable {
     public let findingMessage: String?
 }
 
+public enum VerifiedFindingsCommandError: Error, Equatable {
+    case versionUnavailable(entityId: String)
+    case versionConflict(expected: Int, actual: Int)
+}
+
+public enum VerifiedFindingsCommandOutcome: Sendable, Equatable {
+    case executed(summary: String)
+    case deduplicated(summary: String)
+}
+
 public enum VerifiedFindingsLifecycleCommandError: Error, Equatable {
     case missingIdentifiers
     case sessionNotFound(String)
