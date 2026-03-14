@@ -333,3 +333,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 29 review cutover
+- eliminato il file runtime-side `ReviewPipelineCoordinator.swift`
+- actor coordinator consolidato in `ReviewPipelineCoordinator+Runtime.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `71` file Swift
+  - dopo la tranche: `70` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
