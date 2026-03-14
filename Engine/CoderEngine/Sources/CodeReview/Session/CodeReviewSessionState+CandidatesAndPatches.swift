@@ -1,5 +1,30 @@
 import Foundation
 
+extension CodeReviewSessionEvent {
+    public static func findingAdded(
+        findingId: String,
+        severity: String,
+        filePath: String
+    ) -> CodeReviewSessionEvent {
+        CodeReviewSessionEvent(
+            type: .findingAdded,
+            detail: "[\(severity)] \(filePath)",
+            metadata: ["finding_id": findingId, "severity": severity, "file_path": filePath]
+        )
+    }
+
+    public static func findingDismissed(
+        findingId: String,
+        reason: String
+    ) -> CodeReviewSessionEvent {
+        CodeReviewSessionEvent(
+            type: .findingDismissed,
+            detail: "Finding \(findingId) dismissed: \(reason)",
+            metadata: ["finding_id": findingId, "reason": reason]
+        )
+    }
+}
+
 public enum ReviewPatchStatus: String, Sendable, Codable, CaseIterable {
     case draft
     case verified

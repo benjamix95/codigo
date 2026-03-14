@@ -131,6 +131,25 @@ final class CodeReviewFindingTests: XCTestCase {
         XCTAssertNil(payload["comment_count"])
     }
 
+    func testSessionEventPayloadPreservesDetailAndMetadata() {
+        let event = CodeReviewSessionEvent(
+            id: "event-1",
+            type: .findingAdded,
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            detail: "detail",
+            metadata: ["finding_id": "finding-1", "severity": "warning"]
+        )
+
+        let payload = event.toPayload()
+
+        XCTAssertEqual(payload["id"], "event-1")
+        XCTAssertEqual(payload["type"], "finding_added")
+        XCTAssertEqual(payload["detail"], "detail")
+        XCTAssertEqual(payload["meta_finding_id"], "finding-1")
+        XCTAssertEqual(payload["meta_severity"], "warning")
+        XCTAssertNotNil(payload["timestamp"])
+    }
+
     // MARK: - Codable
 
     func testCodableRoundTrip() throws {

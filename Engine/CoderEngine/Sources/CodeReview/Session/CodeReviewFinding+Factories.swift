@@ -1,5 +1,47 @@
 import Foundation
 
+public struct CodeReviewSessionEvent: Sendable, Identifiable, Codable {
+    public let id: String
+    public let type: EventType
+    public let timestamp: Date
+    public let detail: String?
+    public let metadata: [String: String]
+
+    public init(
+        id: String = UUID().uuidString,
+        type: EventType,
+        timestamp: Date = Date(),
+        detail: String? = nil,
+        metadata: [String: String] = [:]
+    ) {
+        self.id = id
+        self.type = type
+        self.timestamp = timestamp
+        self.detail = detail
+        self.metadata = metadata
+    }
+}
+
+extension CodeReviewSessionEvent {
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
+
+    public func toPayload() -> [String: String] {
+        var payload: [String: String] = [
+            "id": id,
+            "type": type.rawValue,
+            "timestamp": Self.iso8601Formatter.string(from: timestamp),
+        ]
+        if let detail { payload["detail"] = detail }
+        for (key, value) in metadata {
+            payload["meta_\(key)"] = value
+        }
+        return payload
+    }
+}
+
 public enum ReviewCandidateStatus: String, Sendable, Codable, CaseIterable {
     case new
     case verifying

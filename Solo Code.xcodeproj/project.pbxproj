@@ -1638,7 +1638,6 @@
 		F88F411BA498B9CDA9372535 /* CodeReviewSessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41940F7BF27E1F98BB3BBF9F /* CodeReviewSessionState.swift */; };
 		F8A7750CC8AC74A2A5EDD793 /* ReviewMCPRustBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B5A888DA652B8D9EF98720A /* ReviewMCPRustBridge.swift */; };
 		F8AD88F9B7B2C195CCD6553E /* WindowSidebarToggleEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8912906C9F395F31CB68476 /* WindowSidebarToggleEvents.swift */; };
-		F8B3E989C84BDAB4F5159A10 /* CodeReviewSessionEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCA1B98988EEF3D359E56C1 /* CodeReviewSessionEvent.swift */; };
 		F8CCA20BEB7417EBC329C9AD /* UsageFooterView+Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93017C4E8A1C3D13D27D59FA /* UsageFooterView+Formatters.swift */; };
 		F8E9ADF7D6FD570342CD6AA8 /* ChatPanelView+PartS_End.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D863E52BE33E8FA51BC3DC /* ChatPanelView+PartS_End.swift */; };
 		F93E4D9B620202C72FC6F90A /* InlineActivityFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F363FF581D617D3F5297B24 /* InlineActivityFeedView.swift */; };
@@ -3007,7 +3006,6 @@
 		BBAA8617EB2AABF34C1F509B /* LanguageServiceRuntimeBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceRuntimeBridge.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageServiceRuntimeBridge.swift; sourceTree = "<group>"; };
 		BBCDAE7AE557312F23BEFCF9 /* CodebaseIndexIndexingBenchmarkSmokeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodebaseIndexIndexingBenchmarkSmokeTests.swift; path = Tests/CoderEngineTests/CodebaseIndexIndexingBenchmarkSmokeTests.swift; sourceTree = "<group>"; };
 		BC90EBFEC7991669C406A45B /* ReviewPanelChatStructuredContent+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ReviewPanelChatStructuredContent+Helpers.swift"; path = "App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatStructuredContent+Helpers.swift"; sourceTree = "<group>"; };
-		BCCA1B98988EEF3D359E56C1 /* CodeReviewSessionEvent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewSessionEvent.swift; path = Engine/CoderEngine/Sources/CodeReview/Session/CodeReviewSessionEvent.swift; sourceTree = "<group>"; };
 		BCD66C315A18EF602D2B98F3 /* ChatPanelView+PartM_MultiTurn.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartM_MultiTurn.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartM_MultiTurn.swift"; sourceTree = "<group>"; };
 		BCEDFE8C3799F536CE7D4E20 /* EventNormalizerPlanLifecycleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventNormalizerPlanLifecycleTests.swift; path = Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerPlanLifecycleTests.swift; sourceTree = "<group>"; };
 		BCEE5B25B5F739744F30850C /* CoderIDEMCPServerApp+IDEStateTools.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CoderIDEMCPServerApp+IDEStateTools.swift"; path = "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CoderIDEMCPServerApp+IDEStateTools.swift"; sourceTree = "<group>"; };
@@ -4320,7 +4318,6 @@
 				BE930528B1D1CD896CE2D14F /* ReviewDiffSummaryService.swift */,
 				349D9C4246E3EF7365E52FE6 /* CodeReviewFinding+Factories.swift */,
 				51D9CCA47FEFE7C82E8DC710 /* CodeReviewFinding.swift */,
-				BCCA1B98988EEF3D359E56C1 /* CodeReviewSessionEvent.swift */,
 				0AE0938F58CFD937CBA6B9EA /* CodeReviewSessionSnapshot+Derived.swift */,
 				989C4E74FBAE7AD805C653B5 /* CodeReviewSessionState+CandidatesAndPatches.swift */,
 				7DA6E76A8637B15EBCE6945E /* CodeReviewSessionState+Findings.swift */,
@@ -5517,7 +5514,6 @@
 				7440DED19BDB0E1D9C50AC65 /* ReviewDiffSummaryService.swift in Sources */,
 				5EFADA1A8582753F20EDCAB1 /* CodeReviewFinding+Factories.swift in Sources */,
 				CAB97B46A14A7E5B7B1AA08B /* CodeReviewFinding.swift in Sources */,
-				F8B3E989C84BDAB4F5159A10 /* CodeReviewSessionEvent.swift in Sources */,
 				C14C5E34D7BCB179EA1B2318 /* CodeReviewSessionSnapshot+Derived.swift in Sources */,
 				2EC9D8A98421C77B5FED6BEF /* CodeReviewSessionState+CandidatesAndPatches.swift in Sources */,
 				EAEEA0FA818250E7E0F41A62 /* CodeReviewSessionState+Findings.swift in Sources */,

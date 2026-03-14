@@ -109,6 +109,27 @@ public actor FileLockCoordinator {
     }
 }
 
+extension CodeReviewSessionEvent {
+    public static func findingFixApplied(findingId: String) -> CodeReviewSessionEvent {
+        CodeReviewSessionEvent(
+            type: .findingFixApplied,
+            detail: "Fix applied for finding \(findingId)",
+            metadata: ["finding_id": findingId]
+        )
+    }
+
+    public static func patchPrepared(
+        patchId: String,
+        findingId: String
+    ) -> CodeReviewSessionEvent {
+        CodeReviewSessionEvent(
+            type: .patchPrepared,
+            detail: "Patch prepared for finding \(findingId)",
+            metadata: ["patch_id": patchId, "finding_id": findingId]
+        )
+    }
+}
+
 // MARK: - CodeReviewSessionState
 
 /// Thread-safe actor managing the state of a code review session.
