@@ -95,6 +95,40 @@ enum ReviewScopeTarget: Equatable {
     }
 }
 
+// MARK: - Panel Settings
+
+struct ReviewPanelSettings: Codable, Equatable {
+    var maxWorkers: Int = 3
+    var maxRounds: Int = 3
+    var analysisOnly: Bool = false
+    var analysisBackend: String = "auto"
+    var executionBackend: String = "auto"
+    var patchDeliveryMode: ReviewPatchDeliveryMode = .applyLocal
+    var autoPreparePatchForVerifiedFindings: Bool = true
+    var autoApplyVerifiedPatch: Bool = false
+    var autoOpenPRAfterApply: Bool = false
+    var autoMergeAfterGreen: Bool = false
+    var autoResolveConflicts: ReviewConflictAutomation = .safeOnly
+    var showCandidatesInMainFindings: Bool = false
+    var publishOutcomeToChat: Bool = true
+    var preferredMode: String = "Standard"
+    var customInstructions: String = ""
+    var customCommands: [ReviewPanelCustomCommand] = []
+
+    static let storageKey = "review_panel_settings_v1"
+}
+
+enum ReviewPatchDeliveryMode: String, Codable, Equatable, Hashable, CaseIterable {
+    case previewOnly = "preview_only"
+    case applyLocal = "apply_local"
+    case prPerPatch = "pr_per_patch"
+    case prBatch = "pr_batch"
+}
+
+enum ReviewConflictAutomation: String, Codable, Equatable, Hashable, CaseIterable {
+    case off
+    case safeOnly = "safe_only"
+}
 // MARK: - Metrics
 
 struct CodeReviewMetrics {

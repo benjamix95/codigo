@@ -664,7 +664,6 @@
 		5CC16E91A13F388C60F910AB /* CLIProfileProvisioner+CodexConfigTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5063F410F1B334A07A0C6CE /* CLIProfileProvisioner+CodexConfigTemplate.swift */; };
 		5CC1F5475AAA5C69FA6429D7 /* CommandDeduplicationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D352AB7E88D0E17F8247FF1 /* CommandDeduplicationServiceTests.swift */; };
 		5CEFB0A6B2A59ACF0D0C59EC /* ChatPanelView+PartN_Continuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B7B8852FC657632E9330E8 /* ChatPanelView+PartN_Continuation.swift */; };
-		5D2541B6DD00FF17BB2A3926 /* ReviewPanelSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D84E17451CA77B0295815B0 /* ReviewPanelSettingsModel.swift */; };
 		5D4396EBCC420E45771F02CB /* CLIAccountAuthDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FB780AB082F7DAA2D94CC64 /* CLIAccountAuthDetectorTests.swift */; };
 		5D51283FF5F74B3AEFA90F50 /* DebugService+Variables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1B83D319930548437515E6 /* DebugService+Variables.swift */; };
 		5DBA3C60DF55BE0157FF4F70 /* EditorCommandNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C28C67C4FF1AD6B06266143 /* EditorCommandNotifications.swift */; };
@@ -2333,7 +2332,6 @@
 		4D69FC7A35A0F3C4146D7562 /* ReviewPanelCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelCoordinator.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Coordinator/ReviewPanelCoordinator.swift; sourceTree = "<group>"; };
 		4D764E84406474EB490F1919 /* GeminiCLIProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GeminiCLIProvider.swift; path = Engine/CoderEngine/Sources/Providers/GeminiCLI/GeminiCLIProvider.swift; sourceTree = "<group>"; };
 		4D7E184DC3BDABC26FD24B5F /* GeminiCLIProviderStreamParsingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GeminiCLIProviderStreamParsingTests.swift; path = Tests/CoderEngineTests/GeminiCLIProviderStreamParsingTests.swift; sourceTree = "<group>"; };
-		4D84E17451CA77B0295815B0 /* ReviewPanelSettingsModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelSettingsModel.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Models/ReviewPanelSettingsModel.swift; sourceTree = "<group>"; };
 		4D8D9F194B453B09E7DD102A /* ValidationStage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ValidationStage.swift; path = Engine/CoderEngine/Sources/Validation/Stages/ValidationStage.swift; sourceTree = "<group>"; };
 		4D9579CC70A2A521A7158B0B /* BugHunterPromptBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BugHunterPromptBuilder.swift; path = App/SoloCodeApp/Sources/CodeReview/Services/BugHunterPromptBuilder.swift; sourceTree = "<group>"; };
 		4DED8DDDDC030A2491DD3FC5 /* UnifiedToolRuntime+IndexRefactor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+IndexRefactor.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Index/Search/Refactor/UnifiedToolRuntime+IndexRefactor.swift"; sourceTree = "<group>"; };
@@ -3936,7 +3934,6 @@
 				3E8CA6A2EBAFC9282EBA49B0 /* CodeReviewPanelModels.swift */,
 				E0E68D2252BADCB349065EBD /* ReviewPanelChatModels.swift */,
 				624993BE3F586CADB90868D6 /* ReviewPanelFindingsHistoryModels.swift */,
-				4D84E17451CA77B0295815B0 /* ReviewPanelSettingsModel.swift */,
 				6F3740CE94C54402AE6AF369 /* CodeReviewPanelChatSessionStore.swift */,
 				12300C1395637CDB88742A0A /* CodeReviewPanelStore+ActionOutput.swift */,
 				D48499F9213134D5FF45229D /* CodeReviewPanelStore+ActionOutputFormatting.swift */,
@@ -6839,7 +6836,6 @@
 				3FA7ADB9CA649F173A6424EF /* CodeReviewPanelModels.swift in Sources */,
 				065BA4307B1D9AF41328F13E /* ReviewPanelChatModels.swift in Sources */,
 				E77E3EBB9C51E2A504A6CAB4 /* ReviewPanelFindingsHistoryModels.swift in Sources */,
-				5D2541B6DD00FF17BB2A3926 /* ReviewPanelSettingsModel.swift in Sources */,
 				BF3BD6FF09E6D42115D16436 /* CodeReviewPanelChatSessionStore.swift in Sources */,
 				8C6AD1C680F4C4193E166EC7 /* CodeReviewPanelStore+ActionOutput.swift in Sources */,
 				771070743562D288C622DBE0 /* CodeReviewPanelStore+ActionOutputFormatting.swift in Sources */,

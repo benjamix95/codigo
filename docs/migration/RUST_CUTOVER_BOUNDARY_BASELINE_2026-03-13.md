@@ -297,6 +297,16 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 25 review cutover
+- assorbito `ReviewPanelSettingsModel.swift` in `CodeReviewPanelModels.swift` e `ReviewPanelChatModels.swift`
+- rimosso il file dal filesystem e dal progetto Xcode
+- conteggio osservato del prefix panel review hard-fail:
+  - prima della tranche: `22` file Swift legacy non-UI
+  - dopo la tranche: `21` file Swift legacy non-UI
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
   - prima della tranche: `83` file Swift
   - dopo la tranche: `82` file Swift
 - stato validation review:
