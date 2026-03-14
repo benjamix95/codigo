@@ -31,6 +31,16 @@ public enum VerifiedFindingAdmissionPolicy {
     }
 }
 
+extension CodeReviewSessionSnapshot {
+    public var verifiedFindingsProjection: VerifiedFindingsProjectionSnapshot {
+        VerifiedFindingsService.projection(snapshot: self)
+    }
+
+    public var canonicalVerifiedFindingsSnapshot: VerifiedFindingsCanonicalSnapshot {
+        VerifiedFindingsService.canonicalSnapshot(snapshot: self)
+    }
+}
+
 public enum VerifiedFindingsStatusService {
     public static func payload(
         snapshot: CodeReviewSessionSnapshot,

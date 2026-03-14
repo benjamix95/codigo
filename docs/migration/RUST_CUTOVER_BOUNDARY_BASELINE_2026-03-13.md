@@ -343,3 +343,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 30 review cutover
+- eliminato il file bridge-side `CodeReviewSessionSnapshot+VerifiedFindingsProjection.swift`
+- forwarding della projection consolidato in `CodeReviewSessionSnapshot+Derived.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `70` file Swift
+  - dopo la tranche: `69` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
