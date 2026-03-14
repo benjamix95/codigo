@@ -762,3 +762,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 60 review cutover
+- eliminato il file test-side `RuntimeResourceLocatorTests.swift`
+- test runtime locator consolidati in `ProviderFactoryCodeReviewTests.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `47` file Swift
+  - dopo la tranche: `46` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
