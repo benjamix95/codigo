@@ -731,7 +731,6 @@
 		6457A26E1C77345B4117D12D /* SidePanelView+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = 311E1388CD6019DCC66BB890 /* SidePanelView+Search.swift */; };
 		64A2F8C798F27A0D7F604724 /* CLIProfileProvisioner+InstructionsSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B82CA9BF92A4608CE71840E /* CLIProfileProvisioner+InstructionsSync.swift */; };
 		64B41203C362171A0FE38CBB /* EventNormalizer+TypeMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371E74CE233D743D849BBD36 /* EventNormalizer+TypeMetadata.swift */; };
-		64B95F5BE31D5717247F46D6 /* VerifiedFindingsProjectionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7FBC41E525C1B94B2E018F /* VerifiedFindingsProjectionModels.swift */; };
 		64C66507178B8BB3A36CB8C8 /* ModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BAC3E8422CE9126875A90D8 /* ModelCatalog.swift */; };
 		65017B3C27B3FA8C1A9962A3 /* SidebarThreadArchiveBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B0D4681D2C04B240D29A985 /* SidebarThreadArchiveBehaviorTests.swift */; };
 		65029A087ED8B171C4607C54 /* PorterStemmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F03D27BE80B23238992B3B52 /* PorterStemmer.swift */; };
@@ -3483,7 +3482,6 @@
 		FCE2CDE4EEB734F43001F5EB /* FileWatcherTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FileWatcherTests.swift; path = Tests/CoderEngineTests/FileWatcherTests.swift; sourceTree = "<group>"; };
 		FCE3B572592717E4392C2849 /* TaskActivityVisibilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaskActivityVisibilityTests.swift; path = Tests/SoloCodeAppTests/TaskActivityVisibilityTests.swift; sourceTree = "<group>"; };
 		FD5A7ABB33F228F7059FCD6F /* ProviderRegistry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderRegistry.swift; path = Engine/CoderEngine/Sources/Providers/Core/ProviderRegistry.swift; sourceTree = "<group>"; };
-		FD7FBC41E525C1B94B2E018F /* VerifiedFindingsProjectionModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsProjectionModels.swift; path = Engine/CoderEngine/Sources/VerifiedFindingsCore/Projection/VerifiedFindingsProjectionModels.swift; sourceTree = "<group>"; };
 		FDF687527D92F81BC90B2799 /* PromptPersonas.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PromptPersonas.swift; path = Engine/CoderEngine/Sources/SystemPrompts/Dimensions/PromptPersonas.swift; sourceTree = "<group>"; };
 		FE4597C9C15968B18B0F6B0F /* DocCIntegrationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DocCIntegrationService.swift; path = App/SoloCodeApp/Sources/Services/Project/DocCIntegrationService.swift; sourceTree = "<group>"; };
 		FE489C62391F664502BFCF32 /* CodebaseIndex+Diagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodebaseIndex+Diagnostics.swift"; path = "Engine/CoderEngine/Sources/CodebaseIndex/Core/Operations/Diagnostics/CodebaseIndex+Diagnostics.swift"; sourceTree = "<group>"; };
@@ -4825,7 +4823,6 @@
 				D18A8907AD1E492D596E66EA /* VerifiedFindingModels+PatchRun.swift */,
 				B3AC88125075B00AEABE82D0 /* VerifiedFindingModels.swift */,
 				C803B4A1BBC1D284528F2F39 /* VerifiedFindingsProjectionBuilder.swift */,
-				FD7FBC41E525C1B94B2E018F /* VerifiedFindingsProjectionModels.swift */,
 				3D4E76CD4BA545C088E31DCE /* PathFinder.swift */,
 				8C5C768C8FFBD02BBA3B3BD9 /* TestProjectDetector.swift */,
 				D1484E9DF09D588D91EDF065 /* Workspace.swift */,
@@ -6049,7 +6046,6 @@
 				15DDAF4B3A78015E761B6B4E /* VerifiedFindingModels+PatchRun.swift in Sources */,
 				A6E1CD2C12FF2DA908F3657C /* VerifiedFindingModels.swift in Sources */,
 				009144A8CE6972A3088394AF /* VerifiedFindingsProjectionBuilder.swift in Sources */,
-				64B95F5BE31D5717247F46D6 /* VerifiedFindingsProjectionModels.swift in Sources */,
 				6629DB5BC19774E54E317F7F /* PathFinder.swift in Sources */,
 				D86E03DBD0FB0BEE3F85EB30 /* TestProjectDetector.swift in Sources */,
 				2874513745488F93285CB420 /* Workspace.swift in Sources */,

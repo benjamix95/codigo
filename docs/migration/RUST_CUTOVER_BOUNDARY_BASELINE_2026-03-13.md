@@ -263,3 +263,13 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 22 review cutover
+- eliminato il file projection-side `VerifiedFindingsProjectionModels.swift`
+- projection DTO consolidati in `VerifiedFindingsProjectionBuilder.swift`
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `78` file Swift
+  - dopo la tranche: `77` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
