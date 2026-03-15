@@ -818,7 +818,6 @@
 		76A3F3716032E9B23E6E548E /* PipelineEventLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4467093CD3F81B1D30E3570A /* PipelineEventLoggerTests.swift */; };
 		76D441C40DAF520993502FA3 /* EventNormalizerMermaid.swift in Sources */ = {isa = PBXBuildFile; fileRef = E466EA96D1103F7603F1E87A /* EventNormalizerMermaid.swift */; };
 		76D4A33B5B1B87F7DE5B6EE7 /* WorkspaceStore+Exclusions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35F5A659969A5BD2A18E98D4 /* WorkspaceStore+Exclusions.swift */; };
-		772BBE940C7C0FF0A0589C11 /* CodeReviewAuditService+Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CA06C5D2153DEEBCF1EEEE /* CodeReviewAuditService+Security.swift */; };
 		77430A0FA36255C8BA97722D /* ContextCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE31394E28923CC12DAA63C /* ContextCache.swift */; };
 		775658A1FB80DC6478A157EB /* ProcessRunnerLineSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8D07B51CA40FFACAC7F89C /* ProcessRunnerLineSplitTests.swift */; };
 		777A37267A86C907DA840BE6 /* PerformanceStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0232F5F7EDD4288F227D19B2 /* PerformanceStage.swift */; };
@@ -1996,7 +1995,6 @@
 		22AA96F2D869F0EB0F59710C /* ChatPanelView+PartR_Tail.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartR_Tail.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartR_Tail.swift"; sourceTree = "<group>"; };
 		22AD6C0163082189551CF126 /* MCPSharedState+CodeReview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSharedState+CodeReview.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/MCPSharedState+CodeReview.swift"; sourceTree = "<group>"; };
 		22C6341FE658C339752A3D1B /* AnthropicAPIProvider+Execution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "AnthropicAPIProvider+Execution.swift"; path = "Engine/CoderEngine/Sources/Providers/Anthropic/Core/AnthropicAPIProvider+Execution.swift"; sourceTree = "<group>"; };
-		22CA06C5D2153DEEBCF1EEEE /* CodeReviewAuditService+Security.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewAuditService+Security.swift"; path = "Engine/CoderEngine/Sources/CodeReview/Audit/CodeReviewAuditService+Security.swift"; sourceTree = "<group>"; };
 		22CB2BB13703B37E995930F6 /* ProjectContext.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProjectContext.swift; path = App/SoloCodeApp/Sources/Context/ProjectContext.swift; sourceTree = "<group>"; };
 		22CC6AADED7105D188249616 /* ProviderToolEventMapper+MapIO.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ProviderToolEventMapper+MapIO.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ProviderToolEventMapper/ProviderToolEventMapper+MapIO.swift"; sourceTree = "<group>"; };
 		22FC9803F6790704E7E60863 /* PipelineJobTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineJobTests.swift; path = Tests/CoderEngineTests/Pipeline/Contracts/PipelineJobTests.swift; sourceTree = "<group>"; };
@@ -4254,7 +4252,6 @@
 				738C133A1B5FD3AD7C913AFA /* CodeReviewAuditModels.swift */,
 				1619957137F0985A0201FA19 /* CodeReviewAuditService+Bug.swift */,
 				8513C9C09682F20D829C6CAC /* CodeReviewAuditService+BugAdvanced.swift */,
-				22CA06C5D2153DEEBCF1EEEE /* CodeReviewAuditService+Security.swift */,
 				DA85F9114ED7D2014744CCF9 /* CodeReviewAuditService+SecurityAdvanced.swift */,
 				6B17925B9BC3F2A75A1C2280 /* CodeReviewAuditService+Support.swift */,
 				C675BC8E891081D40B395201 /* CodeReviewAuditService.swift */,
@@ -5430,7 +5427,6 @@
 				799940B89E497FC328041CB7 /* CodeReviewAuditModels.swift in Sources */,
 				478D45A252617E1342938179 /* CodeReviewAuditService+Bug.swift in Sources */,
 				12550C3E6EFAD7A6D75F7B27 /* CodeReviewAuditService+BugAdvanced.swift in Sources */,
-				772BBE940C7C0FF0A0589C11 /* CodeReviewAuditService+Security.swift in Sources */,
 				75163897A4FAD12EA0776CB9 /* CodeReviewAuditService+SecurityAdvanced.swift in Sources */,
 				822ADC6F9A1D74CD127BB5A0 /* CodeReviewAuditService+Support.swift in Sources */,
 				FB3765BD2449E1C303F9B175 /* CodeReviewAuditService.swift in Sources */,

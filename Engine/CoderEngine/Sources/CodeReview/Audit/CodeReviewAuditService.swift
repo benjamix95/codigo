@@ -54,12 +54,31 @@ public enum CodeReviewAuditService {
                 summary: explanation,
                 metadata: ["signal_type": "manual", "verification_hint": "explanation_only", "promotion_gate": "none"]
             )
+        case ReviewAuditToolName.securityDataflow:
+            result = localSecurityAuditResult(toolName: toolName, audit: runSecurityDataflowAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
+        case ReviewAuditToolName.securityAuthz:
+            result = localSecurityAuditResult(toolName: toolName, audit: runSecurityAuthzAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
+        case ReviewAuditToolName.securityCrypto:
+            result = localSecurityAuditResult(toolName: toolName, audit: runSecurityCryptoAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
+        case ReviewAuditToolName.securityDeserialization:
+            result = localSecurityAuditResult(toolName: toolName, audit: runSecurityDeserializationAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
+        case ReviewAuditToolName.securitySurface:
+            result = localSecurityAuditResult(toolName: toolName, audit: runSecuritySurfaceAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
+        case ReviewAuditToolName.securitySupplyChain:
+            result = localSecurityAuditResult(toolName: toolName, audit: runSecuritySupplyChainAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
         default:
-            result = bridgeAuditToolResult(
+            if let bridged = bridgeAuditToolResult(
                 named: toolName,
                 scopeFiles: scopeFiles,
                 workspacePath: workspacePath
-            ) ?? unavailableAuditToolResult(toolName: toolName)
+            ) {
+                result = bridged
+            } else {
+                result = unsupportedAuditToolResult(
+                    toolName: toolName,
+                    error: "swift_fallback_missing"
+                )
+            }
         }
 
         return ReviewAuditToolResult(
@@ -110,15 +129,42 @@ public enum CodeReviewAuditService {
         )
     }
 
-    private static func unavailableAuditToolResult(
-        toolName: String
+    private static func toolResult(
+        toolName: String,
+        findings: [CodeReviewFinding],
+        coverageAvailable: Bool,
+        summary: String,
+        adaptersUsed: [String] = [],
+        metadata: [String: String] = [:]
     ) -> ReviewAuditToolResult {
         ReviewAuditToolResult(
             toolName: toolName,
-            findings: [],
+            findings: findings,
             durationMs: 0,
-            coverageAvailable: false,
-            summary: "Rust review core unavailable for audit tool: \(toolName)"
+            coverageAvailable: coverageAvailable,
+            summary: summary,
+            adaptersUsed: adaptersUsed,
+            metadata: metadata
+        )
+    }
+
+    private static func localSecurityAuditResult(
+        toolName: String,
+        audit: (
+            findings: [CodeReviewFinding],
+            coverageAvailable: Bool,
+            summary: String,
+            adapters: [String],
+            metadata: [String: String]
+        )
+    ) -> ReviewAuditToolResult {
+        toolResult(
+            toolName: toolName,
+            findings: audit.findings,
+            coverageAvailable: audit.coverageAvailable,
+            summary: audit.summary,
+            adaptersUsed: audit.adapters,
+            metadata: audit.metadata
         )
     }
 

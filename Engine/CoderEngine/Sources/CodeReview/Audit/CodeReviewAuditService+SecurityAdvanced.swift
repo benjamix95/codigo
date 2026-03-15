@@ -181,6 +181,64 @@ extension CodeReviewAuditService {
         )
     }
 
+    static func runSecurityDependenciesAudit(
+        workspacePath: URL
+    ) -> (findings: [CodeReviewFinding], coverageAvailable: Bool, summary: String) {
+        let managers: [(manifest: String, arguments: [String], label: String)] = [
+            ("package-lock.json", ["audit", "--json"], "npm"),
+            ("pnpm-lock.yaml", ["audit", "--json"], "pnpm"),
+            ("yarn.lock", ["audit", "--json"], "yarn"),
+        ]
+
+        for manager in managers {
+            let manifestURL = workspacePath.appendingPathComponent(manager.manifest)
+            guard FileManager.default.fileExists(atPath: manifestURL.path) else { continue }
+            guard let result = commandOutput(
+                executable: "/usr/bin/env",
+                arguments: [manager.label] + manager.arguments,
+                currentDirectoryURL: workspacePath
+            ) else {
+                return ([], false, "Failed to run \(manager.label) dependency audit.")
+            }
+            return parseDependencyAuditOutput(
+                result.output,
+                manager: manager.label,
+                status: result.status
+            )
+        }
+
+        return ([], false, "No supported dependency manifest found for security dependency audit.")
+    }
+
+    private static func parseDependencyAuditOutput(
+        _ output: String,
+        manager: String,
+        status: Int32
+    ) -> (findings: [CodeReviewFinding], coverageAvailable: Bool, summary: String) {
+        let lower = output.lowercased()
+        let critical = lower.contains("\"critical\":") && !lower.contains("\"critical\":0")
+        let high = lower.contains("\"high\":") && !lower.contains("\"high\":0")
+        guard critical || high || status != 0 else {
+            return ([], true, "No blocking dependency vulnerabilities reported by \(manager) audit.")
+        }
+
+        let severity: FindingSeverity = critical ? .critical : .warning
+        let finding = makeFinding(
+            severity: severity,
+            category: .security,
+            origin: .securityAuditor,
+            filePath: "\(manager)-dependency-audit",
+            lineNumber: nil,
+            message: "\(manager) audit reported vulnerable dependencies.",
+            suggestedFix: "Review the dependency audit report, update or replace vulnerable packages, and re-run the audit.",
+            confidence: critical ? 0.92 : 0.80,
+            evidence: String(output.prefix(400)),
+            sourceTool: ReviewAuditToolName.securityDependencies,
+            blocking: critical
+        )
+        return ([finding], true, "Dependency audit reported vulnerabilities for \(manager).")
+    }
+
     private static func patternAudit(
         scopeFiles: [String],
         workspacePath: URL,

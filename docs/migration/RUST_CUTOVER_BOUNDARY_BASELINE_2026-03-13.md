@@ -782,3 +782,14 @@
 - stato validation review:
   - `Nuove violazioni: 0`
   - `Legacy oltre budget nel tranche gate: 0`
+
+## Avanzamento tranche 62 review cutover
+- corretto il dispatch di `CodeReviewAuditService.runTool(...)` per i tool security avanzati
+- eliminato il file runtime-side `CodeReviewAuditService+Security.swift`
+- spostata in `CodeReviewAuditService+SecurityAdvanced.swift` la sola logica dependency/supply-chain ancora usata
+- conteggio osservato del dominio review engine/tooling:
+  - prima della tranche: `45` file Swift
+  - dopo la tranche: `44` file Swift
+- stato validation review:
+  - `Nuove violazioni: 0`
+  - `Legacy oltre budget nel tranche gate: 0`
