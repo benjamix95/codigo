@@ -93,3 +93,83 @@ extension ReviewPatchWorkflowService {
         }
     }
 }
+
+extension CodigoApp {
+    @MainActor
+    func makeCommandReviewSessionState(
+        sessionId: String,
+        conversationId: UUID?,
+        config: SessionConfig
+    ) -> CodeReviewSessionState {
+        CodeReviewSessionState(
+            sessionId: sessionId,
+            conversationId: conversationId,
+            config: config,
+            onStateChange: { snapshot in
+                Task { @MainActor in
+                    MCPSharedState.writeCodeReviewSnapshot(snapshot)
+                    await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
+                    DispatchQueue.main.async { [taskActivityStore = self.taskActivityStore] in
+                        taskActivityStore.scheduleCodeReviewSnapshotIngest(snapshot, conversationId: conversationId)
+                    }
+                }
+            }
+        )
+    }
+
+    @MainActor
+    func codeReviewCommandContext() -> WorkspaceContext {
+        CodeReviewCommandRuntimeHooks.workspaceContext(for: self)
+    }
+
+    @MainActor
+    func resolveCodeReviewSnapshot(
+        sessionId: String,
+        conversationId: UUID?
+    ) -> CodeReviewSessionSnapshot? {
+        let snapshot = taskActivityStore.codeReviewSnapshot(sessionId: sessionId, conversationId: conversationId)
+            ?? MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId)
+        guard let snapshot else { return nil }
+        guard conversationId == nil || snapshot.conversationId == conversationId else {
+            return nil
+        }
+        return snapshot
+    }
+
+    @MainActor
+    func makeTargetedFixSessionId(sourceSessionId: String) -> String {
+        let suffix = String(UUID().uuidString.lowercased().prefix(8))
+        let candidate = "\(sourceSessionId)-fix-\(suffix)"
+        if let sanitized = MCPSharedState.sanitizedCodeReviewSessionId(candidate) {
+            return sanitized
+        }
+        return UUID().uuidString.lowercased()
+    }
+
+    @MainActor
+    func markFindingFixApplied(
+        sessionId: String,
+        conversationId: UUID?,
+        findingId: String
+    ) async -> Bool {
+        if let liveState = await ReviewSessionRegistry.shared.state(sessionId: sessionId) {
+            let succeeded = await liveState.applyFix(findingId: findingId)
+            if succeeded {
+                await persistLiveReviewState(liveState, conversationId: conversationId)
+            }
+            return succeeded
+        }
+
+        let result = await persistReviewSnapshotMutation(sessionId: sessionId, conversationId: conversationId) { snapshot in
+            var findings = snapshot.findings
+            guard let index = findings.firstIndex(where: { $0.id == findingId }) else { return nil }
+            findings[index].status = .fixApplied
+            return snapshot.copying(
+                findings: findings,
+                events: snapshot.events + [.findingFixApplied(findingId: findingId)],
+                outcome: snapshot.copying(findings: findings).buildOutcomeSummary()
+            )
+        }
+        return result.success
+    }
+}
