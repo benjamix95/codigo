@@ -71,6 +71,16 @@ struct ReviewCommandRustBridge {
             )
         )
     }
+
+    static func buildPanelPrompt(
+        _ request: ReviewPanelPromptBridgeRequest
+    ) -> String? {
+        let response: ReviewPanelPromptBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_panel_build_prompt",
+            request: request
+        )
+        return response?.prompt
+    }
 }
 
 private struct ReviewCommandPlanRequest: Encodable {
@@ -143,4 +153,26 @@ struct ReviewDeferredCommandFinalizeResponse: Decodable {
     let isError: Bool
     let commandStatus: String
     let resultMessage: String
+}
+
+struct ReviewPanelPromptBridgeRequest: Encodable {
+    let schemaVersion: Int
+    let promptKind: String
+    let scopeTag: String?
+    let scopeKind: String?
+    let currentBranch: String?
+    let branchName: String?
+    let commits: [String]
+    let selectedModes: [String]
+    let customInstructions: String?
+    let userMessage: String?
+    let sessionSummary: String?
+    let findingsCount: Int?
+    let openCount: Int?
+    let activeSessionId: String?
+    let conversationId: String?
+}
+
+struct ReviewPanelPromptBridgeResponse: Decodable {
+    let prompt: String?
 }

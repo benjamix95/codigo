@@ -88,6 +88,28 @@ pub struct ReviewPanelChatFinishRequest {
     pub suggested_verdict_message_id: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPanelPromptRequest {
+    pub schema_version: i32,
+    pub prompt_kind: String,
+    pub scope_tag: Option<String>,
+    pub scope_kind: Option<String>,
+    pub current_branch: Option<String>,
+    pub branch_name: Option<String>,
+    #[serde(default)]
+    pub commits: Vec<String>,
+    #[serde(default)]
+    pub selected_modes: Vec<String>,
+    pub custom_instructions: Option<String>,
+    pub user_message: Option<String>,
+    pub session_summary: Option<String>,
+    pub findings_count: Option<i32>,
+    pub open_count: Option<i32>,
+    pub active_session_id: Option<String>,
+    pub conversation_id: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewPanelRuntimeOutcome {
@@ -102,6 +124,14 @@ pub struct ReviewPanelRuntimeResponse {
     pub error: Option<ReviewCoreErrorPayload>,
     pub state: Option<ReviewPanelRuntimeStateSnapshot>,
     pub outcome: Option<ReviewPanelRuntimeOutcome>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPanelPromptResponse {
+    pub schema_version: i32,
+    pub error: Option<ReviewCoreErrorPayload>,
+    pub prompt: Option<String>,
 }
 
 impl ReviewPanelRuntimeResponse {
@@ -136,6 +166,24 @@ impl ReviewPanelRuntimeResponse {
             error: Some(ReviewCoreErrorPayload::new(code, message)),
             state: None,
             outcome: None,
+        }
+    }
+}
+
+impl ReviewPanelPromptResponse {
+    pub fn success(prompt: String) -> Self {
+        Self {
+            schema_version: 1,
+            error: None,
+            prompt: Some(prompt),
+        }
+    }
+
+    pub fn error(code: &str, message: &str) -> Self {
+        Self {
+            schema_version: 1,
+            error: Some(ReviewCoreErrorPayload::new(code, message)),
+            prompt: None,
         }
     }
 }

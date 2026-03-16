@@ -199,3 +199,99 @@ extension CodeReviewPanelStore {
         )
     }
 }
+
+extension ReviewPanelCoordinator {
+    static func combinedPrompt(scope: ReviewScopeTarget, currentBranch: String, selectedModes: Set<CodeReviewPanelMode>, customInstructions: String = "") -> String {
+        rustPrompt(kind: "combined", scope: scope, currentBranch: currentBranch, selectedModes: selectedModes, customInstructions: customInstructions)
+    }
+    static func standardPrompt(scope: ReviewScopeTarget, customInstructions: String = "") -> String { rustPrompt(kind: "standard", scope: scope, customInstructions: customInstructions) }
+    static func securityAuditPrompt(scope: ReviewScopeTarget) -> String { rustPrompt(kind: "security_audit", scope: scope) }
+    static func bugFinderPrompt(scope: ReviewScopeTarget) -> String { rustPrompt(kind: "bug_finder", scope: scope) }
+    static func branchReviewPrompt(branch: String, currentBranch: String) -> String { rustPrompt(kind: "branch_review", scope: .branch(branch), currentBranch: currentBranch) }
+    static func commitRangePrompt(commits: [String]) -> String { rustPrompt(kind: "commit_range", scope: .commits(commits)) }
+    static func chatContextPrompt(userMessage: String, sessionSummary: String, findingsCount: Int, openCount: Int, activeSessionId: String?, conversationId: UUID?) -> String {
+        rustPrompt(kind: "chat_context", userMessage: userMessage, sessionSummary: sessionSummary, findingsCount: findingsCount, openCount: openCount, activeSessionId: activeSessionId, conversationId: conversationId)
+    }
+
+    private static func rustPrompt(
+        kind: String,
+        scope: ReviewScopeTarget = .uncommitted,
+        currentBranch: String? = nil,
+        selectedModes: Set<CodeReviewPanelMode> = [],
+        customInstructions: String = "",
+        userMessage: String? = nil,
+        sessionSummary: String? = nil,
+        findingsCount: Int? = nil,
+        openCount: Int? = nil,
+        activeSessionId: String? = nil,
+        conversationId: UUID? = nil
+    ) -> String {
+        let request = ReviewPanelPromptBridgeRequest(
+            schemaVersion: 1,
+            promptKind: kind,
+            scopeTag: scope.scopeTag,
+            scopeKind: scope.bridgeKind,
+            currentBranch: currentBranch,
+            branchName: scope.branchName,
+            commits: scope.commits,
+            selectedModes: CodeReviewPanelMode.allCases.filter { selectedModes.contains($0) }.map(\.bridgeName),
+            customInstructions: customInstructions.isEmpty ? nil : customInstructions,
+            userMessage: userMessage,
+            sessionSummary: sessionSummary,
+            findingsCount: findingsCount,
+            openCount: openCount,
+            activeSessionId: activeSessionId,
+            conversationId: conversationId?.uuidString
+        )
+        return ReviewCommandRustBridge.buildPanelPrompt(request)
+            ?? fallbackPrompt(kind: kind, scope: scope, currentBranch: currentBranch, selectedModes: selectedModes, customInstructions: customInstructions, userMessage: userMessage, sessionSummary: sessionSummary, findingsCount: findingsCount, openCount: openCount, activeSessionId: activeSessionId, conversationId: conversationId)
+    }
+
+    private static func fallbackPrompt(kind: String, scope: ReviewScopeTarget, currentBranch: String?, selectedModes: Set<CodeReviewPanelMode>, customInstructions: String, userMessage: String?, sessionSummary: String?, findingsCount: Int?, openCount: Int?, activeSessionId: String?, conversationId: UUID?) -> String {
+        switch kind {
+        case "branch_review", "combined" where scope.bridgeKind == "branch":
+            return "[AGAINST:\(currentBranch ?? "main")..\((scope.branchName ?? "unknown"))]\nSecurity focus:"
+        case "chat_context":
+            return """
+            You are the dedicated chat for an active code review session. Your primary focus is bug hunting, security review, and the full tool-enabled review environment. Use well-structured markdown with sections like ## Findings. Reuse the current active review session and always pass `session_id` and `conversation_id`. Do not call `review_start` unless the user explicitly asks.
+            - Active review session: \(activeSessionId ?? "unavailable")
+            - Conversation scope: \(conversationId?.uuidString ?? "none")
+            \(sessionSummary ?? "")
+            - Total findings: \(findingsCount ?? 0)
+            - Open findings: \(openCount ?? 0)
+            ```review_findings```
+            User: \(userMessage ?? "")
+            """
+        default:
+            let modes = selectedModes.isEmpty ? Set([.standard]) : selectedModes
+            let extras = [modes.contains(.standard) ? "Standard focus:" : nil, modes.contains(.securityAudit) ? "Security focus:" : nil, modes.contains(.bugFinder) ? "Bug focus:" : nil, customInstructions.isEmpty ? nil : customInstructions].compactMap { $0 }.joined(separator: "\n")
+            return "\(scope.scopeTag)\nRun a code review over the selected scope.\n\(extras)"
+        }
+    }
+}
+
+private extension ReviewScopeTarget {
+    var bridgeKind: String {
+        switch self {
+        case .branch: return "branch"
+        case .commits: return "commits"
+        case .againstRef: return "against_ref"
+        case .staged: return "staged"
+        case .workspace: return "workspace"
+        case .uncommitted: return "uncommitted"
+        }
+    }
+
+    var branchName: String? { if case .branch(let name) = self { return name }; return nil }
+    var commits: [String] { if case .commits(let shas) = self { return shas }; return [] }
+}
+
+private extension CodeReviewPanelMode {
+    var bridgeName: String {
+        switch self {
+        case .standard: return "standard"
+        case .securityAudit: return "securityAudit"
+        case .bugFinder: return "bugFinder"
+        }
+    }
+}
