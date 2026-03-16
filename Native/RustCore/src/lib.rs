@@ -11,6 +11,7 @@ mod review_pipeline;
 mod review_panel;
 mod review_projection;
 mod review_replay;
+mod review_diff;
 mod review_models;
 mod review_reduce;
 mod review_panel_runtime;

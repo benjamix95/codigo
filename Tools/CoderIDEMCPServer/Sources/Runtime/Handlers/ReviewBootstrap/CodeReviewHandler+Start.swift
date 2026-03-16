@@ -271,13 +271,13 @@ extension CoderIDEMCPServerApp {
             ).sorted()
         }
         let workspacePath = URL(fileURLWithPath: snapshot.workspacePath ?? FileManager.default.currentDirectoryPath)
-        let rendered = ReviewDiffSummaryService.renderSummary(
+        let rendered = ReviewDiffSummaryRustBridge.renderSummary(
             snapshot: snapshot,
             workspacePath: workspacePath,
             fileFilter: fileFilter.isEmpty ? nil : fileFilter,
             filteredFiles: filteredFiles
         )
-        return reviewOK(rendered)
+        return reviewOK(rendered ?? "No diff data available for the selected review scope.")
     }
 
     static func handleReviewListSessions(args: [String: String]) -> CallTool.Result {
