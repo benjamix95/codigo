@@ -1,6 +1,58 @@
 import CoderEngine
 import Foundation
 
+struct CodeReviewCommandLoopDriver: Sendable {
+    typealias ClaimPendingCommands = @Sendable () -> [MCPSharedCodeReviewCommand]
+    typealias ProcessClaimedCommands = @MainActor @Sendable ([MCPSharedCodeReviewCommand]) async -> Void
+    private let pollIntervalNanoseconds: UInt64
+    private let claimPendingCommands: ClaimPendingCommands
+    private let processClaimedCommands: ProcessClaimedCommands
+
+    init(pollIntervalNanoseconds: UInt64 = 350_000_000, claimPendingCommands: @escaping ClaimPendingCommands, processClaimedCommands: @escaping ProcessClaimedCommands) {
+        self.pollIntervalNanoseconds = pollIntervalNanoseconds
+        self.claimPendingCommands = claimPendingCommands
+        self.processClaimedCommands = processClaimedCommands
+    }
+
+    func run() async {
+        while !Task.isCancelled {
+            let commands = claimPendingCommands()
+            if commands.isEmpty {
+                try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+                continue
+            }
+            await processClaimedCommands(commands)
+        }
+    }
+}
+
+enum CodeReviewCommandRuntimeHooks {
+    typealias ProviderFactoryOverride = @MainActor (ProviderFactoryConfig, ExecutionController?, String?, CodebaseIndex?, [URL], CodeReviewSessionState?, SessionConfig?) -> (any LLMProvider)?
+    typealias WorkspaceContextOverride = @MainActor (CodigoApp) -> WorkspaceContext?
+    static var providerFactoryOverride: ProviderFactoryOverride?
+    static var workspaceContextOverride: WorkspaceContextOverride?
+
+    @MainActor
+    static func makeProvider(config: ProviderFactoryConfig, executionController: ExecutionController?, agentProviderId: String?, codebaseIndex: CodebaseIndex?, workspacePaths: [URL], sessionState: CodeReviewSessionState? = nil, initialSessionConfig: SessionConfig? = nil) -> (any LLMProvider)? {
+        if let providerFactoryOverride {
+            return providerFactoryOverride(config, executionController, agentProviderId, codebaseIndex, workspacePaths, sessionState, initialSessionConfig)
+        }
+        return ProviderFactory.codeReviewMultiSwarmProvider(config: config, executionController: executionController, agentProviderId: agentProviderId, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths, sessionState: sessionState, initialSessionConfig: initialSessionConfig)
+    }
+
+    @MainActor
+    static func workspaceContext(for app: CodigoApp) -> WorkspaceContext {
+        if let workspaceContextOverride, let override = workspaceContextOverride(app) { return override }
+        return WorkspaceContext(
+            workspacePaths: app.workspaceStore.activeWorkspacePaths,
+            excludedPaths: app.workspaceStore.activeExcludedPaths,
+            openFiles: app.openFilesStore.openFilesForContext(),
+            activeFilePath: app.openFilesStore.openFilePath,
+            activeRootPath: app.workspaceStore.activeWorkspacePaths.first?.path
+        )
+    }
+}
+
 struct ReviewCommandRustBridge {
     static func plan(
         command: MCPSharedCodeReviewCommand,
@@ -80,6 +132,22 @@ struct ReviewCommandRustBridge {
             request: request
         )
         return response?.prompt
+    }
+}
+
+extension CodigoApp {
+    @MainActor
+    func configuredReviewSnapshot(snapshot: CodeReviewSessionSnapshot, sessionId: String, conversationId _: UUID?, config: SessionConfig) -> CodeReviewSessionSnapshot? {
+        let payload = ["session_id": sessionId].merging(config.reviewCommandPayload) { _, rhs in rhs }
+        if let mutation = ReviewCommandRustBridge.mutateSnapshot(snapshot, action: "configure", payload: payload), !mutation.isError, let updatedConfig = mutation.config, let events = mutation.events {
+            let updated = snapshot.copying(events: events, config: updatedConfig)
+            return updated.copying(mutationSequence: updated.mutationSequence, outcome: updated.buildOutcomeSummary(), lastUpdatedAt: Date())
+        }
+        let updated = snapshot.copying(
+            events: snapshot.events + [CodeReviewSessionEvent(type: .configUpdated, detail: "Config updated")],
+            config: config
+        )
+        return updated.copying(mutationSequence: updated.mutationSequence, outcome: updated.buildOutcomeSummary(), lastUpdatedAt: Date())
     }
 }
 
