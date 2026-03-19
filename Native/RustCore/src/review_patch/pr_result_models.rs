@@ -43,6 +43,14 @@ pub struct ReviewPatchMergeResultRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchMergeExecutionContextRequest {
+    pub schema_version: i32,
+    pub pr_url: Option<String>,
+    pub safe_only: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchResolveConflictsResultRequest {
     pub schema_version: i32,
     pub patch_id: String,
@@ -114,6 +122,18 @@ pub struct ReviewPatchMergeResultResponse {
     pub merge_status: Option<String>,
     pub pr_url: Option<String>,
     pub conflicts: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchMergeExecutionContextResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub pr_url: Option<String>,
+    pub first_merge_auto: Option<bool>,
+    pub retry_after_conflicts: Option<bool>,
+    pub retry_merge_auto: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -268,6 +288,37 @@ impl ReviewPatchMergeResultResponse {
             merge_status: None,
             pr_url: None,
             conflicts: None,
+        }
+    }
+}
+
+impl ReviewPatchMergeExecutionContextResponse {
+    pub fn success(
+        pr_url: String,
+        first_merge_auto: bool,
+        retry_after_conflicts: bool,
+        retry_merge_auto: bool,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            pr_url: Some(pr_url),
+            first_merge_auto: Some(first_merge_auto),
+            retry_after_conflicts: Some(retry_after_conflicts),
+            retry_merge_auto: Some(retry_merge_auto),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            pr_url: None,
+            first_merge_auto: None,
+            retry_after_conflicts: None,
+            retry_merge_auto: None,
         }
     }
 }

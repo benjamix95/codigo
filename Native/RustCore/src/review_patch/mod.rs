@@ -1,6 +1,7 @@
 pub mod models;
 pub mod apply_result;
 pub mod merge_result;
+pub mod merge_execution_context;
 pub mod open_pr_context;
 pub mod open_pr_execution_context;
 pub mod open_pr_result;
@@ -20,6 +21,7 @@ mod runtime_tests;
 
 pub use apply_result::build_apply_result;
 pub use merge_result::build_merge_result;
+pub use merge_execution_context::build_merge_execution_context;
 pub use open_pr_context::build_open_pr_context;
 pub use open_pr_execution_context::build_open_pr_execution_context;
 pub use open_pr_result::build_open_pr_result;

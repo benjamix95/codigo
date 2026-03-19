@@ -540,6 +540,64 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         XCTAssertTrue(updated.conflicts.isEmpty)
     }
 
+    func testMergePullRequestExecutionContextUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-merge-context-1",
+            findingId: "finding-merge-context",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .prOpened,
+            verifyStatus: .verified,
+            prStatus: .opened,
+            mergeStatus: .pending,
+            prURL: "https://example.test/pr/1"
+        )
+
+        let context = try service.mergePullRequestExecutionContext(
+            artifact: artifact,
+            safeOnly: true
+        )
+
+        XCTAssertEqual(context.prURL, "https://example.test/pr/1")
+        XCTAssertTrue(context.firstMergeAuto)
+        XCTAssertTrue(context.retryAfterConflicts)
+        XCTAssertFalse(context.retryMergeAuto)
+    }
+
+    func testMergePullRequestExecutionContextFailsClosedWhenRustRuntimeUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-merge-context-2",
+            findingId: "finding-merge-context",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .prOpened,
+            verifyStatus: .verified,
+            prStatus: .opened,
+            mergeStatus: .pending
+        )
+
+        XCTAssertThrowsError(
+            try service.mergePullRequestExecutionContext(
+                artifact: artifact,
+                safeOnly: true
+            )
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .pullRequestUnavailable("Rust patch merge execution context runtime required but unavailable")
+                    .localizedDescription
+            )
+        }
+    }
+
     func testMergePullRequestResultFailsClosedWhenRustRuntimeUnavailable() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()
