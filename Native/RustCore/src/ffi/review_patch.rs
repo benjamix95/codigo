@@ -1,8 +1,9 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::review_patch::{
-    apply_runtime_result, build_apply_result, build_prepare_context,
-    build_revalidate_result, build_rollback_result, build_verify_result, get_runtime_state,
-    handle_patch_action, start_runtime,
+    apply_runtime_result, build_apply_result, build_merge_result, build_open_pr_result,
+    build_prepare_context, build_revalidate_result, build_resolve_conflicts_result,
+    build_rollback_result, build_verify_result, get_runtime_state, handle_patch_action,
+    start_runtime,
 };
 use std::os::raw::c_char;
 
@@ -191,6 +192,83 @@ pub extern "C" fn review_core_patch_build_rollback_result(input: *const c_char) 
             );
         }
         encode_raw(&build_rollback_result(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_patch_build_open_pr_result(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_patch::pr_result_models::ReviewPatchOpenPrResultRequest =
+            match serde_json::from_str(raw) {
+                Ok(request) => request,
+                Err(err) => {
+                    return encode_raw(
+                        &crate::review_patch::pr_result_models::ReviewPatchOpenPrResultResponse::error(
+                            err.to_string(),
+                        ),
+                    );
+                }
+            };
+        if request.schema_version != 1 {
+            return encode_raw(
+                &crate::review_patch::pr_result_models::ReviewPatchOpenPrResultResponse::error(
+                    "schemaVersion must be 1",
+                ),
+            );
+        }
+        encode_raw(&build_open_pr_result(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_patch_build_merge_result(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_patch::pr_result_models::ReviewPatchMergeResultRequest =
+            match serde_json::from_str(raw) {
+                Ok(request) => request,
+                Err(err) => {
+                    return encode_raw(
+                        &crate::review_patch::pr_result_models::ReviewPatchMergeResultResponse::error(
+                            err.to_string(),
+                        ),
+                    );
+                }
+            };
+        if request.schema_version != 1 {
+            return encode_raw(
+                &crate::review_patch::pr_result_models::ReviewPatchMergeResultResponse::error(
+                    "schemaVersion must be 1",
+                ),
+            );
+        }
+        encode_raw(&build_merge_result(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_patch_build_resolve_conflicts_result(
+    input: *const c_char,
+) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_patch::pr_result_models::ReviewPatchResolveConflictsResultRequest =
+            match serde_json::from_str(raw) {
+                Ok(request) => request,
+                Err(err) => {
+                    return encode_raw(
+                        &crate::review_patch::pr_result_models::ReviewPatchResolveConflictsResultResponse::error(
+                            err.to_string(),
+                        ),
+                    );
+                }
+            };
+        if request.schema_version != 1 {
+            return encode_raw(
+                &crate::review_patch::pr_result_models::ReviewPatchResolveConflictsResultResponse::error(
+                    "schemaVersion must be 1",
+                ),
+            );
+        }
+        encode_raw(&build_resolve_conflicts_result(request))
     })
 }
 

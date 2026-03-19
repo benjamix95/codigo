@@ -235,18 +235,68 @@ final class ReviewPatchWorkflowService {
             try gitService.autoCommitAllChanges(gitRoot: worktreePath, message: title)
             try gitService.push(gitRoot: worktreePath, branch: branchName)
             let pr = try gitService.createPullRequest(gitRoot: worktreePath, base: baseBranch, title: title, body: body)
-            var opened = artifact
-            opened.branchName = branchName
-            opened.baseBranchName = baseBranch
-            opened.worktreePath = worktreePath
-            opened.prURL = pr.url
-            opened.prStatus = .opened
-            opened.status = .prOpened
-            opened.updatedAt = Date()
-            return opened
+            return try openPullRequestResult(
+                artifact: artifact,
+                branchName: branchName,
+                baseBranchName: baseBranch,
+                worktreePath: worktreePath,
+                prURL: pr.url
+            )
         } catch {
             throw ReviewPatchWorkflowError.pullRequestUnavailable(error.localizedDescription)
         }
+    }
+
+    func openPullRequestResult(
+        artifact: ReviewPatchArtifact,
+        branchName: String,
+        baseBranchName: String,
+        worktreePath: String,
+        prURL: String
+    ) throws -> ReviewPatchArtifact {
+        let response: ReviewPatchOpenPrResultBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_open_pr_result",
+            request: ReviewPatchOpenPrResultBridgeRequest(
+                schemaVersion: 1,
+                patchId: artifact.id,
+                branchName: branchName,
+                baseBranchName: baseBranchName,
+                worktreePath: worktreePath,
+                prURL: prURL
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                "Rust patch open pr result runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                response.message ?? "Unable to derive patch open pr result"
+            )
+        }
+        guard let statusRaw = response.status,
+              let status = ReviewPatchStatus(rawValue: statusRaw),
+              let prStatusRaw = response.prStatus,
+              let prStatus = ReviewPatchPRStatus(rawValue: prStatusRaw),
+              let resolvedBranchName = response.branchName,
+              let resolvedBaseBranchName = response.baseBranchName,
+              let resolvedWorktreePath = response.worktreePath,
+              let resolvedPrURL = response.prURL else {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                "Rust patch open pr result response was incomplete"
+            )
+        }
+
+        var opened = artifact
+        opened.branchName = resolvedBranchName
+        opened.baseBranchName = resolvedBaseBranchName
+        opened.worktreePath = resolvedWorktreePath
+        opened.prURL = resolvedPrURL
+        opened.prStatus = prStatus
+        opened.status = status
+        opened.updatedAt = Date()
+        return opened
     }
 
     func patchRiskScore(patchText: String, touchedFiles: [String]) -> Double {
@@ -280,4 +330,24 @@ private struct ReviewPatchVerifyResultBridgeResponse: Decodable {
     let verifyStatus: String?
     let conflicts: [String]?
     let applyMessage: String?
+}
+
+private struct ReviewPatchOpenPrResultBridgeRequest: Encodable {
+    let schemaVersion: Int
+    let patchId: String
+    let branchName: String
+    let baseBranchName: String
+    let worktreePath: String
+    let prURL: String
+}
+
+private struct ReviewPatchOpenPrResultBridgeResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let status: String?
+    let prStatus: String?
+    let branchName: String?
+    let baseBranchName: String?
+    let worktreePath: String?
+    let prURL: String?
 }
