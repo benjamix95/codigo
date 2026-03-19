@@ -437,6 +437,98 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertEqual(updatedSnapshot.findings.first?.comments.last?.content, "note from command bus")
     }
 
+    func testPreparePatchCommandFailsClosedWhenRustPatchRuntimeDisabled() async throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let app = makeApp()
+        let snapshot = makeSnapshot(
+            sessionId: "prepare-patch-disabled",
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-prepare",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Prepare me",
+                    verificationReport: "verified",
+                    verifiedAt: Date()
+                )
+            ]
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "prepare_patch",
+            sessionId: snapshot.sessionId,
+            conversationId: nil,
+            payload: [
+                "session_id": snapshot.sessionId,
+                "finding_id": "finding-prepare",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .failed)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: snapshot.sessionId)
+        )
+        XCTAssertTrue(updatedSnapshot.patches.isEmpty)
+        XCTAssertNil(updatedSnapshot.findings.first?.patchArtifactId)
+    }
+
+    func testVerifyPatchCommandFailsClosedWhenRustPatchRuntimeDisabled() async throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let app = makeApp()
+        let patch = ReviewPatchArtifact(
+            id: "patch-pending",
+            findingId: "finding-verify",
+            patchText: "diff --git a/Sources/File.swift b/Sources/File.swift",
+            diffPreview: "@@",
+            touchedFiles: ["Sources/File.swift"],
+            status: .draft,
+            verifyStatus: .pending
+        )
+        let snapshot = makeSnapshot(
+            sessionId: "verify-patch-disabled",
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-verify",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Verify me",
+                    verificationReport: "verified",
+                    verifiedAt: Date(),
+                    patchArtifactId: patch.id
+                )
+            ]
+        ).copying(patches: [patch])
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "verify_patch",
+            sessionId: snapshot.sessionId,
+            conversationId: nil,
+            payload: [
+                "session_id": snapshot.sessionId,
+                "finding_id": "finding-verify",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .failed)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: snapshot.sessionId)
+        )
+        XCTAssertEqual(updatedSnapshot.patches.first?.verifyStatus, .pending)
+        XCTAssertEqual(updatedSnapshot.patches.first?.status, .draft)
+    }
+
     func testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch() {
         let app = makeApp()
         let snapshot = CodeReviewSessionSnapshot(

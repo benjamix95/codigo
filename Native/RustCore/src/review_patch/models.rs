@@ -41,6 +41,21 @@ pub struct ReviewPatchRuntimeStateRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchPrepareContextRequest {
+    pub schema_version: i32,
+    pub session_id: String,
+    pub finding_id: String,
+    pub file_path: String,
+    pub line_number: Option<i32>,
+    pub message: String,
+    pub verification_report: Option<String>,
+    pub suggested_fix: Option<String>,
+    pub expected_invariant: Option<String>,
+    pub repro_or_reasoning: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchSnapshot {
     pub session_id: String,
     pub conversation_id: Option<String>,
@@ -110,6 +125,16 @@ pub struct ReviewPatchRuntimeResponse {
     pub completed_steps: Vec<String>,
     pub last_transition_at: Option<f64>,
     pub terminal_reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchPrepareContextResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub branch_name: Option<String>,
+    pub prompt: Option<String>,
 }
 
 impl ReviewPatchActionResponse {
@@ -200,6 +225,28 @@ impl ReviewPatchRuntimeResponse {
             completed_steps: Vec::new(),
             last_transition_at: None,
             terminal_reason: None,
+        }
+    }
+}
+
+impl ReviewPatchPrepareContextResponse {
+    pub fn success(branch_name: String, prompt: String) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            branch_name: Some(branch_name),
+            prompt: Some(prompt),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            branch_name: None,
+            prompt: None,
         }
     }
 }

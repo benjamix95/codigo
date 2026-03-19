@@ -2,6 +2,45 @@ import CoderEngine
 import Foundation
 
 extension ReviewPatchWorkflowService {
+    func preparePatchContext(
+        finding: CodeReviewFinding,
+        snapshot: CodeReviewSessionSnapshot
+    ) throws -> ReviewPatchPrepareContext {
+        let request = ReviewPatchPrepareContextRequest(
+            schemaVersion: 1,
+            sessionId: snapshot.sessionId,
+            findingId: finding.id,
+            filePath: finding.filePath,
+            lineNumber: finding.lineNumber,
+            message: finding.message,
+            verificationReport: finding.verificationReport,
+            suggestedFix: finding.suggestedFix,
+            expectedInvariant: finding.expectedInvariant,
+            reproOrReasoning: finding.reproOrReasoning
+        )
+        let response: ReviewPatchPrepareContextResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_prepare_context",
+            request: request
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch prepare context runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch prepare context"
+            )
+        }
+        guard let branchName = response.branchName,
+              let prompt = response.prompt else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch prepare context response was incomplete"
+            )
+        }
+        return ReviewPatchPrepareContext(branchName: branchName, prompt: prompt)
+    }
+
     func preparePatch(
         finding: CodeReviewFinding,
         snapshot: CodeReviewSessionSnapshot,
@@ -11,10 +50,14 @@ extension ReviewPatchWorkflowService {
         guard finding.verifiedAt != nil || finding.verificationReport != nil else {
             throw ReviewPatchWorkflowError.reviewNotVerified
         }
+        let prepareContext = try preparePatchContext(
+            finding: finding,
+            snapshot: snapshot
+        )
 
         let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
         let baseBranch = try gitService.currentBranch(gitRoot: gitRoot)
-        let branchName = "codex/review-patch-\(String(finding.id.prefix(8)).lowercased())"
+        let branchName = prepareContext.branchName
         let worktreePath = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("codigo-review-patches")
             .appendingPathComponent(branchName.replacingOccurrences(of: "/", with: "-"))
@@ -33,15 +76,10 @@ extension ReviewPatchWorkflowService {
             try? gitService.deleteBranch(name: branchName, gitRoot: gitRoot, force: true)
         }
 
-        let prompt = preparePatchPrompt(
-            finding: finding,
-            snapshot: snapshot
-        )
-
         _ = try await mergeAIService.runHeadlessPrompt(
             provider: executionProvider,
             gitRoot: worktreePath,
-            prompt: prompt
+            prompt: prepareContext.prompt
         )
 
         let patchText = try gitService.runGit(["diff", "--no-ext-diff"], gitRoot: worktreePath)
@@ -76,6 +114,31 @@ extension ReviewPatchWorkflowService {
             workspaceContainsPatch: true
         )
     }
+}
+
+struct ReviewPatchPrepareContext {
+    let branchName: String
+    let prompt: String
+}
+
+private struct ReviewPatchPrepareContextRequest: Encodable {
+    let schemaVersion: Int
+    let sessionId: String
+    let findingId: String
+    let filePath: String
+    let lineNumber: Int?
+    let message: String
+    let verificationReport: String?
+    let suggestedFix: String?
+    let expectedInvariant: String?
+    let reproOrReasoning: String?
+}
+
+private struct ReviewPatchPrepareContextResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let branchName: String?
+    let prompt: String?
 }
 
 extension CodigoApp {

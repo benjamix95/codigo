@@ -20,7 +20,7 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testPreparePatchPromptIncludesVerificationRemediationAndInvariantContext() {
+    func testPreparePatchPromptIncludesVerificationRemediationAndInvariantContext() throws {
         let service = ReviewPatchWorkflowService()
         let finding = CodeReviewFinding(
             id: "finding-ctx",
@@ -56,12 +56,62 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
             lastUpdatedAt: Date()
         )
 
-        let prompt = service.preparePatchPrompt(finding: finding, snapshot: snapshot)
+        try requireReviewCore()
+        guard ReviewCoreBridge.isEnabled else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+        let prompt = try service.preparePatchPrompt(finding: finding, snapshot: snapshot)
 
         XCTAssertTrue(prompt.contains("Verifica: Riproduzione confermata con retry consecutivo"))
         XCTAssertTrue(prompt.contains("Fix suggerito: Ripristina il guard sullo stato"))
         XCTAssertTrue(prompt.contains("Invariante atteso: Lo stato finale deve essere emesso una sola volta"))
         XCTAssertTrue(prompt.contains("Repro o reasoning: Il retry duplica l'evento terminale"))
+    }
+
+    func testPreparePatchContextFailsClosedWhenRustPrepareContextUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let finding = CodeReviewFinding(
+            id: "finding-ctx",
+            severity: .warning,
+            category: .correctness,
+            filePath: "Sources/File.swift",
+            message: "Invariant broken",
+            verificationReport: "verified",
+            verifiedAt: Date()
+        )
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-ctx",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [finding],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        XCTAssertThrowsError(
+            try service.preparePatchPrompt(finding: finding, snapshot: snapshot)
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .applyFailed("Rust patch prepare context runtime required but unavailable")
+                    .localizedDescription
+            )
+        }
     }
 
     func testApplyPatchRejectsArtifactThatWasNotVerified() async {

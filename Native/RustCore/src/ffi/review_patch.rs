@@ -1,5 +1,8 @@
 use super::common::{encode_raw, with_raw_json_input};
-use crate::review_patch::{apply_runtime_result, get_runtime_state, handle_patch_action, start_runtime};
+use crate::review_patch::{
+    apply_runtime_result, build_prepare_context, get_runtime_state, handle_patch_action,
+    start_runtime,
+};
 use std::os::raw::c_char;
 
 #[no_mangle]
@@ -62,6 +65,31 @@ pub extern "C" fn review_core_patch_get_runtime_state(input: *const c_char) -> *
             return patch_runtime_error("unsupported_schema", "schemaVersion must be 1");
         }
         encode_raw(&get_runtime_state(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_patch_build_prepare_context(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_patch::models::ReviewPatchPrepareContextRequest =
+            match serde_json::from_str(raw) {
+                Ok(request) => request,
+                Err(err) => {
+                    return encode_raw(
+                        &crate::review_patch::models::ReviewPatchPrepareContextResponse::error(
+                            err.to_string(),
+                        ),
+                    );
+                }
+            };
+        if request.schema_version != 1 {
+            return encode_raw(
+                &crate::review_patch::models::ReviewPatchPrepareContextResponse::error(
+                    "schemaVersion must be 1",
+                ),
+            );
+        }
+        encode_raw(&build_prepare_context(request))
     })
 }
 

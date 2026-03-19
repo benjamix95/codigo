@@ -54,10 +54,14 @@ final class ReviewPatchWorkflowService {
         guard finding.verifiedAt != nil || finding.verificationReport != nil else {
             throw ReviewPatchWorkflowError.reviewNotVerified
         }
+        let prepareContext = try preparePatchContext(
+            finding: finding,
+            snapshot: snapshot
+        )
 
         let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
         let baseBranch = try gitService.currentBranch(gitRoot: gitRoot)
-        let branchName = "codex/review-patch-\(String(finding.id.prefix(8)).lowercased())"
+        let branchName = prepareContext.branchName
         let worktreePath = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("codigo-review-patches")
             .appendingPathComponent(branchName.replacingOccurrences(of: "/", with: "-"))
@@ -81,15 +85,10 @@ final class ReviewPatchWorkflowService {
             providerRegistry: providerRegistry
         )
 
-        let prompt = preparePatchPrompt(
-            finding: finding,
-            snapshot: snapshot
-        )
-
         _ = try await mergeAIService.runHeadlessPrompt(
             provider: provider,
             gitRoot: worktreePath,
-            prompt: prompt
+            prompt: prepareContext.prompt
         )
 
         let patchText = try gitService.runGit(["diff", "--no-ext-diff"], gitRoot: worktreePath)
@@ -129,28 +128,8 @@ final class ReviewPatchWorkflowService {
     func preparePatchPrompt(
         finding: CodeReviewFinding,
         snapshot: CodeReviewSessionSnapshot
-    ) -> String {
-        """
-        Sei in una worktree temporanea creata solo per preparare una patch preview.
-        Devi modificare i file target e fermarti senza fare commit.
-
-        Sessione review: \(snapshot.sessionId)
-        Finding: \(finding.id)
-        File: \(finding.filePath)
-        Riga: \(finding.lineNumber.map(String.init) ?? "n/a")
-        Messaggio: \(finding.message)
-        Verifica: \(finding.verificationReport ?? "n/a")
-        Fix suggerito: \(finding.suggestedFix ?? "n/a")
-        Invariante atteso: \(finding.expectedInvariant ?? "n/a")
-        Repro o reasoning: \(finding.reproOrReasoning ?? "n/a")
-
-        Regole:
-        - modifica solo i file strettamente necessari a risolvere questo finding;
-        - mantieni il patch set minimo e leggibile;
-        - non fare commit, push o merge;
-        - non introdurre refactor estranei;
-        - al termine lascia le modifiche nel worktree e fermati.
-        """
+    ) throws -> String {
+        try preparePatchContext(finding: finding, snapshot: snapshot).prompt
     }
 
     func verifyPatch(
