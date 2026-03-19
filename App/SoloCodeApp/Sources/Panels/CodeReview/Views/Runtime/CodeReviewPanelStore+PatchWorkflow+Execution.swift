@@ -214,6 +214,21 @@ extension CodeReviewPanelStore {
             sessionId: sessionId,
             conversationId: conversationId
         ) else { return }
+        if let reduced = reducePatchPrepareFailure(
+            snapshot: snapshot,
+            findingId: findingId,
+            message: message
+        ) {
+            taskActivityStore.scheduleCodeReviewSnapshotIngest(reduced, conversationId: conversationId)
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Patch fallita",
+                detail: message,
+                selectChatTab: true
+            )
+            return
+        }
         var findings = snapshot.findings
         var patches = snapshot.patches
         if let index = findings.firstIndex(where: { $0.id == findingId }) {

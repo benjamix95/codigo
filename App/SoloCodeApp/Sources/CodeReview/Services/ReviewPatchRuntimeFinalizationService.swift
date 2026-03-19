@@ -212,7 +212,7 @@ extension CodigoApp {
     }
 }
 
-private func reducePatchPrepareFailure(
+func reducePatchPrepareFailure(
     snapshot: CodeReviewSessionSnapshot,
     findingId: String,
     message: String

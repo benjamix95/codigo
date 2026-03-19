@@ -198,23 +198,14 @@ extension CodeReviewPanelStore {
                     conversationId: conversationId ?? current.conversationId
                 )
             } catch {
-                current = current.copying(
-                    findings: current.findings.map { finding in
-                        guard finding.id == findingId else { return finding }
-                        var updated = finding
-                        updated.status = .patchFailed
-                        updated.comments.append(
-                            FindingComment(
-                                author: "system",
-                                content: "Patch preview non disponibile: \(error.localizedDescription)"
-                            )
-                        )
-                        return updated
-                    },
-                    outcome: current.buildOutcomeSummary(
-                        summaryOverride: "Patch preparation failed for \(findingId): \(error.localizedDescription)"
-                    )
-                )
+                guard let reduced = reducePatchPrepareFailure(
+                    snapshot: current,
+                    findingId: findingId,
+                    message: error.localizedDescription
+                ) else {
+                    continue
+                }
+                current = reduced
                 await ReviewSessionRegistry.shared.recordSnapshot(current)
                 taskActivityStore.scheduleCodeReviewSnapshotIngest(
                     current,
