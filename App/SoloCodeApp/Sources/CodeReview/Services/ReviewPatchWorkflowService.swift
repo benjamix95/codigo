@@ -203,17 +203,14 @@ final class ReviewPatchWorkflowService {
         workspaceRoot: String
     ) throws -> ReviewPatchArtifact {
         let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
-        let baseBranch: String
-        if let artifactBaseBranch = artifact.baseBranchName, !artifactBaseBranch.isEmpty {
-            baseBranch = artifactBaseBranch
-        } else {
-            baseBranch = try gitService.currentBranch(gitRoot: gitRoot)
-        }
-        let branchName = artifact.branchName ?? "codex/review-pr-\(String(artifact.findingId.prefix(8)).lowercased())"
-        let worktreePath = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("codigo-review-prs")
-            .appendingPathComponent(branchName.replacingOccurrences(of: "/", with: "-"))
-            .path
+        let currentBranch = try gitService.currentBranch(gitRoot: gitRoot)
+        let executionContext = try openPullRequestExecutionContext(
+            artifact: artifact,
+            currentBranchName: currentBranch
+        )
+        let baseBranch = executionContext.baseBranchName
+        let branchName = executionContext.branchName
+        let worktreePath = executionContext.worktreePath
 
         try? gitService.removeWorktree(gitRoot: gitRoot, worktreePath: worktreePath, force: true)
         try? gitService.deleteBranch(name: branchName, gitRoot: gitRoot, force: true)
@@ -322,6 +319,15 @@ private struct ReviewPatchOpenPrResultBridgeRequest: Encodable {
     let baseBranchName: String
     let worktreePath: String
     let prURL: String
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case patchId
+        case branchName
+        case baseBranchName
+        case worktreePath
+        case prURL = "prUrl"
+    }
 }
 
 private struct ReviewPatchOpenPrResultBridgeResponse: Decodable {
@@ -333,4 +339,15 @@ private struct ReviewPatchOpenPrResultBridgeResponse: Decodable {
     let baseBranchName: String?
     let worktreePath: String?
     let prURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case isError
+        case message
+        case status
+        case prStatus
+        case branchName
+        case baseBranchName
+        case worktreePath
+        case prURL = "prUrl"
+    }
 }

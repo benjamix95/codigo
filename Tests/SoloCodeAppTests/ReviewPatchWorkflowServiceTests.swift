@@ -433,6 +433,58 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         XCTAssertEqual(updated.prURL, "https://example.test/pr/1")
     }
 
+    func testOpenPullRequestExecutionContextUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-open-pr-context-1",
+            findingId: "finding-open-pr-context",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .verified,
+            verifyStatus: .verified
+        )
+
+        let context = try service.openPullRequestExecutionContext(
+            artifact: artifact,
+            currentBranchName: "main"
+        )
+
+        XCTAssertEqual(context.baseBranchName, "main")
+        XCTAssertEqual(context.branchName, "codex/review-pr-finding-")
+        XCTAssertTrue(context.worktreePath.hasSuffix("/codigo-review-prs/codex-review-pr-finding-"))
+    }
+
+    func testOpenPullRequestExecutionContextFailsClosedWhenRustRuntimeUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-open-pr-context-2",
+            findingId: "finding-open-pr-context",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .verified,
+            verifyStatus: .verified
+        )
+
+        XCTAssertThrowsError(
+            try service.openPullRequestExecutionContext(
+                artifact: artifact,
+                currentBranchName: "main"
+            )
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .pullRequestUnavailable("Rust patch open pr execution context runtime required but unavailable")
+                    .localizedDescription
+            )
+        }
+    }
+
     func testOpenPullRequestResultFailsClosedWhenRustRuntimeUnavailable() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()

@@ -1,7 +1,55 @@
 import CoderEngine
 import Foundation
 
+struct ReviewPatchOpenPRExecutionContext {
+    let branchName: String
+    let baseBranchName: String
+    let worktreePath: String
+}
+
 extension ReviewPatchWorkflowService {
+    func openPullRequestExecutionContext(
+        artifact: ReviewPatchArtifact,
+        currentBranchName: String
+    ) throws -> ReviewPatchOpenPRExecutionContext {
+        let worktreeRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("codigo-review-prs")
+            .path
+        let response: ReviewPatchOpenPRExecutionContextResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_open_pr_execution_context",
+            request: ReviewPatchOpenPRExecutionContextRequest(
+                schemaVersion: 1,
+                findingId: artifact.findingId,
+                artifactBaseBranchName: artifact.baseBranchName,
+                currentBranchName: currentBranchName,
+                existingBranchName: artifact.branchName,
+                worktreeRoot: worktreeRoot
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                "Rust patch open pr execution context runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                response.message ?? "Unable to derive patch open pr execution context"
+            )
+        }
+        guard let branchName = response.branchName,
+              let baseBranchName = response.baseBranchName,
+              let worktreePath = response.worktreePath else {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                "Rust patch open pr execution context response was incomplete"
+            )
+        }
+        return ReviewPatchOpenPRExecutionContext(
+            branchName: branchName,
+            baseBranchName: baseBranchName,
+            worktreePath: worktreePath
+        )
+    }
+
     func prepareDraftArtifact(
         finding: CodeReviewFinding,
         patchText: String,
@@ -188,6 +236,23 @@ private struct ReviewPatchPrepareContextResponse: Decodable {
     let message: String?
     let branchName: String?
     let prompt: String?
+}
+
+private struct ReviewPatchOpenPRExecutionContextRequest: Encodable {
+    let schemaVersion: Int
+    let findingId: String
+    let artifactBaseBranchName: String?
+    let currentBranchName: String
+    let existingBranchName: String?
+    let worktreeRoot: String
+}
+
+private struct ReviewPatchOpenPRExecutionContextResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let branchName: String?
+    let baseBranchName: String?
+    let worktreePath: String?
 }
 
 private struct ReviewPatchPrepareResultBridgeRequest: Encodable {

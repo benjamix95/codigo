@@ -11,6 +11,17 @@ pub struct ReviewPatchOpenPrContextRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchOpenPrExecutionContextRequest {
+    pub schema_version: i32,
+    pub finding_id: String,
+    pub artifact_base_branch_name: Option<String>,
+    pub current_branch_name: String,
+    pub existing_branch_name: Option<String>,
+    pub worktree_root: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchOpenPrResultRequest {
     pub schema_version: i32,
     pub patch_id: String,
@@ -45,6 +56,17 @@ pub struct ReviewPatchOpenPrContextResponse {
     pub message: Option<String>,
     pub title: Option<String>,
     pub body: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchOpenPrExecutionContextResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub branch_name: Option<String>,
+    pub base_branch_name: Option<String>,
+    pub worktree_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -102,6 +124,30 @@ impl ReviewPatchOpenPrContextResponse {
             message: Some(message.into()),
             title: None,
             body: None,
+        }
+    }
+}
+
+impl ReviewPatchOpenPrExecutionContextResponse {
+    pub fn success(branch_name: String, base_branch_name: String, worktree_path: String) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            branch_name: Some(branch_name),
+            base_branch_name: Some(base_branch_name),
+            worktree_path: Some(worktree_path),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            branch_name: None,
+            base_branch_name: None,
+            worktree_path: None,
         }
     }
 }
