@@ -49,12 +49,17 @@ extension CodeReviewPanelStore {
 
     func createNewChatThread(title: String? = nil) {
         let threadId = chatSessionStore.createThread(for: chatSessionKey, title: title)
-        activeChatThreadId = threadId
+        if !setActiveChatThread(threadId) {
+            activeChatThreadId = threadId
+        }
         selectTab(.chat)
     }
 
     func selectChatThread(_ threadId: String) {
         chatSessionStore.selectThread(threadId, for: chatSessionKey)
+        if !setActiveChatThread(threadId) {
+            activeChatThreadId = threadId
+        }
         selectTab(.chat)
     }
 
@@ -101,7 +106,13 @@ extension CodeReviewPanelStore {
             chatThreads = conversation.threads
         }
         if activeChatThreadId != conversation.activeThreadId {
-            activeChatThreadId = conversation.activeThreadId
+            if let activeThreadId = conversation.activeThreadId {
+                if !setActiveChatThread(activeThreadId) {
+                    activeChatThreadId = activeThreadId
+                }
+            } else if !clearActiveChatThread() {
+                activeChatThreadId = nil
+            }
         }
         let activeState = conversation.activeThreadId.flatMap { activeId in
             conversation.threads.first(where: { $0.id == activeId })?.sessionState

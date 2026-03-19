@@ -72,6 +72,7 @@ mod tests {
             panel_session_id: None,
             selected_finding_id: None,
             selected_historical_finding_id: None,
+            active_chat_thread_id: None,
             is_running: false,
             run_started_at: None,
             frozen_timer_text: None,

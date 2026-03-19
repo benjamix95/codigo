@@ -9,6 +9,13 @@ final class ReviewPanelChatSessionStoreTests: XCTestCase {
         ReviewPanelChatSessionStore.shared.clearAll()
     }
 
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
     func testCreateSelectArchiveDeleteThreadLifecycle() {
         let key = "panel-chat-tests"
         let store = ReviewPanelChatSessionStore.shared
@@ -114,6 +121,55 @@ final class ReviewPanelChatSessionStoreTests: XCTestCase {
         XCTAssertEqual(store.activeChatThreadId, secondThreadId)
     }
 
+    func testPanelCreateAndSelectChatThreadSyncsRuntimeSnapshotWhenRustAvailable() async throws {
+        try requireReviewCore()
+        let conversationId = UUID()
+        let store = makePanelStore(conversationId: conversationId)
+
+        store.createNewChatThread(title: "Runtime Backed")
+        let createdThreadId = try XCTUnwrap(store.activeChatThreadId)
+        await waitUntil("runtime snapshot reflects created active thread") {
+            store.makeRuntimeStateSnapshot().activeChatThreadId == createdThreadId
+        }
+
+        let secondThreadId = ReviewPanelChatSessionStore.shared.createThread(
+            for: CodeReviewPanelStore.chatSessionKey(conversationId: conversationId),
+            title: "Runtime Second"
+        )
+        store.selectChatThread(secondThreadId)
+        await waitUntil("runtime snapshot reflects selected active thread") {
+            store.makeRuntimeStateSnapshot().activeChatThreadId == secondThreadId
+        }
+
+        XCTAssertEqual(store.makeRuntimeStateSnapshot().activeChatThreadId, secondThreadId)
+    }
+
+    func testPanelCreateAndSelectChatThreadFallsBackLocallyWhenRustUnavailable() async throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let conversationId = UUID()
+        let store = makePanelStore(conversationId: conversationId)
+
+        store.createNewChatThread(title: "Fallback Thread")
+        let createdThreadId = try XCTUnwrap(store.activeChatThreadId)
+        await waitUntil("fallback local created thread becomes active") {
+            store.activeChatThreadId == createdThreadId
+        }
+
+        let secondThreadId = ReviewPanelChatSessionStore.shared.createThread(
+            for: CodeReviewPanelStore.chatSessionKey(conversationId: conversationId),
+            title: "Fallback Second"
+        )
+        store.selectChatThread(secondThreadId)
+        await waitUntil("fallback local selected thread becomes active") {
+            store.activeChatThreadId == secondThreadId
+        }
+
+        XCTAssertEqual(store.selectedTab, .chat)
+        XCTAssertEqual(store.activeChatThreadId, secondThreadId)
+    }
+
     private func makePanelStore(conversationId: UUID?) -> CodeReviewPanelStore {
         CodeReviewPanelStore(
             taskActivityStore: TaskActivityStore(),
@@ -172,6 +228,20 @@ final class ReviewPanelChatSessionStoreTests: XCTestCase {
             tavilyApiKey: "",
             serperApiKey: ""
         )
+    }
+
+    private func requireReviewCore() throws {
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
+    private func reviewCoreLibraryPath() -> String {
+        URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
     }
 
     private func waitUntil(

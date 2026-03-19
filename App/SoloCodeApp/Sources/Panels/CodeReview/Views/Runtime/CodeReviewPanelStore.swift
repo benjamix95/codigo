@@ -136,6 +136,9 @@ final class CodeReviewPanelStore: ObservableObject {
         } else if !chatMessages.isEmpty {
             self.selectedTab = .chat
         }
+        if let activeChatThreadId, !applyPanelIntent("set_active_chat_thread", value: activeChatThreadId) {
+            self.activeChatThreadId = activeChatThreadId
+        }
 
         let sessionKey = Self.chatSessionKey(conversationId: conversationId)
         self.chatStateCancellable = resolvedChatSessionStore.$conversationsByKey

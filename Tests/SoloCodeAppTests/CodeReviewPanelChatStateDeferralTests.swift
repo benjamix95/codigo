@@ -271,6 +271,28 @@ final class CodeReviewPanelChatStateDeferralTests: XCTestCase {
             "The last deferred conversation state should win."
         )
     }
+
+    func testApplyChatConversationStateReconcilesActiveThreadIntoRuntimeSnapshot() async throws {
+        try requireReviewCore()
+        let store = makePanelStore()
+
+        store.createNewChatThread(title: "Thread 1")
+        await waitUntil("first thread ready") {
+            store.chatThreads.count == 1 && store.activeChatThreadId != nil
+        }
+
+        let secondThread = ReviewPanelChatThreadState(title: "Thread 2")
+        let mirroredConversation = ReviewPanelChatConversationState(
+            threads: store.chatThreads + [secondThread],
+            activeThreadId: secondThread.id
+        )
+
+        store.applyChatConversationState(mirroredConversation)
+
+        XCTAssertEqual(store.activeChatThreadId, secondThread.id)
+        XCTAssertEqual(store.makeRuntimeStateSnapshot().activeChatThreadId, secondThread.id)
+    }
+
     func testTextDeltaAfterFinishDoesNotAppendToFinalizedResponse() async throws {
         try requireReviewCore()
         let store = makePanelStore()

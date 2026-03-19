@@ -61,7 +61,10 @@ extension CodeReviewPanelStore {
     }
     func ensureActiveChatThread() {
         if activeChatThreadId == nil {
-            activeChatThreadId = chatSessionStore.createThread(for: chatSessionKey)
+            let threadId = chatSessionStore.createThread(for: chatSessionKey)
+            if !setActiveChatThread(threadId) {
+                activeChatThreadId = threadId
+            }
         }
     }
     func firstNonEmpty(_ values: [String?]) -> String? {
@@ -80,6 +83,7 @@ extension CodeReviewPanelStore {
             panelSessionId: panelSessionId,
             selectedFindingId: selectedFindingId,
             selectedHistoricalFindingId: selectedHistoricalFindingId,
+            activeChatThreadId: activeChatThreadId,
             isRunning: isRunning,
             runStartedAt: runStartedAt,
             frozenTimerText: frozenTimerText,
@@ -107,6 +111,7 @@ extension CodeReviewPanelStore {
         panelSessionId = state.panelSessionId
         selectedFindingId = state.selectedFindingId
         selectedHistoricalFindingId = state.selectedHistoricalFindingId
+        activeChatThreadId = state.activeChatThreadId
         isRunning = state.isRunning
         runStartedAt = state.runStartedAt
         frozenTimerText = state.frozenTimerText
@@ -174,6 +179,16 @@ extension CodeReviewPanelStore {
         }
         applyRuntimeState(state)
         return true
+    }
+
+    @discardableResult
+    func setActiveChatThread(_ threadId: String?) -> Bool {
+        applyPanelIntent("set_active_chat_thread", value: threadId)
+    }
+
+    @discardableResult
+    func clearActiveChatThread() -> Bool {
+        applyPanelIntent("clear_active_chat_thread")
     }
 
     func applyPanelChatFinish(
@@ -277,6 +292,7 @@ struct ReviewPanelRuntimeStateSnapshot: Codable {
     let panelSessionId: String?
     let selectedFindingId: String?
     let selectedHistoricalFindingId: String?
+    let activeChatThreadId: String?
     let isRunning: Bool
     let runStartedAt: Date?
     let frozenTimerText: String?
