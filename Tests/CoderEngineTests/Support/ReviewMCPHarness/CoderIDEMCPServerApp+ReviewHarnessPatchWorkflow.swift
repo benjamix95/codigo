@@ -1,6 +1,7 @@
 import CoderEngine
 import Foundation
 import MCP
+@testable import CoderIDEMCPServer
 
 extension CoderIDEMCPServerApp {
     static func reviewCommandQueued(
@@ -156,13 +157,6 @@ extension CoderIDEMCPServerApp {
         return reviewOK(details.joined(separator: "\n"))
     }
 
-    static func handleReviewGetOutcome(args: [String: String]) -> CallTool.Result {
-        guard let bridged = rustReviewToolResult(name: "review_get_outcome", args: args) else {
-            return reviewError("Error: Rust review core unavailable for review_get_outcome")
-        }
-        return bridged
-    }
-
     private static func queueFindingScopedReviewCommand(
         action: String,
         args: [String: String]
@@ -202,34 +196,6 @@ extension CoderIDEMCPServerApp {
         case "merge_pr": return "review_merge_pr"
         case "resolve_conflicts": return "review_resolve_conflicts"
         default: return "review_\(action)"
-    }
-    }
-
-    private static func reviewLifecycleErrorMessage(_ error: Error) -> String {
-        guard let lifecycleError = error as? VerifiedFindingsLifecycleCommandError else {
-            return error.localizedDescription
-        }
-        switch lifecycleError {
-        case .missingIdentifiers:
-            return "Error: 'finding_id' and 'session_id' are required"
-        case .sessionNotFound(let sessionId):
-            return "Error: session_id '\(sessionId)' was not found"
-        case .conversationRequired(let sessionId):
-            return "Error: 'conversation_id' is required for session_id '\(sessionId)'"
-        case .conversationMismatch(let sessionId):
-            return "Error: session_id '\(sessionId)' does not belong to the requested conversation"
-        case .findingNotOwned(let findingId, let sessionId):
-            return "Error: finding_id '\(findingId)' does not belong to session_id '\(sessionId)'"
-        case .missingPreparedPatch:
-            return "Error: no prepared patch artifact found. Run review_prepare_patch first."
-        case .patchNotVerified:
-            return "Error: patch artifact is not verified. Run review_prepare_patch or review_verify_patch first."
-        case .findingNotClosable:
-            return "Error: finding cannot be closed until it is merged, dismissed, or validated after apply."
-        case .rustPatchQueueContextUnavailable(let message):
-            return "Error: \(message)"
-        case .rustReviewQueueUnavailable(let message):
-            return "Error: \(message)"
         }
     }
 }

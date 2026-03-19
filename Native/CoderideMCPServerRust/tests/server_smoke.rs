@@ -556,6 +556,15 @@ fn debug_and_skill_tools_work() {
 fn review_security_and_bughunter_tools_work() {
     let home = make_temp_dir("rust-mcp-home");
     let workspace = make_temp_dir("rust-mcp-workspace");
+    Command::new("/usr/bin/git").arg("init").arg("-q").current_dir(&workspace).output().expect("git init");
+    Command::new("/usr/bin/git").args(["config", "user.email", "review-tests@example.com"]).current_dir(&workspace).output().expect("git email");
+    Command::new("/usr/bin/git").args(["config", "user.name", "Review Tests"]).current_dir(&workspace).output().expect("git name");
+    fs::write(workspace.join("README.md"), "# Demo\n").expect("write readme");
+    Command::new("/usr/bin/git").args(["add", "README.md"]).current_dir(&workspace).output().expect("git add");
+    Command::new("/usr/bin/git").args(["commit", "-qm", "initial"]).current_dir(&workspace).output().expect("git commit");
+    fs::create_dir_all(workspace.join("Sources")).expect("mkdir sources");
+    fs::write(workspace.join("Sources").join("Auth.swift"), "func auth() {}\n").expect("write auth");
+
     let shared = home.join("Library").join("Application Support").join("CoderIDE").join("mcp-shared");
     let review_dir = shared.join("code-review").join("sessions");
     let bughunter_dir = shared.join("bughunter").join("runs");
@@ -567,6 +576,8 @@ fn review_security_and_bughunter_tools_work() {
         "phase":"fixing",
         "stage":"fixing",
         "statusSummary":"Review in progress",
+        "workspacePath": workspace.display().to_string(),
+        "scope":{"type":"uncommitted","files":["Sources/Auth.swift"]},
         "findings":[{"id":"security-1","severity":"critical","category":"security","origin":"securityAuditor","filePath":"Sources/Auth.swift","lineNumber":12,"message":"Missing authz check","status":"open"}],
         "candidates":[{"id":"candidate-1","severity":"warning","category":"correctness","origin":"bugHunter","filePath":"Sources/App.swift","lineNumber":7,"message":"Crash path","verificationStatus":"new"}],
         "patches":[{"id":"patch-1","findingId":"security-1","status":"verified","verifyStatus":"verified","validationStatus":"passed","diffPreview":"@@"}],
@@ -589,6 +600,12 @@ fn review_security_and_bughunter_tools_work() {
     write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":71,"method":"tools/call","params":{"name":"coderide_review_findings","arguments":{"session_id":"review-1"}}}));
     let review_findings = read_message(&mut child);
     assert!(review_findings["result"]["content"][0]["text"].as_str().unwrap_or("").contains("redacted-swift-file-"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":71_5,"method":"tools/call","params":{"name":"coderide_review_diff_summary","arguments":{"session_id":"review-1"}}}));
+    let review_diff = read_message(&mut child);
+    let review_diff_text = review_diff["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(review_diff_text.contains("Sources/Auth.swift"));
+    assert!(review_diff_text.contains("+1 / -0"));
 
     write_message(child.stdin.as_mut().expect("stdin"), json!({"jsonrpc":"2.0","id":72,"method":"tools/call","params":{"name":"coderide_review_apply_patch","arguments":{"session_id":"review-1","finding_id":"security-1"}}}));
     let apply_patch = read_message(&mut child);

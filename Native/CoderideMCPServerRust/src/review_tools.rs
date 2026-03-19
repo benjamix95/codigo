@@ -1,6 +1,7 @@
 use crate::shared_review_state as state;
 use app_core_protocol::mcp::CallToolResult;
 use serde_json::Value;
+use solocode_rust_core::review_diff::{render_summary, ReviewDiffSummaryRequest};
 use solocode_rust_core::review_mcp::{
     enqueue_bughunter_command, enqueue_review_command, handle_bughunter_tool,
     handle_review_tool, handle_security_tool,
@@ -28,7 +29,7 @@ fn handle_review(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolRes
         return preview_patch(&raw_args);
     }
     if name == "coderide_review_diff_summary" {
-        return CallToolResult::text("No diff data available");
+        return diff_summary(&raw_args);
     }
     let mut args = raw_args;
     if name == "coderide_review_start" && !args.contains_key("session_id") {
@@ -367,6 +368,104 @@ fn preview_patch(args: &HashMap<String, String>) -> CallToolResult {
         patch.get("diffPreview").and_then(Value::as_str).unwrap_or("").to_string(),
     ];
     CallToolResult::text(lines.join("\n"))
+}
+
+fn diff_summary(args: &HashMap<String, String>) -> CallToolResult {
+    let origin_filter = args.get("origin").cloned().unwrap_or_default().trim().to_string();
+    if !origin_filter.is_empty() {
+        let valid_origins = ["reviewer", "bugHunter", "securityAuditor", "audit_tool"];
+        if !valid_origins.contains(&origin_filter.as_str()) {
+            return CallToolResult::error(format!(
+                "Error: invalid origin '{}'. Use: reviewer, bugHunter, securityAuditor, audit_tool",
+                origin_filter
+            ));
+        }
+    }
+
+    let category_filter = args.get("category").cloned().unwrap_or_default().trim().to_lowercase();
+    if !category_filter.is_empty() {
+        let valid_categories = [
+            "correctness",
+            "regression",
+            "concurrency",
+            "security",
+            "tests",
+            "maintainability",
+            "performance",
+            "other",
+        ];
+        if !valid_categories.contains(&category_filter.as_str()) {
+            return CallToolResult::error(format!(
+                "Error: invalid category '{}'. Use: correctness, regression, concurrency, security, tests, maintainability, performance, other",
+                category_filter
+            ));
+        }
+    }
+
+    let snapshots = state::read_review_snapshots();
+    let Some(snapshot) = resolve_active_review_snapshot(&snapshots, args) else {
+        return CallToolResult::error("Error: unable to load the requested review session");
+    };
+
+    let workspace_path = snapshot
+        .get("workspacePath")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default().to_string_lossy().into_owned());
+
+    let filtered_files = filtered_diff_files(&snapshot, &origin_filter, &category_filter);
+    let file_filter = args
+        .get("file")
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+
+    match render_summary(ReviewDiffSummaryRequest {
+        schema_version: 1,
+        snapshot,
+        workspace_path,
+        file_filter,
+        filtered_files,
+    }) {
+        Ok(summary) => CallToolResult::text(summary),
+        Err(message) => CallToolResult::error(format!("Error: {message}")),
+    }
+}
+
+fn filtered_diff_files(
+    snapshot: &Value,
+    origin_filter: &str,
+    category_filter: &str,
+) -> Option<Vec<String>> {
+    if origin_filter.is_empty() && category_filter.is_empty() {
+        return None;
+    }
+
+    let mut files = snapshot
+        .get("findings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|finding| {
+            let origin_matches = origin_filter.is_empty()
+                || finding.get("origin").and_then(Value::as_str) == Some(origin_filter);
+            let category_matches = category_filter.is_empty()
+                || finding
+                    .get("category")
+                    .and_then(Value::as_str)
+                    .map(|value| value.eq_ignore_ascii_case(category_filter))
+                    .unwrap_or(false);
+            origin_matches && category_matches
+        })
+        .filter_map(|finding| finding.get("filePath").and_then(Value::as_str))
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+
+    files.sort();
+    files.dedup();
+    Some(files)
 }
 
 fn should_enqueue_review_action(name: &str) -> bool {

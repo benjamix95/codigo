@@ -1,6 +1,7 @@
 import CoderEngine
 import Foundation
 import MCP
+@testable import CoderIDEMCPServer
 
 extension CoderIDEMCPServerApp {
     static func resolveReviewConversationId(_ args: [String: String]) -> UUID? {
@@ -73,6 +74,7 @@ extension CoderIDEMCPServerApp {
                 isError: (error == "No active review session." || error == "No review session found.") ? nil : true
             )
         }
+
         let activeSnapshot = resolved.sessionId.flatMap { MCPSharedState.readCodeReviewSnapshot(sessionId: $0) }
         let findingsPayload: [[String: String]]
         if let activeSnapshot, name == "review_findings" {
@@ -91,6 +93,7 @@ extension CoderIDEMCPServerApp {
         } else {
             findingsPayload = []
         }
+
         let statusPayload = activeSnapshot.map { MCPSharedState.readCodeReviewStatus(sessionId: $0.sessionId) }.flatMap { $0 }
         let outcomePayload = activeSnapshot.map { snapshot in
             [
@@ -106,6 +109,7 @@ extension CoderIDEMCPServerApp {
                 "tests_status": snapshot.outcome.testsStatus?.rawValue ?? "unknown",
             ]
         }
+
         guard let result = ReviewMCPRustBridge.handleReviewTool(
             toolName: name,
             args: args,
@@ -115,15 +119,7 @@ extension CoderIDEMCPServerApp {
             reviewStatusPayload: statusPayload,
             reviewOutcomePayload: outcomePayload
         ) else {
-            return fallbackReviewToolResult(
-                name: name,
-                args: args,
-                reviewSnapshots: snapshots,
-                activeReviewSnapshot: activeSnapshot,
-                reviewFindingsPayload: findingsPayload,
-                reviewStatusPayload: statusPayload,
-                reviewOutcomePayload: outcomePayload
-            )
+            return nil
         }
         return CallTool.Result(content: [.text(result.message)], isError: result.isError ? true : nil)
     }
@@ -141,6 +137,7 @@ extension CoderIDEMCPServerApp {
                 return nil
             }
         }
+
         let conversationId = resolveReviewConversationId(args)
         let snapshots = MCPSharedState.readCodeReviewSnapshots(conversationId: conversationId)
         let activeSnapshot = snapshots.first
@@ -156,7 +153,7 @@ extension CoderIDEMCPServerApp {
                 entryPoint: .mcp
             )
         } ?? []
-        let gatePayload = currentSecurityGatePayload(args: args)
+
         let result = ReviewMCPRustBridge.handleSecurityTool(
             toolName: name,
             args: args,
@@ -164,7 +161,7 @@ extension CoderIDEMCPServerApp {
             activeReviewSnapshot: activeSnapshot,
             securityFindingsPayload: securityFindings,
             reviewStatusPayload: activeSnapshot.map { MCPSharedState.readCodeReviewStatus(sessionId: $0.sessionId) }.flatMap { $0 },
-            securityGatePayload: gatePayload
+            securityGatePayload: currentSecurityGatePayload(args: args)
         )
         guard let result else { return nil }
         return CallTool.Result(content: [.text(result.message)], isError: result.isError ? true : nil)
@@ -177,11 +174,10 @@ extension CoderIDEMCPServerApp {
         let conversationId = parseConversationId(args["conversation_id"])
         let snapshots = MCPSharedState.readBugHunterSnapshots(conversationId: conversationId)
         let runId = (args["run_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let activeSnapshot = runId.isEmpty
-            ? snapshots.first
-            : MCPSharedState.readBugHunterSnapshot(runId: runId)
+        let activeSnapshot = runId.isEmpty ? snapshots.first : MCPSharedState.readBugHunterSnapshot(runId: runId)
         let findingsPayload: [[String: String]]
         let clusterPayload: [String: String]?
+
         if let activeSnapshot,
            let reviewSessionId = activeSnapshot.reviewSessionId,
            let reviewSnapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: reviewSessionId) {
@@ -210,6 +206,7 @@ extension CoderIDEMCPServerApp {
             findingsPayload = []
             clusterPayload = nil
         }
+
         guard let result = ReviewMCPRustBridge.handleBugHunterTool(
             toolName: name,
             args: args,
@@ -263,7 +260,6 @@ extension CoderIDEMCPServerApp {
 
 private extension String {
     var nilIfEmpty: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        isEmpty ? nil : self
     }
 }

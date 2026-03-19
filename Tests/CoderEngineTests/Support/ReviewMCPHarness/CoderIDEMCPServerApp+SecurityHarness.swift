@@ -1,8 +1,36 @@
 import CoderEngine
 import Foundation
 import MCP
+@testable import CoderIDEMCPServer
 
 extension CoderIDEMCPServerApp {
+    static func handleSecurityTool(
+        name: String,
+        args: [String: String]
+    ) -> CallTool.Result? {
+        let securityTools: Set<String> = [
+            "security_start", "security_status", "security_findings", "security_verify_finding",
+            "security_prepare_patch", "security_preview_patch", "security_apply_patch",
+            "security_verify_patch", "security_revalidate_finding", "security_rollback_patch",
+            "security_close_finding",
+        ]
+        guard securityTools.contains(name) else { return nil }
+        switch name {
+        case "security_start": return handleSecurityStart(args: args)
+        case "security_status": return handleSecurityStatus(args: args)
+        case "security_findings": return handleSecurityFindings(args: args)
+        case "security_verify_finding": return handleSecurityVerifyFinding(args: args)
+        case "security_prepare_patch": return handleSecurityPreparePatch(args: args)
+        case "security_preview_patch": return handleSecurityPreviewPatch(args: args)
+        case "security_apply_patch": return handleSecurityApplyPatch(args: args)
+        case "security_verify_patch": return handleSecurityVerifyPatch(args: args)
+        case "security_revalidate_finding": return handleSecurityRevalidateFinding(args: args)
+        case "security_rollback_patch": return handleSecurityRollbackPatch(args: args)
+        case "security_close_finding": return handleSecurityCloseFinding(args: args)
+        default: return reviewError("Unknown security tool: \(name)")
+        }
+    }
+
     static func handleSecurityStart(args: [String: String]) -> CallTool.Result {
         guard let bridged = rustSecurityToolResult(name: "security_start", args: args) else {
             return reviewError("Error: Rust review core unavailable for security_start")
@@ -30,29 +58,6 @@ extension CoderIDEMCPServerApp {
             return reviewOK(
                 "OK — code review start queued (session_id=\(request.sessionId), scope=\(request.scope))"
             )
-        } catch let error as VerifiedFindingsStartCommandError {
-            switch error {
-            case .invalidScope(let scope):
-                return reviewError("Error: invalid scope '\(scope)'. Use: uncommitted, staged, against_ref")
-            case .missingRef:
-                return reviewError("Error: 'ref' parameter is required when scope=against_ref")
-            case .invalidRef(let ref):
-                return reviewError("Error: invalid ref '\(ref)'")
-            case .invalidMaxWorkers:
-                return reviewError("Error: max_workers must be 1-12")
-            case .invalidMaxRounds:
-                return reviewError("Error: max_rounds must be 1-10")
-            case .invalidAnalysisOnly:
-                return reviewError("Error: analysis_only must be a boolean value")
-            case .invalidBackend(let field, let value):
-                return reviewError("Error: invalid \(field) '\(value)'")
-            case .invalidSessionId:
-                return reviewError("Error: invalid session_id. Use only letters, numbers, hyphen, or underscore")
-            case .sessionAlreadyExists(let sessionId):
-                return reviewError("Error: session_id '\(sessionId)' already exists")
-            case .sessionAlreadyQueued(let sessionId):
-                return reviewError("Error: session_id '\(sessionId)' already has a queued start command")
-            }
         } catch {
             return reviewError("Error: failed to queue code review start command")
         }
@@ -72,56 +77,23 @@ extension CoderIDEMCPServerApp {
         return bridged
     }
 
-    static func handleSecurityPreparePatch(args: [String: String]) -> CallTool.Result {
-        queueSecurityLifecycleCommand(action: "prepare_patch", args: args)
-    }
-
-    static func handleSecurityVerifyFinding(args: [String: String]) -> CallTool.Result {
-        queueSecurityLifecycleCommand(action: "verify_finding", args: args)
-    }
-
-    static func handleSecurityPreviewPatch(args: [String: String]) -> CallTool.Result {
-        handleReviewPreviewPatch(args: args)
-    }
-
-    static func handleSecurityApplyPatch(args: [String: String]) -> CallTool.Result {
-        queueSecurityLifecycleCommand(action: "apply_patch", args: args)
-    }
-
-    static func handleSecurityVerifyPatch(args: [String: String]) -> CallTool.Result {
-        queueSecurityLifecycleCommand(action: "verify_patch", args: args)
-    }
-
-    static func handleSecurityRevalidateFinding(args: [String: String]) -> CallTool.Result {
-        queueSecurityLifecycleCommand(action: "revalidate_finding", args: args)
-    }
-
-    static func handleSecurityRollbackPatch(args: [String: String]) -> CallTool.Result {
-        queueSecurityLifecycleCommand(action: "rollback_patch", args: args)
-    }
-
-    static func handleSecurityCloseFinding(args: [String: String]) -> CallTool.Result {
-        queueSecurityLifecycleCommand(action: "close_finding", args: args)
-    }
+    static func handleSecurityPreparePatch(args: [String: String]) -> CallTool.Result { queueSecurityLifecycleCommand(action: "prepare_patch", args: args) }
+    static func handleSecurityVerifyFinding(args: [String: String]) -> CallTool.Result { queueSecurityLifecycleCommand(action: "verify_finding", args: args) }
+    static func handleSecurityPreviewPatch(args: [String: String]) -> CallTool.Result { handleReviewPreviewPatch(args: args) }
+    static func handleSecurityApplyPatch(args: [String: String]) -> CallTool.Result { queueSecurityLifecycleCommand(action: "apply_patch", args: args) }
+    static func handleSecurityVerifyPatch(args: [String: String]) -> CallTool.Result { queueSecurityLifecycleCommand(action: "verify_patch", args: args) }
+    static func handleSecurityRevalidateFinding(args: [String: String]) -> CallTool.Result { queueSecurityLifecycleCommand(action: "revalidate_finding", args: args) }
+    static func handleSecurityRollbackPatch(args: [String: String]) -> CallTool.Result { queueSecurityLifecycleCommand(action: "rollback_patch", args: args) }
+    static func handleSecurityCloseFinding(args: [String: String]) -> CallTool.Result { queueSecurityLifecycleCommand(action: "close_finding", args: args) }
 
     private static func currentSecurityGate(
         args: [String: String]
     ) -> VerifiedFindingsSecurityGateReport? {
         let conversationId = resolveReviewConversationId(args)
         let scopedSnapshots = MCPSharedState.readCodeReviewSnapshots(conversationId: conversationId)
-        let snapshots = scopedSnapshots.isEmpty
-            ? MCPSharedState.readCodeReviewSnapshots()
-            : scopedSnapshots
+        let snapshots = scopedSnapshots.isEmpty ? MCPSharedState.readCodeReviewSnapshots() : scopedSnapshots
         guard let snapshot = snapshots.first else { return nil }
         return SecurityWorkflowService.gate(snapshot: snapshot, entryPoint: .mcp)
-    }
-
-    private static func textContent(from result: CallTool.Result) -> String {
-        guard let first = result.content.first else { return "" }
-        if case .text(let text) = first {
-            return text
-        }
-        return ""
     }
 
     private static func queueSecurityLifecycleCommand(

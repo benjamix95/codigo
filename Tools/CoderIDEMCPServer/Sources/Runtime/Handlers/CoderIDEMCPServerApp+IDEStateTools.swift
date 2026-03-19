@@ -15,20 +15,6 @@ extension CoderIDEMCPServerApp {
         "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
         "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
         "plan_history_read", "plan_diff", "plan_request_user_input",
-        // Code review tools
-        "review_start", "review_list_sessions", "review_status", "review_findings",
-        "review_apply_fix", "review_dismiss", "review_configure",
-        "review_diff_summary", "review_comment",
-        "review_verify_finding", "review_prepare_patch", "review_preview_patch",
-        "review_apply_patch", "review_verify_patch", "review_revalidate_finding", "review_rollback_patch", "review_close_finding", "review_open_pr",
-        "review_merge_pr", "review_resolve_conflicts", "review_get_outcome",
-        "security_start", "security_status", "security_findings", "security_verify_finding",
-        "security_prepare_patch", "security_preview_patch", "security_apply_patch",
-        "security_verify_patch", "security_revalidate_finding", "security_rollback_patch", "security_close_finding",
-        "bughunter_start", "bughunter_status", "bughunter_findings",
-        "bughunter_autofix_preview", "bughunter_autofix_apply", "bughunter_autofix_commit",
-        "bughunter_commit_window", "bughunter_install_hook", "bughunter_uninstall_hook",
-        "bughunter_run_history", "bughunter_explain_cluster", "bughunter_cancel_run",
     ]).union(Set(SubagentRole.allToolNames))
 
     /// IDE state tools are pass-through. The MCP server acknowledges the call
@@ -43,16 +29,6 @@ extension CoderIDEMCPServerApp {
         if let planResult = handlePlanIDEStateTool(name: name, args: args) {
             return planResult
         }
-        if let reviewResult = handleCodeReviewTool(name: name, args: args) {
-            return reviewResult
-        }
-        if let securityResult = handleSecurityTool(name: name, args: args) {
-            return securityResult
-        }
-        if let bugHunterResult = handleBugHunterTool(name: name, args: args) {
-            return bugHunterResult
-        }
-
         switch name {
         case "todo_write":
             let todosRaw = (args["todos"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

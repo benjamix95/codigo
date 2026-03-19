@@ -1,69 +1,60 @@
 import CoderEngine
 import Foundation
 import MCP
+@testable import CoderIDEMCPServer
 
 extension CoderIDEMCPServerApp {
-    static func fallbackReviewFindingsText(
-        activeReviewSnapshot: CodeReviewSessionSnapshot?,
-        findingsPayload: [[String: String]]
-    ) -> String {
-        guard activeReviewSnapshot != nil else { return "No active review session." }
-        guard !findingsPayload.isEmpty else { return "No findings match the query." }
-        let lines = findingsPayload.enumerated().map { index, finding in
-            let message = finding["message"] ?? finding["message_summary"] ?? "Redacted finding details"
-            let file = finding["file_path"] ?? finding["file_label"] ?? "redacted-file"
-            let lineSuffix = finding["line_number"].map { ":\($0)" } ?? ""
-            let kind = finding["kind"] ?? "verified"
-            let severity = finding["severity"] ?? "?"
-            let domain = finding["domain"] ?? "bug"
-            let origin = finding["origin"] ?? "reviewer"
-            let category = finding["category"] ?? "unknown"
-            let status = finding["status"] ?? "open"
-            let duplicate = finding["possible_duplicate_of"].map { ", duplicate_of: \($0)" } ?? ""
-            let stale = finding["stale_status"].map { ", stale: \($0)" } ?? ""
-            let identifier = finding["id"] ?? "?"
-            return "[\(index + 1)] [\(kind)] [\(severity)] \(file)\(lineSuffix) — \(message) (domain: \(domain), origin: \(origin), category: \(category), status: \(status)\(duplicate)\(stale), id: \(identifier))"
+    static func handleReviewStart(args: [String: String]) -> CallTool.Result {
+        do {
+            let request = try VerifiedFindingsStartCommandService.makeRequest(
+                args: args,
+                conversationId: resolveReviewConversationId(args)
+            )
+            guard let bridged = rustReviewToolResult(
+                name: "review_start",
+                args: request.payload
+            ) else {
+                return reviewError("Error: Rust review core unavailable for review_start")
+            }
+            if bridged.isError == true {
+                return bridged
+            }
+            guard (try? MCPSharedState.enqueueUniqueCodeReviewStartCommandRustOnly(
+                sessionId: request.sessionId,
+                conversationId: request.conversationId,
+                payload: request.payload
+            )) != nil else {
+                return reviewError("Error: Rust review queue unavailable for review_start")
+            }
+            return reviewOK(
+                "OK — code review start queued (session_id=\(request.sessionId), scope=\(request.scope))"
+            )
+        } catch let error as VerifiedFindingsStartCommandError {
+            switch error {
+            case .invalidScope(let scope):
+                return reviewError("Error: invalid scope '\(scope)'. Use: uncommitted, staged, against_ref")
+            case .missingRef:
+                return reviewError("Error: 'ref' parameter is required when scope=against_ref")
+            case .invalidRef(let ref):
+                return reviewError("Error: invalid ref '\(ref)'")
+            case .invalidMaxWorkers:
+                return reviewError("Error: max_workers must be 1-12")
+            case .invalidMaxRounds:
+                return reviewError("Error: max_rounds must be 1-10")
+            case .invalidAnalysisOnly:
+                return reviewError("Error: analysis_only must be a boolean value")
+            case .invalidBackend(let field, let value):
+                return reviewError("Error: invalid \(field) '\(value)'")
+            case .invalidSessionId:
+                return reviewError("Error: invalid session_id. Use only letters, numbers, hyphen, or underscore")
+            case .sessionAlreadyExists(let sessionId):
+                return reviewError("Error: session_id '\(sessionId)' already exists")
+            case .sessionAlreadyQueued(let sessionId):
+                return reviewError("Error: session_id '\(sessionId)' already has a queued start command")
+            }
+        } catch {
+            return reviewError("Error: failed to queue code review start command")
         }
-        return "Findings (\(findingsPayload.count)):\n" + lines.joined(separator: "\n")
-    }
-
-    static func fallbackValidateReviewFilters(args: [String: String]) -> String? {
-        let severity = sanitizedReviewArg(args, key: "severity").lowercased()
-        if !severity.isEmpty,
-           !["critical", "warning", "suggestion", "info"].contains(severity) {
-            return "Error: invalid severity '\(severity)'. Use: critical, warning, suggestion, info"
-        }
-        let status = sanitizedReviewArg(args, key: "status").lowercased()
-        if !status.isEmpty,
-           ![
-               "open", "fix_applied", "patch_preparing", "patch_ready", "patch_applying",
-               "patch_applied", "patch_failed", "pr_opened", "merged", "blocked",
-               "dismissed", "wont_fix", "new", "verifying", "verified",
-               "rejected_false_positive", "inconclusive",
-           ].contains(status) {
-            return "Error: invalid status '\(status)' for code review items"
-        }
-        let origin = sanitizedReviewArg(args, key: "origin")
-        if !origin.isEmpty,
-           !["reviewer", "bugHunter", "securityAuditor", "audit_tool"].contains(origin) {
-            return "Error: invalid origin '\(origin)'. Use: reviewer, bugHunter, securityAuditor, audit_tool"
-        }
-        let category = sanitizedReviewArg(args, key: "category").lowercased()
-        if !category.isEmpty,
-           ![
-               "correctness", "regression", "concurrency", "security", "tests",
-               "maintainability", "performance", "other",
-           ].contains(category) {
-            return "Error: invalid category '\(category)'. Use: correctness, regression, concurrency, security, tests, maintainability, performance, other"
-        }
-        return nil
-    }
-
-    static func handleReviewFindings(args: [String: String]) -> CallTool.Result {
-        guard let bridged = rustReviewToolResult(name: "review_findings", args: args) else {
-            return reviewError("Error: Rust review core unavailable for review_findings")
-        }
-        return bridged
     }
 
     static func handleReviewApplyFix(args: [String: String]) -> CallTool.Result {
