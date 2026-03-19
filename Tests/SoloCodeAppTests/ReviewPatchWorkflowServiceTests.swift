@@ -240,8 +240,10 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
             XCTFail("Expected rust patch runtime failure")
         } catch {
             XCTAssertEqual(
-                error as? ReviewPatchWorkflowError,
-                .applyFailed("Rust patch runtime required but unavailable")
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .applyFailed("Rust patch runtime required but unavailable")
+                    .localizedDescription
             )
         }
     }
@@ -299,10 +301,131 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
             XCTFail("Expected runtime result bridge failure")
         } catch {
             XCTAssertEqual(
-                error as? ReviewPatchWorkflowError,
-                .applyFailed("Rust patch runtime result bridge unavailable")
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .applyFailed("Rust patch runtime result bridge unavailable")
+                    .localizedDescription
             )
         }
+    }
+
+    func testPrepareVerifiedPatchesRoutesThroughPatchExecutionRuntime() async throws {
+        let expectedPatch = ReviewPatchArtifact(
+            id: "patch-finalization-runtime",
+            findingId: "finding-finalization",
+            patchText: "diff --git a/Authz.swift b/Authz.swift",
+            diffPreview: "@@",
+            touchedFiles: ["Sources/Authz.swift"],
+            status: .verified,
+            verifyStatus: .verified
+        )
+        VerifiedFindingsPatchExecutionService.executeWithProviderHandler = { action, snapshot, findingId, _, _ in
+            XCTAssertEqual(action, "prepare_patch")
+            XCTAssertEqual(findingId, "finding-finalization")
+            let findings = snapshot.findings.map { finding -> CodeReviewFinding in
+                guard finding.id == findingId else { return finding }
+                var updated = finding
+                updated.patchArtifactId = expectedPatch.id
+                updated.status = .patchReady
+                return updated
+            }
+            let updated = snapshot.copying(findings: findings, patches: [expectedPatch])
+            return updated.copying(outcome: updated.buildOutcomeSummary())
+        }
+
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-finalization",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-finalization",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/Authz.swift",
+                    message: "Prepare me",
+                    verificationReport: "verified",
+                    verifiedAt: Date()
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        let updated = try await ReviewPatchRuntimeFinalizationService.prepareVerifiedPatches(
+            snapshot: snapshot,
+            findingIds: ["finding-finalization"],
+            workspaceRoot: "/tmp/repo",
+            executionProvider: NoopPatchExecutionProvider()
+        )
+
+        XCTAssertEqual(updated.patches.map(\.id), [expectedPatch.id])
+        XCTAssertEqual(updated.findings.first?.patchArtifactId, expectedPatch.id)
+        XCTAssertEqual(updated.findings.first?.status, .patchReady)
+    }
+
+    func testPrepareVerifiedPatchesFailsClosedWhenPatchRuntimeIsUnavailable() async {
+        VerifiedFindingsPatchExecutionService.executeWithProviderHandler = { _, _, _, _, _ in
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch runtime required but unavailable"
+            )
+        }
+
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-finalization-fail",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-finalization-fail",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/Authz.swift",
+                    message: "Prepare me",
+                    verificationReport: "verified",
+                    verifiedAt: Date()
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        let updated = try? await ReviewPatchRuntimeFinalizationService.prepareVerifiedPatches(
+            snapshot: snapshot,
+            findingIds: ["finding-finalization-fail"],
+            workspaceRoot: "/tmp/repo",
+            executionProvider: NoopPatchExecutionProvider()
+        )
+
+        XCTAssertEqual(updated?.findings.first?.status, .patchFailed)
+        XCTAssertTrue(
+            updated?.findings.first?.comments.last?.content
+                .contains("Rust patch runtime required but unavailable") == true
+        )
     }
 
     private func requireReviewCore() throws {
@@ -316,6 +439,24 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         }
     }
 
+}
+
+private struct NoopPatchExecutionProvider: LLMProvider {
+    let id = "noop-patch-execution-provider"
+    let displayName = "NoopPatchExecutionProvider"
+    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
+
+    func isAuthenticated() -> Bool { true }
+
+    func send(
+        prompt: String,
+        context: WorkspaceContext,
+        imageURLs: [URL]?
+    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
 }
 
 @MainActor

@@ -50,27 +50,19 @@ enum ReviewPatchRuntimeFinalizationService {
         workspaceRoot: String,
         executionProvider: any LLMProvider
     ) async throws -> CodeReviewSessionSnapshot {
-        let service = ReviewPatchWorkflowService()
         var current = snapshot
 
         for findingId in findingIds {
-            guard let finding = current.findings.first(where: { $0.id == findingId }) else {
+            guard current.findings.contains(where: { $0.id == findingId }) else {
                 continue
             }
             do {
-                let prepared = try await service.preparePatch(
-                    finding: finding,
+                current = try await VerifiedFindingsPatchExecutionService.execute(
+                    action: "prepare_patch",
                     snapshot: current,
-                    executionProvider: executionProvider,
-                    workspaceRoot: workspaceRoot
-                )
-                let verified = try await service.verifyPatch(
-                    artifact: prepared,
-                    workspaceRoot: workspaceRoot
-                )
-                current = VerifiedFindingsService.upsertingPatch(
-                    in: current,
-                    artifact: verified
+                    findingId: findingId,
+                    workspaceRoot: workspaceRoot,
+                    executionProvider: executionProvider
                 )
             } catch {
                 let findings = current.findings.map { item -> CodeReviewFinding in

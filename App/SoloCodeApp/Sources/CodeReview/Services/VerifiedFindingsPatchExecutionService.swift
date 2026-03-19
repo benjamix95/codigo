@@ -4,10 +4,12 @@ import Foundation
 @MainActor
 enum VerifiedFindingsPatchExecutionService {
     typealias ExecuteHandler = @MainActor (String, CodeReviewSessionSnapshot, String, String, String?, ProviderRegistry) async throws -> CodeReviewSessionSnapshot
+    typealias ExecuteWithProviderHandler = @MainActor (String, CodeReviewSessionSnapshot, String, String, any LLMProvider) async throws -> CodeReviewSessionSnapshot
     typealias StartRuntimeHandler = @MainActor (String, String, String, UUID?, CodeReviewSessionSnapshot) -> ReviewPatchRuntimeResponse?
     typealias ApplyRuntimeResultHandler = @MainActor (String, Bool, String?) -> ReviewPatchRuntimeResponse?
 
     static var executeHandler: ExecuteHandler = defaultExecute
+    static var executeWithProviderHandler: ExecuteWithProviderHandler = defaultExecuteWithProvider
     static var startRuntimeHandler: StartRuntimeHandler = defaultStartPatchRuntime
     static var applyRuntimeResultHandler: ApplyRuntimeResultHandler = defaultApplyPatchRuntimeResult
 
@@ -29,8 +31,25 @@ enum VerifiedFindingsPatchExecutionService {
         )
     }
 
+    static func execute(
+        action: String,
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String,
+        workspaceRoot: String,
+        executionProvider: any LLMProvider
+    ) async throws -> CodeReviewSessionSnapshot {
+        try await executeWithProviderHandler(
+            action,
+            snapshot,
+            findingId,
+            workspaceRoot,
+            executionProvider
+        )
+    }
+
     static func resetForTests() {
         executeHandler = defaultExecute
+        executeWithProviderHandler = defaultExecuteWithProvider
         startRuntimeHandler = defaultStartPatchRuntime
         applyRuntimeResultHandler = defaultApplyPatchRuntimeResult
     }
@@ -43,7 +62,46 @@ enum VerifiedFindingsPatchExecutionService {
         preferredProviderId: String?,
         providerRegistry: ProviderRegistry
     ) async throws -> CodeReviewSessionSnapshot {
+        return try await executeWithRuntime(
+            action: action,
+            snapshot: snapshot,
+            findingId: findingId,
+            workspaceRoot: workspaceRoot,
+            executionProvider: nil,
+            preferredProviderId: preferredProviderId,
+            providerRegistry: providerRegistry
+        )
+    }
+
+    private static func defaultExecuteWithProvider(
+        action: String,
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String,
+        workspaceRoot: String,
+        executionProvider: any LLMProvider
+    ) async throws -> CodeReviewSessionSnapshot {
+        try await executeWithRuntime(
+            action: action,
+            snapshot: snapshot,
+            findingId: findingId,
+            workspaceRoot: workspaceRoot,
+            executionProvider: executionProvider,
+            preferredProviderId: nil,
+            providerRegistry: nil
+        )
+    }
+
+    private static func executeWithRuntime(
+        action: String,
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String,
+        workspaceRoot: String,
+        executionProvider: (any LLMProvider)?,
+        preferredProviderId: String?,
+        providerRegistry: ProviderRegistry?
+    ) async throws -> CodeReviewSessionSnapshot {
         let service = ReviewPatchWorkflowService()
+        var resolvedExecutionProvider = executionProvider
         let runtime = startPatchRuntime(
             action: action,
             sessionId: snapshot.sessionId,
@@ -61,89 +119,105 @@ enum VerifiedFindingsPatchExecutionService {
                 runtime.errorMessage ?? "Unable to start patch runtime"
             )
         }
+
         var currentSnapshot = snapshot
         var runtimeId = runtime.runtimeId
         var currentStep = runtime.currentStep
         while let step = currentStep {
             do {
                 switch step {
-            case "prepare_patch":
-                currentSnapshot = try await preparePatch(
-                    snapshot: currentSnapshot,
-                    findingId: findingId,
-                    workspaceRoot: workspaceRoot,
-                    preferredProviderId: preferredProviderId,
-                    providerRegistry: providerRegistry,
-                    service: service
-                )
-            case "verify_patch":
-                guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                    throw ReviewPatchWorkflowError.invalidPatch
+                case "prepare_patch":
+                    if resolvedExecutionProvider == nil {
+                        guard let providerRegistry else {
+                            throw ReviewPatchWorkflowError.providerUnavailable
+                        }
+                        resolvedExecutionProvider = try service.mergeAIService.resolveProvider(
+                            preferredProviderId: preferredProviderId,
+                            providerRegistry: providerRegistry
+                        )
+                    }
+                    currentSnapshot = try await preparePatch(
+                        snapshot: currentSnapshot,
+                        findingId: findingId,
+                        workspaceRoot: workspaceRoot,
+                        executionProvider: resolvedExecutionProvider!,
+                        service: service
+                    )
+                case "verify_patch":
+                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
+                        throw ReviewPatchWorkflowError.invalidPatch
+                    }
+                    let verified = try await service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: verified)
+                case "apply_patch":
+                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
+                        throw ReviewPatchWorkflowError.invalidPatch
+                    }
+                    let applied = try await service.applyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: applied)
+                case "revalidate_finding":
+                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
+                        throw ReviewPatchWorkflowError.invalidPatch
+                    }
+                    let revalidated = try await service.revalidatePatch(artifact: artifact, workspaceRoot: workspaceRoot)
+                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: revalidated)
+                case "rollback_patch":
+                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
+                        throw ReviewPatchWorkflowError.invalidPatch
+                    }
+                    let rolledBack = try await service.rollbackPatch(artifact: artifact, workspaceRoot: workspaceRoot)
+                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: rolledBack)
+                case "open_pr":
+                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }),
+                          let finding = currentSnapshot.findings.first(where: { $0.id == findingId }) else {
+                        throw ReviewPatchWorkflowError.invalidPatch
+                    }
+                    let title = "fix(review): \(finding.filePath.components(separatedBy: "/").last ?? finding.filePath)"
+                    let body = "\(finding.message)\n\n\(finding.verificationReport ?? "Verification unavailable")"
+                    let opened = try service.openPullRequest(
+                        artifact: artifact,
+                        title: title,
+                        body: body,
+                        workspaceRoot: workspaceRoot
+                    )
+                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: opened)
+                case "merge_pr":
+                    guard let providerRegistry else {
+                        throw ReviewPatchWorkflowError.providerUnavailable
+                    }
+                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
+                        throw ReviewPatchWorkflowError.invalidPatch
+                    }
+                    let merged = try await service.mergePullRequest(
+                        artifact: artifact,
+                        preferredProviderId: preferredProviderId,
+                        providerRegistry: providerRegistry,
+                        workspaceRoot: workspaceRoot,
+                        safeOnly: true
+                    )
+                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: merged)
+                case "resolve_conflicts":
+                    guard let providerRegistry else {
+                        throw ReviewPatchWorkflowError.providerUnavailable
+                    }
+                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
+                        throw ReviewPatchWorkflowError.invalidPatch
+                    }
+                    let resolved = try await service.resolveConflicts(
+                        artifact: artifact,
+                        preferredProviderId: preferredProviderId,
+                        providerRegistry: providerRegistry
+                    )
+                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: resolved)
+                case "close_finding":
+                    currentSnapshot = try closeFindingWithRustMutation(
+                        snapshot: currentSnapshot,
+                        findingId: findingId
+                    )
+                default:
+                    break
                 }
-                let verified = try await service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: verified)
-            case "apply_patch":
-                guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                    throw ReviewPatchWorkflowError.invalidPatch
-                }
-                let applied = try await service.applyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: applied)
-            case "revalidate_finding":
-                guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                    throw ReviewPatchWorkflowError.invalidPatch
-                }
-                let revalidated = try await service.revalidatePatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: revalidated)
-            case "rollback_patch":
-                guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                    throw ReviewPatchWorkflowError.invalidPatch
-                }
-                let rolledBack = try await service.rollbackPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: rolledBack)
-            case "open_pr":
-                guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }),
-                      let finding = currentSnapshot.findings.first(where: { $0.id == findingId }) else {
-                    throw ReviewPatchWorkflowError.invalidPatch
-                }
-                let title = "fix(review): \(finding.filePath.components(separatedBy: "/").last ?? finding.filePath)"
-                let body = "\(finding.message)\n\n\(finding.verificationReport ?? "Verification unavailable")"
-                let opened = try service.openPullRequest(
-                    artifact: artifact,
-                    title: title,
-                    body: body,
-                    workspaceRoot: workspaceRoot
-                )
-                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: opened)
-            case "merge_pr":
-                guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                    throw ReviewPatchWorkflowError.invalidPatch
-                }
-                let merged = try await service.mergePullRequest(
-                    artifact: artifact,
-                    preferredProviderId: preferredProviderId,
-                    providerRegistry: providerRegistry,
-                    workspaceRoot: workspaceRoot,
-                    safeOnly: true
-                )
-                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: merged)
-            case "resolve_conflicts":
-                guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                    throw ReviewPatchWorkflowError.invalidPatch
-                }
-                let resolved = try await service.resolveConflicts(
-                    artifact: artifact,
-                    preferredProviderId: preferredProviderId,
-                    providerRegistry: providerRegistry
-                )
-                currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: resolved)
-            case "close_finding":
-                currentSnapshot = try closeFindingWithRustMutation(
-                    snapshot: currentSnapshot,
-                    findingId: findingId
-                )
-            default:
-                break
-            }
+
                 let updated = applyPatchRuntimeResult(
                     runtimeId: runtimeId ?? "",
                     succeeded: true,
@@ -194,8 +268,7 @@ enum VerifiedFindingsPatchExecutionService {
         snapshot: CodeReviewSessionSnapshot,
         findingId: String,
         workspaceRoot: String,
-        preferredProviderId: String?,
-        providerRegistry: ProviderRegistry,
+        executionProvider: any LLMProvider,
         service: ReviewPatchWorkflowService
     ) async throws -> CodeReviewSessionSnapshot {
         guard let finding = snapshot.findings.first(where: { $0.id == findingId }) else {
@@ -204,8 +277,7 @@ enum VerifiedFindingsPatchExecutionService {
         let prepared = try await service.preparePatch(
             finding: finding,
             snapshot: snapshot,
-            preferredProviderId: preferredProviderId,
-            providerRegistry: providerRegistry,
+            executionProvider: executionProvider,
             workspaceRoot: workspaceRoot
         )
         let verified = try await service.verifyPatch(artifact: prepared, workspaceRoot: workspaceRoot)

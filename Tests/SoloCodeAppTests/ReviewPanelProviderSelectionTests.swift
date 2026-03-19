@@ -4,6 +4,22 @@ import CoderEngine
 
 @MainActor
 final class ReviewPanelProviderSelectionTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        ReviewPatchRuntimeFinalizationService.resetForTests()
+    }
+
+    override func tearDownWithError() throws {
+        ReviewPatchRuntimeFinalizationService.resetForTests()
+        ReviewCoreBridge.resetForTests()
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        try super.tearDownWithError()
+    }
+
     func testPanelProviderDefaultsToSelectedAgentProviderAndCanOverride() {
         let registry = ProviderRegistry()
         registry.register(MockReviewPanelProvider(id: "openai-api", displayName: "OpenAI"))
@@ -320,6 +336,7 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
     }
 
     func testPatchFinalizationTargetsUseRustReducer() throws {
+        try requireReviewCore()
         let registry = ProviderRegistry()
         registry.register(MockReviewPanelProvider(id: "openai-api", displayName: "OpenAI"))
         registry.selectedProviderId = "openai-api"
@@ -385,6 +402,17 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
         )
 
         XCTAssertEqual(store.patchFinalizationTargets(for: snapshot), ["finding-open"])
+    }
+
+    private func requireReviewCore() throws {
+        let path = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
     }
 
     private static func makeProviderFactoryConfig() -> ProviderFactoryConfig {
