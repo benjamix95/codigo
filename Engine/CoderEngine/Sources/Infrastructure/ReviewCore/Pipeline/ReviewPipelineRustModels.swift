@@ -36,7 +36,7 @@ struct ReviewPipelineRustApplyRequest: Encodable {
     let callback: ReviewPipelineRustCallbackResult
 }
 
-struct ReviewPipelineRustCallbackResult: Encodable {
+struct ReviewPipelineRustCallbackResult: Codable {
     let kind: String
     let files: [String]
     let findings: [CodeReviewFinding]

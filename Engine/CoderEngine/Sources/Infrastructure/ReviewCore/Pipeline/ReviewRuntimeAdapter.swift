@@ -168,8 +168,6 @@ struct ReviewRuntimeAdapter {
     }
 
     func runTests(sessionId: String) async -> ReviewPipelineRustCallbackResult {
-        let tempState = CodeReviewSessionState(sessionId: sessionId)
-        await tempState.markTestingStarted()
         let result = await CodeReviewMultiSwarmProvider.runTests(
             context: context,
             executionProvider: executionProvider,
@@ -178,30 +176,37 @@ struct ReviewRuntimeAdapter {
             isCancelled: isCancelled,
             waitWhilePaused: waitWhilePaused
         )
+        let request: ReviewRuntimeRustTestsReductionRequest
         switch result {
         case .passed:
-            await tempState.markTestResult(.passed, detail: "Tests passed")
-            return ReviewPipelineRustCallbackResult(
-                kind: "run_tests",
-                events: await tempState.snapshot().events,
-                testStatus: ReviewSessionTestStatus.passed.rawValue
+            request = ReviewRuntimeRustTestsReductionRequest(
+                schemaVersion: 1,
+                result: "passed",
+                detail: "Tests passed"
             )
         case .failed:
-            await tempState.markTestResult(.failed, detail: "Tests failed")
-            return ReviewPipelineRustCallbackResult(
-                kind: "run_tests",
-                events: await tempState.snapshot().events,
-                testStatus: ReviewSessionTestStatus.failed.rawValue
+            request = ReviewRuntimeRustTestsReductionRequest(
+                schemaVersion: 1,
+                result: "failed",
+                detail: "Tests failed"
             )
         case .inconclusive(let reason):
-            await tempState.markTestResult(.inconclusive, detail: reason)
-            return ReviewPipelineRustCallbackResult(
-                kind: "run_tests",
-                events: await tempState.snapshot().events,
-                testStatus: ReviewSessionTestStatus.inconclusive.rawValue,
+            request = ReviewRuntimeRustTestsReductionRequest(
+                schemaVersion: 1,
+                result: "inconclusive",
                 detail: reason
             )
         }
+        guard let response: ReviewRuntimeRustReductionResponse = ReviewCoreBridge.call(
+            functionName: "review_core_runtime_reduce_tests",
+            request: request
+        ), response.error == nil, let callback = response.callback else {
+            return ReviewPipelineRustCallbackResult(
+                kind: "run_tests",
+                error: "Rust review runtime tests reducer unavailable."
+            )
+        }
+        return callback
     }
 
     func scanModifiedFiles() -> ReviewPipelineRustCallbackResult {
@@ -249,13 +254,21 @@ struct ReviewRuntimeAdapter {
                 step.findingIds,
                 workspaceRoot
             )
-            let newEvents = Array(updated.events.dropFirst(current.events.count))
-            return ReviewPipelineRustCallbackResult(
-                kind: "prepare_verified_patches",
-                findings: updated.findings,
-                patches: updated.patches,
-                events: newEvents
+            let request = ReviewRuntimeRustPatchReductionRequest(
+                schemaVersion: 1,
+                currentSnapshot: current,
+                updatedSnapshot: updated
             )
+            guard let response: ReviewRuntimeRustReductionResponse = ReviewCoreBridge.call(
+                functionName: "review_core_runtime_reduce_prepare_verified_patches",
+                request: request
+            ), response.error == nil, let callback = response.callback else {
+                return ReviewPipelineRustCallbackResult(
+                    kind: "prepare_verified_patches",
+                    error: "Rust review runtime patch reducer unavailable."
+                )
+            }
+            return callback
         } catch {
             return ReviewPipelineRustCallbackResult(
                 kind: "prepare_verified_patches",
@@ -295,6 +308,28 @@ struct ReviewRuntimeAdapter {
             }
         }
     }
+}
+
+private struct ReviewRuntimeRustTestsReductionRequest: Encodable {
+    let schemaVersion: Int
+    let result: String
+    let detail: String?
+}
+
+private struct ReviewRuntimeRustPatchReductionRequest: Encodable {
+    let schemaVersion: Int
+    let currentSnapshot: CodeReviewSessionSnapshot
+    let updatedSnapshot: CodeReviewSessionSnapshot
+}
+
+private struct ReviewRuntimeRustReductionResponse: Decodable {
+    let error: ReviewRuntimeRustReductionError?
+    let callback: ReviewPipelineRustCallbackResult?
+}
+
+private struct ReviewRuntimeRustReductionError: Decodable {
+    let code: String
+    let message: String
 }
 
 private extension Array {
