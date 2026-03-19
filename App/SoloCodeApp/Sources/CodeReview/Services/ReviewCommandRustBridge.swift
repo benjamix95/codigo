@@ -176,8 +176,13 @@ extension CodigoApp {
             action: "configure",
             payload: payload
         ),
-              !mutation.isError,
-              let updatedConfig = mutation.config,
+              !mutation.isError else {
+            return nil
+        }
+        if let canonical = mutation.snapshot {
+            return canonical
+        }
+        guard let updatedConfig = mutation.config,
               let events = mutation.events else {
             return nil
         }
@@ -261,6 +266,7 @@ struct ReviewCommandMutationResponse: Decodable {
     let findings: [CodeReviewFinding]?
     let patches: [ReviewPatchArtifact]?
     let events: [CodeReviewSessionEvent]?
+    let snapshot: CodeReviewSessionSnapshot?
 }
 
 struct ReviewDeferredCommandFinalizeResponse: Decodable {

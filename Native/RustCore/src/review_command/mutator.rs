@@ -5,6 +5,7 @@ use super::mutator_support::{
 };
 use super::models::{ReviewCommandMutationRequest, ReviewCommandMutationResponse};
 use serde_json::{json, Value};
+use crate::review_session::build_outcome;
 
 pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMutationResponse {
     let Some(findings) = request.snapshot.get("findings").and_then(Value::as_array) else {
@@ -50,7 +51,36 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
         return error;
     }
 
-    ReviewCommandMutationResponse::success(findings, patches, events, resolved_config)
+    let snapshot = canonicalized_snapshot(
+        request.snapshot,
+        findings.clone(),
+        patches.clone(),
+        events.clone(),
+        resolved_config.clone(),
+        timestamp,
+    );
+    ReviewCommandMutationResponse::success(findings, patches, events, resolved_config, snapshot)
+}
+
+fn canonicalized_snapshot(
+    mut snapshot: Value,
+    findings: Vec<Value>,
+    patches: Vec<Value>,
+    events: Vec<Value>,
+    config: Option<super::models::ReviewCommandConfig>,
+    timestamp: f64,
+) -> Value {
+    snapshot["findings"] = Value::Array(findings);
+    snapshot["patches"] = Value::Array(patches);
+    snapshot["events"] = Value::Array(events);
+    if let Some(config) = config {
+        snapshot["config"] = serde_json::to_value(config).unwrap_or(Value::Null);
+    }
+    snapshot["mutationSequence"] =
+        json!(snapshot.get("mutationSequence").and_then(Value::as_u64).unwrap_or(0) + 1);
+    snapshot["lastUpdatedAt"] = json!(timestamp);
+    snapshot["outcome"] = build_outcome(&snapshot, None);
+    snapshot
 }
 
 fn apply_fix(

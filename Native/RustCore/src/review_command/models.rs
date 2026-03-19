@@ -83,6 +83,7 @@ pub struct ReviewCommandMutationResponse {
     pub findings: Option<Vec<serde_json::Value>>,
     pub patches: Option<Vec<serde_json::Value>>,
     pub events: Option<Vec<serde_json::Value>>,
+    pub snapshot: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -149,6 +150,7 @@ impl ReviewCommandMutationResponse {
             findings: None,
             patches: None,
             events: None,
+            snapshot: None,
         }
     }
 
@@ -157,6 +159,7 @@ impl ReviewCommandMutationResponse {
         patches: Vec<serde_json::Value>,
         events: Vec<serde_json::Value>,
         config: Option<ReviewCommandConfig>,
+        snapshot: serde_json::Value,
     ) -> Self {
         Self {
             schema_version: 1,
@@ -166,6 +169,7 @@ impl ReviewCommandMutationResponse {
             findings: Some(findings),
             patches: Some(patches),
             events: Some(events),
+            snapshot: Some(snapshot),
         }
     }
 }

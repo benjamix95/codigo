@@ -316,11 +316,18 @@ enum VerifiedFindingsPatchExecutionService {
             action: "close_finding",
             payload: ["finding_id": findingId]
         ),
-              !mutation.isError,
-              let findings = mutation.findings,
-              let events = mutation.events else {
+              !mutation.isError else {
             throw ReviewPatchWorkflowError.applyFailed(
                 "Rust patch close finding mutator required but unavailable"
+            )
+        }
+        if let canonical = mutation.snapshot {
+            return canonical
+        }
+        guard let findings = mutation.findings,
+              let events = mutation.events else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch close finding mutator response was incomplete"
             )
         }
         let updatedConfig = mutation.config ?? snapshot.config
@@ -346,12 +353,19 @@ enum VerifiedFindingsPatchExecutionService {
             snapshot,
             artifact: artifact
         ),
-              !mutation.isError,
-              let findings = mutation.findings,
+              !mutation.isError else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch snapshot upsert mutator required but unavailable"
+            )
+        }
+        if let canonical = mutation.snapshot {
+            return canonical
+        }
+        guard let findings = mutation.findings,
               let patches = mutation.patches,
               let events = mutation.events else {
             throw ReviewPatchWorkflowError.applyFailed(
-                "Rust patch snapshot upsert mutator required but unavailable"
+                "Rust patch snapshot upsert mutator response was incomplete"
             )
         }
         let updated = snapshot.copying(

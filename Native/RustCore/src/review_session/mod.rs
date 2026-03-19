@@ -6,6 +6,7 @@ mod new_snapshot;
 
 pub use apply::{apply_action, apply_registry_action};
 pub use derive::derive_view;
+pub(crate) use helpers::build_outcome;
 pub use models::{
     ReviewRegistryActionRequest, ReviewSessionActionRequest, ReviewSessionProjectionResponse,
     ReviewSessionResponse, ReviewSessionSnapshotNewRequest,
