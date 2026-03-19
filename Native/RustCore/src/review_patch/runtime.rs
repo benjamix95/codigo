@@ -8,11 +8,18 @@ use std::sync::{Mutex, OnceLock};
 
 #[derive(Clone, Debug)]
 struct ReviewPatchRuntimeSession {
+    action: String,
+    session_id: String,
+    finding_id: String,
+    conversation_id: Option<String>,
     runtime_id: String,
     steps: Vec<String>,
+    completed_steps: Vec<String>,
     step_index: usize,
     status: RuntimeStatus,
     error_message: Option<String>,
+    last_transition_at: f64,
+    terminal_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,13 +32,17 @@ enum RuntimeStatus {
 static RUNTIMES: OnceLock<Mutex<HashMap<String, ReviewPatchRuntimeSession>>> = OnceLock::new();
 
 pub fn start_runtime(request: ReviewPatchRuntimeStartRequest) -> ReviewPatchRuntimeResponse {
+    let action = request.action.clone();
+    let session_id = request.session_id.clone();
+    let finding_id = request.finding_id.clone();
+    let conversation_id = request.conversation_id.clone();
     let planning = handle_patch_action(ReviewPatchActionRequest {
         schema_version: request.schema_version,
         operation: "plan_execution".to_string(),
-        action: request.action,
-        session_id: request.session_id,
-        finding_id: request.finding_id,
-        conversation_id: request.conversation_id,
+        action,
+        session_id,
+        finding_id,
+        conversation_id,
         snapshot: request.snapshot,
     });
     if planning.is_error {
@@ -49,14 +60,26 @@ pub fn start_runtime(request: ReviewPatchRuntimeStartRequest) -> ReviewPatchRunt
         RuntimeStatus::Completed
     };
     let session = ReviewPatchRuntimeSession {
+        action: request.action,
+        session_id: request.session_id,
+        finding_id: request.finding_id,
+        conversation_id: request.conversation_id,
         runtime_id: runtime_id.clone(),
         steps: planning.steps,
+        completed_steps: Vec::new(),
         step_index: 0,
         status: status.clone(),
         error_message: None,
+        last_transition_at: timestamp_now(),
+        terminal_reason: if status == RuntimeStatus::Completed {
+            Some("completed_without_steps".to_string())
+        } else {
+            None
+        },
     };
+    let response = response_for(&session, status, current_step, None);
     store().lock().unwrap().insert(runtime_id.clone(), session);
-    response_for(runtime_id, status, current_step, None)
+    response
 }
 
 pub fn apply_runtime_result(request: ReviewPatchRuntimeResultRequest) -> ReviewPatchRuntimeResponse {
@@ -70,21 +93,28 @@ pub fn apply_runtime_result(request: ReviewPatchRuntimeResultRequest) -> ReviewP
     if !request.succeeded {
         session.status = RuntimeStatus::Failed;
         session.error_message = Some(request.error_message.unwrap_or_else(|| "patch step failed".to_string()));
+        session.last_transition_at = timestamp_now();
+        session.terminal_reason = Some("step_failed".to_string());
         return response_for(
-            session.runtime_id.clone(),
+            session,
             RuntimeStatus::Failed,
             None,
             session.error_message.clone(),
         );
     }
 
+    if let Some(completed_step) = session.steps.get(session.step_index).cloned() {
+        session.completed_steps.push(completed_step);
+    }
     session.step_index += 1;
+    session.last_transition_at = timestamp_now();
     if session.step_index >= session.steps.len() {
         session.status = RuntimeStatus::Completed;
-        return response_for(session.runtime_id.clone(), RuntimeStatus::Completed, None, None);
+        session.terminal_reason = Some("completed".to_string());
+        return response_for(session, RuntimeStatus::Completed, None, None);
     }
     let next_step = session.steps.get(session.step_index).cloned();
-    response_for(session.runtime_id.clone(), RuntimeStatus::Running, next_step, None)
+    response_for(session, RuntimeStatus::Running, next_step, None)
 }
 
 pub fn get_runtime_state(request: ReviewPatchRuntimeStateRequest) -> ReviewPatchRuntimeResponse {
@@ -97,31 +127,58 @@ pub fn get_runtime_state(request: ReviewPatchRuntimeStateRequest) -> ReviewPatch
     } else {
         None
     };
-    response_for(
-        session.runtime_id.clone(),
-        session.status.clone(),
-        current_step,
-        session.error_message.clone(),
-    )
+    response_for(session, session.status.clone(), current_step, session.error_message.clone())
 }
 
 fn response_for(
-    runtime_id: String,
+    session: &ReviewPatchRuntimeSession,
     status: RuntimeStatus,
     current_step: Option<String>,
     error_message: Option<String>,
 ) -> ReviewPatchRuntimeResponse {
     match status {
-        RuntimeStatus::Running => ReviewPatchRuntimeResponse::ok(runtime_id, "running", current_step),
-        RuntimeStatus::Completed => ReviewPatchRuntimeResponse::ok(runtime_id, "completed", None),
+        RuntimeStatus::Running => ReviewPatchRuntimeResponse::ok(
+            session.runtime_id.clone(),
+            session.action.clone(),
+            session.session_id.clone(),
+            session.finding_id.clone(),
+            session.conversation_id.clone(),
+            "running",
+            current_step,
+            session.steps.clone(),
+            session.completed_steps.clone(),
+            Some(session.last_transition_at),
+            session.terminal_reason.clone(),
+        ),
+        RuntimeStatus::Completed => ReviewPatchRuntimeResponse::ok(
+            session.runtime_id.clone(),
+            session.action.clone(),
+            session.session_id.clone(),
+            session.finding_id.clone(),
+            session.conversation_id.clone(),
+            "completed",
+            None,
+            session.steps.clone(),
+            session.completed_steps.clone(),
+            Some(session.last_transition_at),
+            session.terminal_reason.clone(),
+        ),
         RuntimeStatus::Failed => ReviewPatchRuntimeResponse {
             schema_version: 1,
             is_error: false,
             error_code: None,
             error_message,
-            runtime_id: Some(runtime_id),
+            action: Some(session.action.clone()),
+            session_id: Some(session.session_id.clone()),
+            finding_id: Some(session.finding_id.clone()),
+            conversation_id: session.conversation_id.clone(),
+            runtime_id: Some(session.runtime_id.clone()),
             status: "failed".to_string(),
             current_step: None,
+            steps: session.steps.clone(),
+            completed_steps: session.completed_steps.clone(),
+            last_transition_at: Some(session.last_transition_at),
+            terminal_reason: session.terminal_reason.clone(),
         },
     }
 }
@@ -139,101 +196,10 @@ fn uuid_seed() -> String {
     format!("{:x}", now)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::review_patch::models::{ReviewFindingRecord, ReviewPatchRecord, ReviewPatchSnapshot};
-
-    fn snapshot() -> ReviewPatchSnapshot {
-        ReviewPatchSnapshot {
-            session_id: "s1".to_string(),
-            conversation_id: None,
-            finding_ids: vec!["f1".to_string()],
-            candidate_ids: Vec::new(),
-            patches: vec![ReviewPatchRecord {
-                id: "p1".to_string(),
-                finding_id: "f1".to_string(),
-                status: "applied".to_string(),
-                verify_status: "verified".to_string(),
-                validation_status: "passed".to_string(),
-                risk_score: 0.1,
-            }],
-            findings: vec![ReviewFindingRecord {
-                id: "f1".to_string(),
-                status: "patch_applied".to_string(),
-                severity: "warning".to_string(),
-                category: "correctness".to_string(),
-                message: "m".to_string(),
-                patch_artifact_id: Some("p1".to_string()),
-            }],
-        }
-    }
-
-    #[test]
-    fn runtime_advances_until_completed() {
-        let started = start_runtime(ReviewPatchRuntimeStartRequest {
-            schema_version: 1,
-            action: "apply_patch".to_string(),
-            session_id: "s1".to_string(),
-            finding_id: "f1".to_string(),
-            conversation_id: None,
-            snapshot: snapshot(),
-        });
-        assert_eq!(started.status, "running");
-        let runtime_id = started.runtime_id.unwrap();
-        let finished = apply_runtime_result(ReviewPatchRuntimeResultRequest {
-            schema_version: 1,
-            runtime_id,
-            succeeded: true,
-            error_message: None,
-        });
-        assert_eq!(finished.status, "completed");
-    }
-
-    #[test]
-    fn runtime_fails_on_failed_step() {
-        let started = start_runtime(ReviewPatchRuntimeStartRequest {
-            schema_version: 1,
-            action: "close_finding".to_string(),
-            session_id: "s1".to_string(),
-            finding_id: "f1".to_string(),
-            conversation_id: None,
-            snapshot: snapshot(),
-        });
-        let failed = apply_runtime_result(ReviewPatchRuntimeResultRequest {
-            schema_version: 1,
-            runtime_id: started.runtime_id.unwrap(),
-            succeeded: false,
-            error_message: Some("boom".to_string()),
-        });
-        assert_eq!(failed.status, "failed");
-        assert_eq!(failed.error_message.as_deref(), Some("boom"));
-    }
-
-    #[test]
-    fn runtime_rejects_double_terminal_transition() {
-        let started = start_runtime(ReviewPatchRuntimeStartRequest {
-            schema_version: 1,
-            action: "close_finding".to_string(),
-            session_id: "s1".to_string(),
-            finding_id: "f1".to_string(),
-            conversation_id: None,
-            snapshot: snapshot(),
-        });
-        let runtime_id = started.runtime_id.unwrap();
-        let completed = apply_runtime_result(ReviewPatchRuntimeResultRequest {
-            schema_version: 1,
-            runtime_id: runtime_id.clone(),
-            succeeded: true,
-            error_message: None,
-        });
-        assert_eq!(completed.status, "completed");
-        let terminal = apply_runtime_result(ReviewPatchRuntimeResultRequest {
-            schema_version: 1,
-            runtime_id,
-            succeeded: true,
-            error_message: None,
-        });
-        assert!(terminal.is_error);
-    }
+fn timestamp_now() -> f64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64()
 }

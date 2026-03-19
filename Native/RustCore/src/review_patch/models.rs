@@ -99,9 +99,17 @@ pub struct ReviewPatchRuntimeResponse {
     pub is_error: bool,
     pub error_code: Option<String>,
     pub error_message: Option<String>,
+    pub action: Option<String>,
+    pub session_id: Option<String>,
+    pub finding_id: Option<String>,
+    pub conversation_id: Option<String>,
     pub runtime_id: Option<String>,
     pub status: String,
     pub current_step: Option<String>,
+    pub steps: Vec<String>,
+    pub completed_steps: Vec<String>,
+    pub last_transition_at: Option<f64>,
+    pub terminal_reason: Option<String>,
 }
 
 impl ReviewPatchActionResponse {
@@ -143,15 +151,35 @@ impl ReviewPatchActionResponse {
 }
 
 impl ReviewPatchRuntimeResponse {
-    pub fn ok(runtime_id: String, status: &str, current_step: Option<String>) -> Self {
+    pub fn ok(
+        runtime_id: String,
+        action: String,
+        session_id: String,
+        finding_id: String,
+        conversation_id: Option<String>,
+        status: &str,
+        current_step: Option<String>,
+        steps: Vec<String>,
+        completed_steps: Vec<String>,
+        last_transition_at: Option<f64>,
+        terminal_reason: Option<String>,
+    ) -> Self {
         Self {
             schema_version: 1,
             is_error: false,
             error_code: None,
             error_message: None,
+            action: Some(action),
+            session_id: Some(session_id),
+            finding_id: Some(finding_id),
+            conversation_id,
             runtime_id: Some(runtime_id),
             status: status.to_string(),
             current_step,
+            steps,
+            completed_steps,
+            last_transition_at,
+            terminal_reason,
         }
     }
 
@@ -161,9 +189,17 @@ impl ReviewPatchRuntimeResponse {
             is_error: true,
             error_code: Some(code.to_string()),
             error_message: Some(message.to_string()),
+            action: None,
+            session_id: None,
+            finding_id: None,
+            conversation_id: None,
             runtime_id: None,
             status: "failed".to_string(),
             current_step: None,
+            steps: Vec::new(),
+            completed_steps: Vec::new(),
+            last_transition_at: None,
+            terminal_reason: None,
         }
     }
 }
