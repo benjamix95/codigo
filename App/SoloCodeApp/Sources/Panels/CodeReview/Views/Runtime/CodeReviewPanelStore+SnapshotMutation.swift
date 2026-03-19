@@ -244,9 +244,7 @@ extension CodeReviewPanelStore {
                 payload: payload
             )
         ),
-              !mutation.isError,
-              let findings = mutation.findings,
-              let events = mutation.events else {
+              !mutation.isError else {
             guard action == "dismiss",
                   let findingId = payload["finding_id"],
                   let targetIndex = snapshot.findings.firstIndex(where: { $0.id == findingId }) else { return }
@@ -264,6 +262,12 @@ extension CodeReviewPanelStore {
             taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
             return
         }
+        if let canonical = mutation.snapshot {
+            taskActivityStore.ingestCodeReviewSnapshot(canonical, conversationId: conversationId)
+            return
+        }
+        guard let findings = mutation.findings,
+              let events = mutation.events else { return }
 
         let updated = snapshot.copying(
             findings: findings,
@@ -286,6 +290,7 @@ private struct ReviewPanelCommandMutationResponse: Decodable {
     let message: String?
     let findings: [CodeReviewFinding]?
     let events: [CodeReviewSessionEvent]?
+    let snapshot: CodeReviewSessionSnapshot?
 }
 
 struct ReviewPanelRuntimeStateSnapshot: Codable {
