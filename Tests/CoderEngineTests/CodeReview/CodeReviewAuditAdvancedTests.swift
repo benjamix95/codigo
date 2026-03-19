@@ -52,6 +52,7 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
     }
 
     func testBugNilCrashPathsDoesNotFlagGenericNegationOrInequality() throws {
+        try requireReviewCore()
         let file = tempDir.appendingPathComponent("Logic.swift")
         try """
         if value != nil { print("ok") }
@@ -68,6 +69,7 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
     }
 
     func testBugTestImpactFlagsPublicSymbolsWithoutTests() throws {
+        try requireReviewCore()
         let file = tempDir.appendingPathComponent("API.swift")
         try """
         public struct CheckoutService {
@@ -287,6 +289,21 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
         let result = CodeReviewAuditService.runTool(
             named: ReviewAuditToolName.securityDataflow,
             scopeFiles: ["Service.swift"],
+            workspacePath: tempDir
+        )
+
+        XCTAssertTrue(result.findings.isEmpty)
+        XCTAssertFalse(result.coverageAvailable)
+        XCTAssertTrue(result.summary.contains("Rust audit runtime required but unavailable"))
+    }
+
+    func testRustBackedBugAuditFailsClosedWhenRustRuntimeUnavailable() throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let result = CodeReviewAuditService.runTool(
+            named: ReviewAuditToolName.bugNilCrashPaths,
+            scopeFiles: ["Logic.swift"],
             workspacePath: tempDir
         )
 

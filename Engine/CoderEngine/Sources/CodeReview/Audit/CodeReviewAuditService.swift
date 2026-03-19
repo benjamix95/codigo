@@ -8,6 +8,11 @@ public enum CodeReviewAuditService {
         ReviewAuditToolName.securityDeserialization,
         ReviewAuditToolName.securitySurface,
     ]
+    private static let rustBackedBugTools: Set<String> = [
+        ReviewAuditToolName.bugNilCrashPaths,
+        ReviewAuditToolName.bugTestImpact,
+        ReviewAuditToolName.bugConcurrency,
+    ]
 
     struct ReviewAuditAdapterReport {
         let name: String
@@ -62,7 +67,8 @@ public enum CodeReviewAuditService {
                 summary: explanation,
                 metadata: ["signal_type": "manual", "verification_hint": "explanation_only", "promotion_gate": "none"]
             )
-        case let toolName where rustBackedSecurityTools.contains(toolName):
+        case let toolName where rustBackedSecurityTools.contains(toolName)
+            || rustBackedBugTools.contains(toolName):
             result = requiredRustAuditToolResult(
                 named: toolName,
                 scopeFiles: scopeFiles,
