@@ -226,6 +226,10 @@ extension CoderIDEMCPServerApp {
             return "Error: patch artifact is not verified. Run review_prepare_patch or review_verify_patch first."
         case .findingNotClosable:
             return "Error: finding cannot be closed until it is merged, dismissed, or validated after apply."
+        case .rustPatchQueueContextUnavailable(let message):
+            return "Error: \(message)"
+        case .rustReviewQueueUnavailable(let message):
+            return "Error: \(message)"
         }
     }
 }

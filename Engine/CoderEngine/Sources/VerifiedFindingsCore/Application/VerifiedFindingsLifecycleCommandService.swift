@@ -31,6 +31,8 @@ public enum VerifiedFindingsLifecycleCommandError: Error, Equatable {
     case missingPreparedPatch
     case patchNotVerified
     case findingNotClosable
+    case rustPatchQueueContextUnavailable(String)
+    case rustReviewQueueUnavailable(String)
 }
 
 public enum VerifiedFindingsLifecycleCommandService {
@@ -67,42 +69,18 @@ public enum VerifiedFindingsLifecycleCommandService {
         conversationId: UUID?,
         payload: [String: String]
     ) throws -> VerifiedFindingsQueuedCommandContext {
-        if let bridged = queueFindingCommandWithRust(
-            action: action,
-            sessionId: sessionId,
-            findingId: findingId,
-            conversationId: conversationId,
-            payload: payload
-        ) {
-            return bridged
-        }
         let snapshot = try validatedSnapshot(
             sessionId: sessionId,
             findingId: findingId,
             conversationId: conversationId
         )
-        try validateFallbackCommandReadiness(
+        return try queueFindingCommandWithRust(
             action: action,
-            snapshot: snapshot,
-            findingId: findingId
-        )
-        let command = MCPSharedState.enqueueCodeReviewCommand(
-            action: action,
-            sessionId: sessionId,
-            conversationId: conversationId,
-            payload: payload
-        )
-        let finding = snapshot.findings.first(where: { $0.id == findingId })
-        return VerifiedFindingsQueuedCommandContext(
-            commandId: command.id,
             sessionId: sessionId,
             findingId: findingId,
-            patchId: nil,
-            patchVerifyStatus: nil,
-            patchRiskScore: nil,
-            findingSeverity: finding?.severity.rawValue,
-            findingCategory: finding?.category.rawValue,
-            findingMessage: finding?.message
+            conversationId: conversationId,
+            snapshot: snapshot,
+            payload: payload
         )
     }
 
@@ -112,42 +90,18 @@ public enum VerifiedFindingsLifecycleCommandService {
         conversationId: UUID?,
         payload: [String: String]
     ) throws -> VerifiedFindingsQueuedCommandContext {
-        if let bridged = queueApplyPatchCommandWithRust(
-            sessionId: sessionId,
-            findingId: findingId,
-            conversationId: conversationId,
-            payload: payload
-        ) {
-            return bridged
-        }
         let snapshot = try validatedSnapshot(
             sessionId: sessionId,
             findingId: findingId,
-            conversationId: conversationId
+            conversationId: conversationId,
         )
-        guard let patch = snapshot.patches.first(where: { $0.findingId == findingId }) else {
-            throw VerifiedFindingsLifecycleCommandError.missingPreparedPatch
-        }
-        guard patch.verifyStatus == .verified else {
-            throw VerifiedFindingsLifecycleCommandError.patchNotVerified
-        }
-        let command = MCPSharedState.enqueueCodeReviewCommand(
+        return try queueFindingCommandWithRust(
             action: "apply_patch",
             sessionId: sessionId,
-            conversationId: conversationId,
-            payload: payload
-        )
-        let finding = snapshot.findings.first(where: { $0.id == findingId })
-        return VerifiedFindingsQueuedCommandContext(
-            commandId: command.id,
-            sessionId: sessionId,
             findingId: findingId,
-            patchId: patch.id,
-            patchVerifyStatus: patch.verifyStatus.rawValue,
-            patchRiskScore: patch.riskScore,
-            findingSeverity: finding?.severity.rawValue,
-            findingCategory: finding?.category.rawValue,
-            findingMessage: finding?.message
+            conversationId: conversationId,
+            snapshot: snapshot,
+            payload: payload
         )
     }
 
@@ -182,29 +136,26 @@ public enum VerifiedFindingsLifecycleCommandService {
         sessionId: String,
         findingId: String,
         conversationId: UUID?,
+        snapshot: CodeReviewSessionSnapshot,
         payload: [String: String]
-    ) -> VerifiedFindingsQueuedCommandContext? {
-        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
-            return nil
-        }
-        guard let response = queuePatchContextWithRust(
+    ) throws -> VerifiedFindingsQueuedCommandContext {
+        let response = try queuePatchContextWithRust(
             action: action,
             sessionId: sessionId,
             findingId: findingId,
             conversationId: conversationId,
             snapshot: snapshot
-        ) else {
-            return nil
-        }
-        if response.isError {
-            return nil
-        }
-        let command = MCPSharedState.enqueueCodeReviewCommand(
+        )
+        guard let command = MCPSharedState.enqueueCodeReviewCommandRustOnly(
             action: action,
             sessionId: sessionId,
             conversationId: conversationId,
             payload: payload
-        )
+        ) else {
+            throw VerifiedFindingsLifecycleCommandError.rustReviewQueueUnavailable(
+                "Rust review queue unavailable for \(action)"
+            )
+        }
         return VerifiedFindingsQueuedCommandContext(
             commandId: command.id,
             sessionId: sessionId,
@@ -218,29 +169,14 @@ public enum VerifiedFindingsLifecycleCommandService {
         )
     }
 
-    private static func queueApplyPatchCommandWithRust(
-        sessionId: String,
-        findingId: String,
-        conversationId: UUID?,
-        payload: [String: String]
-    ) -> VerifiedFindingsQueuedCommandContext? {
-        queueFindingCommandWithRust(
-            action: "apply_patch",
-            sessionId: sessionId,
-            findingId: findingId,
-            conversationId: conversationId,
-            payload: payload
-        )
-    }
-
     private static func queuePatchContextWithRust(
         action: String,
         sessionId: String,
         findingId: String,
         conversationId: UUID?,
         snapshot: CodeReviewSessionSnapshot
-    ) -> ReviewPatchRustResponse? {
-        ReviewCoreBridge.call(
+    ) throws -> ReviewPatchRustResponse {
+        guard let response: ReviewPatchRustResponse = ReviewCoreBridge.call(
             functionName: "review_core_patch_workflow",
             request: ReviewPatchRustRequest(
                 schemaVersion: 1,
@@ -251,34 +187,36 @@ public enum VerifiedFindingsLifecycleCommandService {
                 conversationId: conversationId?.uuidString.lowercased(),
                 snapshot: ReviewPatchRustSnapshot(snapshot: snapshot)
             )
-        )
-    }
-
-    private static func validateFallbackCommandReadiness(
-        action: String,
-        snapshot: CodeReviewSessionSnapshot,
-        findingId: String
-    ) throws {
-        guard action == "close_finding" else { return }
-        guard let finding = snapshot.findings.first(where: { $0.id == findingId }) else {
-            throw VerifiedFindingsLifecycleCommandError.findingNotOwned(findingId, snapshot.sessionId)
+        ) else {
+            throw VerifiedFindingsLifecycleCommandError.rustPatchQueueContextUnavailable(
+                "Rust patch queue context runtime required but unavailable"
+            )
         }
-        let patch = finding.patchArtifactId.flatMap { patchId in
-            snapshot.patches.first(where: { $0.id == patchId })
-        } ?? snapshot.patches.first(where: { $0.findingId == findingId })
-
-        let canClose: Bool
-        switch finding.status {
-        case .merged, .dismissed, .wontFix, .closed:
-            canClose = true
-        case .patchApplied, .fixApplied:
-            canClose = patch?.validationStatus == .passed
-        default:
-            canClose = false
+        guard !response.isError else {
+            switch response.errorCode {
+            case "missing_identifiers":
+                throw VerifiedFindingsLifecycleCommandError.missingIdentifiers
+            case "session_not_found":
+                throw VerifiedFindingsLifecycleCommandError.sessionNotFound(sessionId)
+            case "conversation_required":
+                throw VerifiedFindingsLifecycleCommandError.conversationRequired(sessionId)
+            case "conversation_mismatch":
+                throw VerifiedFindingsLifecycleCommandError.conversationMismatch(sessionId)
+            case "finding_not_owned":
+                throw VerifiedFindingsLifecycleCommandError.findingNotOwned(findingId, sessionId)
+            case "missing_prepared_patch":
+                throw VerifiedFindingsLifecycleCommandError.missingPreparedPatch
+            case "patch_not_verified":
+                throw VerifiedFindingsLifecycleCommandError.patchNotVerified
+            case "finding_not_closable":
+                throw VerifiedFindingsLifecycleCommandError.findingNotClosable
+            default:
+                throw VerifiedFindingsLifecycleCommandError.rustPatchQueueContextUnavailable(
+                    response.errorMessage ?? "Rust patch queue context failed for \(action)"
+                )
+            }
         }
-        guard canClose else {
-            throw VerifiedFindingsLifecycleCommandError.findingNotClosable
-        }
+        return response
     }
 }
 

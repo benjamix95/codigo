@@ -138,6 +138,7 @@ final class VerifiedFindingsStartCommandServiceTests: XCTestCase {
     }
 
     func testLifecycleQueueCloseFindingRejectsOpenFinding() throws {
+        try requireReviewCore()
         let snapshot = CodeReviewSessionSnapshot(
             sessionId: "review-session-open",
             conversationId: nil,
@@ -188,6 +189,7 @@ final class VerifiedFindingsStartCommandServiceTests: XCTestCase {
     }
 
     func testLifecycleQueueCloseFindingAcceptsMergedFinding() throws {
+        try requireReviewCore()
         let snapshot = CodeReviewSessionSnapshot(
             sessionId: "review-session-merged",
             conversationId: nil,
@@ -232,5 +234,88 @@ final class VerifiedFindingsStartCommandServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(queued.findingId, "f-merged")
+    }
+
+    private func requireReviewCore() throws {
+        let path = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+}
+
+final class VerifiedFindingsLifecycleCommandFailClosedTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
+    func testLifecycleQueueCloseFindingFailsClosedWhenRustPatchContextUnavailable() {
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "review-session-fail-closed",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "f-merged",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Merged finding",
+                    status: .merged
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        XCTAssertThrowsError(
+            try VerifiedFindingsLifecycleCommandService.queueFindingCommand(
+                action: "close_finding",
+                sessionId: "review-session-fail-closed",
+                findingId: "f-merged",
+                conversationId: nil,
+                payload: [
+                    "session_id": "review-session-fail-closed",
+                    "finding_id": "f-merged",
+                    "reason": "fixed_verified",
+                ]
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? VerifiedFindingsLifecycleCommandError,
+                .rustPatchQueueContextUnavailable(
+                    "Rust patch queue context runtime required but unavailable"
+                )
+            )
+        }
     }
 }
