@@ -11,7 +11,9 @@ REVIEW_CUTOVER_PREFIXES=(
   "App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview"
   "Engine/CoderEngine/Sources/CodeReview"
   "Engine/CoderEngine/Sources/VerifiedFindingsCore"
-  "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview"
+  "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/ReviewBootstrap"
+  "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/Security"
+  "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/BugHunter"
 )
 ALLOWLIST_PATH="Config/validation/rust-cutover-swift-allowlist.txt"
 
