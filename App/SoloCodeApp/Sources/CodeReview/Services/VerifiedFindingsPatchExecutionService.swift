@@ -4,8 +4,12 @@ import Foundation
 @MainActor
 enum VerifiedFindingsPatchExecutionService {
     typealias ExecuteHandler = @MainActor (String, CodeReviewSessionSnapshot, String, String, String?, ProviderRegistry) async throws -> CodeReviewSessionSnapshot
+    typealias StartRuntimeHandler = @MainActor (String, String, String, UUID?, CodeReviewSessionSnapshot) -> ReviewPatchRuntimeResponse?
+    typealias ApplyRuntimeResultHandler = @MainActor (String, Bool, String?) -> ReviewPatchRuntimeResponse?
 
     static var executeHandler: ExecuteHandler = defaultExecute
+    static var startRuntimeHandler: StartRuntimeHandler = defaultStartPatchRuntime
+    static var applyRuntimeResultHandler: ApplyRuntimeResultHandler = defaultApplyPatchRuntimeResult
 
     static func execute(
         action: String,
@@ -27,7 +31,10 @@ enum VerifiedFindingsPatchExecutionService {
 
     static func resetForTests() {
         executeHandler = defaultExecute
+        startRuntimeHandler = defaultStartPatchRuntime
+        applyRuntimeResultHandler = defaultApplyPatchRuntimeResult
     }
+
     private static func defaultExecute(
         action: String,
         snapshot: CodeReviewSessionSnapshot,
@@ -45,13 +52,9 @@ enum VerifiedFindingsPatchExecutionService {
             snapshot: snapshot
         )
         guard let runtime else {
-            if action == "close_finding" {
-                return try VerifiedFindingsService.closeFinding(
-                    snapshot: snapshot,
-                    findingId: findingId
-                )
-            }
-            throw ReviewPatchWorkflowError.invalidPatch
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch runtime required but unavailable"
+            )
         }
         if runtime.isError {
             throw ReviewPatchWorkflowError.applyFailed(
@@ -134,7 +137,7 @@ enum VerifiedFindingsPatchExecutionService {
                 )
                 currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: resolved)
             case "close_finding":
-                currentSnapshot = try VerifiedFindingsService.closeFinding(
+                currentSnapshot = try closeFindingWithRustMutation(
                     snapshot: currentSnapshot,
                     findingId: findingId
                 )
@@ -146,16 +149,41 @@ enum VerifiedFindingsPatchExecutionService {
                     succeeded: true,
                     errorMessage: nil
                 )
-                runtimeId = updated?.runtimeId ?? runtimeId
-                currentStep = updated?.currentStep
+                guard let updated else {
+                    throw ReviewPatchWorkflowError.applyFailed(
+                        "Rust patch runtime result bridge unavailable"
+                    )
+                }
+                if updated.isError {
+                    throw ReviewPatchWorkflowError.applyFailed(
+                        updated.errorMessage ?? "Unable to advance patch runtime"
+                    )
+                }
+                if updated.status == "failed" {
+                    throw ReviewPatchWorkflowError.applyFailed(
+                        updated.errorMessage ?? "Patch runtime failed"
+                    )
+                }
+                runtimeId = updated.runtimeId ?? runtimeId
+                currentStep = updated.status == "completed" ? nil : updated.currentStep
             } catch {
                 let failed = applyPatchRuntimeResult(
                     runtimeId: runtimeId ?? "",
                     succeeded: false,
                     errorMessage: error.localizedDescription
                 )
+                guard let failed else {
+                    throw ReviewPatchWorkflowError.applyFailed(
+                        "Rust patch runtime result bridge unavailable"
+                    )
+                }
+                if failed.isError {
+                    throw ReviewPatchWorkflowError.applyFailed(
+                        failed.errorMessage ?? "Unable to advance patch runtime"
+                    )
+                }
                 throw ReviewPatchWorkflowError.applyFailed(
-                    failed?.errorMessage ?? error.localizedDescription
+                    failed.errorMessage ?? error.localizedDescription
                 )
             }
         }
@@ -184,7 +212,48 @@ enum VerifiedFindingsPatchExecutionService {
         return VerifiedFindingsService.upsertingPatch(in: snapshot, artifact: verified)
     }
 
+    private static func closeFindingWithRustMutation(
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String
+    ) throws -> CodeReviewSessionSnapshot {
+        guard let mutation = ReviewCommandRustBridge.mutateSnapshot(
+            snapshot,
+            action: "close_finding",
+            payload: ["finding_id": findingId]
+        ),
+              !mutation.isError,
+              let findings = mutation.findings,
+              let events = mutation.events else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch close finding mutator required but unavailable"
+            )
+        }
+        let updatedConfig = mutation.config ?? snapshot.config
+        let updated = snapshot.copying(
+            findings: findings,
+            events: events,
+            config: updatedConfig,
+            outcome: snapshot.copying(
+                findings: findings,
+                events: events,
+                config: updatedConfig
+            ).buildOutcomeSummary(),
+            lastUpdatedAt: Date()
+        )
+        return updated
+    }
+
     private static func startPatchRuntime(
+        action: String,
+        sessionId: String,
+        findingId: String,
+        conversationId: UUID?,
+        snapshot: CodeReviewSessionSnapshot
+    ) -> ReviewPatchRuntimeResponse? {
+        startRuntimeHandler(action, sessionId, findingId, conversationId, snapshot)
+    }
+
+    private static func defaultStartPatchRuntime(
         action: String,
         sessionId: String,
         findingId: String,
@@ -204,6 +273,14 @@ enum VerifiedFindingsPatchExecutionService {
         )
     }
     private static func applyPatchRuntimeResult(
+        runtimeId: String,
+        succeeded: Bool,
+        errorMessage: String?
+    ) -> ReviewPatchRuntimeResponse? {
+        applyRuntimeResultHandler(runtimeId, succeeded, errorMessage)
+    }
+
+    private static func defaultApplyPatchRuntimeResult(
         runtimeId: String,
         succeeded: Bool,
         errorMessage: String?

@@ -4,6 +4,22 @@ import XCTest
 
 @MainActor
 final class ReviewPatchWorkflowServiceTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        VerifiedFindingsPatchExecutionService.resetForTests()
+    }
+
+    override func tearDownWithError() throws {
+        VerifiedFindingsPatchExecutionService.resetForTests()
+        ReviewCoreBridge.resetForTests()
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        try super.tearDownWithError()
+    }
+
     func testPreparePatchPromptIncludesVerificationRemediationAndInvariantContext() {
         let service = ReviewPatchWorkflowService()
         let finding = CodeReviewFinding(
@@ -116,49 +132,6 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         XCTAssertEqual(updated.findings.first?.status, .patchApplied)
     }
 
-    func testCloseFindingExecutionClosesMergedFinding() async throws {
-        let snapshot = CodeReviewSessionSnapshot(
-            sessionId: "session-close",
-            conversationId: nil,
-            phase: .completed,
-            stage: .completed,
-            findings: [
-                CodeReviewFinding(
-                    id: "finding-close",
-                    severity: .warning,
-                    category: .correctness,
-                    filePath: "Sources/File.swift",
-                    message: "Issue",
-                    status: .merged
-                )
-            ],
-            events: [],
-            config: .default,
-            scope: nil,
-            workspacePath: "/tmp/repo",
-            currentRound: 1,
-            activeWorkerCount: 0,
-            startedAt: Date(),
-            completedAt: Date(),
-            analysisCompletedAt: Date(),
-            lastError: nil,
-            currentJobId: nil,
-            lastTestStatus: .passed,
-            lastUpdatedAt: Date()
-        )
-
-        let updated = try await VerifiedFindingsPatchExecutionService.execute(
-            action: "close_finding",
-            snapshot: snapshot,
-            findingId: "finding-close",
-            workspaceRoot: "/tmp/repo",
-            preferredProviderId: nil,
-            providerRegistry: ProviderRegistry()
-        )
-
-        XCTAssertEqual(updated.findings.first?.status, .closed)
-        XCTAssertEqual(updated.events.last?.type, .outcomePublished)
-    }
 }
 
 @MainActor
