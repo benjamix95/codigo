@@ -200,17 +200,12 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
     }
 
     private func requireReviewCore() throws {
-        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
         ReviewCoreBridge.resetForTests()
         guard ReviewCoreBridge.loadedState().loaded else {
             throw XCTSkip("Rust review core non disponibile in ambiente.")
         }
     }
-
-    private func reviewCoreLibraryPath() -> String {
-        URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib").path
-    }
-
 }
 
 private final class PanelLifecycleMockProvider: LLMProvider, @unchecked Sendable {

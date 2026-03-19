@@ -5,3 +5,5 @@ binding_adapter|App/SoloCodeApp/Sources/**/View+*.swift|View compatibility helpe
 binding_adapter|App/SoloCodeApp/Sources/**/Views/**/*.swift|Nested view helpers remain UI-only.
 apple_bootstrap|App/SoloCodeApp/Sources/App/AppDelegate*.swift|Apple app lifecycle bootstrap remains in Swift.
 apple_bootstrap|App/SoloCodeApp/Sources/App/Content/**|Window composition and AppKit shell remain in Swift.
+binding_adapter|Tests/SoloCodeAppTests/ReviewCoreLibraryPathSupport.swift|App-side test support for resolving the Rust review core dylib path.
+binding_adapter|Tests/SoloCodeAppTests/ReviewPanelGitContextTests.swift|App-side regression coverage for the Rust-backed review panel Git context.

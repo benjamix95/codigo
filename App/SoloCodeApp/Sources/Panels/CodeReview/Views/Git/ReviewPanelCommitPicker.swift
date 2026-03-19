@@ -10,18 +10,7 @@ struct ReviewPanelCommitPicker: View {
         VStack(alignment: .leading, spacing: 8) {
             header
 
-            if store.isLoadingGit {
-                HStack {
-                    Spacer()
-                    ProgressView().controlSize(.small)
-                    Spacer()
-                }
-                .padding(.vertical, 12)
-            } else if store.gitCommitLog.isEmpty {
-                emptyState
-            } else {
-                commitList
-            }
+            contentState
 
             if showsReviewButton && !store.selectedCommits.isEmpty {
                 reviewButton
@@ -36,6 +25,37 @@ struct ReviewPanelCommitPicker: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
         )
+    }
+
+    @ViewBuilder
+    private var contentState: some View {
+        switch store.gitContextStatus {
+        case .loading:
+            HStack {
+                Spacer()
+                ProgressView().controlSize(.small)
+                Spacer()
+            }
+            .padding(.vertical, 12)
+        case .notRepository(let message):
+            stateMessage(
+                title: "Workspace non Git",
+                detail: message,
+                showsRetry: false
+            )
+        case .failed(let message):
+            stateMessage(
+                title: "Impossibile caricare il contesto Git del panel review",
+                detail: message,
+                showsRetry: true
+            )
+        case .idle, .loaded:
+            if store.gitCommitLog.isEmpty {
+                emptyState
+            } else {
+                commitList
+            }
+        }
     }
 
     // MARK: - Header
@@ -176,10 +196,36 @@ struct ReviewPanelCommitPicker: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        Text("No commits found")
+        Text("Nessun commit disponibile")
             .font(.system(size: 10))
             .foregroundStyle(.quaternary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
+    }
+
+    private func stateMessage(
+        title: String,
+        detail: String,
+        showsRetry: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.primary)
+            Text(detail)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if showsRetry {
+                Button("Riprova") {
+                    Task { await store.refreshGitContext() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(store.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
     }
 }

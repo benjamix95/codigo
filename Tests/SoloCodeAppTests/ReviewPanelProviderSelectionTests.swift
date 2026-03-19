@@ -405,10 +405,7 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
     }
 
     private func requireReviewCore() throws {
-        let path = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
-            .path
-        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
         ReviewCoreBridge.resetForTests()
         guard ReviewCoreBridge.loadedState().loaded else {
             throw XCTSkip("Rust review core non disponibile in ambiente.")

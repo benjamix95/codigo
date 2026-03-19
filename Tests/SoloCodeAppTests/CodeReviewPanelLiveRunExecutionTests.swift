@@ -73,7 +73,7 @@ final class CodeReviewPanelLiveRunExecutionTests: XCTestCase {
         XCTAssertNotNil(store.frozenTimerText)
     }
 
-    func testFailPanelRunSetsErrorAndSelection() throws {
+    func testFailPanelRunKeepsChatSelectionAndSetsError() throws {
         try requireReviewCore()
         let store = makeStore(conversationId: nil)
         store.selectedTab = .chat
@@ -83,7 +83,7 @@ final class CodeReviewPanelLiveRunExecutionTests: XCTestCase {
         store.failPanelRun(error: "boom", selectTab: .findings)
 
         XCTAssertFalse(store.isRunning)
-        XCTAssertEqual(store.selectedTab, .findings)
+        XCTAssertEqual(store.selectedTab, .chat)
         XCTAssertEqual(store.lastError, "boom")
         XCTAssertNotNil(store.frozenTimerText)
     }
@@ -136,15 +136,11 @@ final class CodeReviewPanelLiveRunExecutionTests: XCTestCase {
     }
 
     private func requireReviewCore() throws {
-        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
         ReviewCoreBridge.resetForTests()
         guard ReviewCoreBridge.loadedState().loaded else {
             throw XCTSkip("Rust review core non disponibile in ambiente.")
         }
-    }
-
-    private func reviewCoreLibraryPath() -> String {
-        URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib").path
     }
 }
 
