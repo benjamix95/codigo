@@ -16,6 +16,9 @@ xcodebuild \
 
 APP_PATH="$DERIVED_DATA/Build/Products/Release/$APP_NAME"
 CONFIGURATION=Release \
+SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR="$APP_PATH/Contents/MacOS/solocode_rust" \
+  "$REPO_ROOT/scripts/build_rust_search_backend.sh"
+CONFIGURATION=Release \
 SOLOCODE_MCP_SERVER_BUNDLE_DIR="$APP_PATH/Contents/MacOS" \
   "$REPO_ROOT/scripts/build_rust_mcp_server.sh"
 CONFIGURATION=Release \

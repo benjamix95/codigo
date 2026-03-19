@@ -89,6 +89,19 @@ def add_test_bootstrap_pre_action(scheme, build_target)
   scheme.test_action.add_pre_action(action)
 end
 
+def add_rust_review_core_phase(target)
+  phase = target.new_shell_script_build_phase('Build Rust Review Core')
+  phase.shell_path = '/bin/sh'
+  phase.shell_script = <<~SH
+    if [ -n "$SRCROOT" ] && [ -f "$SRCROOT/scripts/build_rust_search_backend.sh" ]; then
+      CONFIGURATION="${CONFIGURATION}" \
+      SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR="${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Contents/MacOS/solocode_rust" \
+        "$SRCROOT/scripts/build_rust_search_backend.sh"
+    fi
+  SH
+  phase.show_env_vars_in_log = '0'
+end
+
 FileUtils.rm_rf(PROJECT_PATH)
 FileUtils.rm_rf(WORKSPACE_PATH)
 FileUtils.mkdir_p(File.dirname(TESTPLAN_PATH))
@@ -183,6 +196,7 @@ engine_tests_target.frameworks_build_phase.add_file_reference(helper_framework_t
 
 add_embed_frameworks_phase(project, app_target, [engine_target, helper_framework_target])
 add_embed_frameworks_phase(project, engine_tests_target, [engine_target, helper_framework_target])
+add_rust_review_core_phase(app_target)
 
 embed_helper = app_target.new_copy_files_build_phase('Embed Helper')
 embed_helper.dst_subfolder_spec = Xcodeproj::Constants::COPY_FILES_BUILD_PHASE_DESTINATIONS[:executables]

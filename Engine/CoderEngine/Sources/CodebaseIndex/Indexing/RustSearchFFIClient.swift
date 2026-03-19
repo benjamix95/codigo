@@ -141,30 +141,25 @@ final class RustSearchFFIClient: @unchecked Sendable {
 
     private static func candidateLibraryPaths() -> [String] {
         var candidates: [String] = []
-        let explicitReviewCore = ProcessInfo.processInfo.environment["SOLOCODE_REVIEW_CORE_LIBRARY_PATH"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let explicitReviewCore, !explicitReviewCore.isEmpty {
-            candidates.append(explicitReviewCore)
+        for key in ["SOLOCODE_REVIEW_CORE_LIBRARY_PATH", "SOLOCODE_RUST_SEARCH_LIBRARY_PATH"] {
+            guard let path = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else { continue }
+            candidates.append(path)
         }
-        let explicit = ProcessInfo.processInfo.environment["SOLOCODE_RUST_SEARCH_LIBRARY_PATH"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let explicit, !explicit.isEmpty {
-            candidates.append(explicit)
+        let cwd = FileManager.default.currentDirectoryPath
+        candidates.append("\(cwd)/Native/target/debug/libsolocode_rust_core.dylib")
+        candidates.append("\(cwd)/Native/RustCore/build/lib/libsolocode_rust_core.dylib")
+        if let executableDir = Bundle.main.executableURL?.deletingLastPathComponent() {
+            candidates.append(executableDir.appendingPathComponent("solocode_rust/libsolocode_rust_core.dylib").path)
         }
-
-        let targetDebug = "\(FileManager.default.currentDirectoryPath)/Native/target/debug/libsolocode_rust_core.dylib"
-        candidates.append(targetDebug)
-
-        let repoRelative = "\(FileManager.default.currentDirectoryPath)/Native/RustCore/build/lib/libsolocode_rust_core.dylib"
-        candidates.append(repoRelative)
-
+        for relativePath in ["Contents/MacOS/solocode_rust/libsolocode_rust_core.dylib", "Contents/Resources/solocode_rust/libsolocode_rust_core.dylib"] {
+            candidates.append(Bundle.main.bundleURL.appendingPathComponent(relativePath).path)
+        }
         var cursor = Bundle.main.bundleURL
         for _ in 0..<4 {
             cursor.deleteLastPathComponent()
             candidates.append(cursor.appendingPathComponent("solocode_rust/libsolocode_rust_core.dylib").path)
             candidates.append(cursor.appendingPathComponent("libsolocode_rust_core.dylib").path)
         }
-
         return Array(NSOrderedSet(array: candidates)) as? [String] ?? candidates
     }
 

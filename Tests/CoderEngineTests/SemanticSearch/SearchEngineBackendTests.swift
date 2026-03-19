@@ -11,7 +11,13 @@ final class SearchEngineBackendTests: XCTestCase {
 
     func testSemanticIndexAcceptsRustBackendFlagAndKeepsSearchParity() async {
         setenv("SOLOCODE_SEMANTIC_SEARCH_BACKEND", "rust", 1)
-        defer { unsetenv("SOLOCODE_SEMANTIC_SEARCH_BACKEND") }
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_SEMANTIC_SEARCH_BACKEND")
+            unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+            ReviewCoreBridge.resetForTests()
+        }
 
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("search-backend-\(UUID().uuidString)", isDirectory: true)
@@ -92,6 +98,12 @@ final class SearchEngineBackendTests: XCTestCase {
     }
 
     func testRustSearchFFIClientReturnsVersionWhenLibraryIsAvailable() throws {
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+            ReviewCoreBridge.resetForTests()
+        }
         guard let version = RustSearchFFIClient.shared.loadedVersion() else {
             throw XCTSkip("Rust library non disponibile in questa sessione")
         }
@@ -129,11 +141,18 @@ private extension CodebaseIndex {
 
 private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
     let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
-    return sourceURL
+    let repoRoot = sourceURL
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
+    let targetDebug = repoRoot
+        .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+        .path
+    if FileManager.default.fileExists(atPath: targetDebug) {
+        return targetDebug
+    }
+    return repoRoot
         .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
         .path
 }

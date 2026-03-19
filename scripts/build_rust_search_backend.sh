@@ -13,6 +13,7 @@ fi
 
 OUT_DIR="${SOLOCODE_RUST_MANUAL_OUT_DIR:-$CRATE_DIR/build/lib}"
 PRODUCTS_OUT="${BUILT_PRODUCTS_DIR:-}/solocode_rust"
+BUNDLE_OUT="${SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR:-}"
 LIB_NAME="libsolocode_rust_core"
 DYLIB_EXT="dylib"
 
@@ -28,6 +29,7 @@ fi
 
 mkdir -p "$OUT_DIR"
 [[ -n "${BUILT_PRODUCTS_DIR:-}" ]] && mkdir -p "$PRODUCTS_OUT"
+[[ -n "$BUNDLE_OUT" ]] && mkdir -p "$BUNDLE_OUT"
 
 BUILD_ARGS=(build --manifest-path "$CRATE_DIR/Cargo.toml")
 if [[ "$TARGET_PROFILE" == "release" ]]; then
@@ -48,6 +50,9 @@ for ext in "$DYLIB_EXT" a; do
       cp "$SRC" "$OUT_DIR/"
       if [[ -n "${BUILT_PRODUCTS_DIR:-}" ]]; then
         cp "$SRC" "$PRODUCTS_OUT/"
+      fi
+      if [[ -n "$BUNDLE_OUT" && "$ext" == "$DYLIB_EXT" ]]; then
+        cp "$SRC" "$BUNDLE_OUT/"
       fi
       break
     fi
