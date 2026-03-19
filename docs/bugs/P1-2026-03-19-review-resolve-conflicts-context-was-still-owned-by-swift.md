@@ -6,14 +6,14 @@
 - Sintomo:
   - guard locale su `worktreePath`, `branchName`, `baseBranchName`
   - commit message costruito in Swift come `chore(review): sync <branch> with <base>`
-- Impatto: il patch workflow manteneva ancora logica di dominio app-side nel passo `resolve_conflicts`, invece di delegare al core Rust il contesto esecutivo prima dell’I/O Git.
+- Impatto: il patch workflow manteneva ancora logica di dominio app-side nel passo `resolve_conflicts`, invece di delegare al core Rust il contesto esecutivo prima dell'I/O Git.
 - Gravita': alta, perche' tocca un path fragile di orchestration tra worktree, merge no-commit e AI conflict resolution.
 - Steps to reproduce:
   1. Aprire [ReviewPatchWorkflowService+Merge.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchWorkflowService+Merge.swift).
   2. Cercare `func resolveConflicts(...)`.
   3. Verificare che validazione del contesto e commit message siano ancora locali in Swift.
 - Risultato attuale: il contesto `resolve_conflicts` non e' ancora canonicale in Rust.
-- Risultato atteso: Swift deve solo eseguire l’I/O Git/AI dopo aver ricevuto dal core Rust un contesto valido e completo.
+- Risultato atteso: Swift deve solo eseguire l'I/O Git/AI dopo aver ricevuto dal core Rust un contesto valido e completo.
 - Causa probabile: il porting review aveva gia' migrato `resolveConflictsResult`, ma non il blocco precedente che decide se il merge context e' valido e come nominare il commit finale.
 - Scope consentito:
   - [ReviewPatchWorkflowService+Merge.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchWorkflowService+Merge.swift)
