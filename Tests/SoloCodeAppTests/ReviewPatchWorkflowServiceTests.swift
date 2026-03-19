@@ -862,6 +862,26 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         }
     }
 
+    func testOpenPRContextUsesRustContextBuilder() throws {
+        try requireReviewCore()
+        let finding = CodeReviewFinding(
+            id: "finding-open-pr",
+            severity: .warning,
+            category: .correctness,
+            filePath: "Sources/Authz.swift",
+            message: "Prepare me",
+            verificationReport: "verified",
+            verifiedAt: Date()
+        )
+
+        let context = try VerifiedFindingsPatchExecutionService.openPullRequestContext(
+            finding: finding
+        )
+
+        XCTAssertEqual(context.title, "fix(review): Authz.swift")
+        XCTAssertEqual(context.body, "Prepare me\n\nverified")
+    }
+
     func testPrepareVerifiedPatchesRoutesThroughPatchExecutionRuntime() async throws {
         let expectedPatch = ReviewPatchArtifact(
             id: "patch-finalization-runtime",
@@ -929,7 +949,8 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         XCTAssertEqual(updated.findings.first?.status, .patchReady)
     }
 
-    func testPrepareVerifiedPatchesFailsClosedWhenPatchRuntimeIsUnavailable() async {
+    func testPrepareVerifiedPatchesFailsClosedWhenPatchRuntimeIsUnavailable() async throws {
+        try requireReviewCore()
         VerifiedFindingsPatchExecutionService.executeWithProviderHandler = { _, _, _, _, _ in
             throw ReviewPatchWorkflowError.applyFailed(
                 "Rust patch runtime required but unavailable"
@@ -982,7 +1003,12 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
     }
 
     private func requireReviewCore() throws {
-        let path = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceURL = URL(fileURLWithPath: #filePath)
+        let repoRoot = sourceURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let path = repoRoot
             .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
             .path
         setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)

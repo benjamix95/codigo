@@ -2,6 +2,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchOpenPrContextRequest {
+    pub schema_version: i32,
+    pub file_path: String,
+    pub message: String,
+    pub verification_report: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchOpenPrResultRequest {
     pub schema_version: i32,
     pub patch_id: String,
@@ -26,6 +35,16 @@ pub struct ReviewPatchMergeResultRequest {
 pub struct ReviewPatchResolveConflictsResultRequest {
     pub schema_version: i32,
     pub patch_id: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchOpenPrContextResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub title: Option<String>,
+    pub body: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -63,6 +82,28 @@ pub struct ReviewPatchResolveConflictsResultResponse {
     pub status: Option<String>,
     pub merge_status: Option<String>,
     pub conflicts: Option<Vec<String>>,
+}
+
+impl ReviewPatchOpenPrContextResponse {
+    pub fn success(title: String, body: String) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            title: Some(title),
+            body: Some(body),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            title: None,
+            body: None,
+        }
+    }
 }
 
 impl ReviewPatchOpenPrResultResponse {
