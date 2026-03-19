@@ -20,7 +20,13 @@ extension CoderIDEMCPServerApp {
                 args: args,
                 conversationId: resolveReviewConversationId(args)
             )
-            _ = try VerifiedFindingsStartCommandService.enqueueReviewStart(request: request)
+            guard (try? MCPSharedState.enqueueUniqueCodeReviewStartCommandRustOnly(
+                sessionId: request.sessionId,
+                conversationId: request.conversationId,
+                payload: request.payload
+            )) != nil else {
+                return reviewError("Error: Rust review queue unavailable for security_start")
+            }
             return reviewOK(
                 "OK — code review start queued (session_id=\(request.sessionId), scope=\(request.scope))"
             )
@@ -132,12 +138,14 @@ extension CoderIDEMCPServerApp {
             guard !findingId.isEmpty, !sessionId.isEmpty else {
                 return reviewError("Error: 'finding_id' and 'session_id' are required")
             }
-            _ = MCPSharedState.enqueueCodeReviewCommand(
+            guard MCPSharedState.enqueueCodeReviewCommandRustOnly(
                 action: action,
                 sessionId: sessionId,
                 conversationId: resolveReviewConversationId(args),
                 payload: args
-            )
+            ) != nil else {
+                return reviewError("Error: Rust review queue unavailable for \(toolName)")
+            }
             return bridged
         }
         return reviewError("Error: Rust review core unavailable for \(toolName)")

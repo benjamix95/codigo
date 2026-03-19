@@ -149,7 +149,7 @@ extension CodeReviewHandlerTests {
         XCTAssertTrue(textContent(result).contains("redacted-swift-file-"))
     }
 
-    func testReviewRevalidateFindingFallsBackWhenRustCoreIsForcedOff() {
+    func testReviewRevalidateFindingFailsClosedWhenRustCoreIsForcedOff() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()
         defer {
@@ -175,8 +175,8 @@ extension CodeReviewHandlerTests {
             args: reviewSessionArgs(snapshot, extras: ["finding_id": "f123"])
         )
 
-        XCTAssertNil(result?.isError)
-        XCTAssertTrue(textContent(result).contains("queued"))
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("Rust review core unavailable for review_revalidate_finding"))
     }
 
     func testReviewFindingsOmitsSensitiveDetailsFromOutput() {
@@ -215,5 +215,84 @@ extension CodeReviewHandlerTests {
         XCTAssertNil(result?.isError)
         let text = textContent(result)
         XCTAssertTrue(text.contains("No review session found.") || text.contains("No active review session."))
+    }
+}
+
+final class CodeReviewHandlerFailClosedTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
+    func testReviewRevalidateFindingFailsClosedWhenRustCoreIsForcedOff() {
+        let patch = ReviewPatchArtifact(
+            id: "patch-fallback-1",
+            findingId: "f123",
+            patchText: "diff --git a/Package.swift b/Package.swift",
+            diffPreview: "@@",
+            touchedFiles: ["Package.swift"],
+            status: .applied,
+            verifyStatus: .verified,
+            validationStatus: .passed
+        )
+        let conversationId = UUID()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "review-session-fail-closed",
+            conversationId: conversationId,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "f123",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Package.swift",
+                    lineNumber: 17,
+                    message: "Test finding"
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        ).copying(patches: [patch])
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_revalidate_finding",
+            args: [
+                "session_id": snapshot.sessionId,
+                "conversation_id": conversationId.uuidString.lowercased(),
+                "finding_id": "f123",
+            ]
+        )
+
+        XCTAssertEqual(result?.isError, true)
+        let text: String
+        if let first = result?.content.first, case .text(let value) = first {
+            text = value
+        } else {
+            text = ""
+        }
+        XCTAssertTrue(text.contains("Rust review core unavailable for review_revalidate_finding"))
     }
 }

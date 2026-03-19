@@ -170,7 +170,22 @@ extension CoderIDEMCPServerApp {
                 args: args,
                 conversationId: resolveReviewConversationId(args)
             )
-            _ = try VerifiedFindingsStartCommandService.enqueueReviewStart(request: request)
+            guard let bridged = rustReviewToolResult(
+                name: "review_start",
+                args: request.payload
+            ) else {
+                return reviewError("Error: Rust review core unavailable for review_start")
+            }
+            if bridged.isError == true {
+                return bridged
+            }
+            guard (try? MCPSharedState.enqueueUniqueCodeReviewStartCommandRustOnly(
+                sessionId: request.sessionId,
+                conversationId: request.conversationId,
+                payload: request.payload
+            )) != nil else {
+                return reviewError("Error: Rust review queue unavailable for review_start")
+            }
             return reviewOK(
                 "OK — code review start queued (session_id=\(request.sessionId), scope=\(request.scope))"
             )

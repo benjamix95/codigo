@@ -40,6 +40,26 @@ extension SecurityHandlerTests {
         XCTAssertTrue(text.contains("security_gate_summary:"))
     }
 
+    func testSecurityStartFailsClosedWhenRustCoreIsForcedOff() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        let snapshot = makeSecurityGateReadySnapshot()
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let result = CoderIDEMCPServerApp.handleSecurityTool(
+            name: "security_start",
+            args: ["scope": "uncommitted"]
+        )
+
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("Rust review core unavailable for security_start"))
+    }
+
     private func makeSecurityGateReadySnapshot() -> CodeReviewSessionSnapshot {
         let now = Date(timeIntervalSince1970: 1_700_000_500)
         let finding = VerifiedFinding(
@@ -215,5 +235,70 @@ extension SecurityHandlerTests {
             verifiedFindings: envelope,
             lastUpdatedAt: now
         )
+    }
+}
+
+final class SecurityHandlerFailClosedTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
+    func testSecurityStartFailsClosedWhenRustCoreIsForcedOff() {
+        let now = Date(timeIntervalSince1970: 1_700_000_500)
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "security-gate-session",
+            conversationId: UUID(),
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "bug-gate-1",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Sources/App.swift",
+                    message: "Crash fixed",
+                    status: .merged
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: now,
+            completedAt: now,
+            analysisCompletedAt: now,
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: now
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let result = CoderIDEMCPServerApp.handleSecurityTool(
+            name: "security_start",
+            args: ["scope": "uncommitted"]
+        )
+
+        XCTAssertEqual(result?.isError, true)
+        let text: String
+        if let first = result?.content.first, case .text(let value) = first {
+            text = value
+        } else {
+            text = ""
+        }
+        XCTAssertTrue(text.contains("Rust review core unavailable for security_start"))
     }
 }

@@ -8,12 +8,14 @@ extension CoderIDEMCPServerApp {
         sessionId: String?,
         args: [String: String]
     ) -> CallTool.Result {
-        let command = MCPSharedState.enqueueCodeReviewCommand(
+        guard let command = MCPSharedState.enqueueCodeReviewCommandRustOnly(
             action: action,
             sessionId: sessionId,
             conversationId: resolveReviewConversationId(args),
             payload: args
-        )
+        ) else {
+            return reviewError("Error: Rust review queue unavailable for review_\(action)")
+        }
         var parts = ["OK — review command queued", "action=\(action)", "command_id=\(command.id)"]
         if let sessionId, !sessionId.isEmpty {
             parts.append("session_id=\(sessionId)")
@@ -79,34 +81,17 @@ extension CoderIDEMCPServerApp {
             guard !findingId.isEmpty, !sessionId.isEmpty else {
                 return reviewError("Error: 'finding_id' and 'session_id' are required")
             }
-            _ = MCPSharedState.enqueueCodeReviewCommand(
+            guard MCPSharedState.enqueueCodeReviewCommandRustOnly(
                 action: "apply_patch",
                 sessionId: sessionId,
                 conversationId: resolveReviewConversationId(args),
                 payload: args
-            )
+            ) != nil else {
+                return reviewError("Error: Rust review queue unavailable for review_apply_patch")
+            }
             return bridged
         }
-        let findingId = sanitizedReviewArg(args, key: "finding_id")
-        let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
-        guard !findingId.isEmpty, !sessionId.isEmpty else {
-            return reviewError("Error: 'finding_id' and 'session_id' are required")
-        }
-        if let ownershipError = validateFindingOwnership(
-            sessionId: sessionId,
-            findingId: findingId,
-            args: args
-        ) {
-            return reviewError(ownershipError)
-        }
-        guard let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId),
-              let patch = snapshot.patches.first(where: { $0.findingId == findingId }) else {
-            return reviewError("Error: no prepared patch artifact found. Run review_prepare_patch first.")
-        }
-        guard patch.verifyStatus == .verified else {
-            return reviewError("Error: patch artifact is not verified. Run review_prepare_patch or review_verify_patch first.")
-        }
-        return reviewCommandQueued(action: "apply_patch", sessionId: sessionId, args: args)
+        return reviewError("Error: Rust review core unavailable for review_apply_patch")
     }
 
     static func handleReviewVerifyPatch(args: [String: String]) -> CallTool.Result {
@@ -192,27 +177,17 @@ extension CoderIDEMCPServerApp {
             guard !findingId.isEmpty, !sessionId.isEmpty else {
                 return reviewError("Error: 'finding_id' and 'session_id' are required")
             }
-            _ = MCPSharedState.enqueueCodeReviewCommand(
+            guard MCPSharedState.enqueueCodeReviewCommandRustOnly(
                 action: action,
                 sessionId: sessionId,
                 conversationId: resolveReviewConversationId(args),
                 payload: args
-            )
+            ) != nil else {
+                return reviewError("Error: Rust review queue unavailable for \(toolName)")
+            }
             return bridged
         }
-        let findingId = sanitizedReviewArg(args, key: "finding_id")
-        let sessionId = sanitizedReviewArg(args, key: args["session_id"] != nil ? "session_id" : "sessionId")
-        guard !findingId.isEmpty, !sessionId.isEmpty else {
-            return reviewError("Error: 'finding_id' and 'session_id' are required")
-        }
-        if let ownershipError = validateFindingOwnership(
-            sessionId: sessionId,
-            findingId: findingId,
-            args: args
-        ) {
-            return reviewError(ownershipError)
-        }
-        return reviewCommandQueued(action: action, sessionId: sessionId, args: args)
+        return reviewError("Error: Rust review core unavailable for \(toolName)")
     }
 
     private static func reviewToolName(for action: String) -> String {

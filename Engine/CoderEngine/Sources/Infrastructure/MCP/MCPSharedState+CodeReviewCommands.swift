@@ -67,6 +67,29 @@ extension MCPSharedState {
         }
     }
 
+    public static func enqueueCodeReviewCommandRustOnly(
+        action: String,
+        sessionId: String?,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) -> MCPSharedCodeReviewCommand? {
+        withCodeReviewFileLock {
+            let commands = _readCodeReviewCommandsUnsafe()
+            guard let result = rustEnqueueCodeReviewCommand(
+                operation: "enqueue",
+                action: action,
+                sessionId: sessionId,
+                conversationId: conversationId,
+                payload: payload,
+                commands: commands
+            ), let command = result.command else {
+                return nil
+            }
+            _writeCodeReviewCommandsUnsafe(result.commands)
+            return command
+        }
+    }
+
     public static func enqueueUniqueCodeReviewStartCommand(
         sessionId: String,
         conversationId: UUID?,
@@ -125,6 +148,39 @@ extension MCPSharedState {
                 commands.append(newCommand)
                 _writeCodeReviewCommandsUnsafe(commands)
                 return .success(newCommand)
+            }
+
+        return try result.get()
+    }
+
+    public static func enqueueUniqueCodeReviewStartCommandRustOnly(
+        sessionId: String,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) throws -> MCPSharedCodeReviewCommand {
+        let normalizedSessionId = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedSessionId.isEmpty else {
+            throw CodeReviewStartEnqueueError.sessionAlreadyQueued
+        }
+
+        let result: Result<MCPSharedCodeReviewCommand, CodeReviewStartEnqueueError> =
+            withCodeReviewFileLock {
+                let commands = _readCodeReviewCommandsUnsafe()
+                guard let rust = rustEnqueueCodeReviewCommand(
+                    operation: "enqueue_unique_review_start",
+                    action: "start",
+                    sessionId: normalizedSessionId,
+                    conversationId: conversationId,
+                    payload: payload,
+                    commands: commands
+                ) else {
+                    return .failure(.sessionAlreadyQueued)
+                }
+                guard let command = rust.command else {
+                    return .failure(.sessionAlreadyQueued)
+                }
+                _writeCodeReviewCommandsUnsafe(rust.commands)
+                return .success(command)
             }
 
         return try result.get()

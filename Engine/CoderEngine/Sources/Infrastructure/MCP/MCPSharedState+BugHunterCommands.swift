@@ -42,6 +42,29 @@ extension MCPSharedState {
         }
     }
 
+    public static func enqueueBugHunterCommandRustOnly(
+        action: String,
+        runId: String,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) -> MCPSharedBugHunterCommand? {
+        withBugHunterFileLock {
+            ensureBugHunterDirectories()
+            let commands = readBugHunterCommandsUnsafe()
+            guard let rust = rustEnqueueBugHunterCommand(
+                action: action,
+                runId: runId,
+                conversationId: conversationId,
+                payload: payload,
+                commands: commands
+            ), let command = rust.command else {
+                return nil
+            }
+            writeBugHunterCommandsUnsafe(rust.commands)
+            return command
+        }
+    }
+
     public static func claimPendingBugHunterCommands() -> [MCPSharedBugHunterCommand] {
         withBugHunterFileLock {
             var commands = readBugHunterCommandsUnsafe()
