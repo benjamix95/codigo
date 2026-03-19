@@ -2,6 +2,20 @@ import XCTest
 @testable import CoderEngine
 
 final class ReviewSessionRegistryTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDownWithError() throws {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        try super.tearDownWithError()
+    }
+
     func testLatestSnapshotPrefersNewestTimestampAcrossSessions() async {
         let registry = ReviewSessionRegistry()
         let conversationId = UUID()
@@ -47,7 +61,8 @@ final class ReviewSessionRegistryTests: XCTestCase {
         XCTAssertTrue(snapshots.isEmpty)
     }
 
-    func testDismissFindingUsesRustMutationForLiveSession() async {
+    func testDismissFindingUsesRustMutationForLiveSession() async throws {
+        try requireReviewCore()
         let registry = ReviewSessionRegistry()
         let state = CodeReviewSessionState(sessionId: "session-live-dismiss")
         await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
@@ -74,7 +89,8 @@ final class ReviewSessionRegistryTests: XCTestCase {
         XCTAssertEqual(snapshot?.events.last?.type, .findingDismissed)
     }
 
-    func testAddCommentUsesRustMutationForLiveSession() async {
+    func testAddCommentUsesRustMutationForLiveSession() async throws {
+        try requireReviewCore()
         let registry = ReviewSessionRegistry()
         let state = CodeReviewSessionState(sessionId: "session-live-comment")
         await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
@@ -101,7 +117,130 @@ final class ReviewSessionRegistryTests: XCTestCase {
         XCTAssertEqual(snapshot?.events.last?.type, .findingCommented)
     }
 
-    func testUpdateConfigUsesRustMutationForLiveSession() async {
+    func testApplyFixUsesRustMutationForLiveSession() async throws {
+        try requireReviewCore()
+        let registry = ReviewSessionRegistry()
+        let state = CodeReviewSessionState(sessionId: "session-live-apply-fix")
+        await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
+        await state.addFinding(
+            CodeReviewFinding(
+                id: "finding-1",
+                severity: .warning,
+                category: .correctness,
+                filePath: "File.swift",
+                message: "Apply fix"
+            )
+        )
+        await registry.register(state)
+
+        let didApplyFix = await registry.applyFix(
+            sessionId: "session-live-apply-fix",
+            findingId: "finding-1"
+        )
+
+        XCTAssertTrue(didApplyFix)
+        let snapshot = await registry.snapshot(sessionId: "session-live-apply-fix")
+        XCTAssertEqual(snapshot?.findings.first?.status, .fixApplied)
+        XCTAssertEqual(snapshot?.events.last?.type, .findingFixApplied)
+    }
+
+    func testDismissFindingFailsWhenRustMutationRuntimeIsDisabled() async {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let registry = ReviewSessionRegistry()
+        let state = CodeReviewSessionState(sessionId: "session-live-dismiss-disabled")
+        await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
+        await state.addFinding(
+            CodeReviewFinding(
+                id: "finding-1",
+                severity: .warning,
+                category: .correctness,
+                filePath: "File.swift",
+                message: "Dismiss me"
+            )
+        )
+        await registry.register(state)
+        let baseline = await registry.snapshot(sessionId: "session-live-dismiss-disabled")
+
+        let didDismiss = await registry.dismissFinding(
+            sessionId: "session-live-dismiss-disabled",
+            findingId: "finding-1",
+            reason: "wont_fix"
+        )
+
+        XCTAssertFalse(didDismiss)
+        let snapshot = await registry.snapshot(sessionId: "session-live-dismiss-disabled")
+        XCTAssertEqual(snapshot?.findings.first?.status, .open)
+        XCTAssertEqual(snapshot?.events.count, baseline?.events.count)
+        XCTAssertEqual(snapshot?.events.last?.type, baseline?.events.last?.type)
+    }
+
+    func testAddCommentFailsWhenRustMutationRuntimeIsDisabled() async {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let registry = ReviewSessionRegistry()
+        let state = CodeReviewSessionState(sessionId: "session-live-comment-disabled")
+        await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
+        await state.addFinding(
+            CodeReviewFinding(
+                id: "finding-1",
+                severity: .warning,
+                category: .correctness,
+                filePath: "File.swift",
+                message: "Comment me"
+            )
+        )
+        await registry.register(state)
+        let baseline = await registry.snapshot(sessionId: "session-live-comment-disabled")
+
+        let didComment = await registry.addComment(
+            sessionId: "session-live-comment-disabled",
+            findingId: "finding-1",
+            comment: FindingComment(author: "agent", content: "note from registry")
+        )
+
+        XCTAssertFalse(didComment)
+        let snapshot = await registry.snapshot(sessionId: "session-live-comment-disabled")
+        XCTAssertTrue(snapshot?.findings.first?.comments.isEmpty == true)
+        XCTAssertEqual(snapshot?.events.count, baseline?.events.count)
+        XCTAssertEqual(snapshot?.events.last?.type, baseline?.events.last?.type)
+    }
+
+    func testApplyFixFailsWhenRustMutationRuntimeIsDisabled() async {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let registry = ReviewSessionRegistry()
+        let state = CodeReviewSessionState(sessionId: "session-live-apply-fix-disabled")
+        await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
+        await state.addFinding(
+            CodeReviewFinding(
+                id: "finding-1",
+                severity: .warning,
+                category: .correctness,
+                filePath: "File.swift",
+                message: "Apply fix"
+            )
+        )
+        await registry.register(state)
+        let baseline = await registry.snapshot(sessionId: "session-live-apply-fix-disabled")
+
+        let didApplyFix = await registry.applyFix(
+            sessionId: "session-live-apply-fix-disabled",
+            findingId: "finding-1"
+        )
+
+        XCTAssertFalse(didApplyFix)
+        let snapshot = await registry.snapshot(sessionId: "session-live-apply-fix-disabled")
+        XCTAssertEqual(snapshot?.findings.first?.status, .open)
+        XCTAssertEqual(snapshot?.events.count, baseline?.events.count)
+        XCTAssertEqual(snapshot?.events.last?.type, baseline?.events.last?.type)
+    }
+
+    func testUpdateConfigUsesRustMutationForLiveSession() async throws {
+        try requireReviewCore()
         let registry = ReviewSessionRegistry()
         let state = CodeReviewSessionState(sessionId: "session-live-config")
         await state.start(scope: ReviewSessionScope(type: .uncommitted, files: ["File.swift"]))
@@ -218,5 +357,16 @@ final class ReviewSessionRegistryTests: XCTestCase {
             lastTestStatus: nil,
             lastUpdatedAt: lastUpdatedAt
         )
+    }
+
+    private func requireReviewCore() throws {
+        let path = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
     }
 }

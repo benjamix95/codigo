@@ -143,20 +143,9 @@ extension CodigoApp {
                 if let finalize {
                     status = finalize.commandStatus == "completed" ? .completed : .failed
                     message = finalize.resultMessage
-                } else if snapshot.phase == .completed {
-                    if !autoPrepared {
-                        status = .failed
-                        message = "Code review completed, but automatic patch preview preparation failed"
-                    } else if !sourceStateUpdated {
-                        status = .failed
-                        message = "Code review completed, but the source finding state could not be updated"
-                    } else {
-                        status = .completed
-                        message = "Code review session \(snapshot.sessionId) completed"
-                    }
                 } else {
                     status = .failed
-                    message = snapshot.lastError ?? "Code review session \(snapshot.sessionId) did not complete successfully"
+                    message = "Rust deferred review finalization runtime required but unavailable"
                 }
                 MCPSharedState.markCodeReviewCommand(id: command.id, status: status, resultMessage: message)
             } catch {

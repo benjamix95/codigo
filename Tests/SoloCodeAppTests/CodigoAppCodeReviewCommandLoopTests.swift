@@ -106,6 +106,50 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         )
     }
 
+    func testDeferredReviewFailsWhenRustFinalizationRuntimeBecomesUnavailable() async throws {
+        try requireReviewCore()
+        let app = makeApp()
+        let gate = ReviewProviderGate()
+        CodeReviewCommandRuntimeHooks.workspaceContextOverride = { [workspaceURL] _ in
+            WorkspaceContext(workspacePaths: [workspaceURL].compactMap { $0 })
+        }
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, sessionState, _ in
+            DeferredCodeReviewProvider(
+                sessionState: sessionState,
+                gate: gate,
+                scopeFiles: ["Sources/File.swift"]
+            )
+        }
+
+        let command = try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
+            sessionId: "review-start-finalize-disabled",
+            conversationId: nil,
+            payload: [
+                "scope": "uncommitted",
+                "session_id": "review-start-finalize-disabled",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .processing)
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        await gate.finishSuccessfully()
+        try await waitForCommand(id: command.id, expectedStatus: .failed)
+
+        let snapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: "review-start-finalize-disabled")
+        )
+        XCTAssertEqual(snapshot.phase, .completed)
+        let updatedCommand = try currentCommand(id: command.id)
+        XCTAssertEqual(updatedCommand?.status, .failed)
+        XCTAssertEqual(
+            updatedCommand?.resultMessage,
+            "Rust deferred review finalization runtime required but unavailable"
+        )
+    }
+
     func testApplyFixCommandFailsClosedWhenPatchWorkflowCannotRun() async throws {
         let app = makeApp()
 
