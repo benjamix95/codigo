@@ -79,6 +79,25 @@ pub struct ReviewPatchApplyResultRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchRevalidateResultRequest {
+    pub schema_version: i32,
+    pub patch_id: String,
+    pub validation_run_id: Option<String>,
+    pub validation_status: Option<String>,
+    pub validation_summary: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchRollbackResultRequest {
+    pub schema_version: i32,
+    pub patch_id: String,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchSnapshot {
     pub session_id: String,
     pub conversation_id: Option<String>,
@@ -184,6 +203,29 @@ pub struct ReviewPatchApplyResultResponse {
     pub validation_run_id: Option<String>,
     pub validation_status: Option<String>,
     pub validation_summary: Option<String>,
+    pub apply_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchRevalidateResultResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub status: Option<String>,
+    pub validation_run_id: Option<String>,
+    pub validation_status: Option<String>,
+    pub validation_summary: Option<String>,
+    pub apply_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchRollbackResultResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub status: Option<String>,
     pub apply_message: Option<String>,
 }
 
@@ -366,6 +408,62 @@ impl ReviewPatchApplyResultResponse {
             validation_run_id: None,
             validation_status: None,
             validation_summary: None,
+            apply_message: None,
+        }
+    }
+}
+
+impl ReviewPatchRevalidateResultResponse {
+    pub fn success(
+        status: String,
+        validation_run_id: Option<String>,
+        validation_status: String,
+        validation_summary: Option<String>,
+        apply_message: Option<String>,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            status: Some(status),
+            validation_run_id,
+            validation_status: Some(validation_status),
+            validation_summary,
+            apply_message,
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            status: None,
+            validation_run_id: None,
+            validation_status: None,
+            validation_summary: None,
+            apply_message: None,
+        }
+    }
+}
+
+impl ReviewPatchRollbackResultResponse {
+    pub fn success(status: String, apply_message: String) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            status: Some(status),
+            apply_message: Some(apply_message),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            status: None,
             apply_message: None,
         }
     }

@@ -103,12 +103,51 @@ extension ReviewPatchWorkflowService {
             patchText: nil,
             workspaceContainsPatch: true
         )
+        return try revalidatePatchResult(
+            artifact: artifact,
+            validation: validation
+        )
+    }
+
+    func revalidatePatchResult(
+        artifact: ReviewPatchArtifact,
+        validation: ValidationRunResult
+    ) throws -> ReviewPatchArtifact {
+        let summary = ValidationReportFormatter.summary(for: validation)
+        let response: ReviewPatchRevalidateResultBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_revalidate_result",
+            request: ReviewPatchRevalidateResultBridgeRequest(
+                schemaVersion: 1,
+                patchId: artifact.id,
+                validationRunId: validation.runId,
+                validationStatus: validation.status.rawValue,
+                validationSummary: summary
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch revalidate result runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch revalidate result"
+            )
+        }
+        guard let statusRaw = response.status,
+              let status = ReviewPatchStatus(rawValue: statusRaw),
+              let validationStatusRaw = response.validationStatus,
+              let validationStatus = ValidationStatus(rawValue: validationStatusRaw) else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch revalidate result response was incomplete"
+            )
+        }
         var updated = artifact
-        updated.validationRunId = validation.runId
-        updated.validationStatus = validation.status
-        updated.validationSummary = ValidationReportFormatter.summary(for: validation)
-        updated.applyMessage = updated.validationSummary
-        updated.status = validation.status == .passed ? .applied : .applyFailed
+        updated.validationRunId = response.validationRunId
+        updated.validationStatus = validationStatus
+        updated.validationSummary = response.validationSummary
+        updated.applyMessage = response.applyMessage
+        updated.status = status
         updated.updatedAt = Date()
         return updated
     }
@@ -129,14 +168,45 @@ extension ReviewPatchWorkflowService {
 
         do {
             _ = try gitService.runGit(["apply", "-R", "--3way", "--whitespace=nowarn", patchFile.path], gitRoot: gitRoot)
-            var rolledBack = artifact
-            rolledBack.status = .rolledBack
-            rolledBack.applyMessage = "Rollback applied successfully"
-            rolledBack.updatedAt = Date()
-            return rolledBack
+            return try rollbackPatchResult(artifact: artifact)
         } catch {
             throw ReviewPatchWorkflowError.applyFailed("Rollback fallito: \(error.localizedDescription)")
         }
+    }
+
+    func rollbackPatchResult(
+        artifact: ReviewPatchArtifact
+    ) throws -> ReviewPatchArtifact {
+        let response: ReviewPatchRollbackResultBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_rollback_result",
+            request: ReviewPatchRollbackResultBridgeRequest(
+                schemaVersion: 1,
+                patchId: artifact.id,
+                success: true,
+                errorMessage: nil
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch rollback result runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch rollback result"
+            )
+        }
+        guard let statusRaw = response.status,
+              let status = ReviewPatchStatus(rawValue: statusRaw) else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch rollback result response was incomplete"
+            )
+        }
+        var updated = artifact
+        updated.status = status
+        updated.applyMessage = response.applyMessage
+        updated.updatedAt = Date()
+        return updated
     }
 }
 
@@ -160,6 +230,38 @@ private struct ReviewPatchApplyResultBridgeResponse: Decodable {
     let validationRunId: String?
     let validationStatus: String?
     let validationSummary: String?
+    let applyMessage: String?
+}
+
+private struct ReviewPatchRevalidateResultBridgeRequest: Encodable {
+    let schemaVersion: Int
+    let patchId: String
+    let validationRunId: String?
+    let validationStatus: String?
+    let validationSummary: String?
+}
+
+private struct ReviewPatchRevalidateResultBridgeResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let status: String?
+    let validationRunId: String?
+    let validationStatus: String?
+    let validationSummary: String?
+    let applyMessage: String?
+}
+
+private struct ReviewPatchRollbackResultBridgeRequest: Encodable {
+    let schemaVersion: Int
+    let patchId: String
+    let success: Bool
+    let errorMessage: String?
+}
+
+private struct ReviewPatchRollbackResultBridgeResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let status: String?
     let applyMessage: String?
 }
 

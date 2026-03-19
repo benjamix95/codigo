@@ -205,6 +205,121 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         }
     }
 
+    func testRevalidatePatchResultUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-revalidate-1",
+            findingId: "finding-1",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .applied,
+            verifyStatus: .verified
+        )
+        let validation = ValidationRunResult(
+            runId: "run-r1",
+            profile: .reviewPatchApply,
+            status: .passed,
+            touchedFiles: ["File.swift"],
+            stageResults: [],
+            durationMs: 10,
+            failure: nil
+        )
+
+        let updated = try service.revalidatePatchResult(
+            artifact: artifact,
+            validation: validation
+        )
+
+        XCTAssertEqual(updated.status, .applied)
+        XCTAssertEqual(updated.validationRunId, "run-r1")
+        XCTAssertEqual(updated.validationStatus, .passed)
+    }
+
+    func testRevalidatePatchResultFailsClosedWhenRustRuntimeUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-revalidate-2",
+            findingId: "finding-2",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .applied,
+            verifyStatus: .verified
+        )
+        let validation = ValidationRunResult(
+            runId: "run-r2",
+            profile: .reviewPatchApply,
+            status: .passed,
+            touchedFiles: ["File.swift"],
+            stageResults: [],
+            durationMs: 10,
+            failure: nil
+        )
+
+        XCTAssertThrowsError(
+            try service.revalidatePatchResult(
+                artifact: artifact,
+                validation: validation
+            )
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .applyFailed("Rust patch revalidate result runtime required but unavailable")
+                    .localizedDescription
+            )
+        }
+    }
+
+    func testRollbackPatchResultUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-rollback-1",
+            findingId: "finding-1",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .applied,
+            verifyStatus: .verified
+        )
+
+        let updated = try service.rollbackPatchResult(artifact: artifact)
+
+        XCTAssertEqual(updated.status, .rolledBack)
+        XCTAssertEqual(updated.applyMessage, "Rollback applied successfully")
+    }
+
+    func testRollbackPatchResultFailsClosedWhenRustRuntimeUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-rollback-2",
+            findingId: "finding-2",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .applied,
+            verifyStatus: .verified
+        )
+
+        XCTAssertThrowsError(
+            try service.rollbackPatchResult(artifact: artifact)
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .applyFailed("Rust patch rollback result runtime required but unavailable")
+                    .localizedDescription
+            )
+        }
+    }
+
     func testVerifyPatchResultUsesRustBridgeWhenAvailable() throws {
         try requireReviewCore()
         let service = ReviewPatchWorkflowService()
