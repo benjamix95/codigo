@@ -14,6 +14,7 @@ mod review_patch;
 mod review_persistence;
 mod review_pipeline;
 mod review_provider;
+mod review_runtime_audit_stage;
 mod review_runtime_callbacks;
 mod review_runtime_task_candidates;
 mod review_session;

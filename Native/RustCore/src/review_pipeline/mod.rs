@@ -7,6 +7,7 @@ pub mod orchestrator;
 pub mod phases;
 pub mod provider;
 pub mod requests;
+pub mod runtime_audit_stage;
 pub mod runtime_callbacks;
 pub mod runtime_task_candidates;
 pub mod scope;

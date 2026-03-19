@@ -109,12 +109,25 @@ extension ReviewPipelineCoordinator {
     ) async -> [CodeReviewFinding] {
         guard !filesToReview.isEmpty else { return [] }
 
-        let toolNames = ReviewAuditToolName.all
-        for toolName in toolNames {
-            await sessionState.markAuditStarted(toolName: toolName)
-        }
+        let results = await runAuditStageResults(
+            filesToReview: filesToReview,
+            workspacePath: workspacePath
+        )
+        return await reduceAuditStageResults(
+            results,
+            sessionState: sessionState,
+            continuation: continuation
+        )
+    }
 
-        let results = await withTaskGroup(
+    func runAuditStageResults(
+        filesToReview: [String],
+        workspacePath: URL
+    ) async -> [ReviewAuditToolResult] {
+        guard !filesToReview.isEmpty else { return [] }
+        let toolNames = ReviewAuditToolName.all
+
+        return await withTaskGroup(
             of: ReviewAuditToolResult.self,
             returning: [ReviewAuditToolResult].self
         ) { group in
@@ -134,7 +147,18 @@ extension ReviewPipelineCoordinator {
             }
             return aggregated
         }
+    }
 
+    func reduceAuditStageResults(
+        _ results: [ReviewAuditToolResult],
+        sessionState: CodeReviewSessionState,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) async -> [CodeReviewFinding] {
+        guard !results.isEmpty else { return [] }
+        let toolNames = ReviewAuditToolName.all
+        for toolName in toolNames {
+            await sessionState.markAuditStarted(toolName: toolName)
+        }
         let correlated = CodeReviewAuditService.correlateResults(
             results,
             summaryPrefix: "review_audit_mesh"

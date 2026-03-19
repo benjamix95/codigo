@@ -392,6 +392,57 @@ final class ReviewPipelineCoordinatorTests: XCTestCase {
         XCTAssertEqual(candidate.signalType, .pattern)
         XCTAssertEqual(candidate.filePath, "Auth.swift")
     }
+
+    func testRunAuditStageUsesRustReductionForCandidatesAndAuditSnapshot() async throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+
+        let workspacePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(
+            at: workspacePath,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: workspacePath) }
+
+        try """
+        let input = request.query["cmd"]
+        runProcess(input, shell: true)
+        """.write(
+            to: workspacePath.appendingPathComponent("Service.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        var capturedContinuation: AsyncThrowingStream<StreamEvent, Error>.Continuation?
+        _ = AsyncThrowingStream<StreamEvent, Error> { continuation in
+            capturedContinuation = continuation
+        }
+        let continuation = try XCTUnwrap(capturedContinuation)
+
+        let adapter = ReviewRuntimeAdapter(
+            context: WorkspaceContext(workspacePath: workspacePath),
+            config: MultiSwarmReviewConfig(maxWorkers: 1, enabledPhases: .analysisOnly, maxReviewRounds: 1),
+            analysisProvider: SilentLLMProvider(),
+            executionProvider: SilentLLMProvider(),
+            prepareVerifiedPatches: nil,
+            execController: nil,
+            fileLockCoordinator: FileLockCoordinator(),
+            sessionState: CodeReviewSessionState(sessionId: "session-audit-runtime"),
+            continuation: continuation
+        )
+
+        let result = await adapter.runAuditStage(
+            files: ["Service.swift"],
+            sessionId: "session-audit-runtime"
+        )
+
+        XCTAssertEqual(result.kind, "run_audit_stage")
+        XCTAssertFalse(result.candidates.isEmpty)
+        XCTAssertFalse(result.promotedFindings.isEmpty)
+        XCTAssertEqual(result.audit?.toolCoverage[ReviewAuditToolName.securityDataflow], true)
+    }
 }
 
 private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {

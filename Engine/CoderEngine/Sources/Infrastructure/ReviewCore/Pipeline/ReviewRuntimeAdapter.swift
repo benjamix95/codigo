@@ -51,40 +51,36 @@ struct ReviewRuntimeAdapter {
     }
 
     func runAuditStage(files: [String], sessionId: String) async -> ReviewPipelineRustCallbackResult {
-        let tempState = CodeReviewSessionState(sessionId: sessionId)
-        let findings = await ReviewPipelineCoordinator.shared.runAuditStage(
+        let results = await ReviewPipelineCoordinator.shared.runAuditStageResults(
             filesToReview: files,
-            workspacePath: context.workspacePath,
-            sessionState: tempState,
-            continuation: continuation
+            workspacePath: context.workspacePath
         )
-        let candidates = findings.compactMap {
-            ReviewCandidateVerificationService.candidate(from: $0, signalType: .pattern)
-        }
-        guard candidates.count == findings.count else {
+        let findings = CodeReviewAuditService.deduplicate(
+            results.flatMap(\.findings)
+                + [
+                    CodeReviewAuditService.correlateResults(
+                        results,
+                        summaryPrefix: "review_audit_mesh"
+                    ).findings
+                ].flatMap { $0 }
+        )
+        let request = ReviewRuntimeRustAuditStageRequest(
+            schemaVersion: 1,
+            findings: findings,
+            results: results,
+            workspacePath: context.workspacePath.path,
+            scopeFiles: files
+        )
+        guard let response: ReviewRuntimeRustReductionResponse = ReviewCoreBridge.call(
+            functionName: "review_core_runtime_reduce_audit_stage",
+            request: request
+        ), response.error == nil, let callback = response.callback else {
             return ReviewPipelineRustCallbackResult(
                 kind: "run_audit_stage",
-                error: "Rust review candidate builder unavailable for audit findings."
+                error: "Rust review runtime audit reducer unavailable."
             )
         }
-        if !candidates.isEmpty {
-            await tempState.addCandidates(candidates)
-            await ReviewPipelineCoordinator.shared.verifyCandidates(
-                candidates,
-                workspacePath: context.workspacePath,
-                filesToReview: files,
-                sessionState: tempState
-            )
-        }
-        let snapshot = await tempState.snapshot()
-        return ReviewPipelineRustCallbackResult(
-            kind: "run_audit_stage",
-            findings: findings,
-            candidates: snapshot.candidates,
-            promotedFindings: snapshot.findings,
-            events: snapshot.events,
-            audit: snapshot.audit
-        )
+        return callback
     }
 
     func runAnalysis(step: ReviewPipelineRustStep) async -> ReviewPipelineRustCallbackResult {
@@ -313,6 +309,14 @@ private struct ReviewRuntimeRustTaskCandidatesRequest: Encodable {
     let schemaVersion: Int
     let tasks: [ReviewPipelineRustTask]
     let round: Int
+    let workspacePath: String
+    let scopeFiles: [String]
+}
+
+private struct ReviewRuntimeRustAuditStageRequest: Encodable {
+    let schemaVersion: Int
+    let findings: [CodeReviewFinding]
+    let results: [ReviewAuditToolResult]
     let workspacePath: String
     let scopeFiles: [String]
 }
