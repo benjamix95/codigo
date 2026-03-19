@@ -8,6 +8,7 @@ pub mod phases;
 pub mod provider;
 pub mod requests;
 pub mod runtime_callbacks;
+pub mod runtime_task_candidates;
 pub mod scope;
 pub mod state;
 pub mod support;

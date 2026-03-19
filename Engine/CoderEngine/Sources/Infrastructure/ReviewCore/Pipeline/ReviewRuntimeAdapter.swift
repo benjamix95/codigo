@@ -110,36 +110,23 @@ struct ReviewRuntimeAdapter {
     }
 
     func prepareTaskCandidates(step: ReviewPipelineRustStep, sessionId: String) async -> ReviewPipelineRustCallbackResult {
-        let tempState = CodeReviewSessionState(sessionId: sessionId)
-        let rawCandidates = await step.tasks.asyncMap { task in
-            await ReviewPipelineCoordinator.shared.reviewCandidate(
-                from: task.reviewTask,
-                prefix: "r\(step.round ?? 0)-"
-            )
-        }
-        let candidates = rawCandidates.compactMap { $0 }
-        guard candidates.count == step.tasks.count else {
+        let request = ReviewRuntimeRustTaskCandidatesRequest(
+            schemaVersion: 1,
+            tasks: step.tasks,
+            round: step.round ?? 0,
+            workspacePath: context.workspacePath.path,
+            scopeFiles: step.files
+        )
+        guard let response: ReviewRuntimeRustReductionResponse = ReviewCoreBridge.call(
+            functionName: "review_core_runtime_reduce_prepare_task_candidates",
+            request: request
+        ), response.error == nil, let callback = response.callback else {
             return ReviewPipelineRustCallbackResult(
                 kind: "prepare_task_candidates",
-                error: "Rust review candidate builder unavailable for task candidates."
+                error: "Rust review runtime task candidate reducer unavailable."
             )
         }
-        if !candidates.isEmpty {
-            await tempState.addCandidates(candidates)
-            await ReviewPipelineCoordinator.shared.verifyCandidates(
-                candidates,
-                workspacePath: context.workspacePath,
-                filesToReview: step.files,
-                sessionState: tempState
-            )
-        }
-        let snapshot = await tempState.snapshot()
-        return ReviewPipelineRustCallbackResult(
-            kind: "prepare_task_candidates",
-            candidates: snapshot.candidates,
-            promotedFindings: snapshot.findings,
-            events: snapshot.events
-        )
+        return callback
     }
 
     func runFixStage(step: ReviewPipelineRustStep, sessionId: String) async -> ReviewPipelineRustCallbackResult {
@@ -320,6 +307,14 @@ private struct ReviewRuntimeRustPatchReductionRequest: Encodable {
     let schemaVersion: Int
     let currentSnapshot: CodeReviewSessionSnapshot
     let updatedSnapshot: CodeReviewSessionSnapshot
+}
+
+private struct ReviewRuntimeRustTaskCandidatesRequest: Encodable {
+    let schemaVersion: Int
+    let tasks: [ReviewPipelineRustTask]
+    let round: Int
+    let workspacePath: String
+    let scopeFiles: [String]
 }
 
 private struct ReviewRuntimeRustReductionResponse: Decodable {
