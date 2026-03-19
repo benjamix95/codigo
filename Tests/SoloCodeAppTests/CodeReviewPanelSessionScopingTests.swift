@@ -202,6 +202,24 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
 
         XCTAssertEqual(store.panelSessionId, "bound-session")
     }
+
+    func testSelectTabFallsBackLocallyWhenRustIntentUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+            ReviewCoreBridge.resetForTests()
+        }
+        let store = makePanelStore(
+            taskActivityStore: TaskActivityStore(),
+            conversationId: UUID()
+        )
+
+        store.selectTab(.chat)
+
+        XCTAssertEqual(store.selectedTab, .chat)
+    }
     func testPanelApplyFixFailsClosedWithoutWorkspaceAndDoesNotTouchOtherFindings() async throws {
         let taskStore = TaskActivityStore()
         let conversationId = UUID()

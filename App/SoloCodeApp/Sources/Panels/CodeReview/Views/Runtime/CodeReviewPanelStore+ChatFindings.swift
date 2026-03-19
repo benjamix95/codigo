@@ -50,12 +50,12 @@ extension CodeReviewPanelStore {
     func createNewChatThread(title: String? = nil) {
         let threadId = chatSessionStore.createThread(for: chatSessionKey, title: title)
         activeChatThreadId = threadId
-        selectedTab = .chat
+        selectTab(.chat)
     }
 
     func selectChatThread(_ threadId: String) {
         chatSessionStore.selectThread(threadId, for: chatSessionKey)
-        selectedTab = .chat
+        selectTab(.chat)
     }
 
     func archiveChatThread(_ threadId: String) {

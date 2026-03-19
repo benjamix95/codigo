@@ -270,7 +270,7 @@ private extension CodeReviewPanelStore {
         isRunning = false
         lastError = message
         frozenTimerText = nil
-        selectedTab = targetTab
+        selectTab(targetTab)
     }
 }
 

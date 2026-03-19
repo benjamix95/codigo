@@ -3,6 +3,11 @@ use super::models::{ReviewPanelIntentRequest, ReviewPanelRuntimeResponse};
 pub fn apply_intent(request: ReviewPanelIntentRequest) -> ReviewPanelRuntimeResponse {
     let mut state = request.state;
     match request.intent.as_str() {
+        "select_tab" => {
+            if let Some(tab) = normalized_value(request.value) {
+                state.selected_tab = tab;
+            }
+        }
         "set_selected_session" => {
             state.panel_session_id = normalized_value(request.value);
             state.selected_finding_id = None;
@@ -74,6 +79,21 @@ mod tests {
         assert_eq!(state.panel_session_id.as_deref(), Some("session-b"));
         assert_eq!(state.selected_finding_id, None);
         assert_eq!(state.selected_historical_finding_id, None);
+    }
+
+    #[test]
+    fn select_tab_updates_selected_tab_only() {
+        let response = apply_intent(ReviewPanelIntentRequest {
+            schema_version: 1,
+            state: base_state(),
+            intent: "select_tab".to_string(),
+            value: Some("Chat".to_string()),
+        });
+        let state = response.state.expect("state");
+        assert_eq!(state.selected_tab, "Chat");
+        assert_eq!(state.panel_session_id.as_deref(), Some("session-a"));
+        assert_eq!(state.selected_finding_id.as_deref(), Some("finding-a"));
+        assert_eq!(state.selected_historical_finding_id.as_deref(), Some("hist-a"));
     }
 
     #[test]

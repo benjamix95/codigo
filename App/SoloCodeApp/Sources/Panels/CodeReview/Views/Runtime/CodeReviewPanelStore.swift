@@ -232,7 +232,9 @@ final class CodeReviewPanelStore: ObservableObject {
 
     func selectTab(_ tab: CodeReviewTab) {
         withAnimation(.snappy(duration: 0.15)) {
-            selectedTab = tab
+            if !applyPanelIntent("select_tab", value: tab.rawValue) {
+                selectedTab = tab
+            }
         }
     }
 
