@@ -148,25 +148,37 @@ enum VerifiedFindingsPatchExecutionService {
                         throw ReviewPatchWorkflowError.invalidPatch
                     }
                     let verified = try await service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: verified)
+                    currentSnapshot = try upsertPatchWithRustMutation(
+                        snapshot: currentSnapshot,
+                        artifact: verified
+                    )
                 case "apply_patch":
                     guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                         throw ReviewPatchWorkflowError.invalidPatch
                     }
                     let applied = try await service.applyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: applied)
+                    currentSnapshot = try upsertPatchWithRustMutation(
+                        snapshot: currentSnapshot,
+                        artifact: applied
+                    )
                 case "revalidate_finding":
                     guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                         throw ReviewPatchWorkflowError.invalidPatch
                     }
                     let revalidated = try await service.revalidatePatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: revalidated)
+                    currentSnapshot = try upsertPatchWithRustMutation(
+                        snapshot: currentSnapshot,
+                        artifact: revalidated
+                    )
                 case "rollback_patch":
                     guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
                         throw ReviewPatchWorkflowError.invalidPatch
                     }
                     let rolledBack = try await service.rollbackPatch(artifact: artifact, workspaceRoot: workspaceRoot)
-                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: rolledBack)
+                    currentSnapshot = try upsertPatchWithRustMutation(
+                        snapshot: currentSnapshot,
+                        artifact: rolledBack
+                    )
                 case "open_pr":
                     guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }),
                           let finding = currentSnapshot.findings.first(where: { $0.id == findingId }) else {
@@ -180,7 +192,10 @@ enum VerifiedFindingsPatchExecutionService {
                         body: body,
                         workspaceRoot: workspaceRoot
                     )
-                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: opened)
+                    currentSnapshot = try upsertPatchWithRustMutation(
+                        snapshot: currentSnapshot,
+                        artifact: opened
+                    )
                 case "merge_pr":
                     guard let providerRegistry else {
                         throw ReviewPatchWorkflowError.providerUnavailable
@@ -195,7 +210,10 @@ enum VerifiedFindingsPatchExecutionService {
                         workspaceRoot: workspaceRoot,
                         safeOnly: true
                     )
-                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: merged)
+                    currentSnapshot = try upsertPatchWithRustMutation(
+                        snapshot: currentSnapshot,
+                        artifact: merged
+                    )
                 case "resolve_conflicts":
                     guard let providerRegistry else {
                         throw ReviewPatchWorkflowError.providerUnavailable
@@ -208,7 +226,10 @@ enum VerifiedFindingsPatchExecutionService {
                         preferredProviderId: preferredProviderId,
                         providerRegistry: providerRegistry
                     )
-                    currentSnapshot = VerifiedFindingsService.upsertingPatch(in: currentSnapshot, artifact: resolved)
+                    currentSnapshot = try upsertPatchWithRustMutation(
+                        snapshot: currentSnapshot,
+                        artifact: resolved
+                    )
                 case "close_finding":
                     currentSnapshot = try closeFindingWithRustMutation(
                         snapshot: currentSnapshot,
@@ -281,7 +302,10 @@ enum VerifiedFindingsPatchExecutionService {
             workspaceRoot: workspaceRoot
         )
         let verified = try await service.verifyPatch(artifact: prepared, workspaceRoot: workspaceRoot)
-        return VerifiedFindingsService.upsertingPatch(in: snapshot, artifact: verified)
+        return try upsertPatchWithRustMutation(
+            snapshot: snapshot,
+            artifact: verified
+        )
     }
 
     private static func closeFindingWithRustMutation(
@@ -309,6 +333,36 @@ enum VerifiedFindingsPatchExecutionService {
                 findings: findings,
                 events: events,
                 config: updatedConfig
+            ).buildOutcomeSummary(),
+            lastUpdatedAt: Date()
+        )
+        return updated
+    }
+
+    private static func upsertPatchWithRustMutation(
+        snapshot: CodeReviewSessionSnapshot,
+        artifact: ReviewPatchArtifact
+    ) throws -> CodeReviewSessionSnapshot {
+        guard let mutation = ReviewCommandRustBridge.upsertPatchSnapshot(
+            snapshot,
+            artifact: artifact
+        ),
+              !mutation.isError,
+              let findings = mutation.findings,
+              let patches = mutation.patches,
+              let events = mutation.events else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch snapshot upsert mutator required but unavailable"
+            )
+        }
+        let updated = snapshot.copying(
+            findings: findings,
+            patches: patches,
+            events: events,
+            outcome: snapshot.copying(
+                findings: findings,
+                patches: patches,
+                events: events
             ).buildOutcomeSummary(),
             lastUpdatedAt: Date()
         )

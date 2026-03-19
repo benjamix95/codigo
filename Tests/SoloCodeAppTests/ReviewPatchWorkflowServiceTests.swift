@@ -587,6 +587,104 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         XCTAssertEqual(updated.findings.first?.status, .patchApplied)
     }
 
+    func testUpsertPatchSnapshotMutationUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-upsert-rust",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-upsert",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Issue"
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+        let artifact = ReviewPatchArtifact(
+            id: "patch-upsert-rust",
+            findingId: "finding-upsert",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["Sources/File.swift"],
+            status: .merged,
+            verifyStatus: .verified,
+            prStatus: .opened,
+            mergeStatus: .merged,
+            prURL: "https://example.test/pr/merged"
+        )
+
+        let mutation = try XCTUnwrap(
+            ReviewCommandRustBridge.upsertPatchSnapshot(snapshot, artifact: artifact)
+        )
+
+        XCTAssertFalse(mutation.isError)
+        XCTAssertEqual(mutation.patches?.first?.id, "patch-upsert-rust")
+        XCTAssertEqual(mutation.findings?.first?.patchArtifactId, "patch-upsert-rust")
+        XCTAssertEqual(mutation.findings?.first?.status, .merged)
+        XCTAssertEqual(mutation.events?.last?.type, .prMerged)
+    }
+
+    func testUpsertPatchSnapshotMutationFailsClosedWhenRustRuntimeUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-upsert-disabled",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-upsert",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Issue"
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: "/tmp/repo",
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+        let artifact = ReviewPatchArtifact(
+            id: "patch-upsert-disabled",
+            findingId: "finding-upsert",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["Sources/File.swift"],
+            status: .merged,
+            verifyStatus: .verified
+        )
+
+        XCTAssertNil(ReviewCommandRustBridge.upsertPatchSnapshot(snapshot, artifact: artifact))
+    }
+
     func testCloseFindingExecutionClosesMergedFinding() async throws {
         try requireReviewCore()
         VerifiedFindingsPatchExecutionService.startRuntimeHandler = { _, _, _, _, _ in

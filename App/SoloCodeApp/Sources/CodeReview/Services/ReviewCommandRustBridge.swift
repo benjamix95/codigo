@@ -104,6 +104,21 @@ struct ReviewCommandRustBridge {
         )
     }
 
+    static func upsertPatchSnapshot(
+        _ snapshot: CodeReviewSessionSnapshot,
+        artifact: ReviewPatchArtifact
+    ) -> ReviewCommandMutationResponse? {
+        guard let data = try? JSONEncoder().encode(artifact),
+              let patchJSON = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return mutateSnapshot(
+            snapshot,
+            action: "upsert_patch",
+            payload: ["patch_json": patchJSON]
+        )
+    }
+
     static func finalizeDeferred(
         sessionId: String,
         phase: ReviewSessionPhase,
@@ -244,6 +259,7 @@ struct ReviewCommandMutationResponse: Decodable {
     let message: String?
     let config: SessionConfig?
     let findings: [CodeReviewFinding]?
+    let patches: [ReviewPatchArtifact]?
     let events: [CodeReviewSessionEvent]?
 }
 

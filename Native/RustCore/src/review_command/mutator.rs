@@ -25,6 +25,7 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
         .to_string();
     let mut findings = findings.clone();
     let mut events = events.clone();
+    let mut patches = patches;
     let mut resolved_config = config_from_snapshot(&request.snapshot).ok();
 
     let result = match request.action.as_str() {
@@ -44,13 +45,20 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
             &request.payload,
             &timestamp,
         ),
+        "upsert_patch" => upsert_patch(
+            &mut findings,
+            &mut patches,
+            &mut events,
+            &request.payload,
+            &timestamp,
+        ),
         _ => return ReviewCommandMutationResponse::error("Unsupported snapshot mutation"),
     };
     if let Err(error) = result {
         return error;
     }
 
-    ReviewCommandMutationResponse::success(findings, events, resolved_config)
+    ReviewCommandMutationResponse::success(findings, patches, events, resolved_config)
 }
 
 fn apply_fix(
@@ -161,6 +169,126 @@ fn close_finding(
         json!({ "finding_id": finding_id, "reason": reason }),
         timestamp,
     ));
+    Ok(())
+}
+
+fn upsert_patch(
+    findings: &mut [Value],
+    patches: &mut Vec<Value>,
+    events: &mut Vec<Value>,
+    payload: &std::collections::HashMap<String, String>,
+    timestamp: &str,
+) -> Result<(), ReviewCommandMutationResponse> {
+    let patch_json = required(payload, "patch_json")?;
+    let patch: Value = serde_json::from_str(&patch_json)
+        .map_err(|err| ReviewCommandMutationResponse::error(err.to_string()))?;
+    let patch_id = patch
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| ReviewCommandMutationResponse::error("Patch id is missing"))?
+        .to_string();
+    let finding_id = patch
+        .get("findingId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| ReviewCommandMutationResponse::error("Patch findingId is missing"))?
+        .to_string();
+    let patch_status = patch
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("draft")
+        .to_string();
+
+    if let Some(index) = patches.iter().position(|existing| {
+        existing.get("id").and_then(Value::as_str) == Some(patch_id.as_str())
+            || existing.get("findingId").and_then(Value::as_str) == Some(finding_id.as_str())
+    }) {
+        patches[index] = patch.clone();
+    } else {
+        patches.push(patch.clone());
+    }
+
+    let finding = find_finding(findings, &finding_id)?;
+    finding["patchArtifactId"] = Value::String(patch_id.clone());
+    finding["status"] = Value::String(match patch_status.as_str() {
+        "draft" => "patch_preparing",
+        "verified" => "patch_ready",
+        "applied" => "patch_applied",
+        "apply_failed" => "patch_failed",
+        "pr_opened" => "pr_opened",
+        "merged" => "merged",
+        "conflict" | "rolled_back" => "blocked",
+        _ => "open",
+    }
+    .to_string());
+
+    let event_value = match patch_status.as_str() {
+        "draft" => event(
+            "patch_prepared",
+            format!("Patch prepared for finding {}", finding_id),
+            json!({ "patch_id": patch_id, "finding_id": finding_id }),
+            timestamp,
+        ),
+        "verified" => event(
+            "patch_verified",
+            format!("Patch {} verified", patch_id),
+            json!({ "patch_id": patch_id, "finding_id": finding_id }),
+            timestamp,
+        ),
+        "apply_failed" => event(
+            "patch_apply_failed",
+            patch.get("applyMessage")
+                .and_then(Value::as_str)
+                .unwrap_or("Patch apply failed")
+                .to_string(),
+            json!({ "patch_id": patch_id, "finding_id": finding_id }),
+            timestamp,
+        ),
+        "pr_opened" => event(
+            "pr_opened",
+            patch.get("prURL")
+                .and_then(Value::as_str)
+                .unwrap_or("Pull request opened")
+                .to_string(),
+            json!({ "patch_id": patch_id, "finding_id": finding_id }),
+            timestamp,
+        ),
+        "merged" => event(
+            "pr_merged",
+            patch.get("prURL")
+                .and_then(Value::as_str)
+                .unwrap_or("Patch merged")
+                .to_string(),
+            json!({ "patch_id": patch_id, "finding_id": finding_id }),
+            timestamp,
+        ),
+        "conflict" => event(
+            "conflict_detected",
+            patch.get("conflicts")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default(),
+            json!({ "patch_id": patch_id, "finding_id": finding_id }),
+            timestamp,
+        ),
+        "applied" | "rolled_back" => event(
+            "finding_fix_applied",
+            format!("Fix applied for finding {}", finding_id),
+            json!({ "finding_id": finding_id }),
+            timestamp,
+        ),
+        _ => {
+            return Err(ReviewCommandMutationResponse::error(
+                "Unsupported patch status for snapshot upsert",
+            ))
+        }
+    };
+    events.push(event_value);
     Ok(())
 }
 
@@ -283,6 +411,40 @@ mod tests {
         assert_eq!(
             response.events.unwrap()[0].get("type").and_then(Value::as_str),
             Some("config_updated")
+        );
+    }
+
+    #[test]
+    fn upsert_patch_updates_findings_patches_and_events() {
+        let patch = json!({
+            "id": "patch-1",
+            "findingId": "finding-1",
+            "status": "pr_opened",
+            "applyMessage": null,
+            "prURL": "https://example.test/pr/1"
+        });
+        let response = mutate_snapshot(ReviewCommandMutationRequest {
+            schema_version: 1,
+            action: "upsert_patch".to_string(),
+            snapshot: base_snapshot(),
+            payload: std::collections::HashMap::from([(
+                "patch_json".to_string(),
+                patch.to_string(),
+            )]),
+        });
+        assert!(!response.is_error);
+        assert_eq!(
+            response.findings.unwrap()[0]
+                .get("status")
+                .and_then(Value::as_str),
+            Some("pr_opened")
+        );
+        assert_eq!(response.patches.as_ref().map(Vec::len), Some(1));
+        assert_eq!(
+            response.events.unwrap()[0]
+                .get("type")
+                .and_then(Value::as_str),
+            Some("pr_opened")
         );
     }
 }
