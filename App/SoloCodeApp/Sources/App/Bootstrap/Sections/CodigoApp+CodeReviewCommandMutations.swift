@@ -88,8 +88,7 @@ extension CodigoApp {
 
     @MainActor
     func applyReviewMutation(
-        _ command: MCPSharedCodeReviewCommand,
-        apply: @escaping (CodeReviewSessionState, [String: String]) async -> Bool
+        _ command: MCPSharedCodeReviewCommand
     ) async -> (success: Bool, message: String) {
         guard let sessionId = command.sessionId else {
             return (false, "Missing session_id")
@@ -118,10 +117,31 @@ extension CodigoApp {
                         )
                     }
                 ) {
-                    let succeeded = await apply(liveState, command.payload)
-                    guard succeeded else {
-                        throw ReviewPatchWorkflowError.applyFailed("Unable to update the requested finding")
+                    let liveSnapshot = await liveState.snapshot()
+                    guard let mutation = ReviewCommandRustBridge.mutateSnapshot(
+                        liveSnapshot,
+                        command: command
+                    ),
+                          !mutation.isError,
+                          let findings = mutation.findings,
+                          let events = mutation.events else {
+                        throw ReviewPatchWorkflowError.applyFailed(
+                            "Rust review command mutation unavailable"
+                        )
                     }
+                    let updatedConfig = mutation.config ?? liveSnapshot.config
+                    let updated = liveSnapshot.copying(
+                        findings: findings,
+                        events: events,
+                        config: updatedConfig,
+                        outcome: liveSnapshot.copying(
+                            findings: findings,
+                            events: events,
+                            config: updatedConfig
+                        ).buildOutcomeSummary(),
+                        lastUpdatedAt: Date()
+                    )
+                    await liveState.replaceCanonicalSnapshot(updated)
                     await self.persistLiveReviewState(
                         liveState,
                         conversationId: commandConversationId
@@ -201,91 +221,26 @@ extension CodigoApp {
         snapshot: CodeReviewSessionSnapshot,
         command: MCPSharedCodeReviewCommand
     ) -> CodeReviewSessionSnapshot? {
-        if ["apply_fix", "dismiss", "comment", "close_finding"].contains(command.action),
-           let mutation = ReviewCommandRustBridge.mutateSnapshot(snapshot, command: command),
-           !mutation.isError,
-           let findings = mutation.findings,
-           let events = mutation.events {
-            let updated = snapshot.copying(
-                findings: findings,
-                events: events
-            )
-            return updated.copying(
-                mutationSequence: updated.mutationSequence,
-                outcome: updated.buildOutcomeSummary(),
-                lastUpdatedAt: Date()
-            )
-        }
-
-        var findings = snapshot.findings
-        var events = snapshot.events
-        let updatedAt = Date()
-
-        switch command.action {
-        case "apply_fix":
-            guard let findingId = command.payload["finding_id"],
-                  let index = findings.firstIndex(where: { $0.id == findingId }) else {
-                return nil
-            }
-            findings[index].status = .fixApplied
-            events.append(.findingFixApplied(findingId: findingId))
-        case "dismiss":
-            guard let findingId = command.payload["finding_id"],
-                  let index = findings.firstIndex(where: { $0.id == findingId }) else {
-                return nil
-            }
-            let reason = command.payload["reason"] ?? "dismissed"
-            findings[index].status = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased() == FindingStatus.wontFix.rawValue
-                ? .wontFix
-                : .dismissed
-            events.append(.findingDismissed(findingId: findingId, reason: reason))
-        case "comment":
-            guard let findingId = command.payload["finding_id"],
-                  let content = command.payload["content"],
-                  let index = findings.firstIndex(where: { $0.id == findingId }) else {
-                return nil
-            }
-            findings[index].comments.append(
-                FindingComment(author: command.payload["author"] ?? "agent", content: content)
-            )
-            events.append(CodeReviewSessionEvent(
-                type: .findingCommented,
-                detail: "Comment added from command bus",
-                metadata: ["finding_id": findingId]
-            ))
-        case "close_finding":
-            guard let findingId = command.payload["finding_id"],
-                  let index = findings.firstIndex(where: { $0.id == findingId }) else {
-                return nil
-            }
-            let patch = snapshot.patches.first(where: { $0.findingId == findingId })
-            let currentStatus = findings[index].status
-            let canClose: Bool
-            switch currentStatus {
-            case .merged, .dismissed, .wontFix, .closed:
-                canClose = true
-            case .patchApplied, .fixApplied:
-                canClose = patch?.validationStatus == .passed
-            default:
-                canClose = false
-            }
-            guard canClose else { return nil }
-            findings[index].status = .closed
-            events.append(CodeReviewSessionEvent(
-                type: .outcomePublished,
-                detail: "Finding \(findingId) closed",
-                metadata: ["finding_id": findingId, "reason": command.payload["reason"] ?? "closed"]
-            ))
-        default:
+        guard let mutation = ReviewCommandRustBridge.mutateSnapshot(
+            snapshot,
+            command: command
+        ),
+              !mutation.isError,
+              let findings = mutation.findings,
+              let events = mutation.events else {
             return nil
         }
 
-        return snapshot.copying(
+        let updatedConfig = mutation.config ?? snapshot.config
+        let updated = snapshot.copying(
             findings: findings,
             events: events,
-            outcome: snapshot.copying(findings: findings).buildOutcomeSummary(),
-            lastUpdatedAt: updatedAt
+            config: updatedConfig
+        )
+        return updated.copying(
+            mutationSequence: updated.mutationSequence,
+            outcome: updated.buildOutcomeSummary(),
+            lastUpdatedAt: Date()
         )
     }
 

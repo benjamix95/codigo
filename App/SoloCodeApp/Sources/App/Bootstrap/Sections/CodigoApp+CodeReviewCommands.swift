@@ -65,6 +65,12 @@ extension CodigoApp {
             workspaceAvailable: !codeReviewCommandContext().workspacePaths.isEmpty,
             snapshotExists: currentSnapshot != nil
         )
+        if plan == nil, ReviewCoreBridge.isEnabled {
+            return .immediate(
+                success: false,
+                message: "Rust review command planner required but unavailable"
+            )
+        }
         if let plan, plan.isError {
             return .immediate(success: false, message: plan.message ?? "Invalid code review command")
         }
@@ -77,24 +83,10 @@ extension CodigoApp {
         case "patch_action", "verify_finding", "prepare_patch", "verify_patch", "apply_patch", "revalidate_finding", "rollback_patch", "close_finding", "open_pr", "merge_pr", "resolve_conflicts":
             return await handlePatchWorkflowCommand(command)
         case "dismiss":
-            let result = await applyReviewMutation(command) { state, payload in
-                let findingId = plan?.findingId ?? payload["finding_id"]
-                guard let findingId else { return false }
-                let reason = plan?.reason ?? payload["reason"] ?? "dismissed"
-                return await state.dismissFinding(findingId: findingId, reason: reason)
-            }
+            let result = await applyReviewMutation(command)
             return .immediate(success: result.success, message: result.message)
         case "comment":
-            let result = await applyReviewMutation(command) { state, payload in
-                let findingId = plan?.findingId ?? payload["finding_id"]
-                let content = plan?.content ?? payload["content"]
-                guard let findingId, let content else { return false }
-                let author = plan?.author ?? payload["author"] ?? "agent"
-                return await state.addComment(
-                    findingId: findingId,
-                    comment: FindingComment(author: author, content: content)
-                )
-            }
+            let result = await applyReviewMutation(command)
             return .immediate(success: result.success, message: result.message)
         case "configure":
             guard let sessionId = plan?.sessionId ?? command.sessionId else {
@@ -161,7 +153,10 @@ extension CodigoApp {
                     config: updatedConfig
                 )
             }
-            return .immediate(success: result.success, message: result.message)
+            let message = result.success
+                ? "Persisted review configuration updated"
+                : result.message
+            return .immediate(success: result.success, message: message)
         default:
             return .immediate(success: false, message: "Unsupported code review command: \(command.action)")
         }

@@ -148,9 +148,7 @@ public actor ReviewSessionRegistry {
               !response.isError,
               let updatedConfig = response.config,
               let events = response.events else {
-            await state.updateConfig(config)
-            recordSnapshot(await state.snapshot())
-            return true
+            return false
         }
         let updated = snapshot.copying(
             events: events,

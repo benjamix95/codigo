@@ -17,6 +17,9 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
         CodeReviewCommandRuntimeHooks.providerFactoryOverride = nil
         CodeReviewCommandRuntimeHooks.workspaceContextOverride = nil
         try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
@@ -25,6 +28,20 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         }
         workspaceURL = nil
         try super.tearDownWithError()
+    }
+
+    private func requireReviewCore() throws {
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
+    private func reviewCoreLibraryPath() -> String {
+        URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
     }
 
     func testStartCommandRemainsProcessingUntilDeferredReviewCompletes() async throws {
@@ -103,6 +120,7 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
     }
 
     func testConfigureCommandUpdatesLiveSessionThroughCommandLoop() async throws {
+        try requireReviewCore()
         let app = makeApp()
         CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, _, _ in
             ValidationOnlyProvider()
@@ -136,6 +154,7 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
     }
 
     func testConfigureCommandUpdatesPersistedSnapshotThroughRustMutation() async throws {
+        try requireReviewCore()
         let app = makeApp()
         CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, _, _ in
             ValidationOnlyProvider()
@@ -171,6 +190,42 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertEqual(updatedSnapshot.events.last?.type, .configUpdated)
     }
 
+    func testConfigureCommandFailsWhenRustMutationRuntimeIsDisabled() async throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let app = makeApp()
+        CodeReviewCommandRuntimeHooks.providerFactoryOverride = { _, _, _, _, _, _, _ in
+            ValidationOnlyProvider()
+        }
+
+        let snapshot = makeSnapshot(
+            sessionId: "persisted-config-disabled",
+            findings: []
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "configure",
+            sessionId: "persisted-config-disabled",
+            conversationId: nil,
+            payload: [
+                "session_id": "persisted-config-disabled",
+                "max_workers": "5",
+                "analysis_only": "true",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .failed)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: "persisted-config-disabled")
+        )
+        XCTAssertEqual(updatedSnapshot.config.maxWorkers, snapshot.config.maxWorkers)
+        XCTAssertEqual(updatedSnapshot.config.analysisOnly, snapshot.config.analysisOnly)
+    }
+
     func testDeferredReviewMarksCommandFailedWhenSessionFails() async throws {
         let app = makeApp()
         CodeReviewCommandRuntimeHooks.workspaceContextOverride = { [workspaceURL] _ in
@@ -203,6 +258,7 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
     }
 
     func testDismissCommandUsesRustPlannerAndPersistsWontFix() async throws {
+        try requireReviewCore()
         let app = makeApp()
         let snapshot = makeSnapshot(
             sessionId: "dismiss-command-session",
@@ -238,7 +294,46 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertEqual(updatedSnapshot.findings.first?.status, .wontFix)
     }
 
+    func testDismissCommandFailsWhenRustRuntimeDisabled() async throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let app = makeApp()
+        let snapshot = makeSnapshot(
+            sessionId: "dismiss-command-fallback",
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-dismiss-fallback",
+                    severity: .warning,
+                    category: .correctness,
+                    filePath: "Sources/File.swift",
+                    message: "Dismiss me locally"
+                )
+            ]
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "dismiss",
+            sessionId: snapshot.sessionId,
+            conversationId: nil,
+            payload: [
+                "session_id": snapshot.sessionId,
+                "finding_id": "finding-dismiss-fallback",
+                "reason": "wont_fix",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .failed)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: snapshot.sessionId)
+        )
+        XCTAssertEqual(updatedSnapshot.findings.first?.status, .open)
+    }
+
     func testCommentCommandUsesRustMutationAndAppendsComment() async throws {
+        try requireReviewCore()
         let app = makeApp()
         let snapshot = makeSnapshot(
             sessionId: "comment-command-session",

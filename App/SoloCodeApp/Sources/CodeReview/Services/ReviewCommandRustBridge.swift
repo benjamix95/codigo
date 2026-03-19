@@ -139,13 +139,19 @@ extension CodigoApp {
     @MainActor
     func configuredReviewSnapshot(snapshot: CodeReviewSessionSnapshot, sessionId: String, conversationId _: UUID?, config: SessionConfig) -> CodeReviewSessionSnapshot? {
         let payload = ["session_id": sessionId].merging(config.reviewCommandPayload) { _, rhs in rhs }
-        if let mutation = ReviewCommandRustBridge.mutateSnapshot(snapshot, action: "configure", payload: payload), !mutation.isError, let updatedConfig = mutation.config, let events = mutation.events {
-            let updated = snapshot.copying(events: events, config: updatedConfig)
-            return updated.copying(mutationSequence: updated.mutationSequence, outcome: updated.buildOutcomeSummary(), lastUpdatedAt: Date())
+        guard let mutation = ReviewCommandRustBridge.mutateSnapshot(
+            snapshot,
+            action: "configure",
+            payload: payload
+        ),
+              !mutation.isError,
+              let updatedConfig = mutation.config,
+              let events = mutation.events else {
+            return nil
         }
         let updated = snapshot.copying(
-            events: snapshot.events + [CodeReviewSessionEvent(type: .configUpdated, detail: "Config updated")],
-            config: config
+            events: events,
+            config: updatedConfig
         )
         return updated.copying(mutationSequence: updated.mutationSequence, outcome: updated.buildOutcomeSummary(), lastUpdatedAt: Date())
     }
