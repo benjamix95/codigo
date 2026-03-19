@@ -179,18 +179,7 @@ extension CodigoApp {
               !mutation.isError else {
             return nil
         }
-        if let canonical = mutation.snapshot {
-            return canonical
-        }
-        guard let updatedConfig = mutation.config,
-              let events = mutation.events else {
-            return nil
-        }
-        let updated = snapshot.copying(
-            events: events,
-            config: updatedConfig
-        )
-        return updated.copying(mutationSequence: updated.mutationSequence, outcome: updated.buildOutcomeSummary(), lastUpdatedAt: Date())
+        return mutation.snapshot
     }
 }
 
