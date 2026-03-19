@@ -258,6 +258,7 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(store.makeRuntimeStateSnapshot().selectedTab, CodeReviewTab.chat.rawValue)
     }
     func testPanelApplyFixFailsClosedWithoutWorkspaceAndDoesNotTouchOtherFindings() async throws {
+        try requireReviewCore()
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
         let snapshot = makeSnapshot(
@@ -288,6 +289,8 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         )
 
         await store.applyFix(sessionId: "session-fallback", findingId: "f-1")
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 60_000_000)
 
         let updated = try XCTUnwrap(
             taskStore.codeReviewSnapshot(
@@ -297,6 +300,58 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         )
         XCTAssertEqual(updated.findings.first(where: { $0.id == "f-1" })?.status, .patchFailed)
         XCTAssertEqual(updated.findings.first(where: { $0.id == "f-2" })?.status, .open)
+    }
+
+    func testPanelApplyFixDoesNotMutateSnapshotWhenRustFailureReducerIsUnavailable() async throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+            ReviewCoreBridge.resetForTests()
+        }
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        let snapshot = makeSnapshot(
+            sessionId: "session-fallback-rust-disabled",
+            conversationId: conversationId,
+            findings: [
+                CodeReviewFinding(
+                    id: "f-1",
+                    severity: .warning,
+                    category: .bug,
+                    filePath: "Sources/A.swift",
+                    message: "First finding"
+                ),
+                CodeReviewFinding(
+                    id: "f-2",
+                    severity: .warning,
+                    category: .bug,
+                    filePath: "Sources/B.swift",
+                    message: "Second finding"
+                ),
+            ]
+        )
+        taskStore.ingestCodeReviewSnapshot(snapshot, conversationId: conversationId)
+
+        let store = makePanelStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId
+        )
+
+        await store.applyFix(sessionId: "session-fallback-rust-disabled", findingId: "f-1")
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 60_000_000)
+
+        let updated = try XCTUnwrap(
+            taskStore.codeReviewSnapshot(
+                sessionId: "session-fallback-rust-disabled",
+                conversationId: conversationId
+            )
+        )
+        XCTAssertEqual(updated.findings.first(where: { $0.id == "f-1" })?.status, .open)
+        XCTAssertEqual(updated.findings.first(where: { $0.id == "f-2" })?.status, .open)
+        XCTAssertTrue(updated.events.isEmpty)
     }
     func testPanelDismissFallbackUsesRustMutationAndMarksWontFix() async throws {
         try requireReviewCore()

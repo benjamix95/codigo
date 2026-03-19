@@ -229,38 +229,5 @@ extension CodeReviewPanelStore {
             )
             return
         }
-        var findings = snapshot.findings
-        var patches = snapshot.patches
-        if let index = findings.firstIndex(where: { $0.id == findingId }) {
-            findings[index].status = .patchFailed
-        }
-        if let patchIndex = patches.firstIndex(where: { $0.findingId == findingId }) {
-            patches[patchIndex].status = .applyFailed
-            patches[patchIndex].verifyStatus = .failed
-            patches[patchIndex].applyMessage = message
-            patches[patchIndex].conflicts = [message]
-            patches[patchIndex].updatedAt = Date()
-        }
-        let updated = snapshot.copying(
-            findings: findings,
-            patches: patches,
-            events: snapshot.events + [
-                CodeReviewSessionEvent(
-                    type: .patchApplyFailed,
-                    detail: message,
-                    metadata: ["finding_id": findingId]
-                ),
-            ],
-            outcome: snapshot.copying(findings: findings, patches: patches)
-                .buildOutcomeSummary(summaryOverride: message)
-        )
-        taskActivityStore.scheduleCodeReviewSnapshotIngest(updated, conversationId: conversationId)
-        appendVerifiedFindingSystemMessage(
-            sessionId: sessionId,
-            findingId: findingId,
-            title: "Patch fallita",
-            detail: message,
-            selectChatTab: true
-        )
     }
 }
