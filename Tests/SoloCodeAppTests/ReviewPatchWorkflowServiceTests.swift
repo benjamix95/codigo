@@ -133,6 +133,62 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         }
     }
 
+    func testVerifyPatchResultUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-verify-1",
+            findingId: "finding-1",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .draft,
+            verifyStatus: .pending,
+            validationStatus: .passed
+        )
+
+        let updated = try service.verifyPatchResult(
+            artifact: artifact,
+            checkPassed: true,
+            failureMessage: nil
+        )
+
+        XCTAssertEqual(updated.status, .verified)
+        XCTAssertEqual(updated.verifyStatus, .verified)
+        XCTAssertTrue(updated.conflicts.isEmpty)
+    }
+
+    func testVerifyPatchResultFailsClosedWhenRustRuntimeUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-verify-2",
+            findingId: "finding-2",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .draft,
+            verifyStatus: .pending,
+            validationStatus: .passed
+        )
+
+        XCTAssertThrowsError(
+            try service.verifyPatchResult(
+                artifact: artifact,
+                checkPassed: true,
+                failureMessage: nil
+            )
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .applyFailed("Rust patch verify result runtime required but unavailable")
+                    .localizedDescription
+            )
+        }
+    }
+
     func testUpsertingPatchUpdatesFindingStatusAndPatchReference() {
         let snapshot = CodeReviewSessionSnapshot(
             sessionId: "session-1",

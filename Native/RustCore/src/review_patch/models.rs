@@ -56,6 +56,16 @@ pub struct ReviewPatchPrepareContextRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchVerifyResultRequest {
+    pub schema_version: i32,
+    pub patch_id: String,
+    pub finding_id: String,
+    pub success: bool,
+    pub error_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchSnapshot {
     pub session_id: String,
     pub conversation_id: Option<String>,
@@ -135,6 +145,18 @@ pub struct ReviewPatchPrepareContextResponse {
     pub message: Option<String>,
     pub branch_name: Option<String>,
     pub prompt: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchVerifyResultResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub status: Option<String>,
+    pub verify_status: Option<String>,
+    pub conflicts: Option<Vec<String>>,
+    pub apply_message: Option<String>,
 }
 
 impl ReviewPatchActionResponse {
@@ -247,6 +269,37 @@ impl ReviewPatchPrepareContextResponse {
             message: Some(message.into()),
             branch_name: None,
             prompt: None,
+        }
+    }
+}
+
+impl ReviewPatchVerifyResultResponse {
+    pub fn success(
+        status: String,
+        verify_status: String,
+        conflicts: Vec<String>,
+        apply_message: Option<String>,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            status: Some(status),
+            verify_status: Some(verify_status),
+            conflicts: Some(conflicts),
+            apply_message,
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            status: None,
+            verify_status: None,
+            conflicts: None,
+            apply_message: None,
         }
     }
 }

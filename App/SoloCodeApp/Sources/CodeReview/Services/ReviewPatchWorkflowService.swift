@@ -148,20 +148,61 @@ final class ReviewPatchWorkflowService {
         do {
             _ = try gitService.runGit(["apply", "--check", patchFile.path], gitRoot: gitRoot)
         } catch {
-            var failed = artifact
-            failed.verifyStatus = .failed
-            failed.status = .conflict
-            failed.conflicts = [error.localizedDescription]
-            failed.applyMessage = error.localizedDescription
-            failed.updatedAt = Date()
-            return failed
+            return try verifyPatchResult(
+                artifact: artifact,
+                checkPassed: false,
+                failureMessage: error.localizedDescription
+            )
         }
 
-        var verified = artifact
-        verified.verifyStatus = .verified
-        verified.status = .verified
-        verified.updatedAt = Date()
-        return verified
+        return try verifyPatchResult(
+            artifact: artifact,
+            checkPassed: true,
+            failureMessage: nil
+        )
+    }
+
+    func verifyPatchResult(
+        artifact: ReviewPatchArtifact,
+        checkPassed: Bool,
+        failureMessage: String?
+    ) throws -> ReviewPatchArtifact {
+        let response: ReviewPatchVerifyResultBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_verify_result",
+            request: ReviewPatchVerifyResultBridgeRequest(
+                schemaVersion: 1,
+                patchId: artifact.id,
+                findingId: artifact.findingId,
+                success: checkPassed,
+                errorMessage: failureMessage
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch verify result runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch verify result"
+            )
+        }
+        guard let statusRaw = response.status,
+              let status = ReviewPatchStatus(rawValue: statusRaw),
+              let verifyStatusRaw = response.verifyStatus,
+              let verifyStatus = ReviewPatchVerifyStatus(rawValue: verifyStatusRaw) else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch verify result response was incomplete"
+            )
+        }
+
+        var updated = artifact
+        updated.status = status
+        updated.verifyStatus = verifyStatus
+        updated.conflicts = response.conflicts ?? []
+        updated.applyMessage = response.applyMessage
+        updated.updatedAt = Date()
+        return updated
     }
 
     func openPullRequest(
@@ -222,4 +263,21 @@ final class ReviewPatchWorkflowService {
         try patchText.write(to: url, atomically: true, encoding: .utf8)
         return url
     }
+}
+
+private struct ReviewPatchVerifyResultBridgeRequest: Encodable {
+    let schemaVersion: Int
+    let patchId: String
+    let findingId: String
+    let success: Bool
+    let errorMessage: String?
+}
+
+private struct ReviewPatchVerifyResultBridgeResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let status: String?
+    let verifyStatus: String?
+    let conflicts: [String]?
+    let applyMessage: String?
 }
