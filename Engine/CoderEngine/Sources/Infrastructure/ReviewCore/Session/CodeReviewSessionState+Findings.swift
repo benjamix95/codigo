@@ -145,7 +145,7 @@ extension CodeReviewSessionState {
     public func markAllOpenFindingsAsFixApplied() {
         var changedFindingIDs: [String] = []
         for index in findings.indices where findings[index].status.isOpenState {
-            findings[index].status = .patchApplied
+            findings[index].status = .fixApplied
             changedFindingIDs.append(findings[index].id)
         }
         for findingId in changedFindingIDs {

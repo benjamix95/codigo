@@ -189,7 +189,7 @@ extension CodeReviewSessionSnapshot {
         let dismissed = findings.filter {
             $0.status == .dismissed || $0.status == .wontFix
         }.count
-        return "\(verifiedFindingsCount) verified, \(candidates.count) candidates, \(patches.count) patches, \(open) open (\(blocking) blocking), \(applied) applied, \(dismissed) dismissed"
+        return "\(verifiedFindingsCount) findings, \(candidates.count) candidates, \(patches.count) patches, \(open) open (\(blocking) blocking), \(applied) applied, \(dismissed) dismissed"
     }
 
     public func copying(
