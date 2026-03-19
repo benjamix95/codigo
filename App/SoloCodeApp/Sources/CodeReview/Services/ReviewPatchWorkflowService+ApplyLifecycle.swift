@@ -2,6 +2,68 @@ import CoderEngine
 import Foundation
 
 extension ReviewPatchWorkflowService {
+    func revalidatePatchExecutionContext(
+        artifact: ReviewPatchArtifact
+    ) throws -> ReviewPatchRevalidateExecutionContext {
+        let response: ReviewPatchRevalidateExecutionContextResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_revalidate_execution_context",
+            request: ReviewPatchRevalidateExecutionContextRequest(
+                schemaVersion: 1,
+                status: artifact.status.rawValue
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch revalidate execution context runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch revalidate execution context"
+            )
+        }
+        guard let validationTrigger = response.validationTrigger,
+              let workspaceContainsPatch = response.workspaceContainsPatch else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch revalidate execution context response was incomplete"
+            )
+        }
+        return ReviewPatchRevalidateExecutionContext(
+            validationTrigger: validationTrigger,
+            workspaceContainsPatch: workspaceContainsPatch
+        )
+    }
+
+    func rollbackPatchExecutionContext(
+        artifact: ReviewPatchArtifact
+    ) throws -> ReviewPatchRollbackExecutionContext {
+        let response: ReviewPatchRollbackExecutionContextResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_rollback_execution_context",
+            request: ReviewPatchRollbackExecutionContextRequest(
+                schemaVersion: 1,
+                patchId: artifact.id,
+                status: artifact.status.rawValue,
+                rollbackRef: artifact.rollbackRef
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch rollback execution context runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch rollback execution context"
+            )
+        }
+        guard let patchFilePrefix = response.patchFilePrefix else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch rollback execution context response was incomplete"
+            )
+        }
+        return ReviewPatchRollbackExecutionContext(patchFilePrefix: patchFilePrefix)
+    }
+
     func applyPatch(
         artifact: ReviewPatchArtifact,
         workspaceRoot: String
@@ -92,16 +154,14 @@ extension ReviewPatchWorkflowService {
         artifact: ReviewPatchArtifact,
         workspaceRoot: String
     ) async throws -> ReviewPatchArtifact {
-        guard artifact.status == .applied else {
-            throw ReviewPatchWorkflowError.applyFailed("La patch non risulta applicata nel workspace corrente.")
-        }
+        let context = try revalidatePatchExecutionContext(artifact: artifact)
         let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
         let validation = try await runValidation(
             trigger: .reviewPatchApply,
             workspaceRoot: gitRoot,
             touchedFiles: artifact.touchedFiles,
             patchText: nil,
-            workspaceContainsPatch: true
+            workspaceContainsPatch: context.workspaceContainsPatch
         )
         return try revalidatePatchResult(
             artifact: artifact,
@@ -156,14 +216,9 @@ extension ReviewPatchWorkflowService {
         artifact: ReviewPatchArtifact,
         workspaceRoot: String
     ) async throws -> ReviewPatchArtifact {
-        guard artifact.status == .applied else {
-            throw ReviewPatchWorkflowError.rollbackUnavailable
-        }
-        guard artifact.rollbackRef != nil else {
-            throw ReviewPatchWorkflowError.rollbackUnavailable
-        }
+        let context = try rollbackPatchExecutionContext(artifact: artifact)
         let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
-        let patchFile = try writePatchTempFile(artifact.patchText, prefix: "\(artifact.id)-rollback")
+        let patchFile = try writePatchTempFile(artifact.patchText, prefix: context.patchFilePrefix)
         defer { try? FileManager.default.removeItem(at: patchFile) }
 
         do {
@@ -210,6 +265,15 @@ extension ReviewPatchWorkflowService {
     }
 }
 
+struct ReviewPatchRevalidateExecutionContext {
+    let validationTrigger: String
+    let workspaceContainsPatch: Bool
+}
+
+struct ReviewPatchRollbackExecutionContext {
+    let patchFilePrefix: String
+}
+
 private struct ReviewPatchApplyResultBridgeRequest: Encodable {
     let schemaVersion: Int
     let patchId: String
@@ -241,6 +305,18 @@ private struct ReviewPatchRevalidateResultBridgeRequest: Encodable {
     let validationSummary: String?
 }
 
+private struct ReviewPatchRevalidateExecutionContextRequest: Encodable {
+    let schemaVersion: Int
+    let status: String
+}
+
+private struct ReviewPatchRevalidateExecutionContextResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let validationTrigger: String?
+    let workspaceContainsPatch: Bool?
+}
+
 private struct ReviewPatchRevalidateResultBridgeResponse: Decodable {
     let isError: Bool
     let message: String?
@@ -256,6 +332,19 @@ private struct ReviewPatchRollbackResultBridgeRequest: Encodable {
     let patchId: String
     let success: Bool
     let errorMessage: String?
+}
+
+private struct ReviewPatchRollbackExecutionContextRequest: Encodable {
+    let schemaVersion: Int
+    let patchId: String
+    let status: String
+    let rollbackRef: String?
+}
+
+private struct ReviewPatchRollbackExecutionContextResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let patchFilePrefix: String?
 }
 
 private struct ReviewPatchRollbackResultBridgeResponse: Decodable {

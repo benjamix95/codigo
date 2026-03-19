@@ -100,11 +100,27 @@ pub struct ReviewPatchRevalidateResultRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchRevalidateExecutionContextRequest {
+    pub schema_version: i32,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchRollbackResultRequest {
     pub schema_version: i32,
     pub patch_id: String,
     pub success: bool,
     pub error_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchRollbackExecutionContextRequest {
+    pub schema_version: i32,
+    pub patch_id: String,
+    pub status: String,
+    pub rollback_ref: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -248,12 +264,31 @@ pub struct ReviewPatchRevalidateResultResponse {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchRevalidateExecutionContextResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub validation_trigger: Option<String>,
+    pub workspace_contains_patch: Option<bool>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchRollbackResultResponse {
     pub schema_version: i32,
     pub is_error: bool,
     pub message: Option<String>,
     pub status: Option<String>,
     pub apply_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchRollbackExecutionContextResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub patch_file_prefix: Option<String>,
 }
 
 impl ReviewPatchActionResponse {
@@ -513,6 +548,28 @@ impl ReviewPatchRevalidateResultResponse {
     }
 }
 
+impl ReviewPatchRevalidateExecutionContextResponse {
+    pub fn success() -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            validation_trigger: Some("review_patch_apply".to_string()),
+            workspace_contains_patch: Some(true),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            validation_trigger: None,
+            workspace_contains_patch: None,
+        }
+    }
+}
+
 impl ReviewPatchRollbackResultResponse {
     pub fn success(status: String, apply_message: String) -> Self {
         Self {
@@ -531,6 +588,27 @@ impl ReviewPatchRollbackResultResponse {
             message: Some(message.into()),
             status: None,
             apply_message: None,
+        }
+    }
+}
+
+
+impl ReviewPatchRollbackExecutionContextResponse {
+    pub fn success(patch_file_prefix: String) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            patch_file_prefix: Some(patch_file_prefix),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            patch_file_prefix: None,
         }
     }
 }
