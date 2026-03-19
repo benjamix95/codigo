@@ -14,10 +14,26 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: tempDir)
         tempDir = nil
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
         try super.tearDownWithError()
     }
 
+    private func requireReviewCore() throws {
+        let path = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
     func testSecurityDataflowDetectsSourceSinkPattern() throws {
+        try requireReviewCore()
         let file = tempDir.appendingPathComponent("Service.swift")
         try """
         let input = request.query["cmd"]
@@ -144,6 +160,7 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
     // MARK: - verificationHints never contain empty strings
 
     func testVerificationHintsContainNoEmptyStrings() throws {
+        try requireReviewCore()
         let file = tempDir.appendingPathComponent("Dummy.swift")
         try "let x = 1".write(to: file, atomically: true, encoding: .utf8)
 
@@ -261,6 +278,21 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(result.durationMs, 1,
             "Even unsupported tools must compute durationMs")
         XCTAssertTrue(result.summary.contains("Unsupported"))
+    }
+
+    func testRustBackedSecurityAuditFailsClosedWhenRustRuntimeUnavailable() throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let result = CodeReviewAuditService.runTool(
+            named: ReviewAuditToolName.securityDataflow,
+            scopeFiles: ["Service.swift"],
+            workspacePath: tempDir
+        )
+
+        XCTAssertTrue(result.findings.isEmpty)
+        XCTAssertFalse(result.coverageAvailable)
+        XCTAssertTrue(result.summary.contains("Rust audit runtime required but unavailable"))
     }
 
     func testRunOptionalAdapterReturnsUnavailableWhenCommandMissing() throws {

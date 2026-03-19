@@ -1,6 +1,14 @@
 import Foundation
 
 public enum CodeReviewAuditService {
+    private static let rustBackedSecurityTools: Set<String> = [
+        ReviewAuditToolName.securityDataflow,
+        ReviewAuditToolName.securityAuthz,
+        ReviewAuditToolName.securityCrypto,
+        ReviewAuditToolName.securityDeserialization,
+        ReviewAuditToolName.securitySurface,
+    ]
+
     struct ReviewAuditAdapterReport {
         let name: String
         let available: Bool
@@ -54,16 +62,12 @@ public enum CodeReviewAuditService {
                 summary: explanation,
                 metadata: ["signal_type": "manual", "verification_hint": "explanation_only", "promotion_gate": "none"]
             )
-        case ReviewAuditToolName.securityDataflow:
-            result = localSecurityAuditResult(toolName: toolName, audit: runSecurityDataflowAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
-        case ReviewAuditToolName.securityAuthz:
-            result = localSecurityAuditResult(toolName: toolName, audit: runSecurityAuthzAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
-        case ReviewAuditToolName.securityCrypto:
-            result = localSecurityAuditResult(toolName: toolName, audit: runSecurityCryptoAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
-        case ReviewAuditToolName.securityDeserialization:
-            result = localSecurityAuditResult(toolName: toolName, audit: runSecurityDeserializationAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
-        case ReviewAuditToolName.securitySurface:
-            result = localSecurityAuditResult(toolName: toolName, audit: runSecuritySurfaceAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
+        case let toolName where rustBackedSecurityTools.contains(toolName):
+            result = requiredRustAuditToolResult(
+                named: toolName,
+                scopeFiles: scopeFiles,
+                workspacePath: workspacePath
+            )
         case ReviewAuditToolName.securitySupplyChain:
             result = localSecurityAuditResult(toolName: toolName, audit: runSecuritySupplyChainAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
         default:
@@ -94,6 +98,21 @@ public enum CodeReviewAuditService {
         )
     }
 
+    private static func requiredRustAuditToolResult(
+        named toolName: String,
+        scopeFiles: [String],
+        workspacePath: URL
+    ) -> ReviewAuditToolResult {
+        guard let bridged = bridgeAuditToolResult(
+            named: toolName,
+            scopeFiles: scopeFiles,
+            workspacePath: workspacePath
+        ) else {
+            return unavailableRustAuditToolResult(toolName: toolName)
+        }
+        return bridged
+    }
+
     private static func bridgeAuditToolResult(
         named toolName: String,
         scopeFiles: [String],
@@ -114,6 +133,18 @@ public enum CodeReviewAuditService {
             return unsupportedAuditToolResult(toolName: toolName, error: error.code)
         }
         return response?.result
+    }
+
+    private static func unavailableRustAuditToolResult(
+        toolName: String
+    ) -> ReviewAuditToolResult {
+        ReviewAuditToolResult(
+            toolName: toolName,
+            findings: [],
+            durationMs: 0,
+            coverageAvailable: false,
+            summary: "Rust audit runtime required but unavailable for \(toolName)"
+        )
     }
 
     private static func unsupportedAuditToolResult(
