@@ -2,6 +2,26 @@ import XCTest
 @testable import CoderEngine
 
 final class CodeReviewSessionStateTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        setenv(
+            "SOLOCODE_REVIEW_CORE_LIBRARY_PATH",
+            reviewCoreLibraryPathForCodeReviewTests(from: #filePath),
+            1
+        )
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
+    override func tearDownWithError() throws {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
+        try super.tearDownWithError()
+    }
 
     // MARK: - Session Lifecycle
 

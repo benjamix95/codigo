@@ -136,18 +136,16 @@ public struct ReviewPatchArtifact: Sendable, Identifiable, Codable, Equatable {
 
 extension CodeReviewSessionState {
     public func addCandidate(_ candidate: ReviewCandidate) {
-        candidates.append(candidate)
-        events.append(.candidateAdded(candidateId: candidate.id, filePath: candidate.filePath))
-        notifyChange()
+        _ = applySessionAction(operation: "add_candidate") {
+            $0.candidate = candidate
+        }
     }
 
     public func addCandidates(_ newCandidates: [ReviewCandidate]) {
         guard !newCandidates.isEmpty else { return }
-        for candidate in newCandidates {
-            candidates.append(candidate)
-            events.append(.candidateAdded(candidateId: candidate.id, filePath: candidate.filePath))
+        _ = applySessionAction(operation: "add_candidates") {
+            $0.candidates = newCandidates
         }
-        notifyChange()
     }
 
     public func updateCandidateStatus(
@@ -157,105 +155,25 @@ extension CodeReviewSessionState {
         report: String?,
         falsePositiveReason: String? = nil
     ) -> Bool {
-        guard let index = candidates.firstIndex(where: { $0.id == candidateId }) else {
-            return false
+        applySessionAction(operation: "update_candidate_status") {
+            $0.candidateId = candidateId
+            $0.status = status
+            $0.method = method
+            $0.report = report
+            $0.falsePositiveReason = falsePositiveReason
         }
-        candidates[index].verificationStatus = status
-        candidates[index].verificationMethod = method
-        candidates[index].verificationReport = report
-        candidates[index].falsePositiveReason = falsePositiveReason
-        candidates[index].verifiedAt = status == .verified ? Date() : nil
-        switch status {
-        case .verified:
-            events.append(.candidateVerified(candidateId: candidateId))
-        case .rejectedFalsePositive:
-            events.append(.candidateRejected(candidateId: candidateId, reason: falsePositiveReason ?? "false_positive"))
-        default:
-            break
-        }
-        notifyChange()
-        return true
     }
 
     public func promoteCandidateToFinding(candidateId: String) -> Bool {
-        guard let candidate = candidates.first(where: { $0.id == candidateId }),
-              candidate.verificationStatus == .verified
-        else {
-            return false
+        applySessionAction(operation: "promote_candidate_to_finding") {
+            $0.candidateId = candidateId
         }
-        guard !findings.contains(where: { $0.id == candidateId }) else {
-            return true
-        }
-        findings.append(.fromCandidate(candidate))
-        events.append(.findingAdded(
-            findingId: candidate.id,
-            severity: candidate.severity.rawValue,
-            filePath: candidate.filePath
-        ))
-        notifyChange()
-        return true
     }
 
     public func upsertPatch(_ patch: ReviewPatchArtifact) {
-        if let index = patches.firstIndex(where: { $0.id == patch.id || $0.findingId == patch.findingId }) {
-            patches[index] = patch
-        } else {
-            patches.append(patch)
+        _ = applySessionAction(operation: "upsert_patch") {
+            $0.patch = patch
         }
-
-        if let findingIndex = findings.firstIndex(where: { $0.id == patch.findingId }) {
-            findings[findingIndex].patchArtifactId = patch.id
-            findings[findingIndex].status = switch patch.status {
-            case .draft: .patchPreparing
-            case .verified: .patchReady
-            case .applied: .patchApplied
-            case .applyFailed: .patchFailed
-            case .prOpened: .prOpened
-            case .merged: .merged
-            case .conflict: .blocked
-            case .rolledBack: .blocked
-            }
-        }
-
-        switch patch.status {
-        case .draft:
-            events.append(.patchPrepared(patchId: patch.id, findingId: patch.findingId))
-        case .verified:
-            events.append(CodeReviewSessionEvent(
-                type: .patchVerified,
-                detail: "Patch \(patch.id) verified",
-                metadata: ["patch_id": patch.id, "finding_id": patch.findingId]
-            ))
-        case .applyFailed:
-            events.append(CodeReviewSessionEvent(
-                type: .patchApplyFailed,
-                detail: patch.applyMessage ?? "Patch apply failed",
-                metadata: ["patch_id": patch.id, "finding_id": patch.findingId]
-            ))
-        case .prOpened:
-            events.append(CodeReviewSessionEvent(
-                type: .prOpened,
-                detail: patch.prURL ?? "Pull request opened",
-                metadata: ["patch_id": patch.id, "finding_id": patch.findingId]
-            ))
-        case .merged:
-            events.append(CodeReviewSessionEvent(
-                type: .prMerged,
-                detail: patch.prURL ?? "Patch merged",
-                metadata: ["patch_id": patch.id, "finding_id": patch.findingId]
-            ))
-        case .conflict:
-            events.append(CodeReviewSessionEvent(
-                type: .conflictDetected,
-                detail: patch.conflicts.joined(separator: ", "),
-                metadata: ["patch_id": patch.id, "finding_id": patch.findingId]
-            ))
-        case .applied, .rolledBack:
-            events.append(.findingFixApplied(findingId: patch.findingId))
-        }
-
-        outcome = snapshot().buildOutcomeSummary()
-        notifyChange()
     }
 
     public func patch(forFindingId findingId: String) -> ReviewPatchArtifact? {

@@ -1,6 +1,8 @@
 use super::config::config_from_snapshot;
 use super::mutator_configure::configure_snapshot;
-use super::mutator_support::{event, find_finding, find_patch, required};
+use super::mutator_support::{
+    event_with_reference_timestamp, find_finding, find_patch, reference_timestamp, required,
+};
 use super::models::{ReviewCommandMutationRequest, ReviewCommandMutationResponse};
 use serde_json::{json, Value};
 
@@ -17,40 +19,30 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let timestamp = request
-        .snapshot
-        .get("lastUpdatedAt")
-        .and_then(Value::as_str)
-        .unwrap_or("1970-01-01T00:00:00Z")
-        .to_string();
+    let timestamp = reference_timestamp(&request.snapshot);
     let mut findings = findings.clone();
     let mut events = events.clone();
     let mut patches = patches;
     let mut resolved_config = config_from_snapshot(&request.snapshot).ok();
 
     let result = match request.action.as_str() {
-        "apply_fix" => apply_fix(&mut findings, &mut events, &request.payload, &timestamp),
-        "dismiss" => dismiss(&mut findings, &mut events, &request.payload, &timestamp),
-        "comment" => comment(&mut findings, &mut events, &request.payload, &timestamp),
-        "configure" => configure_snapshot(
-            &mut events,
-            &request.payload,
-            &mut resolved_config,
-            &timestamp,
-        ),
+        "apply_fix" => apply_fix(&mut findings, &mut events, &request.payload, timestamp),
+        "dismiss" => dismiss(&mut findings, &mut events, &request.payload, timestamp),
+        "comment" => comment(&mut findings, &mut events, &request.payload, timestamp),
+        "configure" => configure_snapshot(&mut events, &request.payload, &mut resolved_config, timestamp),
         "close_finding" => close_finding(
             &mut findings,
             &mut events,
             &patches,
             &request.payload,
-            &timestamp,
+            timestamp,
         ),
         "upsert_patch" => upsert_patch(
             &mut findings,
             &mut patches,
             &mut events,
             &request.payload,
-            &timestamp,
+            timestamp,
         ),
         _ => return ReviewCommandMutationResponse::error("Unsupported snapshot mutation"),
     };
@@ -65,12 +57,12 @@ fn apply_fix(
     findings: &mut [Value],
     events: &mut Vec<Value>,
     payload: &std::collections::HashMap<String, String>,
-    timestamp: &str,
+    timestamp: f64,
 ) -> Result<(), ReviewCommandMutationResponse> {
     let finding_id = required(payload, "finding_id")?;
     let finding = find_finding(findings, &finding_id)?;
     finding["status"] = Value::String("fix_applied".to_string());
-    events.push(event(
+    events.push(event_with_reference_timestamp(
         "finding_fix_applied",
         format!("Fix applied for finding {}", finding_id),
         json!({ "finding_id": finding_id }),
@@ -83,7 +75,7 @@ fn dismiss(
     findings: &mut [Value],
     events: &mut Vec<Value>,
     payload: &std::collections::HashMap<String, String>,
-    timestamp: &str,
+    timestamp: f64,
 ) -> Result<(), ReviewCommandMutationResponse> {
     let finding_id = required(payload, "finding_id")?;
     let reason = payload.get("reason").map(|v| v.trim()).filter(|v| !v.is_empty()).unwrap_or("dismissed");
@@ -93,7 +85,7 @@ fn dismiss(
     } else {
         "dismissed".to_string()
     });
-    events.push(event(
+    events.push(event_with_reference_timestamp(
         "finding_dismissed",
         format!("Finding {} dismissed: {}", finding_id, reason),
         json!({ "finding_id": finding_id, "reason": reason }),
@@ -106,7 +98,7 @@ fn comment(
     findings: &mut [Value],
     events: &mut Vec<Value>,
     payload: &std::collections::HashMap<String, String>,
-    timestamp: &str,
+    timestamp: f64,
 ) -> Result<(), ReviewCommandMutationResponse> {
     let finding_id = required(payload, "finding_id")?;
     let content = required(payload, "content")?;
@@ -123,7 +115,7 @@ fn comment(
         "content": content,
         "createdAt": timestamp,
     }));
-    events.push(event(
+    events.push(event_with_reference_timestamp(
         "finding_commented",
         "Comment added from command bus".to_string(),
         json!({ "finding_id": finding_id }),
@@ -137,7 +129,7 @@ fn close_finding(
     events: &mut Vec<Value>,
     patches: &[Value],
     payload: &std::collections::HashMap<String, String>,
-    timestamp: &str,
+    timestamp: f64,
 ) -> Result<(), ReviewCommandMutationResponse> {
     let finding_id = required(payload, "finding_id")?;
     let reason = payload
@@ -163,7 +155,7 @@ fn close_finding(
         ));
     }
     finding["status"] = Value::String("closed".to_string());
-    events.push(event(
+    events.push(event_with_reference_timestamp(
         "outcome_published",
         format!("Finding {} closed", finding_id),
         json!({ "finding_id": finding_id, "reason": reason }),
@@ -177,7 +169,7 @@ fn upsert_patch(
     patches: &mut Vec<Value>,
     events: &mut Vec<Value>,
     payload: &std::collections::HashMap<String, String>,
-    timestamp: &str,
+    timestamp: f64,
 ) -> Result<(), ReviewCommandMutationResponse> {
     let patch_json = required(payload, "patch_json")?;
     let patch: Value = serde_json::from_str(&patch_json)
@@ -222,19 +214,19 @@ fn upsert_patch(
     .to_string());
 
     let event_value = match patch_status.as_str() {
-        "draft" => event(
+        "draft" => event_with_reference_timestamp(
             "patch_prepared",
             format!("Patch prepared for finding {}", finding_id),
             json!({ "patch_id": patch_id, "finding_id": finding_id }),
             timestamp,
         ),
-        "verified" => event(
+        "verified" => event_with_reference_timestamp(
             "patch_verified",
             format!("Patch {} verified", patch_id),
             json!({ "patch_id": patch_id, "finding_id": finding_id }),
             timestamp,
         ),
-        "apply_failed" => event(
+        "apply_failed" => event_with_reference_timestamp(
             "patch_apply_failed",
             patch.get("applyMessage")
                 .and_then(Value::as_str)
@@ -243,7 +235,7 @@ fn upsert_patch(
             json!({ "patch_id": patch_id, "finding_id": finding_id }),
             timestamp,
         ),
-        "pr_opened" => event(
+        "pr_opened" => event_with_reference_timestamp(
             "pr_opened",
             patch.get("prURL")
                 .and_then(Value::as_str)
@@ -252,7 +244,7 @@ fn upsert_patch(
             json!({ "patch_id": patch_id, "finding_id": finding_id }),
             timestamp,
         ),
-        "merged" => event(
+        "merged" => event_with_reference_timestamp(
             "pr_merged",
             patch.get("prURL")
                 .and_then(Value::as_str)
@@ -261,7 +253,7 @@ fn upsert_patch(
             json!({ "patch_id": patch_id, "finding_id": finding_id }),
             timestamp,
         ),
-        "conflict" => event(
+        "conflict" => event_with_reference_timestamp(
             "conflict_detected",
             patch.get("conflicts")
                 .and_then(Value::as_array)
@@ -276,7 +268,7 @@ fn upsert_patch(
             json!({ "patch_id": patch_id, "finding_id": finding_id }),
             timestamp,
         ),
-        "applied" | "rolled_back" => event(
+        "applied" | "rolled_back" => event_with_reference_timestamp(
             "finding_fix_applied",
             format!("Fix applied for finding {}", finding_id),
             json!({ "finding_id": finding_id }),
@@ -326,6 +318,7 @@ mod tests {
             response.findings.unwrap()[0].get("status").and_then(Value::as_str),
             Some("wont_fix")
         );
+        assert!(response.events.unwrap()[0].get("timestamp").and_then(Value::as_f64).is_some());
     }
 
     #[test]
@@ -344,6 +337,7 @@ mod tests {
         let comments = findings[0].get("comments").and_then(Value::as_array).unwrap();
         assert_eq!(comments.len(), 1);
         assert_eq!(comments[0].get("content").and_then(Value::as_str), Some("hello"));
+        assert!(comments[0].get("createdAt").and_then(Value::as_f64).is_some());
     }
 
     #[test]
@@ -408,10 +402,9 @@ mod tests {
         assert!(!response.is_error);
         assert_eq!(response.config.as_ref().map(|config| config.max_workers), Some(7));
         assert_eq!(response.config.as_ref().map(|config| config.analysis_only), Some(true));
-        assert_eq!(
-            response.events.unwrap()[0].get("type").and_then(Value::as_str),
-            Some("config_updated")
-        );
+        let events = response.events.unwrap();
+        assert_eq!(events[0].get("type").and_then(Value::as_str), Some("config_updated"));
+        assert!(events[0].get("timestamp").and_then(Value::as_f64).is_some());
     }
 
     #[test]

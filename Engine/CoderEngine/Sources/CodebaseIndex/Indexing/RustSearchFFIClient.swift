@@ -152,6 +152,9 @@ final class RustSearchFFIClient: @unchecked Sendable {
             candidates.append(explicit)
         }
 
+        let targetDebug = "\(FileManager.default.currentDirectoryPath)/Native/target/debug/libsolocode_rust_core.dylib"
+        candidates.append(targetDebug)
+
         let repoRelative = "\(FileManager.default.currentDirectoryPath)/Native/RustCore/build/lib/libsolocode_rust_core.dylib"
         candidates.append(repoRelative)
 

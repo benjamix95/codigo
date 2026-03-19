@@ -136,25 +136,13 @@ public actor ReviewSessionRegistry {
     ) async -> Bool {
         guard let state = statesBySessionId[sessionId] else { return false }
         let snapshot = await state.snapshot()
-        guard let response: ReviewSessionRegistryMutationResponse = ReviewCoreBridge.call(
-            functionName: "review_core_command_mutate_snapshot",
-            request: ReviewSessionRegistryMutationRequest(
-                schemaVersion: 1,
-                action: "configure",
-                snapshot: snapshot,
-                payload: config.reviewCommandPayload
-            )
-        ),
-              !response.isError,
-              let updatedConfig = response.config,
-              let events = response.events else {
+        guard let updated = ReviewSessionRustBridge.applyRegistryAction(
+            operation: "configure",
+            snapshot: snapshot,
+            payload: config.reviewCommandPayload
+        ) else {
             return false
         }
-        let updated = snapshot.copying(
-            events: events,
-            config: updatedConfig,
-            outcome: snapshot.copying(events: events, config: updatedConfig).buildOutcomeSummary()
-        )
         await state.replaceCanonicalSnapshot(updated)
         recordSnapshot(updated)
         return true
@@ -194,42 +182,123 @@ public actor ReviewSessionRegistry {
     ) async -> Bool {
         guard let state = statesBySessionId[sessionId] else { return false }
         let snapshot = await state.snapshot()
-        guard let response: ReviewSessionRegistryMutationResponse = ReviewCoreBridge.call(
-            functionName: "review_core_command_mutate_snapshot",
-            request: ReviewSessionRegistryMutationRequest(
-                schemaVersion: 1,
-                action: action,
-                snapshot: snapshot,
-                payload: payload
-            )
-        ),
-              !response.isError,
-              let findings = response.findings,
-              let events = response.events else {
+        guard let updated = ReviewSessionRustBridge.applyRegistryAction(
+            operation: action,
+            snapshot: snapshot,
+            payload: payload
+        ) else {
             return false
         }
-
-        let updated = snapshot.copying(
-            findings: findings,
-            events: events,
-            outcome: snapshot.copying(findings: findings, events: events).buildOutcomeSummary()
-        )
         await state.replaceCanonicalSnapshot(updated)
         recordSnapshot(updated)
         return true
     }
 }
 
-private struct ReviewSessionRegistryMutationRequest: Encodable {
+struct ReviewSessionRustBridge {
+    static func newSnapshot(
+        sessionId: String,
+        conversationId: UUID?,
+        config: SessionConfig
+    ) -> CodeReviewSessionSnapshot? {
+        let response: ReviewSessionRustResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_session_snapshot_new",
+            request: ReviewSessionRustNewSnapshotRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                conversationId: conversationId?.uuidString.lowercased(),
+                config: config
+            )
+        )
+        guard response?.error == nil else { return nil }
+        return response?.snapshot
+    }
+
+    static func applyAction(
+        _ request: ReviewSessionRustActionRequest
+    ) -> CodeReviewSessionSnapshot? {
+        let response: ReviewSessionRustResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_session_apply_action",
+            request: request
+        )
+        guard response?.error == nil else { return nil }
+        return response?.snapshot
+    }
+
+    static func applyRegistryAction(
+        operation: String,
+        snapshot: CodeReviewSessionSnapshot,
+        payload: [String: String]
+    ) -> CodeReviewSessionSnapshot? {
+        let response: ReviewSessionRustResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_registry_apply_action",
+            request: ReviewSessionRustRegistryRequest(
+                schemaVersion: 1,
+                operation: operation,
+                snapshot: snapshot,
+                payload: payload
+            )
+        )
+        guard response?.error == nil else { return nil }
+        return response?.snapshot
+    }
+}
+
+private struct ReviewSessionRustNewSnapshotRequest: Encodable {
     let schemaVersion: Int
-    let action: String
+    let sessionId: String
+    let conversationId: String?
+    let config: SessionConfig
+}
+
+struct ReviewSessionRustActionRequest: Encodable {
+    let schemaVersion: Int
+    let operation: String
+    let snapshot: CodeReviewSessionSnapshot
+    var scope: ReviewSessionScope?
+    var workspacePath: String?
+    var finding: CodeReviewFinding?
+    var findings: [CodeReviewFinding]?
+    var candidate: ReviewCandidate?
+    var candidates: [ReviewCandidate]?
+    var candidateId: String?
+    var findingId: String?
+    var patch: ReviewPatchArtifact?
+    var reason: String?
+    var comment: FindingComment?
+    var config: SessionConfig?
+    var round: Int?
+    var count: Int?
+    var phase: ReviewSessionPhase?
+    var stage: ReviewSessionStage?
+    var jobId: String?
+    var toolName: String?
+    var auditResult: ReviewAuditToolResult?
+    var workerId: String?
+    var title: String?
+    var status: ReviewCandidateStatus?
+    var method: String?
+    var report: String?
+    var falsePositiveReason: String?
+    var resultDetail: String?
+    var testStatus: ReviewSessionTestStatus?
+    var files: [String]?
+    var error: String?
+}
+
+private struct ReviewSessionRustRegistryRequest: Encodable {
+    let schemaVersion: Int
+    let operation: String
     let snapshot: CodeReviewSessionSnapshot
     let payload: [String: String]
 }
 
-private struct ReviewSessionRegistryMutationResponse: Decodable {
-    let isError: Bool
-    let config: SessionConfig?
-    let findings: [CodeReviewFinding]?
-    let events: [CodeReviewSessionEvent]?
+private struct ReviewSessionRustResponse: Decodable {
+    let error: ReviewSessionRustError?
+    let snapshot: CodeReviewSessionSnapshot?
+}
+
+private struct ReviewSessionRustError: Decodable {
+    let code: String
+    let message: String
 }

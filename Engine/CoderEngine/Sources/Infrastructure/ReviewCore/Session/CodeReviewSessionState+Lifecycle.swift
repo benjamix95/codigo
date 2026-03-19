@@ -82,215 +82,110 @@ extension CodeReviewSessionState {
         scope: ReviewSessionScope,
         workspacePath: String? = nil
     ) {
-        self.phase = .analyzing
-        self.stage = .analysis
-        self.scope = scope
-        self.workspacePath = workspacePath
-        self.findings = []
-        self.candidates = []
-        self.patches = []
-        self.events = []
-        self.currentRound = 0
-        self.activeWorkerCount = 0
-        self.startedAt = Date()
-        self.completedAt = nil
-        self.analysisCompletedAt = nil
-        self.lastError = nil
-        self.currentJobId = nil
-        self.lastTestStatus = nil
-        self.audit = .empty
-        self.outcome = .empty
-        self.phaseLedger = []
-        self.fileLedger = []
-
-        events.append(.sessionStarted(scope: scope.description, fileCount: scope.files.count))
-        notifyChange()
+        _ = applySessionAction(operation: "start") {
+            $0.scope = scope
+            $0.workspacePath = workspacePath
+        }
     }
 
     public func complete() {
-        phase = .completed
-        stage = .completed
-        completedAt = Date()
-        activeWorkerCount = 0
-        currentJobId = nil
-        outcome = snapshot().buildOutcomeSummary()
-        events.append(CodeReviewSessionEvent(
-            type: .sessionCompleted,
-            detail: "Review completed with \(findings.count) findings"
-        ))
-        notifyChange()
+        _ = applySessionAction(operation: "complete")
     }
 
     public func fail(error: String) {
-        phase = .failed
-        stage = .failed
-        lastError = error
-        completedAt = Date()
-        activeWorkerCount = 0
-        currentJobId = nil
-        outcome = snapshot().buildOutcomeSummary(summaryOverride: "Review failed: \(error)")
-        events.append(.error(error))
-        notifyChange()
+        _ = applySessionAction(operation: "fail") {
+            $0.error = error
+        }
     }
 
     public func reset() {
-        phase = .idle
-        stage = .idle
-        findings = []
-        candidates = []
-        patches = []
-        events = []
-        scope = nil
-        workspacePath = nil
-        currentRound = 0
-        activeWorkerCount = 0
-        startedAt = nil
-        completedAt = nil
-        analysisCompletedAt = nil
-        lastError = nil
-        currentJobId = nil
-        lastTestStatus = nil
-        audit = .empty
-        outcome = .empty
-        phaseLedger = []
-        fileLedger = []
-        notifyChange()
+        _ = applySessionAction(operation: "reset")
     }
 
     public func setPhase(_ newPhase: ReviewSessionPhase) {
-        phase = newPhase
-        notifyChange(mode: .coalesced)
+        _ = applySessionAction(operation: "set_phase", mode: .coalesced) {
+            $0.phase = newPhase
+        }
     }
 
     public func setStage(_ newStage: ReviewSessionStage) {
-        stage = newStage
-        notifyChange(mode: .coalesced)
+        _ = applySessionAction(operation: "set_stage", mode: .coalesced) {
+            $0.stage = newStage
+        }
     }
 
     public func setCurrentJobId(_ jobId: String?) {
-        currentJobId = jobId
-        notifyChange(mode: .coalesced)
+        _ = applySessionAction(operation: "set_current_job_id", mode: .coalesced) {
+            $0.jobId = jobId
+        }
     }
 
     public func markAnalysisStarted() {
-        phase = .analyzing
-        stage = .analysis
-        events.append(CodeReviewSessionEvent(type: .analysisStarted, detail: "Analysis started"))
-        notifyChange()
+        _ = applySessionAction(operation: "mark_analysis_started")
     }
 
     public func markAnalysisCompleted() {
-        analysisCompletedAt = Date()
-        stage = .findings
-        events.append(CodeReviewSessionEvent(type: .analysisCompleted, detail: "Analysis completed"))
-        notifyChange()
+        _ = applySessionAction(operation: "mark_analysis_completed")
     }
 
     public func markAuditStarted(toolName: String) {
-        events.append(CodeReviewSessionEvent(
-            type: .auditStarted,
-            detail: "Running \(toolName)",
-            metadata: ["tool": toolName]
-        ))
-        notifyChange(mode: .coalesced)
+        _ = applySessionAction(operation: "mark_audit_started", mode: .coalesced) {
+            $0.toolName = toolName
+        }
     }
 
     public func recordAuditResult(_ result: ReviewAuditToolResult) {
-        var coverage = audit.toolCoverage
-        coverage[result.toolName] = result.coverageAvailable
-
-        var durations = audit.toolDurationsMs
-        durations[result.toolName] = result.durationMs
-
-        var findingsCounts = audit.toolFindingsCounts
-        findingsCounts[result.toolName] = result.findings.count
-
-        var adapters = audit.toolAdapters
-        adapters[result.toolName] = result.adaptersUsed
-
-        audit = ReviewAuditSnapshot(
-            toolCoverage: coverage,
-            toolDurationsMs: durations,
-            toolFindingsCounts: findingsCounts,
-            toolAdapters: adapters
-        )
-
-        events.append(CodeReviewSessionEvent(
-            type: .auditCompleted,
-            detail: result.summary,
-            metadata: [
-                "tool": result.toolName,
-                "coverage": result.coverageAvailable ? "true" : "false",
-                "duration_ms": String(result.durationMs),
-                "findings_count": String(result.findings.count),
-            ]
-        ))
-        notifyChange()
+        _ = applySessionAction(operation: "record_audit_result") {
+            $0.auditResult = result
+        }
     }
 
     public func startRound(_ round: Int) {
-        currentRound = round
-        phase = .fixing
-        stage = .fixing
-        events.append(.roundStarted(round: round, maxRounds: config.maxRounds))
-        notifyChange()
+        _ = applySessionAction(operation: "start_round") {
+            $0.round = round
+        }
     }
 
     public func setActiveWorkerCount(_ count: Int) {
-        activeWorkerCount = count
-        notifyChange(mode: .coalesced)
+        _ = applySessionAction(operation: "set_active_worker_count", mode: .coalesced) {
+            $0.count = count
+        }
     }
 
     public func markWorkerSpawned(workerId: String, title: String) {
-        events.append(CodeReviewSessionEvent(
-            type: .workerSpawned,
-            detail: title,
-            metadata: ["worker_id": workerId]
-        ))
-        notifyChange(mode: .coalesced)
+        _ = applySessionAction(operation: "mark_worker_spawned", mode: .coalesced) {
+            $0.workerId = workerId
+            $0.title = title
+        }
     }
 
     public func markWorkerCompleted(workerId: String, title: String) {
-        events.append(CodeReviewSessionEvent(
-            type: .workerCompleted,
-            detail: title,
-            metadata: ["worker_id": workerId]
-        ))
-        notifyChange(mode: .coalesced)
+        _ = applySessionAction(operation: "mark_worker_completed", mode: .coalesced) {
+            $0.workerId = workerId
+            $0.title = title
+        }
     }
 
     public func markRoundCompleted(_ round: Int) {
-        events.append(CodeReviewSessionEvent(
-            type: .roundCompleted,
-            detail: "Round \(round) completed",
-            metadata: ["round": String(round)]
-        ))
-        notifyChange()
+        _ = applySessionAction(operation: "mark_round_completed") {
+            $0.round = round
+        }
     }
 
     public func markTestingStarted() {
-        phase = .testing
-        stage = .testing
-        notifyChange()
+        _ = applySessionAction(operation: "mark_testing_started")
     }
 
     public func markTestResult(_ result: ReviewSessionTestStatus, detail: String) {
-        phase = .testing
-        stage = .testing
-        lastTestStatus = result
-        let type: CodeReviewSessionEvent.EventType = result == .passed ? .testsPassed : .testsFailed
-        events.append(CodeReviewSessionEvent(type: type, detail: detail))
-        notifyChange()
+        _ = applySessionAction(operation: "mark_test_result") {
+            $0.testStatus = result
+            $0.resultDetail = detail
+        }
     }
 
     public func markReReviewStarted(round: Int) {
-        phase = .reReviewing
-        stage = .reReview
-        events.append(CodeReviewSessionEvent(
-            type: .analysisStarted,
-            detail: "Re-review round \(round) started",
-            metadata: ["round": String(round), "stage": "re_review"]
-        ))
-        notifyChange()
+        _ = applySessionAction(operation: "mark_re_review_started") {
+            $0.round = round
+        }
     }
 }

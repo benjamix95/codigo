@@ -184,6 +184,13 @@ public actor CodeReviewSessionState {
         self.conversationId = conversationId
         self.config = config
         self.onStateChange = onStateChange
+        if let snapshot = ReviewSessionRustBridge.newSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId,
+            config: config
+        ) {
+            applySnapshotFields(snapshot)
+        }
     }
 
     // MARK: - Observation
@@ -228,6 +235,32 @@ public actor CodeReviewSessionState {
 
     public func replaceCanonicalSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
         guard snapshot.sessionId == sessionId else { return }
+        applySnapshotFields(snapshot)
+        if let handler = onStateChange {
+            Task { @MainActor in handler(snapshot) }
+        }
+    }
+
+    func applySessionAction(
+        operation: String,
+        mode: SnapshotEmissionMode = .immediate,
+        configure: (inout ReviewSessionRustActionRequest) -> Void = { _ in }
+    ) -> Bool {
+        var request = ReviewSessionRustActionRequest(
+            schemaVersion: 1,
+            operation: operation,
+            snapshot: snapshot()
+        )
+        configure(&request)
+        guard let updated = ReviewSessionRustBridge.applyAction(request) else {
+            return false
+        }
+        applySnapshotFields(updated)
+        emitSnapshot(mode: mode)
+        return true
+    }
+
+    private func applySnapshotFields(_ snapshot: CodeReviewSessionSnapshot) {
         mutationSequence = snapshot.mutationSequence
         phase = snapshot.phase
         stage = snapshot.stage
@@ -250,9 +283,6 @@ public actor CodeReviewSessionState {
         outcome = snapshot.outcome
         phaseLedger = snapshot.phaseLedger
         fileLedger = snapshot.fileLedger
-        if let handler = onStateChange {
-            Task { @MainActor in handler(snapshot) }
-        }
     }
 
     // MARK: - Private
@@ -262,10 +292,13 @@ public actor CodeReviewSessionState {
     private let coalescedNotificationDelayNanoseconds: UInt64 = 30_000_000
 
     func notifyChange(mode: SnapshotEmissionMode = .immediate) {
+        emitSnapshot(mode: mode)
+    }
+
+    func emitSnapshot(mode: SnapshotEmissionMode = .immediate) {
         if events.count > eventsHardCap {
             events = Array(events.suffix(eventsHardCap))
         }
-        mutationSequence &+= 1
         switch mode {
         case .immediate:
             pendingCoalescedNotificationTask?.cancel()

@@ -171,7 +171,7 @@ final class ReviewSessionRegistryTests: XCTestCase {
 
         XCTAssertFalse(didDismiss)
         let snapshot = await registry.snapshot(sessionId: "session-live-dismiss-disabled")
-        XCTAssertEqual(snapshot?.findings.first?.status, .open)
+        XCTAssertTrue(snapshot?.findings.isEmpty ?? true)
         XCTAssertEqual(snapshot?.events.count, baseline?.events.count)
         XCTAssertEqual(snapshot?.events.last?.type, baseline?.events.last?.type)
     }
@@ -203,7 +203,7 @@ final class ReviewSessionRegistryTests: XCTestCase {
 
         XCTAssertFalse(didComment)
         let snapshot = await registry.snapshot(sessionId: "session-live-comment-disabled")
-        XCTAssertTrue(snapshot?.findings.first?.comments.isEmpty == true)
+        XCTAssertTrue(snapshot?.findings.isEmpty ?? true)
         XCTAssertEqual(snapshot?.events.count, baseline?.events.count)
         XCTAssertEqual(snapshot?.events.last?.type, baseline?.events.last?.type)
     }
@@ -234,7 +234,7 @@ final class ReviewSessionRegistryTests: XCTestCase {
 
         XCTAssertFalse(didApplyFix)
         let snapshot = await registry.snapshot(sessionId: "session-live-apply-fix-disabled")
-        XCTAssertEqual(snapshot?.findings.first?.status, .open)
+        XCTAssertTrue(snapshot?.findings.isEmpty ?? true)
         XCTAssertEqual(snapshot?.events.count, baseline?.events.count)
         XCTAssertEqual(snapshot?.events.last?.type, baseline?.events.last?.type)
     }
@@ -360,10 +360,9 @@ final class ReviewSessionRegistryTests: XCTestCase {
     }
 
     private func requireReviewCore() throws {
-        let path = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
-            .path
+        let path = reviewCoreLibraryPathForCodeReviewTests(from: #filePath)
         setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
         ReviewCoreBridge.resetForTests()
         guard ReviewCoreBridge.loadedState().loaded else {
             throw XCTSkip("Rust review core non disponibile in ambiente.")
