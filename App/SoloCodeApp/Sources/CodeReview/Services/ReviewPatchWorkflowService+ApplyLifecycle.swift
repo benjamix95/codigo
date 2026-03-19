@@ -477,14 +477,16 @@ extension CodigoApp {
         }
 
         let result = await persistReviewSnapshotMutation(sessionId: sessionId, conversationId: conversationId) { snapshot in
-            var findings = snapshot.findings
-            guard let index = findings.firstIndex(where: { $0.id == findingId }) else { return nil }
-            findings[index].status = .fixApplied
-            return snapshot.copying(
-                findings: findings,
-                events: snapshot.events + [.findingFixApplied(findingId: findingId)],
-                outcome: snapshot.copying(findings: findings).buildOutcomeSummary()
-            )
+            guard let mutation = ReviewCommandRustBridge.mutateSnapshot(
+                snapshot,
+                action: "apply_fix",
+                payload: ["finding_id": findingId]
+            ),
+            !mutation.isError,
+            let canonical = mutation.snapshot else {
+                return nil
+            }
+            return canonical
         }
         return result.success
     }

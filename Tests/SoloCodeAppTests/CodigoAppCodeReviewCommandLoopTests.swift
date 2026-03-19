@@ -197,6 +197,70 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertEqual(updatedSnapshot.findings.first?.status, .open)
     }
 
+    func testMarkFindingFixAppliedUsesRustMutationForPersistedSnapshot() async throws {
+        try requireReviewCore()
+        let app = makeApp()
+        let snapshot = makeSnapshot(
+            sessionId: "apply-fix-persisted",
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-fix",
+                    severity: .warning,
+                    category: .bug,
+                    filePath: "Sources/File.swift",
+                    message: "Apply a fix"
+                )
+            ]
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let succeeded = await app.markFindingFixApplied(
+            sessionId: snapshot.sessionId,
+            conversationId: nil,
+            findingId: "finding-fix"
+        )
+
+        XCTAssertTrue(succeeded)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: snapshot.sessionId)
+        )
+        XCTAssertEqual(updatedSnapshot.findings.first?.status, .fixApplied)
+        XCTAssertEqual(updatedSnapshot.events.last?.type, .findingFixApplied)
+    }
+
+    func testMarkFindingFixAppliedFailsClosedWhenRustMutationRuntimeIsDisabled() async throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let app = makeApp()
+        let snapshot = makeSnapshot(
+            sessionId: "apply-fix-persisted-disabled",
+            findings: [
+                CodeReviewFinding(
+                    id: "finding-fix-disabled",
+                    severity: .warning,
+                    category: .bug,
+                    filePath: "Sources/File.swift",
+                    message: "Apply a fix"
+                )
+            ]
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
+        let succeeded = await app.markFindingFixApplied(
+            sessionId: snapshot.sessionId,
+            conversationId: nil,
+            findingId: "finding-fix-disabled"
+        )
+
+        XCTAssertFalse(succeeded)
+        let updatedSnapshot = try XCTUnwrap(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: snapshot.sessionId)
+        )
+        XCTAssertEqual(updatedSnapshot.findings.first?.status, .open)
+        XCTAssertTrue(updatedSnapshot.events.isEmpty)
+    }
+
     func testConfigureCommandUpdatesLiveSessionThroughCommandLoop() async throws {
         try requireReviewCore()
         let app = makeApp()
