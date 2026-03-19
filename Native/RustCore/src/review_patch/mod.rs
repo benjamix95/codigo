@@ -17,6 +17,7 @@ pub mod resolve_conflicts_context;
 pub mod rollback_execution_context;
 pub mod rollback_result;
 pub mod runtime;
+pub mod step_context;
 pub mod verify_result;
 
 #[cfg(test)]
@@ -39,4 +40,5 @@ pub use resolve_conflicts_context::build_resolve_conflicts_context;
 pub use rollback_execution_context::build_rollback_execution_context;
 pub use rollback_result::build_rollback_result;
 pub use runtime::{apply_runtime_result, get_runtime_state, start_runtime};
+pub use step_context::build_step_context;
 pub use verify_result::build_verify_result;

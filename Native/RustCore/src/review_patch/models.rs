@@ -146,7 +146,7 @@ pub struct ReviewPatchSnapshot {
     pub findings: Vec<ReviewFindingRecord>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewPatchRecord {
     pub id: String,
@@ -157,7 +157,7 @@ pub struct ReviewPatchRecord {
     pub risk_score: f64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewFindingRecord {
     pub id: String,

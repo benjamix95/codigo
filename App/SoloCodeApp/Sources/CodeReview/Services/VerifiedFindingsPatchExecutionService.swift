@@ -125,6 +125,12 @@ enum VerifiedFindingsPatchExecutionService {
         var currentStep = runtime.currentStep
         while let step = currentStep {
             do {
+                let stepContext = try runtimeStepContext(
+                    step: step,
+                    snapshot: currentSnapshot,
+                    findingId: findingId,
+                    providerRegistryAvailable: providerRegistry != nil
+                )
                 switch step {
                 case "prepare_patch":
                     if resolvedExecutionProvider == nil {
@@ -144,46 +150,36 @@ enum VerifiedFindingsPatchExecutionService {
                         service: service
                     )
                 case "verify_patch":
-                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                        throw ReviewPatchWorkflowError.invalidPatch
-                    }
+                    guard let artifact = stepContext.patch else { throw ReviewPatchWorkflowError.invalidPatch }
                     let verified = try await service.verifyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
                     currentSnapshot = try upsertPatchWithRustMutation(
                         snapshot: currentSnapshot,
                         artifact: verified
                     )
                 case "apply_patch":
-                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                        throw ReviewPatchWorkflowError.invalidPatch
-                    }
+                    guard let artifact = stepContext.patch else { throw ReviewPatchWorkflowError.invalidPatch }
                     let applied = try await service.applyPatch(artifact: artifact, workspaceRoot: workspaceRoot)
                     currentSnapshot = try upsertPatchWithRustMutation(
                         snapshot: currentSnapshot,
                         artifact: applied
                     )
                 case "revalidate_finding":
-                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                        throw ReviewPatchWorkflowError.invalidPatch
-                    }
+                    guard let artifact = stepContext.patch else { throw ReviewPatchWorkflowError.invalidPatch }
                     let revalidated = try await service.revalidatePatch(artifact: artifact, workspaceRoot: workspaceRoot)
                     currentSnapshot = try upsertPatchWithRustMutation(
                         snapshot: currentSnapshot,
                         artifact: revalidated
                     )
                 case "rollback_patch":
-                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                        throw ReviewPatchWorkflowError.invalidPatch
-                    }
+                    guard let artifact = stepContext.patch else { throw ReviewPatchWorkflowError.invalidPatch }
                     let rolledBack = try await service.rollbackPatch(artifact: artifact, workspaceRoot: workspaceRoot)
                     currentSnapshot = try upsertPatchWithRustMutation(
                         snapshot: currentSnapshot,
                         artifact: rolledBack
                     )
                 case "open_pr":
-                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }),
-                          let finding = currentSnapshot.findings.first(where: { $0.id == findingId }) else {
-                        throw ReviewPatchWorkflowError.invalidPatch
-                    }
+                    guard let artifact = stepContext.patch,
+                          let finding = stepContext.finding else { throw ReviewPatchWorkflowError.invalidPatch }
                     let openPRContext = try openPullRequestContext(finding: finding)
                     let opened = try service.openPullRequest(
                         artifact: artifact,
@@ -196,12 +192,8 @@ enum VerifiedFindingsPatchExecutionService {
                         artifact: opened
                     )
                 case "merge_pr":
-                    guard let providerRegistry else {
-                        throw ReviewPatchWorkflowError.providerUnavailable
-                    }
-                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                        throw ReviewPatchWorkflowError.invalidPatch
-                    }
+                    guard let providerRegistry else { throw ReviewPatchWorkflowError.providerUnavailable }
+                    guard let artifact = stepContext.patch else { throw ReviewPatchWorkflowError.invalidPatch }
                     let merged = try await service.mergePullRequest(
                         artifact: artifact,
                         preferredProviderId: preferredProviderId,
@@ -214,12 +206,8 @@ enum VerifiedFindingsPatchExecutionService {
                         artifact: merged
                     )
                 case "resolve_conflicts":
-                    guard let providerRegistry else {
-                        throw ReviewPatchWorkflowError.providerUnavailable
-                    }
-                    guard let artifact = currentSnapshot.patches.first(where: { $0.findingId == findingId }) else {
-                        throw ReviewPatchWorkflowError.invalidPatch
-                    }
+                    guard let providerRegistry else { throw ReviewPatchWorkflowError.providerUnavailable }
+                    guard let artifact = stepContext.patch else { throw ReviewPatchWorkflowError.invalidPatch }
                     let resolved = try await service.resolveConflicts(
                         artifact: artifact,
                         preferredProviderId: preferredProviderId,
@@ -435,6 +423,47 @@ enum VerifiedFindingsPatchExecutionService {
         )
     }
 
+    private static func runtimeStepContext(
+        step: String,
+        snapshot: CodeReviewSessionSnapshot,
+        findingId: String,
+        providerRegistryAvailable: Bool
+    ) throws -> ReviewPatchRuntimeStepContext {
+        let response: ReviewPatchRuntimeStepContextResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_step_context",
+            request: ReviewPatchRuntimeStepContextRequest(
+                schemaVersion: 1,
+                step: step,
+                findingId: findingId,
+                snapshot: ReviewPatchRustSnapshot(snapshot: snapshot),
+                providerRegistryAvailable: providerRegistryAvailable
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch step context runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            let message = response.message ?? "Unable to derive patch step context"
+            if message == ReviewPatchWorkflowError.providerUnavailable.errorDescription {
+                throw ReviewPatchWorkflowError.providerUnavailable
+            }
+            if message == ReviewPatchWorkflowError.reviewNotVerified.errorDescription {
+                throw ReviewPatchWorkflowError.reviewNotVerified
+            }
+            if message == ReviewPatchWorkflowError.invalidPatch.errorDescription {
+                throw ReviewPatchWorkflowError.invalidPatch
+            }
+            throw ReviewPatchWorkflowError.applyFailed(message)
+        }
+        return ReviewPatchRuntimeStepContext(
+            patch: response.patch,
+            finding: response.finding,
+            providerRegistryRequired: response.providerRegistryRequired
+        )
+    }
+
     static func openPullRequestContext(
         finding: CodeReviewFinding
     ) throws -> ReviewPatchOpenPRContext {
@@ -483,4 +512,26 @@ private struct ReviewPatchOpenPRContextResponse: Decodable {
     let message: String?
     let title: String?
     let body: String?
+}
+
+private struct ReviewPatchRuntimeStepContext {
+    let patch: ReviewPatchArtifact?
+    let finding: CodeReviewFinding?
+    let providerRegistryRequired: Bool
+}
+
+private struct ReviewPatchRuntimeStepContextRequest: Encodable {
+    let schemaVersion: Int
+    let step: String
+    let findingId: String
+    let snapshot: ReviewPatchRustSnapshot
+    let providerRegistryAvailable: Bool
+}
+
+private struct ReviewPatchRuntimeStepContextResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let patch: ReviewPatchArtifact?
+    let finding: CodeReviewFinding?
+    let providerRegistryRequired: Bool
 }
