@@ -15,20 +15,19 @@ extension ReviewPipelineCoordinator {
         isCancelled: @escaping @Sendable () -> Bool,
         waitWhilePaused: @escaping @Sendable () async -> Void
     ) async -> Bool {
-        let pipelineScope: ReviewScope = againstRef != nil
-            ? .againstRef
-            : {
-                switch resolvedScope {
-                case .staged:
-                    return .staged
-                case .workspace:
-                    return .workspace
-                case .uncommitted:
-                    return .uncommitted
-                }
-            }()
         let sessionId = await sessionState.snapshot().sessionId
-        let taskBatches = nonOverlappingReviewTaskBatches(tasks)
+        guard let plan = planFixStage(
+            tasks: tasks,
+            againstRef: againstRef,
+            resolvedScope: resolvedScope,
+            sessionId: sessionId
+        ) else {
+            await sessionState.fail(error: "Rust fix-stage planner unavailable.")
+            await sessionState.setActiveWorkerCount(0)
+            return false
+        }
+        let pipelineScope = plan.pipelineScope
+        let taskBatches = plan.taskBatches
         var activeWorkers = 0
 
         for batch in taskBatches {
@@ -91,11 +90,9 @@ extension ReviewPipelineCoordinator {
                 default:
                     break
                 }
-                bridgePipelineEvent(
-                    event,
-                    sessionId: sessionId,
-                    continuation: continuation
-                )
+                for bridgedEvent in bridgedPipelineEvents(event, sessionId: sessionId) {
+                    continuation.yield(bridgedEvent)
+                }
             }
 
             if let failureReason {
@@ -110,64 +107,25 @@ extension ReviewPipelineCoordinator {
         return true
     }
 
-    func bridgePipelineEvent(
+    func bridgedPipelineEvents(
         _ event: PipelineUIEvent,
-        sessionId: String,
-        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
-    ) {
-        switch event {
-        case .taskStarted(let payload):
-            continuation.yield(.raw(type: "agent", payload: [
-                "title": payload.title,
-                "detail": "started",
-                "swarm_id": payload.taskId,
-                "group_id": "review-\(sessionId)-\(payload.taskId)",
-                "session_id": sessionId,
-            ]))
-        case .taskCompleted(let payload):
-            continuation.yield(.raw(type: "agent", payload: [
-                "title": payload.agentName,
-                "detail": "completed",
-                "swarm_id": payload.taskId,
-                "group_id": "review-\(sessionId)-\(payload.taskId)",
-                "session_id": sessionId,
-            ]))
-        case .taskFailed(let payload):
-            continuation.yield(.raw(type: "agent", payload: [
-                "title": payload.taskId,
-                "detail": "failed",
-                "status": "failed",
-                "swarm_id": payload.taskId,
-                "group_id": "review-\(sessionId)-\(payload.taskId)",
-                "session_id": sessionId,
-            ]))
-            continuation.yield(.textDelta("\n[Task \(payload.taskId) failed: \(payload.error)]\n"))
-        case .textDelta(let payload):
-            continuation.yield(.textDelta(payload.delta))
-        case .textReplace(let payload):
-            continuation.yield(.textReplace(payload.replacement))
-        default:
-            break
+        sessionId: String
+    ) -> [StreamEvent] {
+        guard let response = ReviewFixStageRustBridge.bridgeEvent(event, sessionId: sessionId) else {
+            return []
         }
-    }
-
-    private func nonOverlappingReviewTaskBatches(
-        _ tasks: [CodeReviewMultiSwarmProvider.ReviewTask]
-    ) -> [[CodeReviewMultiSwarmProvider.ReviewTask]] {
-        var batches: [[CodeReviewMultiSwarmProvider.ReviewTask]] = []
-
-        for task in tasks {
-            let fileSet = Set(task.files)
-            if let batchIndex = batches.firstIndex(where: { batch in
-                batch.allSatisfy { Set($0.files).isDisjoint(with: fileSet) }
-            }) {
-                batches[batchIndex].append(task)
-            } else {
-                batches.append([task])
-            }
+        var events: [StreamEvent] = []
+        if let rawType = response.rawType,
+           let rawPayload = response.rawPayload {
+            events.append(.raw(type: rawType, payload: rawPayload))
         }
-
-        return batches
+        if let textDelta = response.textDelta {
+            events.append(.textDelta(textDelta))
+        }
+        if let textReplace = response.textReplace {
+            events.append(.textReplace(textReplace))
+        }
+        return events
     }
 
     private func reserveReviewTaskLocks(
@@ -197,4 +155,148 @@ extension ReviewPipelineCoordinator {
             await coordinator.releaseLock(files: Set(task.files), swarmId: task.id)
         }
     }
+
+    func planFixStage(
+        tasks: [CodeReviewMultiSwarmProvider.ReviewTask],
+        againstRef: String?,
+        resolvedScope: CodeReviewMultiSwarmProvider.ReviewFileScope,
+        sessionId: String
+    ) -> ReviewFixStageRustPlanResult? {
+        guard let response = ReviewFixStageRustBridge.plan(
+            tasks: tasks,
+            againstRef: againstRef,
+            resolvedScope: resolvedScope.rawValue,
+            sessionId: sessionId
+        ) else {
+            return nil
+        }
+        guard let pipelineScope = ReviewScope(rawValue: response.pipelineScope ?? "uncommitted") else {
+            return nil
+        }
+        return ReviewFixStageRustPlanResult(
+            pipelineScope: pipelineScope,
+            taskBatches: response.taskBatches
+        )
+    }
+}
+
+struct ReviewFixStageRustPlanResult {
+    let pipelineScope: ReviewScope
+    let taskBatches: [[CodeReviewMultiSwarmProvider.ReviewTask]]
+}
+
+private enum ReviewFixStageRustBridge {
+    static func plan(
+        tasks: [CodeReviewMultiSwarmProvider.ReviewTask],
+        againstRef: String?,
+        resolvedScope: String,
+        sessionId: String
+    ) -> ReviewFixStageRustPlanResponse? {
+        let response: ReviewFixStageRustPlanResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_fix_stage_plan",
+            request: ReviewFixStageRustPlanRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                resolvedScope: resolvedScope,
+                againstRef: againstRef,
+                tasks: tasks
+            )
+        )
+        guard response?.error == nil else { return nil }
+        return response
+    }
+
+    static func bridgeEvent(
+        _ event: PipelineUIEvent,
+        sessionId: String
+    ) -> ReviewFixStageRustEventResponse? {
+        let request: ReviewFixStageRustEventRequest
+        switch event {
+        case .taskStarted(let payload):
+            request = ReviewFixStageRustEventRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                eventKind: "task_started",
+                taskId: payload.taskId,
+                title: payload.title
+            )
+        case .taskCompleted(let payload):
+            request = ReviewFixStageRustEventRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                eventKind: "task_completed",
+                taskId: payload.taskId,
+                agentName: payload.agentName
+            )
+        case .taskFailed(let payload):
+            request = ReviewFixStageRustEventRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                eventKind: "task_failed",
+                taskId: payload.taskId,
+                error: payload.error
+            )
+        case .textDelta(let payload):
+            request = ReviewFixStageRustEventRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                eventKind: "text_delta",
+                delta: payload.delta
+            )
+        case .textReplace(let payload):
+            request = ReviewFixStageRustEventRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                eventKind: "text_replace",
+                replacement: payload.replacement
+            )
+        default:
+            return nil
+        }
+        let response: ReviewFixStageRustEventResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_fix_stage_bridge_event",
+            request: request
+        )
+        guard response?.error == nil else { return nil }
+        return response
+    }
+}
+
+private struct ReviewFixStageRustPlanRequest: Encodable {
+    let schemaVersion: Int
+    let sessionId: String
+    let resolvedScope: String
+    let againstRef: String?
+    let tasks: [CodeReviewMultiSwarmProvider.ReviewTask]
+}
+
+private struct ReviewFixStageRustPlanResponse: Decodable {
+    let error: ReviewFixStageRustError?
+    let pipelineScope: String?
+    let taskBatches: [[CodeReviewMultiSwarmProvider.ReviewTask]]
+}
+
+private struct ReviewFixStageRustEventRequest: Encodable {
+    let schemaVersion: Int
+    let sessionId: String
+    let eventKind: String
+    var taskId: String?
+    var title: String?
+    var agentName: String?
+    var error: String?
+    var delta: String?
+    var replacement: String?
+}
+
+private struct ReviewFixStageRustEventResponse: Decodable {
+    let error: ReviewFixStageRustError?
+    let rawType: String?
+    let rawPayload: [String: String]?
+    let textDelta: String?
+    let textReplace: String?
+}
+
+private struct ReviewFixStageRustError: Decodable {
+    let code: String
+    let message: String
 }

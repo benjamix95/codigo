@@ -1,4 +1,5 @@
 pub mod finalize;
+pub mod fix_stage;
 pub mod ledger;
 pub mod models;
 pub mod orchestrator;

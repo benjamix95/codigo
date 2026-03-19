@@ -238,6 +238,102 @@ final class ReviewPipelineCoordinatorTests: XCTestCase {
         XCTAssertEqual(resources.analysisProvider.id, overrideProvider.id)
         XCTAssertEqual(resources.executionProvider.id, overrideProvider.id)
     }
+
+    func testPlanFixStageUsesRustBatchPlannerAndAgainstRefScope() async throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+
+        let tasks = [
+            CodeReviewMultiSwarmProvider.ReviewTask(
+                id: "task-1",
+                description: "Fix A",
+                files: ["A.swift"],
+                severity: "warning",
+                category: nil,
+                lineNumber: nil,
+                endLineNumber: nil,
+                origin: .reviewer,
+                confidence: nil,
+                evidence: nil,
+                expectedInvariant: nil,
+                reproOrReasoning: nil,
+                sourceTool: nil,
+                blocking: nil
+            ),
+            CodeReviewMultiSwarmProvider.ReviewTask(
+                id: "task-2",
+                description: "Fix B",
+                files: ["A.swift", "B.swift"],
+                severity: "critical",
+                category: nil,
+                lineNumber: nil,
+                endLineNumber: nil,
+                origin: .reviewer,
+                confidence: nil,
+                evidence: nil,
+                expectedInvariant: nil,
+                reproOrReasoning: nil,
+                sourceTool: nil,
+                blocking: true
+            ),
+            CodeReviewMultiSwarmProvider.ReviewTask(
+                id: "task-3",
+                description: "Fix C",
+                files: ["C.swift"],
+                severity: "warning",
+                category: nil,
+                lineNumber: nil,
+                endLineNumber: nil,
+                origin: .reviewer,
+                confidence: nil,
+                evidence: nil,
+                expectedInvariant: nil,
+                reproOrReasoning: nil,
+                sourceTool: nil,
+                blocking: nil
+            ),
+        ]
+
+        let plan = await ReviewPipelineCoordinator.shared.planFixStage(
+            tasks: tasks,
+            againstRef: "HEAD~1",
+            resolvedScope: .staged,
+            sessionId: "session-fix-stage"
+        )
+
+        XCTAssertEqual(plan?.pipelineScope, .againstRef)
+        XCTAssertEqual(plan?.taskBatches.count, 2)
+        XCTAssertEqual(plan?.taskBatches.first?.map(\.id), ["task-1", "task-3"])
+        XCTAssertEqual(plan?.taskBatches.last?.map(\.id), ["task-2"])
+    }
+
+    func testBridgedPipelineEventsUsesRustPayloadShapeForTaskFailure() async throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+
+        let event = PipelineUIEvent.taskFailed(
+            TaskFailedPayload(jobId: "job-1", taskId: "task-9", error: "boom")
+        )
+        let bridged = await ReviewPipelineCoordinator.shared.bridgedPipelineEvents(
+            event,
+            sessionId: "session-bridge"
+        )
+
+        XCTAssertEqual(bridged.count, 2)
+        guard case .raw(let type, let payload) = bridged[0] else {
+            return XCTFail("Expected raw bridged event")
+        }
+        XCTAssertEqual(type, "agent")
+        XCTAssertEqual(payload["group_id"], "review-session-bridge-task-9")
+        XCTAssertEqual(payload["status"], "failed")
+
+        guard case .textDelta(let delta) = bridged[1] else {
+            return XCTFail("Expected text delta failure tail")
+        }
+        XCTAssertEqual(delta, "\n[Task task-9 failed: boom]\n")
+    }
 }
 
 private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {

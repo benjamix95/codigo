@@ -1,4 +1,5 @@
 mod common;
+mod review_fix_stage;
 mod plan_state;
 mod review_command;
 mod review_core;
