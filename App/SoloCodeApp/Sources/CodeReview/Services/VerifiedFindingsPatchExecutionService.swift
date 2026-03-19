@@ -309,28 +309,12 @@ enum VerifiedFindingsPatchExecutionService {
                 "Rust patch close finding mutator required but unavailable"
             )
         }
-        if let canonical = mutation.snapshot {
-            return canonical
-        }
-        guard let findings = mutation.findings,
-              let events = mutation.events else {
+        guard let canonical = mutation.snapshot else {
             throw ReviewPatchWorkflowError.applyFailed(
                 "Rust patch close finding mutator response was incomplete"
             )
         }
-        let updatedConfig = mutation.config ?? snapshot.config
-        let updated = snapshot.copying(
-            findings: findings,
-            events: events,
-            config: updatedConfig,
-            outcome: snapshot.copying(
-                findings: findings,
-                events: events,
-                config: updatedConfig
-            ).buildOutcomeSummary(),
-            lastUpdatedAt: Date()
-        )
-        return updated
+        return canonical
     }
 
     private static func upsertPatchWithRustMutation(
@@ -346,28 +330,12 @@ enum VerifiedFindingsPatchExecutionService {
                 "Rust patch snapshot upsert mutator required but unavailable"
             )
         }
-        if let canonical = mutation.snapshot {
-            return canonical
-        }
-        guard let findings = mutation.findings,
-              let patches = mutation.patches,
-              let events = mutation.events else {
+        guard let canonical = mutation.snapshot else {
             throw ReviewPatchWorkflowError.applyFailed(
                 "Rust patch snapshot upsert mutator response was incomplete"
             )
         }
-        let updated = snapshot.copying(
-            findings: findings,
-            patches: patches,
-            events: events,
-            outcome: snapshot.copying(
-                findings: findings,
-                patches: patches,
-                events: events
-            ).buildOutcomeSummary(),
-            lastUpdatedAt: Date()
-        )
-        return updated
+        return canonical
     }
 
     private static func startPatchRuntime(
