@@ -42,23 +42,18 @@ public enum ReviewCandidateVerificationService {
     public static func candidate(
         from finding: CodeReviewFinding,
         signalType: ReviewSignalType
-    ) -> ReviewCandidate {
-        ReviewCandidate(
-            id: finding.id,
-            severity: finding.severity,
-            category: finding.category,
-            origin: finding.origin,
-            filePath: finding.filePath,
-            lineNumber: finding.lineNumber,
-            endLineNumber: finding.endLineNumber,
-            message: finding.message,
-            evidence: finding.evidence,
-            expectedInvariant: finding.expectedInvariant ?? finding.verificationReport,
-            reproOrReasoning: finding.reproOrReasoning ?? finding.suggestedFix,
-            confidence: finding.confidence,
-            sourceTool: finding.sourceTool,
+    ) -> ReviewCandidate? {
+        let request = ReviewCoreCandidateFromFindingRequest(
+            schemaVersion: 1,
+            finding: finding,
             signalType: signalType
         )
+        let response: ReviewCoreCandidateResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_candidate_from_finding",
+            request: request
+        )
+        guard response?.error == nil else { return nil }
+        return response?.candidate
     }
 
     private static func verifyWithRust(
@@ -115,37 +110,18 @@ extension ReviewPipelineCoordinator {
         }
     }
 
-    func reviewCandidate(from task: CodeReviewMultiSwarmProvider.ReviewTask, prefix: String) -> ReviewCandidate {
-        let finding = CodeReviewFinding.fromRawTask(
-            id: "\(prefix)\(task.id)",
-            description: task.description,
-            files: task.files,
-            severity: task.severity,
-            category: task.category,
-            origin: task.origin,
-            filePath: task.files.first,
-            lineNumber: task.lineNumber,
-            confidence: task.confidence,
-            evidence: task.evidence,
-            sourceTool: task.sourceTool,
-            blocking: task.blocking
+    func reviewCandidate(from task: CodeReviewMultiSwarmProvider.ReviewTask, prefix: String) -> ReviewCandidate? {
+        let request = ReviewCoreCandidateFromTaskRequest(
+            schemaVersion: 1,
+            task: task,
+            prefix: prefix
         )
-        return ReviewCandidate(
-            id: finding.id,
-            severity: finding.severity,
-            category: finding.category,
-            origin: task.origin,
-            filePath: task.files.first ?? "unknown",
-            lineNumber: task.lineNumber,
-            endLineNumber: task.endLineNumber,
-            message: task.description,
-            evidence: task.evidence,
-            expectedInvariant: task.expectedInvariant,
-            reproOrReasoning: task.reproOrReasoning,
-            confidence: task.confidence,
-            sourceTool: task.sourceTool,
-            signalType: task.origin == .auditTool ? .pattern : .semantic
+        let response: ReviewCoreCandidateResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_candidate_from_review_task",
+            request: request
         )
+        guard response?.error == nil else { return nil }
+        return response?.candidate
     }
 
     private func normalizedReviewPath(_ raw: String) -> String {
@@ -155,6 +131,28 @@ extension ReviewPipelineCoordinator {
         }
         return value
     }
+}
+
+private struct ReviewCoreCandidateFromFindingRequest: Encodable {
+    let schemaVersion: Int
+    let finding: CodeReviewFinding
+    let signalType: ReviewSignalType
+}
+
+private struct ReviewCoreCandidateFromTaskRequest: Encodable {
+    let schemaVersion: Int
+    let task: CodeReviewMultiSwarmProvider.ReviewTask
+    let prefix: String
+}
+
+private struct ReviewCoreCandidateResponse: Decodable {
+    let error: ReviewCoreCandidateError?
+    let candidate: ReviewCandidate?
+}
+
+private struct ReviewCoreCandidateError: Decodable {
+    let code: String
+    let message: String
 }
 
 private struct ReviewCoreVerifyCandidatesRequest: Encodable {

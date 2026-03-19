@@ -334,6 +334,64 @@ final class ReviewPipelineCoordinatorTests: XCTestCase {
         }
         XCTAssertEqual(delta, "\n[Task task-9 failed: boom]\n")
     }
+
+    func testCandidateFromFindingUsesRustCanonicalFallbackFields() throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+
+        let finding = CodeReviewFinding(
+            id: "finding-1",
+            severity: .warning,
+            category: .correctness,
+            origin: .reviewer,
+            filePath: "File.swift",
+            message: "message",
+            suggestedFix: "fix me",
+            verificationReport: "expected invariant"
+        )
+
+        let candidate = try XCTUnwrap(
+            ReviewCandidateVerificationService.candidate(from: finding, signalType: .pattern)
+        )
+        XCTAssertEqual(candidate.expectedInvariant, "expected invariant")
+        XCTAssertEqual(candidate.reproOrReasoning, "fix me")
+        XCTAssertEqual(candidate.signalType, .pattern)
+    }
+
+    func testReviewCandidateFromTaskUsesRustCanonicalDerivation() async throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+
+        let task = CodeReviewMultiSwarmProvider.ReviewTask(
+            id: "task-1",
+            description: "Security vulnerability in auth flow",
+            files: ["Auth.swift"],
+            severity: "high",
+            category: nil,
+            lineNumber: 10,
+            endLineNumber: nil,
+            origin: .auditTool,
+            confidence: 0.9,
+            evidence: "token",
+            expectedInvariant: nil,
+            reproOrReasoning: nil,
+            sourceTool: "audit_security_dataflow",
+            blocking: true
+        )
+
+        let runtimeCandidate = await ReviewPipelineCoordinator.shared.reviewCandidate(
+            from: task,
+            prefix: "r1-"
+        )
+        let candidate = try XCTUnwrap(runtimeCandidate)
+        XCTAssertEqual(candidate.id, "r1-task-1")
+        XCTAssertEqual(candidate.severity, .critical)
+        XCTAssertEqual(candidate.category, .security)
+        XCTAssertEqual(candidate.signalType, .pattern)
+        XCTAssertEqual(candidate.filePath, "Auth.swift")
+    }
 }
 
 private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {

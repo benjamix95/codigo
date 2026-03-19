@@ -58,8 +58,14 @@ struct ReviewRuntimeAdapter {
             sessionState: tempState,
             continuation: continuation
         )
-        let candidates = findings.map {
+        let candidates = findings.compactMap {
             ReviewCandidateVerificationService.candidate(from: $0, signalType: .pattern)
+        }
+        guard candidates.count == findings.count else {
+            return ReviewPipelineRustCallbackResult(
+                kind: "run_audit_stage",
+                error: "Rust review candidate builder unavailable for audit findings."
+            )
         }
         if !candidates.isEmpty {
             await tempState.addCandidates(candidates)
@@ -105,10 +111,17 @@ struct ReviewRuntimeAdapter {
 
     func prepareTaskCandidates(step: ReviewPipelineRustStep, sessionId: String) async -> ReviewPipelineRustCallbackResult {
         let tempState = CodeReviewSessionState(sessionId: sessionId)
-        let candidates = await step.tasks.asyncMap { task in
+        let rawCandidates = await step.tasks.asyncMap { task in
             await ReviewPipelineCoordinator.shared.reviewCandidate(
                 from: task.reviewTask,
                 prefix: "r\(step.round ?? 0)-"
+            )
+        }
+        let candidates = rawCandidates.compactMap { $0 }
+        guard candidates.count == step.tasks.count else {
+            return ReviewPipelineRustCallbackResult(
+                kind: "prepare_task_candidates",
+                error: "Rust review candidate builder unavailable for task candidates."
             )
         }
         if !candidates.isEmpty {

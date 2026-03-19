@@ -177,6 +177,11 @@ extension CodeReviewFinding {
         case sourceTool
         case blocking
         case status
+        case verificationReport
+        case verifiedAt
+        case verificationMethod
+        case falsePositiveReason
+        case patchArtifactId
         case comments
         case createdAt
     }
@@ -199,6 +204,11 @@ extension CodeReviewFinding {
         let sourceTool = try container.decodeIfPresent(String.self, forKey: .sourceTool)
         let blocking = try container.decodeIfPresent(Bool.self, forKey: .blocking)
         let status = try container.decodeIfPresent(FindingStatus.self, forKey: .status) ?? .open
+        let verificationReport = try container.decodeIfPresent(String.self, forKey: .verificationReport)
+        let verifiedAt = try container.decodeIfPresent(Date.self, forKey: .verifiedAt)
+        let verificationMethod = try container.decodeIfPresent(String.self, forKey: .verificationMethod)
+        let falsePositiveReason = try container.decodeIfPresent(String.self, forKey: .falsePositiveReason)
+        let patchArtifactId = try container.decodeIfPresent(String.self, forKey: .patchArtifactId)
         let comments = try container.decodeIfPresent([FindingComment].self, forKey: .comments) ?? []
         let createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
 
@@ -219,6 +229,11 @@ extension CodeReviewFinding {
             sourceTool: sourceTool,
             blocking: blocking,
             status: status,
+            verificationReport: verificationReport,
+            verifiedAt: verifiedAt,
+            verificationMethod: verificationMethod,
+            falsePositiveReason: falsePositiveReason,
+            patchArtifactId: patchArtifactId,
             comments: comments,
             createdAt: createdAt
         )

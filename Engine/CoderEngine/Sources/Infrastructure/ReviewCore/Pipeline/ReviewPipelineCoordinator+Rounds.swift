@@ -165,11 +165,16 @@ extension ReviewPipelineCoordinator {
             switch nextRoundTasks {
             case .tasks(let tasks) where !tasks.isEmpty:
                 currentTasks = tasks
-                let candidates = tasks.map {
+                let rawCandidates = tasks.map {
                     reviewCandidate(
                         from: $0,
                         prefix: "r\(reviewRound)-"
                     )
+                }
+                let candidates = rawCandidates.compactMap { $0 }
+                guard candidates.count == tasks.count else {
+                    finalFailureReason = "Rust review candidate builder unavailable during re-review candidate preparation."
+                    break reviewLoop
                 }
                 await sessionState.addCandidates(candidates)
                 await verifyCandidates(

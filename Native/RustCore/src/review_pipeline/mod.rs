@@ -1,3 +1,4 @@
+pub mod candidates;
 pub mod finalize;
 pub mod fix_stage;
 pub mod ledger;
