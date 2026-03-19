@@ -1,7 +1,7 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::review_patch::{
-    apply_runtime_result, build_prepare_context, build_verify_result, get_runtime_state,
-    handle_patch_action, start_runtime,
+    apply_runtime_result, build_apply_result, build_prepare_context, build_verify_result,
+    get_runtime_state, handle_patch_action, start_runtime,
 };
 use std::os::raw::c_char;
 
@@ -115,6 +115,31 @@ pub extern "C" fn review_core_patch_build_verify_result(input: *const c_char) ->
             );
         }
         encode_raw(&build_verify_result(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_patch_build_apply_result(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_patch::models::ReviewPatchApplyResultRequest =
+            match serde_json::from_str(raw) {
+                Ok(request) => request,
+                Err(err) => {
+                    return encode_raw(
+                        &crate::review_patch::models::ReviewPatchApplyResultResponse::error(
+                            err.to_string(),
+                        ),
+                    );
+                }
+            };
+        if request.schema_version != 1 {
+            return encode_raw(
+                &crate::review_patch::models::ReviewPatchApplyResultResponse::error(
+                    "schemaVersion must be 1",
+                ),
+            );
+        }
+        encode_raw(&build_apply_result(request))
     })
 }
 

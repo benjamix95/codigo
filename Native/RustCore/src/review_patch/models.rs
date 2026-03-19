@@ -66,6 +66,19 @@ pub struct ReviewPatchVerifyResultRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchApplyResultRequest {
+    pub schema_version: i32,
+    pub patch_id: String,
+    pub finding_id: String,
+    pub success: bool,
+    pub validation_run_id: Option<String>,
+    pub validation_status: Option<String>,
+    pub validation_summary: Option<String>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchSnapshot {
     pub session_id: String,
     pub conversation_id: Option<String>,
@@ -156,6 +169,21 @@ pub struct ReviewPatchVerifyResultResponse {
     pub status: Option<String>,
     pub verify_status: Option<String>,
     pub conflicts: Option<Vec<String>>,
+    pub apply_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchApplyResultResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub status: Option<String>,
+    pub verify_status: Option<String>,
+    pub rollback_ref: Option<String>,
+    pub validation_run_id: Option<String>,
+    pub validation_status: Option<String>,
+    pub validation_summary: Option<String>,
     pub apply_message: Option<String>,
 }
 
@@ -299,6 +327,45 @@ impl ReviewPatchVerifyResultResponse {
             status: None,
             verify_status: None,
             conflicts: None,
+            apply_message: None,
+        }
+    }
+}
+
+impl ReviewPatchApplyResultResponse {
+    pub fn success(
+        status: String,
+        verify_status: String,
+        rollback_ref: String,
+        validation_run_id: Option<String>,
+        validation_status: String,
+        validation_summary: Option<String>,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            status: Some(status),
+            verify_status: Some(verify_status),
+            rollback_ref: Some(rollback_ref),
+            validation_run_id,
+            validation_status: Some(validation_status),
+            validation_summary: validation_summary.clone(),
+            apply_message: validation_summary,
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            status: None,
+            verify_status: None,
+            rollback_ref: None,
+            validation_run_id: None,
+            validation_status: None,
+            validation_summary: None,
             apply_message: None,
         }
     }

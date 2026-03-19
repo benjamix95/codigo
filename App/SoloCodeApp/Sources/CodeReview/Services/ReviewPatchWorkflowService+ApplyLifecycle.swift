@@ -26,20 +26,66 @@ extension ReviewPatchWorkflowService {
                 _ = try? gitService.runGit(["apply", "-R", "--3way", patchFile.path], gitRoot: gitRoot)
                 throw ReviewPatchWorkflowError.validationFailed(validation.summaryLine)
             }
-            var applied = artifact
-            applied.status = .applied
-            applied.verifyStatus = .verified
-            applied.validationRunId = validation.runId
-            applied.validationStatus = validation.status
-            applied.validationSummary = ValidationReportFormatter.summary(for: validation)
-            applied.rollbackRef = "reverse:\(artifact.id)"
-            applied.applyMessage = applied.validationSummary
-            applied.updatedAt = Date()
-            return applied
+            return try applyPatchResult(
+                artifact: artifact,
+                validation: validation
+            )
         } catch {
             _ = try? gitService.runGit(["apply", "-R", "--3way", patchFile.path], gitRoot: gitRoot)
             throw ReviewPatchWorkflowError.applyFailed(error.localizedDescription)
         }
+    }
+
+    func applyPatchResult(
+        artifact: ReviewPatchArtifact,
+        validation: ValidationRunResult
+    ) throws -> ReviewPatchArtifact {
+        let summary = ValidationReportFormatter.summary(for: validation)
+        let response: ReviewPatchApplyResultBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_apply_result",
+            request: ReviewPatchApplyResultBridgeRequest(
+                schemaVersion: 1,
+                patchId: artifact.id,
+                findingId: artifact.findingId,
+                success: true,
+                validationRunId: validation.runId,
+                validationStatus: validation.status.rawValue,
+                validationSummary: summary,
+                errorMessage: nil
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch apply result runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch apply result"
+            )
+        }
+        guard let statusRaw = response.status,
+              let status = ReviewPatchStatus(rawValue: statusRaw),
+              let verifyStatusRaw = response.verifyStatus,
+              let verifyStatus = ReviewPatchVerifyStatus(rawValue: verifyStatusRaw),
+              let rollbackRef = response.rollbackRef,
+              let validationStatusRaw = response.validationStatus,
+              let validationStatus = ValidationStatus(rawValue: validationStatusRaw) else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch apply result response was incomplete"
+            )
+        }
+
+        var updated = artifact
+        updated.status = status
+        updated.verifyStatus = verifyStatus
+        updated.validationRunId = response.validationRunId
+        updated.validationStatus = validationStatus
+        updated.validationSummary = response.validationSummary
+        updated.rollbackRef = rollbackRef
+        updated.applyMessage = response.applyMessage
+        updated.updatedAt = Date()
+        return updated
     }
 
     func revalidatePatch(
@@ -92,6 +138,29 @@ extension ReviewPatchWorkflowService {
             throw ReviewPatchWorkflowError.applyFailed("Rollback fallito: \(error.localizedDescription)")
         }
     }
+}
+
+private struct ReviewPatchApplyResultBridgeRequest: Encodable {
+    let schemaVersion: Int
+    let patchId: String
+    let findingId: String
+    let success: Bool
+    let validationRunId: String?
+    let validationStatus: String?
+    let validationSummary: String?
+    let errorMessage: String?
+}
+
+private struct ReviewPatchApplyResultBridgeResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let status: String?
+    let verifyStatus: String?
+    let rollbackRef: String?
+    let validationRunId: String?
+    let validationStatus: String?
+    let validationSummary: String?
+    let applyMessage: String?
 }
 
 extension CodigoApp {
