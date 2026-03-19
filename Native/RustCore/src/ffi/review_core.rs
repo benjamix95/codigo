@@ -1,12 +1,13 @@
 use super::common::{encode_raw, with_raw_json_input, BACKEND_VERSION};
 use crate::review_audit::run_audit;
 use crate::review_chat::merge_chat_findings;
-use crate::review_finalize::select_patch_finalization_targets;
+use crate::review_finalize::{select_auto_prepare_targets, select_patch_finalization_targets};
 use crate::review_history::{
     derive_historical_findings_from_snapshot, derive_history_live_state,
 };
 use crate::review_models::{
     ReviewAuditRequest, ReviewCoreAuditResponse, ReviewCoreListResponse,
+    ReviewFinalizeTargetsRequest,
     ReviewCoreProjectionResponse, ReviewCoreReduceResponse, ReviewCoreReplayResponse,
     ReviewCoreSecurityGateResponse, ReviewCoreSyncResponse, ReviewProjectionRequest,
     ReviewReplayRequest, ReviewSecurityGateRequest, ReviewSyncRequest, ReviewVerifyRequest,
@@ -22,6 +23,30 @@ use std::os::raw::c_char;
 #[no_mangle]
 pub extern "C" fn review_core_version() -> *const c_char {
     BACKEND_VERSION.as_ptr() as *const c_char
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_select_auto_prepare_targets(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: ReviewFinalizeTargetsRequest = match serde_json::from_str(raw) {
+            Ok(request) => request,
+            Err(err) => {
+                return encode_raw(&ReviewCoreReduceResponse::error(
+                    "decode_failed",
+                    &err.to_string(),
+                ));
+            }
+        };
+        if request.schema_version != 1 {
+            return encode_raw(&ReviewCoreReduceResponse::error(
+                "unsupported_schema",
+                "schemaVersion must be 1",
+            ));
+        }
+        encode_raw(&ReviewCoreReduceResponse::success_panel_state(
+            select_auto_prepare_targets(&request.snapshot, request.origin_filter.as_deref()),
+        ))
+    })
 }
 
 #[no_mangle]

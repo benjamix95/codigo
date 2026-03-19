@@ -1,6 +1,19 @@
 use serde_json::Value;
 
 pub fn select_patch_finalization_targets(snapshot: &Value) -> Value {
+    select_patch_finalization_targets_filtered(snapshot, None, false)
+}
+
+pub fn select_auto_prepare_targets(snapshot: &Value, origin_filter: Option<&str>) -> Value {
+    select_patch_finalization_targets_filtered(snapshot, origin_filter, true)
+}
+
+fn select_patch_finalization_targets_filtered(
+    snapshot: &Value,
+    origin_filter: Option<&str>,
+    require_missing_patch_artifact: bool,
+) -> Value {
+    let allowed_origins = parse_allowed_origins(origin_filter);
     let finding_ids = snapshot
         .get("findings")
         .and_then(Value::as_array)
@@ -9,9 +22,20 @@ pub fn select_patch_finalization_targets(snapshot: &Value) -> Value {
         .into_iter()
         .filter_map(|finding| {
             let finding_id = finding.get("id").and_then(Value::as_str)?;
+            if !allowed_origins.is_empty() {
+                let origin = finding.get("origin").and_then(Value::as_str)?;
+                if !allowed_origins.iter().any(|candidate| candidate == origin) {
+                    return None;
+                }
+            }
             let is_verified = finding.get("verifiedAt").is_some()
                 || finding.get("verificationReport").and_then(Value::as_str).is_some();
             if !is_verified {
+                return None;
+            }
+            if require_missing_patch_artifact
+                && finding.get("patchArtifactId").and_then(Value::as_str).is_some()
+            {
                 return None;
             }
             let patch = snapshot
@@ -31,6 +55,16 @@ pub fn select_patch_finalization_targets(snapshot: &Value) -> Value {
         })
         .collect::<Vec<_>>();
     Value::Array(finding_ids)
+}
+
+fn parse_allowed_origins(origin_filter: Option<&str>) -> Vec<String> {
+    origin_filter
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .collect()
 }
 
 fn is_patch_ready(patch: &Value) -> bool {
@@ -57,6 +91,24 @@ mod tests {
                 {"findingId": "f2", "verifyStatus": "verified", "status": "verified"}
             ]
         }));
+        assert_eq!(targets.as_array().map(|items| items.len()), Some(1));
+        assert_eq!(targets[0].as_str(), Some("f1"));
+    }
+
+    #[test]
+    fn selects_auto_prepare_targets_with_origin_filter_and_missing_patch_artifact() {
+        let targets = select_auto_prepare_targets(
+            &json!({
+                "findings": [
+                    {"id": "f1", "verifiedAt": "2026-03-12T00:00:00Z", "origin": "bugHunter", "patchArtifactId": null},
+                    {"id": "f2", "verificationReport": "ok", "origin": "reviewer", "patchArtifactId": null},
+                    {"id": "f3", "verificationReport": "ok", "origin": "bugHunter", "patchArtifactId": "patch-3"},
+                    {"id": "f4", "origin": "bugHunter", "patchArtifactId": null}
+                ],
+                "patches": []
+            }),
+            Some("bugHunter"),
+        );
         assert_eq!(targets.as_array().map(|items| items.len()), Some(1));
         assert_eq!(targets[0].as_str(), Some("f1"));
     }

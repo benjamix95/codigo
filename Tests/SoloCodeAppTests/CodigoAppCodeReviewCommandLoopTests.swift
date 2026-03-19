@@ -31,16 +31,27 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
     }
 
     private func requireReviewCore() throws {
-        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
         ReviewCoreBridge.resetForTests()
         guard ReviewCoreBridge.loadedState().loaded else {
             throw XCTSkip("Rust review core non disponibile in ambiente.")
         }
     }
 
-    private func reviewCoreLibraryPath() -> String {
-        URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
+        let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
+        let repoRoot = sourceURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let targetDebug = repoRoot
             .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
+        if FileManager.default.fileExists(atPath: targetDebug) {
+            return targetDebug
+        }
+        return repoRoot
+            .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
             .path
     }
 
@@ -529,7 +540,8 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertEqual(updatedSnapshot.patches.first?.status, .draft)
     }
 
-    func testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch() {
+    func testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch() throws {
+        try requireReviewCore()
         let app = makeApp()
         let snapshot = CodeReviewSessionSnapshot(
             sessionId: "review-auto-prepare",
@@ -605,6 +617,52 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         XCTAssertEqual(bugIds, ["bughunter-verified"])
         XCTAssertTrue(securityIds.isEmpty)
         XCTAssertEqual(Set(allIds), ["bughunter-verified", "reviewer-verified"])
+    }
+
+    func testAutoPrepareEligibleFindingIdsFailsClosedWhenRustRuntimeIsDisabled() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let app = makeApp()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "review-auto-prepare-disabled",
+            conversationId: nil,
+            phase: .completed,
+            stage: .completed,
+            findings: [
+                CodeReviewFinding(
+                    id: "bughunter-verified",
+                    severity: .warning,
+                    category: .correctness,
+                    origin: .bugHunter,
+                    filePath: "Sources/Bug.swift",
+                    message: "Bug finding",
+                    verificationReport: "verified",
+                    verifiedAt: Date()
+                )
+            ],
+            events: [],
+            config: .default,
+            scope: nil,
+            workspacePath: workspaceURL.path,
+            currentRound: 1,
+            activeWorkerCount: 0,
+            startedAt: Date(),
+            completedAt: Date(),
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: nil,
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+
+        XCTAssertEqual(
+            app.autoPrepareEligibleFindingIds(
+                snapshot: snapshot,
+                originFilter: FindingOrigin.bugHunter.rawValue
+            ),
+            []
+        )
     }
 
     private func makeApp() -> CodigoApp {

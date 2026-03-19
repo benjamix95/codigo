@@ -144,6 +144,14 @@ pub struct ReviewHistoricalShapeRequest {
     pub records: Vec<Value>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewFinalizeTargetsRequest {
+    pub schema_version: i32,
+    pub snapshot: Value,
+    pub origin_filter: Option<String>,
+}
+
 impl ReviewCoreErrorPayload {
     pub fn new(code: &str, message: &str) -> Self {
         Self {

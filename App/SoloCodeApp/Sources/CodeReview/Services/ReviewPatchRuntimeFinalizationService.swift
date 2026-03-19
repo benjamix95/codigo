@@ -156,20 +156,16 @@ extension CodigoApp {
         snapshot: CodeReviewSessionSnapshot,
         originFilter: String?
     ) -> [String] {
-        let allowedOrigins = Set(
-            (originFilter ?? "")
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+        let response: ReviewPatchAutoPrepareTargetsResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_select_auto_prepare_targets",
+            request: ReviewPatchAutoPrepareTargetsRequest(
+                schemaVersion: 1,
+                snapshot: snapshot,
+                originFilter: originFilter
+            )
         )
-        return snapshot.findings.compactMap { finding in
-            guard finding.patchArtifactId == nil else { return nil }
-            guard finding.verifiedAt != nil || finding.verificationReport != nil else { return nil }
-            if !allowedOrigins.isEmpty && !allowedOrigins.contains(finding.origin.rawValue) {
-                return nil
-            }
-            return finding.id
-        }
+        guard response?.error == nil else { return [] }
+        return response?.panelState ?? []
     }
 
     @MainActor
@@ -221,4 +217,20 @@ extension CodigoApp {
         }
         return true
     }
+}
+
+private struct ReviewPatchAutoPrepareTargetsRequest: Encodable {
+    let schemaVersion: Int
+    let snapshot: CodeReviewSessionSnapshot
+    let originFilter: String?
+}
+
+private struct ReviewPatchAutoPrepareTargetsResponse: Decodable {
+    let error: ReviewPatchAutoPrepareTargetsError?
+    let panelState: [String]?
+}
+
+private struct ReviewPatchAutoPrepareTargetsError: Decodable {
+    let code: String
+    let message: String
 }
