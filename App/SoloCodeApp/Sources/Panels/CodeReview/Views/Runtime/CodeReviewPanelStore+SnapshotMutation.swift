@@ -244,37 +244,9 @@ extension CodeReviewPanelStore {
                 payload: payload
             )
         ),
-              !mutation.isError else {
-            guard action == "dismiss",
-                  let findingId = payload["finding_id"],
-                  let targetIndex = snapshot.findings.firstIndex(where: { $0.id == findingId }) else { return }
-            let reason = payload["reason"] ?? "dismissed"
-            let status: FindingStatus = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased() == FindingStatus.wontFix.rawValue ? .wontFix : .dismissed
-            var findings = snapshot.findings
-            findings[targetIndex].status = status
-            let events = snapshot.events + [.findingDismissed(findingId: findingId, reason: reason)]
-            let updated = snapshot.copying(
-                findings: findings,
-                events: events,
-                outcome: snapshot.copying(findings: findings, events: events).buildOutcomeSummary()
-            )
-            taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
-            return
-        }
-        if let canonical = mutation.snapshot {
-            taskActivityStore.ingestCodeReviewSnapshot(canonical, conversationId: conversationId)
-            return
-        }
-        guard let findings = mutation.findings,
-              let events = mutation.events else { return }
-
-        let updated = snapshot.copying(
-            findings: findings,
-            events: events,
-            outcome: snapshot.copying(findings: findings, events: events).buildOutcomeSummary()
-        )
-        taskActivityStore.ingestCodeReviewSnapshot(updated, conversationId: conversationId)
+              !mutation.isError,
+              let canonical = mutation.snapshot else { return }
+        taskActivityStore.ingestCodeReviewSnapshot(canonical, conversationId: conversationId)
     }
 }
 
