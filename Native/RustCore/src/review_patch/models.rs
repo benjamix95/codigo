@@ -56,6 +56,17 @@ pub struct ReviewPatchPrepareContextRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchPrepareResultRequest {
+    pub schema_version: i32,
+    pub finding_id: String,
+    pub patch_text: String,
+    pub touched_files: Vec<String>,
+    pub base_branch_name: String,
+    pub verification_report: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchVerifyResultRequest {
     pub schema_version: i32,
     pub patch_id: String,
@@ -177,6 +188,22 @@ pub struct ReviewPatchPrepareContextResponse {
     pub message: Option<String>,
     pub branch_name: Option<String>,
     pub prompt: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchPrepareResultResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub diff_preview: Option<String>,
+    pub risk_score: Option<f64>,
+    pub status: Option<String>,
+    pub verify_status: Option<String>,
+    pub pr_status: Option<String>,
+    pub merge_status: Option<String>,
+    pub base_branch_name: Option<String>,
+    pub verification_report: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -339,6 +366,45 @@ impl ReviewPatchPrepareContextResponse {
             message: Some(message.into()),
             branch_name: None,
             prompt: None,
+        }
+    }
+}
+
+impl ReviewPatchPrepareResultResponse {
+    pub fn success(
+        diff_preview: String,
+        risk_score: f64,
+        base_branch_name: String,
+        verification_report: Option<String>,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            diff_preview: Some(diff_preview),
+            risk_score: Some(risk_score),
+            status: Some("draft".to_string()),
+            verify_status: Some("pending".to_string()),
+            pr_status: Some("not_requested".to_string()),
+            merge_status: Some("not_requested".to_string()),
+            base_branch_name: Some(base_branch_name),
+            verification_report,
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            diff_preview: None,
+            risk_score: None,
+            status: None,
+            verify_status: None,
+            pr_status: None,
+            merge_status: None,
+            base_branch_name: None,
+            verification_report: None,
         }
     }
 }

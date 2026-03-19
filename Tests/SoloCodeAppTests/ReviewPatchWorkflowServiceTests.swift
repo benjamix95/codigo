@@ -114,6 +114,67 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         }
     }
 
+    func testPrepareDraftArtifactUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let service = ReviewPatchWorkflowService()
+        let finding = CodeReviewFinding(
+            id: "finding-draft",
+            severity: .warning,
+            category: .correctness,
+            filePath: "Sources/File.swift",
+            message: "Invariant broken",
+            verificationReport: "verified",
+            verifiedAt: Date()
+        )
+
+        let artifact = try service.prepareDraftArtifact(
+            finding: finding,
+            patchText: "diff --git a/File.swift b/File.swift\n@@\n-old\n+new\n",
+            touchedFiles: ["File.swift"],
+            baseBranchName: "main"
+        )
+
+        XCTAssertEqual(artifact.diffPreview, "diff --git a/File.swift b/File.swift\n@@\n-old\n+new\n")
+        XCTAssertEqual(artifact.status, .draft)
+        XCTAssertEqual(artifact.verifyStatus, .pending)
+        XCTAssertEqual(artifact.prStatus, .notRequested)
+        XCTAssertEqual(artifact.mergeStatus, .notRequested)
+        XCTAssertEqual(artifact.baseBranchName, "main")
+        XCTAssertEqual(artifact.verificationReport, "verified")
+        XCTAssertEqual(artifact.riskScore, 0.0533, accuracy: 0.0001)
+    }
+
+    func testPrepareDraftArtifactFailsClosedWhenRustPrepareResultUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let finding = CodeReviewFinding(
+            id: "finding-draft",
+            severity: .warning,
+            category: .correctness,
+            filePath: "Sources/File.swift",
+            message: "Invariant broken",
+            verificationReport: "verified",
+            verifiedAt: Date()
+        )
+
+        XCTAssertThrowsError(
+            try service.prepareDraftArtifact(
+                finding: finding,
+                patchText: "diff --git a/File.swift b/File.swift\n@@\n-old\n+new\n",
+                touchedFiles: ["File.swift"],
+                baseBranchName: "main"
+            )
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .applyFailed("Rust patch prepare result runtime required but unavailable")
+                    .localizedDescription
+            )
+        }
+    }
+
     func testApplyPatchRejectsArtifactThatWasNotVerified() async {
         let service = ReviewPatchWorkflowService()
         let artifact = ReviewPatchArtifact(

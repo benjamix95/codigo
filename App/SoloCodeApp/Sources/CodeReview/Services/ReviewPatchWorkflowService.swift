@@ -101,20 +101,11 @@ final class ReviewPatchWorkflowService {
             .split(separator: "\n")
             .map(String.init)
             .filter { !$0.isEmpty }
-        let riskScore = patchRiskScore(patchText: patchText, touchedFiles: touchedFiles)
-        let preview = String(patchText.prefix(12_000))
-        let artifact = ReviewPatchArtifact(
-            findingId: finding.id,
+        let artifact = try prepareDraftArtifact(
+            finding: finding,
             patchText: patchText,
-            diffPreview: preview,
             touchedFiles: touchedFiles,
-            riskScore: riskScore,
-            status: .draft,
-            verifyStatus: .pending,
-            prStatus: .notRequested,
-            mergeStatus: .notRequested,
-            baseBranchName: baseBranch,
-            verificationReport: finding.verificationReport
+            baseBranchName: baseBranch
         )
         let validated = try await validatePreparedArtifact(
             artifact,
@@ -297,14 +288,6 @@ final class ReviewPatchWorkflowService {
         opened.status = status
         opened.updatedAt = Date()
         return opened
-    }
-
-    func patchRiskScore(patchText: String, touchedFiles: [String]) -> Double {
-        let changedLines = patchText.components(separatedBy: .newlines).filter {
-            ($0.hasPrefix("+") || $0.hasPrefix("-")) && !$0.hasPrefix("+++") && !$0.hasPrefix("---")
-        }.count
-        let scorer = PatchRiskScorer()
-        return scorer.score(from: PatchRiskInput(filesChanged: touchedFiles.count, linesChanged: changedLines))
     }
 
     func writePatchTempFile(_ patchText: String, prefix: String) throws -> URL {

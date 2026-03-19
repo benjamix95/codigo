@@ -2,6 +2,64 @@ import CoderEngine
 import Foundation
 
 extension ReviewPatchWorkflowService {
+    func prepareDraftArtifact(
+        finding: CodeReviewFinding,
+        patchText: String,
+        touchedFiles: [String],
+        baseBranchName: String
+    ) throws -> ReviewPatchArtifact {
+        let response: ReviewPatchPrepareResultBridgeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_prepare_result",
+            request: ReviewPatchPrepareResultBridgeRequest(
+                schemaVersion: 1,
+                findingId: finding.id,
+                patchText: patchText,
+                touchedFiles: touchedFiles,
+                baseBranchName: baseBranchName,
+                verificationReport: finding.verificationReport
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch prepare result runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch prepare result"
+            )
+        }
+        guard let diffPreview = response.diffPreview,
+              let riskScore = response.riskScore,
+              let statusRaw = response.status,
+              let status = ReviewPatchStatus(rawValue: statusRaw),
+              let verifyStatusRaw = response.verifyStatus,
+              let verifyStatus = ReviewPatchVerifyStatus(rawValue: verifyStatusRaw),
+              let prStatusRaw = response.prStatus,
+              let prStatus = ReviewPatchPRStatus(rawValue: prStatusRaw),
+              let mergeStatusRaw = response.mergeStatus,
+              let mergeStatus = ReviewPatchMergeStatus(rawValue: mergeStatusRaw),
+              let resolvedBaseBranchName = response.baseBranchName else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch prepare result response was incomplete"
+            )
+        }
+
+        return ReviewPatchArtifact(
+            findingId: finding.id,
+            patchText: patchText,
+            diffPreview: diffPreview,
+            touchedFiles: touchedFiles,
+            riskScore: riskScore,
+            status: status,
+            verifyStatus: verifyStatus,
+            prStatus: prStatus,
+            mergeStatus: mergeStatus,
+            baseBranchName: resolvedBaseBranchName,
+            verificationReport: response.verificationReport
+        )
+    }
+
     func preparePatchContext(
         finding: CodeReviewFinding,
         snapshot: CodeReviewSessionSnapshot
@@ -92,20 +150,11 @@ extension ReviewPatchWorkflowService {
             .split(separator: "\n")
             .map(String.init)
             .filter { !$0.isEmpty }
-        let riskScore = patchRiskScore(patchText: patchText, touchedFiles: touchedFiles)
-        let preview = String(patchText.prefix(12_000))
-        let artifact = ReviewPatchArtifact(
-            findingId: finding.id,
+        let artifact = try prepareDraftArtifact(
+            finding: finding,
             patchText: patchText,
-            diffPreview: preview,
             touchedFiles: touchedFiles,
-            riskScore: riskScore,
-            status: .draft,
-            verifyStatus: .pending,
-            prStatus: .notRequested,
-            mergeStatus: .notRequested,
-            baseBranchName: baseBranch,
-            verificationReport: finding.verificationReport
+            baseBranchName: baseBranch
         )
         return try await validatePreparedArtifact(
             artifact,
@@ -139,6 +188,28 @@ private struct ReviewPatchPrepareContextResponse: Decodable {
     let message: String?
     let branchName: String?
     let prompt: String?
+}
+
+private struct ReviewPatchPrepareResultBridgeRequest: Encodable {
+    let schemaVersion: Int
+    let findingId: String
+    let patchText: String
+    let touchedFiles: [String]
+    let baseBranchName: String
+    let verificationReport: String?
+}
+
+private struct ReviewPatchPrepareResultBridgeResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let diffPreview: String?
+    let riskScore: Double?
+    let status: String?
+    let verifyStatus: String?
+    let prStatus: String?
+    let mergeStatus: String?
+    let baseBranchName: String?
+    let verificationReport: String?
 }
 
 extension CodigoApp {

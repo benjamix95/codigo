@@ -1,7 +1,7 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::review_patch::{
     apply_runtime_result, build_apply_result, build_merge_result, build_open_pr_context, build_open_pr_result,
-    build_prepare_context, build_revalidate_result, build_resolve_conflicts_result,
+    build_prepare_context, build_prepare_result, build_revalidate_result, build_resolve_conflicts_result,
     build_rollback_result, build_verify_result, get_runtime_state, handle_patch_action,
     start_runtime,
 };
@@ -92,6 +92,24 @@ pub extern "C" fn review_core_patch_build_prepare_context(input: *const c_char) 
             );
         }
         encode_raw(&build_prepare_context(request))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn review_core_patch_build_prepare_result(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| {
+        let request: crate::review_patch::models::ReviewPatchPrepareResultRequest =
+            match serde_json::from_str(raw) {
+                Ok(request) => request,
+                Err(err) => {
+                    return encode_raw(
+                        &crate::review_patch::models::ReviewPatchPrepareResultResponse::error(
+                            err.to_string(),
+                        ),
+                    );
+                }
+            };
+        encode_raw(&build_prepare_result(request))
     })
 }
 
