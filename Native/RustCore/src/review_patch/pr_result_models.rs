@@ -48,6 +48,15 @@ pub struct ReviewPatchResolveConflictsResultRequest {
     pub patch_id: String,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchResolveConflictsContextRequest {
+    pub schema_version: i32,
+    pub worktree_path: Option<String>,
+    pub branch_name: Option<String>,
+    pub base_branch_name: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewPatchOpenPrContextResponse {
@@ -56,6 +65,18 @@ pub struct ReviewPatchOpenPrContextResponse {
     pub message: Option<String>,
     pub title: Option<String>,
     pub body: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchResolveConflictsContextResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub worktree_path: Option<String>,
+    pub branch_name: Option<String>,
+    pub base_branch_name: Option<String>,
+    pub commit_message: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -124,6 +145,37 @@ impl ReviewPatchOpenPrContextResponse {
             message: Some(message.into()),
             title: None,
             body: None,
+        }
+    }
+}
+
+impl ReviewPatchResolveConflictsContextResponse {
+    pub fn success(
+        worktree_path: String,
+        branch_name: String,
+        base_branch_name: String,
+        commit_message: String,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            worktree_path: Some(worktree_path),
+            branch_name: Some(branch_name),
+            base_branch_name: Some(base_branch_name),
+            commit_message: Some(commit_message),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            worktree_path: None,
+            branch_name: None,
+            base_branch_name: None,
+            commit_message: None,
         }
     }
 }

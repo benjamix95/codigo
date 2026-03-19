@@ -591,6 +591,61 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         XCTAssertTrue(updated.conflicts.isEmpty)
     }
 
+    func testResolveConflictsExecutionContextUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-resolve-context-1",
+            findingId: "finding-resolve-context",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .conflict,
+            verifyStatus: .verified,
+            prStatus: .opened,
+            mergeStatus: .blocked,
+            conflicts: ["Sources/File.swift"],
+            worktreePath: "/tmp/worktree",
+            branchName: "feature",
+            baseBranchName: "main"
+        )
+
+        let context = try service.resolveConflictsExecutionContext(artifact: artifact)
+
+        XCTAssertEqual(context.worktreePath, "/tmp/worktree")
+        XCTAssertEqual(context.branchName, "feature")
+        XCTAssertEqual(context.baseBranchName, "main")
+        XCTAssertEqual(context.commitMessage, "chore(review): sync feature with main")
+    }
+
+    func testResolveConflictsExecutionContextFailsClosedWhenRustRuntimeUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-resolve-context-2",
+            findingId: "finding-resolve-context",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .conflict,
+            verifyStatus: .verified,
+            prStatus: .opened,
+            mergeStatus: .blocked
+        )
+
+        XCTAssertThrowsError(
+            try service.resolveConflictsExecutionContext(artifact: artifact)
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .pullRequestUnavailable("Rust patch resolve conflicts context runtime required but unavailable")
+                    .localizedDescription
+            )
+        }
+    }
+
     func testResolveConflictsResultFailsClosedWhenRustRuntimeUnavailable() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()

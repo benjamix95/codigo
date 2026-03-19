@@ -2,6 +2,44 @@ import CoderEngine
 import Foundation
 
 extension ReviewPatchWorkflowService {
+    func resolveConflictsExecutionContext(
+        artifact: ReviewPatchArtifact
+    ) throws -> ReviewPatchResolveConflictsExecutionContext {
+        let response: ReviewPatchResolveConflictsExecutionContextResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_resolve_conflicts_context",
+            request: ReviewPatchResolveConflictsExecutionContextRequest(
+                schemaVersion: 1,
+                worktreePath: artifact.worktreePath,
+                branchName: artifact.branchName,
+                baseBranchName: artifact.baseBranchName
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                "Rust patch resolve conflicts context runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                response.message ?? "Unable to derive patch resolve conflicts context"
+            )
+        }
+        guard let worktreePath = response.worktreePath,
+              let branchName = response.branchName,
+              let baseBranchName = response.baseBranchName,
+              let commitMessage = response.commitMessage else {
+            throw ReviewPatchWorkflowError.pullRequestUnavailable(
+                "Rust patch resolve conflicts context response was incomplete"
+            )
+        }
+        return ReviewPatchResolveConflictsExecutionContext(
+            worktreePath: worktreePath,
+            branchName: branchName,
+            baseBranchName: baseBranchName,
+            commitMessage: commitMessage
+        )
+    }
+
     func mergePullRequest(
         artifact: ReviewPatchArtifact,
         preferredProviderId: String?,
@@ -36,11 +74,10 @@ extension ReviewPatchWorkflowService {
         preferredProviderId: String?,
         providerRegistry: ProviderRegistry
     ) async throws -> ReviewPatchArtifact {
-        guard let worktreePath = artifact.worktreePath,
-              let branchName = artifact.branchName,
-              let baseBranch = artifact.baseBranchName else {
-            throw ReviewPatchWorkflowError.pullRequestUnavailable("Worktree o branch mancanti per la risoluzione conflitti.")
-        }
+        let context = try resolveConflictsExecutionContext(artifact: artifact)
+        let worktreePath = context.worktreePath
+        let branchName = context.branchName
+        let baseBranch = context.baseBranchName
 
         let start = try gitService.startNoCommitMerge(
             sourceBranch: baseBranch,
@@ -62,7 +99,7 @@ extension ReviewPatchWorkflowService {
 
         try gitService.finalizeMergeCommit(
             gitRoot: worktreePath,
-            message: "chore(review): sync \(branchName) with \(baseBranch)"
+            message: context.commitMessage
         )
         try gitService.push(gitRoot: worktreePath, branch: branchName)
 
@@ -146,6 +183,13 @@ extension ReviewPatchWorkflowService {
     }
 }
 
+struct ReviewPatchResolveConflictsExecutionContext {
+    let worktreePath: String
+    let branchName: String
+    let baseBranchName: String
+    let commitMessage: String
+}
+
 private struct ReviewPatchMergeResultBridgeRequest: Encodable {
     let schemaVersion: Int
     let patchId: String
@@ -161,6 +205,22 @@ private struct ReviewPatchMergeResultBridgeResponse: Decodable {
     let mergeStatus: String?
     let prURL: String?
     let conflicts: [String]?
+}
+
+private struct ReviewPatchResolveConflictsExecutionContextRequest: Encodable {
+    let schemaVersion: Int
+    let worktreePath: String?
+    let branchName: String?
+    let baseBranchName: String?
+}
+
+private struct ReviewPatchResolveConflictsExecutionContextResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let worktreePath: String?
+    let branchName: String?
+    let baseBranchName: String?
+    let commitMessage: String?
 }
 
 private struct ReviewPatchResolveConflictsResultBridgeRequest: Encodable {
