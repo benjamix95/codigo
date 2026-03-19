@@ -175,7 +175,8 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
         }
     }
 
-    func testApplyPatchRejectsArtifactThatWasNotVerified() async {
+    func testApplyPatchRejectsArtifactThatWasNotVerified() async throws {
+        try requireReviewCore()
         let service = ReviewPatchWorkflowService()
         let artifact = ReviewPatchArtifact(
             findingId: "finding-1",
@@ -191,6 +192,52 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
             XCTFail("Expected patchNotVerified")
         } catch {
             XCTAssertEqual(error as? ReviewPatchWorkflowError, .patchNotVerified)
+        }
+    }
+
+    func testApplyPatchExecutionContextUsesRustBridgeWhenAvailable() throws {
+        try requireReviewCore()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-apply-context-1",
+            findingId: "finding-1",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .verified,
+            verifyStatus: .verified
+        )
+
+        let context = try service.applyPatchExecutionContext(artifact: artifact)
+
+        XCTAssertEqual(context.patchFilePrefix, "patch-apply-context-1")
+        XCTAssertEqual(context.validationTrigger, "review_patch_apply")
+        XCTAssertTrue(context.workspaceContainsPatch)
+    }
+
+    func testApplyPatchExecutionContextFailsClosedWhenRustRuntimeUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        let service = ReviewPatchWorkflowService()
+        let artifact = ReviewPatchArtifact(
+            id: "patch-apply-context-2",
+            findingId: "finding-2",
+            patchText: "diff --git a/File.swift b/File.swift\n",
+            diffPreview: "@@",
+            touchedFiles: ["File.swift"],
+            status: .verified,
+            verifyStatus: .verified
+        )
+
+        XCTAssertThrowsError(
+            try service.applyPatchExecutionContext(artifact: artifact)
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                ReviewPatchWorkflowError
+                    .applyFailed("Rust patch apply execution context runtime required but unavailable")
+                    .localizedDescription
+            )
         }
     }
 

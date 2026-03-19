@@ -1,4 +1,5 @@
 pub mod models;
+pub mod apply_execution_context;
 pub mod apply_result;
 pub mod merge_result;
 pub mod merge_execution_context;
@@ -21,6 +22,7 @@ pub mod verify_result;
 #[cfg(test)]
 mod runtime_tests;
 
+pub use apply_execution_context::build_apply_execution_context;
 pub use apply_result::build_apply_result;
 pub use merge_result::build_merge_result;
 pub use merge_execution_context::build_merge_execution_context;

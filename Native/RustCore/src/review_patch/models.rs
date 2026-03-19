@@ -90,6 +90,14 @@ pub struct ReviewPatchApplyResultRequest {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewPatchApplyExecutionContextRequest {
+    pub schema_version: i32,
+    pub patch_id: String,
+    pub verify_status: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewPatchRevalidateResultRequest {
     pub schema_version: i32,
     pub patch_id: String,
@@ -247,6 +255,17 @@ pub struct ReviewPatchApplyResultResponse {
     pub validation_status: Option<String>,
     pub validation_summary: Option<String>,
     pub apply_message: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPatchApplyExecutionContextResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub patch_file_prefix: Option<String>,
+    pub validation_trigger: Option<String>,
+    pub workspace_contains_patch: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -510,6 +529,30 @@ impl ReviewPatchApplyResultResponse {
             validation_status: None,
             validation_summary: None,
             apply_message: None,
+        }
+    }
+}
+
+impl ReviewPatchApplyExecutionContextResponse {
+    pub fn success(patch_file_prefix: String) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            patch_file_prefix: Some(patch_file_prefix),
+            validation_trigger: Some("review_patch_apply".to_string()),
+            workspace_contains_patch: Some(true),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            patch_file_prefix: None,
+            validation_trigger: None,
+            workspace_contains_patch: None,
         }
     }
 }

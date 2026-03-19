@@ -2,6 +2,44 @@ import CoderEngine
 import Foundation
 
 extension ReviewPatchWorkflowService {
+    func applyPatchExecutionContext(
+        artifact: ReviewPatchArtifact
+    ) throws -> ReviewPatchApplyExecutionContext {
+        let response: ReviewPatchApplyExecutionContextResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_patch_build_apply_execution_context",
+            request: ReviewPatchApplyExecutionContextRequest(
+                schemaVersion: 1,
+                patchId: artifact.id,
+                verifyStatus: artifact.verifyStatus.rawValue
+            )
+        )
+        guard let response else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch apply execution context runtime required but unavailable"
+            )
+        }
+        if response.isError {
+            if response.message == ReviewPatchWorkflowError.patchNotVerified.errorDescription {
+                throw ReviewPatchWorkflowError.patchNotVerified
+            }
+            throw ReviewPatchWorkflowError.applyFailed(
+                response.message ?? "Unable to derive patch apply execution context"
+            )
+        }
+        guard let patchFilePrefix = response.patchFilePrefix,
+              let validationTrigger = response.validationTrigger,
+              let workspaceContainsPatch = response.workspaceContainsPatch else {
+            throw ReviewPatchWorkflowError.applyFailed(
+                "Rust patch apply execution context response was incomplete"
+            )
+        }
+        return ReviewPatchApplyExecutionContext(
+            patchFilePrefix: patchFilePrefix,
+            validationTrigger: validationTrigger,
+            workspaceContainsPatch: workspaceContainsPatch
+        )
+    }
+
     func revalidatePatchExecutionContext(
         artifact: ReviewPatchArtifact
     ) throws -> ReviewPatchRevalidateExecutionContext {
@@ -68,11 +106,9 @@ extension ReviewPatchWorkflowService {
         artifact: ReviewPatchArtifact,
         workspaceRoot: String
     ) async throws -> ReviewPatchArtifact {
-        guard artifact.verifyStatus == .verified else {
-            throw ReviewPatchWorkflowError.patchNotVerified
-        }
+        let context = try applyPatchExecutionContext(artifact: artifact)
         let gitRoot = try gitService.resolveGitRoot(from: workspaceRoot)
-        let patchFile = try writePatchTempFile(artifact.patchText, prefix: artifact.id)
+        let patchFile = try writePatchTempFile(artifact.patchText, prefix: context.patchFilePrefix)
         defer { try? FileManager.default.removeItem(at: patchFile) }
 
         do {
@@ -82,7 +118,7 @@ extension ReviewPatchWorkflowService {
                 workspaceRoot: gitRoot,
                 touchedFiles: artifact.touchedFiles,
                 patchText: artifact.patchText,
-                workspaceContainsPatch: true
+                workspaceContainsPatch: context.workspaceContainsPatch
             )
             guard validation.status == .passed else {
                 _ = try? gitService.runGit(["apply", "-R", "--3way", patchFile.path], gitRoot: gitRoot)
@@ -265,6 +301,12 @@ extension ReviewPatchWorkflowService {
     }
 }
 
+struct ReviewPatchApplyExecutionContext {
+    let patchFilePrefix: String
+    let validationTrigger: String
+    let workspaceContainsPatch: Bool
+}
+
 struct ReviewPatchRevalidateExecutionContext {
     let validationTrigger: String
     let workspaceContainsPatch: Bool
@@ -283,6 +325,20 @@ private struct ReviewPatchApplyResultBridgeRequest: Encodable {
     let validationStatus: String?
     let validationSummary: String?
     let errorMessage: String?
+}
+
+private struct ReviewPatchApplyExecutionContextRequest: Encodable {
+    let schemaVersion: Int
+    let patchId: String
+    let verifyStatus: String
+}
+
+private struct ReviewPatchApplyExecutionContextResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let patchFilePrefix: String?
+    let validationTrigger: String?
+    let workspaceContainsPatch: Bool?
 }
 
 private struct ReviewPatchApplyResultBridgeResponse: Decodable {
