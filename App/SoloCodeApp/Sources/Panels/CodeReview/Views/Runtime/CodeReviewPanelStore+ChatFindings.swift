@@ -126,12 +126,14 @@ extension CodeReviewPanelStore {
 
     func extractAndMergeChatFindingsWithRust(
         content: String,
-        existing: [CodeReviewFinding]
+        existing: [CodeReviewFinding],
+        currentSnapshot: CodeReviewSessionSnapshot
     ) -> ReviewCoreChatExtractionPayload? {
         let request = ReviewCoreChatExtractionRequest(
             schemaVersion: 1,
             content: content,
-            existingFindings: existing
+            existingFindings: existing,
+            snapshot: currentSnapshot
         )
         let response: ReviewCoreChatExtractionResponse? = ReviewCoreBridge.call(
             functionName: "review_core_panel_chat_extract",
@@ -160,7 +162,8 @@ extension CodeReviewPanelStore {
               ),
               let extraction = extractAndMergeChatFindingsWithRust(
                 content: originalContent,
-                existing: snapshot.findings
+                existing: snapshot.findings,
+                currentSnapshot: snapshot
               ) else {
             return
         }
@@ -172,20 +175,26 @@ extension CodeReviewPanelStore {
             return
         }
 
-        let existingCount = snapshot.findings.count
-        let inserted = Array(extraction.findings.dropFirst(existingCount))
-        let events = inserted.map {
-            CodeReviewSessionEvent.findingAdded(
-                findingId: $0.id,
-                severity: $0.severity.rawValue,
-                filePath: $0.filePath
+        let updated: CodeReviewSessionSnapshot
+        if let canonical = extraction.snapshot {
+            updated = canonical
+        } else {
+            let existingCount = snapshot.findings.count
+            let inserted = Array(extraction.findings.dropFirst(existingCount))
+            let events = inserted.map {
+                CodeReviewSessionEvent.findingAdded(
+                    findingId: $0.id,
+                    severity: $0.severity.rawValue,
+                    filePath: $0.filePath
+                )
+            }
+            updated = snapshot.copying(
+                findings: extraction.findings,
+                events: snapshot.events + events,
+                outcome: snapshot.copying(findings: extraction.findings, events: snapshot.events + events)
+                    .buildOutcomeSummary()
             )
         }
-        let updated = snapshot.copying(
-            findings: extraction.findings,
-            events: snapshot.events + events,
-            outcome: snapshot.copying(findings: extraction.findings).buildOutcomeSummary()
-        )
         taskActivityStore.ingestCodeReviewSnapshot(
             updated,
             conversationId: conversationId
@@ -236,12 +245,14 @@ struct ReviewCoreChatExtractionPayload {
     let findings: [CodeReviewFinding]
     let insertedCount: Int
     let extractedCount: Int
+    let snapshot: CodeReviewSessionSnapshot?
 }
 
 private struct ReviewCoreChatExtractionRequest: Encodable {
     let schemaVersion: Int
     let content: String
     let existingFindings: [CodeReviewFinding]
+    let snapshot: CodeReviewSessionSnapshot
 }
 
 private struct ReviewCoreChatExtractionResponse: Decodable {
@@ -252,6 +263,7 @@ private struct ReviewCoreChatExtractionResponse: Decodable {
     let findings: [CodeReviewFinding]
     let insertedCount: Int
     let extractedCount: Int
+    let snapshot: CodeReviewSessionSnapshot?
 
     var payload: ReviewCoreChatExtractionPayload {
         ReviewCoreChatExtractionPayload(
@@ -259,7 +271,8 @@ private struct ReviewCoreChatExtractionResponse: Decodable {
             visibleContent: visibleContent,
             findings: findings,
             insertedCount: insertedCount,
-            extractedCount: extractedCount
+            extractedCount: extractedCount,
+            snapshot: snapshot
         )
     }
 }

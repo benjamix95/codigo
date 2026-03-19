@@ -45,6 +45,7 @@ pub extern "C" fn review_core_panel_chat_extract(input: *const c_char) -> *mut c
                         String::new(),
                         Vec::new(),
                         false,
+                        None,
                     ),
                 );
             }
@@ -57,6 +58,7 @@ pub extern "C" fn review_core_panel_chat_extract(input: *const c_char) -> *mut c
                     request.content,
                     request.existing_findings,
                     false,
+                    None,
                 ),
             );
         }

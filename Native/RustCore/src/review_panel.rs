@@ -8,6 +8,7 @@ use crate::review_history::{
     derive_historical_findings_from_snapshot,
 };
 use crate::review_models::ReviewCoreErrorPayload;
+use crate::review_session::build_outcome;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -36,6 +37,7 @@ pub struct ReviewPanelChatExtractRequest {
     pub content: String,
     #[serde(default)]
     pub existing_findings: Vec<Value>,
+    pub snapshot: Option<Value>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -48,6 +50,7 @@ pub struct ReviewPanelChatExtractResponse {
     pub findings: Vec<Value>,
     pub inserted_count: i64,
     pub extracted_count: i64,
+    pub snapshot: Option<Value>,
 }
 
 pub fn plan_panel_launch(request: ReviewCommandPlanRequest) -> crate::review_command::models::ReviewCommandPlanResponse {
@@ -72,6 +75,7 @@ pub fn extract_panel_chat_findings(
             request.existing_findings,
             0,
             0,
+            None,
         );
     };
 
@@ -84,6 +88,7 @@ pub fn extract_panel_chat_findings(
                 request.content,
                 request.existing_findings,
                 true,
+                None,
             );
         }
     };
@@ -109,6 +114,9 @@ pub fn extract_panel_chat_findings(
         .get("insertedCount")
         .and_then(Value::as_i64)
         .unwrap_or(0);
+    let canonical_snapshot = request
+        .snapshot
+        .and_then(|snapshot| canonicalized_chat_snapshot(snapshot, &findings, inserted_count));
 
     let mut visible_content = request.content;
     visible_content.replace_range(range, "");
@@ -118,6 +126,7 @@ pub fn extract_panel_chat_findings(
         findings,
         inserted_count,
         extracted.len() as i64,
+        canonical_snapshot,
     )
 }
 
@@ -128,6 +137,7 @@ impl ReviewPanelChatExtractResponse {
         findings: Vec<Value>,
         inserted_count: i64,
         extracted_count: i64,
+        snapshot: Option<Value>,
     ) -> Self {
         Self {
             schema_version: 1,
@@ -137,6 +147,7 @@ impl ReviewPanelChatExtractResponse {
             findings,
             inserted_count,
             extracted_count,
+            snapshot,
         }
     }
 
@@ -146,6 +157,7 @@ impl ReviewPanelChatExtractResponse {
         content: String,
         findings: Vec<Value>,
         found_block: bool,
+        snapshot: Option<Value>,
     ) -> Self {
         Self {
             schema_version: 1,
@@ -155,8 +167,56 @@ impl ReviewPanelChatExtractResponse {
             findings,
             inserted_count: 0,
             extracted_count: 0,
+            snapshot,
         }
     }
+}
+
+fn canonicalized_chat_snapshot(
+    mut snapshot: Value,
+    findings: &[Value],
+    inserted_count: i64,
+) -> Option<Value> {
+    let existing_events = snapshot.get("events").and_then(Value::as_array)?.clone();
+    let previous_count = snapshot
+        .get("findings")
+        .and_then(Value::as_array)
+        .map(|items| items.len())
+        .unwrap_or(0);
+    let inserted = findings.iter().skip(previous_count).take(inserted_count as usize);
+    let mut events = existing_events;
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs_f64())
+        .unwrap_or(0.0);
+    for finding in inserted {
+        let finding_id = finding.get("id").and_then(Value::as_str).unwrap_or_default();
+        let severity = finding
+            .get("severity")
+            .and_then(Value::as_str)
+            .unwrap_or("warning");
+        let file_path = finding
+            .get("filePath")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        events.push(json!({
+            "type": "finding_added",
+            "detail": format!("[{}] {}", severity, file_path),
+            "metadata": {
+                "finding_id": finding_id,
+                "severity": severity,
+                "file_path": file_path
+            },
+            "timestamp": timestamp
+        }));
+    }
+    snapshot["findings"] = Value::Array(findings.to_vec());
+    snapshot["events"] = Value::Array(events);
+    snapshot["mutationSequence"] =
+        json!(snapshot.get("mutationSequence").and_then(Value::as_u64).unwrap_or(0) + 1);
+    snapshot["lastUpdatedAt"] = json!(timestamp);
+    snapshot["outcome"] = build_outcome(&snapshot, None);
+    Some(snapshot)
 }
 
 fn extract_findings_block(content: &str) -> Option<(std::ops::Range<usize>, &str)> {
