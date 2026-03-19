@@ -65,24 +65,16 @@ enum ReviewPatchRuntimeFinalizationService {
                     executionProvider: executionProvider
                 )
             } catch {
-                let findings = current.findings.map { item -> CodeReviewFinding in
-                    guard item.id == findingId else { return item }
-                    var updated = item
-                    updated.status = .patchFailed
-                    updated.comments.append(
-                        FindingComment(
-                            author: "system",
-                            content: "Patch preview non disponibile: \(error.localizedDescription)"
-                        )
+                guard let reduced = reducePatchPrepareFailure(
+                    snapshot: current,
+                    findingId: findingId,
+                    message: error.localizedDescription
+                ) else {
+                    throw ReviewPatchWorkflowError.applyFailed(
+                        "Rust review session reducer required but unavailable"
                     )
-                    return updated
                 }
-                current = current.copying(
-                    findings: findings,
-                    outcome: current.copying(findings: findings).buildOutcomeSummary(
-                        summaryOverride: "Patch preparation failed for \(findingId): \(error.localizedDescription)"
-                    )
-                )
+                current = reduced
             }
         }
 
@@ -205,18 +197,38 @@ extension CodigoApp {
                 }
                 await sessionState.upsertPatch(artifact)
             } catch {
-                _ = await sessionState.addComment(
+                guard let reduced = reducePatchPrepareFailure(
+                    snapshot: await sessionState.snapshot(),
                     findingId: finding.id,
-                    comment: FindingComment(
-                        author: "system",
-                        content: "Patch preview non disponibile: \(error.localizedDescription)"
-                    )
-                )
+                    message: error.localizedDescription
+                ) else {
+                    return false
+                }
+                await sessionState.replaceCanonicalSnapshot(reduced)
             }
             await persistLiveReviewState(sessionState, conversationId: sessionState.conversationId)
         }
         return true
     }
+}
+
+private func reducePatchPrepareFailure(
+    snapshot: CodeReviewSessionSnapshot,
+    findingId: String,
+    message: String
+) -> CodeReviewSessionSnapshot? {
+    let response: ReviewPatchPrepareFailureReductionResponse? = ReviewCoreBridge.call(
+        functionName: "review_core_session_apply_action",
+        request: ReviewPatchPrepareFailureReductionRequest(
+            schemaVersion: 1,
+            operation: "mark_patch_prepare_failed",
+            snapshot: snapshot,
+            findingId: findingId,
+            error: message
+        )
+    )
+    guard response?.error == nil else { return nil }
+    return response?.snapshot
 }
 
 private struct ReviewPatchAutoPrepareTargetsRequest: Encodable {
@@ -231,6 +243,24 @@ private struct ReviewPatchAutoPrepareTargetsResponse: Decodable {
 }
 
 private struct ReviewPatchAutoPrepareTargetsError: Decodable {
+    let code: String
+    let message: String
+}
+
+private struct ReviewPatchPrepareFailureReductionRequest: Encodable {
+    let schemaVersion: Int
+    let operation: String
+    let snapshot: CodeReviewSessionSnapshot
+    let findingId: String
+    let error: String
+}
+
+private struct ReviewPatchPrepareFailureReductionResponse: Decodable {
+    let error: ReviewPatchPrepareFailureReductionError?
+    let snapshot: CodeReviewSessionSnapshot?
+}
+
+private struct ReviewPatchPrepareFailureReductionError: Decodable {
     let code: String
     let message: String
 }

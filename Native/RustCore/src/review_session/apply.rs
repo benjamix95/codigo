@@ -51,6 +51,7 @@ pub fn apply_action(request: ReviewSessionActionRequest) -> ReviewSessionRespons
         "update_candidate_status" => update_candidate_status(&mut snapshot, &request, now),
         "promote_candidate_to_finding" => promote_candidate_to_finding(&mut snapshot, request.candidate_id.as_deref(), now),
         "replace_open_findings" => replace_open_findings(&mut snapshot, request.files, request.findings.unwrap_or_default(), now),
+        "mark_patch_prepare_failed" => mark_patch_prepare_failed(&mut snapshot, request.finding_id.as_deref(), request.error.as_deref(), now),
         "apply_fix" | "dismiss" | "comment" | "configure" | "close_finding" | "upsert_patch" => {
             let payload = command_payload(&request);
             return apply_registry_action(ReviewRegistryActionRequest {
@@ -356,6 +357,49 @@ fn mark_open_findings(snapshot: &mut Value, files: Option<Vec<String>>) -> Resul
     for finding_id in changed_ids {
         array_mut(snapshot, "events")?.push(event("finding_fix_applied", Some(format!("Fix applied for finding {finding_id}")), json!({"finding_id": finding_id}), now_reference_seconds()));
     }
+    Ok(())
+}
+
+fn mark_patch_prepare_failed(
+    snapshot: &mut Value,
+    finding_id: Option<&str>,
+    message: Option<&str>,
+    now: f64,
+) -> Result<(), String> {
+    let finding_id = finding_id.ok_or_else(|| "findingId is required".to_string())?;
+    let message = message
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Patch preview non disponibile");
+    let findings = snapshot
+        .get_mut("findings")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "Snapshot findings is missing".to_string())?;
+    let Some(finding) = findings
+        .iter_mut()
+        .find(|item| item.get("id").and_then(Value::as_str) == Some(finding_id))
+    else {
+        return Err("Finding not found".to_string());
+    };
+    finding["status"] = json!("patch_failed");
+    if let Some(comments) = finding.get_mut("comments").and_then(Value::as_array_mut) {
+        comments.push(json!({
+            "id": format!("patch-prepare-failed-{finding_id}"),
+            "author": "system",
+            "content": format!("Patch preview non disponibile: {message}"),
+            "createdAt": now,
+        }));
+    }
+    array_mut(snapshot, "events")?.push(event(
+        "patch_apply_failed",
+        Some(message.to_string()),
+        json!({"finding_id": finding_id}),
+        now,
+    ));
+    snapshot["outcome"] = build_outcome(
+        snapshot,
+        Some(format!("Patch preparation failed for {finding_id}: {message}")),
+    );
     Ok(())
 }
 
