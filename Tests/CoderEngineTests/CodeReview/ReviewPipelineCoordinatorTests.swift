@@ -4,7 +4,7 @@ import XCTest
 final class ReviewPipelineCoordinatorTests: XCTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
-        let path = reviewCoreLibraryPath(from: #filePath)
+        let path = reviewCoreLibraryPathForCodeReviewTests(from: #filePath)
         if FileManager.default.fileExists(atPath: path) {
             setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", path, 1)
             unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
@@ -255,15 +255,4 @@ private final class SilentLLMProvider: LLMProvider, @unchecked Sendable {
             continuation.finish()
         }
     }
-}
-
-private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
-    let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
-    return sourceURL
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
-        .path
 }

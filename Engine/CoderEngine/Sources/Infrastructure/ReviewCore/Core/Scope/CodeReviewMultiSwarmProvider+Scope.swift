@@ -26,103 +26,59 @@ extension CodeReviewMultiSwarmProvider {
 
     /// Parse optional [REVIEW_SCOPE:...] marker from prompt.
     static func parseReviewScope(from prompt: String) -> (cleanPrompt: String, scope: ReviewFileScope?) {
-        let searchableLimit = prompt.range(of: "## Conversation context (recent)")?.lowerBound ?? prompt.endIndex
-        let searchable = String(prompt[..<searchableLimit])
-        let pattern = #"\[REVIEW_SCOPE:(staged|uncommitted|workspace)\]"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
-              let match = regex.firstMatch(in: searchable, range: NSRange(searchable.startIndex..., in: searchable)),
-              let scopeRange = Range(match.range(at: 1), in: searchable),
-              let fullRange = Range(match.range(at: 0), in: searchable)
-        else { return (prompt, nil) }
-
-        let marker = String(searchable[scopeRange]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let resolvedScope = ReviewFileScope(rawValue: marker)
-        var cleanPrefix = searchable
-        cleanPrefix.removeSubrange(fullRange)
-        let suffix = String(prompt[searchableLimit...])
-        let cleanPrompt = (cleanPrefix + suffix).trimmingCharacters(in: .whitespacesAndNewlines)
-        return (cleanPrompt.isEmpty ? "Review all changes" : cleanPrompt, resolvedScope)
+        guard let response = ReviewProviderRustBridge.plan(
+            operation: "parse_prompt",
+            prompt: prompt
+        ) else {
+            return (prompt, nil)
+        }
+        return (
+            response.cleanPrompt ?? prompt,
+            response.explicitScope.flatMap(ReviewFileScope.init(rawValue:))
+        )
     }
 
     static func inferReviewScope(from prompt: String) -> ReviewFileScope? {
-        let lower = prompt.lowercased()
-        if lower.contains("[review_scope:staged]") || lower.contains("/review-staged")
-            || lower.contains("review only staged changes")
-            || lower.contains("staged diff only")
-        {
-            return .staged
-        }
-        if lower.contains("[review_scope:uncommitted]") || lower.contains("/review-uncommitted") {
-            return .uncommitted
-        }
-        if lower.contains("[review_scope:workspace]")
-            || lower.contains("/review-workspace")
-            || lower.contains("review the workspace")
-            || lower.contains("review the repository")
-            || lower.contains("review the codebase")
-        {
-            return .workspace
-        }
-        return nil
+        ReviewProviderRustBridge.plan(
+            operation: "parse_prompt",
+            prompt: prompt
+        )?.inferredScope.flatMap(ReviewFileScope.init(rawValue:))
     }
 
     /// Parse [AGAINST:ref] marker from prompt.
     static func parseAgainstRef(from prompt: String) -> (cleanPrompt: String, ref: String?) {
-        let searchableLimit = prompt.range(of: "## Conversation context (recent)")?.lowerBound ?? prompt.endIndex
-        let searchable = String(prompt[..<searchableLimit])
-        let pattern = #"\[AGAINST:([^\]]+)\]"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: searchable, range: NSRange(searchable.startIndex..., in: searchable)),
-              let refRange = Range(match.range(at: 1), in: searchable),
-              let markerRange = Range(match.range(at: 0), in: searchable)
-        else { return (prompt, nil) }
-
-        let ref = String(searchable[refRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-        var cleanPrefix = searchable
-        cleanPrefix.removeSubrange(markerRange)
-        let suffix = String(prompt[searchableLimit...])
-        let clean = (cleanPrefix + suffix).trimmingCharacters(in: .whitespacesAndNewlines)
-        return (clean.isEmpty ? "Review all changes" : clean, ref)
+        guard let response = ReviewProviderRustBridge.plan(
+            operation: "parse_prompt",
+            prompt: prompt
+        ) else {
+            return (prompt, nil)
+        }
+        return (response.cleanPrompt ?? prompt, response.againstRef)
     }
 
     /// Validation for AGAINST revision expressions.
     /// Supports common syntaxes like `HEAD~1` and `main..feature`.
     public static func isValidAgainstRefFormat(_ ref: String) -> Bool {
-        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        guard !trimmed.hasPrefix("-") else { return false }
-        guard !trimmed.hasSuffix(".lock") else { return false }
-        guard !trimmed.hasSuffix(".") else { return false }
-
-        let invalidChars = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
-        guard trimmed.unicodeScalars.allSatisfy({ !invalidChars.contains($0) }) else { return false }
-
-        let forbiddenSubstrings = [":", "?", "*", "[", "\\", "@{"]
-        for seq in forbiddenSubstrings where trimmed.contains(seq) {
-            return false
-        }
-        return true
+        ReviewProviderRustBridge.plan(
+            operation: "validate_against_ref",
+            againstRef: ref
+        )?.isValidAgainstRef ?? false
     }
 
     public static func normalizedAgainstRefInput(_ ref: String) -> String {
-        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return trimmed }
-        guard !trimmed.contains("..") else { return trimmed }
-        guard looksLikeCommitOID(trimmed) else { return trimmed }
-        return "\(trimmed)^..\(trimmed)"
+        ReviewProviderRustBridge.plan(
+            operation: "normalize_against_ref",
+            againstRef: ref
+        )?.normalizedAgainstRefInput
+            ?? ref.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func normalizedAgainstRefRevision(_ ref: String) -> String {
-        let normalized = normalizedAgainstRefInput(ref)
-        guard !normalized.contains("..") else { return normalized }
-        return "\(normalized)...HEAD"
-    }
-
-    private static func looksLikeCommitOID(_ ref: String) -> Bool {
-        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (7...40).contains(trimmed.count) else { return false }
-        let hex = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
-        return trimmed.unicodeScalars.allSatisfy(hex.contains)
+        ReviewProviderRustBridge.plan(
+            operation: "normalize_against_ref",
+            againstRef: ref
+        )?.normalizedAgainstRefRevision
+            ?? normalizedAgainstRefInput(ref)
     }
 
     /// Get files changed since a commit ref using git diff.
@@ -234,7 +190,90 @@ extension CodeReviewMultiSwarmProvider {
                 guard WorkspaceScanner.sourceExtensions.contains(ext) else { return false }
                 // Exclude paths matching excludedPaths directory prefixes
                 return !excludedPrefixes.contains(where: { path.hasPrefix($0) || path == String($0.dropLast()) })
-            }
+        }
         return (files, nil)
     }
+}
+
+enum ReviewProviderRustBridge {
+    static func plan(
+        operation: String,
+        prompt: String? = nil,
+        text: String? = nil,
+        allowedFiles: [String]? = nil,
+        maxWorkers: Int? = nil,
+        againstRef: String? = nil
+    ) -> ReviewProviderRustPlanResponse? {
+        let response: ReviewProviderRustPlanResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_provider_plan_step",
+            request: ReviewProviderRustPlanRequest(
+                schemaVersion: 1,
+                operation: operation,
+                prompt: prompt,
+                text: text,
+                allowedFiles: allowedFiles,
+                maxWorkers: maxWorkers,
+                againstRef: againstRef
+            )
+        )
+        guard response?.error == nil else { return nil }
+        return response
+    }
+
+    static func reduce(
+        operation: String,
+        text: String
+    ) -> ReviewProviderRustReduceResponse? {
+        let response: ReviewProviderRustReduceResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_provider_reduce_event",
+            request: ReviewProviderRustReduceRequest(
+                schemaVersion: 1,
+                operation: operation,
+                text: text
+            )
+        )
+        guard response?.error == nil else { return nil }
+        return response
+    }
+}
+
+private struct ReviewProviderRustPlanRequest: Encodable {
+    let schemaVersion: Int
+    let operation: String
+    let prompt: String?
+    let text: String?
+    let allowedFiles: [String]?
+    let maxWorkers: Int?
+    let againstRef: String?
+}
+
+struct ReviewProviderRustPlanResponse: Decodable {
+    let error: ReviewProviderRustError?
+    let cleanPrompt: String?
+    let explicitScope: String?
+    let inferredScope: String?
+    let againstRef: String?
+    let isValidAgainstRef: Bool?
+    let normalizedAgainstRefInput: String?
+    let normalizedAgainstRefRevision: String?
+    let extractionKind: String?
+    let tasks: [CodeReviewMultiSwarmProvider.ReviewTask]?
+    let reason: String?
+}
+
+private struct ReviewProviderRustReduceRequest: Encodable {
+    let schemaVersion: Int
+    let operation: String
+    let text: String
+}
+
+struct ReviewProviderRustReduceResponse: Decodable {
+    let error: ReviewProviderRustError?
+    let findingsState: String?
+    let reason: String?
+}
+
+struct ReviewProviderRustError: Decodable {
+    let code: String
+    let message: String
 }

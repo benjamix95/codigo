@@ -2,170 +2,24 @@ import Foundation
 
 extension CodeReviewMultiSwarmProvider {
     static func findingsContainIssues(_ text: String) -> ReviewFindingsState {
-        let lower = text.lowercased()
-
-        let noIssuesIndicators = [
-            "no issues found",
-            "no issues were found",
-            "no significant issues",
-            "no problems found",
-            "no bugs found",
-            "no errors found",
-            "no errors detected",
-            "no errors",
-            "no warnings found",
-            "no warnings detected",
-            "no warnings",
-            "no fix needed",
-            "no fixes needed",
-            "no fix required",
-            "no fixes required",
-            "no critical issues",
-            "no critical bugs",
-            "no critical problems",
-            "no critical findings",
-            "no security vulnerabilities",
-            "no security issues",
-            "no security risks",
-            "no security concerns",
-            "no race conditions",
-            "no race condition issues",
-            "no memory leaks",
-            "no regressions",
-            "no regression risks",
-            "no crashes",
-            "no deadlocks",
-            "no injection vulnerabilities",
-            "no data loss risks",
-            "no infinite loops",
-            "code is clean",
-            "code looks good",
-            "looks good overall",
-            "no major issues",
-            "all checks pass",
-            "all tests pass",
-            "no vulnerabilities found",
-            "no vulnerabilities detected",
-            "lgtm",
-            "everything looks good",
-            "no actionable issues",
-            "no remaining issues",
-            "error handling is properly implemented",
-            "error handling looks correct",
-            "error handling is correct",
-            "error handling is adequate",
-            "error handling is good",
-            "no error handling issues"
-        ]
-        let hasCleanIndicator = noIssuesIndicators.contains(where: { lower.contains($0) })
-        // Sort indicators by length (longest first) so that longer phrases like
-        // "no race condition issues" are stripped before shorter ones like "no race conditions",
-        // preventing partial matches that leave issue-indicating fragments behind.
-        let sortedIndicators = noIssuesIndicators.sorted { $0.count > $1.count }
-        let issueScanText = sortedIndicators.reduce(lower) { partial, phrase in
-            partial.replacingOccurrences(of: phrase, with: " ")
+        guard let response = ReviewProviderRustBridge.reduce(
+            operation: "classify_review_outcome",
+            text: text
+        ) else {
+            return .inconclusive(reason: "Rust review provider reducer unavailable.")
         }
-
-        let inconclusiveIndicators = [
-            "could not determine",
-            "unable to assess",
-            "insufficient context",
-            "need more information",
-            "cannot evaluate",
-            "unclear"
-        ]
-        // Use word-boundary matching to avoid false positives (e.g. "nuclear" matching "unclear")
-        let hasInconclusiveIndicator = inconclusiveIndicators.contains(where: { containsWord(lower, word: $0) })
-
-        let strictIssueIndicators = [
-            "critical",
-            "high severity",
-            "security vulnerability",
-            "security risk",
-            "security issue",
-            "regression",
-            "crash",
-            "null pointer",
-            "race condition",
-            "memory leak",
-            "command injection",
-            "sql injection",
-            "data loss",
-            "deadlock",
-            "infinite loop",
-            "off-by-one",
-            "null dereference",
-            "segmentation fault",
-            "thread-safety",
-            "use-after-free",
-            "buffer overflow",
-            "integer overflow",
-            "integer underflow",
-            "path traversal",
-            "cross-site scripting",
-            "xss",
-            "denial of service",
-            "type confusion",
-            "uninitialized variable",
-            "uninitialized memory"
-        ]
-        let hasStrictIssueIndicator = strictIssueIndicators.contains(where: { issueScanText.contains($0) })
-
-        let wordBoundaryIndicators = ["leak", "exception", "permission", "authorization", "authentication"]
-        let hasWordBoundaryIssueIndicator = wordBoundaryIndicators.contains { containsWord(issueScanText, word: $0) }
-
-        let weakWordBoundaryIndicators = ["bug", "warning", "error", "issue", "severity"]
-        let hasWeakWordBoundaryIssueIndicator = weakWordBoundaryIndicators.contains { containsWord(issueScanText, word: $0) }
-        let fixActionIndicators = [
-            "fix required",
-            "requires a fix",
-            "needs a fix",
-            "must be fixed",
-            "should be fixed",
-            "remaining fix",
-        ]
-        let hasFixActionIndicator = fixActionIndicators.contains { issueScanText.contains($0) }
-
-        if hasStrictIssueIndicator || hasWordBoundaryIssueIndicator || hasWeakWordBoundaryIssueIndicator || hasFixActionIndicator {
+        switch response.findingsState {
+        case "issues":
             return .issues
-        }
-
-        if hasCleanIndicator {
+        case "clean":
             return .clean
+        case "inconclusive":
+            return .inconclusive(
+                reason: response.reason ?? "No robust issue indicators found in re-review output."
+            )
+        default:
+            return .inconclusive(reason: "Rust review provider reducer returned an unsupported result.")
         }
-
-        if hasInconclusiveIndicator {
-            return .inconclusive(reason: "Review text contained inconclusive language.")
-        }
-
-        return .inconclusive(reason: "No robust issue indicators found in re-review output.")
-    }
-
-    private static let wordRegexCache: [String: NSRegularExpression] = {
-        let words = ["leak", "exception", "permission", "authorization", "authentication",
-                     "bug", "fix", "warning", "error", "issue", "severity"]
-        var cache: [String: NSRegularExpression] = [:]
-        for word in words {
-            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word))\\b"
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-                cache[word] = regex
-            }
-        }
-        return cache
-    }()
-
-    static func containsWord(_ text: String, word: String) -> Bool {
-        let regex: NSRegularExpression
-        if let cached = wordRegexCache[word] {
-            regex = cached
-        } else {
-            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word))\\b"
-            guard let compiled = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
-                return text.contains(word)
-            }
-            regex = compiled
-        }
-        return regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
 
     static func runTests(

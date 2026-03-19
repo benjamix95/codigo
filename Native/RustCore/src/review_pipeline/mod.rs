@@ -3,6 +3,7 @@ pub mod ledger;
 pub mod models;
 pub mod orchestrator;
 pub mod phases;
+pub mod provider;
 pub mod requests;
 pub mod scope;
 pub mod state;

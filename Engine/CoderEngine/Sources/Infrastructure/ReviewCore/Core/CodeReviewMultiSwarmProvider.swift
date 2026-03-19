@@ -71,7 +71,7 @@ struct CodeReviewStreamTextAccumulator {
 /// parallel fix workers based on analysis findings, coordinates via file locks,
 /// aggregates fixes, runs test → re-review loops.
 public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendable {
-    struct ReviewTask: Sendable {
+    struct ReviewTask: Sendable, Codable {
         let id: String
         let description: String
         let files: [String]

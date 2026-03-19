@@ -103,17 +103,25 @@ extension CodeReviewMultiSwarmProvider {
         filesToReview: [String],
         maxWorkers: Int
     ) -> ReviewTaskExtractionResult {
-        guard let extraction = extractReviewTasksJSON(from: analysisText, allowedFiles: filesToReview) else {
-            return .noPayload(reason: "No JSON review task block found in analysis output.")
+        guard let response = ReviewProviderRustBridge.plan(
+            operation: "parse_review_tasks",
+            text: analysisText,
+            allowedFiles: filesToReview,
+            maxWorkers: maxWorkers
+        ) else {
+            return .invalidJSON(reason: "Rust review provider parser unavailable.")
         }
-
-        switch extraction {
-        case .jsonTasks(let tasks) where tasks.isEmpty:
+        switch response.extractionKind {
+        case "tasks":
+            return .tasks(response.tasks ?? [])
+        case "no_fixes":
             return .noFixes
-        case .jsonTasks(let tasks):
-            return .tasks(Array(tasks.prefix(maxWorkers)))
-        case .invalidJSON(let reason):
-            return .invalidJSON(reason: reason)
+        case "no_payload":
+            return .noPayload(reason: response.reason ?? "No JSON review task block found in analysis output.")
+        case "invalid_json":
+            return .invalidJSON(reason: response.reason ?? "Unable to parse task JSON block as an array.")
+        default:
+            return .invalidJSON(reason: response.reason ?? "Rust review provider parser returned an unsupported result.")
         }
     }
 
@@ -123,182 +131,39 @@ extension CodeReviewMultiSwarmProvider {
         from text: String,
         allowedFiles: [String]? = nil
     ) -> ExtractedReviewTasks? {
-        let allowedSet = allowedFiles.map(Set.init)
-
-        // Non-greedy JSON capture so multiple fenced blocks are handled correctly.
-        let codeBlockPattern = #"```json\s*(?:\r?\n)(\[[\s\S]*?\])\s*(?:\r?\n)```"#
-        if let regex = try? NSRegularExpression(pattern: codeBlockPattern, options: []) {
-            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            var lastInvalidReason: String?
-            for match in matches.reversed() {
-                guard let jsonRange = Range(match.range(at: 1), in: text) else { continue }
-                let jsonStr = String(text[jsonRange])
-                switch parseTasksJSON(jsonStr, allowedFiles: allowedSet) {
-                case .tasks(let tasks):
-                    return .jsonTasks(tasks)
-                case .invalidJSON(let reason):
-                    lastInvalidReason = lastInvalidReason ?? reason
-                }
-            }
-            if let reason = lastInvalidReason {
-                return .invalidJSON(reason: reason)
-            }
+        guard let response = ReviewProviderRustBridge.plan(
+            operation: "extract_review_tasks_json",
+            text: text,
+            allowedFiles: allowedFiles
+        ) else {
+            return .invalidJSON(reason: "Rust review provider parser unavailable.")
         }
-
-        // Use lazy matching ([\s\S]*?) so the regex stops at the first valid }\s*]
-        // rather than greedily spanning across multiple JSON blocks in the text.
-        let bareArrayPattern = #"\[\s*\{[\s\S]*?\}\s*\]"#
-        if let regex = try? NSRegularExpression(pattern: bareArrayPattern, options: []) {
-            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            for match in matches.reversed() {
-                guard let range = Range(match.range, in: text) else { continue }
-                let jsonStr = String(text[range])
-                switch parseTasksJSON(jsonStr, allowedFiles: allowedSet) {
-                case .tasks(let tasks):
-                    return .jsonTasks(tasks)
-                case .invalidJSON:
-                    continue
-                }
-            }
+        switch response.extractionKind {
+        case "json_tasks":
+            return .jsonTasks(response.tasks ?? [])
+        case "invalid_json":
+            return .invalidJSON(reason: response.reason ?? "Unable to parse task JSON block as an array.")
+        default:
+            return nil
         }
-
-        return .none
     }
 
     static func parseTasksJSON(
         _ jsonStr: String,
         allowedFiles: Set<String>?
     ) -> ParsedTasksResult {
-        guard let data = jsonStr.data(using: .utf8),
-              let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
-        else {
-            return .invalidJSON(reason: "Unable to parse task JSON block as an array.")
+        guard let response = ReviewProviderRustBridge.plan(
+            operation: "parse_tasks_json",
+            text: jsonStr,
+            allowedFiles: allowedFiles.map(Array.init)
+        ) else {
+            return .invalidJSON(reason: "Rust review provider parser unavailable.")
         }
-
-        var tasks: [ReviewTask] = []
-        var invalidEntries = 0
-        var claimedFiles = Set<String>()
-        var usedTaskIDs = Set<String>()
-        for (index, dict) in arr.enumerated() {
-            let preferredID = ((dict["id"] as? String) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let id = normalizedUniqueReviewTaskID(preferred: preferredID, fallbackIndex: index, usedIDs: &usedTaskIDs)
-            let description = ((dict["description"] as? String) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let rawFiles = (dict["files"] as? [String]) ?? []
-            let filteredFiles = uniquedNonEmptyFiles(rawFiles)
-            guard !filteredFiles.isEmpty else { continue }
-
-            let scopedFiles: [String]
-            if let allowedFiles {
-                // Normalize paths: strip leading "./" for consistent matching
-                let normalizedAllowed = Set(allowedFiles.map { $0.hasPrefix("./") ? String($0.dropFirst(2)) : $0 })
-                scopedFiles = filteredFiles.map { $0.hasPrefix("./") ? String($0.dropFirst(2)) : $0 }
-                    .filter { normalizedAllowed.contains($0) && !claimedFiles.contains($0) }
-            } else {
-                scopedFiles = filteredFiles.filter { !claimedFiles.contains($0) }
-            }
-
-            guard !scopedFiles.isEmpty else {
-                invalidEntries += 1
-                continue
-            }
-
-            let normalizedDescription = description.isEmpty ? "Fix issues in assigned files" : description
-            let severityRaw = (dict["severity"] as? String)?.lowercased() ?? "warning"
-            let allowedSeverities: Set<String> = ["critical", "warning", "suggestion"]
-            let severity = allowedSeverities.contains(severityRaw) ? severityRaw : "warning"
-            let category = (dict["category"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let lineNumber = dict["line"] as? Int
-            let endLineNumber = dict["end_line"] as? Int
-            let originRaw = ((dict["origin"] as? String) ?? "reviewer")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let origin = FindingOrigin(rawValue: originRaw) ?? .reviewer
-            let confidence = dict["confidence"] as? Double
-            let evidence = (dict["evidence"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let expectedInvariant = (dict["expected_invariant"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let reproOrReasoning = (dict["repro_or_reasoning"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let sourceTool = (dict["source_tool"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let blocking = dict["blocking"] as? Bool
-            tasks.append(
-                ReviewTask(
-                    id: id,
-                    description: normalizedDescription,
-                    files: scopedFiles,
-                    severity: severity,
-                    category: category,
-                    lineNumber: lineNumber,
-                    endLineNumber: endLineNumber,
-                    origin: origin,
-                    confidence: confidence,
-                    evidence: evidence,
-                    expectedInvariant: expectedInvariant,
-                    reproOrReasoning: reproOrReasoning,
-                    sourceTool: sourceTool,
-                    blocking: blocking
-                )
-            )
-            claimedFiles.formUnion(scopedFiles)
+        switch response.extractionKind {
+        case "tasks":
+            return .tasks(response.tasks ?? [])
+        default:
+            return .invalidJSON(reason: response.reason ?? "Unable to parse task JSON block as an array.")
         }
-
-        if tasks.isEmpty && !arr.isEmpty {
-            return .invalidJSON(
-                reason: invalidEntries > 0
-                    ? "All task entries were invalid or outside review scope."
-                    : "Unable to parse task array entries."
-            )
-        }
-        return .tasks(tasks)
-    }
-
-    static func uniquedNonEmptyFiles(_ rawFiles: [String]) -> [String] {
-        var seen = Set<String>()
-        var out: [String] = []
-        for raw in rawFiles {
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            if seen.insert(trimmed).inserted {
-                out.append(trimmed)
-            }
-        }
-        return out
-    }
-
-    static func normalizedUniqueReviewTaskID(
-        preferred: String,
-        fallbackIndex: Int,
-        usedIDs: inout Set<String>
-    ) -> String {
-        func claim(_ candidate: String) -> String? {
-            guard !candidate.isEmpty else { return nil }
-            let normalized = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalized.isEmpty else { return nil }
-            guard usedIDs.insert(normalized).inserted else { return nil }
-            return normalized
-        }
-
-        if let preferredClaimed = claim(preferred) {
-            return preferredClaimed
-        }
-        if let fallbackClaimed = claim("review-\(fallbackIndex)") {
-            return fallbackClaimed
-        }
-
-        var suffix = 1
-        while suffix <= 1000 {
-            let candidate = "review-\(fallbackIndex)-\(suffix)"
-            if let claimed = claim(candidate) { return claimed }
-            suffix += 1
-        }
-        // Safety fallback: use UUID to guarantee uniqueness
-        let uuid = UUID().uuidString.prefix(8)
-        let fallback = "review-\(fallbackIndex)-\(uuid)"
-        usedIDs.insert(fallback)
-        return fallback
     }
 }
