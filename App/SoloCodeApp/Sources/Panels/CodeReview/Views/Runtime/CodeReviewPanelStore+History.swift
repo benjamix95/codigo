@@ -77,8 +77,10 @@ extension CodeReviewPanelStore {
     }
     func selectHistoricalFinding(_ findingId: String) {
         guard historyRecords.contains(where: { $0.id == findingId }) else { return }
-        selectedFindingId = nil
-        selectedHistoricalFindingId = findingId
+        if !applyPanelIntent("focus_historical_finding", value: findingId) {
+            selectedFindingId = nil
+            selectedHistoricalFindingId = findingId
+        }
         selectTab(.history)
     }
 
@@ -87,7 +89,7 @@ extension CodeReviewPanelStore {
             focusFinding(record.findingId)
             return
         }
-        selectedHistoricalFindingId = nil
+        clearSelectedHistoricalFinding()
         await startReview(
             scope: .workspace,
             modes: selectedModes,

@@ -16,7 +16,7 @@ struct ReviewPanelFindingsTab: View {
                 store: store,
                 finding: finding,
                 onOpenFileAtLocation: onOpenFileAtLocation,
-                onBack: { store.selectedFindingId = nil }
+                onBack: { store.clearSelectedFinding() }
             )
         } else {
             VStack(spacing: 0) {
@@ -164,7 +164,7 @@ struct ReviewPanelFindingsTab: View {
             LazyVStack(spacing: 2) {
                 ForEach(findings, id: \.id) { finding in
                     findingRow(finding, isSelected: store.selectedFindingId == finding.id)
-                        .onTapGesture { store.selectedFindingId = finding.id }
+                        .onTapGesture { store.focusFinding(finding.id) }
                 }
             }
             .padding(.horizontal, 6)

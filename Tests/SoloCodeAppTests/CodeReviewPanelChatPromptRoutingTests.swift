@@ -4,6 +4,18 @@ import CoderEngine
 
 @MainActor
 final class CodeReviewPanelChatPromptRoutingTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
     func testNormalizedPanelChatUserMessageKeepsPlainQuestionUntouched() {
         let store = makeStore()
 
@@ -28,7 +40,8 @@ final class CodeReviewPanelChatPromptRoutingTests: XCTestCase {
         XCTAssertTrue(normalized.contains("Do NOT call review_start"))
     }
 
-    func testSendChatMessagePinsCurrentSessionBeforeChatProviderFailure() async {
+    func testSendChatMessagePinsCurrentSessionBeforeChatProviderFailure() async throws {
+        try requireReviewCore()
         let conversationId = UUID()
         let taskStore = TaskActivityStore()
         let snapshot = CodeReviewSessionSnapshot(
@@ -59,7 +72,8 @@ final class CodeReviewPanelChatPromptRoutingTests: XCTestCase {
         XCTAssertEqual(store.panelSessionId, "session-pinned")
     }
 
-    func testSendChatMessageUsesPinnedSessionInPromptWhileSelectionChangesMidStream() async {
+    func testSendChatMessageUsesPinnedSessionInPromptWhileSelectionChangesMidStream() async throws {
+        try requireReviewCore()
         let conversationId = UUID()
         let taskStore = TaskActivityStore()
         taskStore.ingestCodeReviewSnapshot(
@@ -199,6 +213,18 @@ final class CodeReviewPanelChatPromptRoutingTests: XCTestCase {
             tavilyApiKey: "",
             serperApiKey: ""
         )
+    }
+
+    private func reviewCoreLibraryPath() -> String {
+        URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
+    }
+
+    private func requireReviewCore() throws {
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
     }
 }
 

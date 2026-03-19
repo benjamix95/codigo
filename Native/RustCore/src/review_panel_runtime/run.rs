@@ -65,6 +65,9 @@ mod tests {
             schema_version: 1,
             state: ReviewPanelRuntimeStateSnapshot {
                 selected_tab: "Findings".to_string(),
+                panel_session_id: None,
+                selected_finding_id: None,
+                selected_historical_finding_id: None,
                 is_running: false,
                 run_started_at: None,
                 frozen_timer_text: Some("0:01".to_string()),

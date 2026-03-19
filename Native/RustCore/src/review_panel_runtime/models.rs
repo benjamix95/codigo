@@ -7,6 +7,9 @@ use std::collections::BTreeMap;
 #[serde(rename_all = "camelCase")]
 pub struct ReviewPanelRuntimeStateSnapshot {
     pub selected_tab: String,
+    pub panel_session_id: Option<String>,
+    pub selected_finding_id: Option<String>,
+    pub selected_historical_finding_id: Option<String>,
     pub is_running: bool,
     pub run_started_at: Option<f64>,
     pub frozen_timer_text: Option<String>,
@@ -108,6 +111,15 @@ pub struct ReviewPanelPromptRequest {
     pub open_count: Option<i32>,
     pub active_session_id: Option<String>,
     pub conversation_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPanelIntentRequest {
+    pub schema_version: i32,
+    pub state: ReviewPanelRuntimeStateSnapshot,
+    pub intent: String,
+    pub value: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]

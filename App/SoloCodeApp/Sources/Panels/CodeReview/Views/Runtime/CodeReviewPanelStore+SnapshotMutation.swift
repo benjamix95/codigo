@@ -77,6 +77,9 @@ extension CodeReviewPanelStore {
     func makeRuntimeStateSnapshot() -> ReviewPanelRuntimeStateSnapshot {
         ReviewPanelRuntimeStateSnapshot(
             selectedTab: selectedTab.rawValue,
+            panelSessionId: panelSessionId,
+            selectedFindingId: selectedFindingId,
+            selectedHistoricalFindingId: selectedHistoricalFindingId,
             isRunning: isRunning,
             runStartedAt: runStartedAt,
             frozenTimerText: frozenTimerText,
@@ -101,6 +104,9 @@ extension CodeReviewPanelStore {
         if let tab = CodeReviewTab(rawValue: state.selectedTab) {
             selectedTab = tab
         }
+        panelSessionId = state.panelSessionId
+        selectedFindingId = state.selectedFindingId
+        selectedHistoricalFindingId = state.selectedHistoricalFindingId
         isRunning = state.isRunning
         runStartedAt = state.runStartedAt
         frozenTimerText = state.frozenTimerText
@@ -141,6 +147,26 @@ extension CodeReviewPanelStore {
                 assistantMessageId: assistantId.uuidString,
                 startedAt: startedAt,
                 messageTimestamp: startedAt
+            )
+        )
+        guard response?.error == nil, let state = response?.state else {
+            return false
+        }
+        applyRuntimeState(state)
+        return true
+    }
+
+    @discardableResult
+    func applyPanelIntent(
+        _ intent: String,
+        value: String? = nil
+    ) -> Bool {
+        let response: ReviewPanelRuntimeResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_panel_apply_intent",
+            request: ReviewPanelIntentRequest(
+                state: makeRuntimeStateSnapshot(),
+                intent: intent,
+                value: value
             )
         )
         guard response?.error == nil, let state = response?.state else {
@@ -248,6 +274,9 @@ private struct ReviewPanelCommandMutationResponse: Decodable {
 
 struct ReviewPanelRuntimeStateSnapshot: Codable {
     let selectedTab: String
+    let panelSessionId: String?
+    let selectedFindingId: String?
+    let selectedHistoricalFindingId: String?
     let isRunning: Bool
     let runStartedAt: Date?
     let frozenTimerText: String?
@@ -276,6 +305,13 @@ struct ReviewPanelRuntimeEventEnvelope: Encodable {
     let text: String?
     let eventType: String?
     let payload: [String: String]
+}
+
+private struct ReviewPanelIntentRequest: Encodable {
+    let schemaVersion: Int = 1
+    let state: ReviewPanelRuntimeStateSnapshot
+    let intent: String
+    let value: String?
 }
 
 private struct ReviewPanelChatStartRequest: Encodable {

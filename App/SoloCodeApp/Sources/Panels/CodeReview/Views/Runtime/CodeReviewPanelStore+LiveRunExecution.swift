@@ -127,7 +127,9 @@ extension CodeReviewPanelStore {
         sessionId: String,
         conversationId: UUID?
     ) {
-        panelSessionId = sessionId
+        if !applyPanelIntent("bind_panel_session", value: sessionId) {
+            panelSessionId = sessionId
+        }
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
     }
 

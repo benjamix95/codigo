@@ -147,6 +147,61 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
             )
         )
     }
+
+    func testSetSelectedSessionFallsBackLocallyWhenRustIntentUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+            ReviewCoreBridge.resetForTests()
+        }
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        taskStore.ingestCodeReviewSnapshot(
+            makeSnapshot(sessionId: "session-a", conversationId: conversationId),
+            conversationId: conversationId
+        )
+        taskStore.ingestCodeReviewSnapshot(
+            makeSnapshot(sessionId: "session-b", conversationId: conversationId),
+            conversationId: conversationId
+        )
+
+        let store = makePanelStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId
+        )
+        store.selectedFindingId = "finding-1"
+        store.selectedHistoricalFindingId = "hist-1"
+
+        store.setSelectedSession("session-b")
+
+        XCTAssertEqual(store.panelSessionId, "session-b")
+        XCTAssertEqual(store.selectedSessionId, "session-b")
+        XCTAssertNil(store.selectedFindingId)
+        XCTAssertNil(store.selectedHistoricalFindingId)
+    }
+
+    func testSchedulePanelSessionBindingFallsBackLocallyWhenRustIntentUnavailable() async {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+            ReviewCoreBridge.resetForTests()
+        }
+        let store = makePanelStore(
+            taskActivityStore: TaskActivityStore(),
+            conversationId: UUID()
+        )
+
+        store.schedulePanelSessionBinding("bound-session")
+
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        XCTAssertEqual(store.panelSessionId, "bound-session")
+    }
     func testPanelApplyFixFailsClosedWithoutWorkspaceAndDoesNotTouchOtherFindings() async throws {
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
@@ -226,6 +281,52 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(updated.findings.first?.status, .wontFix)
         XCTAssertEqual(updated.events.last?.type, .findingDismissed)
         XCTAssertEqual(updated.events.last?.metadata["finding_id"], "f-1")
+    }
+
+    func testSelectHistoricalFindingFallsBackLocallyWhenRustIntentUnavailable() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+            ReviewCoreBridge.resetForTests()
+        }
+        let store = makePanelStore(
+            taskActivityStore: TaskActivityStore(),
+            conversationId: UUID()
+        )
+        store.historyRecords = [
+            HistoricalFindingRecord(
+                findingId: "finding-1",
+                sessionId: "session-1",
+                workspaceId: "/tmp/workspace",
+                domain: .bug,
+                severity: .medium,
+                title: "Historical finding",
+                summary: "summary",
+                status: .patchPrepared,
+                filePath: "Sources/Foo.swift",
+                lineStart: 10,
+                sourceOrigin: "review",
+                closedReason: nil,
+                patchId: nil,
+                patchApplyStatus: nil,
+                revalidationReportId: nil,
+                revalidationVerdict: nil,
+                createdAt: Date(),
+                updatedAt: Date(),
+                resolvedAt: nil,
+                resumeEligible: true,
+                timeline: []
+            )
+        ]
+        store.selectedFindingId = "live-finding"
+
+        store.selectHistoricalFinding("finding-1")
+
+        XCTAssertNil(store.selectedFindingId)
+        XCTAssertEqual(store.selectedHistoricalFindingId, "finding-1")
+        XCTAssertEqual(store.selectedTab, .history)
     }
     func testPanelModeSelectionAllowsMultiSelectAndSecondTapTurnsModeOff() {
         let store = makePanelStore(

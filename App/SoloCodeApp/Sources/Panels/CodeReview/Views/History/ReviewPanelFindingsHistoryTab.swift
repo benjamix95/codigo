@@ -40,7 +40,7 @@ struct ReviewPanelFindingsHistoryTab: View {
                 store: store,
                 record: selected,
                 onOpenFileAtLocation: onOpenFileAtLocation,
-                onBack: { store.selectedHistoricalFindingId = nil }
+                onBack: { store.clearSelectedHistoricalFinding() }
             )
         } else {
             content

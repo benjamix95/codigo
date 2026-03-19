@@ -10,7 +10,9 @@ extension CodeReviewPanelStore {
         ensureActiveChatThread()
         let pinnedSessionId = panelSessionId ?? selectedSessionId
         if panelSessionId == nil, let pinnedSessionId {
-            panelSessionId = pinnedSessionId
+            if !applyPanelIntent("bind_panel_session", value: pinnedSessionId) {
+                panelSessionId = pinnedSessionId
+            }
         }
 
         appendChatMessage(ReviewPanelMessage(

@@ -167,7 +167,9 @@ final class CodeReviewPanelStore: ObservableObject {
     func schedulePanelSessionBinding(_ sessionId: String?) {
         scheduleDeferredMutation { store in
             guard store.panelSessionId != sessionId else { return }
-            store.panelSessionId = sessionId
+            if !store.applyPanelIntent("bind_panel_session", value: sessionId) {
+                store.panelSessionId = sessionId
+            }
         }
     }
 
@@ -237,10 +239,12 @@ final class CodeReviewPanelStore: ObservableObject {
     // MARK: - Session Selection
 
     func setSelectedSession(_ sessionId: String?) {
-        panelSessionId = sessionId
+        if !applyPanelIntent("set_selected_session", value: sessionId) {
+            panelSessionId = sessionId
+            selectedFindingId = nil
+            selectedHistoricalFindingId = nil
+        }
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
-        selectedFindingId = nil
-        selectedHistoricalFindingId = nil
     }
 
     func deleteSession(_ sessionId: String) async {
@@ -252,17 +256,32 @@ final class CodeReviewPanelStore: ObservableObject {
         )
 
         if panelSessionId == sessionId {
-            panelSessionId = availableSnapshots.first?.sessionId
+            setSelectedSession(availableSnapshots.first?.sessionId)
+        } else {
+            clearSelectedFinding()
+            clearSelectedHistoricalFinding()
         }
-        selectedFindingId = nil
-        selectedHistoricalFindingId = nil
     }
 
     func focusFinding(_ findingId: String) {
         guard currentVisibleFindings.contains(where: { $0.id == findingId }) else { return }
-        selectedHistoricalFindingId = nil
-        selectedFindingId = findingId
+        if !applyPanelIntent("focus_finding", value: findingId) {
+            selectedHistoricalFindingId = nil
+            selectedFindingId = findingId
+        }
         selectTab(.findings)
+    }
+
+    func clearSelectedFinding() {
+        if !applyPanelIntent("clear_selected_finding") {
+            selectedFindingId = nil
+        }
+    }
+
+    func clearSelectedHistoricalFinding() {
+        if !applyPanelIntent("clear_selected_historical_finding") {
+            selectedHistoricalFindingId = nil
+        }
     }
 
     // MARK: - Workspace Context
