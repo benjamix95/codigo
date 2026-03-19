@@ -36,6 +36,16 @@ pub struct ReviewDeferredCommandFinalizeRequest {
     pub source_state_succeeded: bool,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCommandPromptRequest {
+    pub schema_version: i32,
+    pub session_id: String,
+    #[serde(default)]
+    pub payload: HashMap<String, String>,
+    pub config: ReviewCommandConfig,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewCommandConfig {
@@ -81,6 +91,15 @@ pub struct ReviewDeferredCommandFinalizeResponse {
     pub is_error: bool,
     pub command_status: String,
     pub result_message: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCommandPromptResponse {
+    pub schema_version: i32,
+    pub is_error: bool,
+    pub message: Option<String>,
+    pub prompt: Option<String>,
 }
 
 impl ReviewCommandPlanResponse {
@@ -154,6 +173,26 @@ impl ReviewDeferredCommandFinalizeResponse {
             is_error: false,
             command_status: status.to_string(),
             result_message: message.into(),
+        }
+    }
+}
+
+impl ReviewCommandPromptResponse {
+    pub fn success(prompt: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: false,
+            message: None,
+            prompt: Some(prompt.into()),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: 1,
+            is_error: true,
+            message: Some(message.into()),
+            prompt: None,
         }
     }
 }

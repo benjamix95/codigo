@@ -45,6 +45,7 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
     }
 
     func testStartCommandRemainsProcessingUntilDeferredReviewCompletes() async throws {
+        try requireReviewCore()
         let app = makeApp()
         let gate = ReviewProviderGate()
         CodeReviewCommandRuntimeHooks.workspaceContextOverride = { [workspaceURL] _ in
@@ -81,6 +82,28 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
             MCPSharedState.readCodeReviewSnapshot(sessionId: "review-start-deferred")
         )
         XCTAssertEqual(completedSnapshot.phase, .completed)
+    }
+
+    func testStartCommandFailsWhenRustRuntimeIsDisabled() async throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let app = makeApp()
+        let command = try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
+            sessionId: "review-start-disabled",
+            conversationId: nil,
+            payload: [
+                "scope": "uncommitted",
+                "session_id": "review-start-disabled",
+            ]
+        )
+
+        await app.processPendingCodeReviewCommandsOnce()
+
+        XCTAssertEqual(try currentCommand(id: command.id)?.status, .failed)
+        XCTAssertNil(
+            MCPSharedState.readCodeReviewSnapshot(sessionId: "review-start-disabled")
+        )
     }
 
     func testApplyFixCommandFailsClosedWhenPatchWorkflowCannotRun() async throws {
@@ -227,6 +250,7 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
     }
 
     func testDeferredReviewMarksCommandFailedWhenSessionFails() async throws {
+        try requireReviewCore()
         let app = makeApp()
         CodeReviewCommandRuntimeHooks.workspaceContextOverride = { [workspaceURL] _ in
             WorkspaceContext(workspacePaths: [workspaceURL].compactMap { $0 })

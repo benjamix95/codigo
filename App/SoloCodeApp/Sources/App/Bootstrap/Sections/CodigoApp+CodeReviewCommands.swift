@@ -191,6 +191,16 @@ extension CodigoApp {
             executionBackend: command.payload["execution_backend"] ?? cfg.codeReviewExecutionBackend,
             analysisOnly: parseBoolValue(command.payload["analysis_only"]) ?? codeReviewAnalysisOnly
         )
+        guard let prompt = ReviewCommandRustBridge.buildStartPrompt(
+            sessionId: sessionId,
+            payload: command.payload,
+            config: sessionConfig
+        ) else {
+            return .immediate(
+                success: false,
+                message: "Rust review start prompt runtime required but unavailable"
+            )
+        }
         let sessionState = makeCommandReviewSessionState(
             sessionId: sessionId,
             conversationId: conversationId,
@@ -216,7 +226,6 @@ extension CodigoApp {
 
         await ReviewSessionRegistry.shared.register(sessionState)
         await persistLiveReviewState(sessionState, conversationId: conversationId)
-        let prompt = reviewPrompt(for: command, sessionId: sessionId)
         launchDeferredReviewCommand(
             command: command,
             provider: provider,
@@ -232,44 +241,5 @@ extension CodigoApp {
         _ command: MCPSharedCodeReviewCommand
     ) async -> CodeReviewCommandOutcome {
         await handlePatchWorkflowCommand(command)
-    }
-
-    @MainActor
-    private func reviewPrompt(
-        for command: MCPSharedCodeReviewCommand,
-        sessionId: String
-    ) -> String {
-        if let overridePrompt = command.payload["review_prompt_override"],
-           !overridePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return overridePrompt
-        }
-        if let overridePrompt = command.payload["bughunter_prompt_override"],
-           !overridePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return overridePrompt
-        }
-        let scope = (command.payload["scope"] ?? "uncommitted")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        switch scope {
-        case "staged":
-            return """
-            [REVIEW_SCOPE:staged] Start a structured code review session \(sessionId).
-            Focus on actionable findings and pipeline-safe fixes.
-            """
-        case "against_ref":
-            let ref = command.payload["ref"] ?? "HEAD~1"
-            let analysisOnly = parseBoolValue(command.payload["analysis_only"]) ?? codeReviewAnalysisOnly
-            let configuredMaxRounds = Int(command.payload["max_rounds"] ?? "") ?? codeReviewMaxRounds
-            return CodeReviewQuickCommands.againstPrompt(
-                ref: ref,
-                autofixEnabled: !analysisOnly,
-                maxRounds: configuredMaxRounds
-            )
-        default:
-            return """
-            [REVIEW_SCOPE:uncommitted] Start a structured code review session \(sessionId).
-            Focus on actionable findings and pipeline-safe fixes.
-            """
-        }
     }
 }

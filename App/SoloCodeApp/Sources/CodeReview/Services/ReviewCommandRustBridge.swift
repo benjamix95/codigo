@@ -124,6 +124,23 @@ struct ReviewCommandRustBridge {
         )
     }
 
+    static func buildStartPrompt(
+        sessionId: String,
+        payload: [String: String],
+        config: SessionConfig
+    ) -> String? {
+        let response: ReviewCommandPromptResponse? = ReviewCoreBridge.call(
+            functionName: "review_core_command_build_start_prompt",
+            request: ReviewCommandPromptRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                payload: payload,
+                config: ReviewCommandPlanConfig(config)
+            )
+        )
+        return response?.prompt
+    }
+
     static func buildPanelPrompt(
         _ request: ReviewPanelPromptBridgeRequest
     ) -> String? {
@@ -185,6 +202,13 @@ private struct ReviewDeferredCommandFinalizeRequest: Encodable {
     let sourceStateSucceeded: Bool
 }
 
+private struct ReviewCommandPromptRequest: Encodable {
+    let schemaVersion: Int
+    let sessionId: String
+    let payload: [String: String]
+    let config: ReviewCommandPlanConfig
+}
+
 struct ReviewCommandPlanConfig: Codable {
     let maxWorkers: Int
     let maxRounds: Int
@@ -227,6 +251,12 @@ struct ReviewDeferredCommandFinalizeResponse: Decodable {
     let isError: Bool
     let commandStatus: String
     let resultMessage: String
+}
+
+private struct ReviewCommandPromptResponse: Decodable {
+    let isError: Bool
+    let message: String?
+    let prompt: String?
 }
 
 struct ReviewPanelPromptBridgeRequest: Encodable {
