@@ -77,7 +77,8 @@ extension CodeReviewPanelStore {
     }
     func selectHistoricalFinding(_ findingId: String) {
         guard historyRecords.contains(where: { $0.id == findingId }) else { return }
-        if !applyPanelIntent("focus_historical_finding", value: findingId) {
+        if !applyPanelIntent("focus_historical_finding", value: findingId),
+           !ReviewCoreBridge.isEnabled {
             selectedFindingId = nil
             selectedHistoricalFindingId = findingId
         }

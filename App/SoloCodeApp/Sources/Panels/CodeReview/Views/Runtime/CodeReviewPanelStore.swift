@@ -136,7 +136,9 @@ final class CodeReviewPanelStore: ObservableObject {
         } else if !chatMessages.isEmpty {
             self.selectedTab = .chat
         }
-        if let activeChatThreadId, !applyPanelIntent("set_active_chat_thread", value: activeChatThreadId) {
+        if let activeChatThreadId,
+           !applyPanelIntent("set_active_chat_thread", value: activeChatThreadId),
+           !ReviewCoreBridge.isEnabled {
             self.activeChatThreadId = activeChatThreadId
         }
 
@@ -235,7 +237,8 @@ final class CodeReviewPanelStore: ObservableObject {
 
     func selectTab(_ tab: CodeReviewTab) {
         withAnimation(.snappy(duration: 0.15)) {
-            if !applyPanelIntent("select_tab", value: tab.rawValue) {
+            if !applyPanelIntent("select_tab", value: tab.rawValue),
+               !ReviewCoreBridge.isEnabled {
                 selectedTab = tab
             }
         }
@@ -244,7 +247,8 @@ final class CodeReviewPanelStore: ObservableObject {
     // MARK: - Session Selection
 
     func setSelectedSession(_ sessionId: String?) {
-        if !applyPanelIntent("set_selected_session", value: sessionId) {
+        if !applyPanelIntent("set_selected_session", value: sessionId),
+           !ReviewCoreBridge.isEnabled {
             panelSessionId = sessionId
             selectedFindingId = nil
             selectedHistoricalFindingId = nil
@@ -270,7 +274,8 @@ final class CodeReviewPanelStore: ObservableObject {
 
     func focusFinding(_ findingId: String) {
         guard currentVisibleFindings.contains(where: { $0.id == findingId }) else { return }
-        if !applyPanelIntent("focus_finding", value: findingId) {
+        if !applyPanelIntent("focus_finding", value: findingId),
+           !ReviewCoreBridge.isEnabled {
             selectedHistoricalFindingId = nil
             selectedFindingId = findingId
         }
@@ -278,13 +283,15 @@ final class CodeReviewPanelStore: ObservableObject {
     }
 
     func clearSelectedFinding() {
-        if !applyPanelIntent("clear_selected_finding") {
+        if !applyPanelIntent("clear_selected_finding"),
+           !ReviewCoreBridge.isEnabled {
             selectedFindingId = nil
         }
     }
 
     func clearSelectedHistoricalFinding() {
-        if !applyPanelIntent("clear_selected_historical_finding") {
+        if !applyPanelIntent("clear_selected_historical_finding"),
+           !ReviewCoreBridge.isEnabled {
             selectedHistoricalFindingId = nil
         }
     }

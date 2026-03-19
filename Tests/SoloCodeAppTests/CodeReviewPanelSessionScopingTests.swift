@@ -182,6 +182,30 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertNil(store.selectedHistoricalFindingId)
     }
 
+    func testSetSelectedSessionUsesRustIntentWhenReviewCoreAvailable() throws {
+        try requireReviewCore()
+        let taskStore = TaskActivityStore()
+        let conversationId = UUID()
+        taskStore.ingestCodeReviewSnapshot(
+            makeSnapshot(sessionId: "session-a", conversationId: conversationId),
+            conversationId: conversationId
+        )
+        taskStore.ingestCodeReviewSnapshot(
+            makeSnapshot(sessionId: "session-b", conversationId: conversationId),
+            conversationId: conversationId
+        )
+
+        let store = makePanelStore(
+            taskActivityStore: taskStore,
+            conversationId: conversationId
+        )
+
+        store.setSelectedSession("session-b")
+
+        XCTAssertEqual(store.panelSessionId, "session-b")
+        XCTAssertEqual(store.makeRuntimeStateSnapshot().panelSessionId, "session-b")
+    }
+
     func testSchedulePanelSessionBindingFallsBackLocallyWhenRustIntentUnavailable() async {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()
@@ -219,6 +243,19 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         store.selectTab(.chat)
 
         XCTAssertEqual(store.selectedTab, .chat)
+    }
+
+    func testSelectTabUsesRustIntentWhenReviewCoreAvailable() throws {
+        try requireReviewCore()
+        let store = makePanelStore(
+            taskActivityStore: TaskActivityStore(),
+            conversationId: UUID()
+        )
+
+        store.selectTab(.chat)
+
+        XCTAssertEqual(store.selectedTab, .chat)
+        XCTAssertEqual(store.makeRuntimeStateSnapshot().selectedTab, CodeReviewTab.chat.rawValue)
     }
     func testPanelApplyFixFailsClosedWithoutWorkspaceAndDoesNotTouchOtherFindings() async throws {
         let taskStore = TaskActivityStore()
@@ -345,6 +382,47 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertNil(store.selectedFindingId)
         XCTAssertEqual(store.selectedHistoricalFindingId, "finding-1")
         XCTAssertEqual(store.selectedTab, .history)
+    }
+
+    func testSelectHistoricalFindingUsesRustIntentWhenReviewCoreAvailable() throws {
+        try requireReviewCore()
+        let store = makePanelStore(
+            taskActivityStore: TaskActivityStore(),
+            conversationId: UUID()
+        )
+        store.historyRecords = [
+            HistoricalFindingRecord(
+                findingId: "finding-1",
+                sessionId: "session-1",
+                workspaceId: "/tmp/workspace",
+                domain: .bug,
+                severity: .medium,
+                title: "Historical finding",
+                summary: "summary",
+                status: .patchPrepared,
+                filePath: "Sources/Foo.swift",
+                lineStart: 10,
+                sourceOrigin: "review",
+                closedReason: nil,
+                patchId: nil,
+                patchApplyStatus: nil,
+                revalidationReportId: nil,
+                revalidationVerdict: nil,
+                createdAt: Date(),
+                updatedAt: Date(),
+                resolvedAt: nil,
+                resumeEligible: true,
+                timeline: []
+            )
+        ]
+
+        store.selectHistoricalFinding("finding-1")
+
+        XCTAssertEqual(store.selectedHistoricalFindingId, "finding-1")
+        XCTAssertEqual(
+            store.makeRuntimeStateSnapshot().selectedHistoricalFindingId,
+            "finding-1"
+        )
     }
     func testPanelModeSelectionAllowsMultiSelectAndSecondTapTurnsModeOff() {
         let store = makePanelStore(
@@ -678,5 +756,12 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib").path
+    }
+
+    private func requireReviewCore() throws {
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
     }
 }

@@ -1,7 +1,13 @@
 import XCTest
+import CoderEngine
 @testable import CoderIDE
 
 final class CodeReviewPanelValidationTests: XCTestCase {
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
 
     // MARK: - isValidGitRefFormat
 
@@ -95,7 +101,8 @@ final class CodeReviewPanelValidationTests: XCTestCase {
     }
 
     @MainActor
-    func testCombinedPromptIncludesSelectedModeSections() {
+    func testCombinedPromptIncludesSelectedModeSections() throws {
+        try requireReviewCore()
         let prompt = ReviewPanelCoordinator.combinedPrompt(
             scope: .uncommitted,
             currentBranch: "main",
@@ -111,7 +118,8 @@ final class CodeReviewPanelValidationTests: XCTestCase {
     }
 
     @MainActor
-    func testCombinedPromptUsesBranchPromptWhenScopeIsBranch() {
+    func testCombinedPromptUsesBranchPromptWhenScopeIsBranch() throws {
+        try requireReviewCore()
         let prompt = ReviewPanelCoordinator.combinedPrompt(
             scope: .branch("feature/refactor"),
             currentBranch: "main",
@@ -121,6 +129,20 @@ final class CodeReviewPanelValidationTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("[AGAINST:main..feature/refactor]"))
         XCTAssertTrue(prompt.contains("Security focus:"))
+    }
+
+    private func requireReviewCore() throws {
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
+    private func reviewCoreLibraryPath() -> String {
+        URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
     }
 
     // MARK: - Review worker activity selection

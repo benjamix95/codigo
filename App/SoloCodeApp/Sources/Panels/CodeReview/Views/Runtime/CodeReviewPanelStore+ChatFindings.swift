@@ -49,7 +49,8 @@ extension CodeReviewPanelStore {
 
     func createNewChatThread(title: String? = nil) {
         let threadId = chatSessionStore.createThread(for: chatSessionKey, title: title)
-        if !setActiveChatThread(threadId) {
+        if !setActiveChatThread(threadId),
+           !ReviewCoreBridge.isEnabled {
             activeChatThreadId = threadId
         }
         selectTab(.chat)
@@ -57,7 +58,8 @@ extension CodeReviewPanelStore {
 
     func selectChatThread(_ threadId: String) {
         chatSessionStore.selectThread(threadId, for: chatSessionKey)
-        if !setActiveChatThread(threadId) {
+        if !setActiveChatThread(threadId),
+           !ReviewCoreBridge.isEnabled {
             activeChatThreadId = threadId
         }
         selectTab(.chat)
@@ -107,10 +109,12 @@ extension CodeReviewPanelStore {
         }
         if activeChatThreadId != conversation.activeThreadId {
             if let activeThreadId = conversation.activeThreadId {
-                if !setActiveChatThread(activeThreadId) {
+                if !setActiveChatThread(activeThreadId),
+                   !ReviewCoreBridge.isEnabled {
                     activeChatThreadId = activeThreadId
                 }
-            } else if !clearActiveChatThread() {
+            } else if !clearActiveChatThread(),
+                      !ReviewCoreBridge.isEnabled {
                 activeChatThreadId = nil
             }
         }

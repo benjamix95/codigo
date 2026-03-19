@@ -62,7 +62,8 @@ extension CodeReviewPanelStore {
     func ensureActiveChatThread() {
         if activeChatThreadId == nil {
             let threadId = chatSessionStore.createThread(for: chatSessionKey)
-            if !setActiveChatThread(threadId) {
+            if !setActiveChatThread(threadId),
+               !ReviewCoreBridge.isEnabled {
                 activeChatThreadId = threadId
             }
         }

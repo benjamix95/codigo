@@ -10,7 +10,8 @@ extension CodeReviewPanelStore {
         ensureActiveChatThread()
         let pinnedSessionId = panelSessionId ?? selectedSessionId
         if panelSessionId == nil, let pinnedSessionId {
-            if !applyPanelIntent("bind_panel_session", value: pinnedSessionId) {
+            if !applyPanelIntent("bind_panel_session", value: pinnedSessionId),
+               !ReviewCoreBridge.isEnabled {
                 panelSessionId = pinnedSessionId
             }
         }

@@ -1,8 +1,14 @@
 import XCTest
+import CoderEngine
 @testable import CoderIDE
 
 @MainActor
 final class ReviewPanelChatStructuredContentTests: XCTestCase {
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
     func testSummarySectionsSplitMetadataAndFindings() {
         let message = ReviewPanelMessage(
             role: .system,
@@ -86,7 +92,8 @@ final class ReviewPanelChatStructuredContentTests: XCTestCase {
         ])
     }
 
-    func testChatContextPromptEnforcesBugSecurityAndMarkdownStructure() {
+    func testChatContextPromptEnforcesBugSecurityAndMarkdownStructure() throws {
+        try requireReviewCore()
         let conversationId = UUID(uuidString: "11111111-2222-3333-4444-555555555555")
         let prompt = ReviewPanelCoordinator.chatContextPrompt(
             userMessage: "controlla la sessione corrente",
@@ -108,6 +115,20 @@ final class ReviewPanelChatStructuredContentTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Reuse the current active review session"))
         XCTAssertTrue(prompt.contains("Do not call `review_start` unless the user explicitly asks"))
         XCTAssertTrue(prompt.contains("always pass `session_id` and `conversation_id`"))
+    }
+
+    private func requireReviewCore() throws {
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
+    private func reviewCoreLibraryPath() -> String {
+        URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Native/target/debug/libsolocode_rust_core.dylib")
+            .path
     }
 
     func testExtractsUniqueFileTargetsFromSummaryContent() {

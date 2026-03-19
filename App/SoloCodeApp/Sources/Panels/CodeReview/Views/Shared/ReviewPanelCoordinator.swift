@@ -244,29 +244,7 @@ extension ReviewPanelCoordinator {
             conversationId: conversationId?.uuidString
         )
         return ReviewCommandRustBridge.buildPanelPrompt(request)
-            ?? fallbackPrompt(kind: kind, scope: scope, currentBranch: currentBranch, selectedModes: selectedModes, customInstructions: customInstructions, userMessage: userMessage, sessionSummary: sessionSummary, findingsCount: findingsCount, openCount: openCount, activeSessionId: activeSessionId, conversationId: conversationId)
-    }
-
-    private static func fallbackPrompt(kind: String, scope: ReviewScopeTarget, currentBranch: String?, selectedModes: Set<CodeReviewPanelMode>, customInstructions: String, userMessage: String?, sessionSummary: String?, findingsCount: Int?, openCount: Int?, activeSessionId: String?, conversationId: UUID?) -> String {
-        switch kind {
-        case "branch_review", "combined" where scope.bridgeKind == "branch":
-            return "[AGAINST:\(currentBranch ?? "main")..\((scope.branchName ?? "unknown"))]\nSecurity focus:"
-        case "chat_context":
-            return """
-            You are the dedicated chat for an active code review session. Your primary focus is bug hunting, security review, and the full tool-enabled review environment. Use well-structured markdown with sections like ## Findings. Reuse the current active review session and always pass `session_id` and `conversation_id`. Do not call `review_start` unless the user explicitly asks.
-            - Active review session: \(activeSessionId ?? "unavailable")
-            - Conversation scope: \(conversationId?.uuidString ?? "none")
-            \(sessionSummary ?? "")
-            - Total findings: \(findingsCount ?? 0)
-            - Open findings: \(openCount ?? 0)
-            ```review_findings```
-            User: \(userMessage ?? "")
-            """
-        default:
-            let modes = selectedModes.isEmpty ? Set([.standard]) : selectedModes
-            let extras = [modes.contains(.standard) ? "Standard focus:" : nil, modes.contains(.securityAudit) ? "Security focus:" : nil, modes.contains(.bugFinder) ? "Bug focus:" : nil, customInstructions.isEmpty ? nil : customInstructions].compactMap { $0 }.joined(separator: "\n")
-            return "\(scope.scopeTag)\nRun a code review over the selected scope.\n\(extras)"
-        }
+            ?? "Rust review panel prompt runtime required."
     }
 }
 

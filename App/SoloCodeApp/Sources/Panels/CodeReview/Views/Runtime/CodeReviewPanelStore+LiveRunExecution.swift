@@ -25,18 +25,15 @@ extension CodeReviewPanelStore {
     ) async {
         guard !isRunning else { return }
 
-        lastError = nil
-        isRunning = true
-        runStartedAt = Date()
-        frozenTimerText = nil
         scopeTarget = scope
         selectedModes = modes
         selectTab(.findings)
 
         guard let plan = planPanelReviewLaunch() else {
-            isRunning = false
-            lastError = "Failed to plan review session"
-            freezeTimer()
+            applyUnavailableRunError(
+                "Failed to plan review session",
+                targetTab: .findings
+            )
             return
         }
         let sessionId = plan.sessionId
@@ -53,9 +50,10 @@ extension CodeReviewPanelStore {
             sessionState: sessionState,
             sessionConfig: sessionConfig
         ) else {
-            isRunning = false
-            lastError = "Failed to create review provider"
-            freezeTimer()
+            applyUnavailableRunError(
+                "Failed to create review provider",
+                targetTab: .findings
+            )
             return
         }
 
@@ -127,7 +125,8 @@ extension CodeReviewPanelStore {
         sessionId: String,
         conversationId: UUID?
     ) {
-        if !applyPanelIntent("bind_panel_session", value: sessionId) {
+        if !applyPanelIntent("bind_panel_session", value: sessionId),
+           !ReviewCoreBridge.isEnabled {
             panelSessionId = sessionId
         }
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
