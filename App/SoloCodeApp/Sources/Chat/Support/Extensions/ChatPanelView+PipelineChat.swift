@@ -64,7 +64,13 @@ extension ChatPanelView {
             payload: event.payload,
             timestamp: event.timestamp
         )
-        state = ChatPipelineReducer.apply(state: state, event: sequenced)
+        state = MainChatRustBridge.reduce(
+            state: state,
+            event: sequenced
+        ) ?? ChatPipelineReducer.apply(
+            state: state,
+            event: sequenced
+        )
         activeTurnStateByConversation[event.conversationId] = state
         renderSnapshotByConversation[event.conversationId] = state
         ChatPipelineCommitter.commit(state, chatStore: chatStore, persistImmediately: persistImmediately)

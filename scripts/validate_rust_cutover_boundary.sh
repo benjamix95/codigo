@@ -15,6 +15,25 @@ REVIEW_CUTOVER_PREFIXES=(
   "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/Security"
   "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/BugHunter"
 )
+MAIN_CHAT_CUTOVER_PREFIXES=(
+  "App/SoloCodeApp/Sources/Chat/Pipeline"
+  "App/SoloCodeApp/Sources/Chat/Store"
+  "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService.swift"
+  "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+ChatPipeline.swift"
+  "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+EventMapping.swift"
+  "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+EventSupport.swift"
+  "App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator.swift"
+  "Engine/CoderEngine/Sources/Pipeline/Agents"
+  "Engine/CoderEngine/Sources/Pipeline/Bridge"
+  "Engine/CoderEngine/Sources/Pipeline/Contracts"
+  "Engine/CoderEngine/Sources/Pipeline/EventBus"
+  "Engine/CoderEngine/Sources/Pipeline/Locking"
+  "Engine/CoderEngine/Sources/Pipeline/Observability"
+  "Engine/CoderEngine/Sources/Pipeline/Orchestrator"
+  "Engine/CoderEngine/Sources/Pipeline/Scheduler"
+  "Engine/CoderEngine/Sources/Pipeline/WorkerPool"
+)
+ENABLE_MAIN_CHAT_CUTOVER="${SOLOCODE_MAIN_CHAT_CUTOVER:-0}"
 ALLOWLIST_PATH="Config/validation/rust-cutover-swift-allowlist.txt"
 
 while [[ $# -gt 0 ]]; do
@@ -69,6 +88,13 @@ if [[ -n "$candidate_files" ]]; then
         enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
       fi
     done
+    if [[ "$ENABLE_MAIN_CHAT_CUTOVER" == "1" ]]; then
+      for prefix in "${MAIN_CHAT_CUTOVER_PREFIXES[@]}"; do
+        if [[ "$file" == "$prefix" || "$file" == "$prefix/"* ]]; then
+          enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
+        fi
+      done
+    fi
   done < <(printf '%s\n' "$candidate_files" | tr ',' '\n')
 fi
 

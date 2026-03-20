@@ -323,6 +323,7 @@ mod tests {
             schema_version: 1,
             content: "Before\n```review_findings\n{\"findings\":[{\"severity\":\"warning\",\"category\":\"correctness\",\"file\":\"Sources/App.swift\",\"line\":42,\"message\":\"Retry emits a duplicate event\"}]}\n```\nAfter".to_string(),
             existing_findings: Vec::new(),
+            snapshot: None,
         });
         assert!(response.error.is_none());
         assert!(response.found_block);
@@ -339,6 +340,7 @@ mod tests {
             schema_version: 1,
             content: content.clone(),
             existing_findings: Vec::new(),
+            snapshot: None,
         });
         assert!(response.error.is_some());
         assert_eq!(response.visible_content, content);

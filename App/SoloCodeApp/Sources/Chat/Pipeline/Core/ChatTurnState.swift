@@ -11,7 +11,7 @@ struct ChatTurnMetadata: Codable, Equatable {
     var isStreaming: Bool
 }
 
-struct ChatTurnState: Equatable {
+struct ChatTurnState: Codable, Equatable {
     let conversationId: UUID
     let assistantMessageId: UUID
     let turnId: String

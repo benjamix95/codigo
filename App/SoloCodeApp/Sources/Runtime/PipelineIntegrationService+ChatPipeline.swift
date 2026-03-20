@@ -51,7 +51,10 @@ extension PipelineIntegrationService {
                 timestamp: event.timestamp
             )
             runtime.nextPipelineSequence += 1
-            runtime.chatTurnState = ChatPipelineReducer.apply(
+            runtime.chatTurnState = MainChatRustBridge.reduce(
+                state: runtime.chatTurnState,
+                event: sequenced
+            ) ?? ChatPipelineReducer.apply(
                 state: runtime.chatTurnState,
                 event: sequenced
             )

@@ -8,5 +8,6 @@ name = "solocode_rust_core"
 crate-type = ["rlib", "staticlib", "cdylib"]
 
 [dependencies]
+app_core_protocol = { path = "../AppCoreProtocol" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

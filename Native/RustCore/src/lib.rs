@@ -1,4 +1,5 @@
 mod ffi;
+mod main_chat;
 mod plan_state;
 mod todo_state;
 pub mod review_mcp;
