@@ -30,7 +30,6 @@
 		04090BFC506F7FCB8F9C0F52 /* CodexCLIProvider+SyntheticEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A2E4EB8E2869EE7266AEFB /* CodexCLIProvider+SyntheticEvents.swift */; };
 		042790FD2AE2ABDECE4BB4D7 /* ReviewPanelPatchesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70394F5E8AC70D0C0566AED4 /* ReviewPanelPatchesSection.swift */; };
 		046E12728C8B46CFB6077B8D /* CoderIDEMCPServerApp+IDEStatePlanQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4433DD7376057FB05123E851 /* CoderIDEMCPServerApp+IDEStatePlanQueries.swift */; };
-		04A130D831FB2B40743A961E /* MessageToolTraceView+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A3079B6C5FD59698B3754E2 /* MessageToolTraceView+Header.swift */; };
 		04FF51E80030FB0112A285D2 /* MCPSessionManager+Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC86CC7F5C2BA7B183C7A29C /* MCPSessionManager+Logging.swift */; };
 		0500971DB5CA3BF4E255B8F2 /* PlanOptionsParser+QuestionParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F007E91ECD273532BF0C8ED /* PlanOptionsParser+QuestionParsing.swift */; };
 		050B31FE7A11623798858AE0 /* PlanOutputClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A821973457838491A36DBBF9 /* PlanOutputClassifierTests.swift */; };
@@ -275,7 +274,6 @@
 		29EF15582CF6787A1D231B36 /* ReviewDiffSummaryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A92878EFB6BA7BF9679943C /* ReviewDiffSummaryServiceTests.swift */; };
 		29FAF4937CD231FD2E25914D /* CodebaseIndex+SymbolQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = A978A61182088369C887D70C /* CodebaseIndex+SymbolQueries.swift */; };
 		2A039006CD8AA5AB6F1BB026 /* UnifiedToolRuntimeTests+DebugLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 733B6C695B56A5F9796D4E45 /* UnifiedToolRuntimeTests+DebugLifecycle.swift */; };
-		2A0C672EEA09D829478532DE /* TraceSummaryCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4924C8B6B3ACA6DA3C74C099 /* TraceSummaryCardView.swift */; };
 		2A1B8F8852E0B8875A87270C /* AnthropicAPIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8548BC4EAF378632009034 /* AnthropicAPIProvider.swift */; };
 		2A5D061B27929C089055FF28 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = B20396E91F023AC7650CA478 /* MCP */; };
 		2ABDEDEE21F9753B49FCD5B2 /* GitService+Diff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A472AFAB1D466A5706D74C /* GitService+Diff.swift */; };
@@ -304,7 +302,6 @@
 		2E06D27017829B5BA0048BB7 /* ContextPathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A71CFACF482A24D047D557A /* ContextPathResolver.swift */; };
 		2E1FE2A961AEA52FE599097D /* CodeReviewMultiSwarmProvider+Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 570E32B2E663383C109777CE /* CodeReviewMultiSwarmProvider+Diagnostics.swift */; };
 		2E27DCA39393F48926F7A6B2 /* MessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3CFCE10D27F5536DEE4919 /* MessageRow.swift */; };
-		2E8BD9C51730977FCA1D616B /* PrimaryTextBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA2257FEC5292E2F65BB9D38 /* PrimaryTextBlockView.swift */; };
 		2EC9D8A98421C77B5FED6BEF /* CodeReviewSessionState+CandidatesAndPatches.swift in Sources */ = {isa = PBXBuildFile; fileRef = 989C4E74FBAE7AD805C653B5 /* CodeReviewSessionState+CandidatesAndPatches.swift */; };
 		2ECB05090B601A30991CBF5C /* SymbolExtractor+ArraySafeSubscript.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3EEFCB78DE84C6E5D84BF14 /* SymbolExtractor+ArraySafeSubscript.swift */; };
 		2EE63368E25C0C4A2CC7B2FB /* CodexModelsCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A81C80AE9FCA0FE466DD950 /* CodexModelsCache.swift */; };
@@ -2224,7 +2221,6 @@
 		48C472C87BDCEF29C77144A1 /* CoderIDETools.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CoderIDETools.swift; path = Tools/CoderIDEMCPServer/Sources/Tools/Catalog/CoderIDETools.swift; sourceTree = "<group>"; };
 		48D427CFEDA57DB95974F63E /* TodoStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TodoStoreTests.swift; path = Tests/SoloCodeAppTests/TodoStoreTests.swift; sourceTree = "<group>"; };
 		48E6D22EE48A39EF76BC2DCC /* SidePanelView+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SidePanelView+Helpers.swift"; path = "App/SoloCodeApp/Sources/App/SidePanel/Sections/SidePanelView+Helpers.swift"; sourceTree = "<group>"; };
-		4924C8B6B3ACA6DA3C74C099 /* TraceSummaryCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TraceSummaryCardView.swift; path = App/SoloCodeApp/Sources/Chat/Timeline/Blocks/TraceSummaryCardView.swift; sourceTree = "<group>"; };
 		495DE3FA8B58F0A555C533C5 /* DebugStoreModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugStoreModels.swift; path = App/SoloCodeApp/Sources/Debug/Stores/DebugStoreModels.swift; sourceTree = "<group>"; };
 		495E3805177C2D1CE80CD3CC /* MonacoEditorBridgeTypes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MonacoEditorBridgeTypes.swift; path = App/SoloCodeApp/Sources/Editor/Bridge/MonacoEditorBridgeTypes.swift; sourceTree = "<group>"; };
 		496ACA5CED6137D44F2CF45B /* EventLogEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventLogEntry.swift; path = Engine/CoderEngine/Sources/AgentPipeline/Contracts/EventLogEntry.swift; sourceTree = "<group>"; };
@@ -2333,7 +2329,6 @@
 		59B861C10C952F6A14D34834 /* EditorModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorModels.swift; path = App/SoloCodeApp/Sources/Editor/Core/EditorModels.swift; sourceTree = "<group>"; };
 		59C7595612511714163535E6 /* CodeReviewAuditAdvancedTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewAuditAdvancedTests.swift; path = Tests/CoderEngineTests/CodeReview/CodeReviewAuditAdvancedTests.swift; sourceTree = "<group>"; };
 		59CE0727BA668C7F590E4F92 /* GitService+MergeAutomation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitService+MergeAutomation.swift"; path = "App/SoloCodeApp/Sources/Git/Services/GitService+MergeAutomation.swift"; sourceTree = "<group>"; };
-		5A3079B6C5FD59698B3754E2 /* MessageToolTraceView+Header.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MessageToolTraceView+Header.swift"; path = "App/SoloCodeApp/Sources/Chat/MessageToolTrace/MessageToolTraceView+Header.swift"; sourceTree = "<group>"; };
 		5A56C27A2A91308E2F4E0EDD /* ChatPipelineReducer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPipelineReducer.swift; path = App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/Core/ChatPipelineReducer.swift; sourceTree = "<group>"; };
 		5A5D3EA0105C6142232BCD1F /* AppUpdateCenterTypes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppUpdateCenterTypes.swift; path = App/SoloCodeApp/Sources/Services/AppUpdateCenter/State/AppUpdateCenterTypes.swift; sourceTree = "<group>"; };
 		5AEAF651794B4D85C1B10346 /* MCPRuntimeServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MCPRuntimeServiceTests.swift; path = Tests/SoloCodeAppTests/MCPRuntimeServiceTests.swift; sourceTree = "<group>"; };
@@ -3219,7 +3214,6 @@
 		E98B022487FAA630A8DB9B68 /* GitPanelStore+FileOperations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitPanelStore+FileOperations.swift"; path = "App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+FileOperations.swift"; sourceTree = "<group>"; };
 		E9B64AC68D929809CD989C98 /* ExecutionController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExecutionController.swift; path = Engine/CoderEngine/Sources/Runtime/ExecutionController.swift; sourceTree = "<group>"; };
 		E9CEFB2292DE942FB250C8D0 /* AgentActionEnvelopeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AgentActionEnvelopeTests.swift; path = Tests/CoderEngineTests/Pipeline/Contracts/AgentActionEnvelopeTests.swift; sourceTree = "<group>"; };
-		EA2257FEC5292E2F65BB9D38 /* PrimaryTextBlockView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PrimaryTextBlockView.swift; path = App/SoloCodeApp/Sources/Chat/Timeline/Blocks/PrimaryTextBlockView.swift; sourceTree = "<group>"; };
 		EA818A8BBA1902B2568EF2E3 /* PipelineJobFactory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineJobFactory.swift; path = Engine/CoderEngine/Sources/AgentPipeline/Bridge/PipelineJobFactory.swift; sourceTree = "<group>"; };
 		EA8C54032ACAEE983C53D131 /* SettingsView+Sync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SettingsView+Sync.swift"; path = "App/SoloCodeApp/Sources/Settings/Actions/SettingsView+Sync.swift"; sourceTree = "<group>"; };
 		EAA5E38767D1D35EDBA1D08A /* WorktreeMergeAIService+Prompts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "WorktreeMergeAIService+Prompts.swift"; path = "App/SoloCodeApp/Sources/Git/Worktree/Services/WorktreeMergeAIService+Prompts.swift"; sourceTree = "<group>"; };
@@ -3552,7 +3546,6 @@
 				397FD851EF7B97A3111167CB /* MessageToolTraceView+Diff.swift */,
 				CE972E45A473D7C846B3C8C4 /* MessageToolTraceView+EventMetadata.swift */,
 				196350CF964A4E62A4540847 /* MessageToolTraceView+FileChanges.swift */,
-				5A3079B6C5FD59698B3754E2 /* MessageToolTraceView+Header.swift */,
 				CEC000D345F24EAE5D25263B /* MessageToolTraceView+Helpers.swift */,
 				E50E5E239FC3478BE44C8E05 /* MessageToolTraceView+Loaders.swift */,
 				3E630F3E7CD256AACAD1A750 /* MessageToolTraceView+State.swift */,
@@ -3665,9 +3658,7 @@
 				D8E774629B94C05BC2D23521 /* ArtifactCardView.swift */,
 				9D0B336E88CCD83230BABADB /* ChatTodoExecutionCardMetrics.swift */,
 				C6CC0A7D8CD086E99B6227CE /* ChatTodoExecutionCardView.swift */,
-				EA2257FEC5292E2F65BB9D38 /* PrimaryTextBlockView.swift */,
 				60B6378A48D506195E014040 /* TodoCenterCardView.swift */,
-				4924C8B6B3ACA6DA3C74C099 /* TraceSummaryCardView.swift */,
 				A99D786EE28BC198AC7672A6 /* ChatTurnView.swift */,
 				8760F89807E19EED231C1E69 /* CodeReviewQuickCommands.swift */,
 				5286F53597662AB67F0CD2C8 /* BugHunterModels.swift */,
@@ -6398,7 +6389,6 @@
 				342E418B3DE8FB0BBA398E9A /* MessageToolTraceView+Diff.swift in Sources */,
 				0879063C64B5BF5820E6F3F2 /* MessageToolTraceView+EventMetadata.swift in Sources */,
 				5BA8DC6459B7F783ED671A5D /* MessageToolTraceView+FileChanges.swift in Sources */,
-				04A130D831FB2B40743A961E /* MessageToolTraceView+Header.swift in Sources */,
 				5B0D6E1EE1E083FACD3F92C2 /* MessageToolTraceView+Helpers.swift in Sources */,
 				571042592CE563059CDE75B7 /* MessageToolTraceView+Loaders.swift in Sources */,
 				BEF654CCA55BF21D3C1C1D60 /* MessageToolTraceView+State.swift in Sources */,
@@ -6511,9 +6501,7 @@
 				A0D8BF4BA965A75E1DB41136 /* ArtifactCardView.swift in Sources */,
 				7DF8AF78DC1079523F49E5F1 /* ChatTodoExecutionCardMetrics.swift in Sources */,
 				C5463B2F6A8BCC19253CEA74 /* ChatTodoExecutionCardView.swift in Sources */,
-				2E8BD9C51730977FCA1D616B /* PrimaryTextBlockView.swift in Sources */,
 				4E968EB0C1175361D7FA1352 /* TodoCenterCardView.swift in Sources */,
-				2A0C672EEA09D829478532DE /* TraceSummaryCardView.swift in Sources */,
 				03B8A8C805BAB84401684B45 /* ChatTurnView.swift in Sources */,
 				172975ACDAA64DCFFB7C6D83 /* CodeReviewQuickCommands.swift in Sources */,
 				AAE5C0DDE98B157E8E2D55BA /* BugHunterModels.swift in Sources */,

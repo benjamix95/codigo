@@ -38,12 +38,17 @@ struct ChatTurnView: View {
             }
             header
             if let primary = visibleBlocks.first(where: { $0.kind == .primaryText }) {
-                PrimaryTextBlockView(
-                    text: primary.text,
-                    context: context,
-                    isStreaming: message.isStreaming && isActuallyLoading,
-                    onFileClicked: onFileClicked
-                )
+                if !primary.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    MarkdownContentView(
+                        content: primary.text,
+                        context: context,
+                        onFileClicked: onFileClicked,
+                        textAlignment: .leading,
+                        isStreaming: message.isStreaming && isActuallyLoading
+                    )
+                    .frame(maxWidth: 800, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
             }
             if shouldShowTodo {
                 TodoCenterCardView(
@@ -64,11 +69,12 @@ struct ChatTurnView: View {
                 )
             }
             if !traceEvents.isEmpty && !shouldShowTodo {
-                TraceSummaryCardView(
-                    traceEvents: traceEvents,
-                    context: context,
+                MessageToolTraceView(
+                    events: traceEvents,
+                    workspaceHints: context?.folderPaths ?? [],
                     onOpenFile: onFileClicked
                 )
+                .frame(maxWidth: 800, alignment: .leading)
             }
             if message.isStreaming && isActuallyLoading && !shouldShowTodo {
                 streamingFooter
