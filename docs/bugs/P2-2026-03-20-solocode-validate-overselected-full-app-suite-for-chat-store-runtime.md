@@ -1,0 +1,33 @@
+## Bug Fix Record
+- Categoria: B
+- Bug: `solocode-validate` selezionava l'intera suite `SoloCodeAppTests` per modifiche nel task runtime `main chat` invece dei test mirati dello store chat.
+- Sintomo:
+  - una tranche confinata a `Chat/Support/StoreRust` e `ChatStoreStreaming` finiva su test `review` non correlati
+- Impatto:
+  - validation rumorosa
+  - commit `main chat` bloccato da failure fuori perimetro
+- Gravita': media
+- Steps to reproduce:
+  - eseguire `./scripts/solocode-validate --files "<file set ChatStoreStreaming>" --format text`
+- Risultato attuale:
+  - fallback a `-only-testing:SoloCodeAppTests`
+- Risultato atteso:
+  - selezione mirata di `ChatStoreTaskOwnershipTests` e `ChatStoreStreamingTargetTests`
+- Causa probabile:
+  - mancava una regola dedicata per `App/SoloCodeApp/Sources/Chat/Support/StoreRust/*` e `StoreRuntime/*`
+- Scope consentito:
+  - `scripts/solocode-validate`
+  - bug doc/changelog dedicati
+- Non-scope:
+  - cambiare la logica dei test `review`
+- Moduli confinanti da verificare:
+  - selezione provider chat gia' coperta
+  - fallback `SoloCodeAppTests` per altri file `App/*`
+- Test da aggiungere o aggiornare:
+  - validazione manuale della selezione mirata sul file set `ChatStoreStreaming`
+- Strategia di fix minimo:
+  - aggiungere una regola di selezione mirata prima del fallback `App/*`
+- Verifica post-fix:
+  - `./scripts/solocode-validate ...` sul file set `ChatStoreStreaming`
+- Commit previsto:
+  - `fix(validation): target chat store runtime tests`

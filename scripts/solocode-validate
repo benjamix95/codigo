@@ -208,6 +208,9 @@ for file in "${FILES[@]}"; do
     App/SoloCodeApp/Sources/Chat/Support/Providers/*|Tests/SoloCodeAppTests/ThreadProviderSelectionServiceTests.swift)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/ThreadProviderSelectionServiceTests" "-only-testing:SoloCodeAppTests/ProviderFactoryRuntimeParityTests")
       ;;
+    App/SoloCodeApp/Sources/Chat/Support/StoreRust/*|App/SoloCodeApp/Sources/Chat/Support/StoreRuntime/*|Tests/SoloCodeAppTests/ChatStoreTaskOwnershipTests.swift|Tests/SoloCodeAppTests/ChatStoreStreamingTargetTests.swift)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreTaskOwnershipTests" "-only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests")
+      ;;
     App/SoloCodeApp/Sources/Runtime/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
       ;;
