@@ -5,5 +5,14 @@ binding_adapter|App/SoloCodeApp/Sources/**/View+*.swift|View compatibility helpe
 binding_adapter|App/SoloCodeApp/Sources/**/Views/**/*.swift|Nested view helpers remain UI-only.
 apple_bootstrap|App/SoloCodeApp/Sources/App/AppDelegate*.swift|Apple app lifecycle bootstrap remains in Swift.
 apple_bootstrap|App/SoloCodeApp/Sources/App/Content/**|Window composition and AppKit shell remain in Swift.
+binding_adapter|App/SoloCodeApp/Sources/Accounts/Support/**|Relocated account support adapters remain Swift-only support code outside main-chat ownership.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/**|Chat pipeline projection types are compatibility adapters over Rust-owned snapshots.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineRuntime/**|Pipeline runtime projection stays in Swift as UI/runtime glue outside Rust domain ownership.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Providers/Runtime/**|Runtime provider helpers are fallback compatibility code outside the live Rust transport path.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/**|Rust transport factory/helpers are Swift bridge glue over Rust-owned main-chat provider sessions.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/StoreProjection/**|Chat store projection files remain Swift binding adapters over Rust-owned store snapshots.
+binding_adapter|App/SoloCodeApp/Sources/Settings/ProviderFactory/Backends/**|Provider factory backends remain non-main-chat support code outside Rust main-chat ownership.
+binding_adapter|Engine/CoderEngine/Sources/AgentPipeline/**|Relocated pipeline engine files are generic execution infrastructure, not main-chat Rust domain owners.
+binding_adapter|Engine/CoderEngine/Sources/ProviderBackends/**|Relocated provider backend files remain generic provider infrastructure for non-main-chat consumers.
 binding_adapter|Tests/SoloCodeAppTests/ReviewCoreLibraryPathSupport.swift|App-side test support for resolving the Rust review core dylib path.
 binding_adapter|Tests/SoloCodeAppTests/ReviewPanelGitContextTests.swift|App-side regression coverage for the Rust-backed review panel Git context.

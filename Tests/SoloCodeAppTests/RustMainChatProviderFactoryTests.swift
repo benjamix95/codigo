@@ -42,6 +42,32 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(payload["input_tokens"], "12")
     }
 
+    func testCLIAccountSnapshotsCanAuthenticateRustTransportWithoutLegacyAdapter() {
+        let cliAccounts = [
+            MainChatCLIAccountSnapshotBridge(
+                id: UUID().uuidString,
+                provider: "codex",
+                label: "Primary",
+                isEnabled: true,
+                isAuthenticated: true,
+                priority: 0,
+                profilePath: "/tmp/codex",
+                envOverrides: [:],
+                quota: MainChatCLIQuotaSnapshotBridge(.empty),
+                health: MainChatCLIHealthSnapshotBridge(.healthy),
+                createdAt: nil,
+                updatedAt: nil
+            )
+        ]
+
+        XCTAssertTrue(
+            MainChatRustTransportSupport.isAuthenticated(
+                baseAuthenticated: false,
+                cliAccounts: cliAccounts
+            )
+        )
+    }
+
     private func baseConfig() -> MainChatProviderSessionConfigBridge {
         MainChatProviderSessionConfigBridge(
             providerId: "codex-cli",
