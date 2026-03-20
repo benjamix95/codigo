@@ -1,5 +1,7 @@
 use crate::main_chat::runtime::handle_runtime_action;
-use crate::main_chat::ui_state_sync::{mark_store_stream_finished, sync_store_from_runtime};
+use crate::main_chat::ui_state_sync::{
+    apply_terminal_text_override, mark_store_stream_finished, sync_store_from_runtime,
+};
 use crate::main_chat::ui_projection::project_ui;
 use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
 use app_core_protocol::main_chat_ui::{
@@ -65,6 +67,9 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
         }
         "stream_finish_success" | "stream_finish_failure" | "stream_interrupt" => {
             sync_store_from_runtime(&mut state);
+            if let Some(text) = request.text.as_deref() {
+                apply_terminal_text_override(&mut state, text);
+            }
             mark_store_stream_finished(&mut state);
         }
         "stream_clear_ephemeral_state" => {}

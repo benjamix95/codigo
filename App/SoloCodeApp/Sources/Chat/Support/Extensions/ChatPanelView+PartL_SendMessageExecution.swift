@@ -192,14 +192,6 @@ extension ChatPanelView {
                         conversationId: targetConversationId,
                         hideContentDuringPlanDiscovery: false
                     )
-                    await MainActor.run {
-                        applyMainChatUIStreamIntent(
-                            "stream_finish_success",
-                            conversationId: targetConversationId,
-                            providerId: effectiveRuntimeProvider.id,
-                            text: finalizedResult
-                        )
-                    }
 
                     await handleStreamResult(
                         conversationId: targetConversationId,
@@ -211,30 +203,33 @@ extension ChatPanelView {
                     )
                 }
             } catch {
-                chatStore.setLastAssistantStreaming(false, in: targetConversationId)
-                clearStreamingReasoning(for: targetConversationId)
                 if isInterruptedStreamError(error) {
                     traceOutcome = .aborted
+                    await MainActor.run {
+                        applyMainChatUIStreamIntent(
+                            "stream_interrupt",
+                            conversationId: targetConversationId,
+                            providerId: effectiveRuntimeProvider.id,
+                            text: nil
+                        )
+                        clearStreamingReasoning(for: targetConversationId)
+                    }
                     await MainActor.run {
                         applyFlowCoordinatorState(for: targetConversationId) { $0.interrupt() }
                     }
                 } else {
                     traceOutcome = .failed
-                    if !shouldPreservePartialAssistantContent(after: error) {
-                        applyLegacyStreamSnapshot(
-                            content: userFacingStreamError(error),
+                    await MainActor.run {
+                        applyMainChatUIStreamIntent(
+                            "stream_finish_failure",
                             conversationId: targetConversationId,
-                            providerId: effectiveRuntimeProvider.id
+                            providerId: effectiveRuntimeProvider.id,
+                            text: shouldPreservePartialAssistantContent(after: error)
+                                ? nil
+                                : userFacingStreamError(error)
                         )
+                        clearStreamingReasoning(for: targetConversationId)
                     }
-                    applyLegacyLifecycleEvent(
-                        kind: .turnFailed,
-                        conversationId: targetConversationId,
-                        providerId: effectiveRuntimeProvider.id,
-                        status: "failed",
-                        detail: userFacingStreamError(error),
-                        persistImmediately: true
-                    )
                     await MainActor.run {
                         applyFlowCoordinatorState(for: targetConversationId) { $0.fail() }
                     }

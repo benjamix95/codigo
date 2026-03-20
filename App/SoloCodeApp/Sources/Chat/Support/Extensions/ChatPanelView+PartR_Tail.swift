@@ -46,20 +46,15 @@ extension ChatPanelView {
         let initialChatContent = shouldHidePlanMarkdown
             ? "Processing plan output in Plan Panel..."
             : full
-        applyLegacyStreamSnapshot(
-            content: initialChatContent,
-            conversationId: streamConversationId,
-            providerId: resolvedTurnProviderId(for: streamConversationId)
-        )
-        applyLegacyLifecycleEvent(
-            kind: .turnCompleted,
-            conversationId: streamConversationId,
-            providerId: resolvedTurnProviderId(for: streamConversationId),
-            status: "completed",
-            persistImmediately: true
-        )
-        chatStore.setLastAssistantStreaming(false, in: streamConversationId)
-        clearStreamingReasoning(for: streamConversationId)
+        await MainActor.run {
+            applyMainChatUIStreamIntent(
+                "stream_finish_success",
+                conversationId: streamConversationId,
+                providerId: resolvedTurnProviderId(for: streamConversationId),
+                text: initialChatContent
+            )
+            clearStreamingReasoning(for: streamConversationId)
+        }
         await trySummarizeIfNeeded(ctx: ctx)
 
         // Handle plan options parsing (safety net — multi-turn flow handles its own classification)
@@ -87,11 +82,14 @@ extension ChatPanelView {
                 }
                 if case .awaitingClarification = classificationState {
                     let summaryContent = "Clarifications needed to proceed with the plan. Open the Planning panel to answer the questions."
-                    applyLegacyStreamSnapshot(
-                        content: summaryContent,
-                        conversationId: streamConversationId,
-                        providerId: resolvedTurnProviderId(for: streamConversationId)
-                    )
+                    await MainActor.run {
+                        applyMainChatUIStreamIntent(
+                            "stream_finish_success",
+                            conversationId: streamConversationId,
+                            providerId: resolvedTurnProviderId(for: streamConversationId),
+                            text: summaryContent
+                        )
+                    }
                     await MainActor.run {
                         if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
                             openPlanPanelForCurrentContext(
@@ -107,11 +105,14 @@ extension ChatPanelView {
                     let currentConv = chatStore.conversation(for: streamConversationId)
                     let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
                     let summaryContent = "Plan ready in Plan Panel: \(parsedSummary.title)"
-                    applyLegacyStreamSnapshot(
-                        content: summaryContent,
-                        conversationId: streamConversationId,
-                        providerId: resolvedTurnProviderId(for: streamConversationId)
-                    )
+                    await MainActor.run {
+                        applyMainChatUIStreamIntent(
+                            "stream_finish_success",
+                            conversationId: streamConversationId,
+                            providerId: resolvedTurnProviderId(for: streamConversationId),
+                            text: summaryContent
+                        )
+                    }
                     _ = planHistoryStore.createEntry(
                         conversationId: streamConversationId,
                         contextId: currentConv?.contextId,

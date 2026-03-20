@@ -85,12 +85,16 @@ fn ffi_ui_handle_intent_stream_finish_marks_message_not_streaming() {
         conversation_id: Some("conv-1".to_string()),
         turn_id: None,
         artifact_id: None,
-        text: None,
+        text: Some("Final answer".to_string()),
         timestamp: Some(2.0),
         payload: Default::default(),
     });
     let state = response.state.expect("state");
     assert!(!state.store_snapshot.conversations[0].messages[0].is_streaming);
+    assert_eq!(
+        state.store_snapshot.conversations[0].messages[0].primary_text_snapshot.as_deref(),
+        Some("Final answer")
+    );
 }
 
 fn call_project(runtime: &LoadedRuntime, request: MainChatUiProjectRequest) -> MainChatUiProjectResponse {

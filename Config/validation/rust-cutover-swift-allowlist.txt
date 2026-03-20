@@ -53,3 +53,4 @@ binding_adapter|Engine/CoderEngine/Sources/AgentPipeline/**|Relocated pipeline e
 binding_adapter|Engine/CoderEngine/Sources/ProviderBackends/**|Relocated provider backend files remain generic provider infrastructure for non-main-chat consumers.
 binding_adapter|Tests/SoloCodeAppTests/ReviewCoreLibraryPathSupport.swift|App-side test support for resolving the Rust review core dylib path.
 binding_adapter|Tests/SoloCodeAppTests/ReviewPanelGitContextTests.swift|App-side regression coverage for the Rust-backed review panel Git context.
+binding_adapter|Tests/SoloCodeAppTests/RustMainChatUIBoundaryTests.swift|App-side regression coverage for the Rust-backed main chat UI boundary and terminal direct-stream state.

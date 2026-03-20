@@ -68,6 +68,39 @@ pub fn mark_store_stream_finished(state: &mut MainChatUiState) {
     }
 }
 
+pub fn apply_terminal_text_override(state: &mut MainChatUiState, text: &str) {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    let Some(runtime_snapshot) = state.runtime_snapshot.as_ref() else {
+        return;
+    };
+    let turn_state = &runtime_snapshot.turn_state;
+    let Some(conversation) = state
+        .store_snapshot
+        .conversations
+        .iter_mut()
+        .find(|conversation| conversation.id == turn_state.conversation_id)
+    else {
+        return;
+    };
+    if let Some(message) = conversation
+        .messages
+        .iter_mut()
+        .find(|message| message.id == turn_state.assistant_message_id)
+    {
+        let value = text.to_string();
+        message.content = value.clone();
+        message.primary_text_snapshot = Some(value.clone());
+        if let Some(blocks) = message.blocks.as_mut() {
+            if let Some(primary_block) = blocks.iter_mut().find(|block| block.kind == "primaryText") {
+                primary_block.text = value;
+            }
+        }
+    }
+}
+
 fn resolved_message_content(turn_state: &MainChatTurnState) -> String {
     turn_primary_text(turn_state)
 }
