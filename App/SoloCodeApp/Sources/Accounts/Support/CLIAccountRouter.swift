@@ -43,47 +43,26 @@ final class CLIAccountRouter: ObservableObject {
     }
 
     func selectAccount(for provider: CLIProviderKind) -> CLIAccount? {
-        let candidates = availableAccounts(for: provider)
-        guard !candidates.isEmpty else { return nil }
-        let idx = (roundRobinIndex[provider] ?? 0) % candidates.count
-        roundRobinIndex[provider] = (idx + 1) % max(candidates.count, 1)
-        let selected = candidates[idx]
-        markAccountSelected(accountId: selected.id, provider: provider, reason: nil)
-        return selected
+        handleSelectionAction("select_account", provider: provider)
     }
 
     func nextAvailableAccount(after accountId: UUID, provider: CLIProviderKind) -> CLIAccount? {
-        let candidates = availableAccounts(for: provider)
-        guard !candidates.isEmpty else { return nil }
-        guard let currentIndex = candidates.firstIndex(where: { $0.id == accountId }) else {
-            let selected = candidates.first
-            if let selected {
-                markAccountSelected(accountId: selected.id, provider: provider, reason: lastFailoverReasonByProvider[provider])
-            }
-            return selected
-        }
-        let nextIndex = (currentIndex + 1) % candidates.count
-        let selected = candidates[nextIndex]
-        markAccountSelected(accountId: selected.id, provider: provider, reason: lastFailoverReasonByProvider[provider])
-        return selected
+        handleSelectionAction("next_available_account_after", provider: provider, accountId: accountId)
     }
 
     func selectedOrNextAvailableAccount(for provider: CLIProviderKind) -> CLIAccount? {
-        let candidates = availableAccounts(for: provider)
-        guard !candidates.isEmpty else { return nil }
-
-        if let selectedId = currentActiveAccountByProvider[provider],
-           let selected = candidates.first(where: { $0.id == selectedId }) {
-            return selected
-        }
-        return selectAccount(for: provider)
+        handleSelectionAction("selected_or_next_available", provider: provider)
     }
 
     func currentAvailability(provider: CLIProviderKind) -> CLIAvailabilityState {
-        if availableAccounts(for: provider).isEmpty {
-            return .allExhausted(reason: "No available account")
+        guard let response = handleRoutingAction(action: "current_availability", provider: provider) else {
+            return .allExhausted(reason: "Rust account router unavailable")
         }
-        return .available
+        apply(response.state)
+        if response.availabilityStatus == "available" {
+            return .available
+        }
+        return .allExhausted(reason: response.availabilityReason ?? "No available account")
     }
 
     func activeAccount(for provider: CLIProviderKind) -> CLIAccount? {
@@ -93,153 +72,179 @@ final class CLIAccountRouter: ObservableObject {
 
     func markUsage(accountId: UUID, provider: CLIProviderKind, inputTokens: Int, outputTokens: Int, estimatedCost: Double) {
         ledger.append(accountId: accountId, provider: provider, inputTokens: inputTokens, outputTokens: outputTokens, estimatedCostUSD: estimatedCost)
-
-        guard var account = accountsStore.accounts.first(where: { $0.id == accountId && $0.provider == provider }) else { return }
-        account.health.consecutiveFailures = 0
-        account.health.lastErrorCode = nil
-        account.health.cooldownUntil = nil
-        if exceedsPolicy(account: account) {
-            account.health.isExhaustedLocally = true
-            account.health.lastErrorCode = "local_limit_reached"
-        }
-        accountsStore.update(account)
+        guard let response = handleRoutingAction(action: "mark_usage", provider: provider, accountId: accountId) else { return }
+        apply(response.state)
+        applyUpdatedAccount(response.updatedAccount)
     }
 
     func markProviderError(accountId: UUID, provider: CLIProviderKind, classifiedError: CLIClassifiedFailure) {
-        guard var account = accountsStore.accounts.first(where: { $0.id == accountId && $0.provider == provider }) else { return }
-        account.health.consecutiveFailures += 1
-        account.health.lastErrorCode = classifiedError.normalizedCode
-
-        if classifiedError.isQuotaExhaustion {
-            account.health.isExhaustedLocally = true
-        }
-        if classifiedError.isRateLimited {
-            let seconds = max(30, classifiedError.retryAfterSeconds ?? 120)
-            account.health.cooldownUntil = Date().addingTimeInterval(TimeInterval(seconds))
-        }
-        lastFailoverReasonByProvider[provider] = classifiedError.normalizedCode
-        accountsStore.update(account)
+        guard let response = handleRoutingAction(
+            action: "mark_provider_error",
+            provider: provider,
+            accountId: accountId,
+            failure: classifiedError
+        ) else { return }
+        apply(response.state)
+        applyUpdatedAccount(response.updatedAccount)
     }
 
     func markAccountSelected(accountId: UUID, provider: CLIProviderKind, reason: String?) {
-        currentActiveAccountByProvider[provider] = accountId
-        lastSwitchAtByProvider[provider] = Date()
-        if let reason, !reason.isEmpty {
-            lastFailoverReasonByProvider[provider] = reason
-        }
+        guard let response = handleRoutingAction(
+            action: "mark_account_selected",
+            provider: provider,
+            accountId: accountId,
+            failure: reason.map { CLIClassifiedFailure(isQuotaExhaustion: false, isRateLimited: false, retryAfterSeconds: nil, normalizedCode: $0) }
+        ) else { return }
+        apply(response.state)
     }
 
     func bootstrapActiveSelectionsIfNeeded() {
         scheduleBootstrapActiveSelectionsIfNeeded()
     }
 
-    private func availableAccounts(for provider: CLIProviderKind) -> [CLIAccount] {
-        accountsStore.accounts(for: provider)
-            .sorted { lhs, rhs in
-                if lhs.priority != rhs.priority { return lhs.priority < rhs.priority }
-                return lhs.createdAt < rhs.createdAt
+    private func handleSelectionAction(
+        _ action: String,
+        provider: CLIProviderKind,
+        accountId: UUID? = nil
+    ) -> CLIAccount? {
+        guard let response = handleRoutingAction(action: action, provider: provider, accountId: accountId) else {
+            return nil
+        }
+        apply(response.state)
+        let selectedId = response.selectedAccountId.flatMap(UUID.init(uuidString:))
+        return selectedId.flatMap { id in
+            accountsStore.accounts(for: provider).first(where: { $0.id == id })
+        }
+    }
+
+    private func handleRoutingAction(
+        action: String,
+        provider: CLIProviderKind? = nil,
+        accountId: UUID? = nil,
+        failure: CLIClassifiedFailure? = nil
+    ) -> CLIAccountRoutingResponseBridge? {
+        let accounts = accountsStore.accounts
+        let executablePaths = Dictionary(
+            uniqueKeysWithValues: CLIProviderKind.allCases.map { kind in
+                (kind, CLIAccountRouterRustBridge.providerExecutablePath(for: kind))
             }
-            .filter { account in
-            guard account.isEnabled else { return false }
-            if account.health.isExhaustedLocally { return false }
-            if let until = account.health.cooldownUntil, until > Date() { return false }
-            let authStatus = CLIAccountAuthDetector.detect(
-                account: account,
-                providerPath: providerExecutablePath(for: provider)
-            )
-            guard authStatus.isLoggedIn else { return false }
-            return !exceedsPolicy(account: account)
-        }
+        )
+        let request = CLIAccountRoutingRequestBridge(
+            schemaVersion: 1,
+            action: action,
+            state: stateSnapshot(),
+            accounts: CLIAccountRouterRustBridge.accountSnapshots(accounts: accounts, executablePaths: executablePaths),
+            usageTotals: CLIAccountRouterRustBridge.usageSnapshots(accounts: accounts, ledger: ledger),
+            provider: provider?.rawValue,
+            accountId: accountId?.uuidString,
+            preferredActiveAccountId: nil,
+            timestamp: .now,
+            failure: failure.map {
+                CLIAccountRoutingFailureBridge(
+                    isQuotaExhaustion: $0.isQuotaExhaustion,
+                    isRateLimited: $0.isRateLimited,
+                    retryAfterSeconds: $0.retryAfterSeconds,
+                    normalizedCode: $0.normalizedCode
+                )
+            }
+        )
+        return CLIAccountRouterRustBridge.handle(request)
     }
 
-    private func providerExecutablePath(for provider: CLIProviderKind) -> String? {
-        let defaults = UserDefaults.standard
-        switch provider {
-        case .codex:
-            let custom = defaults.string(forKey: "codex_path")
-            return CLIAccountAuthDetector.resolveExecutable(provider: .codex, providerPath: custom)
-        case .claude:
-            let custom = defaults.string(forKey: "claude_path")
-            return CLIAccountAuthDetector.resolveExecutable(provider: .claude, providerPath: custom)
-        case .gemini:
-            let custom = defaults.string(forKey: "gemini_cli_path")
-            return CLIAccountAuthDetector.resolveExecutable(provider: .gemini, providerPath: custom)
-        }
+    private func stateSnapshot() -> CLIAccountRoutingStateBridge {
+        CLIAccountRoutingStateBridge(
+            roundRobinIndex: Dictionary(uniqueKeysWithValues: roundRobinIndex.map { ($0.key.rawValue, $0.value) }),
+            currentActiveAccountByProvider: Dictionary(uniqueKeysWithValues: currentActiveAccountByProvider.map { ($0.key.rawValue, $0.value.uuidString) }),
+            lastFailoverReasonByProvider: Dictionary(uniqueKeysWithValues: lastFailoverReasonByProvider.map { ($0.key.rawValue, $0.value) }),
+            lastSwitchAtByProvider: Dictionary(uniqueKeysWithValues: lastSwitchAtByProvider.map { ($0.key.rawValue, $0.value) })
+        )
     }
 
-    private func exceedsPolicy(account: CLIAccount) -> Bool {
-        let daily = ledger.totals(accountId: account.id, period: .day)
-        let weekly = ledger.totals(accountId: account.id, period: .weekOfYear)
-        let monthly = ledger.totals(accountId: account.id, period: .month)
+    private func apply(_ state: CLIAccountRoutingStateBridge?) {
+        guard let state else { return }
+        roundRobinIndex = Dictionary(uniqueKeysWithValues: state.roundRobinIndex.compactMap { key, value in
+            CLIProviderKind(rawValue: key).map { ($0, value) }
+        })
+        currentActiveAccountByProvider = Dictionary(uniqueKeysWithValues: state.currentActiveAccountByProvider.compactMap { key, value in
+            guard let provider = CLIProviderKind(rawValue: key), let accountId = UUID(uuidString: value) else { return nil }
+            return (provider, accountId)
+        })
+        lastFailoverReasonByProvider = Dictionary(uniqueKeysWithValues: state.lastFailoverReasonByProvider.compactMap { key, value in
+            CLIProviderKind(rawValue: key).map { ($0, value) }
+        })
+        lastSwitchAtByProvider = Dictionary(uniqueKeysWithValues: state.lastSwitchAtByProvider.compactMap { key, value in
+            CLIProviderKind(rawValue: key).map { ($0, value) }
+        })
+    }
 
-        if let limit = account.quota.dailyLimitUSD, daily.cost >= limit { return true }
-        if let limit = account.quota.weeklyLimitUSD, weekly.cost >= limit { return true }
-        if let limit = account.quota.monthlyLimitUSD, monthly.cost >= limit { return true }
-
-        if let limit = account.quota.dailyTokenLimit, daily.tokens >= limit { return true }
-        if let limit = account.quota.weeklyTokenLimit, weekly.tokens >= limit { return true }
-        if let limit = account.quota.monthlyTokenLimit, monthly.tokens >= limit { return true }
-        return false
+    private func applyUpdatedAccount(_ bridge: CLIAccountRoutingAccountBridge?) {
+        guard let bridge,
+              let accountId = UUID(uuidString: bridge.id),
+              let provider = CLIProviderKind(rawValue: bridge.provider),
+              let existing = accountsStore.accounts.first(where: { $0.id == accountId }) else { return }
+        let updated = CLIAccount(
+            id: accountId,
+            provider: provider,
+            label: bridge.label,
+            isEnabled: bridge.isEnabled,
+            priority: bridge.priority,
+            profilePath: bridge.profilePath,
+            quota: CLIAccountQuotaPolicy(
+                dailyLimitUSD: bridge.quota.dailyLimitUsd,
+                weeklyLimitUSD: bridge.quota.weeklyLimitUsd,
+                monthlyLimitUSD: bridge.quota.monthlyLimitUsd,
+                dailyTokenLimit: bridge.quota.dailyTokenLimit,
+                weeklyTokenLimit: bridge.quota.weeklyTokenLimit,
+                monthlyTokenLimit: bridge.quota.monthlyTokenLimit
+            ),
+            health: CLIAccountHealth(
+                cooldownUntil: bridge.health.cooldownUntil,
+                lastErrorCode: bridge.health.lastErrorCode,
+                consecutiveFailures: bridge.health.consecutiveFailures,
+                isExhaustedLocally: bridge.health.isExhaustedLocally
+            ),
+            lastAuthMethod: existing.lastAuthMethod,
+            lastAuthCheckAt: existing.lastAuthCheckAt,
+            lastAuthError: existing.lastAuthError,
+            createdAt: bridge.createdAt ?? existing.createdAt,
+            updatedAt: bridge.updatedAt ?? .now
+        )
+        accountsStore.update(updated)
     }
 
     private func scheduleBootstrapActiveSelectionsIfNeeded() {
         bootstrapGeneration += 1
         let generation = bootstrapGeneration
-        let currentSelections = currentActiveAccountByProvider
-        let accountsByProvider = Dictionary(
-            uniqueKeysWithValues: CLIProviderKind.allCases.map { provider in
-                (provider, accountsStore.accounts(for: provider))
-            }
-        )
+        let accounts = accountsStore.accounts
+        let currentState = stateSnapshot()
         let executablePaths = Dictionary(
-            uniqueKeysWithValues: CLIProviderKind.allCases.map { provider in
-                (provider, providerExecutablePath(for: provider))
+            uniqueKeysWithValues: CLIProviderKind.allCases.map { kind in
+                (kind, CLIAccountRouterRustBridge.providerExecutablePath(for: kind))
             }
         )
 
         bootstrapWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [accountsByProvider, currentSelections, executablePaths] in
-            let selections = Self.resolveBootstrapSelections(
-                accountsByProvider: accountsByProvider,
-                currentSelections: currentSelections,
-                executablePaths: executablePaths
+        let workItem = DispatchWorkItem {
+            let snapshots = CLIAccountRouterRustBridge.accountSnapshots(accounts: accounts, executablePaths: executablePaths)
+            let request = CLIAccountRoutingRequestBridge(
+                schemaVersion: 1,
+                action: "bootstrap_selections",
+                state: currentState,
+                accounts: snapshots,
+                usageTotals: [],
+                provider: nil,
+                accountId: nil,
+                preferredActiveAccountId: nil,
+                timestamp: nil,
+                failure: nil
             )
+            let response = CLIAccountRouterRustBridge.handle(request)
             Task { @MainActor [weak self] in
                 guard let self, self.bootstrapGeneration == generation else { return }
-                self.currentActiveAccountByProvider = selections
+                self.apply(response?.state)
             }
         }
         bootstrapWorkItem = workItem
         DispatchQueue.global(qos: .utility).async(execute: workItem)
-    }
-
-    private static func resolveBootstrapSelections(
-        accountsByProvider: [CLIProviderKind: [CLIAccount]],
-        currentSelections: [CLIProviderKind: UUID],
-        executablePaths: [CLIProviderKind: String?]
-    ) -> [CLIProviderKind: UUID] {
-        var selections: [CLIProviderKind: UUID] = [:]
-
-        for provider in CLIProviderKind.allCases {
-            let enabled = (accountsByProvider[provider] ?? []).filter(\.isEnabled)
-            guard !enabled.isEmpty else { continue }
-
-            if let selectedId = currentSelections[provider],
-               enabled.contains(where: { $0.id == selectedId }) {
-                selections[provider] = selectedId
-                continue
-            }
-
-            let path: String? = executablePaths[provider] ?? nil
-            if let connected = enabled.first(where: {
-                CLIAccountAuthDetector.detect(account: $0, providerPath: path).isLoggedIn
-            }) {
-                selections[provider] = connected.id
-            } else {
-                selections[provider] = enabled[0].id
-            }
-        }
-
-        return selections
     }
 }

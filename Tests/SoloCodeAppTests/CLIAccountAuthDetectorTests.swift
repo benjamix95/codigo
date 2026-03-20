@@ -259,4 +259,32 @@ final class CLIAccountAuthDetectorTests: XCTestCase {
         XCTAssertEqual(identity?.accountId, "user-modern-123")
         XCTAssertEqual(identity?.authMethod, .oauth)
     }
+
+    func testHasEnvironmentCredentialDetectsProviderSpecificSecrets() throws {
+        let secrets = CLIAccountSecretsStore()
+        let cases: [(CLIProviderKind, String)] = [(.codex, "openai-key"), (.claude, "anthropic-key"), (.gemini, "google-key")]
+
+        for (provider, secret) in cases {
+            let profile = try makeTemporaryProfileDirectory()
+            let account = CLIAccount(
+                id: UUID(),
+                provider: provider,
+                label: provider.rawValue,
+                isEnabled: true,
+                priority: 0,
+                profilePath: profile.path,
+                quota: .empty,
+                health: .healthy,
+                createdAt: .now,
+                updatedAt: .now
+            )
+            secrets.setSecret(secret, for: account.id)
+            defer { secrets.deleteSecret(for: account.id) }
+
+            XCTAssertTrue(
+                CLIAccountAuthDetector.hasEnvironmentCredential(account: account),
+                "expected environment credential for \(provider.rawValue)"
+            )
+        }
+    }
 }

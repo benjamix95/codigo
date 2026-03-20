@@ -5,6 +5,15 @@ binding_adapter|App/SoloCodeApp/Sources/**/View+*.swift|View compatibility helpe
 binding_adapter|App/SoloCodeApp/Sources/**/Views/**/*.swift|Nested view helpers remain UI-only.
 apple_bootstrap|App/SoloCodeApp/Sources/App/AppDelegate*.swift|Apple app lifecycle bootstrap remains in Swift.
 apple_bootstrap|App/SoloCodeApp/Sources/App/Content/**|Window composition and AppKit shell remain in Swift.
+binding_adapter|App/SoloCodeApp/Sources/Accounts/CLIAccountModels.swift|CLI account models are Swift-side DTO glue over Rust-owned account routing and provider runtime domains.
+binding_adapter|App/SoloCodeApp/Sources/Accounts/CLIAccountSecretsStore.swift|CLI account secrets store is a macOS Keychain wrapper and remains platform glue outside Rust business logic.
+binding_adapter|App/SoloCodeApp/Sources/Accounts/CLIAccountUsageLedgerStore.swift|CLI account usage ledger store is a local persistence adapter for raw usage events consumed by Rust-owned routing policy.
+ui_view|App/SoloCodeApp/Sources/Accounts/CLIAccountLoginSheet.swift|Account login sheet is a SwiftUI presentation shell.
+ui_view|App/SoloCodeApp/Sources/Accounts/CLIAccountLoginSheet/**|Account login sheet sections are SwiftUI presentation shells.
+ui_view|App/SoloCodeApp/Sources/Accounts/CodexLoginView.swift|Codex login view is a SwiftUI presentation shell.
+ui_view|App/SoloCodeApp/Sources/Accounts/OpenRouterLoginView.swift|OpenRouter login view is a SwiftUI presentation shell.
+binding_adapter|App/SoloCodeApp/Sources/Accounts/CodexStateStore.swift|Codex state store is a UI-facing status wrapper over provider detection.
+binding_adapter|App/SoloCodeApp/Sources/Accounts/GeminiStateStore.swift|Gemini state store is a UI-facing status wrapper over provider detection.
 binding_adapter|App/SoloCodeApp/Sources/Accounts/Support/**|Relocated account support adapters remain Swift-only support code outside main-chat ownership.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/**|Chat pipeline projection types are compatibility adapters over Rust-owned snapshots.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineRuntime/**|Pipeline runtime projection stays in Swift as UI/runtime glue outside Rust domain ownership.

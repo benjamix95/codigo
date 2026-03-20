@@ -1,3 +1,4 @@
+mod cli_account_routing;
 mod ffi;
 mod main_chat;
 mod plan_state;

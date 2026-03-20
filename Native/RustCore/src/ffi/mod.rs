@@ -1,3 +1,4 @@
+mod cli_account_routing;
 mod common;
 mod main_chat;
 mod review_candidates;

@@ -1,4 +1,5 @@
 pub mod app_core;
+pub mod cli_account_routing;
 pub mod jsonrpc;
 pub mod main_chat;
 pub mod main_chat_provider;
