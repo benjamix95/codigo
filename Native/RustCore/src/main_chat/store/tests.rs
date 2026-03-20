@@ -133,3 +133,62 @@ fn reducer_can_create_append_checkpoint_and_rewind() {
     assert_eq!(snapshot.conversations[0].messages.len(), 1);
     assert_eq!(snapshot.conversations[0].checkpoints.len(), 0);
 }
+
+#[test]
+fn set_streaming_state_targets_active_streaming_assistant_before_reasoning_tail() {
+    let conversation = MainChatStoreConversationSnapshot {
+        id: "conv-stream".to_string(),
+        thread_root_conversation_id: "conv-stream".to_string(),
+        title: "Streaming".to_string(),
+        messages: vec![
+            message("user-1", "user", "hello", false),
+            message("assistant-stream", "assistant", "", true),
+            message("assistant-reasoning", "assistant", "thinking", false),
+        ],
+        created_at: Some(1.0),
+        context_id: None,
+        context_folder_path: None,
+        mode: Some("agent".to_string()),
+        preferred_provider_id: None,
+        context_memory_summary_markdown: None,
+        context_memory_generated_at: None,
+        context_memory_source_message_count: None,
+        is_archived: false,
+        is_pinned: false,
+        is_favorite: false,
+        last_input_tokens: None,
+        workspace_id: None,
+        ad_hoc_folder_paths: Vec::new(),
+        checkpoints: Vec::new(),
+    };
+    let mut request = action(
+        MainChatStoreSnapshot {
+            conversations: vec![conversation],
+            plan_boards: Default::default(),
+        },
+        "set_streaming_state",
+    );
+    request.conversation_id = Some("conv-stream".to_string());
+    request.bool_value = Some(false);
+    let snapshot = unwrap_snapshot(handle_action(request));
+    let messages = &snapshot.conversations[0].messages;
+    assert_eq!(messages[1].is_streaming, false);
+    assert_eq!(messages[2].is_streaming, false);
+}
+
+fn message(id: &str, role: &str, content: &str, is_streaming: bool) -> MainChatStoreMessageSnapshot {
+    MainChatStoreMessageSnapshot {
+        id: id.to_string(),
+        role: role.to_string(),
+        content: content.to_string(),
+        primary_text_snapshot: Some(content.to_string()),
+        blocks: None,
+        turn_metadata: None,
+        is_streaming,
+        image_paths: None,
+        attachments: None,
+        plan_attachment: None,
+        reasoning_text: None,
+        subagent_cards: None,
+    }
+}

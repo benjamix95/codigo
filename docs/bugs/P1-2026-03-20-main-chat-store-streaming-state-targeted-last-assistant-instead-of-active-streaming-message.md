@@ -1,0 +1,33 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: `setLastAssistantStreaming(false, in:)` colpiva l'ultimo assistant message invece del placeholder assistant attivo in streaming.
+- Sintomo: con un messaggio assistant streaming seguito da un assistant non-streaming di reasoning, il flag `isStreaming` restava `true` sul placeholder attivo.
+- Impatto: stato incoerente della `main chat`, rischio di code path finali che lasciavano la UI in streaming anche a turno concluso.
+- Gravita': alta
+- Steps to reproduce:
+  - eseguire `ChatStoreStreamingTargetTests.testSetLastAssistantStreamingTargetsActiveStreamingAssistant`
+- Risultato attuale:
+  - il reducer Rust targettava l'ultimo assistant message per assenza di `messageId`
+- Risultato atteso:
+  - il reducer deve preferire l'assistant message con `is_streaming == true`
+- Causa probabile:
+  - fallback generico di `assistant_message_index(...)` riusato da `set_streaming_state`
+- Scope consentito:
+  - `Native/RustCore/src/main_chat/store/messages.rs`
+  - `Native/RustCore/src/main_chat/store/tests.rs`
+  - changelog/bug doc
+- Non-scope:
+  - refactor generale dello store `main chat`
+- Moduli confinanti da verificare:
+  - `ChatStoreStreamingTargetTests`
+  - `updateLastAssistantMessage`
+  - `removeTrailingEmptyAssistantMessages`
+- Test da aggiungere o aggiornare:
+  - regressione Rust dedicata su `set_streaming_state`
+- Strategia di fix minimo:
+  - preferire l'ultimo assistant message attivo in streaming quando `messageId` manca
+- Verifica post-fix:
+  - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml main_chat::store::tests -- --nocapture`
+  - `xcodebuild test-without-building ... -only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests`
+- Commit previsto:
+  - `fix(chat): target active streaming assistant in rust store`

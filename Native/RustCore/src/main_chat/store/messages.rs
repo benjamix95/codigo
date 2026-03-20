@@ -91,7 +91,16 @@ pub fn set_streaming_state(
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
     };
     let conversation = &mut snapshot.conversations[conversation_index];
-    let Some(message_index) = assistant_message_index(conversation, request.message_id.as_deref()) else {
+    let message_index = if let Some(message_id) = request.message_id.as_deref() {
+        assistant_message_index(conversation, Some(message_id))
+    } else {
+        conversation
+            .messages
+            .iter()
+            .rposition(|item| item.role == "assistant" && item.is_streaming)
+            .or_else(|| assistant_message_index(conversation, None))
+    };
+    let Some(message_index) = message_index else {
         return MainChatStoreResponse::error("missing_message", "assistant message not found");
     };
     conversation.messages[message_index].is_streaming = request.bool_value.unwrap_or(false);
