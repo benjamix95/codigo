@@ -1,15 +1,15 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::main_chat::{
-    apply_event, bridge_provider_stream, finish_turn, handle_action, handle_runtime_action,
-    start_turn,
+    apply_event, bridge_provider_stream, cancel_session, finish_turn, get_snapshot, handle_action,
+    handle_runtime_action, resume_session, start_session, start_turn,
 };
 use app_core_protocol::main_chat::{
-    MainChatProviderStreamRequest, MainChatReduceEventRequest, MainChatRuntimeResponse,
-    MainChatActionRequest, MainChatFinishRequest, MainChatStartRequest,
+    MainChatActionRequest, MainChatReduceEventRequest, MainChatRuntimeResponse,
 };
-use app_core_protocol::main_chat_runtime::{
-    MainChatRuntimeActionRequest,
+use app_core_protocol::main_chat_provider::{
+    MainChatProviderSessionResponse,
 };
+use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
 use std::os::raw::c_char;
 
 #[no_mangle]
@@ -56,6 +56,26 @@ pub extern "C" fn chat_core_provider_stream(input: *const c_char) -> *mut c_char
     with_raw_json_input(input, |raw| decode_and_encode(raw, bridge_provider_stream))
 }
 
+#[no_mangle]
+pub extern "C" fn chat_core_provider_start_session(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_provider_call(raw, start_session))
+}
+
+#[no_mangle]
+pub extern "C" fn chat_core_provider_resume(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_provider_call(raw, resume_session))
+}
+
+#[no_mangle]
+pub extern "C" fn chat_core_provider_get_snapshot(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_provider_call(raw, get_snapshot))
+}
+
+#[no_mangle]
+pub extern "C" fn chat_core_provider_cancel(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_provider_call(raw, cancel_session))
+}
+
 fn decode_and_encode<Request, Response>(
     raw: &str,
     handler: impl FnOnce(Request) -> Response,
@@ -68,6 +88,25 @@ where
         Ok(request) => request,
         Err(err) => {
             return encode_raw(&MainChatRuntimeResponse::error("decode_failed", &err.to_string()));
+        }
+    };
+    encode_raw(&handler(request))
+}
+
+fn decode_provider_call<Req>(
+    raw: &str,
+    handler: impl FnOnce(Req) -> MainChatProviderSessionResponse,
+) -> String
+where
+    Req: serde::de::DeserializeOwned,
+{
+    let request: Req = match serde_json::from_str(raw) {
+        Ok(request) => request,
+        Err(err) => {
+            return encode_raw(&MainChatProviderSessionResponse::error(
+                "decode_failed",
+                &err.to_string(),
+            ));
         }
     };
     encode_raw(&handler(request))

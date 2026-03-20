@@ -1,0 +1,75 @@
+use super::session::{cancel_session, resume_session, start_session};
+use app_core_protocol::main_chat_provider::{
+    MainChatProviderBackend, MainChatProviderSessionConfig, MainChatProviderSessionRequest,
+    MainChatProviderSessionStartRequest,
+};
+use std::thread;
+use std::time::Duration;
+
+fn minimal_config(backend: MainChatProviderBackend) -> MainChatProviderSessionConfig {
+    MainChatProviderSessionConfig {
+        provider_id: "test-provider".to_string(),
+        display_name: "Test Provider".to_string(),
+        backend,
+        workspace_path: ".".to_string(),
+        workspace_paths: vec![".".to_string()],
+        prompt: "hello".to_string(),
+        system_prompt: Some("system".to_string()),
+        context_prompt: None,
+        model: None,
+        api_key: None,
+        base_url: None,
+        tool_definitions_json: None,
+        extra_headers: Default::default(),
+        codex_path: None,
+        codex_sandbox: None,
+        codex_ask_for_approval: None,
+        codex_model_override: None,
+        codex_reasoning_effort: None,
+        codex_model_provider: None,
+        codex_fast_mode: false,
+        codex_session_full_access: false,
+        codex_prefer_responses_wire_api: false,
+        claude_path: None,
+        claude_model: None,
+        claude_allowed_tools: Vec::new(),
+        gemini_cli_path: None,
+        gemini_model_override: None,
+        attachments: Vec::new(),
+        cli_accounts: Vec::new(),
+    }
+}
+
+#[test]
+fn cancel_session_marks_snapshot_cancelled() {
+    let session_id = "provider-cancel-test".to_string();
+    let start = start_session(MainChatProviderSessionStartRequest {
+        schema_version: 1,
+        session_id: session_id.clone(),
+        config: minimal_config(MainChatProviderBackend::OpenaiApi),
+    });
+    assert_eq!(start.snapshot.unwrap().status, "streaming");
+    let cancelled = cancel_session(MainChatProviderSessionRequest {
+        schema_version: 1,
+        session_id: session_id.clone(),
+    });
+    assert_eq!(cancelled.snapshot.unwrap().status, "cancelled");
+}
+
+#[test]
+fn missing_cli_path_bubbles_error_into_session_events() {
+    let session_id = "provider-cli-error-test".to_string();
+    let _ = start_session(MainChatProviderSessionStartRequest {
+        schema_version: 1,
+        session_id: session_id.clone(),
+        config: minimal_config(MainChatProviderBackend::CodexCli),
+    });
+    thread::sleep(Duration::from_millis(50));
+    let response = resume_session(MainChatProviderSessionRequest {
+        schema_version: 1,
+        session_id,
+    });
+    let snapshot = response.snapshot.unwrap();
+    assert_eq!(snapshot.status, "failed");
+    assert!(response.events.iter().any(|event| event.kind == app_core_protocol::main_chat_provider::MainChatProviderEventKind::Error));
+}
