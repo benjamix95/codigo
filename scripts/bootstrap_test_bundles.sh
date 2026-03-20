@@ -23,15 +23,17 @@ signature_is_valid() {
 
 signature_is_adhoc() {
   target_path="$1"
-  codesign -dvv "$target_path" 2>&1 | grep -q '^Signature=adhoc$'
+  codesign_details="$(codesign -dvv "$target_path" 2>&1 || true)"
+  printf '%s\n' "$codesign_details" | grep -q '^Signature=adhoc$'
 }
 
 resolve_host_sign_identity() {
   if [ -z "$host_app_path" ] || [ ! -e "$host_app_path" ]; then
     return
   fi
+  codesign_details="$(codesign -dvv "$host_app_path" 2>&1 || true)"
   host_sign_identity="$(
-    codesign -dvv "$host_app_path" 2>&1 |
+    printf '%s\n' "$codesign_details" |
       awk -F= '/^Authority=/{print $2; exit}'
   )"
 }
@@ -64,7 +66,7 @@ resign_path() {
     if [ -n "$host_sign_identity" ] && signature_is_adhoc "$target_path"; then
       :
     else
-      return
+      return 0
     fi
   fi
   sign_identity="$(resolve_sign_identity)"
