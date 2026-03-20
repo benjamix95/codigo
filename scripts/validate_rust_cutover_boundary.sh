@@ -23,6 +23,30 @@ MAIN_CHAT_CUTOVER_PREFIXES=(
   "Engine/CoderEngine/Sources/Pipeline"
   "Engine/CoderEngine/Sources/Providers"
 )
+TOTAL_RUST_CUTOVER_PREFIXES=(
+  "App/SoloCodeApp/Sources/Accounts"
+  "App/SoloCodeApp/Sources/Context"
+  "App/SoloCodeApp/Sources/Debug"
+  "App/SoloCodeApp/Sources/Git"
+  "App/SoloCodeApp/Sources/Planning"
+  "App/SoloCodeApp/Sources/Runtime"
+  "App/SoloCodeApp/Sources/CodeReview"
+  "App/SoloCodeApp/Sources/Chat"
+  "Engine/CoderEngine/Sources/Infrastructure"
+  "Engine/CoderEngine/Sources/Tools"
+  "Engine/CoderEngine/Sources/AgentPipeline"
+  "Engine/CoderEngine/Sources/CodebaseIndex"
+  "Engine/CoderEngine/Sources/ProviderBackends"
+  "Engine/CoderEngine/Sources/Providers"
+  "Engine/CoderEngine/Sources/PersistenceCore"
+  "Engine/CoderEngine/Sources/Runtime"
+  "Engine/CoderEngine/Sources/Workspace"
+  "Engine/CoderEngine/Sources/Validation"
+  "Engine/CoderEngine/Sources/Policy"
+  "Engine/CoderEngine/Sources/SystemPrompts"
+  "Tools/CoderIDEMCPServer/Sources/Runtime"
+  "Tools/CoderIDEMCPServer/Sources/Tools"
+)
 ALLOWLIST_PATH="Config/validation/rust-cutover-swift-allowlist.txt"
 
 while [[ $# -gt 0 ]]; do
@@ -78,6 +102,11 @@ if [[ -n "$candidate_files" ]]; then
       fi
     done
     for prefix in "${MAIN_CHAT_CUTOVER_PREFIXES[@]}"; do
+      if [[ "$file" == "$prefix" || "$file" == "$prefix/"* ]]; then
+        enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
+      fi
+    done
+    for prefix in "${TOTAL_RUST_CUTOVER_PREFIXES[@]}"; do
       if [[ "$file" == "$prefix" || "$file" == "$prefix/"* ]]; then
         enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
       fi
