@@ -209,10 +209,13 @@ for file in "${FILES[@]}"; do
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/ThreadProviderSelectionServiceTests" "-only-testing:SoloCodeAppTests/ProviderFactoryRuntimeParityTests")
       ;;
     App/SoloCodeApp/Sources/Chat/Support/StoreRust/*|App/SoloCodeApp/Sources/Chat/Support/StoreRuntime/*|Tests/SoloCodeAppTests/ChatStoreTaskOwnershipTests.swift|Tests/SoloCodeAppTests/ChatStoreStreamingTargetTests.swift)
-      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreTaskOwnershipTests" "-only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests" "-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreTaskOwnershipTests" "-only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests" "-only-testing:SoloCodeAppTests/ChatStoreMarkerSanitizationTests" "-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
       ;;
     App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Messages/*)
-      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests" "-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests" "-only-testing:SoloCodeAppTests/ChatStoreMarkerSanitizationTests" "-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
+      ;;
+    App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartS_End.swift|App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+TaskStatus.swift)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreMarkerSanitizationTests")
       ;;
     App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Conversations/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreTaskOwnershipTests")

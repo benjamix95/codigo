@@ -1,0 +1,30 @@
+## Bug Fix Record
+- Categoria: B
+- Bug: `solocode-validate` selezionava l'intera suite `SoloCodeAppTests` per modifiche nel cluster markers invece dei test marker mirati.
+- Sintomo:
+  - modifiche a `StoreProjection/Messages` o `StoreRust` per i markers finivano su fallback app-wide
+- Impatto:
+  - validation rumorosa
+  - commit batch markers bloccato da test non correlati
+- Gravita': media
+- Steps to reproduce:
+  - eseguire `./scripts/solocode-validate --files "<file set markers>" --format text`
+- Risultato attuale:
+  - fallback a `-only-testing:SoloCodeAppTests`
+- Risultato atteso:
+  - selezione mirata di `ChatStoreMarkerSanitizationTests`
+- Causa probabile:
+  - mancava la selezione marker nel validator per `StoreProjection/Messages/*` e `StoreRust/*`
+- Scope consentito:
+  - `scripts/solocode-validate`
+  - bug doc/changelog dedicati
+- Non-scope:
+  - cambiare la logica dei test di dominio
+- Test da aggiungere o aggiornare:
+  - validazione manuale del file set markers
+- Strategia di fix minimo:
+  - aggiungere `ChatStoreMarkerSanitizationTests` ai pattern markers del validator
+- Verifica post-fix:
+  - `./scripts/solocode-validate ...` sul file set markers
+- Commit previsto:
+  - `fix(validation): target chat marker tests`
