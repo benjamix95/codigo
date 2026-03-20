@@ -189,7 +189,7 @@ enum RustMainChatStoreAdapter {
         guard let id = UUID(uuidString: snapshot.historyEntryId) else { return nil }
         return PlanAttachment(historyEntryId: id, layoutVersion: snapshot.layoutVersion, showExpand: snapshot.showExpand, snapshotTitle: snapshot.snapshotTitle)
     }
-    private static func subagentCardSnapshot(_ card: SubagentCardSnapshot) -> MainChatStoreSubagentCardSnapshotBridge {
+    static func subagentCardSnapshot(_ card: SubagentCardSnapshot) -> MainChatStoreSubagentCardSnapshotBridge {
         MainChatStoreSubagentCardSnapshotBridge(swarmId: card.swarmId, status: card.status.rawValue, title: card.title, detail: card.detail, summary: card.summary, errorCount: card.errorCount, warningCount: card.warningCount, resultPreview: card.resultPreview)
     }
     static func checkpointSnapshot(_ checkpoint: ConversationCheckpoint) -> MainChatStoreCheckpointSnapshotBridge {

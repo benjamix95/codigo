@@ -1,6 +1,12 @@
 import Foundation
 import CoderEngine
 
+struct ChatStoreConversationDeletionOutcome: Equatable {
+    let autoCreatedReplacementId: UUID?
+
+    static let none = ChatStoreConversationDeletionOutcome(autoCreatedReplacementId: nil)
+}
+
 extension ChatStore {
     func hasUserMessages(_ conversation: Conversation) -> Bool {
         conversation.messages.contains(where: { $0.role == .user })

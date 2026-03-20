@@ -42,7 +42,8 @@ extension ChatStore {
             boolValue: nil,
             intValue: nil,
             text: nil,
-            stringList: []
+            stringList: [],
+            subagentCards: nil
         )
         configure(&request)
         guard let snapshot = RustMainChatStoreAdapter.handle(request) else {
@@ -100,6 +101,105 @@ extension ChatStore {
     }
 
     @MainActor
+    func addMessage(_ message: ChatMessage, to conversationId: UUID?) {
+        guard let conversationId else { return }
+        _ = applyRustStoreAction("append_message") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+        }
+        saveConversations()
+    }
+
+    @MainActor
+    func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
+        guard let conversationId else { return }
+        let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
+        _ = applyRustStoreAction("sync_assistant_content") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.text = resolvedContent
+        }
+        persistAssistantMutation(immediately: persistImmediately)
+    }
+
+    @MainActor
+    func updateAssistantMessage(
+        messageId: UUID,
+        content: String,
+        in conversationId: UUID?,
+        persistImmediately: Bool = true
+    ) {
+        guard let conversationId else { return }
+        let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
+        _ = applyRustStoreAction("sync_assistant_content") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.messageId = messageId.uuidString.lowercased()
+            request.text = resolvedContent
+        }
+        persistAssistantMutation(immediately: persistImmediately)
+    }
+
+    @MainActor
+    func insertMessage(_ message: ChatMessage, before messageId: UUID, in conversationId: UUID?) {
+        guard let conversationId else { return }
+        _ = applyRustStoreAction("insert_message_before") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.messageId = messageId.uuidString.lowercased()
+            request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+        }
+        saveConversations()
+    }
+
+    @MainActor
+    func removeTrailingEmptyAssistantMessages(in conversationId: UUID?) {
+        guard let conversationId else { return }
+        _ = applyRustStoreAction("remove_trailing_empty_assistant_messages") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+        }
+        saveConversationsImmediately()
+    }
+
+    @MainActor
+    func saveSubagentCardsToLastAssistant(_ cards: [SubagentCardSnapshot], in conversationId: UUID?) {
+        guard !cards.isEmpty, let conversationId else { return }
+        _ = applyRustStoreAction("save_subagent_cards_to_last_assistant") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.subagentCards = cards.map(RustMainChatStoreAdapter.subagentCardSnapshot)
+        }
+        saveConversationsImmediately()
+    }
+
+    @MainActor
+    func saveReasoningToLastAssistant(reasoning: String, in conversationId: UUID?) {
+        let trimmed = reasoning.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let conversationId else { return }
+        _ = applyRustStoreAction("save_reasoning") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.text = trimmed
+        }
+        saveConversations()
+    }
+
+    @MainActor
+    func removeAssistantMessageIfEmpty(messageId: UUID, in conversationId: UUID?) {
+        guard let conversationId else { return }
+        _ = applyRustStoreAction("remove_assistant_message_if_empty") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.messageId = messageId.uuidString.lowercased()
+        }
+        saveConversations()
+    }
+
+    @MainActor
+    func removeMessage(messageId: UUID, in conversationId: UUID?) {
+        guard let conversationId else { return }
+        _ = applyRustStoreAction("remove_message") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.messageId = messageId.uuidString.lowercased()
+        }
+        saveConversations()
+    }
+
+    @MainActor
     func beginTask(conversationId: UUID?) {
         guard let id = conversationId else { return }
         requireRustTaskRuntime("begin_task") { request in
@@ -133,5 +233,43 @@ extension ChatStore {
     @MainActor
     func endTask() {
         endTask(conversationId: activeTaskConversationId)
+    }
+
+    @MainActor
+    func updateAssistantMessagePipelineState(
+        messageId: UUID,
+        state: ChatTurnState,
+        in conversationId: UUID,
+        persistImmediately: Bool
+    ) {
+        var pipelineMessage = ChatMessage(
+            id: messageId,
+            role: .assistant,
+            content: state.primaryTextSnapshot,
+            primaryTextSnapshot: state.primaryTextSnapshot,
+            blocks: state.blocks,
+            turnMetadata: state.metadata,
+            isStreaming: state.isStreaming
+        )
+        pipelineMessage.reasoningText = state.reasoningTextSnapshot
+        _ = applyRustStoreAction("sync_assistant_pipeline_state") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.messageId = messageId.uuidString.lowercased()
+            request.message = RustMainChatStoreAdapter.messageSnapshot(pipelineMessage)
+        }
+        persistAssistantMutation(immediately: persistImmediately)
+    }
+
+    @MainActor
+    private func persistAssistantMutation(immediately: Bool) {
+        if immediately {
+            saveConversations()
+            return
+        }
+        let now = Date()
+        if now.timeIntervalSince(lastStreamingSaveAt) >= 3.0 {
+            lastStreamingSaveAt = now
+            saveConversations()
+        }
     }
 }

@@ -14,11 +14,25 @@ pub fn handle_action(request: MainChatStoreActionRequest) -> MainChatStoreRespon
             conversations::delete_conversation(request.snapshot, conversation_id)
         }
         "append_message" => messages::append_message(request.snapshot.clone(), &request),
+        "insert_message_before" => messages::insert_message_before(request.snapshot.clone(), &request),
         "replace_message" | "update_assistant_message" => {
             messages::replace_or_update_message(request.snapshot.clone(), &request)
         }
+        "sync_assistant_content" => messages::sync_assistant_content(request.snapshot.clone(), &request),
+        "sync_assistant_pipeline_state" => {
+            messages::sync_assistant_pipeline_state(request.snapshot.clone(), &request)
+        }
         "save_reasoning" => messages::save_reasoning(request.snapshot.clone(), &request),
+        "save_subagent_cards_to_last_assistant" => {
+            messages::save_subagent_cards_to_last_assistant(request.snapshot.clone(), &request)
+        }
         "set_streaming_state" => messages::set_streaming_state(request.snapshot.clone(), &request),
+        "remove_trailing_empty_assistant_messages" => {
+            messages::remove_trailing_empty_assistant_messages(request.snapshot.clone(), &request)
+        }
+        "remove_assistant_message_if_empty" => {
+            messages::remove_assistant_message_if_empty(request.snapshot.clone(), &request)
+        }
         "remove_message" => messages::remove_message(request.snapshot.clone(), &request),
         "set_plan_board" => plans::set_plan_board(request.snapshot.clone(), &request),
         "remove_plan_board" => {

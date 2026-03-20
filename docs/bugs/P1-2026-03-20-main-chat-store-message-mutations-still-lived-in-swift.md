@@ -1,0 +1,52 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: le mutazioni core dei messaggi della `main chat` vivevano ancora in Swift dentro `ChatStoreMessages.swift`.
+- Sintomo:
+  - inserimento before-anchor
+  - sincronizzazione contenuto assistant
+  - sincronizzazione pipeline state assistant
+  - trailing cleanup dei messaggi assistant vuoti
+  - save subagent cards / remove-if-empty
+  - titolo thread aggiornato lato Swift sul primo messaggio user
+- Impatto:
+  - ownership del `Store Core` ancora Swift-side
+  - ordering e mutations dei messaggi non ridotti dal reducer Rust
+- Gravita': alta
+- Steps to reproduce:
+  - leggere [ChatStoreMessages.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Messages/ChatStoreMessages.swift)
+- Risultato attuale:
+  - il file conteneva business logic di mutazione messaggi
+- Risultato atteso:
+  - mutazioni messaggi gestite dal reducer Rust e invocate da wrapper Swift sottili
+- Causa probabile:
+  - il reducer `main_chat_store` copriva append/replace/remove ma non il resto delle mutazioni di store messages
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_store.rs`
+  - `Native/RustCore/src/main_chat/store/messages*`
+  - `StoreRust/**`
+  - `ChatStoreMessages.swift`
+  - `ChatStoreStreamingTargetTests`
+  - `Native/RustCore` store tests
+  - changelog/bug doc/baseline
+- Non-scope:
+  - conversation lifecycle
+  - plan boards
+  - checkpoints
+  - persistence batch
+- Moduli confinanti da verificare:
+  - `ChatStoreStreamingTargetTests`
+  - reducer store Rust
+  - load/apply snapshot in `StoreRust`
+- Test da aggiungere o aggiornare:
+  - Rust store tests per insert-before-anchor / trailing cleanup / sync assistant content
+  - XCTest `ChatStoreStreamingTargetTests`
+- Strategia di fix minimo:
+  - estendere `main_chat_store` con le action messaggi mancanti
+  - spostare i wrapper pubblici in `StoreRust`
+  - eliminare `ChatStoreMessages.swift`
+  - eliminare `ChatStoreMessages+Pipeline.swift`
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml main_chat::store::tests -- --nocapture`
+  - `xcodebuild test-without-building ... -only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests`
+- Commit previsto:
+  - `refactor(chat): move store message mutations into rust`

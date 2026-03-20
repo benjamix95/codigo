@@ -184,6 +184,7 @@ struct MainChatStoreActionRequestBridge: Encodable {
     var intValue: Int?
     var text: String?
     var stringList: [String]
+    var subagentCards: [MainChatStoreSubagentCardSnapshotBridge]?
 }
 
 struct MainChatStoreResponseBridge: Decodable {

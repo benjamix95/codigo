@@ -79,5 +79,11 @@ cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutov
   - `ThreadProviderSelectionService.swift` e' stato assorbito in `Chat/Support/Providers/Rust/RustMainChatProviderFactory.swift` dopo il cutover Rust della thread provider selection policy
   - `ChatReasoningStreamReducer.swift` e' stato rimosso dopo il cutover Rust del reasoning stream reducer
   - `ChatStoreStreaming.swift` e' stato rimosso dopo il cutover Rust del task live runtime (`beginTask`, `endTask`, `setTaskStatus`)
-  - il breakdown `App/SoloCodeApp/Sources/Chat` osservato scende da `115` a `114`
-  - il progresso strutturale osservato rispetto al baseline canonico iniziale sale a `9/198`, pari a `4.5%`
+  - `ChatStoreMessages.swift` e' stato rimosso dopo il cutover Rust delle mutazioni core messaggi (`insert`, `sync assistant content`, `trailing cleanup`, `subagent cards`)
+  - `ChatStoreMessages+Pipeline.swift` e' stato rimosso dopo il cutover Rust del pipeline state assistant
+  - `TaskStatusModifiers.swift` e' stato riclassificato come `ui_view` perche' contiene solo presentation-only SwiftUI modifier
+  - `PrimaryTextBlockView.swift` e' stato riclassificato come `ui_view` perche' contiene solo rendering SwiftUI del blocco primary text
+  - `ChatBackgroundStyle.swift` e' stato riclassificato come `ui_view` perche' contiene solo configurazione presentation-only del background chat
+  - `TraceSummaryCardView.swift` e' stato riclassificato come `ui_view` perche' contiene solo rendering SwiftUI della card trace summary
+  - il breakdown `App/SoloCodeApp/Sources/Chat` osservato scende da `114` a `110`
+  - il progresso strutturale osservato rispetto al baseline canonico iniziale sale a `13/198`, pari a `6.6%`

@@ -123,6 +123,18 @@ final class ChatStoreStreamingTargetTests: XCTestCase {
         XCTAssertEqual(ids.count, 3)
         XCTAssertEqual(ids[1], reasoningMessageId)
         XCTAssertEqual(ids[2], streamingAssistantId)
+        XCTAssertFalse(conversation.messages[1].isStreaming)
+        XCTAssertTrue(conversation.messages[2].isStreaming)
+    }
+
+    func testAddMessageUpdatesNewConversationTitleFromFirstUserMessage() throws {
+        let store = makeStore()
+        let conversationId = try XCTUnwrap(store.conversations.first?.id)
+
+        store.addMessage(ChatMessage(role: .user, content: "Hello from rust store"), to: conversationId)
+
+        let conversation = try XCTUnwrap(store.conversation(for: conversationId))
+        XCTAssertEqual(conversation.title, "Hello from rust store")
     }
 
     func testRemoveTrailingEmptyAssistantMessages() async throws {

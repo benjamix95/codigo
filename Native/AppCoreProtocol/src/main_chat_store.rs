@@ -210,6 +210,7 @@ pub struct MainChatStoreActionRequest {
     pub text: Option<String>,
     #[serde(default)]
     pub string_list: Vec<String>,
+    pub subagent_cards: Option<Vec<MainChatStoreSubagentCardSnapshot>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
