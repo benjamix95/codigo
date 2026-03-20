@@ -205,6 +205,9 @@ for file in "${FILES[@]}"; do
     App/SoloCodeApp/Sources/CodeReview/*|App/SoloCodeApp/Sources/Panels/CodeReview/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests")
       ;;
+    App/SoloCodeApp/Sources/Chat/Support/Providers/*|Tests/SoloCodeAppTests/ThreadProviderSelectionServiceTests.swift)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ThreadProviderSelectionServiceTests" "-only-testing:SoloCodeAppTests/ProviderFactoryRuntimeParityTests")
+      ;;
     App/SoloCodeApp/Sources/Runtime/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
       ;;
@@ -219,15 +222,9 @@ for file in "${FILES[@]}"; do
   esac
 done
 
-if [[ "$TRIGGER" == "ciFull" ]]; then
-  need_engine_fallback="true"
-  need_app_fallback="true"
-  need_integration="true"
-fi
+if [[ "$TRIGGER" == "ciFull" ]]; then need_engine_fallback="true"; need_app_fallback="true"; need_integration="true"; fi
 
-[[ "$need_engine_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
-[[ "$need_app_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeAppTests")
-[[ "$need_integration" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeIntegrationTests")
+[[ "$need_engine_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests"); [[ "$need_app_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeAppTests"); [[ "$need_integration" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeIntegrationTests")
 [[ ${#TEST_ARGS[@]} -eq 0 && "$native_only_validation" != "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
 
 deduped_args=()

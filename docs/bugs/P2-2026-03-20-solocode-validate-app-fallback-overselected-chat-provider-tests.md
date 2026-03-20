@@ -1,0 +1,31 @@
+## Bug Fix Record
+- Categoria: B
+- Bug: `solocode-validate` selezionava l'intera suite `SoloCodeAppTests` per diff confinati a `Chat/Support/Providers`, trascinando failure non correlate al tranche corrente.
+- Sintomo: una tranche limitata al cutover Rust della thread provider selection falliva in `targetedTests` su test app-side di altri domini.
+- Impatto: commit del dominio `Chat/Support/Providers` bloccati da regressioni estranee al perimetro, con perdita di tracciabilita' del failure signal.
+- Gravita': media
+- Steps to reproduce:
+  - eseguire `./scripts/solocode-validate --trigger gitCommit --workspace /Users/benjaminstoica/SoloCode --files "App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatProviderFactory.swift,Native/AppCoreProtocol/src/thread_provider_selection.rs" --format text`
+- Risultato attuale:
+  - il validator aggiungeva `-only-testing:SoloCodeAppTests`
+- Risultato atteso:
+  - il validator deve lanciare solo `ThreadProviderSelectionServiceTests` e le smoke di parity pertinenti al dominio provider selection
+- Causa probabile:
+  - fallback troppo generico del case `App/*)` in `scripts/solocode-validate`
+- Scope consentito:
+  - `scripts/solocode-validate`
+  - bug/changelog
+- Non-scope:
+  - ridefinizione completa del selettore targeted tests
+- Moduli confinanti da verificare:
+  - tranche `thread provider selection`
+  - selettore test per `Accounts` e `Runtime`
+- Test da aggiungere o aggiornare:
+  - validazione manuale con `solocode-validate` sul diff `Chat/Support/Providers`
+- Strategia di fix minimo:
+  - aggiungere un case specifico per `App/SoloCodeApp/Sources/Chat/Support/Providers/*`
+  - evitare il fallback broad `SoloCodeAppTests` per questo dominio
+- Verifica post-fix:
+  - `./scripts/solocode-validate ...` sul tranche `thread provider selection`
+- Commit previsto:
+  - `fix(validation): scope chat provider targeted tests`
