@@ -223,7 +223,8 @@ final class RustMainChatUIBoundaryTests: XCTestCase {
             draftText: "continue",
             planPanelVisible: false,
             followLive: true,
-            collapsedArtifactIdsByTurn: [:]
+            collapsedArtifactIdsByTurn: [:],
+            autoTodoRuntimeStateByMessage: [:]
         )
     }
 }

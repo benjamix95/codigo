@@ -92,7 +92,8 @@ enum RustMainChatStoreAdapter {
         draftText: String,
         planPanelVisible: Bool,
         followLive: Bool,
-        collapsedArtifactsByTurn: [String: Set<String>]
+        collapsedArtifactsByTurn: [String: Set<String>],
+        autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge] = [:]
     ) -> MainChatUIStateBridge {
         MainChatUIStateBridge(
             storeSnapshot: snapshot(from: store),
@@ -104,7 +105,8 @@ enum RustMainChatStoreAdapter {
             followLive: followLive,
             collapsedArtifactIdsByTurn: Dictionary(uniqueKeysWithValues: collapsedArtifactsByTurn.map {
                 ($0.key, Array($0.value).sorted())
-            })
+            }),
+            autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage
         )
     }
 

@@ -35,8 +35,9 @@ extension ChatPanelView {
         toolTraceOperationalCountByMessage.removeValue(forKey: active.assistantMessageId)
         policyAckStateByMessage.removeValue(forKey: active.assistantMessageId)
         policyAckBlockedQueue.removeValue(forKey: active.assistantMessageId)
-        autoTodoIdByMessage.removeValue(forKey: active.assistantMessageId)
-        autoTodoCompletedOperationsByMessage.removeValue(forKey: active.assistantMessageId)
+        autoTodoRuntimeStateByMessage.removeValue(
+            forKey: active.assistantMessageId.uuidString.lowercased()
+        )
         didReceiveExplicitTodoByMessage.remove(active.assistantMessageId)
     }
 
@@ -47,32 +48,14 @@ extension ChatPanelView {
         providerId: String,
         conversationId: UUID
     ) {
-        if let autoTodoId = autoTodoIdByMessage[messageId],
-           !didReceiveExplicitTodoByMessage.contains(messageId) {
-            let finalStatus = autoTodoFinalStatus(for: outcome)
-            todoStore.setStatus(id: autoTodoId, status: finalStatus)
-            let currentTodo = todoStore.todos.first(where: { $0.id == autoTodoId })
-            let notes: String = {
-                switch finalStatus {
-                case .done:
-                    return "Auto-generated: all trace activities completed."
-                case .blocked:
-                    return "Auto-generated: execution interrupted or failed."
-                default:
-                    return "Auto-generated: status updated."
-                }
-            }()
-            emitAutoTodoTraceUpdate(
-                todoId: autoTodoId,
-                title: currentTodo?.title ?? "Auto TODO",
-                status: finalStatus,
-                notes: notes,
-                linkedFiles: currentTodo?.linkedFiles ?? [],
-                providerId: providerId,
-                conversationId: conversationId,
-                timestamp: .now
-            )
-        }
+        guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
+        applyAutoTodoRuntimeIntent(
+            "auto_todo_finalize_runtime",
+            assistantMessageId: messageId,
+            providerId: providerId,
+            conversationId: conversationId,
+            outcome: outcome
+        )
     }
 
     @MainActor

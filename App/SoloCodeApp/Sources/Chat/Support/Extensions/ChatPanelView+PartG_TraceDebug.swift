@@ -4,43 +4,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
-    internal func autoTodoTitle(for activity: TaskActivity) -> String {
-        let normalizedTitle = activity.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !normalizedTitle.isEmpty, !isPlaceholderTodoTitle(normalizedTitle) {
-            return normalizedTitle
-        }
-        if let path = activity.payload["path"] ?? activity.payload["file"],
-           !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let base = (path as NSString).lastPathComponent
-            return "Complete changes on \(base)"
-        }
-        if let query = activity.payload["query"], !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Complete analysis: \(String(query.prefix(80)))"
-        }
-        if let command = activity.payload["command"], !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Complete execution: \(String(command.prefix(80)))"
-        }
-        return "Complete the required operational steps"
-    }
-
-    internal func autoTodoLinkedFiles(from payload: [String: String]) -> [String] {
-        var files = Set<String>()
-        for candidate in [payload["path"], payload["file"], payload["files"]] {
-            let raw = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !raw.isEmpty else { continue }
-            let splitItems = raw
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            if splitItems.isEmpty {
-                files.insert(raw)
-            } else {
-                splitItems.forEach { files.insert($0) }
-            }
-        }
-        return files.sorted()
-    }
-
     internal func shouldAcceptTodoWrite(_ todo: TodoWritePayload, conversationId: UUID?) -> Bool {
         if isPlanBuildContext(
             conversationId: conversationId,

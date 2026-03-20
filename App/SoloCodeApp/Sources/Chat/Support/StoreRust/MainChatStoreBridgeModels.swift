@@ -220,6 +220,7 @@ struct MainChatUIStateBridge: Codable {
     let planPanelVisible: Bool
     let followLive: Bool
     let collapsedArtifactIdsByTurn: [String: [String]]
+    let autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge]
 }
 
 struct MainChatUIConversationSummaryBridge: Decodable {
@@ -262,6 +263,23 @@ struct MainChatUIMessageSnapshotBridge: Decodable {
 struct MainChatUIComposerSnapshotBridge: Decodable { let draftText: String; let canSend: Bool; let canCancel: Bool; let isFollowingLive: Bool }
 struct MainChatUITaskSnapshotBridge: Decodable { let isLoading: Bool; let startedAt: Date?; let statusText: String?; let terminalError: String?; let shouldRetryPoll: Bool; let shouldFinalizeStream: Bool }
 struct MainChatUIPlanSnapshotBridge: Decodable { let isVisible: Bool; let phase: MainChatPlanPhaseBridge?; let planningStateKind: MainChatPlanningStateKindBridge?; let questionEpoch: Int; let clarificationQuestions: String?; let proposalContent: String?; let chosenPath: String?; let optionFullTexts: [String]; let goal: String; let stepCount: Int; let shouldHideMarkdown: Bool; let shouldRunInline: Bool; let isReadyToBuild: Bool }
+struct MainChatUIAutoTodoRuntimeStateBridge: Codable, Equatable { let todoId: String; let conversationId: String; let title: String; let activeForm: String; let linkedFiles: [String]; let operationCount: Int }
+enum MainChatUITodoMutationBridge: String, Decodable { case upsertRuntimeTodo, setStatus, removeTodo, clearMessageRuntimeState }
+struct MainChatUITodoPatchBridge: Decodable {
+    let mutation: MainChatUITodoMutationBridge?
+    let todoId: String?
+    let assistantMessageId: String?
+    let conversationId: String?
+    let providerId: String?
+    let title: String?
+    let status: String?
+    let priority: String?
+    let notes: String?
+    let activeForm: String?
+    let linkedFiles: [String]
+    let shouldEmitTraceUpdate: Bool
+    let timestamp: Date?
+}
 
 struct MainChatUISnapshotBridge: Decodable {
     let selectedConversationId: String?
@@ -278,4 +296,4 @@ struct MainChatUISnapshotBridge: Decodable {
 struct MainChatUIProjectRequestBridge: Encodable { let schemaVersion: Int; let state: MainChatUIStateBridge }
 struct MainChatUIProjectResponseBridge: Decodable { let schemaVersion: Int; let error: MainChatStoreBridgeErrorBridge?; let snapshot: MainChatUISnapshotBridge? }
 struct MainChatUIIntentRequestBridge: Encodable { let schemaVersion: Int; let intent: String; let state: MainChatUIStateBridge; let conversationId: String?; let turnId: String?; let artifactId: String?; let text: String?; let timestamp: Date?; let payload: [String: String] }
-struct MainChatUIIntentResponseBridge: Decodable { let schemaVersion: Int; let error: MainChatStoreBridgeErrorBridge?; let state: MainChatUIStateBridge?; let snapshot: MainChatUISnapshotBridge? }
+struct MainChatUIIntentResponseBridge: Decodable { let schemaVersion: Int; let error: MainChatStoreBridgeErrorBridge?; let state: MainChatUIStateBridge?; let snapshot: MainChatUISnapshotBridge?; let todoPatches: [MainChatUITodoPatchBridge] }

@@ -1,3 +1,8 @@
+use crate::main_chat::auto_todo::{
+    begin_runtime as begin_auto_todo_runtime, discard_runtime as discard_auto_todo_runtime,
+    finalize_runtime as finalize_auto_todo_runtime,
+    record_operation as record_auto_todo_operation,
+};
 use crate::main_chat::plan_ui_flow::{
     apply_plan_runtime_action, receive_clarification_questions, set_plan_panel_visible,
 };
@@ -17,6 +22,7 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
     }
 
     let mut state = request.state.clone();
+    let mut todo_patches = Vec::new();
     match request.intent.as_str() {
         "select_conversation" => {
             state.selected_conversation_id = request.conversation_id;
@@ -203,6 +209,30 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
                 Err(error) => return error,
             };
         }
+        "auto_todo_begin_runtime" => {
+            (state, todo_patches) = match begin_auto_todo_runtime(state, &request) {
+                Ok(result) => result,
+                Err(error) => return error,
+            };
+        }
+        "auto_todo_record_operation" => {
+            (state, todo_patches) = match record_auto_todo_operation(state, &request) {
+                Ok(result) => result,
+                Err(error) => return error,
+            };
+        }
+        "auto_todo_finalize_runtime" => {
+            (state, todo_patches) = match finalize_auto_todo_runtime(state, &request) {
+                Ok(result) => result,
+                Err(error) => return error,
+            };
+        }
+        "auto_todo_discard_runtime" => {
+            (state, todo_patches) = match discard_auto_todo_runtime(state, &request) {
+                Ok(result) => result,
+                Err(error) => return error,
+            };
+        }
         "restore_snapshot" => {}
         _ => {
             return MainChatUiIntentResponse::error("unsupported_intent", "Unsupported main chat UI intent");
@@ -214,7 +244,7 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
         state: state.clone(),
     });
     match snapshot.snapshot {
-        Some(snapshot) => MainChatUiIntentResponse::success(state, snapshot),
+        Some(snapshot) => MainChatUiIntentResponse::success_with_patches(state, snapshot, todo_patches),
         None => MainChatUiIntentResponse::error("projection_failed", "Failed to project UI snapshot"),
     }
 }

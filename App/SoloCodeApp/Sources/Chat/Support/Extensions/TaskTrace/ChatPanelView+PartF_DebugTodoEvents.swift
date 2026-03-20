@@ -195,11 +195,12 @@ extension ChatPanelView {
         }
         let messageId = turn.assistantMessageId
         didReceiveExplicitTodoByMessage.insert(messageId)
-        if let autoTodoId = autoTodoIdByMessage[messageId] {
-            todoStore.remove(id: autoTodoId)
-            autoTodoIdByMessage.removeValue(forKey: messageId)
-            autoTodoCompletedOperationsByMessage.removeValue(forKey: messageId)
-        }
+        applyAutoTodoRuntimeIntent(
+            "auto_todo_discard_runtime",
+            assistantMessageId: messageId,
+            providerId: providerId,
+            conversationId: turn.conversationId
+        )
     }
 
     internal func ensureAutoTodoStartedBeforeOperationalActivity(

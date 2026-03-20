@@ -14,43 +14,16 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
-
-        let messageId = turn.assistantMessageId
-        guard autoTodoIdByMessage[messageId] == nil else { return }
-        guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
-
-        let todoId = UUID()
-        let title = autoTodoTitle(for: activity)
-        let linkedFiles = autoTodoLinkedFiles(from: activity.payload)
-        let notes = autoTodoRuntimeNotes(operationCount: 0)
-        let activeForm = preferredAutoTodoActiveForm(
-            currentActiveForm: "",
-            immediateLabel: Self.immediateSubtitleLabel(for: activity),
-            title: title
-        )
-
-        todoStore.upsertFromAgent(
-            id: todoId,
-            title: title,
-            status: .inProgress,
-            priority: .medium,
-            notes: notes,
-            activeForm: activeForm,
-            linkedFiles: linkedFiles,
-            conversationId: turn.conversationId
-        )
-        autoTodoIdByMessage[messageId] = todoId
-        autoTodoCompletedOperationsByMessage[messageId] = 0
-
-        emitAutoTodoTraceUpdate(
-            todoId: todoId,
-            title: title,
-            status: .inProgress,
-            notes: notes,
-            linkedFiles: linkedFiles,
+        guard autoTodoRuntimeStateByMessage[turn.assistantMessageId.uuidString.lowercased()] == nil else {
+            return
+        }
+        guard !didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
+        applyAutoTodoRuntimeIntent(
+            "auto_todo_begin_runtime",
+            assistantMessageId: turn.assistantMessageId,
             providerId: providerId,
             conversationId: turn.conversationId,
-            timestamp: activity.timestamp
+            activity: activity
         )
     }
 
@@ -64,43 +37,88 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
-
-        let messageId = turn.assistantMessageId
-        guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
-        guard let autoTodoId = autoTodoIdByMessage[messageId] else { return }
-
-        let operationCount = (autoTodoCompletedOperationsByMessage[messageId] ?? 0) + 1
-        autoTodoCompletedOperationsByMessage[messageId] = operationCount
-
-        let existingTodo = todoStore.todos.first(where: { $0.id == autoTodoId })
-        let title = preferredAutoTodoTitle(
-            currentTitle: existingTodo?.title,
-            candidateTitle: autoTodoTitle(for: activity)
-        )
-        let linkedFiles = mergedAutoTodoLinkedFiles(
-            existing: existingTodo?.linkedFiles ?? [],
-            incoming: autoTodoLinkedFiles(from: activity.payload)
-        )
-        let notes = autoTodoRuntimeNotes(operationCount: operationCount)
-        let activeForm = preferredAutoTodoActiveForm(
-            currentActiveForm: existingTodo?.activeForm ?? "",
-            immediateLabel: Self.immediateSubtitleLabel(for: activity),
-            title: title
-        )
-
-        todoStore.upsertFromAgent(
-            id: autoTodoId,
-            title: title,
-            status: .inProgress,
-            priority: existingTodo?.priority ?? .medium,
-            notes: notes,
-            activeForm: activeForm,
-            linkedFiles: linkedFiles,
-            conversationId: turn.conversationId
+        guard !didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
+        applyAutoTodoRuntimeIntent(
+            "auto_todo_record_operation",
+            assistantMessageId: turn.assistantMessageId,
+            providerId: providerId,
+            conversationId: turn.conversationId,
+            activity: activity
         )
     }
 
     @MainActor
+    internal func applyAutoTodoRuntimeIntent(
+        _ intent: String,
+        assistantMessageId: UUID,
+        providerId: String,
+        conversationId: UUID,
+        activity: TaskActivity? = nil,
+        outcome: ToolTraceTurnOutcome? = nil
+    ) {
+        var payload: [String: String] = [
+            "assistant_message_id": assistantMessageId.uuidString.lowercased(),
+            "provider_id": providerId,
+            "conversation_id": conversationId.uuidString.lowercased(),
+        ]
+        if let activity {
+            payload["activity_title"] = activity.title
+            payload["immediate_label"] = Self.immediateSubtitleLabel(for: activity)
+            for key in ["path", "file", "files", "query", "command"] {
+                if let value = activity.payload[key], !value.isEmpty {
+                    payload[key] = value
+                }
+            }
+        }
+        if let outcome {
+            payload["outcome"] = autoTodoOutcomeString(outcome)
+        }
+
+        let request = MainChatUIIntentRequestBridge(
+            schemaVersion: 1,
+            intent: intent,
+            state: RustMainChatStoreAdapter.uiState(
+                from: chatStore,
+                runtimeSnapshot: flowCoordinator.directRuntimeSnapshotState()
+                    ?? flowCoordinator.planRuntimeSnapshotState(),
+                selectedConversationId: conversationId,
+                draftText: inputText,
+                planPanelVisible: showPlanPanel,
+                followLive: isFollowingLive,
+                collapsedArtifactsByTurn: collapsedArtifactsByTurn,
+                autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage
+            ),
+            conversationId: conversationId.uuidString.lowercased(),
+            turnId: nil,
+            artifactId: nil,
+            text: nil,
+            timestamp: activity?.timestamp ?? Date(),
+            payload: payload
+        )
+
+        guard let response = RustMainChatStoreAdapter.applyUIIntent(request, to: chatStore) else { return }
+        autoTodoRuntimeStateByMessage = response.state?.autoTodoRuntimeStateByMessage
+            ?? autoTodoRuntimeStateByMessage
+        MainChatTodoPatchAdapter.apply(response.todoPatches, to: todoStore) { patch, conversationId, status, linkedFiles in
+            guard let todoId = patch.todoId.flatMap(UUID.init(uuidString:)),
+                  let title = patch.title,
+                  let providerId = patch.providerId
+            else {
+                return
+            }
+            emitAutoTodoTraceUpdate(
+                todoId: todoId,
+                title: title,
+                status: status,
+                notes: patch.notes ?? "",
+                linkedFiles: linkedFiles,
+                providerId: providerId,
+                conversationId: conversationId,
+                timestamp: patch.timestamp ?? .now
+            )
+        }
+    }
+
     internal func shouldTrackAutoTodo(
         for activity: TaskActivity,
         conversationId: UUID?
@@ -114,5 +132,16 @@ extension ChatPanelView {
             return false
         }
         return isOperationalTraceActivity(activity)
+    }
+
+    private func autoTodoOutcomeString(_ outcome: ToolTraceTurnOutcome) -> String {
+        switch outcome {
+        case .success:
+            return "success"
+        case .failed:
+            return "failed"
+        case .aborted:
+            return "aborted"
+        }
     }
 }

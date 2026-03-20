@@ -30,6 +30,8 @@ pub struct MainChatUiState {
     pub follow_live: bool,
     #[serde(default)]
     pub collapsed_artifact_ids_by_turn: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub auto_todo_runtime_state_by_message: BTreeMap<String, MainChatUiAutoTodoRuntimeState>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -141,6 +143,50 @@ pub struct MainChatUiPlanSnapshot {
     pub is_ready_to_build: bool,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatUiAutoTodoRuntimeState {
+    pub todo_id: String,
+    pub conversation_id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub active_form: String,
+    #[serde(default)]
+    pub linked_files: Vec<String>,
+    #[serde(default)]
+    pub operation_count: i32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum MainChatUiTodoMutation {
+    UpsertRuntimeTodo,
+    SetStatus,
+    RemoveTodo,
+    ClearMessageRuntimeState,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatUiTodoPatch {
+    pub mutation: Option<MainChatUiTodoMutation>,
+    pub todo_id: Option<String>,
+    pub assistant_message_id: Option<String>,
+    pub conversation_id: Option<String>,
+    pub provider_id: Option<String>,
+    pub title: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub notes: Option<String>,
+    pub active_form: Option<String>,
+    #[serde(default)]
+    pub linked_files: Vec<String>,
+    #[serde(default)]
+    pub should_emit_trace_update: bool,
+    pub timestamp: Option<f64>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MainChatUiSnapshot {
@@ -195,6 +241,8 @@ pub struct MainChatUiIntentResponse {
     pub error: Option<MainChatUiError>,
     pub state: Option<MainChatUiState>,
     pub snapshot: Option<MainChatUiSnapshot>,
+    #[serde(default)]
+    pub todo_patches: Vec<MainChatUiTodoPatch>,
 }
 
 impl MainChatUiProjectResponse {
@@ -216,7 +264,27 @@ impl MainChatUiProjectResponse {
 
 impl MainChatUiIntentResponse {
     pub fn success(state: MainChatUiState, snapshot: MainChatUiSnapshot) -> Self {
-        Self { schema_version: 1, error: None, state: Some(state), snapshot: Some(snapshot) }
+        Self {
+            schema_version: 1,
+            error: None,
+            state: Some(state),
+            snapshot: Some(snapshot),
+            todo_patches: Vec::new(),
+        }
+    }
+
+    pub fn success_with_patches(
+        state: MainChatUiState,
+        snapshot: MainChatUiSnapshot,
+        todo_patches: Vec<MainChatUiTodoPatch>,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            error: None,
+            state: Some(state),
+            snapshot: Some(snapshot),
+            todo_patches,
+        }
     }
 
     pub fn error(code: &str, message: &str) -> Self {
@@ -228,6 +296,7 @@ impl MainChatUiIntentResponse {
             }),
             state: None,
             snapshot: None,
+            todo_patches: Vec::new(),
         }
     }
 }

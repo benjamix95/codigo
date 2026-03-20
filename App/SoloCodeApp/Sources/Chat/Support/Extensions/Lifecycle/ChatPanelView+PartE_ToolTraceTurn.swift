@@ -111,8 +111,9 @@ extension ChatPanelView {
                 }
             }
             policyAckFailedMessages.remove(previous.assistantMessageId)
-            autoTodoIdByMessage.removeValue(forKey: previous.assistantMessageId)
-            autoTodoCompletedOperationsByMessage.removeValue(forKey: previous.assistantMessageId)
+            autoTodoRuntimeStateByMessage.removeValue(
+                forKey: previous.assistantMessageId.uuidString.lowercased()
+            )
             didReceiveExplicitTodoByMessage.remove(previous.assistantMessageId)
         }
         let turn = ToolTraceTurnContext(
@@ -124,8 +125,7 @@ extension ChatPanelView {
         toolTraceNextSequenceByMessage[assistantMessageId] = 1
         toolTraceOperationalSeenByMessage[assistantMessageId] = false
         toolTraceOperationalCountByMessage[assistantMessageId] = 0
-        autoTodoIdByMessage.removeValue(forKey: assistantMessageId)
-        autoTodoCompletedOperationsByMessage.removeValue(forKey: assistantMessageId)
+        autoTodoRuntimeStateByMessage.removeValue(forKey: assistantMessageId.uuidString.lowercased())
         didReceiveExplicitTodoByMessage.remove(assistantMessageId)
         if isSwarmPolicyAckExemptProvider(providerId) {
             policyAckStateByMessage.removeValue(forKey: assistantMessageId)

@@ -216,8 +216,7 @@ struct ChatPanelView: View {
     @State  var debugStateByConversation: [UUID: DebugStore.SessionSnapshot] = [:]
     /// Debug events received while another conversation is selected.
     @State  var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
-    @State  var autoTodoIdByMessage: [UUID: UUID] = [:]
-    @State  var autoTodoCompletedOperationsByMessage: [UUID: Int] = [:]
+    @State  var autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge] = [:]
     @State  var didReceiveExplicitTodoByMessage: Set<UUID> = []
     /// Minimum interval between streaming content updates.
     /// Adaptive: starts at ~60fps (0.016s) for fast LLMs, scales to ~30fps if needed.

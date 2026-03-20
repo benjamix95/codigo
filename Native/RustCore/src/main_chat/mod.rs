@@ -1,4 +1,6 @@
 mod artifacts;
+mod auto_todo;
+mod auto_todo_support;
 mod continuation;
 mod markers;
 mod persistence;

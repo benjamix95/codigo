@@ -171,6 +171,133 @@ fn ui_intent_apply_plan_runtime_action_projects_prompt_and_panel_state() {
     );
 }
 
+#[test]
+fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
+    let begin = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "auto_todo_begin_runtime".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(42.0),
+        payload: [
+            ("assistant_message_id".to_string(), "msg-1".to_string()),
+            ("provider_id".to_string(), "codex-cli".to_string()),
+            ("path".to_string(), "Sources/App.swift".to_string()),
+            ("immediate_label".to_string(), "Editing code".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    assert_eq!(begin.todo_patches.len(), 1);
+    assert_eq!(begin.todo_patches[0].title.as_deref(), Some("Complete changes on App.swift"));
+
+    let record = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "auto_todo_record_operation".to_string(),
+        state: begin.state.expect("state"),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(43.0),
+        payload: [
+            ("assistant_message_id".to_string(), "msg-1".to_string()),
+            ("provider_id".to_string(), "codex-cli".to_string()),
+            ("file".to_string(), "Tests/AppTests.swift".to_string()),
+            ("immediate_label".to_string(), "Editing code".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    let record_state = record.state.expect("state");
+    assert_eq!(
+        record_state
+            .auto_todo_runtime_state_by_message
+            .get("msg-1")
+            .map(|runtime| runtime.operation_count),
+        Some(1)
+    );
+    assert_eq!(
+        record.todo_patches[0].notes.as_deref(),
+        Some("Auto-generated: tracking live operational activity until the agent publishes an explicit todo.")
+    );
+
+    let finalize = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "auto_todo_finalize_runtime".to_string(),
+        state: record_state,
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(44.0),
+        payload: [
+            ("assistant_message_id".to_string(), "msg-1".to_string()),
+            ("provider_id".to_string(), "codex-cli".to_string()),
+            ("outcome".to_string(), "success".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    assert!(finalize
+        .state
+        .expect("state")
+        .auto_todo_runtime_state_by_message
+        .is_empty());
+    assert_eq!(finalize.todo_patches.len(), 2);
+    assert_eq!(finalize.todo_patches[0].status.as_deref(), Some("done"));
+}
+
+#[test]
+fn ui_intent_auto_todo_discard_clears_runtime_state() {
+    let begin = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "auto_todo_begin_runtime".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(42.0),
+        payload: [
+            ("assistant_message_id".to_string(), "msg-1".to_string()),
+            ("provider_id".to_string(), "codex-cli".to_string()),
+            ("command".to_string(), "rg TODO Sources/".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    let discard = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "auto_todo_discard_runtime".to_string(),
+        state: begin.state.expect("state"),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(43.0),
+        payload: [
+            ("assistant_message_id".to_string(), "msg-1".to_string()),
+            ("provider_id".to_string(), "codex-cli".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    assert!(discard
+        .state
+        .expect("state")
+        .auto_todo_runtime_state_by_message
+        .is_empty());
+    assert_eq!(discard.todo_patches.len(), 2);
+    assert_eq!(
+        discard.todo_patches[0].mutation,
+        Some(app_core_protocol::main_chat_ui::MainChatUiTodoMutation::RemoveTodo)
+    );
+}
+
 fn base_ui_state() -> MainChatUiState {
     MainChatUiState {
         store_snapshot: MainChatStoreSnapshot {
@@ -286,5 +413,6 @@ fn base_ui_state() -> MainChatUiState {
         plan_panel_visible: false,
         follow_live: true,
         collapsed_artifact_ids_by_turn: Default::default(),
+        auto_todo_runtime_state_by_message: Default::default(),
     }
 }

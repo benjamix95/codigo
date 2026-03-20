@@ -123,6 +123,48 @@ fn ffi_ui_handle_intent_plan_questions_raise_epoch_and_open_panel() {
     );
 }
 
+#[test]
+fn ffi_ui_handle_intent_auto_todo_begin_and_discard_emit_patches() {
+    let runtime = load_runtime();
+    let begin = call_intent(&runtime, MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "auto_todo_begin_runtime".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(2.0),
+        payload: [
+            ("assistant_message_id".to_string(), "00000000-0000-0000-0000-000000000002".to_string()),
+            ("provider_id".to_string(), "codex-cli".to_string()),
+            ("path".to_string(), "Sources/App.swift".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    assert_eq!(begin.todo_patches.len(), 1);
+    assert_eq!(begin.todo_patches[0].title.as_deref(), Some("Complete changes on App.swift"));
+
+    let discard = call_intent(&runtime, MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "auto_todo_discard_runtime".to_string(),
+        state: begin.state.expect("state"),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(3.0),
+        payload: [
+            ("assistant_message_id".to_string(), "00000000-0000-0000-0000-000000000002".to_string()),
+            ("provider_id".to_string(), "codex-cli".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    });
+    assert_eq!(discard.todo_patches.len(), 2);
+}
+
 fn call_project(runtime: &LoadedRuntime, request: MainChatUiProjectRequest) -> MainChatUiProjectResponse {
     let raw_request = CString::new(serde_json::to_string(&request).expect("encode request"))
         .expect("request cstring");
@@ -274,5 +316,6 @@ fn base_ui_state() -> MainChatUiState {
         plan_panel_visible: false,
         follow_live: true,
         collapsed_artifact_ids_by_turn: Default::default(),
+        auto_todo_runtime_state_by_message: Default::default(),
     }
 }
