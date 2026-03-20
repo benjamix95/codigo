@@ -1,5 +1,8 @@
+use crate::main_chat::apply_event;
 use crate::main_chat::state::{ensure_direct_stream_defaults, reset_output};
+use app_core_protocol::main_chat::{MainChatEvent, MainChatEventKind};
 use app_core_protocol::main_chat_runtime::MainChatRuntimeSnapshot;
+use std::collections::BTreeMap;
 
 pub fn start_direct_stream(
     mut snapshot: MainChatRuntimeSnapshot,
@@ -76,11 +79,65 @@ pub fn handle_direct_stream_timeout(
     snapshot
 }
 
+pub fn apply_direct_stream_provider_event(
+    mut snapshot: MainChatRuntimeSnapshot,
+    timestamp: Option<f64>,
+    provider_id: Option<String>,
+    event_kind: Option<&str>,
+    payload: BTreeMap<String, String>,
+) -> MainChatRuntimeSnapshot {
+    let event_kind = event_kind.unwrap_or("other");
+    if let Some(provider_id) = provider_id.clone() {
+        snapshot.turn_state.provider_id = Some(provider_id);
+    }
+
+    snapshot = register_direct_stream_event(
+        snapshot,
+        timestamp,
+        matches!(event_kind, "textDelta" | "textReplace"),
+    );
+
+    let Some(main_chat_event_kind) = provider_event_kind(event_kind) else {
+        return snapshot;
+    };
+
+    let source = provider_id
+        .or_else(|| snapshot.turn_state.provider_id.clone())
+        .unwrap_or_else(|| "main-chat".to_string());
+    let event_timestamp = timestamp.unwrap_or(snapshot.turn_state.updated_at.unwrap_or(0.0));
+    let sequence = snapshot.turn_state.sequence + 1;
+    let event = MainChatEvent {
+        id: format!("{}:{event_kind}:{sequence}", snapshot.turn_state.turn_id),
+        conversation_id: snapshot.turn_state.conversation_id.clone(),
+        assistant_message_id: snapshot.turn_state.assistant_message_id.clone(),
+        turn_id: snapshot.turn_state.turn_id.clone(),
+        sequence,
+        source,
+        kind: main_chat_event_kind,
+        payload,
+        timestamp: event_timestamp,
+    };
+    snapshot.turn_state = apply_event(snapshot.turn_state, &event);
+    snapshot
+}
+
+fn provider_event_kind(event_kind: &str) -> Option<MainChatEventKind> {
+    match event_kind {
+        "textDelta" => Some(MainChatEventKind::TextDelta),
+        "textReplace" => Some(MainChatEventKind::TextReplace),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{handle_direct_stream_timeout, register_direct_stream_event, start_direct_stream};
+    use super::{
+        apply_direct_stream_provider_event, handle_direct_stream_timeout,
+        register_direct_stream_event, start_direct_stream,
+    };
     use app_core_protocol::main_chat::MainChatTurnState;
     use app_core_protocol::main_chat_runtime::MainChatRuntimeSnapshot;
+    use std::collections::BTreeMap;
 
     #[test]
     fn initial_timeout_retries_before_failing() {
@@ -99,6 +156,28 @@ mod tests {
         assert_eq!(direct.initial_retry_count, 0);
         assert_eq!(direct.stall_retry_count, 0);
         assert!(direct.emitted_first_text);
+    }
+
+    #[test]
+    fn provider_text_delta_updates_turn_state_in_rust() {
+        let snapshot = start_direct_stream(base_snapshot(), Some(1.0), Some("codex".to_string()));
+        let snapshot = apply_direct_stream_provider_event(
+            snapshot,
+            Some(2.0),
+            Some("codex".to_string()),
+            Some("textDelta"),
+            BTreeMap::from([
+                ("delta".to_string(), "ciao".to_string()),
+                ("stream_id".to_string(), "main".to_string()),
+            ]),
+        );
+        let direct = snapshot.direct_stream.expect("direct");
+        assert!(direct.has_received_any_event);
+        assert!(direct.emitted_first_text);
+        assert_eq!(
+            snapshot.turn_state.text_by_stream_id.get("main").map(String::as_str),
+            Some("ciao")
+        );
     }
 
     fn base_snapshot() -> MainChatRuntimeSnapshot {

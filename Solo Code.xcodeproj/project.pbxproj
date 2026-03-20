@@ -1025,7 +1025,6 @@
 		9B4D808F8773DADD4B79D48D /* MCPLifecycleRustModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DC3DF0167BCBA876E2C1D1 /* MCPLifecycleRustModels.swift */; };
 		9B63DEBCD054374BFF713C38 /* ValidationMetricsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABDF7C0CAF56C671FB07DE5E /* ValidationMetricsStore.swift */; };
 		9B696C65684D0B2A72A983A2 /* SymbolExtractor+Go.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36D6B875541E6CAB1DCA873 /* SymbolExtractor+Go.swift */; };
-		9B75EC9C99FC16A8FB1C1CC0 /* DebugProjectionStoreBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63679A915F58596D1C29B69C /* DebugProjectionStoreBinding.swift */; };
 		9BCD4E0151DC06F01913BB40 /* EventNormalizerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068C13E9232180685D79A0F8 /* EventNormalizerModels.swift */; };
 		9C5C224A49554851C81A1366 /* DependencyKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15407EDFBA687C16103E02E0 /* DependencyKind.swift */; };
 		9C706D3F16D0C54F2DBE7887 /* ChatAutoTodoSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D4986BD71C00B42ED0A8BB /* ChatAutoTodoSupportTests.swift */; };
@@ -2414,7 +2413,6 @@
 		6334DB50ABFA07CED2C00BBE /* ReviewPanelCommandsTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelCommandsTab.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Commands/ReviewPanelCommandsTab.swift; sourceTree = "<group>"; };
 		6334E58308D1F0415563C4D2 /* OpenAIAPIProvider+ResponsesWebSocket.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "OpenAIAPIProvider+ResponsesWebSocket.swift"; path = "Engine/CoderEngine/Sources/ProviderBackends/OpenAI/Streaming/OpenAIAPIProvider+ResponsesWebSocket.swift"; sourceTree = "<group>"; };
 		633558BF8F59DA6555FAC3EB /* AppUpdateCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppUpdateCenter.swift; path = App/SoloCodeApp/Sources/Services/AppUpdateCenter/AppUpdateCenter.swift; sourceTree = "<group>"; };
-		63679A915F58596D1C29B69C /* DebugProjectionStoreBinding.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DebugProjectionStoreBinding.swift; path = App/SoloCodeApp/Sources/Runtime/DebugPipeline/DebugProjectionStoreBinding.swift; sourceTree = "<group>"; };
 		63AAD557E18B145C05D0A1FC /* SemanticDiffEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SemanticDiffEngineTests.swift; path = Tests/CoderEngineTests/Pipeline/Review/SemanticDiffEngineTests.swift; sourceTree = "<group>"; };
 		63D244D25B00FCEB78FC0BDD /* ThreadProviderSelectionServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ThreadProviderSelectionServiceTests.swift; path = Tests/SoloCodeAppTests/ThreadProviderSelectionServiceTests.swift; sourceTree = "<group>"; };
 		644157E64BF0348E10A4353C /* MonacoRuntimeAssetResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MonacoRuntimeAssetResolver.swift; path = App/SoloCodeApp/Sources/Editor/Bridge/MonacoRuntimeAssetResolver.swift; sourceTree = "<group>"; };
@@ -4007,7 +4005,6 @@
 				006D87E0242105473AD3503F /* ChatPanelView+DebugPipelineIntents.swift */,
 				CEC7915CF509D2A49139F10D /* ChatPanelView+DebugPipelineNativeIntents.swift */,
 				86161996D94B8CD83AD81585 /* DebugProjectionEventConsumer.swift */,
-				63679A915F58596D1C29B69C /* DebugProjectionStoreBinding.swift */,
 				95DE643653085CDB7705C4AE /* DebugNativePipelineBackends.swift */,
 				B20CADB3C91734740E71846F /* DebugNativePipelineExecutor.swift */,
 				30FEFD14AC45361D879AA2A6 /* DebugNativePipelineModels.swift */,
@@ -6870,7 +6867,6 @@
 				74D88D67C3B71801B02EB699 /* ChatPanelView+DebugPipelineIntents.swift in Sources */,
 				E936A8CF216A97C07D3A8FE7 /* ChatPanelView+DebugPipelineNativeIntents.swift in Sources */,
 				0F2C21D11AFE3B5E9C9A337D /* DebugProjectionEventConsumer.swift in Sources */,
-				9B75EC9C99FC16A8FB1C1CC0 /* DebugProjectionStoreBinding.swift in Sources */,
 				3ED9C28A8932893023337414 /* DebugNativePipelineBackends.swift in Sources */,
 				8DD35EF4FCEC7958E609713D /* DebugNativePipelineExecutor.swift in Sources */,
 				A9CD2BC3D3984EA445C3A504 /* DebugNativePipelineModels.swift in Sources */,

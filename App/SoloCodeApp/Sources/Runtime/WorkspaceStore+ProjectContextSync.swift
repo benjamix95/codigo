@@ -107,16 +107,8 @@ final class ConversationFlowCoordinator: ObservableObject {
             turnId: provider.id,
             timestamp: streamStartedAt
         ) else {
-            return try await runStreamLegacy(
-                provider: provider,
-                prompt: prompt,
-                context: context,
-                attachments: attachments,
-                onText: onText,
-                onRaw: onRaw,
-                onError: onError,
-                onSignal: onSignal
-            )
+            await setState(.error)
+            throw StreamExecutionError.providerError("Rust main chat direct stream runtime unavailable.")
         }
 
         setDirectRuntimeSnapshot(directRuntimeStart)
@@ -142,12 +134,13 @@ final class ConversationFlowCoordinator: ObservableObject {
                     pendingTask: activeTask
                 )
                 pendingNextTask = nil
-            } catch let timeoutError as StreamWatchdogError {
+            } catch is StreamWatchdogError {
                 guard let timeoutSnapshot = handleDirectRuntimeTimeout(
                     timestamp: Date(),
                     isInitialPoll: !runtimeSnapshot.hasReceivedAnyEvent
                 ) else {
-                    throw timeoutError
+                    await setState(.error)
+                    throw StreamExecutionError.providerError("Rust main chat direct stream timeout runtime unavailable.")
                 }
                 runtimeSnapshot = timeoutSnapshot
                 setDirectRuntimeSnapshot(timeoutSnapshot)
@@ -155,47 +148,43 @@ final class ConversationFlowCoordinator: ObservableObject {
                     await Task.yield()
                     continue
                 }
+                let message = timeoutSnapshot.output?.terminalError
+                    ?? "Rust main chat direct stream timed out."
                 await setState(.error)
-                throw timeoutError
+                throw StreamExecutionError.providerError(message)
             }
 
             guard let event = maybeEvent else { break }
             let hadAnyEvent = runtimeSnapshot.hasReceivedAnyEvent
             let hadFirstText = runtimeSnapshot.emittedFirstText
-            if let nextSnapshot = registerDirectRuntimeEvent(
-                timestamp: Date(),
-                eventKind: Self.runtimeEventKind(event)
-            ) {
-                runtimeSnapshot = nextSnapshot
-                setDirectRuntimeSnapshot(nextSnapshot)
+            let eventTimestamp = Date()
+            guard let nextSnapshot = applyDirectRuntimeProviderEvent(
+                timestamp: eventTimestamp,
+                providerId: provider.id,
+                eventKind: Self.runtimeEventKind(event),
+                payload: Self.runtimePayload(event)
+            ) else {
+                await setState(.error)
+                throw StreamExecutionError.providerError("Rust main chat direct stream event reducer unavailable.")
             }
+            runtimeSnapshot = nextSnapshot
+            setDirectRuntimeSnapshot(nextSnapshot)
+            turnState = nextSnapshot.turnState.chatTurnState
             if !hadAnyEvent, runtimeSnapshot.hasReceivedAnyEvent {
-                await MainActor.run { onSignal?(.firstEvent(Date())) }
+                await MainActor.run { onSignal?(.firstEvent(eventTimestamp)) }
             }
 
             switch event {
             case .started:
                 break
             case .textDelta(let delta):
-                turnState = applyDirectRuntimeStreamEvent(
-                    fallbackState: turnState,
-                    kind: .textDelta,
-                    payload: ["delta": delta, "stream_id": "main"],
-                    source: provider.id
-                )
                 if !hadFirstText, runtimeSnapshot.emittedFirstText {
-                    await MainActor.run { onSignal?(.firstTextDelta(Date())) }
+                    await MainActor.run { onSignal?(.firstTextDelta(eventTimestamp)) }
                 }
                 await MainActor.run { onText(turnState.primaryTextSnapshot) }
             case .textReplace(let replacement):
-                turnState = applyDirectRuntimeStreamEvent(
-                    fallbackState: turnState,
-                    kind: .textReplace,
-                    payload: ["replacement": replacement, "stream_id": "main"],
-                    source: provider.id
-                )
                 if !hadFirstText, runtimeSnapshot.emittedFirstText {
-                    await MainActor.run { onSignal?(.firstTextDelta(Date())) }
+                    await MainActor.run { onSignal?(.firstTextDelta(eventTimestamp)) }
                 }
                 await MainActor.run { onText(turnState.primaryTextSnapshot) }
             case .raw(let type, let payload):
@@ -246,38 +235,34 @@ final class ConversationFlowCoordinator: ObservableObject {
         return turnState.primaryTextSnapshot
     }
 
-    private static func runtimeEventKind(_ event: StreamEvent) -> MainChatRuntimeEventKind {
+    private static func runtimeEventKind(_ event: StreamEvent) -> String {
         switch event {
         case .textDelta, .textReplace:
-            return .text
+            return event.isReplace ? "textReplace" : "textDelta"
         case .started:
-            return .started
+            return "started"
         case .completed:
-            return .completed
+            return "completed"
         case .error:
-            return .error
+            return "error"
         case .raw:
-            return .raw
+            return "raw"
         }
     }
 
-    private func applyDirectRuntimeStreamEvent(
-        fallbackState: ChatTurnState,
-        kind: ChatPipelineEventKind,
-        payload: [String: String],
-        source: String
-    ) -> ChatTurnState {
-        let event = ChatPipelineEvent(
-            conversationId: fallbackState.conversationId,
-            assistantMessageId: fallbackState.assistantMessageId,
-            turnId: fallbackState.turnId,
-            sequence: fallbackState.sequence + 1,
-            source: source,
-            kind: kind,
-            payload: payload
-        )
-        return MainChatRustBridge.reduce(state: fallbackState, event: event)
-            ?? ChatPipelineReducer.apply(state: fallbackState, event: event)
+    private static func runtimePayload(_ event: StreamEvent) -> [String: String] {
+        switch event {
+        case .textDelta(let delta):
+            return ["delta": delta, "stream_id": "main"]
+        case .textReplace(let replacement):
+            return ["replacement": replacement, "stream_id": "main"]
+        case .raw(_, let payload):
+            return payload
+        case .error(let message):
+            return ["error": message]
+        case .started, .completed:
+            return [:]
+        }
     }
 }
 
@@ -287,5 +272,14 @@ private extension MainChatRuntimeSnapshotBridge {
     var currentPollTimeoutSeconds: Int? {
         guard let directStream else { return nil }
         return directStream.hasReceivedAnyEvent ? directStream.activityTimeoutSec : directStream.firstEventTimeoutSec
+    }
+}
+
+private extension StreamEvent {
+    var isReplace: Bool {
+        if case .textReplace = self {
+            return true
+        }
+        return false
     }
 }

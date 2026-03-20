@@ -1,5 +1,6 @@
 use crate::main_chat::{MainChatBridgeError, MainChatEvent, MainChatTurnState};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -111,6 +112,9 @@ pub struct MainChatRuntimeActionRequest {
     pub option_full_texts: Vec<String>,
     pub should_run_inline: Option<bool>,
     pub is_initial_poll: Option<bool>,
+    pub event_kind: Option<String>,
+    #[serde(default)]
+    pub payload: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]

@@ -1,15 +1,6 @@
 import Foundation
 import CoderEngine
 
-enum MainChatRuntimeEventKind {
-    case started
-    case text
-    case raw
-    case completed
-    case error
-    case other
-}
-
 struct MainChatRuntimeSnapshotBridge: Codable { var turnState: MainChatBridgeState; var mode: MainChatRuntimeModeBridge?; var directStream: MainChatDirectStreamSnapshotBridge?; var plan: MainChatPlanSnapshotBridge?; var output: MainChatRuntimeOutputBridge? }
 enum MainChatRuntimeModeBridge: String, Codable { case agent, directStream, plan }
 enum MainChatPlanPhaseBridge: String, Codable { case idle, analyzing, questioning, generating, proposalReady, readyToBuild, building }
@@ -32,6 +23,8 @@ private struct MainChatRuntimeActionBridgeRequest: Encodable {
     let optionFullTexts: [String]
     let shouldRunInline: Bool?
     let isInitialPoll: Bool?
+    let eventKind: String?
+    let payload: [String: String]
 }
 
 private struct MainChatRuntimeActionBridgeResponse: Decodable {
@@ -56,16 +49,10 @@ actor IteratorHolder<Stream: AsyncSequence> {
 }
 
 enum StreamWatchdogError: LocalizedError {
-    case noEvents(timeout: Int)
-    case stalled(timeout: Int)
+    case timeout
 
     var errorDescription: String? {
-        switch self {
-        case .noEvents(let timeout):
-            return "No events received from provider within \(timeout)s."
-        case .stalled(let timeout):
-            return "Stream stalled: no updates for \(timeout)s."
-        }
+        "Stream watchdog timed out."
     }
 }
 
@@ -116,15 +103,19 @@ extension ConversationFlowCoordinator {
         )
     }
 
-    func registerDirectRuntimeEvent(
+    func applyDirectRuntimeProviderEvent(
         timestamp: Date,
-        eventKind: MainChatRuntimeEventKind
+        providerId: String,
+        eventKind: String,
+        payload: [String: String]
     ) -> MainChatRuntimeSnapshotBridge? {
         callRuntimeAction(
-            action: "direct_stream_event_received",
+            action: "direct_stream_apply_provider_event",
             snapshot: directRuntimeSnapshotState() ?? planRuntimeSnapshotState(),
             timestamp: timestamp,
-            status: eventKind == .text ? "text" : "other"
+            providerId: providerId,
+            eventKind: eventKind,
+            payload: payload
         )
     }
 
@@ -179,7 +170,9 @@ extension ConversationFlowCoordinator {
         planContent: String? = nil,
         optionFullTexts: [String] = [],
         shouldRunInline: Bool? = nil,
-        isInitialPoll: Bool? = nil
+        isInitialPoll: Bool? = nil,
+        eventKind: String? = nil,
+        payload: [String: String] = [:]
     ) -> MainChatRuntimeSnapshotBridge? {
         guard let snapshot else { return nil }
         let response: MainChatRuntimeActionBridgeResponse? = ReviewCoreBridge.call(
@@ -197,7 +190,9 @@ extension ConversationFlowCoordinator {
                 planContent: planContent,
                 optionFullTexts: optionFullTexts,
                 shouldRunInline: shouldRunInline,
-                isInitialPoll: isInitialPoll
+                isInitialPoll: isInitialPoll,
+                eventKind: eventKind,
+                payload: payload
             )
         )
         return response?.error == nil ? response?.runtimeSnapshot : nil
@@ -216,56 +211,16 @@ extension ConversationFlowCoordinator {
                 let safeTimeout = max(1, timeout)
                 try await Task.sleep(nanoseconds: UInt64(safeTimeout) * 1_000_000_000)
                 throw isInitialPoll
-                    ? StreamWatchdogError.noEvents(timeout: timeout)
-                    : StreamWatchdogError.stalled(timeout: timeout)
+                    ? StreamWatchdogError.timeout
+                    : StreamWatchdogError.timeout
             }
             do {
                 guard let value = try await group.next() else {
-                    throw StreamWatchdogError.stalled(timeout: timeout)
+                    throw StreamWatchdogError.timeout
                 }
                 group.cancelAll()
                 return value
             }
         }
-    }
-
-    func logStreamDiagnostic(_ message: String) {
-        NSLog("[StreamDiag] %@", message)
-    }
-
-    func runStreamLegacy(
-        provider: any LLMProvider,
-        prompt: String,
-        context: WorkspaceContext,
-        attachments: [LLMAttachment]?,
-        onText: @escaping (String) -> Void,
-        onRaw: @escaping (String, [String: String], String) -> Void,
-        onError: @escaping (String) -> Void,
-        onSignal: ((ConversationFlowCoordinator.StreamSignal) -> Void)?
-    ) async throws -> String {
-        var fullText = ""
-        let stream = try await provider.send(prompt: prompt, context: context, attachments: attachments)
-        for try await event in stream {
-            switch event {
-            case .started:
-                await MainActor.run { onSignal?(.streamStarted(Date())) }
-            case .textDelta(let delta):
-                fullText += delta
-                await MainActor.run { onText(fullText) }
-            case .textReplace(let replacement):
-                fullText = replacement
-                await MainActor.run { onText(fullText) }
-            case .raw(let type, let payload):
-                await MainActor.run { onRaw(type, payload, provider.id) }
-            case .error(let message):
-                let snapshot = fullText + "\n\n[Error: \(message)]"
-                await MainActor.run { onError(snapshot) }
-                throw ConversationFlowCoordinator.StreamExecutionError.providerError(message)
-            case .completed:
-                await MainActor.run { onSignal?(.streamCompleted(Date())) }
-                return fullText
-            }
-        }
-        return fullText
     }
 }

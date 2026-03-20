@@ -2,7 +2,8 @@ use crate::main_chat::apply_event;
 use crate::main_chat::continuation::prepare_auto_continuation;
 use crate::main_chat::plan_runtime::handle_plan_action;
 use crate::main_chat::stream_runtime::{
-    handle_direct_stream_timeout, register_direct_stream_event, start_direct_stream,
+    apply_direct_stream_provider_event, handle_direct_stream_timeout, register_direct_stream_event,
+    start_direct_stream,
 };
 use app_core_protocol::main_chat::{
     MainChatActionRequest, MainChatEvent, MainChatEventKind, MainChatFinishRequest,
@@ -147,6 +148,13 @@ pub fn handle_runtime_action(request: MainChatRuntimeActionRequest) -> MainChatR
         "direct_stream_timeout" => handle_direct_stream_timeout(
             request.snapshot,
             request.is_initial_poll.unwrap_or(false),
+        ),
+        "direct_stream_apply_provider_event" => apply_direct_stream_provider_event(
+            request.snapshot,
+            request.timestamp,
+            request.provider_id,
+            request.event_kind.as_deref(),
+            request.payload,
         ),
         "direct_stream_prepare_continuation" => prepare_auto_continuation(
             request.snapshot,

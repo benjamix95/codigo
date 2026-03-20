@@ -28,15 +28,15 @@ cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutov
 
 ## Risultato osservato
 - `240` file Swift scansionati
-- `45` file allowlist UI/bootstrap o binding adapter
-- `195` file Swift legacy non-UI nel dominio
-- `195` file legacy anche nei prefissi enforced del tranche gate
+- `48` file allowlist UI/bootstrap o binding adapter
+- `192` file Swift legacy non-UI nel dominio
+- `192` file legacy anche nei prefissi enforced del tranche gate
 
 ## Breakdown per dominio
 - `App/SoloCodeApp/Sources/Chat`: `115`
 - `App/SoloCodeApp/Sources/Accounts`: `34`
 - `Engine/CoderEngine/Sources/Providers`: `33`
-- `App/SoloCodeApp/Sources/Runtime`: `13`
+- `App/SoloCodeApp/Sources/Runtime`: `10`
 - `App/SoloCodeApp/Sources/Settings/ProviderFactory/Providers`: `0`
 - `Engine/CoderEngine/Sources/Pipeline`: `0`
 
@@ -73,4 +73,7 @@ cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutov
 - eventuali file UI/bootstrap/binding adapter devono essere giustificati tramite allowlist, non esclusi informalmente
 - aggiornamento del 2026-03-20:
   - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/**` e' stato riclassificato come `binding_adapter`
-  - il progresso strutturale osservato rispetto al baseline canonico iniziale e' `3/198`, pari a `1.5%`
+  - `App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift` e' stato riclassificato come `binding_adapter` dopo il cutover Rust-only del direct stream
+  - `App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift` e' stato riclassificato come `binding_adapter` dopo la rimozione del fallback Swift dal direct stream
+  - `App/SoloCodeApp/Sources/Runtime/DebugPipeline/DebugProjectionStoreBinding.swift` e' stato assorbito in `DebugProjectionEventConsumer.swift`, rimuovendo un file Swift residuo dal prefisso `Runtime`
+  - il progresso strutturale osservato rispetto al baseline canonico iniziale e' `6/198`, pari a `3.0%`

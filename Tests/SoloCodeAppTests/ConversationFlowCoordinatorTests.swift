@@ -4,6 +4,22 @@ import CoderEngine
 
 @MainActor
 final class ConversationFlowCoordinatorTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        unsetenv("SOLOCODE_REVIEW_CORE_DISABLE_RUST")
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        unsetenv("SOLOCODE_REVIEW_CORE_DISABLE_RUST")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
     func testRunStreamCallsOnTextIncrementallyForEachDelta() async throws {
         let provider = MockStreamingProvider(events: [
             .started,
@@ -152,6 +168,36 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshots, ["late"])
         XCTAssertEqual(result, "late")
         XCTAssertEqual(coordinator.state, .completed)
+    }
+
+    func testRunStreamFailsClosedWhenRustRuntimeIsForcedOff() async {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        let provider = MockStreamingProvider(events: [.started, .textDelta("ciao"), .completed])
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        do {
+            _ = try await coordinator.runStream(
+                provider: provider,
+                prompt: "test",
+                context: ctx,
+                attachments: nil,
+                onText: { _ in },
+                onRaw: { _, _, _ in },
+                onError: { _ in }
+            )
+            XCTFail("Expected Rust-only direct runtime to fail closed when Rust is forced off")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Rust main chat direct stream runtime unavailable"))
+        }
+
+        XCTAssertEqual(coordinator.state, .error)
     }
 }
 
