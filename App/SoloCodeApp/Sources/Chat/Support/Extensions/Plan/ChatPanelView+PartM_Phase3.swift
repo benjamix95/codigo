@@ -20,7 +20,11 @@ extension ChatPanelView {
                     planQuestionToolEpoch(for: conversationId)
                 )
             }
-            planFlowPhase = .generating
+            _ = planRuntimeAction(
+                "plan_prepare_phase3_generation_prompt",
+                text: planUserRequest,
+                shouldRunInline: shouldRunPlanInline
+            )
             let generationAssistantMessageId = UUID()
             chatStore.addMessage(
                 ChatMessage(id: generationAssistantMessageId, role: .assistant, content: "", isStreaming: true),
@@ -99,17 +103,18 @@ extension ChatPanelView {
 
         var full = generationResult
 
-        // Phase 3 clarification fallback: if the LLM flagged critical ambiguities
-        // via a `## Clarifications Needed` section, route back to questioning instead
-        // of producing a potentially incorrect plan.
-        if planClarificationCycles < 2,
-           let clarificationsText = clarificationsNeededSection(from: full)
+        var generationRuntimeSnapshot = planRuntimeAction(
+            "plan_apply_generation_result",
+            text: full,
+            shouldRunInline: shouldRunPlanInline
+        )
+
+        if let runtimeSnapshot = generationRuntimeSnapshot,
+           runtimeSnapshot.plan?.planningStateKind == .awaitingClarification,
+           let clarificationsText = runtimeSnapshot.plan?.clarificationQuestions
         {
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
-                planClarificationCycles += 1
-                planFlowPhase = .questioning
-                planningState = .awaitingClarification(questions: clarificationsText)
                 updatePlanStreamingContent(full, conversationId: conversationId)
                 chatStore.updateLastAssistantMessage(
                     content: "Additional clarifications needed — answer in the plan panel.",
@@ -134,7 +139,9 @@ extension ChatPanelView {
         // Hard enforcement: every option must contain an explicit `## Todo` section.
         let maxRepairAttempts = 2
         var repairAttempt = 0
-        while !areAllOptionsTodoCompliant(options), repairAttempt < maxRepairAttempts {
+        while !areAllOptionsTodoCompliant(options),
+              repairAttempt < maxRepairAttempts,
+              generationRuntimeSnapshot?.output?.generatedPrompt != nil {
             repairAttempt += 1
 
             await MainActor.run {
@@ -175,6 +182,11 @@ extension ChatPanelView {
 
             full = repairedResult
             options = parsePlanOptions(full)
+            generationRuntimeSnapshot = planRuntimeAction(
+                "plan_apply_generation_result",
+                text: full,
+                shouldRunInline: shouldRunPlanInline
+            )
         }
 
         await MainActor.run {
@@ -247,8 +259,12 @@ extension ChatPanelView {
                 guard self.conversationId == conversationId else {
                     return
                 }
-                planFlowPhase = .proposalReady
-                planningState = .awaitingChoice(planContent: full, options: compliantOptions)
+                _ = planRuntimeAction(
+                    "plan_store_proposal",
+                    planContent: full,
+                    optionFullTexts: compliantOptions.map(\.fullText),
+                    shouldRunInline: shouldRunPlanInline
+                )
                 if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
                     openPlanPanelForCurrentContext(
                         preserveHistorySelection: false,
@@ -268,8 +284,10 @@ extension ChatPanelView {
                     currentConversationId: self.conversationId
                 ) else { return }
                 clearPlanStreamingState()
-                planFlowPhase = .idle
-                planningState = .idle
+                _ = planRuntimeAction(
+                    "plan_reset",
+                    shouldRunInline: shouldRunPlanInline
+                )
             }
         }
     }

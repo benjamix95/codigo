@@ -42,8 +42,13 @@ extension ChatPanelView {
             )
 
             let screeningText = screeningResult.trimmingCharacters(in: .whitespacesAndNewlines)
-            let screeningDecision = parsePlanScreeningDecision(from: screeningText)
-            let screeningStatus = planScreeningStatusMessage(for: screeningDecision)
+            let screeningSnapshot = planRuntimeAction(
+                "plan_apply_screening_result",
+                text: screeningText,
+                shouldRunInline: shouldRunPlanInline
+            )
+            let screeningStatus = screeningSnapshot?.output?.chatContentOverride
+                ?? planScreeningStatusMessage(for: parsePlanScreeningDecision(from: screeningText))
 
             // Finalize screening in chat and open plan panel
             await MainActor.run {
@@ -80,7 +85,7 @@ extension ChatPanelView {
         // ========================
         let shouldStartPhase1 = await MainActor.run { () -> Bool in
             guard self.conversationId == conversationId else { return false }
-            planFlowPhase = .analyzing
+            _ = planRuntimeAction("plan_prepare_phase1_analysis_prompt", text: planUserRequest, shouldRunInline: shouldRunPlanInline)
             clearPlanStreamingState()
             return true
         }
@@ -113,10 +118,12 @@ extension ChatPanelView {
         )
 
         let analysisText = analysisResult.trimmingCharacters(in: .whitespacesAndNewlines)
-        let shouldRequestClarifications = shouldAskPlanClarifications(
-            analysisText: analysisText,
-            userRequest: planUserRequest
+        let analysisRuntimeSnapshot = planRuntimeAction(
+            "plan_apply_analysis_result",
+            text: analysisText,
+            shouldRunInline: shouldRunPlanInline
         )
+        let shouldRequestClarifications = analysisRuntimeSnapshot?.plan?.phase == .questioning
 
         await MainActor.run {
             guard self.conversationId == conversationId else { return }
@@ -169,7 +176,7 @@ extension ChatPanelView {
                 )
             }
             clearPlanStreamingState()
-            planFlowPhase = .questioning
+            _ = planRuntimeAction("plan_prepare_phase2_questions_prompt", text: planUserRequest, shouldRunInline: shouldRunPlanInline)
             let questionAssistantMessageId = UUID()
             chatStore.addMessage(
                 ChatMessage(id: questionAssistantMessageId, role: .assistant, content: "", isStreaming: true),
@@ -232,21 +239,22 @@ extension ChatPanelView {
             return
         }
 
-        let questionDecision = decidePlanQuestionPhaseOutput(
-            questionText,
-            coderMode: coderMode,
-            shouldRunPlanInline: shouldRunPlanInline
+        let questionRuntimeSnapshot = planRuntimeAction(
+            "plan_apply_question_result",
+            text: questionText,
+            shouldRunInline: shouldRunPlanInline
         )
 
-        if case .clarification(let questions) = questionDecision {
+        if let questionRuntimeSnapshot,
+           questionRuntimeSnapshot.plan?.planningStateKind == .awaitingClarification,
+           let questions = questionRuntimeSnapshot.plan?.clarificationQuestions {
             // Parse questions and pause for user input
             await MainActor.run {
                 guard shouldMutatePlanState(
                     targetConversationId: conversationId,
                     currentConversationId: self.conversationId
                 ) else { return }
-                planClarificationCycles += 1
-                planningState = .awaitingClarification(questions: questions)
+                _ = planRuntimeAction("plan_receive_clarification_questions", questions: questions, shouldRunInline: shouldRunPlanInline)
                 updatePlanStreamingContent(questionText, conversationId: conversationId)
                 chatStore.updateLastAssistantMessage(
                     content: "Questions ready — answer in the plan panel.",
@@ -265,8 +273,6 @@ extension ChatPanelView {
             finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
             return
         }
-
-        // No structured clarification questions — proceed directly to Phase 3.
         finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
         let phase2Summary = hasNoQuestionsNeededSignal(questionText)
             ? "No questions needed. Generating plan..."
@@ -276,7 +282,7 @@ extension ChatPanelView {
                 targetConversationId: conversationId,
                 currentConversationId: self.conversationId
             ) else { return }
-            planningState = .idle
+            _ = planRuntimeAction("plan_prepare_phase3_generation_prompt", text: planUserRequest, shouldRunInline: shouldRunPlanInline)
             chatStore.addMessage(
                 ChatMessage(id: UUID(), role: .assistant, content: phase2Summary),
                 to: conversationId
@@ -291,5 +297,4 @@ extension ChatPanelView {
             shouldRunPlanInline: shouldRunPlanInline
         )
     }
-
 }

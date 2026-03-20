@@ -131,7 +131,11 @@ extension ChatPanelView {
                     planQuestionToolEpoch(for: conversationId)
                 )
             }
-            planFlowPhase = .analyzing
+            _ = planRuntimeAction(
+                "plan_prepare_post_clarification_analysis_prompt",
+                text: planUserRequest,
+                shouldRunInline: shouldRunPlanInline
+            )
             clearPlanStreamingState()
             let reanalysisAssistantMessageId = UUID()
             chatStore.addMessage(
@@ -188,30 +192,20 @@ extension ChatPanelView {
             return
         }
 
-        // Check if the LLM produced more questions or is ready for plan generation
-        let classification = PlanOutputClassifier.classify(
-            fullText: reAnalysisText,
-            current: .questioning,
-            coderMode: coderMode,
-            shouldRunPlanInline: shouldRunPlanInline
+        let runtimeSnapshot = planRuntimeAction(
+            "plan_apply_post_clarification_analysis_result",
+            text: reAnalysisText,
+            shouldRunInline: shouldRunPlanInline
         )
 
-        let allowFollowUpClarification = shouldAllowFollowUpClarification(
-            userRequest: planUserRequest,
-            clarificationCycles: planClarificationCycles
-        )
-
-        if allowFollowUpClarification,
-           classification.isConfident,
-           case .awaitingClarification(let q) = classification.planningState
+        if let runtimeSnapshot,
+           runtimeSnapshot.plan?.planningStateKind == .awaitingClarification,
+           let q = runtimeSnapshot.plan?.clarificationQuestions
         {
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
-                planClarificationCycles += 1
                 let followUp = "\n\n--- Follow-up analysis ---\n\(reAnalysisText)"
                 planAnalysisContext = String((planAnalysisContext + followUp).suffix(32_000))
-                planFlowPhase = .questioning
-                planningState = .awaitingClarification(questions: q)
                 updatePlanStreamingContent(reAnalysisText, conversationId: conversationId)
                 chatStore.updateLastAssistantMessage(
                     content: "Questions ready — answer in the plan panel.",

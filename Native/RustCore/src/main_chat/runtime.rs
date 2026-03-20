@@ -1,7 +1,15 @@
 use crate::main_chat::apply_event;
+use crate::main_chat::continuation::prepare_auto_continuation;
+use crate::main_chat::plan_runtime::handle_plan_action;
+use crate::main_chat::stream_runtime::{
+    handle_direct_stream_timeout, register_direct_stream_event, start_direct_stream,
+};
 use app_core_protocol::main_chat::{
     MainChatActionRequest, MainChatEvent, MainChatEventKind, MainChatFinishRequest,
     MainChatRuntimeResponse, MainChatStartRequest,
+};
+use app_core_protocol::main_chat_runtime::{
+    MainChatRuntimeActionRequest, MainChatRuntimeActionResponse,
 };
 use std::collections::BTreeMap;
 
@@ -106,6 +114,68 @@ pub fn handle_action(request: MainChatActionRequest) -> MainChatRuntimeResponse 
         }
         _ => MainChatRuntimeResponse::error("unsupported_action", "main chat action not supported"),
     }
+}
+
+pub fn handle_runtime_action(request: MainChatRuntimeActionRequest) -> MainChatRuntimeActionResponse {
+    if request.schema_version != 1 {
+        return MainChatRuntimeActionResponse::error("unsupported_schema", "schemaVersion must be 1");
+    }
+
+    if let Some(snapshot) = handle_plan_action(
+        request.snapshot.clone(),
+        &request.action,
+        request.text.clone(),
+        request.questions.clone(),
+        request.plan_content.clone(),
+        request.option_full_texts.clone(),
+        request.should_run_inline,
+    ) {
+        return MainChatRuntimeActionResponse::success(snapshot);
+    }
+
+    let snapshot = match request.action.as_str() {
+        "direct_stream_start" => start_direct_stream(
+            request.snapshot,
+            request.timestamp,
+            request.provider_id,
+        ),
+        "direct_stream_event_received" => register_direct_stream_event(
+            request.snapshot,
+            request.timestamp,
+            request.status.as_deref() == Some("text"),
+        ),
+        "direct_stream_timeout" => handle_direct_stream_timeout(
+            request.snapshot,
+            request.is_initial_poll.unwrap_or(false),
+        ),
+        "direct_stream_prepare_continuation" => prepare_auto_continuation(
+            request.snapshot,
+            request.detail.as_deref().unwrap_or_default(),
+            request.text.as_deref().unwrap_or_default(),
+        ),
+        "direct_stream_complete" | "direct_stream_fail" | "direct_stream_interrupt" => {
+            let snapshot_turn_state = request.snapshot.turn_state.clone();
+            let finished = finish_turn(MainChatFinishRequest {
+                schema_version: 1,
+                state: snapshot_turn_state,
+                timestamp: request.timestamp.unwrap_or(0.0),
+                status: request.status,
+                detail: request.detail,
+                was_cancelled: request.action == "direct_stream_interrupt",
+            });
+            let mut snapshot = request.snapshot;
+            if let Some(turn_state) = finished.state {
+                snapshot.turn_state = turn_state;
+            }
+            if let Some(output) = snapshot.output.as_mut() {
+                output.should_finalize_stream = true;
+            }
+            snapshot
+        }
+        "runtime_restore_snapshot" => request.snapshot,
+        _ => return MainChatRuntimeActionResponse::error("unsupported_action", "main chat runtime action not supported"),
+    };
+    MainChatRuntimeActionResponse::success(snapshot)
 }
 
 #[cfg(test)]
