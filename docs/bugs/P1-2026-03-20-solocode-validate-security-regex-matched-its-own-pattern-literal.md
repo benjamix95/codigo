@@ -1,0 +1,36 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: il gate `security` di `solocode-validate` intercettava il file `scripts/solocode-validate` stesso come falso positivo.
+- Sintomo: una tranche valida falliva al passo `security` con output puntato alla riga che definisce il regex `token\\s*=|password\\s*=`.
+- Impatto: blocco dei commit validi, falsi negativi nella pipeline e copertura reale degradata perche' il regex non matchava assegnazioni vere con whitespace.
+- Gravita': alta
+- Steps to reproduce:
+  - eseguire `./scripts/solocode-validate --trigger gitCommit --workspace /Users/benjaminstoica/SoloCode --files "scripts/solocode-validate" --format text`
+- Risultato attuale:
+  - fallimento `security` sul file del validator stesso
+- Risultato atteso:
+  - il validator non deve auto-segnalarsi per il proprio pattern letterale e deve continuare a rilevare `token = ...` / `password = ...`
+- Causa probabile:
+  - pattern troppo lasco e parzialmente escapato male: il validator matchava i propri literal `BEGIN PRIVATE KEY` e non distingueva bene tra pattern dichiarato e secret reale assegnato
+- Scope consentito:
+  - `scripts/solocode-validate`
+  - regressione Rust dedicata in `Native/AppCoreRust/tests`
+  - documentazione bug/changelog
+- Non-scope:
+  - policy security piu' ampia
+  - rifattorizzazione totale del validator shell in Rust
+- Moduli confinanti da verificare:
+  - `bootstrap_test_bundles.sh`
+  - `validate_rust_cutover_boundary.sh`
+  - targeted validation per tranche `accounts/providers`
+- Test da aggiungere o aggiornare:
+  - regressione Rust che verifica il match su `token =` reale e l'assenza di match sul file del validator
+- Strategia di fix minimo:
+  - includere `App/SoloCodeApp/Sources/Accounts/*` nel gate `security` del validator
+  - restringere solo il regex `security` ai marker reali (`-----BEGIN PRIVATE KEY-----`, `token = valore`, `password = valore`)
+  - aggiungere regressione automatica pura in Rust
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/AppCoreRust/Cargo.toml`
+  - `./scripts/solocode-validate ...` sulla tranche `accounts/providers`
+- Commit previsto:
+  - `fix(validation): correct security regex escaping in solocode-validate`

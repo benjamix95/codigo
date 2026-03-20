@@ -196,6 +196,9 @@ for file in "${FILES[@]}"; do
     App/SoloCodeApp/Sources/Git/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/GitServiceTests" "-only-testing:SoloCodeAppTests/GitServiceValidationGuardTests")
       ;;
+    App/SoloCodeApp/Sources/Accounts/*)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/CLIMultiAccountProviderAdapterTests" "-only-testing:SoloCodeAppTests/CLIAccountAuthDetectorTests" "-only-testing:SoloCodeAppTests/CLIAccountLoginCoordinatorTests" "-only-testing:SoloCodeAppTests/CLIProfileProvisionerTests" "-only-testing:SoloCodeAppTests/CLIProfileProvisionerInstructionSyncTests" "-only-testing:SoloCodeAppTests/ProviderFactoryRuntimeParityTests")
+      ;;
     App/SoloCodeApp/Sources/Panels/CodeReview/Coordinator/*|App/SoloCodeApp/Sources/Panels/CodeReview/Store/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/CodeReviewPanelLiveRunExecutionTests" "-only-testing:SoloCodeAppTests/CodeReviewPanelChatStateDeferralTests" "-only-testing:SoloCodeAppTests/ReviewPanelLifecycleE2ETests")
       ;;
@@ -254,14 +257,15 @@ fi
 needs_security="false"
 for file in "${FILES[@]}"; do
   case "$file" in
-    App/SoloCodeApp/Sources/Git/*|App/SoloCodeApp/Sources/CodeReview/*|App/SoloCodeApp/Sources/Runtime/*|Engine/CoderEngine/Sources/CodeReview/*|Engine/CoderEngine/Sources/Pipeline/Patching/*|Engine/CoderEngine/Sources/Tools/Runtime/*|Engine/CoderEngine/Sources/Infrastructure/MCP/*|Engine/CoderEngine/Sources/Infrastructure/Process/*|Tools/CoderIDEMCPServer/Sources/*)
+    App/SoloCodeApp/Sources/Accounts/*|App/SoloCodeApp/Sources/Git/*|App/SoloCodeApp/Sources/CodeReview/*|App/SoloCodeApp/Sources/Runtime/*|Engine/CoderEngine/Sources/CodeReview/*|Engine/CoderEngine/Sources/Pipeline/Patching/*|Engine/CoderEngine/Sources/Tools/Runtime/*|Engine/CoderEngine/Sources/Infrastructure/MCP/*|Engine/CoderEngine/Sources/Infrastructure/Process/*|Tools/CoderIDEMCPServer/Sources/*)
       needs_security="true"
       ;;
   esac
 done
 
 if [[ "$needs_security" == "true" || "$TRIGGER" == "ciFull" ]]; then
-  if rg -n --hidden --glob '!App/SoloCodeApp/Resources/**' '(AKIA[0-9A-Z]{16}|BEGIN PRIVATE KEY|password\\s*=|token\\s*=)' "${FILES[@]}" >/tmp/solocode-validate-security.log 2>&1; then
+  private_key_marker='-----BEGIN PRIVATE'; secret_scan_pattern="(AKIA[0-9A-Z]{16}|${private_key_marker} KEY-----|password\s*=\s*[^[:space:])]+|token\s*=\s*[^[:space:])]+)"
+  if rg -n --hidden --glob '!App/SoloCodeApp/Resources/**' "$secret_scan_pattern" "${FILES[@]}" >/tmp/solocode-validate-security.log 2>&1; then
     fail "security" "$(cat /tmp/solocode-validate-security.log)"
   fi
   pass "security"
