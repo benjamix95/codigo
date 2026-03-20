@@ -1,4 +1,176 @@
+import CoderEngine
 import Foundation
+
+private struct MainChatReasoningBlockBridge: Codable, Equatable {
+    let id: String
+    let text: String
+}
+
+private struct MainChatReasoningSegmentBridge: Codable, Equatable {
+    let id: String
+    let kind: String
+    let text: String
+}
+
+private struct MainChatReasoningStateBridge: Codable, Equatable {
+    let blocks: [MainChatReasoningBlockBridge]
+    let text: String?
+    let segments: [MainChatReasoningSegmentBridge]
+}
+
+private struct MainChatReasoningRequestBridge: Encodable {
+    let schemaVersion: Int
+    let operation: String
+    let providerId: String?
+    let separateCodexThinkingMessagesEnabled: Bool?
+    let eventConversationId: String?
+    let selectedConversationId: String?
+    let output: String?
+    let groupId: String?
+    let state: MainChatReasoningStateBridge?
+    let sequentialStreamingLayoutEnabled: Bool?
+    let streamingSegmentTurnIndex: Int?
+}
+
+private struct MainChatReasoningResponseBridge: Decodable {
+    let schemaVersion: Int
+    let error: MainChatBridgeError?
+    let presentationMode: String?
+    let isCodexProvider: Bool?
+    let shouldUpdateInlineReasoningState: Bool?
+    let state: MainChatReasoningStateBridge?
+}
+
+enum ChatReasoningPresentationMode: String {
+    case inline
+    case separateMessages
+}
+
+func shouldUpdateInlineReasoningState(
+    eventConversationId: UUID?,
+    selectedConversationId: UUID?
+) -> Bool {
+    let response: MainChatReasoningResponseBridge? = ReviewCoreBridge.call(
+        functionName: "chat_core_reasoning_handle",
+        request: MainChatReasoningRequestBridge(
+            schemaVersion: 1,
+            operation: "should_update_inline_reasoning_state",
+            providerId: nil,
+            separateCodexThinkingMessagesEnabled: nil,
+            eventConversationId: eventConversationId?.uuidString.lowercased(),
+            selectedConversationId: selectedConversationId?.uuidString.lowercased(),
+            output: nil,
+            groupId: nil,
+            state: nil,
+            sequentialStreamingLayoutEnabled: nil,
+            streamingSegmentTurnIndex: nil
+        )
+    )
+    return response?.shouldUpdateInlineReasoningState ?? false
+}
+
+enum ChatReasoningPresentationPolicy {
+    static func isCodexProvider(_ providerId: String) -> Bool {
+        let response: MainChatReasoningResponseBridge? = ReviewCoreBridge.call(
+            functionName: "chat_core_reasoning_handle",
+            request: MainChatReasoningRequestBridge(
+                schemaVersion: 1,
+                operation: "is_codex_provider",
+                providerId: providerId,
+                separateCodexThinkingMessagesEnabled: nil,
+                eventConversationId: nil,
+                selectedConversationId: nil,
+                output: nil,
+                groupId: nil,
+                state: nil,
+                sequentialStreamingLayoutEnabled: nil,
+                streamingSegmentTurnIndex: nil
+            )
+        )
+        return response?.isCodexProvider ?? false
+    }
+
+    static func mode(
+        providerId: String,
+        separateCodexThinkingMessagesEnabled: Bool
+    ) -> ChatReasoningPresentationMode {
+        let response: MainChatReasoningResponseBridge? = ReviewCoreBridge.call(
+            functionName: "chat_core_reasoning_handle",
+            request: MainChatReasoningRequestBridge(
+                schemaVersion: 1,
+                operation: "presentation_mode",
+                providerId: providerId,
+                separateCodexThinkingMessagesEnabled: separateCodexThinkingMessagesEnabled,
+                eventConversationId: nil,
+                selectedConversationId: nil,
+                output: nil,
+                groupId: nil,
+                state: nil,
+                sequentialStreamingLayoutEnabled: nil,
+                streamingSegmentTurnIndex: nil
+            )
+        )
+        return response?.presentationMode.flatMap(ChatReasoningPresentationMode.init(rawValue:))
+            ?? .inline
+    }
+}
+
+struct ChatReasoningStreamReducer {
+    struct State {
+        var blocks: [ReasoningBlock]
+        var text: String?
+        var segments: [MessageSegment]
+    }
+
+    static func apply(
+        output: String,
+        groupId: String,
+        state: State,
+        sequentialStreamingLayoutEnabled: Bool,
+        streamingSegmentTurnIndex: Int
+    ) -> State {
+        let response: MainChatReasoningResponseBridge? = ReviewCoreBridge.call(
+            functionName: "chat_core_reasoning_handle",
+            request: MainChatReasoningRequestBridge(
+                schemaVersion: 1,
+                operation: "apply_stream_chunk",
+                providerId: nil,
+                separateCodexThinkingMessagesEnabled: nil,
+                eventConversationId: nil,
+                selectedConversationId: nil,
+                output: output,
+                groupId: groupId,
+                state: MainChatReasoningStateBridge(
+                    blocks: state.blocks.map { .init(id: $0.id, text: $0.text) },
+                    text: state.text,
+                    segments: state.segments.map {
+                        switch $0.kind {
+                        case .reasoning(let text):
+                            return .init(id: $0.id, kind: "reasoning", text: text)
+                        case .text(let text):
+                            return .init(id: $0.id, kind: "text", text: text)
+                        case .toolTrace:
+                            return .init(id: $0.id, kind: "toolTrace", text: "")
+                        }
+                    }
+                ),
+                sequentialStreamingLayoutEnabled: sequentialStreamingLayoutEnabled,
+                streamingSegmentTurnIndex: streamingSegmentTurnIndex
+            )
+        )
+        guard let next = response?.state else { return state }
+        return State(
+            blocks: next.blocks.map { ReasoningBlock(id: $0.id, text: $0.text) },
+            text: next.text,
+            segments: next.segments.map {
+                MessageSegment(
+                    id: $0.id,
+                    kind: $0.kind == "text" ? .text($0.text) : .reasoning($0.text)
+                )
+            }
+        )
+    }
+}
 
 extension ChatPanelView {
     internal func cliAccountSnapshots(

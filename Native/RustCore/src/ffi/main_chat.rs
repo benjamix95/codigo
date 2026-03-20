@@ -1,11 +1,15 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::main_chat::{
     apply_event, bridge_provider_stream, cancel_session, finish_turn, get_snapshot, handle_action,
-    handle_runtime_action, handle_store_action, load_store_snapshot, replace_store_snapshot,
-    resolve_thread_provider_selection, resume_session, start_session, start_turn,
+    handle_reasoning_request, handle_runtime_action, handle_store_action, load_store_snapshot,
+    replace_store_snapshot, resolve_thread_provider_selection, resume_session, start_session,
+    start_turn,
 };
 use app_core_protocol::main_chat::{
     MainChatActionRequest, MainChatReduceEventRequest, MainChatRuntimeResponse,
+};
+use app_core_protocol::main_chat_reasoning::{
+    MainChatReasoningRequest, MainChatReasoningResponse,
 };
 use app_core_protocol::main_chat_provider::{
     MainChatProviderSessionResponse,
@@ -81,6 +85,11 @@ pub extern "C" fn chat_core_provider_get_snapshot(input: *const c_char) -> *mut 
 #[no_mangle]
 pub extern "C" fn chat_core_provider_cancel(input: *const c_char) -> *mut c_char {
     with_raw_json_input(input, |raw| decode_provider_call(raw, cancel_session))
+}
+
+#[no_mangle]
+pub extern "C" fn chat_core_reasoning_handle(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_reasoning_call(raw, handle_reasoning_request))
 }
 
 #[no_mangle]
@@ -181,6 +190,22 @@ fn decode_thread_provider_selection_call(
         Ok(request) => request,
         Err(err) => {
             return encode_raw(&ThreadProviderSelectionResponse::error(
+                "decode_failed",
+                &err.to_string(),
+            ));
+        }
+    };
+    encode_raw(&handler(request))
+}
+
+fn decode_reasoning_call(
+    raw: &str,
+    handler: impl FnOnce(MainChatReasoningRequest) -> MainChatReasoningResponse,
+) -> String {
+    let request: MainChatReasoningRequest = match serde_json::from_str(raw) {
+        Ok(request) => request,
+        Err(err) => {
+            return encode_raw(&MainChatReasoningResponse::error(
                 "decode_failed",
                 &err.to_string(),
             ));
