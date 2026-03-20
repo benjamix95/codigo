@@ -341,7 +341,6 @@
 		33A984B624C3CB868E741C44 /* ReviewPanelFindingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FC478D81B96E2CDBEAB6C7 /* ReviewPanelFindingsTab.swift */; };
 		33C0DEAD1234ABCD5678EF01 /* ChatPanelView+PartQ_Walkthrough.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33C0DEAD1234ABCD5678EF02 /* ChatPanelView+PartQ_Walkthrough.swift */; };
 		33FE3008C200531E7860F9E2 /* ProviderToolEventMapper+Routes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58635A2A82C4C841484FBCC7 /* ProviderToolEventMapper+Routes.swift */; };
-		342E418B3DE8FB0BBA398E9A /* MessageToolTraceView+Diff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397FD851EF7B97A3111167CB /* MessageToolTraceView+Diff.swift */; };
 		343AE15636A1E0A5050A4D3C /* GitService+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0442CBA794B67702DB3E6202 /* GitService+Sync.swift */; };
 		34413D50A97F23B15118297B /* DebugStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C60E093840295281EBC557 /* DebugStore.swift */; };
 		346A50267FBBB24AE19ED086 /* ChatStreamFailureHandlingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F5CD3361BFCFC6669BE1F3 /* ChatStreamFailureHandlingTests.swift */; };
@@ -2109,7 +2108,6 @@
 		38DE0DCDB59034CF0A447D54 /* Solo Code.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Solo Code.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		394309D2AF293238853888C1 /* PersistenceModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PersistenceModels.swift; path = Engine/CoderEngine/Sources/PersistenceCore/PersistenceModels.swift; sourceTree = "<group>"; };
 		395E18DF59664A7B0D17C49E /* TaskActivityPanel+Standard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "TaskActivityPanel+Standard.swift"; path = "App/SoloCodeApp/Sources/Chat/TaskStatus/TaskActivityPanel+Standard.swift"; sourceTree = "<group>"; };
-		397FD851EF7B97A3111167CB /* MessageToolTraceView+Diff.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MessageToolTraceView+Diff.swift"; path = "App/SoloCodeApp/Sources/Chat/MessageToolTrace/MessageToolTraceView+Diff.swift"; sourceTree = "<group>"; };
 		3983E5E77F95332C832DE0C6 /* CodigoApp+CodeReviewCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodigoApp+CodeReviewCommands.swift"; path = "App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommands.swift"; sourceTree = "<group>"; };
 		39A7637512FD27D00CFCC5D3 /* ToolEnabledLLMProvider+SubagentExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProvider+SubagentExecution.swift"; path = "Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/Subagents/ToolEnabledLLMProvider+SubagentExecution.swift"; sourceTree = "<group>"; };
 		39E9A3F93577E9A22746AD3D /* ToolEnabledLLMProviderPolicyAckTests+Finalization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolEnabledLLMProviderPolicyAckTests+Finalization.swift"; path = "Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/ToolEnabledLLMProviderPolicyAckTests+Finalization.swift"; sourceTree = "<group>"; };
@@ -3543,7 +3541,6 @@
 				6E76C8DEACCFAC620135CD47 /* MessageRow+Thinking.swift */,
 				BF3CFCE10D27F5536DEE4919 /* MessageRow.swift */,
 				12FA7FEF506C4C2AE3D1C798 /* MessageToolTraceView+Details.swift */,
-				397FD851EF7B97A3111167CB /* MessageToolTraceView+Diff.swift */,
 				CE972E45A473D7C846B3C8C4 /* MessageToolTraceView+EventMetadata.swift */,
 				196350CF964A4E62A4540847 /* MessageToolTraceView+FileChanges.swift */,
 				CEC000D345F24EAE5D25263B /* MessageToolTraceView+Helpers.swift */,
@@ -6386,7 +6383,6 @@
 				762A56295D680B6D6F17129D /* MessageRow+Thinking.swift in Sources */,
 				2E27DCA39393F48926F7A6B2 /* MessageRow.swift in Sources */,
 				6B1D87C7BAC04457D2FE417E /* MessageToolTraceView+Details.swift in Sources */,
-				342E418B3DE8FB0BBA398E9A /* MessageToolTraceView+Diff.swift in Sources */,
 				0879063C64B5BF5820E6F3F2 /* MessageToolTraceView+EventMetadata.swift in Sources */,
 				5BA8DC6459B7F783ED671A5D /* MessageToolTraceView+FileChanges.swift in Sources */,
 				5B0D6E1EE1E083FACD3F92C2 /* MessageToolTraceView+Helpers.swift in Sources */,
