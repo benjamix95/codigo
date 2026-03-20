@@ -147,6 +147,14 @@ extension ChatPanelView {
         if isBuildScopedConversation {
             return
         }
+        if let projection = projectPlanningSnapshot(conversationId: conversationId) {
+            applyPlanStateMirror(
+                planSnapshot: projection.snapshot.plan,
+                runtimeSnapshot: projection.state.runtimeSnapshot,
+                conversationId: conversationId
+            )
+            return
+        }
         if let questionsMarkdown = clarificationQuestionsMarkdownForRestore(
             planStreamingContentByConversation[conversationId] ?? "",
             isBuildScopedConversation: isBuildScopedConversation
@@ -156,40 +164,10 @@ extension ChatPanelView {
             planStreamingContent = questionsMarkdown
             return
         }
-        // No active flow — safe to reset per-flow context
+        // Rust projection unavailable: reset to safe idle fallback.
         planAnalysisContext = ""
         planUserRequest = ""
         planClarificationAnswers = ""
-        guard let board = chatStore.planBoard(for: conversationId) else {
-            planningState = .idle
-            planFlowPhase = .idle
-            return
-        }
-        let chosenPath = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let hasValidChosenPath =
-            !chosenPath.isEmpty &&
-            PlanOptionsParser.hasRequiredTodoHeader(chosenPath) &&
-            !PlanOptionsParser.extractTodosFromOptionText(chosenPath).isEmpty
-        if hasValidChosenPath {
-            planFlowPhase = .readyToBuild
-            planningState = .idle
-            return
-        }
-        let compliantOptions = PlanOptionsParser.todoCompliantOptions(from: board.options)
-        if !compliantOptions.isEmpty {
-            let proposalContent: String
-            if !chosenPath.isEmpty {
-                proposalContent = chosenPath
-            } else if let first = compliantOptions.min(by: { $0.id < $1.id })?.fullText,
-                      !first.isEmpty {
-                proposalContent = first
-            } else {
-                proposalContent = board.goal
-            }
-            planFlowPhase = .proposalReady
-            planningState = .awaitingChoice(planContent: proposalContent, options: compliantOptions)
-            return
-        }
         planningState = .idle
         planFlowPhase = .idle
     }
@@ -203,6 +181,7 @@ extension ChatPanelView {
             planHistoryStore.setSelectedEntry(id: nil)
         }
         showPlanPanel = true
+        syncPlanPanelVisibilityToRust(true)
     }
 
     internal func cyclePlanShortcutState() {

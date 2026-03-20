@@ -23,6 +23,7 @@ ui_view|App/SoloCodeApp/Sources/Chat/MessageRow/MessageRow.swift|Message row she
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/**|Chat pipeline projection types are compatibility adapters over Rust-owned snapshots.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/Core/ChatPipelineEvent.swift|Main chat pipeline bridge state and reducer calls are compatibility adapters over Rust-owned turn/runtime projection.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/Core/ChatTimelineBlock.swift|Chat timeline block models are compatibility projection types over Rust-owned timeline snapshots.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Extensions/Plan/ChatPanelView+PlanContinuation.swift|Plan continuation helper is a Swift adapter around provider streaming while the planning runtime state stays Rust-owned.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartQ_Walkthrough.swift|Walkthrough rendering helper is a Swift compatibility adapter over Rust-owned build summaries and chat projections.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineRuntime/**|Pipeline runtime projection stays in Swift as UI/runtime glue outside Rust domain ownership.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Providers/Runtime/**|Runtime provider helpers are fallback compatibility code outside the live Rust transport path.
@@ -52,5 +53,7 @@ binding_adapter|App/SoloCodeApp/Sources/Settings/ProviderFactory/Backends/**|Pro
 binding_adapter|Engine/CoderEngine/Sources/AgentPipeline/**|Relocated pipeline engine files are generic execution infrastructure, not main-chat Rust domain owners.
 binding_adapter|Engine/CoderEngine/Sources/ProviderBackends/**|Relocated provider backend files remain generic provider infrastructure for non-main-chat consumers.
 binding_adapter|Tests/SoloCodeAppTests/ReviewCoreLibraryPathSupport.swift|App-side test support for resolving the Rust review core dylib path.
+binding_adapter|Tests/SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests.swift|App-side regression coverage for the XCTest bootstrap policy that defers Rust store loading until test setup completes.
 binding_adapter|Tests/SoloCodeAppTests/ReviewPanelGitContextTests.swift|App-side regression coverage for the Rust-backed review panel Git context.
 binding_adapter|Tests/SoloCodeAppTests/RustMainChatUIBoundaryTests.swift|App-side regression coverage for the Rust-backed main chat UI boundary and terminal direct-stream state.
+binding_adapter|Tests/SoloCodeAppTests/RustMainChatUIBoundaryPlanTests.swift|App-side regression coverage for the Rust-backed planning intents exposed by the main chat UI boundary.

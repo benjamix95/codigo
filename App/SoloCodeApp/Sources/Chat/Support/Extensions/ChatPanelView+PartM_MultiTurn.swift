@@ -127,7 +127,6 @@ extension ChatPanelView {
 
         await MainActor.run {
             guard self.conversationId == conversationId else { return }
-            planAnalysisContext = analysisText
             updatePlanStreamingContent(analysisText, conversationId: conversationId)
             chatStore.updateLastAssistantMessage(
                 content: analysisText,

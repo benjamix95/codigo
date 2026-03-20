@@ -109,6 +109,68 @@ fn ui_intent_stream_finish_marks_store_message_not_streaming() {
     );
 }
 
+#[test]
+fn ui_intent_plan_receive_clarification_questions_updates_epoch_and_visibility() {
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "plan_receive_clarification_questions".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: Some("## Questions\n- What should we cut over first?".to_string()),
+        timestamp: Some(42.0),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    let snapshot = response.snapshot.expect("snapshot");
+    assert!(state.plan_panel_visible);
+    assert_eq!(
+        state
+            .runtime_snapshot
+            .as_ref()
+            .and_then(|runtime| runtime.plan.as_ref())
+            .and_then(|plan| plan.planning_state_kind.clone()),
+        Some(app_core_protocol::main_chat_runtime::MainChatPlanningStateKind::AwaitingClarification)
+    );
+    assert_eq!(snapshot.plan.question_epoch, 1);
+    assert!(snapshot.plan.is_visible);
+    assert_eq!(
+        snapshot.plan.clarification_questions.as_deref(),
+        Some("## Questions\n- What should we cut over first?")
+    );
+}
+
+#[test]
+fn ui_intent_apply_plan_runtime_action_projects_prompt_and_panel_state() {
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "apply_plan_runtime_action".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: Some("Ship Rust planning boundary".to_string()),
+        timestamp: Some(42.0),
+        payload: [("action".to_string(), "plan_prepare_phase1_analysis_prompt".to_string())]
+            .into_iter()
+            .collect(),
+    });
+    let state = response.state.expect("state");
+    let snapshot = response.snapshot.expect("snapshot");
+    assert!(state.plan_panel_visible);
+    assert_eq!(snapshot.plan.phase, Some(MainChatPlanPhase::Analyzing));
+    assert_eq!(
+        state
+            .runtime_snapshot
+            .as_ref()
+            .and_then(|runtime| runtime.output.as_ref())
+            .and_then(|output| output.generated_prompt.as_ref())
+            .map(|prompt| prompt.contains("Phase: Codebase Analysis")),
+        Some(true)
+    );
+}
+
 fn base_ui_state() -> MainChatUiState {
     MainChatUiState {
         store_snapshot: MainChatStoreSnapshot {

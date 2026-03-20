@@ -29,8 +29,12 @@ extension ChatStore {
     @discardableResult
     func createConversation(contextId: UUID? = nil, contextFolderPath: String? = nil, mode: CoderMode? = nil) -> UUID {
         let conv = Conversation(contextId: contextId, contextFolderPath: contextFolderPath, mode: mode)
-        _ = applyRustStoreAction("create_conversation") { request in
-            request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
+            conversations.append(conv)
+        } else {
+            _ = applyRustStoreAction("create_conversation") { request in
+                request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
+            }
         }
         saveConversations()
         return conv.id
@@ -40,8 +44,12 @@ extension ChatStore {
     @discardableResult
     func createConversation(workspaceId: UUID? = nil, adHocFolderPaths: [String] = [], mode: CoderMode? = nil) -> UUID {
         let conv = Conversation(contextId: workspaceId, mode: mode, workspaceId: workspaceId, adHocFolderPaths: adHocFolderPaths)
-        _ = applyRustStoreAction("create_conversation") { request in
-            request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
+            conversations.append(conv)
+        } else {
+            _ = applyRustStoreAction("create_conversation") { request in
+                request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
+            }
         }
         saveConversations()
         return conv.id

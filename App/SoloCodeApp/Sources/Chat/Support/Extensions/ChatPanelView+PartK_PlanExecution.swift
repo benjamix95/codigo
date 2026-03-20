@@ -126,9 +126,11 @@ extension ChatPanelView {
             return
         }
 
-        planningState = .idle
-        planFlowPhase = .readyToBuild
-        chatStore.choosePlanPath(choice, for: planConversationId)
+        _ = applyPlanUIIntent(
+            "choose_plan_option",
+            conversationId: planConversationId,
+            text: choice
+        )
 
         todoStore.upsertCanonicalPlanTodos(planTodos, conversationId: planConversationId)
         let canonicalTodos = todoStore.prepareCanonicalPlanTodosForBuild(
@@ -144,7 +146,10 @@ extension ChatPanelView {
         // in the plan panel's trace section. Only switch mode and phase.
         providerRegistry.selectedProviderId = provider.id
         coderMode = .agent
-        planFlowPhase = .building
+        _ = applyPlanUIIntent(
+            "begin_plan_build",
+            conversationId: planConversationId
+        )
         activeBuildPlanConversationId = planConversationId
         activeBuildAgentConversationId = agentConvId
 

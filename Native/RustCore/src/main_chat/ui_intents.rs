@@ -1,3 +1,6 @@
+use crate::main_chat::plan_ui_flow::{
+    apply_plan_runtime_action, receive_clarification_questions, set_plan_panel_visible,
+};
 use crate::main_chat::runtime::handle_runtime_action;
 use crate::main_chat::ui_state_sync::{
     apply_terminal_text_override, mark_store_stream_finished, sync_store_from_runtime,
@@ -13,7 +16,7 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
         return MainChatUiIntentResponse::error("unsupported_schema", "schemaVersion must be 1");
     }
 
-    let mut state = request.state;
+    let mut state = request.state.clone();
     match request.intent.as_str() {
         "select_conversation" => {
             state.selected_conversation_id = request.conversation_id;
@@ -97,6 +100,10 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
                 request.timestamp,
                 None,
                 request.text,
+                None,
+                None,
+                Vec::new(),
+                None,
             ) {
                 Ok(state) => state,
                 Err(error) => return error,
@@ -108,6 +115,10 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
                 "rewind_turn",
                 request.timestamp,
                 Some("idle".to_string()),
+                None,
+                None,
+                None,
+                Vec::new(),
                 None,
             ) {
                 Ok(state) => state,
@@ -121,6 +132,10 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
                 request.timestamp,
                 None,
                 request.text,
+                None,
+                None,
+                Vec::new(),
+                None,
             ) {
                 Ok(state) => state,
                 Err(error) => return error,
@@ -145,6 +160,10 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
                 request.timestamp,
                 None,
                 request.text,
+                None,
+                None,
+                Vec::new(),
+                None,
             ) {
                 Ok(state) => state,
                 Err(error) => return error,
@@ -157,7 +176,29 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
                 request.timestamp,
                 None,
                 None,
+                None,
+                None,
+                Vec::new(),
+                None,
             ) {
+                Ok(state) => state,
+                Err(error) => return error,
+            };
+        }
+        "apply_plan_runtime_action" => {
+            state = match apply_plan_runtime_action(state, &request) {
+                Ok(state) => state,
+                Err(error) => return error,
+            };
+        }
+        "plan_receive_clarification_questions" => {
+            state = match receive_clarification_questions(state, &request) {
+                Ok(state) => state,
+                Err(error) => return error,
+            };
+        }
+        "set_plan_panel_visible" => {
+            state = match set_plan_panel_visible(state, &request) {
                 Ok(state) => state,
                 Err(error) => return error,
             };
@@ -184,6 +225,10 @@ fn apply_runtime_action(
     timestamp: Option<f64>,
     status: Option<String>,
     text: Option<String>,
+    questions: Option<String>,
+    plan_content: Option<String>,
+    option_full_texts: Vec<String>,
+    should_run_inline: Option<bool>,
 ) -> Result<app_core_protocol::main_chat_ui::MainChatUiState, MainChatUiIntentResponse> {
     let Some(snapshot) = state.runtime_snapshot.clone() else {
         return Err(MainChatUiIntentResponse::error("missing_runtime_snapshot", "runtimeSnapshot is required"));
@@ -197,10 +242,10 @@ fn apply_runtime_action(
         status,
         detail: text.clone(),
         text,
-        questions: None,
-        plan_content: None,
-        option_full_texts: Vec::new(),
-        should_run_inline: None,
+        questions,
+        plan_content,
+        option_full_texts,
+        should_run_inline,
         is_initial_poll: None,
         event_kind: None,
         payload: Default::default(),

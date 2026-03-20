@@ -204,8 +204,6 @@ extension ChatPanelView {
         {
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
-                let followUp = "\n\n--- Follow-up analysis ---\n\(reAnalysisText)"
-                planAnalysisContext = String((planAnalysisContext + followUp).suffix(32_000))
                 updatePlanStreamingContent(reAnalysisText, conversationId: conversationId)
                 chatStore.updateLastAssistantMessage(
                     content: "Questions ready — answer in the plan panel.",
@@ -226,8 +224,6 @@ extension ChatPanelView {
 
         let shouldProceedPhase3 = await MainActor.run { () -> Bool in
             guard self.conversationId == conversationId else { return false }
-            let postClarification = "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
-            planAnalysisContext = String((planAnalysisContext + postClarification).suffix(32_000))
             chatStore.updateLastAssistantMessage(
                 content: "Questions answered. Generating definitive plan...",
                 in: conversationId,

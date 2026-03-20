@@ -4,6 +4,7 @@ mod markers;
 mod persistence;
 mod plan_prompts;
 mod plan_runtime;
+mod plan_ui_flow;
 #[cfg(test)]
 mod plan_runtime_tests;
 mod provider;

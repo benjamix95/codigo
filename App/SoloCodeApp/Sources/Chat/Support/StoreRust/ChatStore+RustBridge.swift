@@ -1,4 +1,9 @@
 import Foundation
+import CoderEngine
+
+func shouldSkipRustStoreBootstrapForTests(environment: [String: String]) -> Bool {
+    shouldDeferRustReviewCoreBootstrap(environment: environment)
+}
 
 extension ChatStore {
     static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
@@ -22,12 +27,18 @@ extension ChatStore {
     @MainActor
     func normalizedRustStoreSnapshot() -> MainChatStoreSnapshotBridge {
         let local = RustMainChatStoreAdapter.snapshot(from: self)
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
+            return local
+        }
         return RustMainChatStoreAdapter.loadNormalizedSnapshot(local) ?? local
     }
 
     @MainActor
     func normalizeLoadedRustStoreSnapshot() {
         let local = RustMainChatStoreAdapter.snapshot(from: self)
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
+            return
+        }
         if let normalized = RustMainChatStoreAdapter.loadNormalizedSnapshot(local) {
             RustMainChatStoreAdapter.apply(snapshot: normalized, to: self)
         }

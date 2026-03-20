@@ -122,6 +122,8 @@ pub struct MainChatUiPlanSnapshot {
     pub is_visible: bool,
     pub phase: Option<MainChatPlanPhase>,
     pub planning_state_kind: Option<MainChatPlanningStateKind>,
+    #[serde(default)]
+    pub question_epoch: i32,
     pub clarification_questions: Option<String>,
     pub proposal_content: Option<String>,
     pub chosen_path: Option<String>,
@@ -135,6 +137,8 @@ pub struct MainChatUiPlanSnapshot {
     pub should_hide_markdown: bool,
     #[serde(default)]
     pub should_run_inline: bool,
+    #[serde(default)]
+    pub is_ready_to_build: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]

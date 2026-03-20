@@ -13,6 +13,32 @@ public struct ReviewCoreLoadedState: Sendable, Equatable {
     public let failureReason: String?
 }
 
+public func shouldDeferRustReviewCoreBootstrap(environment: [String: String]) -> Bool {
+    if environment["SOLOCODE_REVIEW_CORE_LIBRARY_PATH"] != nil
+        || environment["SOLOCODE_RUST_SEARCH_LIBRARY_PATH"] != nil
+    {
+        return false
+    }
+    if environment["SOLOCODE_REVIEW_CORE_FORCE_SWIFT"] == "1"
+        || environment["SOLOCODE_REVIEW_CORE_DISABLE_RUST"] == "1"
+    {
+        return true
+    }
+    if environment["XCTestConfigurationFilePath"] != nil
+        || environment["XCInjectBundleInto"] != nil
+        || environment["XCTestBundlePath"] != nil
+    {
+        return true
+    }
+    if Bundle.allBundles.contains(where: { $0.bundlePath.hasSuffix(".xctest") }) {
+        return true
+    }
+    if Bundle.allFrameworks.contains(where: { $0.bundlePath.contains("XCTest.framework") }) {
+        return true
+    }
+    return NSClassFromString("XCTestCase") != nil
+}
+
 final class RustSearchFFIClient: @unchecked Sendable {
     static let shared = RustSearchFFIClient()
 
@@ -96,6 +122,11 @@ final class RustSearchFFIClient: @unchecked Sendable {
         defer { lock.unlock() }
 
         if let api { return api }
+        if shouldDeferRustReviewCoreBootstrap(environment: ProcessInfo.processInfo.environment) {
+            lastFailureReason = "deferred_for_xctest_bootstrap"
+            loadedLibraryPath = nil
+            return nil
+        }
         lastFailureReason = nil
         loadedLibraryPath = nil
 
@@ -286,7 +317,9 @@ public enum ReviewCoreBridge {
         let env = ProcessInfo.processInfo.environment
         let forceSwift = env["SOLOCODE_REVIEW_CORE_FORCE_SWIFT"] == "1"
             || env["SOLOCODE_REVIEW_CORE_DISABLE_RUST"] == "1"
-        return !forceSwift && loadedVersion() != nil
+        return !forceSwift
+            && !shouldDeferRustReviewCoreBootstrap(environment: env)
+            && loadedVersion() != nil
     }
 
     public static func resetForTests() {

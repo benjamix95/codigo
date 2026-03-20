@@ -1,5 +1,7 @@
 use app_core_protocol::main_chat::{MainChatArtifact, MainChatArtifactKind, MainChatTurnState};
-use app_core_protocol::main_chat_runtime::{MainChatRuntimeOutput, MainChatRuntimeSnapshot};
+use app_core_protocol::main_chat_runtime::{
+    MainChatPlanPhase, MainChatPlanSnapshot, MainChatRuntimeOutput, MainChatRuntimeSnapshot,
+};
 use app_core_protocol::main_chat_store::{
     MainChatStoreConversationSnapshot, MainChatStoreMessageSnapshot, MainChatStoreSnapshot,
 };
@@ -94,6 +96,30 @@ fn ffi_ui_handle_intent_stream_finish_marks_message_not_streaming() {
     assert_eq!(
         state.store_snapshot.conversations[0].messages[0].primary_text_snapshot.as_deref(),
         Some("Final answer")
+    );
+}
+
+#[test]
+fn ffi_ui_handle_intent_plan_questions_raise_epoch_and_open_panel() {
+    let runtime = load_runtime();
+    let response = call_intent(&runtime, MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "plan_receive_clarification_questions".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: Some("## Questions\n- Which phase should move first?".to_string()),
+        timestamp: Some(2.0),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    let snapshot = response.snapshot.expect("snapshot");
+    assert!(state.plan_panel_visible);
+    assert_eq!(snapshot.plan.question_epoch, 1);
+    assert_eq!(
+        snapshot.plan.clarification_questions.as_deref(),
+        Some("## Questions\n- Which phase should move first?")
     );
 }
 
@@ -230,7 +256,10 @@ fn base_ui_state() -> MainChatUiState {
             },
             mode: None,
             direct_stream: None,
-            plan: None,
+            plan: Some(MainChatPlanSnapshot {
+                phase: Some(MainChatPlanPhase::Idle),
+                ..Default::default()
+            }),
             output: Some(MainChatRuntimeOutput::default()),
         }),
         task_runtime_state: Some(MainChatTaskRuntimeState {

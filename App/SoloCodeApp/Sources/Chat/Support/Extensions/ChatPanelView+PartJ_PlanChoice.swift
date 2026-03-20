@@ -155,13 +155,13 @@ extension ChatPanelView {
                 finalNote: finalNote
             )
         )
-
-        // Store answers and continue the flow. Phase is set to .analyzing because the
-        // post-clarification flow starts with a re-analysis pass before plan generation.
-        planClarificationAnswers = String(prompt.prefix(16_000))
-        planningState = .idle
+        let truncatedPrompt = String(prompt.prefix(16_000))
         clearPlanStreamingState()
-        planFlowPhase = .analyzing
+        _ = applyPlanUIIntent(
+            "submit_clarification_answers",
+            conversationId: conversationId,
+            text: truncatedPrompt
+        )
 
         // Safety net: ensure any lingering task from the questioning phase is ended
         // before we attempt to continue. This prevents the guard in continuePlanFlowPhase3
@@ -198,13 +198,14 @@ extension ChatPanelView {
         guard !normalized.isEmpty else { return }
         guard planFlowPhase != .building else { return }
         let planConversationId = explicitPlanConversationId ?? conversationId
-        chatStore.choosePlanPath(normalized, for: planConversationId)
         if let selected = planHistoryStore.selectedEntryId {
             planHistoryStore.updateChosenPath(id: selected, chosenPath: normalized)
         }
-        if planFlowPhase == .proposalReady || planFlowPhase == .idle {
-            planFlowPhase = .readyToBuild
-        }
+        _ = applyPlanUIIntent(
+            "choose_plan_option",
+            conversationId: planConversationId,
+            text: normalized
+        )
         // Do NOT auto-execute: wait for user to click "Build" in the plan panel.
     }
 

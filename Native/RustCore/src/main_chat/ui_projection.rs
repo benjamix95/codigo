@@ -1,5 +1,7 @@
 use app_core_protocol::main_chat::{MainChatArtifact, MainChatArtifactKind, MainChatTurnState};
-use app_core_protocol::main_chat_runtime::{MainChatPlanSnapshot, MainChatRuntimeOutput};
+use app_core_protocol::main_chat_runtime::{
+    MainChatPlanPhase, MainChatPlanSnapshot, MainChatRuntimeOutput,
+};
 use app_core_protocol::main_chat_store::{
     MainChatStoreConversationSnapshot, MainChatStoreMessageSnapshot, MainChatStorePlanBoardSnapshot,
 };
@@ -195,6 +197,7 @@ fn plan_snapshot_from_sources(
         is_visible: plan_panel_visible || runtime_output.map(|output| output.should_open_plan_panel).unwrap_or(false) || runtime_plan.is_some() || plan_board.is_some(),
         phase: runtime_plan.and_then(|plan| plan.phase.clone()),
         planning_state_kind: runtime_plan.and_then(|plan| plan.planning_state_kind.clone()),
+        question_epoch: runtime_plan.map(|plan| plan.question_epoch).unwrap_or_default(),
         clarification_questions: runtime_plan.and_then(|plan| plan.clarification_questions.clone()),
         proposal_content: runtime_plan.and_then(|plan| plan.proposal_content.clone()).or_else(|| {
             plan_board.and_then(|board| board.walkthrough_markdown.clone())
@@ -205,6 +208,10 @@ fn plan_snapshot_from_sources(
         step_count: plan_board.map(|board| board.steps.len() as i32).unwrap_or_default(),
         should_hide_markdown: runtime_output.map(|output| output.should_hide_plan_markdown).unwrap_or(false),
         should_run_inline: runtime_plan.map(|plan| plan.should_run_inline).unwrap_or(false),
+        is_ready_to_build: runtime_plan
+            .and_then(|plan| plan.phase.as_ref())
+            .map(|phase| phase == &MainChatPlanPhase::ReadyToBuild)
+            .unwrap_or(false),
     }
 }
 

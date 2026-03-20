@@ -253,6 +253,7 @@ extension ChatPanelView {
             }
             // Auto-expand/shrink window when side panels open/close
             .onChangeCompat(of: showPlanPanel) { wasOpen, isOpen in
+                syncPlanPanelVisibilityToRust(isOpen)
                 if isOpen && showDebugPanel {
                     debugToggleEnabled = false
                     showDebugPanel = false
