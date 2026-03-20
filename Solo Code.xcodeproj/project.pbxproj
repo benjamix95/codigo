@@ -384,6 +384,9 @@
 		37C54166A8B5245A35D0AD92 /* WebToolsTests+ProvidersAndServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9996D7E8593DF5F6D161ED3C /* WebToolsTests+ProvidersAndServices.swift */; };
 		37DD2DC590921B06CE10CE7C /* PipelineIntegrationService+Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 305285CCC38403135C51FC6B /* PipelineIntegrationService+Diagnostics.swift */; };
 		3844AEEDE68A539B31CE3D3E /* ChatStoreCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6B5054384D85CB05FFC101A /* ChatStoreCore.swift */; };
+		3844AEEEDE68A539B31CE3D3E /* MainChatStoreBridgeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6B5054484D85CB05FFC101A /* MainChatStoreBridgeModels.swift */; };
+		3844AEEFDE68A539B31CE3D3E /* RustMainChatStoreAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6B5054584D85CB05FFC101A /* RustMainChatStoreAdapter.swift */; };
+		3844AEF0DE68A539B31CE3D3E /* ChatStore+RustBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6B5054684D85CB05FFC101A /* ChatStore+RustBridge.swift */; };
 		385406AD647CA680DEFA8AA0 /* ReviewPanelChatAutoscroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2297ECBA0644BAE9667804C /* ReviewPanelChatAutoscroll.swift */; };
 		3862C8267ACB0A2630568FC9 /* PromptPlanningPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A15B62BD994C9EA9FB4A87 /* PromptPlanningPolicy.swift */; };
 		388B0B9E0A4B7D00BDF4ECBD /* PlanPanelVisualSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C99BF486EA929B7D380A4F /* PlanPanelVisualSmokeTests.swift */; };
@@ -3008,7 +3011,7 @@
 		C21DDE990B687CDCF34B517D /* CodebaseIndex+IndexingTransaction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodebaseIndex+IndexingTransaction.swift"; path = "Engine/CoderEngine/Sources/CodebaseIndex/Core/Operations/Indexing/Support/CodebaseIndex+IndexingTransaction.swift"; sourceTree = "<group>"; };
 		C241C7F6C139245FC75F8FED /* CodexCLIProviderStreamParsingTests+StreamMappingsPlan.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodexCLIProviderStreamParsingTests+StreamMappingsPlan.swift"; path = "Tests/CoderEngineTests/CodexCLI/CodexCLIProviderStreamParsingTests+StreamMappingsPlan.swift"; sourceTree = "<group>"; };
 		C2442C3FB6504606148C9EDF /* UnifiedToolRuntime+ShellExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+ShellExecution.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Shell/Execution/UnifiedToolRuntime+ShellExecution.swift"; sourceTree = "<group>"; };
-		C263A95ED9ABE56872370C85 /* ChatStoreStreaming.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreStreaming.swift; path = App/SoloCodeApp/Sources/Chat/Store/Streaming/ChatStoreStreaming.swift; sourceTree = "<group>"; };
+		C263A95ED9ABE56872370C85 /* ChatStoreStreaming.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreStreaming.swift; path = App/SoloCodeApp/Sources/Chat/Support/StoreRuntime/ChatStoreStreaming.swift; sourceTree = "<group>"; };
 		C2B1040D9029216EC0485F2C /* ReviewPanelSessionBrowser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelSessionBrowser.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Sessions/ReviewPanelSessionBrowser.swift; sourceTree = "<group>"; };
 		C2CB65FE0EB8D0580FB21F45 /* ContentView+Layout+Panels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ContentView+Layout+Panels.swift"; path = "App/SoloCodeApp/Sources/App/Content/Sections/ContentView+Layout+Panels.swift"; sourceTree = "<group>"; };
 		C31C5C5F134A066F931F49D6 /* UnifiedToolRuntime+RunDispatch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+RunDispatch.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Core/Execution/Dispatch/UnifiedToolRuntime+RunDispatch.swift"; sourceTree = "<group>"; };
@@ -3132,6 +3135,9 @@
 		D653DDC4D83E70A0C093D1EE /* ChatPanelView+PartE_ExecutionControl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartE_ExecutionControl.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/Lifecycle/ChatPanelView+PartE_ExecutionControl.swift"; sourceTree = "<group>"; };
 		D69CD1356308FD8BC76C3B55 /* EventNormalizerDebug.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventNormalizerDebug.swift; path = App/SoloCodeApp/Sources/Services/EventNormalizer/Debug/EventNormalizerDebug.swift; sourceTree = "<group>"; };
 		D6B5054384D85CB05FFC101A /* ChatStoreCore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStoreCore.swift; path = App/SoloCodeApp/Sources/Chat/Store/Core/ChatStoreCore.swift; sourceTree = "<group>"; };
+		D6B5054484D85CB05FFC101A /* MainChatStoreBridgeModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MainChatStoreBridgeModels.swift; path = App/SoloCodeApp/Sources/Chat/Support/StoreRust/MainChatStoreBridgeModels.swift; sourceTree = "<group>"; };
+		D6B5054584D85CB05FFC101A /* RustMainChatStoreAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RustMainChatStoreAdapter.swift; path = App/SoloCodeApp/Sources/Chat/Support/StoreRust/RustMainChatStoreAdapter.swift; sourceTree = "<group>"; };
+		D6B5054684D85CB05FFC101A /* ChatStore+RustBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatStore+RustBridge.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift"; sourceTree = "<group>"; };
 		D6C2A4C54B5AAD299D8F097C /* ValidationProfileResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ValidationProfileResolver.swift; path = Engine/CoderEngine/Sources/Validation/Profiles/ValidationProfileResolver.swift; sourceTree = "<group>"; };
 		D6DD501D077B60FF55F12E75 /* ExtensionRuntimeSandboxCapabilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExtensionRuntimeSandboxCapabilityTests.swift; path = Tests/SoloCodeAppTests/ExtensionRuntimeSandboxCapabilityTests.swift; sourceTree = "<group>"; };
 		D70AAF703CFA55B8F7A09ECA /* GeminiCLIProvider+ValueExtraction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GeminiCLIProvider+ValueExtraction.swift"; path = "Engine/CoderEngine/Sources/Providers/GeminiCLI/Parsing/GeminiCLIProvider+ValueExtraction.swift"; sourceTree = "<group>"; };
@@ -3607,6 +3613,9 @@
 				C19CE57FF31D961315F21BCD /* ChatStoreConversations+Export.swift */,
 				7D71C04D86A052D125F7A51C /* ChatStoreConversations.swift */,
 				D6B5054384D85CB05FFC101A /* ChatStoreCore.swift */,
+				D6B5054484D85CB05FFC101A /* MainChatStoreBridgeModels.swift */,
+				D6B5054584D85CB05FFC101A /* RustMainChatStoreAdapter.swift */,
+				D6B5054684D85CB05FFC101A /* ChatStore+RustBridge.swift */,
 				A45BD687C308E0C0AFEC4EB3 /* ChatStoreMarkers+OperationalThinking.swift */,
 				31634EA9CEC5B7ABF56C65F0 /* ChatStoreMarkers.swift */,
 				ED395EA86B453C94B93F8BED /* ChatStoreMessages+Pipeline.swift */,
@@ -6467,6 +6476,9 @@
 				E8797278F6B7267D4B4D1117 /* ChatStoreConversations+Export.swift in Sources */,
 				FB131683EEA64ACD5067B559 /* ChatStoreConversations.swift in Sources */,
 				3844AEEDE68A539B31CE3D3E /* ChatStoreCore.swift in Sources */,
+				3844AEEEDE68A539B31CE3D3E /* MainChatStoreBridgeModels.swift in Sources */,
+				3844AEEFDE68A539B31CE3D3E /* RustMainChatStoreAdapter.swift in Sources */,
+				3844AEF0DE68A539B31CE3D3E /* ChatStore+RustBridge.swift in Sources */,
 				616A07460566E6181BE4870C /* ChatStoreMarkers+OperationalThinking.swift in Sources */,
 				DAC8C531380D0E12F1A16437 /* ChatStoreMarkers.swift in Sources */,
 				13131E1E5908DEA07A0EB00A /* ChatStoreMessages+Pipeline.swift in Sources */,

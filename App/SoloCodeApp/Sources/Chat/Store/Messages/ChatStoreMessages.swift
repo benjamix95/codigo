@@ -23,14 +23,15 @@ func clearStaleAssistantStreaming(conversationId: UUID?) {
 }
 
 func addMessage(_ message: ChatMessage, to conversationId: UUID?) {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-    if message.role == .assistant, message.isStreaming {
-        clearStaleAssistantStreaming(conversationId: conversationId)
+    guard let conversationId else { return }
+    let _ = applyRustStoreAction("append_message") { request in
+        request.conversationId = conversationId.uuidString.lowercased()
+        request.message = RustMainChatStoreAdapter.messageSnapshot(message)
     }
-    conversations[idx].messages.append(message)
-    if conversations[idx].title == "New conversation", case .user = message.role {
-        conversations[idx].title = String(message.content.prefix(40))
-        if message.content.count > 40 { conversations[idx].title += "…" }
+    if let idx = conversations.firstIndex(where: { $0.id == conversationId }),
+       conversations[idx].title == "New conversation",
+       case .user = message.role {
+        setTitle(conversationId: conversationId, title: String(message.content.prefix(40)) + (message.content.count > 40 ? "…" : ""))
     }
     saveConversations()
 }
@@ -137,27 +138,13 @@ func saveSubagentCardsToLastAssistant(_ cards: [SubagentCardSnapshot], in conver
 }
 
 func saveReasoningToLastAssistant(reasoning: String, in conversationId: UUID?) {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-    guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
     let trimmed = reasoning.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return }
-    conversations[idx].messages[lastIdx].reasoningText = trimmed
-    var blocks = conversations[idx].messages[lastIdx].blocks ?? []
-    if let reasoningIdx = blocks.firstIndex(where: { $0.kind == .reasoning }) {
-        blocks[reasoningIdx].text = trimmed
-    } else {
-        blocks.append(
-            PersistedChatTimelineBlock(
-                id: "reasoning",
-                kind: .reasoning,
-                title: "Thinking",
-                text: trimmed,
-                isCollapsible: true,
-                isCollapsedByDefault: true
-            )
-        )
+    guard let conversationId else { return }
+    _ = applyRustStoreAction("save_reasoning") { request in
+        request.conversationId = conversationId.uuidString.lowercased()
+        request.text = trimmed
     }
-    conversations[idx].messages[lastIdx].blocks = blocks
     saveConversations()
 }
 
@@ -174,12 +161,11 @@ func removeAssistantMessageIfEmpty(messageId: UUID, in conversationId: UUID?) {
 }
 
 func removeMessage(messageId: UUID, in conversationId: UUID?) {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-    guard let midx = conversations[idx].messages.firstIndex(where: { $0.id == messageId }) else {
-        return
+    guard let conversationId else { return }
+    _ = applyRustStoreAction("remove_message") { request in
+        request.conversationId = conversationId.uuidString.lowercased()
+        request.messageId = messageId.uuidString.lowercased()
     }
-    conversations[idx].messages.remove(at: midx)
-    conversations[idx].checkpoints.removeAll { $0.messageCount > conversations[idx].messages.count }
     saveConversations()
 }
 }

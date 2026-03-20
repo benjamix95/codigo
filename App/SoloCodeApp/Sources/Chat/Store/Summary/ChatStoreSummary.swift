@@ -4,8 +4,11 @@ import CoderEngine
 extension ChatStore {
 /// Update real token usage from API response for a conversation.
 func updateLastInputTokens(_ tokens: Int, for conversationId: UUID?) {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-    conversations[idx].lastInputTokens = tokens
+    guard let conversationId else { return }
+    _ = applyRustStoreAction("set_last_input_tokens") { request in
+        request.conversationId = conversationId.uuidString.lowercased()
+        request.intValue = tokens
+    }
 }
 
 func summarizeConversation(

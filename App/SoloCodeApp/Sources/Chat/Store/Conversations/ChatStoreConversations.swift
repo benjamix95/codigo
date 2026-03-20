@@ -23,7 +23,9 @@ extension ChatStore {
     @discardableResult
     func createConversation(contextId: UUID? = nil, contextFolderPath: String? = nil, mode: CoderMode? = nil) -> UUID {
         let conv = Conversation(contextId: contextId, contextFolderPath: contextFolderPath, mode: mode)
-        conversations.append(conv)
+        _ = applyRustStoreAction("create_conversation") { request in
+            request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
+        }
         saveConversations()
         return conv.id
     }
@@ -32,7 +34,9 @@ extension ChatStore {
     @discardableResult
     func createConversation(workspaceId: UUID? = nil, adHocFolderPaths: [String] = [], mode: CoderMode? = nil) -> UUID {
         let conv = Conversation(contextId: workspaceId, mode: mode, workspaceId: workspaceId, adHocFolderPaths: adHocFolderPaths)
-        conversations.append(conv)
+        _ = applyRustStoreAction("create_conversation") { request in
+            request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
+        }
         saveConversations()
         return conv.id
     }
@@ -68,8 +72,9 @@ extension ChatStore {
 
     @discardableResult
     func deleteConversation(id: UUID) -> ChatStoreConversationDeletionOutcome {
-        conversations.removeAll { $0.id == id }
-        planBoards.removeValue(forKey: id)
+        _ = applyRustStoreAction("delete_conversation") { request in
+            request.conversationId = id.uuidString.lowercased()
+        }
         planSharedSyncSignatureByConversation.removeValue(forKey: id)
         draftTexts.removeValue(forKey: id)
         activeTaskConversationIds.remove(id)
@@ -93,45 +98,54 @@ extension ChatStore {
     }
 
     func setPinned(conversationId: UUID, pinned: Bool) {
-        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        conversations[idx].isPinned = pinned
+        _ = applyRustStoreAction("set_pinned") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.boolValue = pinned
+        }
         saveConversations()
     }
 
     func setFavorite(conversationId: UUID, favorite: Bool) {
-        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        conversations[idx].isFavorite = favorite
+        _ = applyRustStoreAction("set_favorite") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.boolValue = favorite
+        }
         saveConversations()
     }
 
     func setArchived(conversationId: UUID, archived: Bool) {
-        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        conversations[idx].isArchived = archived
+        _ = applyRustStoreAction("set_archived") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.boolValue = archived
+        }
         saveConversations()
     }
 
     func setTitle(conversationId: UUID, title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        conversations[idx].title = trimmed
+        _ = applyRustStoreAction("set_title") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.title = trimmed
+        }
         saveConversations()
     }
 
     func updateConversationMode(conversationId: UUID?, mode: CoderMode?) {
-        guard let id = conversationId,
-              let idx = conversations.firstIndex(where: { $0.id == id }) else { return }
-        if conversations[idx].mode == mode {
-            return
+        guard let id = conversationId else { return }
+        _ = applyRustStoreAction("set_mode") { request in
+            request.conversationId = id.uuidString.lowercased()
+            request.mode = mode?.rawValue
         }
-        conversations[idx].mode = mode
         saveConversations()
     }
 
     func updatePreferredProvider(conversationId: UUID?, providerId: String?) {
-        guard let id = conversationId,
-              let idx = conversations.firstIndex(where: { $0.id == id }) else { return }
-        conversations[idx].preferredProviderId = providerId?.isEmpty == true ? nil : providerId
+        guard let id = conversationId else { return }
+        _ = applyRustStoreAction("set_preferred_provider") { request in
+            request.conversationId = id.uuidString.lowercased()
+            request.providerId = providerId
+        }
         saveConversations()
     }
 
@@ -209,17 +223,23 @@ extension ChatStore {
     }
 
     func setContext(conversationId: UUID?, contextId: UUID?) {
-        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        conversations[idx].contextId = contextId
-        conversations[idx].contextFolderPath = nil
-        conversations[idx].workspaceId = contextId
-        conversations[idx].adHocFolderPaths = []
+        guard let conversationId else { return }
+        _ = applyRustStoreAction("set_context") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.contextId = contextId?.uuidString.lowercased()
+            request.workspaceId = contextId?.uuidString.lowercased()
+            request.contextFolderPath = nil
+            request.stringList = []
+        }
         saveConversations()
     }
 
     func setContextFolder(conversationId: UUID?, folderPath: String?) {
-        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        conversations[idx].contextFolderPath = folderPath
+        guard let conversationId else { return }
+        _ = applyRustStoreAction("set_context_folder") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.contextFolderPath = folderPath
+        }
         saveConversations()
     }
 
@@ -228,11 +248,14 @@ extension ChatStore {
     }
 
     func setAdHocPaths(conversationId: UUID?, paths: [String]) {
-        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        conversations[idx].contextId = nil
-        conversations[idx].contextFolderPath = nil
-        conversations[idx].workspaceId = nil
-        conversations[idx].adHocFolderPaths = paths
+        guard let conversationId else { return }
+        _ = applyRustStoreAction("set_ad_hoc_paths") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.contextId = nil
+            request.contextFolderPath = nil
+            request.workspaceId = nil
+            request.stringList = paths
+        }
         saveConversations()
     }
 

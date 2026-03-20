@@ -62,7 +62,11 @@ extension ChatStore {
 
         var message = conversations[conversationIndex].messages[messageIndex]
         mutate(&message)
-        conversations[conversationIndex].messages[messageIndex] = message
+        _ = applyRustStoreAction("replace_message") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.messageId = messageId.uuidString.lowercased()
+            request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+        }
 
         if persistImmediately {
             saveConversations()

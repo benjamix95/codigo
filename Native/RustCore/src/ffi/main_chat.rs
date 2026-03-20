@@ -1,13 +1,17 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::main_chat::{
     apply_event, bridge_provider_stream, cancel_session, finish_turn, get_snapshot, handle_action,
-    handle_runtime_action, resume_session, start_session, start_turn,
+    handle_runtime_action, handle_store_action, load_store_snapshot, replace_store_snapshot,
+    resume_session, start_session, start_turn,
 };
 use app_core_protocol::main_chat::{
     MainChatActionRequest, MainChatReduceEventRequest, MainChatRuntimeResponse,
 };
 use app_core_protocol::main_chat_provider::{
     MainChatProviderSessionResponse,
+};
+use app_core_protocol::main_chat_store::{
+    MainChatStoreActionRequest, MainChatStoreResponse, MainChatStoreSnapshot,
 };
 use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
 use std::os::raw::c_char;
@@ -76,6 +80,21 @@ pub extern "C" fn chat_core_provider_cancel(input: *const c_char) -> *mut c_char
     with_raw_json_input(input, |raw| decode_provider_call(raw, cancel_session))
 }
 
+#[no_mangle]
+pub extern "C" fn chat_core_store_load(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_store_snapshot_call(raw, load_store_snapshot))
+}
+
+#[no_mangle]
+pub extern "C" fn chat_core_store_replace_snapshot(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_store_snapshot_call(raw, replace_store_snapshot))
+}
+
+#[no_mangle]
+pub extern "C" fn chat_core_store_handle_action(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_store_action_call(raw, handle_store_action))
+}
+
 fn decode_and_encode<Request, Response>(
     raw: &str,
     handler: impl FnOnce(Request) -> Response,
@@ -104,6 +123,38 @@ where
         Ok(request) => request,
         Err(err) => {
             return encode_raw(&MainChatProviderSessionResponse::error(
+                "decode_failed",
+                &err.to_string(),
+            ));
+        }
+    };
+    encode_raw(&handler(request))
+}
+
+fn decode_store_snapshot_call(
+    raw: &str,
+    handler: impl FnOnce(MainChatStoreSnapshot) -> MainChatStoreResponse,
+) -> String {
+    let request: MainChatStoreSnapshot = match serde_json::from_str(raw) {
+        Ok(request) => request,
+        Err(err) => {
+            return encode_raw(&MainChatStoreResponse::error(
+                "decode_failed",
+                &err.to_string(),
+            ));
+        }
+    };
+    encode_raw(&handler(request))
+}
+
+fn decode_store_action_call(
+    raw: &str,
+    handler: impl FnOnce(MainChatStoreActionRequest) -> MainChatStoreResponse,
+) -> String {
+    let request: MainChatStoreActionRequest = match serde_json::from_str(raw) {
+        Ok(request) => request,
+        Err(err) => {
+            return encode_raw(&MainChatStoreResponse::error(
                 "decode_failed",
                 &err.to_string(),
             ));

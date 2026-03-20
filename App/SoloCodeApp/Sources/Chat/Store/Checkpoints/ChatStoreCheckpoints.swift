@@ -7,19 +7,22 @@ func createCheckpoint(
     gitStates: [ConversationCheckpointGitState],
     planConversationIdForSnapshot: UUID? = nil
 ) {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+    guard let conversationId else { return }
     let linkedPlanConversationId: UUID? = {
         guard let planConversationIdForSnapshot else { return nil }
-        return planConversationIdForSnapshot == conversations[idx].id ? nil : planConversationIdForSnapshot
+        return planConversationIdForSnapshot == conversationId ? nil : planConversationIdForSnapshot
     }()
     let checkpoint = ConversationCheckpoint(
-        messageCount: conversations[idx].messages.count,
-        planBoardSnapshot: planBoards[conversations[idx].id],
+        messageCount: 0,
+        planBoardSnapshot: planBoards[conversationId],
         linkedPlanConversationId: linkedPlanConversationId,
         linkedPlanBoardSnapshot: linkedPlanConversationId.flatMap { planBoards[$0] },
         gitStates: gitStates
     )
-    conversations[idx].checkpoints.append(checkpoint)
+    _ = applyRustStoreAction("create_checkpoint") { request in
+        request.conversationId = conversationId.uuidString.lowercased()
+        request.checkpoint = RustMainChatStoreAdapter.checkpointSnapshot(checkpoint)
+    }
     saveConversations()
 }
 
@@ -40,28 +43,16 @@ func checkpoint(forMessageIndex messageIndex: Int, conversationId: UUID?) -> Con
 
 @discardableResult
 func rewindConversationState(to checkpointId: UUID, conversationId: UUID?) -> Bool {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return false }
-    guard let cpIdx = conversations[idx].checkpoints.lastIndex(where: { $0.id == checkpointId }) else { return false }
-    let checkpoint = conversations[idx].checkpoints[cpIdx]
-    guard checkpoint.messageCount <= conversations[idx].messages.count else { return false }
-
-    conversations[idx].messages = Array(conversations[idx].messages.prefix(checkpoint.messageCount))
-    if let snapshot = checkpoint.planBoardSnapshot {
-        planBoards[conversations[idx].id] = snapshot
-    } else {
-        planBoards.removeValue(forKey: conversations[idx].id)
+    guard let conversationId else { return false }
+    let ok = applyRustStoreAction("rewind_to_checkpoint") { request in
+        request.conversationId = conversationId.uuidString.lowercased()
+        request.checkpointId = checkpointId.uuidString.lowercased()
     }
-    if let linkedConversationId = checkpoint.linkedPlanConversationId {
-        if let linkedSnapshot = checkpoint.linkedPlanBoardSnapshot {
-            planBoards[linkedConversationId] = linkedSnapshot
-        } else {
-            planBoards.removeValue(forKey: linkedConversationId)
-        }
+    if ok {
+        saveConversations()
+        savePlanBoards()
     }
-    conversations[idx].checkpoints = Array(conversations[idx].checkpoints.prefix(cpIdx))
-    saveConversations()
-    savePlanBoards()
-    return true
+    return ok
 }
 
 func trimFutureCheckpoints(conversationId: UUID?, maxMessageCount: Int) {
@@ -72,28 +63,15 @@ func trimFutureCheckpoints(conversationId: UUID?, maxMessageCount: Int) {
 
 @discardableResult
 func rewindConversationToMessageCount(_ messageCount: Int, conversationId: UUID?) -> Bool {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return false }
-    guard messageCount >= 0, messageCount <= conversations[idx].messages.count else { return false }
-    conversations[idx].messages = Array(conversations[idx].messages.prefix(messageCount))
-    conversations[idx].checkpoints.removeAll { $0.messageCount > messageCount }
-    // Restore the plan board from the most recent remaining checkpoint,
-    // or clear it if no checkpoints remain.
-    if let lastCheckpoint = conversations[idx].checkpoints.last,
-       let snapshot = lastCheckpoint.planBoardSnapshot {
-        planBoards[conversations[idx].id] = snapshot
-    } else {
-        planBoards.removeValue(forKey: conversations[idx].id)
+    guard let conversationId else { return false }
+    let ok = applyRustStoreAction("rewind_to_message_count") { request in
+        request.conversationId = conversationId.uuidString.lowercased()
+        request.messageCount = messageCount
     }
-    if let lastCheckpoint = conversations[idx].checkpoints.last,
-       let linkedConversationId = lastCheckpoint.linkedPlanConversationId {
-        if let linkedSnapshot = lastCheckpoint.linkedPlanBoardSnapshot {
-            planBoards[linkedConversationId] = linkedSnapshot
-        } else {
-            planBoards.removeValue(forKey: linkedConversationId)
-        }
+    if ok {
+        saveConversations()
+        savePlanBoards()
     }
-    saveConversations()
-    savePlanBoards()
-    return true
+    return ok
 }
 }

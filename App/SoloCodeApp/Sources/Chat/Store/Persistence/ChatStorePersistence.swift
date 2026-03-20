@@ -97,6 +97,7 @@ func loadPlanBoards() {
             let conversationIds = Set(conversations.map(\.id))
             planBoards = conversationIds.isEmpty ? boards : boards.filter { conversationIds.contains($0.key) }
         }
+        normalizeLoadedRustStoreSnapshot()
         return
     }
 
@@ -106,6 +107,7 @@ func loadPlanBoards() {
             let conversationIds = Set(self.conversations.map(\.id))
             let pruned = conversationIds.isEmpty ? boards : boards.filter { conversationIds.contains($0.key) }
             self.planBoards.merge(pruned) { existing, _ in existing }
+            self.normalizeLoadedRustStoreSnapshot()
         }
     }
 }
