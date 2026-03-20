@@ -180,4 +180,36 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertFalse(sanitized.contains("todo_write|"))
         XCTAssertTrue(sanitized.contains("Visible content."))
     }
+
+    func testStripCoderideMarkersDoesNotAlterCodeFenceContent() {
+        let input = """
+        Before
+
+        ```swift
+        let marker = "[CODERIDE:keep]"
+        ```
+
+        After
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input)
+
+        XCTAssertTrue(sanitized.contains("```swift"))
+        XCTAssertTrue(sanitized.contains(#""[CODERIDE:keep]""#))
+        XCTAssertTrue(sanitized.contains("Before"))
+        XCTAssertTrue(sanitized.contains("After"))
+    }
+
+    func testExtractLastOperationalThinkingLineReturnsLastOperationalLine() {
+        let input = """
+        Done
+        Explored files
+        Reading config
+        """
+
+        XCTAssertEqual(
+            ChatStore.extractLastOperationalThinkingLine(from: input),
+            "Reading config"
+        )
+    }
 }

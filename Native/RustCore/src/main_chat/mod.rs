@@ -1,5 +1,6 @@
 mod artifacts;
 mod continuation;
+mod markers;
 mod persistence;
 mod plan_prompts;
 mod plan_runtime;
@@ -16,6 +17,7 @@ mod stream_runtime;
 mod runtime;
 
 pub use provider::bridge_provider_stream;
+pub use markers::handle_request as handle_markers_request;
 pub use reasoning_stream::handle_reasoning_request;
 pub use providers::{cancel_session, get_snapshot, resolve_thread_provider_selection, resume_session, start_session};
 pub use reducer::apply_event;

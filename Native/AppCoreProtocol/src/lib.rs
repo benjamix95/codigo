@@ -2,6 +2,7 @@ pub mod app_core;
 pub mod cli_account_routing;
 pub mod jsonrpc;
 pub mod main_chat;
+pub mod main_chat_markers;
 pub mod main_chat_reasoning;
 pub mod main_chat_provider;
 pub mod main_chat_runtime;

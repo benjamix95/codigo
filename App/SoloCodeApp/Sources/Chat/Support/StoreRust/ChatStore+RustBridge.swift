@@ -1,6 +1,24 @@
 import Foundation
 
 extension ChatStore {
+    static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
+        let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "strip_coderide_markers", text: content, aggressive: aggressive)
+        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else {
+            assertionFailure("Main chat markers runtime unavailable for strip_coderide_markers")
+            return aggressive ? content.trimmingCharacters(in: .whitespacesAndNewlines) : content
+        }
+        return result
+    }
+
+    static func extractLastOperationalThinkingLine(from content: String) -> String? {
+        let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "extract_last_operational_thinking_line", text: content, aggressive: nil)
+        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else {
+            assertionFailure("Main chat markers runtime unavailable for extract_last_operational_thinking_line")
+            return nil
+        }
+        return result.isEmpty ? nil : result
+    }
+
     @MainActor
     func normalizedRustStoreSnapshot() -> MainChatStoreSnapshotBridge {
         let local = RustMainChatStoreAdapter.snapshot(from: self)

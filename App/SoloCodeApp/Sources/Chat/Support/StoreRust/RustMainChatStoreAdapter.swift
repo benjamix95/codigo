@@ -76,6 +76,14 @@ enum RustMainChatStoreAdapter {
         return response?.error == nil ? response?.state : nil
     }
 
+    static func handleMarkers(_ request: MainChatMarkersRequestBridge) -> String? {
+        let response: MainChatMarkersResponseBridge? = ReviewCoreBridge.call(
+            functionName: "chat_core_markers_handle",
+            request: request
+        )
+        return response?.error == nil ? response?.text : nil
+    }
+
     static func conversationSnapshot(_ conversation: Conversation) -> MainChatStoreConversationSnapshotBridge {
         MainChatStoreConversationSnapshotBridge(
             id: conversation.id.uuidString.lowercased(),

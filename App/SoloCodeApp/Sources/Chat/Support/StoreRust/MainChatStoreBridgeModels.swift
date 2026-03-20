@@ -162,6 +162,19 @@ struct MainChatTaskRuntimeResponseBridge: Decodable {
     let state: MainChatTaskRuntimeStateBridge?
 }
 
+struct MainChatMarkersRequestBridge: Encodable {
+    var schemaVersion: Int
+    var operation: String
+    var text: String
+    var aggressive: Bool?
+}
+
+struct MainChatMarkersResponseBridge: Decodable {
+    let schemaVersion: Int
+    let error: MainChatStoreBridgeErrorBridge?
+    let text: String?
+}
+
 struct MainChatStoreActionRequestBridge: Encodable {
     var schemaVersion: Int
     var action: String

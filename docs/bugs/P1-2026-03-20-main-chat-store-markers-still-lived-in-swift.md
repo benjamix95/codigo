@@ -1,0 +1,48 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: la marker sanitization e l'operational thinking della `main chat` vivevano ancora in Swift dentro `ChatStoreMarkers.swift` e `ChatStoreMarkers+OperationalThinking.swift`.
+- Sintomo:
+  - `stripCoderideMarkers(...)` e `extractLastOperationalThinkingLine(...)` eseguiti solo lato Swift
+- Impatto:
+  - parsing marker ancora fuori da Rust
+  - testo streaming/sommari/markdown ancora dipendenti da regex Swift
+- Gravita': alta
+- Steps to reproduce:
+  - leggere [ChatStoreMarkers.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Messages/ChatStoreMarkers.swift)
+  - leggere [ChatStoreMarkers+OperationalThinking.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Messages/ChatStoreMarkers+OperationalThinking.swift)
+- Risultato attuale:
+  - sanitizzazione marker e extraction della line operativa eseguite in Swift
+- Risultato atteso:
+  - runtime markers Rust con bridge Swift minimo
+- Causa probabile:
+  - il dominio `main_chat_store` copriva lo snapshot, ma non esisteva ancora un runtime Rust dedicato alla text sanitization markers
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_markers.rs`
+  - `Native/RustCore/src/main_chat/markers/**`
+  - `Native/RustCore/src/ffi/main_chat.rs`
+  - `StoreRust/**`
+  - `ChatStoreMarkers*.swift`
+  - `ChatStoreMarkerSanitizationTests`
+  - doc/changelog/baseline
+- Non-scope:
+  - conversation lifecycle
+  - plan board mutations
+  - persistence batch
+- Moduli confinanti da verificare:
+  - rendering markdown
+  - summary builder
+  - streaming detail text
+- Test da aggiungere o aggiornare:
+  - unit test Rust markers
+  - XCTest `ChatStoreMarkerSanitizationTests`
+  - test FFI `AppCoreRust`
+- Strategia di fix minimo:
+  - introdurre un runtime markers Rust separato
+  - spostare le facciate pubbliche in `StoreRust`
+  - eliminare i due file Swift legacy markers
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml markers::tests -- --nocapture`
+  - `cargo test --manifest-path Native/AppCoreRust/Cargo.toml --test main_chat_markers -- --nocapture`
+  - `xcodebuild test-without-building ... -only-testing:SoloCodeAppTests/ChatStoreMarkerSanitizationTests`
+- Commit previsto:
+  - `refactor(chat): move store marker sanitization into rust`
