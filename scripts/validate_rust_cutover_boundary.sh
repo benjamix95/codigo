@@ -16,36 +16,13 @@ REVIEW_CUTOVER_PREFIXES=(
   "Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/BugHunter"
 )
 MAIN_CHAT_CUTOVER_PREFIXES=(
-  "App/SoloCodeApp/Sources/Chat/Pipeline"
-  "App/SoloCodeApp/Sources/Chat/Store"
-  "App/SoloCodeApp/Sources/Accounts/CLIMultiAccountProviderAdapter.swift"
-  "App/SoloCodeApp/Sources/Accounts/CLIAccountRouter.swift"
-  "App/SoloCodeApp/Sources/Chat/Support/Extensions/Providers/ChatPanelView+PartN_RuntimeProvider.swift"
-  "App/SoloCodeApp/Sources/Chat/Support/Extensions/Providers/ChatPanelView+PartN_RustTransport.swift"
-  "App/SoloCodeApp/Sources/Chat/Support/Extensions/Providers/ChatPanelView+PartN_RuntimeTransportSelection.swift"
-  "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService.swift"
-  "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+ChatPipeline.swift"
-  "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+EventMapping.swift"
-  "App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+EventSupport.swift"
-  "App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator.swift"
-  "App/SoloCodeApp/Sources/Settings/ProviderFactory/Providers/ProviderFactory+CLI.swift"
-  "App/SoloCodeApp/Sources/Settings/ProviderFactory/Providers/ProviderFactory+API.swift"
-  "Engine/CoderEngine/Sources/Pipeline/Agents"
-  "Engine/CoderEngine/Sources/Pipeline/Bridge"
-  "Engine/CoderEngine/Sources/Pipeline/Contracts"
-  "Engine/CoderEngine/Sources/Pipeline/EventBus"
-  "Engine/CoderEngine/Sources/Pipeline/Locking"
-  "Engine/CoderEngine/Sources/Pipeline/Observability"
-  "Engine/CoderEngine/Sources/Pipeline/Orchestrator"
-  "Engine/CoderEngine/Sources/Pipeline/Scheduler"
-  "Engine/CoderEngine/Sources/Pipeline/WorkerPool"
-  "Engine/CoderEngine/Sources/Providers/CodexCLI"
-  "Engine/CoderEngine/Sources/Providers/ClaudeCLI"
-  "Engine/CoderEngine/Sources/Providers/GeminiCLI"
-  "Engine/CoderEngine/Sources/Providers/OpenAI"
-  "Engine/CoderEngine/Sources/Providers/Anthropic"
+  "App/SoloCodeApp/Sources/Chat"
+  "App/SoloCodeApp/Sources/Runtime"
+  "App/SoloCodeApp/Sources/Accounts"
+  "App/SoloCodeApp/Sources/Settings/ProviderFactory/Providers"
+  "Engine/CoderEngine/Sources/Pipeline"
+  "Engine/CoderEngine/Sources/Providers"
 )
-ENABLE_MAIN_CHAT_CUTOVER="${SOLOCODE_MAIN_CHAT_CUTOVER:-0}"
 ALLOWLIST_PATH="Config/validation/rust-cutover-swift-allowlist.txt"
 
 while [[ $# -gt 0 ]]; do
@@ -100,18 +77,16 @@ if [[ -n "$candidate_files" ]]; then
         enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
       fi
     done
-    if [[ "$ENABLE_MAIN_CHAT_CUTOVER" == "1" ]]; then
-      for prefix in "${MAIN_CHAT_CUTOVER_PREFIXES[@]}"; do
-        if [[ "$file" == "$prefix" || "$file" == "$prefix/"* ]]; then
-          enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
-        fi
-      done
-    fi
+    for prefix in "${MAIN_CHAT_CUTOVER_PREFIXES[@]}"; do
+      if [[ "$file" == "$prefix" || "$file" == "$prefix/"* ]]; then
+        enforced_prefixes="$(printf '%s\n%s\n' "$enforced_prefixes" "$prefix" | awk 'NF && !seen[$0]++' | paste -sd, -)"
+      fi
+    done
   done < <(printf '%s\n' "$candidate_files" | tr ',' '\n')
 fi
 
 if [[ -n "$enforced_prefixes" ]]; then
-  baseline_json_file="$(mktemp "${TMPDIR%/}/review-cutover-baseline-json.XXXXXX")"
+  baseline_json_file="$(mktemp "${TMPDIR%/}/rust-cutover-baseline-json.XXXXXX")"
   baseline_candidate_files=""
   while IFS= read -r prefix; do
     [[ -z "$prefix" ]] && continue
