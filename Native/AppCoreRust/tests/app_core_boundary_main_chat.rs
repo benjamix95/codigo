@@ -155,6 +155,7 @@ fn boundary_audit_treats_storerust_bridge_files_as_allowed_when_rule_is_present(
     assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Chat"), Some(&1));
 }
 
+
 fn make_workspace(label: &str) -> PathBuf {
     let suffix = SystemTime::now().duration_since(UNIX_EPOCH).expect("system time").as_nanos();
     let path = std::env::temp_dir().join(format!("solocode-app-core-rust-{label}-{suffix}"));

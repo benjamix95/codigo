@@ -76,4 +76,5 @@ cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutov
   - `App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift` e' stato riclassificato come `binding_adapter` dopo il cutover Rust-only del direct stream
   - `App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift` e' stato riclassificato come `binding_adapter` dopo la rimozione del fallback Swift dal direct stream
   - `App/SoloCodeApp/Sources/Runtime/DebugPipeline/DebugProjectionStoreBinding.swift` e' stato assorbito in `DebugProjectionEventConsumer.swift`, rimuovendo un file Swift residuo dal prefisso `Runtime`
-  - il progresso strutturale osservato rispetto al baseline canonico iniziale e' `6/198`, pari a `3.0%`
+  - `ThreadProviderSelectionService.swift` e' stato assorbito in `Chat/Support/Providers/Rust/RustMainChatProviderFactory.swift` dopo il cutover Rust della thread provider selection policy
+  - il progresso strutturale osservato rispetto al baseline canonico iniziale e' `7/198`, pari a `3.5%`

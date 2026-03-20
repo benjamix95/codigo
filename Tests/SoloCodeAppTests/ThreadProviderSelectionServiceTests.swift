@@ -61,6 +61,34 @@ final class ThreadProviderSelectionServiceTests: XCTestCase {
 
         XCTAssertEqual(resolved, "openai-api")
     }
+
+    func testMissingBoundProviderReturnsUnregisteredAllowedProvider() {
+        let registry = ProviderRegistry()
+        registry.register(ThreadProviderMockProvider(id: "codex-cli", authenticated: true))
+        let conversation = Conversation(mode: nil, preferredProviderId: "openrouter-api")
+
+        let missing = ThreadProviderSelectionService.missingBoundProviderId(
+            conversation: conversation,
+            selectedProviderId: "codex-cli",
+            registry: registry
+        )
+
+        XCTAssertEqual(missing, "openrouter-api")
+    }
+
+    func testMCPServerAlwaysResolvesClaudeCLI() {
+        let registry = ProviderRegistry()
+        registry.register(ThreadProviderMockProvider(id: "openai-api", authenticated: true))
+        let conversation = Conversation(mode: .mcpServer, preferredProviderId: "openai-api")
+
+        let resolved = ThreadProviderSelectionService.resolveProviderId(
+            conversation: conversation,
+            currentProviderId: "openai-api",
+            registry: registry
+        )
+
+        XCTAssertEqual(resolved, "claude-cli")
+    }
 }
 
 @MainActor

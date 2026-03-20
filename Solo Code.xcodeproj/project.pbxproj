@@ -1073,7 +1073,6 @@
 		A44F7D634A221769DD98FF4A /* DeadLetterQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49882DE0AC34CFB2ED4A82C6 /* DeadLetterQueue.swift */; };
 		A461A9375718E1B535E9EF3B /* SwarmLivePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E662B9ED6DA41E5DDB4BD17 /* SwarmLivePresentationTests.swift */; };
 		A4640EA56B5680D6636DDF86 /* CodebaseIndex+IndexingTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21DDE990B687CDCF34B517D /* CodebaseIndex+IndexingTransaction.swift */; };
-		A46BAF1F72B998C6C5A8BAD6 /* ThreadProviderSelectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F5001577E0F469935EDDE8 /* ThreadProviderSelectionService.swift */; };
 		A479CAD0A146AC8B7C64B48F /* ChatPanelView+PartR_Rewind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DCC97BBCCB09CDBFAEE10AE /* ChatPanelView+PartR_Rewind.swift */; };
 		A54316F097AF9B287A4A18AA /* EditorPathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B01E615F6E6C7F3C9263FE /* EditorPathResolver.swift */; };
 		A556BE13CAEBC5E9CAF5E253 /* ChatPanelView+PartM_MultiTurn.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCD66C315A18EF602D2B98F3 /* ChatPanelView+PartM_MultiTurn.swift */; };
@@ -2638,7 +2637,6 @@
 		8629485A28B59AA58062AB49 /* EditorPlaceholderView+Footer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "EditorPlaceholderView+Footer.swift"; path = "App/SoloCodeApp/Sources/App/Placeholder/Sections/EditorPlaceholderView+Footer.swift"; sourceTree = "<group>"; };
 		8635D6053F3F44E47DF096BB /* UnifiedToolRuntime+MCPCallsIDEStateEvents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+MCPCallsIDEStateEvents.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Calls/UnifiedToolRuntime+MCPCallsIDEStateEvents.swift"; sourceTree = "<group>"; };
 		86B8E16CE1B62BD370F18D46 /* CodeReviewSessionState+Lifecycle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewSessionState+Lifecycle.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/ReviewCore/Session/CodeReviewSessionState+Lifecycle.swift"; sourceTree = "<group>"; };
-		86F5001577E0F469935EDDE8 /* ThreadProviderSelectionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ThreadProviderSelectionService.swift; path = App/SoloCodeApp/Sources/Chat/Support/Providers/Services/ThreadProviderSelectionService.swift; sourceTree = "<group>"; };
 		8760F89807E19EED231C1E69 /* CodeReviewQuickCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeReviewQuickCommands.swift; path = App/SoloCodeApp/Sources/CodeReview/CodeReviewQuickCommands.swift; sourceTree = "<group>"; };
 		876B70ACA004F8899A2BDAE8 /* ChatPanelTaskStatusScopingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPanelTaskStatusScopingTests.swift; path = Tests/SoloCodeAppTests/ChatPanelTaskStatusScopingTests.swift; sourceTree = "<group>"; };
 		87937A9969FF818CAD3F5BD3 /* PluginRegistry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PluginRegistry.swift; path = App/SoloCodeApp/Sources/Extensions/Runtime/PluginRegistry.swift; sourceTree = "<group>"; };
@@ -3694,7 +3692,6 @@
 				C0E5EDCEC12AAF3BA6D13444 /* ChatPanelView+PartA_NotificationModifiers.swift */,
 				7B24897DD241008A898294D7 /* ChatPanelView+PartA_TodoSync.swift */,
 				44199E04E7A1A0CEB8BE5BFC /* PlanScreeningDecision.swift */,
-				86F5001577E0F469935EDDE8 /* ThreadProviderSelectionService.swift */,
 				47F584C723063320DE87D3E6 /* ChatReasoningStreamReducer.swift */,
 				B25602E11BC7809EF4A6F134 /* ChangedFilesSummaryCard.swift */,
 				AD9F41C9478A5D408E2E41C5 /* TaskActivityPanel+Helpers.swift */,
@@ -6553,7 +6550,6 @@
 				F659D2B32F96C8E5EC9159EA /* ChatPanelView+PartA_NotificationModifiers.swift in Sources */,
 				4066ABDE9F2416E7185BC36A /* ChatPanelView+PartA_TodoSync.swift in Sources */,
 				C1FA1E859E9AA88F81EA95FA /* PlanScreeningDecision.swift in Sources */,
-				A46BAF1F72B998C6C5A8BAD6 /* ThreadProviderSelectionService.swift in Sources */,
 				18326F1F7C7BD86D90CA6DD4 /* ChatReasoningStreamReducer.swift in Sources */,
 				6815F57A16FF0D08A35DA485 /* ChangedFilesSummaryCard.swift in Sources */,
 				5B69F2E4641D94217B425C05 /* TaskActivityPanel+Helpers.swift in Sources */,
