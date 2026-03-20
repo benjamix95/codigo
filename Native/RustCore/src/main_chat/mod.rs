@@ -17,6 +17,7 @@ mod stream_runtime;
 mod runtime;
 mod ui_intents;
 mod ui_projection;
+mod ui_state_sync;
 #[cfg(test)]
 mod ui_tests;
 

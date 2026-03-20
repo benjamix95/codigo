@@ -7,7 +7,8 @@ extension ChatPanelView {
     internal func handleRawStreamEvent(
         type t: String, payload p: [String: String], providerId pid: String,
         conversationId convId: UUID?,
-        shouldApplyPipelineArtifacts: Bool = true
+        shouldApplyPipelineArtifacts: Bool = true,
+        shouldUpdateInlineReasoningVisuals: Bool = true
     ) {
         if t == "policy_ack" {
             let enriched = processPolicyAckEvent(payload: p, providerId: pid, conversationId: convId)
@@ -107,6 +108,10 @@ extension ChatPanelView {
             return
         }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
+            guard shouldUpdateInlineReasoningVisuals else {
+                recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
+                return
+            }
             if shouldSplitThinkingMessages(providerId: pid) {
                 let groupId = p["group_id"] ?? "reasoning-stream"
                 upsertSeparateThinkingMessage(

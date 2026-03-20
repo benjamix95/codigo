@@ -67,6 +67,44 @@ fn ui_intent_choose_plan_option_updates_store_and_runtime_phase() {
     assert_eq!(snapshot.plan.chosen_path.as_deref(), Some("Option A"));
 }
 
+#[test]
+fn ui_intent_stream_replace_text_syncs_runtime_text_into_store_snapshot() {
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "stream_replace_text".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: Some("ignored because runtime owns the latest text".to_string()),
+        timestamp: Some(42.0),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    assert_eq!(
+        state.store_snapshot.conversations[0].messages[0].primary_text_snapshot.as_deref(),
+        Some("Hello world")
+    );
+    assert!(state.store_snapshot.conversations[0].messages[0].is_streaming);
+}
+
+#[test]
+fn ui_intent_stream_finish_marks_store_message_not_streaming() {
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "stream_finish_success".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(42.0),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    assert!(!state.store_snapshot.conversations[0].messages[0].is_streaming);
+}
+
 fn base_ui_state() -> MainChatUiState {
     MainChatUiState {
         store_snapshot: MainChatStoreSnapshot {

@@ -148,9 +148,11 @@ extension ChatPanelView {
                         context: ctx,
                         attachments: attachmentsToSend,
                         onText: { content in
-                            applyStreamingUpdate(
-                                content: content,
-                                conversationId: targetConversationId
+                            applyMainChatUIStreamIntent(
+                                "stream_replace_text",
+                                conversationId: targetConversationId,
+                                providerId: effectiveRuntimeProvider.id,
+                                text: content
                             )
                         },
                         onRaw: { t, p, pid in
@@ -158,15 +160,24 @@ extension ChatPanelView {
                                 type: t,
                                 payload: p,
                                 providerId: pid,
-                                conversationId: targetConversationId
+                                conversationId: targetConversationId,
+                                shouldApplyPipelineArtifacts: false,
+                                shouldUpdateInlineReasoningVisuals: false
+                            )
+                            applyMainChatUIStreamIntent(
+                                "stream_apply_raw_event",
+                                conversationId: targetConversationId,
+                                providerId: pid,
+                                payload: ["event_kind": t].merging(p) { _, new in new }
                             )
                         },
                         onError: { content in
                             Task { @MainActor in
-                                applyLegacyStreamSnapshot(
-                                    content: content,
+                                applyMainChatUIStreamIntent(
+                                    "stream_finish_failure",
                                     conversationId: targetConversationId,
-                                    providerId: effectiveRuntimeProvider.id
+                                    providerId: effectiveRuntimeProvider.id,
+                                    text: content
                                 )
                             }
                         },
@@ -181,6 +192,14 @@ extension ChatPanelView {
                         conversationId: targetConversationId,
                         hideContentDuringPlanDiscovery: false
                     )
+                    await MainActor.run {
+                        applyMainChatUIStreamIntent(
+                            "stream_finish_success",
+                            conversationId: targetConversationId,
+                            providerId: effectiveRuntimeProvider.id,
+                            text: finalizedResult
+                        )
+                    }
 
                     await handleStreamResult(
                         conversationId: targetConversationId,

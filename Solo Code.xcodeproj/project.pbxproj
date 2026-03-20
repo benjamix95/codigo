@@ -342,6 +342,7 @@
 		337073179F54946C4F5C8CF3 /* ChatPanelView+PartF_TodoEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 991D8E76E95B27F6D36B4175 /* ChatPanelView+PartF_TodoEvents.swift */; };
 		33741C04126F22092C5681A6 /* GeminiCLIProvider+Resilience.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F64F16EB5966A6749462AE6 /* GeminiCLIProvider+Resilience.swift */; };
 		33A984B624C3CB868E741C44 /* ReviewPanelFindingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FC478D81B96E2CDBEAB6C7 /* ReviewPanelFindingsTab.swift */; };
+		33C0DEAD1234ABCD5678EF01 /* ChatPanelView+PartQ_Walkthrough.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33C0DEAD1234ABCD5678EF02 /* ChatPanelView+PartQ_Walkthrough.swift */; };
 		33FE3008C200531E7860F9E2 /* ProviderToolEventMapper+Routes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58635A2A82C4C841484FBCC7 /* ProviderToolEventMapper+Routes.swift */; };
 		342E418B3DE8FB0BBA398E9A /* MessageToolTraceView+Diff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397FD851EF7B97A3111167CB /* MessageToolTraceView+Diff.swift */; };
 		343AE15636A1E0A5050A4D3C /* GitService+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0442CBA794B67702DB3E6202 /* GitService+Sync.swift */; };
@@ -403,7 +404,6 @@
 		3B115633C085BD8D1E31F4C1 /* BugHunterHookServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304B5EA050652FEC8D365A21 /* BugHunterHookServiceTests.swift */; };
 		3B83FAF68105B0C4C30E8581 /* DebugPanelView+HeaderTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64064D12E4582046B5336AA /* DebugPanelView+HeaderTimeline.swift */; };
 		3B8B32949C712CA540AA487F /* ProviderHealthChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116FD963677584D819E47D1D /* ProviderHealthChecker.swift */; };
-		3BB2B8DA97A067B4E96056A6 /* ChatPanelView+PartQ_StreamCommit.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48D1D7E11C4EA4C80A9D7B1 /* ChatPanelView+PartQ_StreamCommit.swift */; };
 		3BB45B74706821F8B9B7F7EA /* VerifiedFindingsCanonicalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 384C596993827517B59FC363 /* VerifiedFindingsCanonicalStore.swift */; };
 		3BBCFBFEBE83EF00EFFB10A3 /* EditorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59B861C10C952F6A14D34834 /* EditorModels.swift */; };
 		3BCF44CB418A0E01324A25A8 /* UnifiedToolRuntime+Validation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58AB23ED326DD57CE54932CD /* UnifiedToolRuntime+Validation.swift */; };
@@ -2075,6 +2075,7 @@
 		343B5F2BF925BF2C852F062F /* ProfileSwitcherView+Avatar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ProfileSwitcherView+Avatar.swift"; path = "App/SoloCodeApp/Sources/App/ProfileSwitcher/Sections/ProfileSwitcherView+Avatar.swift"; sourceTree = "<group>"; };
 		345181FC6CC3AB2FC224D174 /* ReviewPersistenceRustAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPersistenceRustAdapter.swift; path = Engine/CoderEngine/Sources/Infrastructure/MCP/Rust/ReviewPersistenceRustAdapter.swift; sourceTree = "<group>"; };
 		347C1A14D810FEB641C75643 /* ChatPanelView+PartQ_Finalizers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartQ_Finalizers.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartQ_Finalizers.swift"; sourceTree = "<group>"; };
+		33C0DEAD1234ABCD5678EF02 /* ChatPanelView+PartQ_Walkthrough.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartQ_Walkthrough.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartQ_Walkthrough.swift"; sourceTree = "<group>"; };
 		3491233CBFFC33711A60D5C6 /* PromptModes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PromptModes.swift; path = Engine/CoderEngine/Sources/SystemPrompts/Dimensions/PromptModes.swift; sourceTree = "<group>"; };
 		349D9C4246E3EF7365E52FE6 /* CodeReviewFinding+Factories.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewFinding+Factories.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/ReviewCore/Session/CodeReviewFinding+Factories.swift"; sourceTree = "<group>"; };
 		34F499D4F62182BF49CA8646 /* WorkspaceScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorkspaceScanner.swift; path = Engine/CoderEngine/Sources/Workspace/WorkspaceScanner.swift; sourceTree = "<group>"; };
@@ -3197,7 +3198,6 @@
 		E46695844ACB6CDE5540539C /* ExtensionRuntimeConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExtensionRuntimeConfiguration.swift; path = App/SoloCodeApp/Sources/Extensions/Runtime/ExtensionRuntimeConfiguration.swift; sourceTree = "<group>"; };
 		E466EA96D1103F7603F1E87A /* EventNormalizerMermaid.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventNormalizerMermaid.swift; path = App/SoloCodeApp/Sources/Services/EventNormalizer/Mermaid/EventNormalizerMermaid.swift; sourceTree = "<group>"; };
 		E4893BAA0419FE0C47F3AC80 /* ChatPanelView+PartK_PlanExecution.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartK_PlanExecution.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartK_PlanExecution.swift"; sourceTree = "<group>"; };
-		E48D1D7E11C4EA4C80A9D7B1 /* ChatPanelView+PartQ_StreamCommit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartQ_StreamCommit.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartQ_StreamCommit.swift"; sourceTree = "<group>"; };
 		E4D2D3CB91FB2D02AD15E252 /* OrchestratorMainLoop+Scheduling.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "OrchestratorMainLoop+Scheduling.swift"; path = "Engine/CoderEngine/Sources/AgentPipeline/Orchestrator/OrchestratorMainLoop+Scheduling.swift"; sourceTree = "<group>"; };
 		E4F1457889F0E5EBD17C5D45 /* ChatPanelScrollSafetyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatPanelScrollSafetyTests.swift; path = Tests/SoloCodeAppTests/ChatPanelScrollSafetyTests.swift; sourceTree = "<group>"; };
 		E50E5E239FC3478BE44C8E05 /* MessageToolTraceView+Loaders.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MessageToolTraceView+Loaders.swift"; path = "App/SoloCodeApp/Sources/Chat/MessageToolTrace/MessageToolTraceView+Loaders.swift"; sourceTree = "<group>"; };
@@ -3610,7 +3610,7 @@
 				8AC0CCD2206EF1481F5E1E24 /* ChatPanelView+PartO_Streaming1.swift */,
 				413DFD0DC6E15FC15227945D /* ChatPanelView+PartP_Streaming2.swift */,
 				347C1A14D810FEB641C75643 /* ChatPanelView+PartQ_Finalizers.swift */,
-				E48D1D7E11C4EA4C80A9D7B1 /* ChatPanelView+PartQ_StreamCommit.swift */,
+				33C0DEAD1234ABCD5678EF02 /* ChatPanelView+PartQ_Walkthrough.swift */,
 				22AA96F2D869F0EB0F59710C /* ChatPanelView+PartR_Tail.swift */,
 				20D863E52BE33E8FA51BC3DC /* ChatPanelView+PartS_End.swift */,
 				ABC5C2C040CFCD39EB2A644D /* ChatPanelView+PipelineChat.swift */,
@@ -6456,7 +6456,7 @@
 				D8DD5E53AA71508E9BCF1ABF /* ChatPanelView+PartO_Streaming1.swift in Sources */,
 				CD7C039C0B416B1F7485D1FB /* ChatPanelView+PartP_Streaming2.swift in Sources */,
 				6FFC32555BD68D56F25AA2D2 /* ChatPanelView+PartQ_Finalizers.swift in Sources */,
-				3BB2B8DA97A067B4E96056A6 /* ChatPanelView+PartQ_StreamCommit.swift in Sources */,
+				33C0DEAD1234ABCD5678EF01 /* ChatPanelView+PartQ_Walkthrough.swift in Sources */,
 				D0E29B409485B3F8921920E1 /* ChatPanelView+PartR_Tail.swift in Sources */,
 				F8E9ADF7D6FD570342CD6AA8 /* ChatPanelView+PartS_End.swift in Sources */,
 				14B4D5A291E36E9395E09A3F /* ChatPanelView+PipelineChat.swift in Sources */,

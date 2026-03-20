@@ -125,6 +125,12 @@ fn provider_event_kind(event_kind: &str) -> Option<MainChatEventKind> {
     match event_kind {
         "textDelta" => Some(MainChatEventKind::TextDelta),
         "textReplace" => Some(MainChatEventKind::TextReplace),
+        "reasoning" => Some(MainChatEventKind::ReasoningDelta),
+        "mermaid_render" => Some(MainChatEventKind::MermaidArtifact),
+        "command_execution" | "bash" => Some(MainChatEventKind::CommandsArtifact),
+        "file_change" | "edit" | "write" | "apply_patch" | "create_file" | "delete_file" => {
+            Some(MainChatEventKind::FilesArtifact)
+        }
         _ => None,
     }
 }
@@ -178,6 +184,41 @@ mod tests {
             snapshot.turn_state.text_by_stream_id.get("main").map(String::as_str),
             Some("ciao")
         );
+    }
+
+    #[test]
+    fn provider_reasoning_updates_turn_state_in_rust() {
+        let snapshot = start_direct_stream(base_snapshot(), Some(1.0), Some("codex".to_string()));
+        let snapshot = apply_direct_stream_provider_event(
+            snapshot,
+            Some(2.0),
+            Some("codex".to_string()),
+            Some("reasoning"),
+            BTreeMap::from([
+                ("output".to_string(), "analisi".to_string()),
+                ("group_id".to_string(), "reasoning".to_string()),
+            ]),
+        );
+        assert_eq!(
+            snapshot.turn_state.reasoning_by_group_id.get("reasoning").map(String::as_str),
+            Some("analisi")
+        );
+    }
+
+    #[test]
+    fn provider_raw_file_change_becomes_files_artifact() {
+        let snapshot = start_direct_stream(base_snapshot(), Some(1.0), Some("codex".to_string()));
+        let snapshot = apply_direct_stream_provider_event(
+            snapshot,
+            Some(2.0),
+            Some("codex".to_string()),
+            Some("file_change"),
+            BTreeMap::from([("path".to_string(), "App/main.swift".to_string())]),
+        );
+        assert!(snapshot.turn_state.artifacts.iter().any(|artifact| {
+            artifact.kind == app_core_protocol::main_chat::MainChatArtifactKind::Files
+                && artifact.items.iter().any(|item| item == "App/main.swift")
+        }));
     }
 
     fn base_snapshot() -> MainChatRuntimeSnapshot {

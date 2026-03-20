@@ -3,7 +3,85 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldDiscardPendingStreamSnapshot(
+    targetConversationId: UUID?,
+    pendingConversationId: UUID?
+) -> Bool {
+    guard let targetConversationId else { return true }
+    return pendingConversationId == targetConversationId
+}
+
 extension ChatPanelView {
+    @MainActor
+    internal func applyMainChatUIStreamIntent(
+        _ intent: String,
+        conversationId targetConversationId: UUID?,
+        providerId: String?,
+        text: String? = nil,
+        payload: [String: String] = [:]
+    ) {
+        let state = RustMainChatStoreAdapter.uiState(
+            from: chatStore,
+            runtimeSnapshot: flowCoordinator.directRuntimeSnapshotState() ?? flowCoordinator.planRuntimeSnapshotState(),
+            selectedConversationId: targetConversationId ?? conversationId,
+            draftText: inputText,
+            planPanelVisible: showPlanPanel,
+            followLive: isFollowingLive,
+            collapsedArtifactsByTurn: collapsedArtifactsByTurn
+        )
+        let requestPayload = (providerId.map { ["provider_id": $0] } ?? [:]).merging(payload) {
+            _, new in new
+        }
+        let request = MainChatUIIntentRequestBridge(
+            schemaVersion: 1,
+            intent: intent,
+            state: state,
+            conversationId: targetConversationId?.uuidString.lowercased(),
+            turnId: nil,
+            artifactId: nil,
+            text: text,
+            timestamp: Date(),
+            payload: requestPayload
+        )
+        if RustMainChatStoreAdapter.applyUIIntent(request, to: chatStore) != nil {
+            streamContentVersion &+= 1
+        }
+    }
+
+    internal func discardPendingStreamingState(for targetConversationId: UUID?) {
+        streamThrottleTask?.cancel()
+        streamThrottleTask = nil
+        if shouldDiscardPendingStreamSnapshot(
+            targetConversationId: targetConversationId,
+            pendingConversationId: pendingStreamConversationId
+        ) {
+            pendingStreamContent = nil
+            pendingStreamConversationId = nil
+            streamingSegments.removeAll()
+        }
+        planStreamThrottleTask?.cancel()
+        planStreamThrottleTask = nil
+        if let targetConversationId,
+           pendingPlanStreamConversationId == targetConversationId {
+            pendingPlanStreamingContent = nil
+            pendingPlanStreamConversationId = nil
+        }
+    }
+
+    internal func flushStreamingContent() {
+        flushStreamingContent(conversationId: nil)
+    }
+
+    internal func flushStreamingContent(conversationId targetConversationId: UUID?) {
+        let effectiveConversationId = targetConversationId ?? conversationId
+        guard effectiveConversationId != nil else { return }
+        applyMainChatUIStreamIntent(
+            "stream_replace_text",
+            conversationId: effectiveConversationId,
+            providerId: resolvedTurnProviderId(for: effectiveConversationId)
+        )
+    }
+
     static func shouldShowFinalChatActions(
         conversation: Conversation?,
         isLoadingForCurrentConversation: Bool
@@ -60,7 +138,11 @@ extension ChatPanelView {
     }
 
     internal func clearStreamingReasoning(for conversationId: UUID?) {
-        flushStreamingContent()
+        applyMainChatUIStreamIntent(
+            "stream_clear_ephemeral_state",
+            conversationId: conversationId,
+            providerId: resolvedTurnProviderId(for: conversationId)
+        )
         guard let id = conversationId else { return }
         let hadInlineReasoning = streamingReasoningConversationId == id
         let hasSeparateThinkingMessages =
@@ -142,6 +224,14 @@ extension ChatPanelView {
         updatePlanStreamingContent(content, conversationId: conversationId)
     }
 
+    internal func stripPlanCheckboxes(_ content: String) -> String {
+        content.replacingOccurrences(
+            of: #"(?m)^(\s*[-*]\s*)\[\s*[xX ]?\s*\]\s*"#,
+            with: "$1",
+            options: .regularExpression
+        )
+    }
+
     internal func flushPlanStreamingContent() {
         planStreamThrottleTask?.cancel()
         planStreamThrottleTask = nil
@@ -164,79 +254,6 @@ extension ChatPanelView {
         }
     }
 
-    internal func buildWalkthroughMarkdown(
-        canonicalTodos: [TodoItem],
-        planBoard: PlanBoard?,
-        agentMessages: [ChatMessage] = [],
-        traceEvents: [ToolTraceEvent] = []
-    ) -> String {
-        var lines: [String] = ["## Build Complete", ""]
-        if let goal = planBoard?.goal, !goal.isEmpty {
-            lines.append("**Objective:** \(goal)")
-            lines.append("")
-        }
-
-        // Steps with status
-        let doneCount = canonicalTodos.filter { $0.status == .done }.count
-        lines.append("### Steps (\(doneCount)/\(canonicalTodos.count) completed)")
-        if canonicalTodos.isEmpty {
-            lines.append("- No canonical steps recorded for this build.")
-        } else {
-            for todo in canonicalTodos {
-                let icon = todo.status == .done ? "x" : " "
-                lines.append("- [\(icon)] \(todo.title)")
-                if !todo.linkedFiles.isEmpty {
-                    lines.append("  Files: \(todo.linkedFiles.joined(separator: ", "))")
-                }
-            }
-        }
-        lines.append("")
-
-        // Files changed (from successful file-mutation trace events)
-        let changedFiles = touchedFilePathsFromTraceEvents(traceEvents, maxCount: 200)
-        if !changedFiles.isEmpty {
-            lines.append("### Files Modified (\(changedFiles.count))")
-            for file in changedFiles {
-                lines.append("- `\(file)`")
-            }
-            lines.append("")
-        }
-
-        // Commands run
-        let commands = traceEvents
-            .filter { $0.type == "command_execution" }
-            .compactMap { $0.payload["command"] ?? $0.title }
-            .filter { !$0.isEmpty }
-        if !commands.isEmpty {
-            let uniqueCommands = Array(Set(commands.map { cmd in
-                // Truncate long commands
-                cmd.count > 80 ? String(cmd.prefix(77)) + "..." : cmd
-            })).sorted().prefix(10)
-            lines.append("### Commands Executed")
-            for cmd in uniqueCommands {
-                lines.append("- `\(cmd)`")
-            }
-            lines.append("")
-        }
-
-        // Agent narrative — the actual text the agent wrote during execution
-        let narrativeBlocks = agentMessages
-            .map(\.content)
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .filter { content in
-                // Skip short auto-generated messages
-                content.count > 40
-            }
-        if !narrativeBlocks.isEmpty {
-            lines.append("### Execution Details")
-            // Include meaningful agent text, capped to avoid giant walkthroughs
-            let combined = narrativeBlocks.joined(separator: "\n\n---\n\n")
-            let capped = combined.count > 6000 ? String(combined.suffix(6000)) : combined
-            lines.append(capped)
-        }
-
-        return lines.joined(separator: "\n")
-    }
     // MARK: - Handle Stream Result (plan options + swarm delegation)
 
 }

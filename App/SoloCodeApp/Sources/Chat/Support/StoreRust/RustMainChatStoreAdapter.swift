@@ -122,6 +122,19 @@ enum RustMainChatStoreAdapter {
         ReviewCoreBridge.call(functionName: "chat_core_ui_handle_intent", request: request)
     }
 
+    @MainActor
+    static func applyUIIntent(
+        _ request: MainChatUIIntentRequestBridge,
+        to store: ChatStore
+    ) -> MainChatUIIntentResponseBridge? {
+        guard let response = handleUIIntent(request) else { return nil }
+        if let state = response.state {
+            apply(snapshot: state.storeSnapshot, to: store)
+            apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
+        }
+        return response
+    }
+
     static func conversationSnapshot(_ conversation: Conversation) -> MainChatStoreConversationSnapshotBridge {
         MainChatStoreConversationSnapshotBridge(
             id: conversation.id.uuidString.lowercased(),

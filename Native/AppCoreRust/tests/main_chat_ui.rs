@@ -75,6 +75,24 @@ fn ffi_ui_handle_intent_can_toggle_collapsed_artifact() {
     );
 }
 
+#[test]
+fn ffi_ui_handle_intent_stream_finish_marks_message_not_streaming() {
+    let runtime = load_runtime();
+    let response = call_intent(&runtime, MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "stream_finish_success".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(2.0),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    assert!(!state.store_snapshot.conversations[0].messages[0].is_streaming);
+}
+
 fn call_project(runtime: &LoadedRuntime, request: MainChatUiProjectRequest) -> MainChatUiProjectResponse {
     let raw_request = CString::new(serde_json::to_string(&request).expect("encode request"))
         .expect("request cstring");

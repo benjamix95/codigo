@@ -119,6 +119,36 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(response.state?.collapsedArtifactIdsByTurn["turn-1"], ["artifact-1"])
     }
 
+    @MainActor
+    func testApplyUIIntentSyncsRuntimeTextIntoChatStore() throws {
+        guard ReviewCoreBridge.isEnabled else {
+            throw XCTSkip("Bridge Rust non disponibile nei test app-side")
+        }
+        let suiteName = "RustMainChatProviderFactoryTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let store = ChatStore(userDefaults: defaults)
+        RustMainChatStoreAdapter.apply(snapshot: makeUIState().storeSnapshot, to: store)
+        let response = try XCTUnwrap(
+            RustMainChatStoreAdapter.applyUIIntent(
+                MainChatUIIntentRequestBridge(
+                    schemaVersion: 1,
+                    intent: "stream_replace_text",
+                    state: makeUIState(),
+                    conversationId: makeUIState().selectedConversationId,
+                    turnId: nil,
+                    artifactId: nil,
+                    text: "ignored",
+                    timestamp: nil,
+                    payload: [:]
+                ),
+                to: store
+            )
+        )
+        XCTAssertNotNil(response.snapshot)
+        XCTAssertEqual(store.conversations.first?.messages.first?.primaryTextSnapshot, "Hello from Rust")
+    }
+
     private func baseConfig() -> MainChatProviderSessionConfigBridge {
         MainChatProviderSessionConfigBridge(
             providerId: "codex-cli",
@@ -254,4 +284,5 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             collapsedArtifactIdsByTurn: [:]
         )
     }
+
 }

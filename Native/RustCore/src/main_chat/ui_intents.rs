@@ -1,4 +1,5 @@
 use crate::main_chat::runtime::handle_runtime_action;
+use crate::main_chat::ui_state_sync::{mark_store_stream_finished, sync_store_from_runtime};
 use crate::main_chat::ui_projection::project_ui;
 use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
 use app_core_protocol::main_chat_ui::{
@@ -18,6 +19,55 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
         "set_draft_text" => {
             state.draft_text = request.text.unwrap_or_default();
         }
+        "stream_replace_text" | "stream_append_reasoning" => {
+            sync_store_from_runtime(&mut state);
+        }
+        "stream_apply_raw_event" => {
+            let payload = request
+                .payload
+                .iter()
+                .filter(|(key, _)| *key != "event_kind" && *key != "provider_id")
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect();
+            let response = handle_runtime_action(MainChatRuntimeActionRequest {
+                schema_version: 1,
+                action: "direct_stream_apply_provider_event".to_string(),
+                snapshot: match state.runtime_snapshot.clone() {
+                    Some(snapshot) => snapshot,
+                    None => {
+                        return MainChatUiIntentResponse::error(
+                            "missing_runtime_snapshot",
+                            "runtimeSnapshot is required",
+                        )
+                    }
+                },
+                timestamp: request.timestamp,
+                provider_id: request.payload.get("provider_id").cloned(),
+                status: None,
+                detail: None,
+                text: None,
+                questions: None,
+                plan_content: None,
+                option_full_texts: Vec::new(),
+                should_run_inline: None,
+                is_initial_poll: None,
+                event_kind: request.payload.get("event_kind").cloned(),
+                payload,
+            });
+            let Some(runtime_snapshot) = response.runtime_snapshot else {
+                return MainChatUiIntentResponse::error(
+                    "runtime_action_failed",
+                    "Runtime action did not return a snapshot",
+                );
+            };
+            state.runtime_snapshot = Some(runtime_snapshot);
+            sync_store_from_runtime(&mut state);
+        }
+        "stream_finish_success" | "stream_finish_failure" | "stream_interrupt" => {
+            sync_store_from_runtime(&mut state);
+            mark_store_stream_finished(&mut state);
+        }
+        "stream_clear_ephemeral_state" => {}
         "toggle_artifact_collapsed" => {
             let Some(artifact_id) = request.artifact_id else {
                 return MainChatUiIntentResponse::error("missing_artifact_id", "artifactId is required");

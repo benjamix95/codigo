@@ -40,9 +40,29 @@ extension ChatPanelView {
                     let displayContent = hideContentDuringPlanDiscovery
                         ? "Planning in progress… Open the Planning panel to see the result."
                         : combined
-                    applyStreamingUpdate(
-                        content: displayContent,
+                    let shouldSanitize = isPlanBuildContext(
+                        conversationId: conversationId,
+                        phase: planFlowPhase,
+                        activeBuildPlanConversationId: activeBuildPlanConversationId,
+                        activeBuildAgentConversationId: activeBuildAgentConversationId
+                    )
+                    let sanitizedContent = shouldSanitize
+                        ? stripPlanCheckboxes(displayContent)
+                        : displayContent
+                    appendPlanStreamingContent(
+                        sanitizedContent,
                         conversationId: conversationId
+                    )
+                    if shouldAutoOpenPlanPanel(trigger: .flowStarted), !showPlanPanel {
+                        openPlanPanelForCurrentContext(
+                            preserveHistorySelection: false,
+                            source: .automaticFlow
+                        )
+                    }
+                    applyLegacyStreamSnapshot(
+                        content: sanitizedContent,
+                        conversationId: conversationId,
+                        providerId: resolvedTurnProviderId(for: conversationId)
                     )
                 },
                 onRaw: { t, p, pid in
