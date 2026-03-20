@@ -11,6 +11,7 @@ binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineRuntime/**|Pipeline
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Providers/Runtime/**|Runtime provider helpers are fallback compatibility code outside the live Rust transport path.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/**|Rust transport factory/helpers are Swift bridge glue over Rust-owned main-chat provider sessions.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/StoreProjection/**|Chat store projection files remain Swift binding adapters over Rust-owned store snapshots.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/StoreRust/**|StoreRust bridge files remain Swift adapter glue over Rust-owned main-chat store reducers.
 binding_adapter|App/SoloCodeApp/Sources/Settings/ProviderFactory/Backends/**|Provider factory backends remain non-main-chat support code outside Rust main-chat ownership.
 binding_adapter|Engine/CoderEngine/Sources/AgentPipeline/**|Relocated pipeline engine files are generic execution infrastructure, not main-chat Rust domain owners.
 binding_adapter|Engine/CoderEngine/Sources/ProviderBackends/**|Relocated provider backend files remain generic provider infrastructure for non-main-chat consumers.

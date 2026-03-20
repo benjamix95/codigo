@@ -28,12 +28,12 @@ cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutov
 
 ## Risultato osservato
 - `240` file Swift scansionati
-- `42` file allowlist UI/bootstrap o binding adapter
-- `198` file Swift legacy non-UI nel dominio
-- `198` file legacy anche nei prefissi enforced del tranche gate
+- `45` file allowlist UI/bootstrap o binding adapter
+- `195` file Swift legacy non-UI nel dominio
+- `195` file legacy anche nei prefissi enforced del tranche gate
 
 ## Breakdown per dominio
-- `App/SoloCodeApp/Sources/Chat`: `118`
+- `App/SoloCodeApp/Sources/Chat`: `115`
 - `App/SoloCodeApp/Sources/Accounts`: `34`
 - `Engine/CoderEngine/Sources/Providers`: `33`
 - `App/SoloCodeApp/Sources/Runtime`: `13`
@@ -71,3 +71,6 @@ cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutov
 - questa baseline e' il freeze iniziale del dominio, non il target finale
 - il target finale resta `zero Swift non-UI legacy` nel perimetro `main chat`
 - eventuali file UI/bootstrap/binding adapter devono essere giustificati tramite allowlist, non esclusi informalmente
+- aggiornamento del 2026-03-20:
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/**` e' stato riclassificato come `binding_adapter`
+  - il progresso strutturale osservato rispetto al baseline canonico iniziale e' `3/198`, pari a `1.5%`
