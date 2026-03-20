@@ -64,4 +64,22 @@ final class ChatTodoVisibilityTests: XCTestCase {
 
         XCTAssertEqual(resolved, activeAssistantId)
     }
+
+    func testTodoCardFallsBackToLatestVisibleAssistantWhenPipelineTargetIsMissing() {
+        let olderAssistantId = UUID()
+        let latestAssistantId = UUID()
+
+        let resolved = resolveTodoCardAssistantMessageId(
+            messages: [
+                ChatMessage(id: olderAssistantId, role: .assistant, content: "Older reply"),
+                ChatMessage(id: latestAssistantId, role: .assistant, content: "Latest reply"),
+            ],
+            activeAssistantMessageId: nil,
+            latestAssistantMessageIdWithTrace: nil,
+            pipelineAssistantMessageId: nil,
+            latestVisibleAssistantMessageId: latestAssistantId
+        )
+
+        XCTAssertEqual(resolved, latestAssistantId)
+    }
 }

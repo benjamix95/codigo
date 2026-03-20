@@ -134,14 +134,6 @@ extension ChatPanelView {
                             "Rust main chat UI projection unavailable"
                         )
                     }
-                    await MainActor.run {
-                        applyLegacyLifecycleEvent(
-                            kind: .turnStarted,
-                            conversationId: targetConversationId,
-                            providerId: effectiveRuntimeProvider.id,
-                            status: "streaming"
-                        )
-                    }
                     let streamResult = try await flowCoordinator.runStream(
                         provider: effectiveRuntimeProvider,
                         prompt: prompt,

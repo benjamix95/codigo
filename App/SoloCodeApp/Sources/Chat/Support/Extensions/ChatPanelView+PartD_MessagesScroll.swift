@@ -24,7 +24,7 @@ extension ChatPanelView {
             messages: messages,
             activeAssistantMessageId: activeToolTraceTurnsByConversation[convId]?.assistantMessageId,
             latestAssistantMessageIdWithTrace: latestAssistantMessageIdWithTrace,
-            pipelineAssistantMessageId: currentAssistantPipelineTarget(for: convId)?.messageId,
+            pipelineAssistantMessageId: nil,
             latestVisibleAssistantMessageId: latestVisibleAssistantMessageId
         )
         let messageIndexById: [UUID: Int] = Dictionary(
@@ -169,32 +169,46 @@ extension ChatPanelView {
                             assistantMessageId: message.id
                         )
                         : []
-                    ChatTimelineView(
-                        message: displayMessage,
-                        context: effectiveContext.context,
-                        modeColor: activeModeColor,
-                        isActuallyLoading: isLoadingForCurrentConversation,
-                        streamingStatusText: shouldHideStreamingBarOnPreviousAssistant ? "" : streamingStatusText(for: displayMessage),
-                        streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
-                        traceEvents: traceEvents,
-                        todoStore: todoStore,
-                        conversationId: conversationId,
-                        shouldShowTodo: message.role == .assistant
-                            && shouldShowPlanTodosInChat
-                            && !todoStore.displayTodosForChat(for: conversationId).isEmpty
-                            && message.id == todoCardAssistantMessageId,
-                        onFileClicked: { openFilesStore.openFile($0) },
-                        onReviewChanges: {
-                            gitPanelStore.isOpen = true
-                            gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-                        },
-                        onRestoreCheckpoint: restoreAction,
-                        onReply: replyAction,
-                        onDelete: deleteAction,
-                        canRewind: canRewindFromMessage,
-                        hasCheckpointForRestore: hasCheckpointForMessage,
-                        showTopDivider: needsDivider
-                    )
+                    if displayMessage.role == .user {
+                        MessageRow(
+                            message: displayMessage,
+                            context: effectiveContext.context,
+                            modeColor: activeModeColor,
+                            isActuallyLoading: isLoadingForCurrentConversation,
+                            streamingStatusText: shouldHideStreamingBarOnPreviousAssistant ? "" : streamingStatusText(for: displayMessage),
+                            streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
+                            onFileClicked: { openFilesStore.openFile($0) },
+                            onRestoreCheckpoint: restoreAction,
+                            onReply: replyAction,
+                            onDelete: deleteAction,
+                            canRewind: canRewindFromMessage,
+                            hasCheckpointForRestore: hasCheckpointForMessage,
+                            showTopDivider: needsDivider
+                        )
+                    } else {
+                        ChatTurnView(
+                            message: displayMessage,
+                            context: effectiveContext.context,
+                            modeColor: activeModeColor,
+                            isActuallyLoading: isLoadingForCurrentConversation,
+                            streamingStatusText: shouldHideStreamingBarOnPreviousAssistant ? "" : streamingStatusText(for: displayMessage),
+                            streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
+                            traceEvents: traceEvents,
+                            todoStore: todoStore,
+                            conversationId: conversationId,
+                            shouldShowTodo: shouldShowPlanTodosInChat
+                                && !todoStore.displayTodosForChat(for: conversationId).isEmpty
+                                && message.id == todoCardAssistantMessageId,
+                            onFileClicked: { openFilesStore.openFile($0) },
+                            onReviewChanges: {
+                                gitPanelStore.isOpen = true
+                                gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                            },
+                            onReply: replyAction,
+                            onDelete: deleteAction,
+                            showTopDivider: needsDivider
+                        )
+                    }
                 }
                 if message.role == .assistant { Spacer(minLength: 0) }
             }
