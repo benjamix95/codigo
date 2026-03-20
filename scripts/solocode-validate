@@ -209,7 +209,19 @@ for file in "${FILES[@]}"; do
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/ThreadProviderSelectionServiceTests" "-only-testing:SoloCodeAppTests/ProviderFactoryRuntimeParityTests")
       ;;
     App/SoloCodeApp/Sources/Chat/Support/StoreRust/*|App/SoloCodeApp/Sources/Chat/Support/StoreRuntime/*|Tests/SoloCodeAppTests/ChatStoreTaskOwnershipTests.swift|Tests/SoloCodeAppTests/ChatStoreStreamingTargetTests.swift)
-      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreTaskOwnershipTests" "-only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests")
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreTaskOwnershipTests" "-only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests" "-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
+      ;;
+    App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Messages/*)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests" "-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")
+      ;;
+    App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Conversations/*)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatStoreTaskOwnershipTests")
+      ;;
+    App/SoloCodeApp/Sources/Chat/ChatPanelView.swift|App/SoloCodeApp/Sources/Chat/ChatBackgroundStyle.swift|App/SoloCodeApp/Sources/Chat/Support/ChatPanelThreadUIState.swift)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/ChatBackgroundStyleTests")
+      ;;
+    App/SoloCodeApp/Sources/Chat/Support/Plan/PlanScreeningDecision.swift|App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+PlanFlowHelpers.swift)
+      TEST_ARGS+=("-only-testing:SoloCodeAppTests/PlanShortcutAndCommandTests")
       ;;
     App/SoloCodeApp/Sources/Runtime/*)
       TEST_ARGS+=("-only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests")

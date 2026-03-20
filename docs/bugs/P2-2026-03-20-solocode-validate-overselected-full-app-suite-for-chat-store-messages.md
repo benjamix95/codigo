@@ -1,0 +1,35 @@
+## Bug Fix Record
+- Categoria: B
+- Bug: `solocode-validate` selezionava l'intera suite `SoloCodeAppTests` per modifiche in `StoreProjection/Messages`, invece dei test mirati dello store chat.
+- Sintomo:
+  - una micro-tranche confinata a `ChatStoreMessages.swift` e `StoreRust` finiva su test app non correlati
+- Impatto:
+  - validation rumorosa
+  - commit `main chat` bloccato da failure fuori perimetro
+- Gravita': media
+- Steps to reproduce:
+  - eseguire `./scripts/solocode-validate --files "<file set ChatStoreMessages>" --format text`
+- Risultato attuale:
+  - fallback a `-only-testing:SoloCodeAppTests`
+- Risultato atteso:
+  - selezione mirata di `ChatStoreStreamingTargetTests`
+  - smoke su `PipelineIntegrationServiceTests` per il path pipeline state
+- Causa probabile:
+  - mancavano regole dedicate per:
+    - `App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Messages/*`
+    - `App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Conversations/*`
+- Scope consentito:
+  - `scripts/solocode-validate`
+  - bug doc/changelog dedicati
+- Non-scope:
+  - cambiare la logica dei test `review`
+- Moduli confinanti da verificare:
+  - selezione gia' esistente per `StoreRust/*`
+- Test da aggiungere o aggiornare:
+  - validazione manuale del file set `StoreProjection/Messages`
+- Strategia di fix minimo:
+  - aggiungere una regola di selezione mirata prima del fallback `App/*`
+- Verifica post-fix:
+  - `./scripts/solocode-validate ...` sul file set della micro-tranche
+- Commit previsto:
+  - `fix(validation): target chat store message tests`
