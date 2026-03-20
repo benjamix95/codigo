@@ -1,6 +1,7 @@
 mod cli_account_routing;
 mod common;
 mod main_chat;
+mod main_chat_ui;
 mod review_candidates;
 mod review_fix_stage;
 mod plan_state;

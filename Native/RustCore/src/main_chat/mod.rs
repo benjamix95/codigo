@@ -15,6 +15,10 @@ mod store;
 mod task_runtime;
 mod stream_runtime;
 mod runtime;
+mod ui_intents;
+mod ui_projection;
+#[cfg(test)]
+mod ui_tests;
 
 pub use provider::bridge_provider_stream;
 pub use markers::handle_request as handle_markers_request;
@@ -24,3 +28,5 @@ pub use reducer::apply_event;
 pub use store::{handle_action as handle_store_action, load_snapshot as load_store_snapshot, replace_snapshot as replace_store_snapshot};
 pub use task_runtime::handle_task_runtime_action;
 pub use runtime::{finish_turn, handle_action, handle_runtime_action, start_turn};
+pub use ui_intents::handle_ui_intent;
+pub use ui_projection::project_ui;

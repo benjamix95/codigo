@@ -84,6 +84,44 @@ enum RustMainChatStoreAdapter {
         return response?.error == nil ? response?.text : nil
     }
 
+    @MainActor
+    static func uiState(
+        from store: ChatStore,
+        runtimeSnapshot: MainChatRuntimeSnapshotBridge?,
+        selectedConversationId: UUID?,
+        draftText: String,
+        planPanelVisible: Bool,
+        followLive: Bool,
+        collapsedArtifactsByTurn: [String: Set<String>]
+    ) -> MainChatUIStateBridge {
+        MainChatUIStateBridge(
+            storeSnapshot: snapshot(from: store),
+            runtimeSnapshot: runtimeSnapshot,
+            taskRuntimeState: taskRuntimeState(from: store),
+            selectedConversationId: selectedConversationId?.uuidString.lowercased(),
+            draftText: draftText,
+            planPanelVisible: planPanelVisible,
+            followLive: followLive,
+            collapsedArtifactIdsByTurn: Dictionary(uniqueKeysWithValues: collapsedArtifactsByTurn.map {
+                ($0.key, Array($0.value).sorted())
+            })
+        )
+    }
+
+    static func projectUI(_ state: MainChatUIStateBridge) -> MainChatUISnapshotBridge? {
+        let response: MainChatUIProjectResponseBridge? = ReviewCoreBridge.call(
+            functionName: "chat_core_ui_project",
+            request: MainChatUIProjectRequestBridge(schemaVersion: 1, state: state)
+        )
+        return response?.error == nil ? response?.snapshot : nil
+    }
+
+    static func handleUIIntent(
+        _ request: MainChatUIIntentRequestBridge
+    ) -> MainChatUIIntentResponseBridge? {
+        ReviewCoreBridge.call(functionName: "chat_core_ui_handle_intent", request: request)
+    }
+
     static func conversationSnapshot(_ conversation: Conversation) -> MainChatStoreConversationSnapshotBridge {
         MainChatStoreConversationSnapshotBridge(
             id: conversation.id.uuidString.lowercased(),

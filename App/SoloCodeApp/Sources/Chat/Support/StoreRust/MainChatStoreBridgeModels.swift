@@ -210,3 +210,72 @@ struct MainChatStoreBridgeErrorBridge: Decodable, Equatable {
     let code: String
     let message: String
 }
+
+struct MainChatUIStateBridge: Codable {
+    let storeSnapshot: MainChatStoreSnapshotBridge
+    let runtimeSnapshot: MainChatRuntimeSnapshotBridge?
+    let taskRuntimeState: MainChatTaskRuntimeStateBridge?
+    let selectedConversationId: String?
+    let draftText: String
+    let planPanelVisible: Bool
+    let followLive: Bool
+    let collapsedArtifactIdsByTurn: [String: [String]]
+}
+
+struct MainChatUIConversationSummaryBridge: Decodable {
+    let id: String
+    let title: String
+    let messageCount: Int
+    let lastMessagePreview: String?
+    let mode: String?
+    let preferredProviderId: String?
+    let isArchived: Bool
+    let isSelected: Bool
+    let isLoading: Bool
+}
+
+struct MainChatUITimelineBlockSnapshotBridge: Decodable {
+    let id: String
+    let kind: String
+    let title: String?
+    let text: String
+    let items: [String]
+    let metadata: [String: String]
+    let isCollapsible: Bool
+    let isCollapsedByDefault: Bool
+    let isCollapsed: Bool
+}
+
+struct MainChatUIMessageSnapshotBridge: Decodable {
+    let id: String
+    let role: String
+    let turnId: String?
+    let content: String
+    let primaryText: String?
+    let reasoningText: String?
+    let turnStatus: String?
+    let isStreaming: Bool
+    let timelineBlocks: [MainChatUITimelineBlockSnapshotBridge]
+    let subagentCards: [MainChatStoreSubagentCardSnapshotBridge]
+}
+
+struct MainChatUIComposerSnapshotBridge: Decodable { let draftText: String; let canSend: Bool; let canCancel: Bool; let isFollowingLive: Bool }
+struct MainChatUITaskSnapshotBridge: Decodable { let isLoading: Bool; let startedAt: Date?; let statusText: String?; let terminalError: String?; let shouldRetryPoll: Bool; let shouldFinalizeStream: Bool }
+struct MainChatUIPlanSnapshotBridge: Decodable { let isVisible: Bool; let phase: MainChatPlanPhaseBridge?; let planningStateKind: MainChatPlanningStateKindBridge?; let clarificationQuestions: String?; let proposalContent: String?; let chosenPath: String?; let optionFullTexts: [String]; let goal: String; let stepCount: Int; let shouldHideMarkdown: Bool; let shouldRunInline: Bool }
+
+struct MainChatUISnapshotBridge: Decodable {
+    let selectedConversationId: String?
+    let conversations: [MainChatUIConversationSummaryBridge]
+    let messages: [MainChatUIMessageSnapshotBridge]
+    let composer: MainChatUIComposerSnapshotBridge
+    let task: MainChatUITaskSnapshotBridge
+    let plan: MainChatUIPlanSnapshotBridge
+    let followUpPrompt: String?
+    let generatedPrompt: String?
+    let isEmpty: Bool
+}
+
+struct MainChatUIProjectRequestBridge: Encodable { let schemaVersion: Int; let state: MainChatUIStateBridge }
+struct MainChatUIProjectResponseBridge: Decodable { let schemaVersion: Int; let error: MainChatStoreBridgeErrorBridge?; let snapshot: MainChatUISnapshotBridge? }
+struct MainChatUIIntentRequestBridge: Encodable { let schemaVersion: Int; let intent: String; let state: MainChatUIStateBridge; let conversationId: String?; let turnId: String?; let artifactId: String?; let text: String?; let timestamp: Date?; let payload: [String: String] }
+struct MainChatUIIntentResponseBridge: Decodable { let schemaVersion: Int; let error: MainChatStoreBridgeErrorBridge?; let state: MainChatUIStateBridge?; let snapshot: MainChatUISnapshotBridge? }

@@ -117,6 +117,23 @@ extension ChatPanelView {
                     }
                     return
                 } else {
+                    let uiState = await MainActor.run {
+                        RustMainChatStoreAdapter.uiState(
+                            from: chatStore,
+                            runtimeSnapshot: flowCoordinator.directRuntimeSnapshotState()
+                                ?? flowCoordinator.planRuntimeSnapshotState(),
+                            selectedConversationId: targetConversationId,
+                            draftText: inputText,
+                            planPanelVisible: showPlanPanel,
+                            followLive: isFollowingLive,
+                            collapsedArtifactsByTurn: collapsedArtifactsByTurn
+                        )
+                    }
+                    guard RustMainChatStoreAdapter.projectUI(uiState) != nil else {
+                        throw CoderEngineError.apiError(
+                            "Rust main chat UI projection unavailable"
+                        )
+                    }
                     await MainActor.run {
                         applyLegacyLifecycleEvent(
                             kind: .turnStarted,

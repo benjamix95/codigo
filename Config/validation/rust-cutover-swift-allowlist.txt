@@ -15,13 +15,34 @@ ui_view|App/SoloCodeApp/Sources/Accounts/OpenRouterLoginView.swift|OpenRouter lo
 binding_adapter|App/SoloCodeApp/Sources/Accounts/CodexStateStore.swift|Codex state store is a UI-facing status wrapper over provider detection.
 binding_adapter|App/SoloCodeApp/Sources/Accounts/GeminiStateStore.swift|Gemini state store is a UI-facing status wrapper over provider detection.
 binding_adapter|App/SoloCodeApp/Sources/Accounts/Support/**|Relocated account support adapters remain Swift-only support code outside main-chat ownership.
+ui_view|App/SoloCodeApp/Sources/Chat/ClickableMessageContent.swift|Clickable message content is SwiftUI rendering and formatting over already-derived chat text content.
+ui_view|App/SoloCodeApp/Sources/Chat/MessageRow/MessageRow+Indicators.swift|Message row indicators are pure SwiftUI presentation and animation helpers.
+ui_view|App/SoloCodeApp/Sources/Chat/MessageRow/MessageRow+Thinking.swift|Thinking block rendering is pure SwiftUI presentation over already-derived reasoning text.
+binding_adapter|App/SoloCodeApp/Sources/Chat/MessageRow/MessageRowModels.swift|Message row segment models are UI-facing projection helpers over already-derived chat content and trace inputs.
+ui_view|App/SoloCodeApp/Sources/Chat/MessageRow/MessageRow.swift|Message row shell is pure SwiftUI presentation over resolved message content and UI-local hover state.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/**|Chat pipeline projection types are compatibility adapters over Rust-owned snapshots.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/Core/ChatPipelineEvent.swift|Main chat pipeline bridge state and reducer calls are compatibility adapters over Rust-owned turn/runtime projection.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/Core/ChatTimelineBlock.swift|Chat timeline block models are compatibility projection types over Rust-owned timeline snapshots.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/PipelineRuntime/**|Pipeline runtime projection stays in Swift as UI/runtime glue outside Rust domain ownership.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Providers/Runtime/**|Runtime provider helpers are fallback compatibility code outside the live Rust transport path.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/**|Rust transport factory/helpers are Swift bridge glue over Rust-owned main-chat provider sessions.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/StoreProjection/**|Chat store projection files remain Swift binding adapters over Rust-owned store snapshots.
 binding_adapter|App/SoloCodeApp/Sources/Chat/Support/StoreRust/**|StoreRust bridge files remain Swift adapter glue over Rust-owned main-chat store reducers.
+ui_view|App/SoloCodeApp/Sources/Chat/TaskStatus/**|Task status components and helpers are SwiftUI presentation shells over external stores, callbacks and render-ready state.
+ui_view|App/SoloCodeApp/Sources/Chat/TaskStatus/ChangedFilesSummaryCard.swift|Changed files summary card is pure SwiftUI presentation over Git panel state and callbacks.
+ui_view|App/SoloCodeApp/Sources/Chat/TaskStatus/TaskActivityPanel.swift|Task activity panel shell is pure SwiftUI presentation over task activity stores and callbacks.
+ui_view|App/SoloCodeApp/Sources/Chat/TaskStatus/TaskActivityPanel+Helpers.swift|Task activity panel helpers are pure SwiftUI section composition over already-derived activity inputs.
+binding_adapter|App/SoloCodeApp/Sources/Chat/TaskStatus/TaskActivityPanel+Scope.swift|Task activity panel scoped selectors are Swift binding glue over task activity store queries and panel inputs.
+ui_view|App/SoloCodeApp/Sources/Chat/TaskStatus/TaskActivityPanel+Standard.swift|Standard task activity panel content is pure SwiftUI composition over already-scoped activity inputs.
+ui_view|App/SoloCodeApp/Sources/Chat/TaskStatus/TaskControlBar.swift|Task control bar is pure SwiftUI presentation over pipeline and task status inputs.
+ui_view|App/SoloCodeApp/Sources/Chat/TaskStatus/TaskControlBar+Helpers.swift|Task control bar helpers are pure SwiftUI presentation and button composition for the task shell.
 ui_view|App/SoloCodeApp/Sources/Chat/TaskStatus/TaskStatusModifiers.swift|Task status pulse modifier is pure SwiftUI presentation code.
+ui_view|App/SoloCodeApp/Sources/Chat/Timeline/Blocks/ArtifactCardView.swift|Artifact card rendering is pure SwiftUI presentation over resolved timeline blocks.
+binding_adapter|App/SoloCodeApp/Sources/Chat/Timeline/Blocks/ChatTodoExecutionCardMetrics.swift|Todo execution metrics are presentation helpers over already-derived todo and file-change inputs.
+ui_view|App/SoloCodeApp/Sources/Chat/Timeline/Blocks/ChatTodoExecutionCardView.swift|Todo execution card rendering is pure SwiftUI presentation over todo items, metrics and callbacks.
+ui_view|App/SoloCodeApp/Sources/Chat/Timeline/Blocks/TodoCenterCardView.swift|Todo center card shell is pure SwiftUI composition over todo and trace inputs.
+ui_view|App/SoloCodeApp/Sources/Chat/Timeline/ChatTimelineView.swift|Chat timeline shell is pure SwiftUI composition over Rust-owned snapshots and store projections.
+ui_view|App/SoloCodeApp/Sources/Chat/Timeline/ChatTurnView.swift|Chat turn rendering is pure SwiftUI presentation over resolved timeline blocks and trace inputs.
 ui_view|App/SoloCodeApp/Sources/Chat/Timeline/Blocks/PrimaryTextBlockView.swift|Primary text block rendering is pure SwiftUI presentation code.
 ui_view|App/SoloCodeApp/Sources/Chat/Timeline/Blocks/TraceSummaryCardView.swift|Trace summary card is pure SwiftUI presentation code.
 binding_adapter|App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift|ConversationFlowCoordinator support is now a Swift bridge adapter over the Rust-owned direct-stream runtime.
