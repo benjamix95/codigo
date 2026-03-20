@@ -78,4 +78,6 @@ cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutov
   - `App/SoloCodeApp/Sources/Runtime/DebugPipeline/DebugProjectionStoreBinding.swift` e' stato assorbito in `DebugProjectionEventConsumer.swift`, rimuovendo un file Swift residuo dal prefisso `Runtime`
   - `ThreadProviderSelectionService.swift` e' stato assorbito in `Chat/Support/Providers/Rust/RustMainChatProviderFactory.swift` dopo il cutover Rust della thread provider selection policy
   - `ChatReasoningStreamReducer.swift` e' stato rimosso dopo il cutover Rust del reasoning stream reducer
-  - il progresso strutturale osservato rispetto al baseline canonico iniziale e' `8/198`, pari a `4.0%`
+  - `ChatStoreStreaming.swift` e' stato rimosso dopo il cutover Rust del task live runtime (`beginTask`, `endTask`, `setTaskStatus`)
+  - il breakdown `App/SoloCodeApp/Sources/Chat` osservato scende da `115` a `114`
+  - il progresso strutturale osservato rispetto al baseline canonico iniziale sale a `9/198`, pari a `4.5%`

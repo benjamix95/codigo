@@ -137,6 +137,31 @@ struct MainChatStoreSnapshotBridge: Codable, Equatable {
     let planBoards: [String: MainChatStorePlanBoardSnapshotBridge]
 }
 
+struct MainChatTaskStateSnapshotBridge: Codable, Equatable {
+    let conversationId: String
+    let startedAt: Date?
+    let statusText: String
+}
+
+struct MainChatTaskRuntimeStateBridge: Codable, Equatable {
+    let taskStates: [MainChatTaskStateSnapshotBridge]
+}
+
+struct MainChatTaskRuntimeRequestBridge: Encodable {
+    var schemaVersion: Int
+    var operation: String
+    var state: MainChatTaskRuntimeStateBridge
+    var conversationId: String?
+    var statusText: String?
+    var startedAt: Date?
+}
+
+struct MainChatTaskRuntimeResponseBridge: Decodable {
+    let schemaVersion: Int
+    let error: MainChatStoreBridgeErrorBridge?
+    let state: MainChatTaskRuntimeStateBridge?
+}
+
 struct MainChatStoreActionRequestBridge: Encodable {
     var schemaVersion: Int
     var action: String

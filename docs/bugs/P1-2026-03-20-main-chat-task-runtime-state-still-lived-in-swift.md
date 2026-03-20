@@ -1,0 +1,42 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: lo stato live dei task della `main chat` (`beginTask`, `endTask`, `setTaskStatus`) viveva ancora in Swift.
+- Sintomo:
+  - `activeTaskConversationIds`, `taskStartDates`, `taskStatusTexts` mutati localmente in `ChatStoreStreaming.swift`
+- Impatto: porzione del runtime live della `main chat` ancora Swift-owned, fuori dal cutover Rust.
+- Gravita': alta
+- Steps to reproduce:
+  - leggere [ChatStoreStreaming.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Chat/Support/StoreRuntime/ChatStoreStreaming.swift)
+- Risultato attuale:
+  - task live state mutata solo lato Swift
+- Risultato atteso:
+  - task live state gestita da runtime Rust dedicato
+- Causa probabile:
+  - il `main_chat_store` Rust copriva lo snapshot persistente, non il runtime state effimero dei task live
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_task_runtime.rs`
+  - `Native/RustCore/src/main_chat/task_runtime.rs`
+  - `Native/RustCore/src/ffi/main_chat.rs`
+  - `StoreRust/**`
+  - `ChatStoreStreaming.swift`
+  - `ChatStoreTaskOwnershipTests`
+  - changelog/bug doc
+- Non-scope:
+  - persistenza del task live state nello store snapshot
+- Moduli confinanti da verificare:
+  - `ChatStoreTaskOwnershipTests`
+  - `ChatStoreStreamingTargetTests`
+  - `deleteConversation` cleanup
+- Test da aggiungere o aggiornare:
+  - test Rust su `task_runtime`
+  - XCTest `ChatStoreTaskOwnershipTests`
+- Strategia di fix minimo:
+  - introdurre task runtime Rust separato
+  - assorbire le entrypoint nel bridge `StoreRust/**`
+  - eliminare `ChatStoreStreaming.swift`
+  - rimuovere ogni fallback locale sulle mutazioni del task runtime
+- Verifica post-fix:
+  - `ChatStoreTaskOwnershipTests`
+  - `ChatStoreStreamingTargetTests`
+- Commit previsto:
+  - `refactor(chat): move live task runtime state into rust`

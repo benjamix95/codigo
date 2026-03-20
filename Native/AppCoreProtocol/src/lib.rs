@@ -6,5 +6,6 @@ pub mod main_chat_reasoning;
 pub mod main_chat_provider;
 pub mod main_chat_runtime;
 pub mod main_chat_store;
+pub mod main_chat_task_runtime;
 pub mod mcp;
 pub mod thread_provider_selection;

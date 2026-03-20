@@ -43,6 +43,18 @@ final class ChatStoreTaskOwnershipTests: XCTestCase {
         XCTAssertNil(store.activeTaskConversationId)
     }
 
+    func testSetTaskStatusDoesNotCreateInactiveTaskState() throws {
+        let store = ChatStore()
+        let convId = try XCTUnwrap(store.conversations.first?.id)
+
+        store.setTaskStatus("Testing", for: convId)
+
+        XCTAssertFalse(store.isLoading)
+        XCTAssertFalse(store.activeTaskConversationIds.contains(convId))
+        XCTAssertNil(store.taskStartDates[convId])
+        XCTAssertNil(store.taskStatusTexts[convId])
+    }
+
     func testCreateConversationAlwaysReturnsNewId() {
         let store = ChatStore()
         let id1 = store.createConversation(contextId: nil, contextFolderPath: nil, mode: nil)

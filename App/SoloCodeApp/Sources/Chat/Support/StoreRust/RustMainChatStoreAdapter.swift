@@ -3,6 +3,33 @@ import CoderEngine
 
 enum RustMainChatStoreAdapter {
     @MainActor
+    static func taskRuntimeState(from store: ChatStore) -> MainChatTaskRuntimeStateBridge {
+        MainChatTaskRuntimeStateBridge(
+            taskStates: store.activeTaskConversationIds.map { conversationId in
+                MainChatTaskStateSnapshotBridge(
+                    conversationId: conversationId.uuidString.lowercased(),
+                    startedAt: store.taskStartDates[conversationId],
+                    statusText: store.taskStatusTexts[conversationId] ?? "Thinking"
+                )
+            }
+        )
+    }
+
+    @MainActor
+    static func apply(taskRuntimeState: MainChatTaskRuntimeStateBridge, to store: ChatStore) {
+        let ordered = taskRuntimeState.taskStates.compactMap { snapshot -> (UUID, Date?, String)? in
+            guard let uuid = UUID(uuidString: snapshot.conversationId) else { return nil }
+            return (uuid, snapshot.startedAt, snapshot.statusText)
+        }
+        store.activeTaskConversationIds = Set(ordered.map(\.0))
+        store.taskStartDates = Dictionary(uniqueKeysWithValues: ordered.map { ($0.0, $0.1) }.compactMap {
+            guard let startedAt = $0.1 else { return nil }
+            return ($0.0, startedAt)
+        })
+        store.taskStatusTexts = Dictionary(uniqueKeysWithValues: ordered.map { ($0.0, $0.2) })
+    }
+
+    @MainActor
     static func snapshot(from store: ChatStore) -> MainChatStoreSnapshotBridge {
         MainChatStoreSnapshotBridge(
             conversations: store.conversations.map(conversationSnapshot),
@@ -37,6 +64,16 @@ enum RustMainChatStoreAdapter {
             request: request
         )
         return response?.error == nil ? response?.snapshot : nil
+    }
+
+    static func handleTaskRuntime(
+        _ request: MainChatTaskRuntimeRequestBridge
+    ) -> MainChatTaskRuntimeStateBridge? {
+        let response: MainChatTaskRuntimeResponseBridge? = ReviewCoreBridge.call(
+            functionName: "chat_core_task_runtime_handle_action",
+            request: request
+        )
+        return response?.error == nil ? response?.state : nil
     }
 
     static func conversationSnapshot(_ conversation: Conversation) -> MainChatStoreConversationSnapshotBridge {
