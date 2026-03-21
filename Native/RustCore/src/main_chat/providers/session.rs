@@ -287,3 +287,11 @@ fn store_config(session_id: &str, config: MainChatProviderSessionConfig) {
 fn session_config(session_id: &str) -> Option<MainChatProviderSessionConfig> {
     config_store().lock().unwrap().get(session_id).cloned()
 }
+
+#[cfg(test)]
+pub(crate) fn append_test_event(
+    session_id: &str,
+    event: app_core_protocol::main_chat_provider::MainChatProviderEvent,
+) {
+    push_event(session_id, event);
+}

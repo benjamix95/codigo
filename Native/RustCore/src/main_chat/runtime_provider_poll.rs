@@ -111,28 +111,42 @@ fn reduce_provider_event(
     provider_id: &str,
     event: &MainChatProviderEvent,
 ) -> app_core_protocol::main_chat_runtime::MainChatRuntimeSnapshot {
-    let (event_kind, payload, status) = match event.kind {
+    let (event_kind, payload, status, use_provider_event_reducer) = match event.kind {
         MainChatProviderEventKind::Started => return apply_runtime_action(snapshot, "direct_stream_event_received", provider_id, None, None, Default::default()),
         MainChatProviderEventKind::TextDelta => (
-            None,
+            Some("textDelta".to_string()),
             event.payload.clone(),
-            Some("text".to_string()),
+            None,
+            true,
         ),
         MainChatProviderEventKind::TextReplace => (
             Some("textReplace".to_string()),
             event.payload.clone(),
-            Some("text".to_string()),
+            None,
+            true,
         ),
         MainChatProviderEventKind::Raw => (
             Some(event.raw_type.clone().unwrap_or_else(|| "provider_raw".to_string())),
             event.payload.clone(),
             None,
+            true,
         ),
         MainChatProviderEventKind::Completed => return complete_runtime(snapshot),
         MainChatProviderEventKind::Error => {
             return fail_runtime(snapshot, if event.text.is_empty() { "Provider stream failed" } else { &event.text })
         }
     };
+
+    if use_provider_event_reducer {
+        return apply_runtime_action(
+            snapshot,
+            "direct_stream_apply_provider_event",
+            provider_id,
+            None,
+            event_kind,
+            payload,
+        );
+    }
 
     if let Some(status) = status {
         return apply_runtime_action(
@@ -145,14 +159,7 @@ fn reduce_provider_event(
         );
     }
 
-    apply_runtime_action(
-        snapshot,
-        "direct_stream_apply_provider_event",
-        provider_id,
-        None,
-        event_kind,
-        payload,
-    )
+    snapshot
 }
 
 fn complete_runtime(
@@ -269,5 +276,52 @@ mod tests {
             timeout_ms: 50,
         });
         assert!(response.runtime_snapshot.is_some());
+    }
+
+    #[test]
+    fn poll_provider_runtime_applies_text_delta_to_turn_state() {
+        use app_core_protocol::main_chat_provider::{
+            MainChatProviderEvent, MainChatProviderEventKind,
+        };
+        use crate::main_chat::providers::append_test_event;
+        use crate::main_chat::start_session;
+
+        let session_id = "runtime-provider-poll-delta".to_string();
+        let _ = start_session(MainChatProviderSessionStartRequest {
+            schema_version: 1,
+            session_id: session_id.clone(),
+            config: MainChatProviderSessionConfig {
+                provider_id: "codex-cli".to_string(),
+                display_name: "Codex".to_string(),
+                backend: MainChatProviderBackend::CodexCli,
+                workspace_path: ".".to_string(),
+                workspace_paths: vec![".".to_string()],
+                prompt: "hello".to_string(),
+                ..Default::default()
+            },
+        });
+
+        append_test_event(&session_id, MainChatProviderEvent {
+            kind: MainChatProviderEventKind::TextDelta,
+            text: String::new(),
+            raw_type: None,
+            payload: std::collections::BTreeMap::from([
+                ("delta".to_string(), "ciao".to_string()),
+                ("stream_id".to_string(), "main".to_string()),
+            ]),
+        });
+
+        let response = poll_provider_runtime(MainChatRuntimeProviderPollRequest {
+            schema_version: 1,
+            session_id,
+            provider_id: "codex-cli".to_string(),
+            snapshot: MainChatRuntimeSnapshot::default(),
+            timeout_ms: 50,
+        });
+        let snapshot = response.runtime_snapshot.expect("runtime snapshot");
+        assert_eq!(
+            snapshot.turn_state.text_by_stream_id.get("main").map(String::as_str),
+            Some("ciao")
+        );
     }
 }
