@@ -19,6 +19,27 @@ public enum IDEStateTodoArgumentParser {
         return nil
     }
 
+    /// Batch-mode parsing for the `todos` field.
+    /// Structured arrays remain valid, but a native single object is rejected
+    /// so malformed MCP payloads do not silently downgrade into a valid batch.
+    public static func parseBatchCollection(_ raw: Any?) -> [[String: Any]]? {
+        guard let raw else { return nil }
+
+        if let array = raw as? [[String: Any]] {
+            return normalize(array)
+        }
+        if let array = raw as? [Any] {
+            return normalize(array)
+        }
+        if raw is [String: Any] {
+            return nil
+        }
+        if let rawString = raw as? String {
+            return parseString(rawString)
+        }
+        return nil
+    }
+
     private static func parseString(_ rawString: String) -> [[String: Any]]? {
         let trimmed = rawString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }

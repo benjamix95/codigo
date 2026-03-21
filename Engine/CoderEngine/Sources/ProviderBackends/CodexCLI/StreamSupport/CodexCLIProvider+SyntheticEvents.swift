@@ -149,7 +149,7 @@ extension CodexCLIProvider {
     }
 
     private static func parseTodoArrayArgument(_ raw: Any?) -> [[String: Any]]? {
-        IDEStateTodoArgumentParser.parse(raw)
+        IDEStateTodoArgumentParser.parseBatchCollection(raw)
     }
 
     private static func jsonStringArgument(

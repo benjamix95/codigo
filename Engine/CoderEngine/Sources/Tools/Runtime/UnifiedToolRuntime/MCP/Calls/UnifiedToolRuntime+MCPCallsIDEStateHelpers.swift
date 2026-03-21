@@ -93,7 +93,7 @@ extension UnifiedToolRuntime {
     }
 
     static func parseTodoArrayArgument(_ raw: Any?) -> [[String: Any]]? {
-        IDEStateTodoArgumentParser.parse(raw)
+        IDEStateTodoArgumentParser.parseBatchCollection(raw)
     }
 
     private static func anyDictionary(from dictionary: [String: any Sendable]) -> [String: Any] {

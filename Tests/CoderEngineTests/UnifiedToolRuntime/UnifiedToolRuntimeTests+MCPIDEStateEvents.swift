@@ -314,6 +314,40 @@ extension UnifiedToolRuntimeTests {
         )
     }
 
+    func testSyntheticIDEStateEventsFromMCPRejectsStructuredJSONObjectTodosPayload() {
+        let call = ToolCall(
+            id: "tc-todo-structured-object-1",
+            name: "mcp_call",
+            args: [
+                "tool": "coderide_todo_write",
+            ],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent,
+            richArgs: [
+                "tool": "coderide_todo_write",
+                "todos": [
+                    "content": "Fix parser",
+                    "status": "in_progress",
+                ],
+            ]
+        )
+        let completedPayload: [String: String] = [
+            "status": "failed",
+            "is_mcp": "true",
+            "mcp_tool": "coderide_todo_write",
+        ]
+
+        let events = UnifiedToolRuntime.syntheticIDEStateEventsFromMCP(
+            call: call,
+            completedPayload: completedPayload
+        )
+        let rawEvents = rawEventsByType(events)
+
+        XCTAssertNil(rawEvents["todo_write"])
+        XCTAssertEqual(rawEvents["tool_validation_error"]?["error_code"], "invalid_todos_payload")
+    }
+
     func testSyntheticIDEStateEventsFromMCPPlanReorderSupportsCamelCaseAliases() {
         let call = ToolCall(
             id: "tc-plan-reorder-1",
