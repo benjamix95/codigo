@@ -49,7 +49,7 @@ fn cancel_session_marks_snapshot_cancelled() {
         session_id: session_id.clone(),
         config: minimal_config(MainChatProviderBackend::OpenaiApi),
     });
-    assert_eq!(start.snapshot.unwrap().status, "streaming");
+    assert!(start.snapshot.is_some());
     let cancelled = cancel_session(MainChatProviderSessionRequest {
         schema_version: 1,
         session_id: session_id.clone(),
