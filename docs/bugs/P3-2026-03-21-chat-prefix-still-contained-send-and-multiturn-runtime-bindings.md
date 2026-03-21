@@ -1,0 +1,40 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il blocco `send-message / multi-turn runtime`, che gestisce orchestrazione di invio, routing review automatico e flow multi-turn plan come glue sopra i boundary gia' esistenti.
+- Sintomo: il debito residuo `Chat` includeva ancora `PartL_SendMessage`, `PartL_SendMessageExecution` e `PartM_MultiTurn`.
+- Impatto: il perimetro `Chat` restava sovrastimato e continuava a mescolare runtime glue e dominio main-chat.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui il blocco send/multi-turn.
+- Risultato attuale: il cluster viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `Services/ChatSend/Runtime` e `Services/ChatPlan/Runtime`.
+- Causa probabile: collocazione storica nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_SendMessage.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_SendMessageExecution.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartM_MultiTurn.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatSend/**`
+  - `App/SoloCodeApp/Sources/Services/ChatPlan/Runtime/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ChatPanelView.swift`
+  - `PartA_UI`
+  - `PartE_TaskLifecycle`
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `ProviderFactoryCodeReviewTests`
+  - `ChatPanelBuildBehaviorTests`
+  - `PlanBuildIntegrationFlowTests`
+  - `PlanShortcutAndCommandTests`
+  - `PlanFlowPhaseTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite dei consumer esistenti
+- Strategia di fix minimo:
+  - spostare il cluster nei moduli target gia' esistenti
+  - aggiornare solo path progetto e allowlist
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer send/multi-turn
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate send runtime bindings`
