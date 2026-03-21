@@ -1,0 +1,41 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `thread/message shell` per header, scroll state, message stack e streaming labels, che sono glue di presentazione sopra store già derivati e non ownership del dominio Rust della main chat.
+- Sintomo: il debito residuo `Chat` includeva ancora i file `PartC_MessageHeader`, `PartC_MessageScrollState`, `PartD_MessagesScroll`, `PartR_Tail`, `PartS_End`.
+- Impatto: il perimetro `Chat` restava sovrastimato e mescolava UI shell e rendering del thread con il dominio main-chat.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui il blocco `thread/message shell`.
+- Risultato attuale: il cluster viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `Services/ChatThread/Bindings`.
+- Causa probabile: collocazione storica nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartC_MessageHeader.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartC_MessageScrollState.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartD_MessagesScroll.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartR_Tail.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartS_End.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `TaskTrace`
+  - `Streaming`
+  - `SendMessage`
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `ChatPanelScrollSafetyTests`
+  - `ChatPanelPositionTests`
+  - `ChatPanelReasoningMergeTests`
+  - `ChatPanelTraceBindingTests`
+  - `TaskActivityVisibilityTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite thread/message shell
+- Strategia di fix minimo:
+  - spostare il cluster in `Services/ChatThread/Bindings`
+  - aggiornare solo path progetto e allowlist
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer thread/message shell
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate thread shell bindings`
