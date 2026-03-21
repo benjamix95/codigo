@@ -1,0 +1,42 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora un cluster ampio di helper `Plan` per prompt preparation, clarification flow, plan choice/build orchestration e artifact visibility, che nel cutover corrente funzionano come glue Swift sopra lo stato plan già specchiato dal boundary Rust.
+- Sintomo: il debito residuo `Chat` includeva ancora gran parte del blocco plan/runtime helper nonostante il plan panel e la projection Rust fossero già separati.
+- Impatto: il perimetro `Chat` restava sovrastimato e continuava a mescolare binding di plan flow con il dominio main-chat.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui i file `PartM_Phase3`, `PartN_ClarificationHeuristics`, `PartO_PlanPromptBuilders`, `PlanContinuation`, `PlanArtifactVisibility`, `PartJ_PlanChoice`, `PartK_PlanExecution`, `PartN_PlanPrompts`.
+- Risultato attuale: il cluster plan runtime viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `Services/ChatPlan/Runtime`.
+- Causa probabile: collocazione storica nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Plan/**`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Core/ChatPanelView+PlanArtifactVisibility.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartJ_PlanChoice.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartK_PlanExecution.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartN_PlanPrompts.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatPlan/Runtime/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `TaskTrace`
+  - `Streaming`
+  - `ChatPanelView+PartL_SendMessage*`
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `PlanBuildIntegrationFlowTests`
+  - `PlanOutputClassifierTests`
+  - `PlanQuestionPhaseDecisionTests`
+  - `PlanFlowPhaseTests`
+  - `PlanShortcutAndCommandTests`
+  - `PlanPanelWorkspacePolicyTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite plan/runtime
+- Strategia di fix minimo:
+  - spostare il cluster in `Services/ChatPlan/Runtime`
+  - aggiornare solo path progetto e allowlist
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer plan/runtime
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate plan runtime bindings`
