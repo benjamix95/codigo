@@ -2,25 +2,44 @@ import Foundation
 import CoderEngine
 
 final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
+    typealias StartSessionBridge = (MainChatProviderSessionStartRequestBridge) -> MainChatProviderSessionResponseBridge?
+    typealias PollSessionBridge = (MainChatProviderSessionPollRequestBridge) -> MainChatProviderSessionResponseBridge?
+    typealias CancelSessionBridge = (MainChatProviderSessionRequestBridge) -> MainChatProviderSessionResponseBridge?
+
     let id: String
     let displayName: String
     let attachmentCapabilities: ProviderAttachmentCapabilities
 
     private let baseConfig: MainChatProviderSessionConfigBridge
     private let authenticated: Bool
+    private let startSessionBridge: StartSessionBridge
+    private let pollSessionBridge: PollSessionBridge
+    private let cancelSessionBridge: CancelSessionBridge
 
     init(
         id: String,
         displayName: String,
         attachmentCapabilities: ProviderAttachmentCapabilities,
         authenticated: Bool,
-        config: MainChatProviderSessionConfigBridge
+        config: MainChatProviderSessionConfigBridge,
+        startSessionBridge: @escaping StartSessionBridge = {
+            ReviewCoreBridge.call(functionName: "chat_core_provider_start_session", request: $0)
+        },
+        pollSessionBridge: @escaping PollSessionBridge = {
+            ReviewCoreBridge.call(functionName: "chat_core_provider_poll", request: $0)
+        },
+        cancelSessionBridge: @escaping CancelSessionBridge = {
+            ReviewCoreBridge.call(functionName: "chat_core_provider_cancel", request: $0)
+        }
     ) {
         self.id = id
         self.displayName = displayName
         self.attachmentCapabilities = attachmentCapabilities
         self.authenticated = authenticated
         self.baseConfig = config
+        self.startSessionBridge = startSessionBridge
+        self.pollSessionBridge = pollSessionBridge
+        self.cancelSessionBridge = cancelSessionBridge
     }
 
     func isAuthenticated() -> Bool {
@@ -47,9 +66,8 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
         let config = resolvedConfig(prompt: prompt, context: context, attachments: attachments)
         return AsyncThrowingStream { continuation in
             let driver = Task {
-                let start: MainChatProviderSessionResponseBridge? = ReviewCoreBridge.call(
-                    functionName: "chat_core_provider_start_session",
-                    request: MainChatProviderSessionStartRequestBridge(
+                let start = startSessionBridge(
+                    MainChatProviderSessionStartRequestBridge(
                         schemaVersion: 1,
                         sessionId: sessionId,
                         config: config
@@ -63,9 +81,12 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
 
                 var finished = false
                 while !finished && !Task.isCancelled {
-                    let response: MainChatProviderSessionResponseBridge? = ReviewCoreBridge.call(
-                        functionName: "chat_core_provider_resume",
-                        request: MainChatProviderSessionRequestBridge(schemaVersion: 1, sessionId: sessionId)
+                    let response = pollSessionBridge(
+                        MainChatProviderSessionPollRequestBridge(
+                            schemaVersion: 1,
+                            sessionId: sessionId,
+                            timeoutMs: 50
+                        )
                     )
                     if let message = response?.error?.message {
                         continuation.yield(.error(message))
@@ -109,16 +130,13 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
                             return
                         }
                     }
-
-                    try? await Task.sleep(nanoseconds: 50_000_000)
                 }
             }
 
             continuation.onTermination = { _ in
                 driver.cancel()
-                let _: MainChatProviderSessionResponseBridge? = ReviewCoreBridge.call(
-                    functionName: "chat_core_provider_cancel",
-                    request: MainChatProviderSessionRequestBridge(schemaVersion: 1, sessionId: sessionId)
+                let _ = self.cancelSessionBridge(
+                    MainChatProviderSessionRequestBridge(schemaVersion: 1, sessionId: sessionId)
                 )
             }
         }

@@ -12,6 +12,6 @@ mod thread_selection;
 mod session_tests;
 mod usage;
 
-pub use session::{cancel_session, get_snapshot, resume_session, start_session};
+pub use session::{cancel_session, get_snapshot, poll_session, resume_session, start_session};
 pub use runtime_transport::resolve_runtime_transport;
 pub use thread_selection::resolve_thread_provider_selection;

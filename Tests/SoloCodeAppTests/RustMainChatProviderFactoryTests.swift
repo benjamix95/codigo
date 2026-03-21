@@ -230,4 +230,5 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             serperApiKey: ""
         )
     }
+
 }

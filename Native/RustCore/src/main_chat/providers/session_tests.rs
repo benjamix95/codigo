@@ -1,7 +1,7 @@
-use super::session::{cancel_session, resume_session, start_session};
+use super::session::{cancel_session, poll_session, resume_session, start_session};
 use app_core_protocol::main_chat_provider::{
-    MainChatProviderBackend, MainChatProviderSessionConfig, MainChatProviderSessionRequest,
-    MainChatProviderSessionStartRequest,
+    MainChatProviderBackend, MainChatProviderSessionConfig, MainChatProviderSessionPollRequest,
+    MainChatProviderSessionRequest, MainChatProviderSessionStartRequest,
 };
 use std::path::Path;
 use std::thread;
@@ -76,6 +76,24 @@ fn missing_cli_path_bubbles_error_into_session_events() {
     let snapshot = response.snapshot.unwrap();
     assert_eq!(snapshot.status, "failed");
     assert!(response.events.iter().any(|event| event.kind == app_core_protocol::main_chat_provider::MainChatProviderEventKind::Error));
+}
+
+#[test]
+fn poll_session_waits_for_terminal_snapshot_without_events() {
+    let session_id = "provider-poll-terminal-test".to_string();
+    let _ = start_session(MainChatProviderSessionStartRequest {
+        schema_version: 1,
+        session_id: session_id.clone(),
+        config: minimal_config(MainChatProviderBackend::OpenaiApi),
+    });
+    thread::sleep(Duration::from_millis(50));
+    let response = poll_session(MainChatProviderSessionPollRequest {
+        schema_version: 1,
+        session_id,
+        timeout_ms: 200,
+    });
+    let snapshot = response.snapshot.unwrap();
+    assert!(matches!(snapshot.status.as_str(), "completed" | "failed"));
 }
 
 fn codex_is_detectable() -> bool {

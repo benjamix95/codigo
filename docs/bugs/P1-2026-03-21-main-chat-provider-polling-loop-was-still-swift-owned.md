@@ -1,0 +1,50 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: il provider transport Rust della `main chat` lasciava ancora in Swift il loop `resume -> sleep -> inspect snapshot`, quindi il polling della sessione provider non era Rust-owned.
+- Sintomo:
+  - `MainChatRustTransportProvider.send(...)` chiamava `chat_core_provider_resume` in un ciclo con `Task.sleep(50ms)`
+  - la terminazione della stream dipendeva ancora dal loop Swift invece che dal lifecycle del core Rust
+- Impatto:
+  - ownership divisa del transport live
+  - rischio di drift tra stato sessione Rust e adapter Swift durante polling/terminal state
+- Gravita': P1
+- Steps to reproduce:
+  1. avviare un turno `main chat` con provider Rust transport
+  2. osservare che il transport usa `start_session`, poi un loop Swift di `resume` con sleep attivo
+  3. verificare che la stream venga completata/fallita dal path Swift dopo aver ispezionato snapshot/eventi
+- Risultato attuale:
+  - il polling della sessione resta in Swift
+  - Rust possiede la sessione ma non il ciclo bloccante di attesa eventi
+- Risultato atteso:
+  - il polling della sessione provider deve essere eseguito dal core Rust
+  - Swift deve restare adapter dei callback UI e non owner del loop `resume/sleep`
+- Causa probabile:
+  - la tranche precedente aveva spostato in Rust la selezione del transport, ma non il lifecycle di polling della sessione provider
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_provider.rs`
+  - `Native/RustCore/src/main_chat/providers/session.rs`
+  - `Native/RustCore/src/ffi/main_chat.rs`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/**`
+  - test Rust/App-side collegati
+  - doc bug/changelog
+- Non-scope:
+  - `ConversationFlowCoordinator.runStream(...)`
+  - timeout/retry budget del direct stream runtime
+  - rewind/persistenza
+- Moduli confinanti da verificare:
+  - `RustMainChatProviderAdapter.swift`
+  - `session_tests.rs`
+  - `ChatPanelView+PartL_SendMessage.swift`
+- Test da aggiungere o aggiornare:
+  - test Rust su `poll_session`
+  - test app-side sul provider transport che completa/fallisce da snapshot terminale
+- Strategia di fix minimo:
+  - aggiungere un request Rust dedicato per il polling bloccante della sessione provider
+  - far consumare al provider adapter Swift il nuovo boundary `chat_core_provider_poll`
+  - mantenere in Swift solo il dispatch finale di `.completed`, `.error`, `.raw`, `.textDelta`
+- Verifica post-fix:
+  - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml main_chat::providers::session_tests -- --nocapture`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests`
+  - `./scripts/validate_rust_cutover_boundary.sh --trigger gitCommit --workspace /Users/benjaminstoica/SoloCode --files "App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatProviderAdapter.swift,App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/MainChatProviderBridgeModels.swift,App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_SendMessage.swift,App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_SendMessageAutoReview.swift,App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_PromptOptimization.swift,Tests/SoloCodeAppTests/RustMainChatProviderFactoryTests.swift" --format text`
+- Commit previsto:
+  - `fix(chat): move rust transport polling out of swift`

@@ -58,5 +58,6 @@ binding_adapter|Tests/SoloCodeAppTests/ReviewCoreLibraryPathSupport.swift|App-si
 binding_adapter|Tests/SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests.swift|App-side regression coverage for the XCTest bootstrap policy that defers Rust store loading until test setup completes.
 binding_adapter|Tests/SoloCodeAppTests/ReviewPanelGitContextTests.swift|App-side regression coverage for the Rust-backed review panel Git context.
 binding_adapter|Tests/SoloCodeAppTests/RustMainChatAutoTodoBoundaryTests.swift|App-side regression coverage for the Rust-backed auto-todo lifecycle emitted by the main chat UI boundary.
+binding_adapter|Tests/SoloCodeAppTests/RustMainChatProviderAdapterTests.swift|App-side regression coverage for the Rust-backed provider polling lifecycle used by the main chat transport adapter.
 binding_adapter|Tests/SoloCodeAppTests/RustMainChatUIBoundaryTests.swift|App-side regression coverage for the Rust-backed main chat UI boundary and terminal direct-stream state.
 binding_adapter|Tests/SoloCodeAppTests/RustMainChatUIBoundaryPlanTests.swift|App-side regression coverage for the Rust-backed planning intents exposed by the main chat UI boundary.

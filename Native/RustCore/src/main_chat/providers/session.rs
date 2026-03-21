@@ -7,11 +7,13 @@ use super::models::{
 use super::router::{next_cli_account, next_cli_account_after};
 use app_core_protocol::main_chat_provider::{
     MainChatCLIAccountSnapshot, MainChatProviderBackend, MainChatProviderSessionConfig,
-    MainChatProviderSessionRequest, MainChatProviderSessionResponse, MainChatProviderSessionStartRequest,
+    MainChatProviderSessionPollRequest, MainChatProviderSessionRequest, MainChatProviderSessionResponse,
+    MainChatProviderSessionStartRequest,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
+use std::time::{Duration, Instant};
 
 static SESSIONS: OnceLock<Mutex<HashMap<String, ProviderSessionHandle>>> = OnceLock::new();
 
@@ -134,6 +136,39 @@ pub fn resume_session(request: MainChatProviderSessionRequest) -> MainChatProvid
 
 pub fn get_snapshot(request: MainChatProviderSessionRequest) -> MainChatProviderSessionResponse {
     session_response(request, false)
+}
+
+pub fn poll_session(request: MainChatProviderSessionPollRequest) -> MainChatProviderSessionResponse {
+    if request.schema_version != 1 {
+        return MainChatProviderSessionResponse::error("unsupported_schema", "schemaVersion must be 1");
+    }
+    let guard = sessions().lock().unwrap();
+    let Some(handle) = guard.get(&request.session_id).cloned() else {
+        return MainChatProviderSessionResponse::error("missing_session", "Provider session not found");
+    };
+    drop(guard);
+
+    let timeout_ms = request.timeout_ms.max(0) as u64;
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    loop {
+        let snapshot = handle.snapshot.lock().unwrap().clone();
+        let mut queue = handle.events.lock().unwrap();
+        if !queue.is_empty() {
+            let events = queue.drain(..).collect();
+            return MainChatProviderSessionResponse::success(snapshot, events);
+        }
+        drop(queue);
+
+        if matches!(snapshot.status.as_str(), "completed" | "failed" | "cancelled") {
+            return MainChatProviderSessionResponse::success(snapshot, Vec::new());
+        }
+
+        if Instant::now() >= deadline {
+            return MainChatProviderSessionResponse::success(snapshot, Vec::new());
+        }
+
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 pub fn cancel_session(request: MainChatProviderSessionRequest) -> MainChatProviderSessionResponse {

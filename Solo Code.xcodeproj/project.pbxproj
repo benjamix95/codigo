@@ -439,6 +439,7 @@
 		3F78C67E36AD85DE368B6834 /* SwarmProgressView+InlineLiveCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F81E95E9CCEB6F8CF5E1901 /* SwarmProgressView+InlineLiveCards.swift */; };
 		3FA7ADB9CA649F173A6424EF /* CodeReviewPanelModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8CA6A2EBAFC9282EBA49B0 /* CodeReviewPanelModels.swift */; };
 		3FC851562A78A928CF94A68B /* ThreadProviderSelectionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63D244D25B00FCEB78FC0BDD /* ThreadProviderSelectionServiceTests.swift */; };
+		3FC851572A78A928CF94A68C /* RustMainChatProviderAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63D244D35B00FCEB78FC0BDE /* RustMainChatProviderAdapterTests.swift */; };
 		3FF0C02E230E5501C6965356 /* ReviewPanelHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408FD23473AD9FF2826904CA /* ReviewPanelHelpers.swift */; };
 		4066ABDE9F2416E7185BC36A /* ChatPanelView+PartA_TodoSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B24897DD241008A898294D7 /* ChatPanelView+PartA_TodoSync.swift */; };
 		40797B2D72EDFEA774887317 /* ConversationFlowCoordinator+Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60EED9262E1A400162B6DC6A /* ConversationFlowCoordinator+Support.swift */; };
@@ -1083,7 +1084,6 @@
 		A99EF86B8003063E64992A75 /* PluginRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87937A9969FF818CAD3F5BD3 /* PluginRegistry.swift */; };
 		A9CD2BC3D3984EA445C3A504 /* DebugNativePipelineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FEFD14AC45361D879AA2A6 /* DebugNativePipelineModels.swift */; };
 		AA2703A51ADDFFA24C564CF8 /* ChatPanelView+PartL_SendMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B0B46E698B7DCCC324BF463 /* ChatPanelView+PartL_SendMessage.swift */; };
-		AA2703A61ADDFFA24C564CF8 /* ChatPanelView+PartL_SendMessageAutoReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B0B46E798B7DCCC324BF463 /* ChatPanelView+PartL_SendMessageAutoReview.swift */; };
 		AAD73B0183A6E03FA205BEA8 /* WorktreeFlowModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 578E2CBDA2A962F0193AC929 /* WorktreeFlowModels.swift */; };
 		AAD7F995CA2DF1D6E6CA1744 /* ReviewPersistenceRustAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 345181FC6CC3AB2FC224D174 /* ReviewPersistenceRustAdapter.swift */; };
 		AAE5C0DDE98B157E8E2D55BA /* BugHunterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5286F53597662AB67F0CD2C8 /* BugHunterModels.swift */; };
@@ -2387,6 +2387,7 @@
 		633558BF8F59DA6555FAC3EB /* AppUpdateCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppUpdateCenter.swift; path = App/SoloCodeApp/Sources/Services/AppUpdateCenter/AppUpdateCenter.swift; sourceTree = "<group>"; };
 		63AAD557E18B145C05D0A1FC /* SemanticDiffEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SemanticDiffEngineTests.swift; path = Tests/CoderEngineTests/Pipeline/Review/SemanticDiffEngineTests.swift; sourceTree = "<group>"; };
 		63D244D25B00FCEB78FC0BDD /* ThreadProviderSelectionServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ThreadProviderSelectionServiceTests.swift; path = Tests/SoloCodeAppTests/ThreadProviderSelectionServiceTests.swift; sourceTree = "<group>"; };
+		63D244D35B00FCEB78FC0BDE /* RustMainChatProviderAdapterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RustMainChatProviderAdapterTests.swift; path = Tests/SoloCodeAppTests/RustMainChatProviderAdapterTests.swift; sourceTree = "<group>"; };
 		644157E64BF0348E10A4353C /* MonacoRuntimeAssetResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MonacoRuntimeAssetResolver.swift; path = App/SoloCodeApp/Sources/Editor/Bridge/MonacoRuntimeAssetResolver.swift; sourceTree = "<group>"; };
 		647C0E67A0843321ADDFCAF3 /* IndexedFile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IndexedFile.swift; path = Engine/CoderEngine/Sources/CodebaseIndex/Core/Domain/IndexedFile.swift; sourceTree = "<group>"; };
 		6499A3FC1307BBBEAF7AE4F2 /* EchoToolSafePlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EchoToolSafePlugin.swift; path = App/SoloCodeApp/Sources/Extensions/Plugins/EchoToolSafePlugin.swift; sourceTree = "<group>"; };
@@ -2432,7 +2433,6 @@
 		6ADCE73F751A063795411270 /* SystemPromptsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SystemPromptsTests.swift; path = Tests/CoderEngineTests/SystemPromptsTests.swift; sourceTree = "<group>"; };
 		6AFFB34EAD38E82431736D2A /* TodoListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TodoListView.swift; path = App/SoloCodeApp/Sources/Tasking/TodoListView.swift; sourceTree = "<group>"; };
 		6B0B46E698B7DCCC324BF463 /* ChatPanelView+PartL_SendMessage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartL_SendMessage.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_SendMessage.swift"; sourceTree = "<group>"; };
-		6B0B46E798B7DCCC324BF463 /* ChatPanelView+PartL_SendMessageAutoReview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartL_SendMessageAutoReview.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_SendMessageAutoReview.swift"; sourceTree = "<group>"; };
 		6B17925B9BC3F2A75A1C2280 /* CodeReviewAuditService+Support.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewAuditService+Support.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/ReviewCore/Audit/CodeReviewAuditService+Support.swift"; sourceTree = "<group>"; };
 		6B36604B28B3B35731D9FB4E /* CodeReviewMultiSwarmProviderTests+TaskExtraction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "CodeReviewMultiSwarmProviderTests+TaskExtraction.swift"; path = "Tests/CoderEngineTests/CodeReview/CodeReviewMultiSwarmProviderTests+TaskExtraction.swift"; sourceTree = "<group>"; };
 		6B37A78FD6D814041BD9CA13 /* SymbolExtractor+Ruby.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SymbolExtractor+Ruby.swift"; path = "Engine/CoderEngine/Sources/CodebaseIndex/Indexing/Languages/Secondary/SymbolExtractor+Ruby.swift"; sourceTree = "<group>"; };
@@ -3596,7 +3596,6 @@
 				E4893BAA0419FE0C47F3AC80 /* ChatPanelView+PartK_PlanExecution.swift */,
 				23F89B1CF1ACC89AA3228D10 /* ChatPanelView+PartL_PromptOptimization.swift */,
 				6B0B46E698B7DCCC324BF463 /* ChatPanelView+PartL_SendMessage.swift */,
-				6B0B46E798B7DCCC324BF463 /* ChatPanelView+PartL_SendMessageAutoReview.swift */,
 				5036731E60EF5C0A4AA5E9B5 /* ChatPanelView+PartL_SendMessageExecution.swift */,
 				BCD66C315A18EF602D2B98F3 /* ChatPanelView+PartM_MultiTurn.swift */,
 				4646A501916AA6F4800FCC76 /* ChatPanelView+PartN_PlanPrompts.swift */,
@@ -4795,6 +4794,7 @@
 				24190E3134046EBD28E3750A /* ProviderFactoryCodeReviewTests.swift */,
 				AC0A882343B33A0AC584C61C /* ProviderFactoryRuntimeParityTests.swift */,
 				7543038F4495A2CE10EBE30B /* RustMainChatProviderFactoryTests.swift */,
+				63D244D35B00FCEB78FC0BDE /* RustMainChatProviderAdapterTests.swift */,
 				754303904495A2CE10EBE30B /* RustMainChatUIBoundaryTests.swift */,
 				754303904495A2CE10EBE30C /* RustMainChatUIBoundaryPlanTests.swift */,
 				79A33F439D47E4E2BA85A8DE /* ProviderSupportTests.swift */,
@@ -6224,6 +6224,7 @@
 				D1E608B6ADA08DAB0A180DF8 /* ProviderFactoryCodeReviewTests.swift in Sources */,
 				49D90A48441EDA2BEDD6706E /* ProviderFactoryRuntimeParityTests.swift in Sources */,
 				F119732BAF38EB9E6FAE9E65 /* RustMainChatProviderFactoryTests.swift in Sources */,
+				3FC851572A78A928CF94A68C /* RustMainChatProviderAdapterTests.swift in Sources */,
 				F119732CAF38EB9E6FAE9E65 /* RustMainChatUIBoundaryTests.swift in Sources */,
 				F119732CAF38EB9E6FAE9E66 /* RustMainChatUIBoundaryPlanTests.swift in Sources */,
 				5BFBE5315E291FDC0A8EC698 /* ProviderSupportTests.swift in Sources */,
@@ -6444,7 +6445,6 @@
 				3C176F0E6C594A5FEE250892 /* ChatPanelView+PartK_PlanExecution.swift in Sources */,
 				5ACC2C7A36BED9D5349B0B50 /* ChatPanelView+PartL_PromptOptimization.swift in Sources */,
 				AA2703A51ADDFFA24C564CF8 /* ChatPanelView+PartL_SendMessage.swift in Sources */,
-				AA2703A61ADDFFA24C564CF8 /* ChatPanelView+PartL_SendMessageAutoReview.swift in Sources */,
 				B1A8243677D4DE70F0198D9C /* ChatPanelView+PartL_SendMessageExecution.swift in Sources */,
 				A556BE13CAEBC5E9CAF5E253 /* ChatPanelView+PartM_MultiTurn.swift in Sources */,
 				BDBCD20F3BDDA00A1A42A8E0 /* ChatPanelView+PartN_PlanPrompts.swift in Sources */,

@@ -213,6 +213,14 @@ pub struct MainChatProviderSessionRequest {
     pub session_id: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatProviderSessionPollRequest {
+    pub schema_version: i32,
+    pub session_id: String,
+    pub timeout_ms: i32,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MainChatProviderBridgeError {

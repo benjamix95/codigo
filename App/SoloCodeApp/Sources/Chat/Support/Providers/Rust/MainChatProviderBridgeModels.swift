@@ -155,6 +155,12 @@ struct MainChatProviderSessionRequestBridge: Encodable {
     let sessionId: String
 }
 
+struct MainChatProviderSessionPollRequestBridge: Encodable {
+    let schemaVersion: Int
+    let sessionId: String
+    let timeoutMs: Int
+}
+
 enum MainChatProviderEventKindBridge: String, Decodable {
     case started = "started"
     case textDelta = "textDelta"

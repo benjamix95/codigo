@@ -2,7 +2,7 @@ use super::common::{encode_raw, with_raw_json_input};
 use crate::main_chat::{
     apply_event, bridge_provider_stream, cancel_session, finish_turn, get_snapshot, handle_action,
     handle_markers_request, handle_reasoning_request, handle_runtime_action, handle_store_action,
-    handle_task_runtime_action, load_store_snapshot, replace_store_snapshot,
+    handle_task_runtime_action, load_store_snapshot, poll_session, replace_store_snapshot,
     resolve_runtime_transport, resolve_thread_provider_selection, resume_session, start_session,
     start_turn,
 };
@@ -14,7 +14,7 @@ use app_core_protocol::main_chat_reasoning::{
     MainChatReasoningRequest, MainChatReasoningResponse,
 };
 use app_core_protocol::main_chat_provider::{
-    MainChatProviderSessionResponse, MainChatRuntimeTransportRequest,
+    MainChatProviderSessionPollRequest, MainChatProviderSessionResponse, MainChatRuntimeTransportRequest,
     MainChatRuntimeTransportResponse,
 };
 use app_core_protocol::main_chat_store::{
@@ -81,6 +81,11 @@ pub extern "C" fn chat_core_provider_start_session(input: *const c_char) -> *mut
 #[no_mangle]
 pub extern "C" fn chat_core_provider_resume(input: *const c_char) -> *mut c_char {
     with_raw_json_input(input, |raw| decode_provider_call(raw, resume_session))
+}
+
+#[no_mangle]
+pub extern "C" fn chat_core_provider_poll(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_provider_poll_call(raw, poll_session))
 }
 
 #[no_mangle]
@@ -179,6 +184,22 @@ fn decode_runtime_transport_call(
         Ok(request) => request,
         Err(err) => {
             return encode_raw(&MainChatRuntimeTransportResponse::error(
+                "decode_failed",
+                &err.to_string(),
+            ));
+        }
+    };
+    encode_raw(&handler(request))
+}
+
+fn decode_provider_poll_call(
+    raw: &str,
+    handler: impl FnOnce(MainChatProviderSessionPollRequest) -> MainChatProviderSessionResponse,
+) -> String {
+    let request: MainChatProviderSessionPollRequest = match serde_json::from_str(raw) {
+        Ok(request) => request,
+        Err(err) => {
+            return encode_raw(&MainChatProviderSessionResponse::error(
                 "decode_failed",
                 &err.to_string(),
             ));
