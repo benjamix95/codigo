@@ -1,0 +1,34 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Accounts` conteneva ancora il blocco `CLIProfileProvisioner*`, che e' supporto di provisioning e non ownership del dominio account runtime.
+- Sintomo: il conteggio della migrazione `Accounts` includeva file di seed/config profile che non determinano routing o stato core della chat.
+- Impatto: progresso falsato del cutover `Accounts`, perimetro del dominio meno chiaro.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Accounts`.
+  2. Osservare che `CLIProfileProvisioner*` risulta legacy non-UI.
+- Risultato attuale: supporto provisioning contato come debito di dominio `Accounts`.
+- Risultato atteso: i file `CLIProfileProvisioner*` vivono sotto `Accounts/Support/**`, gia' classificato come adapter/support code.
+- Causa probabile: collocazione storica in `Accounts/Provisioning` prima della separazione tra dominio e supporto.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Accounts/Provisioning/**`
+  - `App/SoloCodeApp/Sources/Accounts/Support/Provisioning/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `CLIAccountsStore`
+  - `CLIAccountLoginCoordinator`
+  - `CLIAccountAuthDetector`
+- Moduli confinanti da verificare:
+  - `CLIProfileProvisionerTests`
+  - `CLIProfileProvisionerInstructionSyncTests`
+  - `SettingsView+CustomActions`
+  - `CodexMCPHealthStore`
+- Test da aggiungere o aggiornare:
+  - smoke suite esistente su `CLIProfileProvisioner`
+- Strategia di fix minimo:
+  - spostare i file `CLIProfileProvisioner*` sotto `Accounts/Support/Provisioning`
+  - aggiornare solo i path nel progetto Xcode
+- Verifica post-fix:
+  - `xcodebuild test` sui test del provisioner
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(accounts): relocate cli profile provisioning support`
