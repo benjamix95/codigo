@@ -149,6 +149,39 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertNil(resolved)
     }
 
+    func testAgentSendExecutionRouteFallsBackToPipelineWhenProviderDoesNotUseRustTransport() {
+        XCTAssertEqual(
+            resolveMainChatSendExecutionRoute(
+                coderMode: .agent,
+                isPlanMultiTurnFlow: false,
+                usesRustTransport: false
+            ),
+            .agentPipeline
+        )
+    }
+
+    func testAgentSendExecutionRouteUsesStandardStreamWhenRustTransportIsAvailable() {
+        XCTAssertEqual(
+            resolveMainChatSendExecutionRoute(
+                coderMode: .agent,
+                isPlanMultiTurnFlow: false,
+                usesRustTransport: true
+            ),
+            .standardStream
+        )
+    }
+
+    func testPlanSendExecutionRouteKeepsPlanFlowPriorityOverProviderTransport() {
+        XCTAssertEqual(
+            resolveMainChatSendExecutionRoute(
+                coderMode: .agent,
+                isPlanMultiTurnFlow: true,
+                usesRustTransport: false
+            ),
+            .planFlow
+        )
+    }
+
     private func baseConfig() -> MainChatProviderSessionConfigBridge {
         MainChatProviderSessionConfigBridge(
             providerId: "codex-cli",

@@ -3,6 +3,26 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum MainChatSendExecutionRoute {
+    case planFlow
+    case agentPipeline
+    case standardStream
+}
+
+func resolveMainChatSendExecutionRoute(
+    coderMode: CoderMode,
+    isPlanMultiTurnFlow: Bool,
+    usesRustTransport: Bool
+) -> MainChatSendExecutionRoute {
+    if isPlanMultiTurnFlow {
+        return .planFlow
+    }
+    if coderMode == .agent && !usesRustTransport {
+        return .agentPipeline
+    }
+    return .standardStream
+}
+
 extension ChatPanelView {
     internal func executeSendMessageTurn(
         targetConversationId: UUID,
@@ -19,11 +39,17 @@ extension ChatPanelView {
             && planFlowPhase == .analyzing
         launchRunTask(for: targetConversationId) {
             var traceOutcome: ToolTraceTurnOutcome = .success
+            let executionRoute = resolveMainChatSendExecutionRoute(
+                coderMode: coderMode,
+                isPlanMultiTurnFlow: isPlanMultiTurnFlow,
+                usesRustTransport: effectiveRuntimeProvider is MainChatRustTransportProvider
+            )
             print(
                 "[ChatDebug] executeSendMessageTurn: coderMode=\(String(describing: self.coderMode)) isPlan=\(isPlanMultiTurnFlow ? 1 : 0) provider=\(effectiveRuntimeProvider.id)"
             )
             do {
-                if isPlanMultiTurnFlow {
+                switch executionRoute {
+                case .planFlow:
                     // Multi-turn forced sequential plan flow
                     try await runMultiTurnPlanFlow(
                         provider: effectiveRuntimeProvider,
@@ -66,8 +92,8 @@ extension ChatPanelView {
                             break
                         }
                     }
-                } else if coderMode == .agent {
-                    print("[ChatDebug] -> AGENT mode path taken")
+                case .agentPipeline:
+                    print("[ChatDebug] -> AGENT fallback path taken (Swift provider pipeline)")
                     await MainActor.run {
                         let (job, tasks) = PipelineJobFactory.fromChatMessage(
                             prompt: prompt,
@@ -117,8 +143,15 @@ extension ChatPanelView {
                         )
                     }
                     return
-                } else {
+                case .standardStream:
+                    // Both .agent and other modes use the same linear stream
+                    // flow only when the main-chat transport is backed by the
+                    // Rust runtime.
                     print("[ChatDebug] -> STANDARD mode path taken")
+                    let rustAvailable = ReviewCoreBridge.isEnabled
+                    if !rustAvailable {
+                        print("[ChatDebug] Rust bridge unavailable — using Swift pipeline fallback for raw events")
+                    }
                     let uiState = await MainActor.run {
                         RustMainChatStoreAdapter.uiState(
                             from: chatStore,
@@ -131,11 +164,9 @@ extension ChatPanelView {
                             collapsedArtifactsByTurn: collapsedArtifactsByTurn
                         )
                     }
-                    guard RustMainChatStoreAdapter.projectUI(uiState) != nil else {
-                        throw CoderEngineError.apiError(
-                            "Rust main chat UI projection unavailable"
-                        )
-                    }
+                    // Rust UI projection is optional — the stream still works
+                    // with the Swift fallback path in applyMainChatUIStreamIntent.
+                    _ = RustMainChatStoreAdapter.projectUI(uiState)
                     let streamResult = try await flowCoordinator.runStream(
                         provider: effectiveRuntimeProvider,
                         prompt: prompt,
@@ -155,15 +186,17 @@ extension ChatPanelView {
                                 payload: p,
                                 providerId: pid,
                                 conversationId: targetConversationId,
-                                shouldApplyPipelineArtifacts: false,
-                                shouldUpdateInlineReasoningVisuals: false
+                                shouldApplyPipelineArtifacts: !rustAvailable,
+                                shouldUpdateInlineReasoningVisuals: !rustAvailable
                             )
-                            applyMainChatUIStreamIntent(
-                                "stream_apply_raw_event",
-                                conversationId: targetConversationId,
-                                providerId: pid,
-                                payload: ["event_kind": t].merging(p) { _, new in new }
-                            )
+                            if rustAvailable {
+                                applyMainChatUIStreamIntent(
+                                    "stream_apply_raw_event",
+                                    conversationId: targetConversationId,
+                                    providerId: pid,
+                                    payload: ["event_kind": t].merging(p) { _, new in new }
+                                )
+                            }
                         },
                         onError: { content in
                             Task { @MainActor in
