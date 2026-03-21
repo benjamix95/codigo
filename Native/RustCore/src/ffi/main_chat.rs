@@ -2,9 +2,9 @@ use super::common::{encode_raw, with_raw_json_input};
 use crate::main_chat::{
     apply_event, bridge_provider_stream, cancel_session, finish_turn, get_snapshot, handle_action,
     handle_markers_request, handle_reasoning_request, handle_runtime_action, handle_store_action,
-    handle_task_runtime_action, load_store_snapshot, poll_session, replace_store_snapshot,
-    resolve_runtime_transport, resolve_thread_provider_selection, resume_session, start_session,
-    start_turn,
+    handle_task_runtime_action, load_store_snapshot, poll_provider_runtime, poll_session,
+    replace_store_snapshot, resolve_runtime_transport, resolve_thread_provider_selection,
+    resume_session, start_session, start_turn,
 };
 use app_core_protocol::main_chat_markers::{MainChatMarkersRequest, MainChatMarkersResponse};
 use app_core_protocol::main_chat::{
@@ -24,6 +24,9 @@ use app_core_protocol::main_chat_task_runtime::{
     MainChatTaskRuntimeRequest, MainChatTaskRuntimeResponse,
 };
 use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
+use app_core_protocol::main_chat_runtime::{
+    MainChatRuntimeProviderPollRequest, MainChatRuntimeProviderPollResponse,
+};
 use app_core_protocol::thread_provider_selection::{
     ThreadProviderSelectionRequest, ThreadProviderSelectionResponse,
 };
@@ -86,6 +89,11 @@ pub extern "C" fn chat_core_provider_resume(input: *const c_char) -> *mut c_char
 #[no_mangle]
 pub extern "C" fn chat_core_provider_poll(input: *const c_char) -> *mut c_char {
     with_raw_json_input(input, |raw| decode_provider_poll_call(raw, poll_session))
+}
+
+#[no_mangle]
+pub extern "C" fn chat_core_runtime_poll_provider(input: *const c_char) -> *mut c_char {
+    with_raw_json_input(input, |raw| decode_runtime_provider_poll_call(raw, poll_provider_runtime))
 }
 
 #[no_mangle]
@@ -200,6 +208,22 @@ fn decode_provider_poll_call(
         Ok(request) => request,
         Err(err) => {
             return encode_raw(&MainChatProviderSessionResponse::error(
+                "decode_failed",
+                &err.to_string(),
+            ));
+        }
+    };
+    encode_raw(&handler(request))
+}
+
+fn decode_runtime_provider_poll_call(
+    raw: &str,
+    handler: impl FnOnce(MainChatRuntimeProviderPollRequest) -> MainChatRuntimeProviderPollResponse,
+) -> String {
+    let request: MainChatRuntimeProviderPollRequest = match serde_json::from_str(raw) {
+        Ok(request) => request,
+        Err(err) => {
+            return encode_raw(&MainChatRuntimeProviderPollResponse::error(
                 "decode_failed",
                 &err.to_string(),
             ));

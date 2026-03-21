@@ -5,6 +5,7 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
     typealias StartSessionBridge = (MainChatProviderSessionStartRequestBridge) -> MainChatProviderSessionResponseBridge?
     typealias PollSessionBridge = (MainChatProviderSessionPollRequestBridge) -> MainChatProviderSessionResponseBridge?
     typealias CancelSessionBridge = (MainChatProviderSessionRequestBridge) -> MainChatProviderSessionResponseBridge?
+    typealias RuntimePollBridge = (MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse?
 
     let id: String
     let displayName: String
@@ -15,6 +16,7 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
     private let startSessionBridge: StartSessionBridge
     private let pollSessionBridge: PollSessionBridge
     private let cancelSessionBridge: CancelSessionBridge
+    private let runtimePollBridge: RuntimePollBridge
 
     init(
         id: String,
@@ -30,6 +32,9 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
         },
         cancelSessionBridge: @escaping CancelSessionBridge = {
             ReviewCoreBridge.call(functionName: "chat_core_provider_cancel", request: $0)
+        },
+        runtimePollBridge: @escaping RuntimePollBridge = {
+            ReviewCoreBridge.call(functionName: "chat_core_runtime_poll_provider", request: $0)
         }
     ) {
         self.id = id
@@ -40,6 +45,7 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
         self.startSessionBridge = startSessionBridge
         self.pollSessionBridge = pollSessionBridge
         self.cancelSessionBridge = cancelSessionBridge
+        self.runtimePollBridge = runtimePollBridge
     }
 
     func isAuthenticated() -> Bool {
@@ -63,7 +69,7 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
         attachments: [LLMAttachment]?
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         let sessionId = UUID().uuidString.lowercased()
-        let config = resolvedConfig(prompt: prompt, context: context, attachments: attachments)
+        let config = runtimeSessionConfig(prompt: prompt, context: context, attachments: attachments)
         return AsyncThrowingStream { continuation in
             let driver = Task {
                 let start = startSessionBridge(
@@ -142,7 +148,50 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private func resolvedConfig(
+    func startRuntimeSession(
+        prompt: String,
+        context: WorkspaceContext,
+        attachments: [LLMAttachment]?
+    ) throws -> String {
+        let sessionId = UUID().uuidString.lowercased()
+        let config = runtimeSessionConfig(prompt: prompt, context: context, attachments: attachments)
+        let start = startSessionBridge(
+            MainChatProviderSessionStartRequestBridge(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                config: config
+            )
+        )
+        if let message = start?.error?.message {
+            throw CoderEngineError.apiError(message)
+        }
+        return sessionId
+    }
+
+    func cancelRuntimeSession(sessionId: String) {
+        let _ = cancelSessionBridge(
+            MainChatProviderSessionRequestBridge(schemaVersion: 1, sessionId: sessionId)
+        )
+    }
+
+    func pollRuntime(
+        sessionId: String,
+        providerId: String,
+        snapshot: MainChatRuntimeSnapshotBridge,
+        timeoutMs: Int
+    ) -> MainChatRuntimeProviderPollBridgeResponse? {
+        runtimePollBridge(
+            MainChatRuntimeProviderPollBridgeRequest(
+                schemaVersion: 1,
+                sessionId: sessionId,
+                providerId: providerId,
+                snapshot: snapshot,
+                timeoutMs: timeoutMs
+            )
+        )
+    }
+
+    func runtimeSessionConfig(
         prompt: String,
         context: WorkspaceContext,
         attachments: [LLMAttachment]?

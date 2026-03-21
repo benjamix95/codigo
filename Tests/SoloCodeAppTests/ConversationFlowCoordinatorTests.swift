@@ -199,6 +199,157 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(coordinator.state, .error)
     }
+
+    func testRunStreamReducesRustPolledProviderEventsWithoutSwiftEventMapping() async throws {
+        let polls = RuntimePollQueue()
+        polls.enqueue { request in
+            var snapshot = request.snapshot
+            snapshot.turnState = MainChatBridgeState(
+                conversationId: snapshot.turnState.conversationId,
+                assistantMessageId: snapshot.turnState.assistantMessageId,
+                turnId: snapshot.turnState.turnId,
+                providerId: snapshot.turnState.providerId,
+                sequence: snapshot.turnState.sequence,
+                isStreaming: snapshot.turnState.isStreaming,
+                startedAt: snapshot.turnState.startedAt,
+                completedAt: snapshot.turnState.completedAt,
+                updatedAt: snapshot.turnState.updatedAt,
+                status: snapshot.turnState.status,
+                orderedTextStreamIds: ["main"],
+                textByStreamId: ["main": "ciao"],
+                reasoningByGroupId: snapshot.turnState.reasoningByGroupId,
+                artifacts: snapshot.turnState.artifacts
+            )
+            snapshot.directStream?.hasReceivedAnyEvent = true
+            snapshot.directStream?.emittedFirstText = true
+            return MainChatRuntimeProviderPollBridgeResponse(
+                schemaVersion: 1,
+                error: nil,
+                runtimeSnapshot: snapshot,
+                uiEvents: [
+                    MainChatRuntimeUIEventBridge(
+                        kind: .textDelta,
+                        text: "ciao",
+                        rawType: nil,
+                        payload: [:]
+                    ),
+                    MainChatRuntimeUIEventBridge(
+                        kind: .raw,
+                        text: "",
+                        rawType: "command_execution",
+                        payload: ["id": "cmd-1", "status": "running"]
+                    ),
+                ],
+                isTerminal: false,
+                didTimeout: false
+            )
+        }
+        polls.enqueue { request in
+            var snapshot = request.snapshot
+            snapshot.turnState = MainChatBridgeState(
+                conversationId: snapshot.turnState.conversationId,
+                assistantMessageId: snapshot.turnState.assistantMessageId,
+                turnId: snapshot.turnState.turnId,
+                providerId: snapshot.turnState.providerId,
+                sequence: snapshot.turnState.sequence,
+                isStreaming: snapshot.turnState.isStreaming,
+                startedAt: snapshot.turnState.startedAt,
+                completedAt: snapshot.turnState.completedAt,
+                updatedAt: snapshot.turnState.updatedAt,
+                status: "completed",
+                orderedTextStreamIds: ["main"],
+                textByStreamId: ["main": "ciao mondo"],
+                reasoningByGroupId: snapshot.turnState.reasoningByGroupId,
+                artifacts: snapshot.turnState.artifacts
+            )
+            snapshot.directStream?.hasReceivedAnyEvent = true
+            snapshot.directStream?.emittedFirstText = true
+            return MainChatRuntimeProviderPollBridgeResponse(
+                schemaVersion: 1,
+                error: nil,
+                runtimeSnapshot: snapshot,
+                uiEvents: [
+                    MainChatRuntimeUIEventBridge(
+                        kind: .textDelta,
+                        text: " mondo",
+                        rawType: nil,
+                        payload: [:]
+                    ),
+                    MainChatRuntimeUIEventBridge(
+                        kind: .completed,
+                        text: "",
+                        rawType: nil,
+                        payload: [:]
+                    ),
+                ],
+                isTerminal: true,
+                didTimeout: false
+            )
+        }
+
+        let provider = MainChatRustTransportProvider(
+            id: "codex-cli",
+            displayName: "Codex",
+            attachmentCapabilities: .none,
+            authenticated: true,
+            config: MainChatProviderSessionConfigBridge(
+                providerId: "codex-cli",
+                displayName: "Codex",
+                backend: .codexCli,
+                workspacePath: "/tmp",
+                workspacePaths: ["/tmp"],
+                prompt: "",
+                systemPrompt: nil,
+                contextPrompt: nil,
+                model: nil,
+                apiKey: nil,
+                baseURL: nil,
+                toolDefinitionsJson: nil,
+                extraHeaders: [:],
+                codexPath: "/usr/bin/codex",
+                codexSandbox: "workspace-write",
+                codexAskForApproval: "never",
+                codexModelOverride: nil,
+                codexReasoningEffort: nil,
+                codexModelProvider: nil,
+                codexFastMode: true,
+                codexSessionFullAccess: false,
+                codexPreferResponsesWireAPI: false,
+                claudePath: nil,
+                claudeModel: nil,
+                claudeAllowedTools: [],
+                geminiCliPath: nil,
+                geminiModelOverride: nil,
+                attachments: [],
+                cliAccounts: []
+            ),
+            startSessionBridge: { _ in .init(schemaVersion: 1, error: nil, snapshot: nil, events: []) },
+            pollSessionBridge: { _ in nil },
+            cancelSessionBridge: { _ in nil },
+            runtimePollBridge: { request in polls.next(for: request) }
+        )
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        var snapshots: [String] = []
+        var rawEvents: [(String, [String: String])] = []
+        let result = try await coordinator.runStream(
+            provider: provider,
+            prompt: "test",
+            context: ctx,
+            attachments: nil,
+            onText: { snapshots.append($0) },
+            onRaw: { type, payload, _ in rawEvents.append((type, payload)) },
+            onError: { _ in }
+        )
+
+        XCTAssertEqual(snapshots, ["ciao", "ciao mondo"])
+        XCTAssertEqual(rawEvents.count, 1)
+        XCTAssertEqual(rawEvents.first?.0, "command_execution")
+        XCTAssertEqual(rawEvents.first?.1["id"], "cmd-1")
+        XCTAssertEqual(result, "ciao mondo")
+        XCTAssertEqual(coordinator.state, .completed)
+    }
 }
 
 private struct ScheduledStreamEvent: Sendable {
@@ -239,5 +390,18 @@ private final class MockStreamingProvider: LLMProvider, @unchecked Sendable {
                 continuation.finish()
             }
         }
+    }
+}
+
+private final class RuntimePollQueue {
+    private var handlers: [(MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse] = []
+
+    func enqueue(_ handler: @escaping (MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse) {
+        handlers.append(handler)
+    }
+
+    func next(for request: MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse? {
+        guard !handlers.isEmpty else { return nil }
+        return handlers.removeFirst()(request)
     }
 }

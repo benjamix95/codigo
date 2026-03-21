@@ -1,0 +1,51 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: il direct stream della `main chat` continuava a ridurre gli eventi provider in Swift, costruendo `runtimeEventKind` e `runtimePayload` per ogni evento prima di rientrare nel runtime Rust.
+- Sintomo:
+  - doppio passaggio Rust -> Swift -> Rust nel path live della chat
+  - `ConversationFlowCoordinator` possedeva ancora la mappatura di eventi provider verso mutazioni runtime
+- Impatto:
+  - ownership runtime non completamente Rust
+  - rischio di drift tra provider transport, reducer runtime e callback UI
+- Gravita': P1
+- Steps to reproduce:
+  1. avviare un turno `main chat` con `MainChatRustTransportProvider`
+  2. osservare il path `runStream(...)` nel coordinator
+  3. verificare che Swift traduce ancora eventi provider in `eventKind/payload` e richiama `applyDirectRuntimeProviderEvent(...)`
+- Risultato attuale:
+  - polling provider Rust e riduzione runtime sono separati tra Rust e Swift
+- Risultato atteso:
+  - Rust deve possedere anche il passo `poll + drain + reduce` del runtime snapshot
+  - Swift deve restare adapter dei callback UI
+- Causa probabile:
+  - la tranche precedente aveva spostato in Rust il polling della sessione provider, ma non la riduzione degli eventi nel runtime snapshot
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_runtime.rs`
+  - `Native/RustCore/src/main_chat/runtime_provider_poll.rs`
+  - `Native/RustCore/src/main_chat/mod.rs`
+  - `Native/RustCore/src/ffi/main_chat.rs`
+  - `App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift`
+  - `App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatProviderAdapter.swift`
+  - test Rust/app-side e doc collegati
+- Non-scope:
+  - rewind
+  - persistenza snapshot
+  - plan runtime
+- Moduli confinanti da verificare:
+  - `ConversationFlowCoordinatorTests`
+  - `RustMainChatProviderAdapterTests`
+  - `session_tests`
+- Test da aggiungere o aggiornare:
+  - regression XCTest sul coordinator con provider Rust specializzato
+  - test Rust sul poll runtime provider
+- Strategia di fix minimo:
+  - introdurre un boundary Rust `chat_core_runtime_poll_provider`
+  - ridurre gli eventi provider in Rust e restituire `uiEvents` render-ready a Swift
+  - mantenere in Swift solo dispatch `onText/onRaw/onError/onSignal`
+- Verifica post-fix:
+  - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml main_chat::providers::session_tests -- --nocapture`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests -only-testing:SoloCodeAppTests/RustMainChatProviderAdapterTests -only-testing:SoloCodeAppTests/ConversationFlowCoordinatorTests`
+  - `./scripts/validate_rust_cutover_boundary.sh --trigger gitCommit --workspace /Users/benjaminstoica/SoloCode --files \"Native/AppCoreProtocol/src/main_chat_runtime.rs,Native/RustCore/src/main_chat/runtime_provider_poll.rs,Native/RustCore/src/main_chat/mod.rs,Native/RustCore/src/ffi/main_chat.rs,App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatProviderAdapter.swift,App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift,App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift,App/SoloCodeApp/Sources/Runtime/DebugPipeline/Native/DebugNativePipelineExecutor.swift,App/SoloCodeApp/Sources/Runtime/DebugPipeline/Native/DebugNativePipelineModels.swift,App/SoloCodeApp/Sources/Chat/Support/Extensions/UI/ChatPanelView+DisplayFlags.swift,App/SoloCodeApp/Sources/Chat/Support/Extensions/UI/ChatPanelView+PartA_ComposerFocus.swift,Solo Code.xcodeproj/project.pbxproj,Tests/SoloCodeAppTests/ConversationFlowCoordinatorTests.swift\" --format text`
+- Commit previsto:
+  - `fix(chat): move direct stream runtime reduction into rust`

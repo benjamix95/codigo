@@ -116,6 +116,21 @@ final class ConversationFlowCoordinator: ObservableObject {
         var turnState = directRuntimeStart.turnState.chatTurnState
         await MainActor.run { onSignal?(.streamStarted(streamStartedAt)) }
 
+        if let rustProvider = provider as? MainChatRustTransportProvider {
+            return try await runRustTransportStream(
+                provider: rustProvider,
+                prompt: prompt,
+                context: context,
+                attachments: attachments,
+                onText: onText,
+                onRaw: onRaw,
+                onError: onError,
+                onSignal: onSignal,
+                runtimeSnapshot: &runtimeSnapshot,
+                turnState: &turnState
+            )
+        }
+
         let stream = try await provider.send(prompt: prompt, context: context, attachments: attachments)
         let iteratorHolder = IteratorHolder(stream)
         var pendingNextTask: Task<StreamEvent?, Error>?
@@ -233,6 +248,103 @@ final class ConversationFlowCoordinator: ObservableObject {
         await MainActor.run { onSignal?(.streamCompleted(completedAt)) }
         await setState(.completed)
         return turnState.primaryTextSnapshot
+    }
+
+    private func runRustTransportStream(
+        provider: MainChatRustTransportProvider,
+        prompt: String,
+        context: WorkspaceContext,
+        attachments: [LLMAttachment]?,
+        onText: @escaping (String) -> Void,
+        onRaw: @escaping (String, [String: String], String) -> Void,
+        onError: @escaping (String) -> Void,
+        onSignal: ((StreamSignal) -> Void)?,
+        runtimeSnapshot: inout MainChatRuntimeSnapshotBridge,
+        turnState: inout ChatTurnState
+    ) async throws -> String {
+        let sessionId = try provider.startRuntimeSession(
+            prompt: prompt,
+            context: context,
+            attachments: attachments
+        )
+
+        while true {
+            let timeoutMs = max(1, (runtimeSnapshot.currentPollTimeoutSeconds ?? 90) * 1000)
+            guard let response = provider.pollRuntime(
+                sessionId: sessionId,
+                providerId: provider.id,
+                snapshot: runtimeSnapshot,
+                timeoutMs: timeoutMs
+            ), let nextSnapshot = response.runtimeSnapshot else {
+                await setState(.error)
+                throw StreamExecutionError.providerError("Rust main chat provider runtime poll unavailable.")
+            }
+
+            let hadAnyEvent = runtimeSnapshot.hasReceivedAnyEvent
+            let hadFirstText = runtimeSnapshot.emittedFirstText
+            runtimeSnapshot = nextSnapshot
+            setDirectRuntimeSnapshot(nextSnapshot)
+            turnState = nextSnapshot.turnState.chatTurnState
+            let eventTimestamp = Date()
+
+            if !hadAnyEvent && runtimeSnapshot.hasReceivedAnyEvent {
+                await MainActor.run { onSignal?(.firstEvent(eventTimestamp)) }
+            }
+            if !hadFirstText && runtimeSnapshot.emittedFirstText {
+                await MainActor.run { onSignal?(.firstTextDelta(eventTimestamp)) }
+            }
+
+            for event in response.uiEvents {
+                switch event.kind {
+                case .started:
+                    break
+                case .textDelta, .textReplace:
+                    await MainActor.run { onText(turnState.primaryTextSnapshot) }
+                case .raw:
+                    await MainActor.run { onRaw(event.rawType ?? "provider_raw", event.payload, provider.id) }
+                case .error:
+                    let message = event.text.isEmpty
+                        ? (runtimeSnapshot.output?.terminalError ?? "Provider stream failed")
+                        : event.text
+                    await MainActor.run { onError(turnState.primaryTextSnapshot + "\n\n[Error: \(message)]") }
+                    await setState(.error)
+                    throw StreamExecutionError.providerError(message)
+                case .completed:
+                    await MainActor.run { onSignal?(.streamCompleted(eventTimestamp)) }
+                    await setState(.completed)
+                    return turnState.primaryTextSnapshot
+                }
+            }
+
+            if response.didTimeout {
+                if runtimeSnapshot.output?.shouldRetryPoll == true {
+                    await Task.yield()
+                    continue
+                }
+                let message = runtimeSnapshot.output?.terminalError
+                    ?? "Rust main chat direct stream timed out."
+                await setState(.error)
+                throw StreamExecutionError.providerError(message)
+            }
+
+            if response.isTerminal {
+                switch turnState.status {
+                case "completed", "cancelled":
+                    await MainActor.run { onSignal?(.streamCompleted(eventTimestamp)) }
+                    await setState(.completed)
+                    return turnState.primaryTextSnapshot
+                case "failed":
+                    let message = runtimeSnapshot.output?.terminalError ?? "Provider session failed"
+                    await MainActor.run { onError(turnState.primaryTextSnapshot + "\n\n[Error: \(message)]") }
+                    await setState(.error)
+                    throw StreamExecutionError.providerError(message)
+                default:
+                    break
+                }
+            }
+
+            await Task.yield()
+        }
     }
 
     private static func runtimeEventKind(_ event: StreamEvent) -> String {

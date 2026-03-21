@@ -1,4 +1,5 @@
 use crate::main_chat::{MainChatBridgeError, MainChatEvent, MainChatTurnState};
+use crate::main_chat_provider::MainChatProviderEvent;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -146,6 +147,90 @@ impl MainChatRuntimeActionResponse {
             }),
             runtime_snapshot: None,
             emitted_events: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum MainChatRuntimeUIEventKind {
+    Started,
+    TextDelta,
+    TextReplace,
+    Raw,
+    Completed,
+    Error,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatRuntimeUIEvent {
+    pub kind: MainChatRuntimeUIEventKind,
+    #[serde(default)]
+    pub text: String,
+    pub raw_type: Option<String>,
+    #[serde(default)]
+    pub payload: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatRuntimeProviderPollRequest {
+    pub schema_version: i32,
+    pub session_id: String,
+    pub provider_id: String,
+    pub snapshot: MainChatRuntimeSnapshot,
+    #[serde(default)]
+    pub timeout_ms: i32,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatRuntimeProviderPollResponse {
+    pub schema_version: i32,
+    pub error: Option<MainChatBridgeError>,
+    pub runtime_snapshot: Option<MainChatRuntimeSnapshot>,
+    #[serde(default)]
+    pub ui_events: Vec<MainChatRuntimeUIEvent>,
+    #[serde(default)]
+    pub provider_events: Vec<MainChatProviderEvent>,
+    #[serde(default)]
+    pub is_terminal: bool,
+    #[serde(default)]
+    pub did_timeout: bool,
+}
+
+impl MainChatRuntimeProviderPollResponse {
+    pub fn success(
+        runtime_snapshot: MainChatRuntimeSnapshot,
+        ui_events: Vec<MainChatRuntimeUIEvent>,
+        provider_events: Vec<MainChatProviderEvent>,
+        is_terminal: bool,
+        did_timeout: bool,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            error: None,
+            runtime_snapshot: Some(runtime_snapshot),
+            ui_events,
+            provider_events,
+            is_terminal,
+            did_timeout,
+        }
+    }
+
+    pub fn error(code: &str, message: &str) -> Self {
+        Self {
+            schema_version: 1,
+            error: Some(MainChatBridgeError {
+                code: code.to_string(),
+                message: message.to_string(),
+            }),
+            runtime_snapshot: None,
+            ui_events: Vec::new(),
+            provider_events: Vec::new(),
+            is_terminal: false,
+            did_timeout: false,
         }
     }
 }

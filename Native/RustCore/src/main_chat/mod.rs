@@ -13,6 +13,7 @@ mod provider;
 mod reasoning_stream;
 mod providers;
 mod reducer;
+mod runtime_provider_poll;
 mod state;
 mod store;
 mod task_runtime;
@@ -27,6 +28,7 @@ mod ui_tests;
 pub use provider::bridge_provider_stream;
 pub use markers::handle_request as handle_markers_request;
 pub use reasoning_stream::handle_reasoning_request;
+pub use runtime_provider_poll::poll_provider_runtime;
 pub use providers::{
     cancel_session, get_snapshot, poll_session, resolve_runtime_transport,
     resolve_thread_provider_selection, resume_session, start_session,

@@ -33,6 +33,39 @@ private struct MainChatRuntimeActionBridgeResponse: Decodable {
     let runtimeSnapshot: MainChatRuntimeSnapshotBridge?
 }
 
+enum MainChatRuntimeUIEventKindBridge: String, Decodable {
+    case started
+    case textDelta
+    case textReplace
+    case raw
+    case completed
+    case error
+}
+
+struct MainChatRuntimeUIEventBridge: Decodable {
+    let kind: MainChatRuntimeUIEventKindBridge
+    let text: String
+    let rawType: String?
+    let payload: [String: String]
+}
+
+struct MainChatRuntimeProviderPollBridgeRequest: Encodable {
+    let schemaVersion: Int
+    let sessionId: String
+    let providerId: String
+    let snapshot: MainChatRuntimeSnapshotBridge
+    let timeoutMs: Int
+}
+
+struct MainChatRuntimeProviderPollBridgeResponse: Decodable {
+    let schemaVersion: Int
+    let error: MainChatBridgeError?
+    let runtimeSnapshot: MainChatRuntimeSnapshotBridge?
+    let uiEvents: [MainChatRuntimeUIEventBridge]
+    let isTerminal: Bool
+    let didTimeout: Bool
+}
+
 actor IteratorHolder<Stream: AsyncSequence> {
     private var iterator: Stream.AsyncIterator
 
