@@ -1,0 +1,33 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Accounts` conteneva ancora `CLIAccountLoginCoordinator*`, che e' supporto di login UI/CLI e non ownership del dominio account runtime.
+- Sintomo: il conteggio `Accounts` includeva flussi browser/device code/API key che orchestrano la UX di login, non il routing o lo stato core della chat.
+- Impatto: perimetro `Accounts` meno nitido e avanzamento della migrazione sottostimato.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Accounts`.
+  2. Verificare `CLIAccountLoginCoordinator*` tra i legacy non-UI.
+- Risultato attuale: supporto login contato come debito di dominio `Accounts`.
+- Risultato atteso: `CLIAccountLoginCoordinator*` vive in `Accounts/Support/Login`.
+- Causa probabile: collocazione storica in `Accounts/Login` prima della separazione supporto/dominio.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Accounts/Login/**`
+  - `App/SoloCodeApp/Sources/Accounts/Support/Login/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `CLIAccountsStore*`
+  - `AccountUsageDashboardStore`
+  - login sheet SwiftUI
+- Moduli confinanti da verificare:
+  - `CLIAccountLoginCoordinatorTests`
+  - `CLIProfileProvisionerTests`
+  - `CLIAccountLoginSheet`
+- Test da aggiungere o aggiornare:
+  - smoke suite esistente sul coordinator
+- Strategia di fix minimo:
+  - spostare `CLIAccountLoginCoordinator*` in `Support/Login`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sui test del coordinator
+  - `validate_rust_cutover_boundary.sh` sul diff
+- Commit previsto: `refactor(accounts): relocate cli login coordinator support`
