@@ -5,6 +5,9 @@ import XCTest
 // MARK: - Test helpers
 
 extension ToolEnabledLLMProviderPolicyAckTests {
+    func nonPolicyContext(workspace: URL) -> WorkspaceContext {
+        WorkspaceContext(workspacePath: workspace, skipContextEnrichment: true)
+    }
 
     final class SequencedEventProvider: LLMProvider, @unchecked Sendable {
         let id = "policy-ack-sequenced"
@@ -214,7 +217,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
         let stream = try await provider.send(
             prompt: "Leggi Sample.swift",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -252,12 +255,16 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
         let stream = try await provider.send(
             prompt: "Leggi Sample.swift",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
         var completedPayload: [String: String]?
+        var observed: [String] = []
         for try await event in stream {
+            if case .raw(let type, let payload) = event {
+                observed.append("\(type):\(payload)")
+            }
             if case .raw(let type, let payload) = event,
                type == "read_batch_completed",
                payload["status"] == "completed" {
@@ -265,7 +272,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
 
-        let payload = try XCTUnwrap(completedPayload)
+        let payload = try XCTUnwrap(completedPayload, observed.joined(separator: " | "))
         XCTAssertEqual(payload["path"], sourceFile.path)
         XCTAssertTrue((payload["output"] ?? "").contains("let value = 1"))
     }

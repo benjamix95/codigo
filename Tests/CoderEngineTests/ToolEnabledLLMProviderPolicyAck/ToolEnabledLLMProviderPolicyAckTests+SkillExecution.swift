@@ -74,7 +74,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         let events = try await withEnvironmentVariable("CODEX_SKILL_TIMEOUT_SECONDS", value: "1") {
             await provider.executeSkillTool(
                 marker: marker,
-                context: WorkspaceContext(workspacePath: workspace)
+                context: nonPolicyContext(workspace: workspace)
             )
         }
 
@@ -128,7 +128,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
 
         let events = await provider.executeSkillTool(
             marker: marker,
-            context: WorkspaceContext(workspacePath: workspace)
+            context: nonPolicyContext(workspace: workspace)
         )
 
         let startedPayload = try XCTUnwrap(events.compactMap { event -> [String: String]? in

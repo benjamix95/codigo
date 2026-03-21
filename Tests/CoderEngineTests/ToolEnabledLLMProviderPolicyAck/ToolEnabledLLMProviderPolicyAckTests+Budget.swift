@@ -35,7 +35,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Leggi più file",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 

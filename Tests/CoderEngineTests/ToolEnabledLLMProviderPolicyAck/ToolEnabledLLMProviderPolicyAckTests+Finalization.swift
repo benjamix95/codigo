@@ -29,7 +29,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
         let stream = try await provider.send(
             prompt: "Leggi il file e chiudi il task",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -83,7 +83,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
         let stream = try await provider.send(
             prompt: "Leggi e finalizza",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 

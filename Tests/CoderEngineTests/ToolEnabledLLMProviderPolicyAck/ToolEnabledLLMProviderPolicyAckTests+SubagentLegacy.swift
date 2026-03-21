@@ -38,7 +38,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Esegui review e test finali",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -82,7 +82,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Prova reviewer senza task",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -136,7 +136,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Implementa e verifica",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -195,7 +195,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Fai review finale",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -248,7 +248,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Esegui swarm legacy",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 

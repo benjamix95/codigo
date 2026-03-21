@@ -24,7 +24,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
         let stream = try await provider.send(
             prompt: "Do something",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -57,14 +57,16 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
         let stream = try await provider.send(
             prompt: "Run mcp batch",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
         var sawMCPStart = false
         var sawMCPFailure = false
+        var observed: [String] = []
         for try await event in stream {
             guard case .raw(let type, let payload) = event else { continue }
+            observed.append("\(type):\(payload)")
             if type == "mcp_tool_call" {
                 sawMCPStart = true
             }
@@ -75,8 +77,8 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
 
-        XCTAssertTrue(sawMCPStart)
-        XCTAssertTrue(sawMCPFailure)
+        XCTAssertTrue(sawMCPStart, observed.joined(separator: " | "))
+        XCTAssertTrue(sawMCPFailure, observed.joined(separator: " | "))
     }
 
     func testToolBudgetExceededIsEmittedOncePerRoundEvenWithManySuggestions() async throws {
@@ -119,7 +121,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Leggi più file",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -184,12 +186,16 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Aggiorna il file",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
         var validationPayload: [String: String]?
+        var observed: [String] = []
         for try await event in stream {
+            if case .raw(let type, let payload) = event {
+               observed.append("\(type):\(payload)")
+            }
             if case .raw(let type, let payload) = event,
                type == "tool_validation_error",
                payload["error_code"] == "mcp_edit_required" {
@@ -197,8 +203,8 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
 
-        XCTAssertEqual(validationPayload?["error_code"], "mcp_edit_required")
-        XCTAssertEqual(validationPayload?["tool"], "write")
+        XCTAssertEqual(validationPayload?["error_code"], "mcp_edit_required", observed.joined(separator: " | "))
+        XCTAssertEqual(validationPayload?["tool"], "write", observed.joined(separator: " | "))
     }
 
     func testEnforcedMCPEditBlocksDeleteFileWhenMCPDisabled() async throws {
@@ -227,12 +233,16 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Elimina il file",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
         var validationPayload: [String: String]?
+        var observed: [String] = []
         for try await event in stream {
+            if case .raw(let type, let payload) = event {
+               observed.append("\(type):\(payload)")
+            }
             if case .raw(let type, let payload) = event,
                type == "tool_validation_error",
                payload["error_code"] == "mcp_edit_required" {
@@ -240,8 +250,8 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
 
-        XCTAssertEqual(validationPayload?["error_code"], "mcp_edit_required")
-        XCTAssertEqual(validationPayload?["tool"], "delete_file")
+        XCTAssertEqual(validationPayload?["error_code"], "mcp_edit_required", observed.joined(separator: " | "))
+        XCTAssertEqual(validationPayload?["tool"], "delete_file", observed.joined(separator: " | "))
         XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
     }
 
@@ -272,7 +282,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Scrivi test mancanti",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 

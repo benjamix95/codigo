@@ -75,6 +75,14 @@ extension ToolSchemaCatalog {
             required: ["path", "content"]
         ),
         ToolSchemaEntry(
+            name: "delete_file",
+            description: "Delete an existing file",
+            properties: [
+                "path": ["type": "string", "description": "Target file path"]
+            ],
+            required: ["path"]
+        ),
+        ToolSchemaEntry(
             name: "bash",
             description: "Run shell command. The working directory defaults to the workspace root (the project folder paths listed in the context). Always operate within the workspace — never search the full filesystem unless explicitly asked.",
             properties: [

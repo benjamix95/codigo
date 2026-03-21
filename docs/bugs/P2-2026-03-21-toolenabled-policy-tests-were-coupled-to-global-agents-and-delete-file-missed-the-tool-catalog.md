@@ -1,0 +1,43 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: la suite `ToolEnabledLLMProviderPolicyAckTests` aveva due cause di failure non legate alla logica che i singoli test volevano coprire:
+  - i test non-policy ereditavano la policy globale da `~/.codex/AGENTS.md`;
+  - `delete_file` non era registrato nel catalogo `fileTools`.
+- Sintomo: i test vedevano `policy_ack_required` al posto dei branch attesi (`mcp_batch`, `mcp_edit_required`, auto-review subagent), e `delete_file` veniva scartato prima della validazione MCP-only.
+- Impatto: regressione di validazione nella suite `ToolEnabledLLMProviderPolicyAckTests`, con segnale falso-negativo su runtime/catalogo subagent e MCP edit policy.
+- Gravità: media.
+- Steps to reproduce:
+  1. Eseguire `ToolEnabledLLMProviderPolicyAckTests/testDynamicCatalogRecognizesMCPBatchSuggestion`.
+  2. Eseguire `ToolEnabledLLMProviderPolicyAckTests/testEnforcedMCPEditBlocksDeleteFileWhenMCPDisabled`.
+  3. Eseguire `ToolEnabledLLMProviderPolicyAckTests/testAutoInjectsReviewerAndTestWriterAfterCoderMutation`.
+- Risultato attuale:
+  - i test non-policy falliscono con `policy_ack_required`;
+  - `delete_file` non produce `mcp_edit_required`.
+- Risultato atteso:
+  - i test non-policy verificano solo il branch logico target senza policy globale;
+  - `delete_file` è riconosciuto come tool file/edit noto.
+- Causa probabile:
+  - `WorkspaceContext.contextPrompt()` include la policy globale anche nei test che non vogliono coprirla;
+  - `ToolSchemaCatalog.fileTools` non includeva `delete_file`.
+- Scope consentito:
+  - `Tests/CoderEngineTests/ToolEnabledLLMProviderPolicyAck/**`
+  - `Engine/CoderEngine/Sources/Tools/Catalog/Entries/Core/ToolSchemaCatalog+FileTools.swift`
+- Non-scope:
+  - runtime MCP generale
+  - provider backend
+  - UI app-side
+- Moduli confinanti da verificare:
+  - `ToolEnabledLLMProviderPolicyAckTests`
+  - `ProviderToolEventMapperTests`
+  - `UnifiedToolRuntimeMCPConsistencyTests`
+- Test da aggiungere o aggiornare:
+  - usare `skipContextEnrichment` nei test non-policy della sottosuite
+  - mantenere `testEnforcedMCPEditBlocksDeleteFileWhenMCPDisabled` come regressione catalog/runtime
+- Strategia di fix minimo:
+  - introdurre helper `nonPolicyContext(...)` per i test che non coprono la policy;
+  - aggiungere `delete_file` al catalogo `fileTools`.
+- Verifica post-fix:
+  - `ToolEnabledLLMProviderPolicyAckTests`
+  - `ProviderToolEventMapperTests`
+  - `UnifiedToolRuntimeMCPConsistencyTests`
+- Commit previsto: `fix(testing): stabilize toolenabled policy ack coverage`

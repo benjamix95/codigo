@@ -32,7 +32,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Analizza il file",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -92,7 +92,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Analizza il file",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -138,14 +138,16 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Implementa e chiudi",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
         var sawReviewer = false
         var sawTestWriter = false
+        var observed: [String] = []
         for try await event in stream {
             guard case .raw(let type, let payload) = event else { continue }
+            observed.append("\(type):\(payload)")
             if type == "tool_result",
                payload["name"] == "subagent_reviewer",
                payload["status"] == "completed" {
@@ -158,8 +160,8 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
 
-        XCTAssertTrue(sawReviewer, "Reviewer subagent should be auto-injected")
-        XCTAssertTrue(sawTestWriter, "TestWriter subagent should be auto-injected")
+        XCTAssertTrue(sawReviewer, observed.joined(separator: " | "))
+        XCTAssertTrue(sawTestWriter, observed.joined(separator: " | "))
     }
 
     func testAutoInjectsFinalReviewAgainAfterLaterMutation() async throws {
@@ -198,14 +200,16 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Implementa in due step",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
         var reviewerCompletions = 0
         var testWriterCompletions = 0
+        var observed: [String] = []
         for try await event in stream {
             guard case .raw(let type, let payload) = event else { continue }
+            observed.append("\(type):\(payload)")
             guard type == "tool_result", payload["status"] == "completed" else { continue }
             if payload["name"] == "subagent_reviewer" {
                 reviewerCompletions += 1
@@ -218,12 +222,12 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         XCTAssertGreaterThanOrEqual(
             reviewerCompletions,
             2,
-            "Reviewer should run again after subsequent mutations"
+            observed.joined(separator: " | ")
         )
         XCTAssertGreaterThanOrEqual(
             testWriterCompletions,
             2,
-            "TestWriter should run again after subsequent mutations"
+            observed.joined(separator: " | ")
         )
     }
 
@@ -252,7 +256,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Verifica stream live subagent",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -297,7 +301,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Verifica output testuale subagent",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
@@ -345,7 +349,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
         let stream = try await provider.send(
             prompt: "Verifica failure esplicita quando non arrivano eventi live",
-            context: WorkspaceContext(workspacePath: workspace),
+            context: nonPolicyContext(workspace: workspace),
             imageURLs: nil
         )
 
