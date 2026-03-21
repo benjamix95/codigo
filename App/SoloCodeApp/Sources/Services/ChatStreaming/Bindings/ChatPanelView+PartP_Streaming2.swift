@@ -233,6 +233,39 @@ extension ChatPanelView {
             )
             return // Don't record this synthetic event as a visible activity
         }
+        // Direct fallback: when the pipeline's textDelta path fails to
+        // populate the assistant message content, use the raw
+        // assistant_update output to write content directly to the store.
+        if t == "assistant_update", let output = p["output"], !output.isEmpty, let convId {
+            let cleaned = ChatStore.stripCoderideMarkers(output, aggressive: true)
+            print(
+                "[ChatDebug] assistant_update output=\(output.count) cleaned=\(cleaned.count) cleanedPreview='\(String(cleaned.prefix(120)))'"
+            )
+            if !cleaned.isEmpty {
+                let currentMsg = chatStore.conversation(for: convId)?
+                    .messages.last(where: { $0.role == .assistant })
+                let current = currentMsg?.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let hasBlocks = currentMsg?.blocks?.isEmpty == false
+                print(
+                    "[ChatDebug] currentContent=\(current.count) hasBlocks=\(hasBlocks ? 1 : 0) msgId=\(currentMsg?.id.uuidString ?? "nil")"
+                )
+                if current.isEmpty {
+                    chatStore.updateLastAssistantMessage(
+                        content: cleaned,
+                        in: convId,
+                        persistImmediately: false
+                    )
+                    let after = chatStore.conversation(for: convId)?
+                        .messages.last(where: { $0.role == .assistant })?
+                        .content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    print("[ChatDebug] WROTE content=\(cleaned.count) afterVerify=\(after.count)")
+                }
+            }
+        }
+        // Log ALL raw event types to see what the pipeline receives
+        if t != "reasoning" && t != "usage" {
+            print("[ChatDebug] rawEvent type=\(t) keys=\(p.keys.sorted().joined(separator: ","))")
+        }
         recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
     }
 

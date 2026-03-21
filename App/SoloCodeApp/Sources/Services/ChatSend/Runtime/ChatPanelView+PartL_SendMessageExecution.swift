@@ -19,6 +19,9 @@ extension ChatPanelView {
             && planFlowPhase == .analyzing
         launchRunTask(for: targetConversationId) {
             var traceOutcome: ToolTraceTurnOutcome = .success
+            print(
+                "[ChatDebug] executeSendMessageTurn: coderMode=\(String(describing: self.coderMode)) isPlan=\(isPlanMultiTurnFlow ? 1 : 0) provider=\(effectiveRuntimeProvider.id)"
+            )
             do {
                 if isPlanMultiTurnFlow {
                     // Multi-turn forced sequential plan flow
@@ -48,18 +51,13 @@ extension ChatPanelView {
                         }()
                         switch planFlowPhase {
                         case .analyzing, .generating:
-                            NSLog(
-                                "[PlanFlow] Safety reset: planFlowPhase was still %@ after runMultiTurnPlanFlow returned",
-                                String(describing: planFlowPhase)
-                            )
+                            print("[PlanFlow] Safety reset: planFlowPhase was still \(String(describing: planFlowPhase)) after runMultiTurnPlanFlow returned")
                             planFlowPhase = .idle
                             planningState = .idle
                             planClarificationQuestionnaire = nil
                             clearPlanStreamingState()
                         case .questioning where !isPausedForClarification:
-                            NSLog(
-                                "[PlanFlow] Safety reset: planFlowPhase was .questioning without awaitingClarification"
-                            )
+                            print("[PlanFlow] Safety reset: planFlowPhase was .questioning without awaitingClarification")
                             planFlowPhase = .idle
                             planningState = .idle
                             planClarificationQuestionnaire = nil
@@ -69,6 +67,7 @@ extension ChatPanelView {
                         }
                     }
                 } else if coderMode == .agent {
+                    print("[ChatDebug] -> AGENT mode path taken")
                     await MainActor.run {
                         let (job, tasks) = PipelineJobFactory.fromChatMessage(
                             prompt: prompt,
@@ -119,6 +118,7 @@ extension ChatPanelView {
                     }
                     return
                 } else {
+                    print("[ChatDebug] -> STANDARD mode path taken")
                     let uiState = await MainActor.run {
                         RustMainChatStoreAdapter.uiState(
                             from: chatStore,

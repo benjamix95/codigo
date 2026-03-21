@@ -13,6 +13,11 @@ extension PipelineIntegrationService {
         if let callback = currentRuntime?.rawEventHandler {
             callback(rawType, p.payload, providerId, conversationId)
         }
+        projectAssistantUpdateIntoPrimaryTextIfNeeded(
+            rawEvent: p,
+            providerId: providerId,
+            conversationId: conversationId
+        )
         consumeRawPipelineArtifacts(rawType: rawType, payload: p.payload, for: conversationId)
 
         if rawType == "todo_write" || p.payload.keys.contains(where: {
@@ -31,6 +36,41 @@ extension PipelineIntegrationService {
         } else {
             forwardRawEventToTaskActivity(p, for: conversationId)
         }
+    }
+
+    func projectAssistantUpdateIntoPrimaryTextIfNeeded(
+        rawEvent: RawEventPayload,
+        providerId: String,
+        conversationId: UUID
+    ) {
+        guard rawEvent.rawType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "assistant_update",
+              let runtime = runtime(for: conversationId)
+        else { return }
+        let status = runtime.chatTurnState.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard status != "completed", status != "failed" else { return }
+
+        let rawText = rawEvent.payload["output"] ?? rawEvent.payload["text"]
+            ?? rawEvent.payload["content"] ?? rawEvent.payload["detail"] ?? ""
+        let cleaned = ChatStore.stripCoderideMarkers(rawText, aggressive: true)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return }
+
+        let streamId = rawEvent.taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")
+            : rawEvent.taskId
+        guard runtime.chatTurnState.textByStreamId[streamId]?.trimmingCharacters(in: .whitespacesAndNewlines) != cleaned else {
+            return
+        }
+
+        consumePipelineEvents([ChatPipelineEvent(
+            conversationId: conversationId,
+            assistantMessageId: runtime.assistantMessageId,
+            turnId: runtime.chatTurnState.turnId,
+            sequence: 0,
+            source: providerId,
+            kind: .textReplace,
+            payload: ["replacement": cleaned, "stream_id": streamId, "task_id": streamId, "provider_id": providerId]
+        )], for: conversationId)
     }
 
     private func forwardRawEventToTaskActivity(

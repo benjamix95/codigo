@@ -146,4 +146,88 @@ final class ChatPipelineReducerTests: XCTestCase {
         XCTAssertEqual(state.blocks.first?.kind, .primaryText)
         XCTAssertTrue(state.blocks.contains(where: { $0.kind == .mermaid }))
     }
+
+    @MainActor
+    func testPipelineProjectsAssistantUpdateIntoPrimaryTextWhileStreaming() {
+        let (service, chatStore, conversationId, assistantMessageId, defaults, suiteName) = makeAssistantUpdateHarness()
+        defer {
+            _ = service.discardConversationRuntime(for: conversationId)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-assistant-update",
+                taskId: "task-assistant-update",
+                rawType: "assistant_update",
+                payload: ["output": "Risposta inline dal raw assistant update", "group_id": "assistant-update-1"]
+            ),
+            for: conversationId
+        )
+
+        let message = chatStore.conversation(for: conversationId)?.messages.last(where: { $0.id == assistantMessageId })
+        XCTAssertEqual(message?.primaryTextSnapshot, "Risposta inline dal raw assistant update")
+    }
+
+    @MainActor
+    func testCompletedPipelineIgnoresLateAssistantUpdateOverwrite() {
+        let (service, chatStore, conversationId, assistantMessageId, defaults, suiteName) = makeAssistantUpdateHarness()
+        defer {
+            _ = service.discardConversationRuntime(for: conversationId)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        service.handleEvent(.textReplace(.init(jobId: "job-assistant-update", taskId: "task-assistant-update", replacement: "Risposta finale confermata")), for: conversationId)
+        service.handleEvent(.jobCompleted(.init(jobId: "job-assistant-update", durationMs: 42, completedTasks: 1, totalTasks: 1)), for: conversationId)
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-assistant-update",
+                taskId: "task-assistant-update",
+                rawType: "assistant_update",
+                payload: ["output": "Aggiornamento tardivo che non deve vincere", "group_id": "assistant-update-late"]
+            ),
+            for: conversationId
+        )
+
+        let message = chatStore.conversation(for: conversationId)?.messages.last(where: { $0.id == assistantMessageId })
+        XCTAssertEqual(message?.primaryTextSnapshot, "Risposta finale confermata")
+    }
+
+    @MainActor
+    private func makeAssistantUpdateHarness() -> (PipelineIntegrationService, ChatStore, UUID, UUID, UserDefaults, String) {
+        let suiteName = "ChatPipelineReducerTests.assistant-update.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let chatStore = ChatStore(userDefaults: defaults)
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: TaskActivityStore(),
+            swarmProgressStore: SwarmProgressStore(),
+            todoStore: TodoStore(storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)", userDefaults: defaults),
+            executionController: ExecutionController()
+        )
+        let conversationId = chatStore.conversations[0].id
+        let assistantMessageId = UUID()
+        chatStore.addMessage(ChatMessage(id: assistantMessageId, role: .assistant, content: "", isStreaming: true), to: conversationId)
+        service.executeJob(
+            PipelineJob(jobId: "job-assistant-update", workspace: "/tmp", request: "Assistant update fallback"),
+            tasks: [TaskNode(taskId: "task-assistant-update", title: "Assistant update fallback")],
+            workerAdapter: AgentWorkerAdapter(provider: IdlePipelineProvider(), context: WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")]), jobId: "job-assistant-update"),
+            providerId: "provider-assistant-update",
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId
+        )
+        return (service, chatStore, conversationId, assistantMessageId, defaults, suiteName)
+    }
+}
+
+private final class IdlePipelineProvider: LLMProvider, @unchecked Sendable {
+    let id = "idle-pipeline-provider"
+    let displayName = "IdlePipelineProvider"
+    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
+    func isAuthenticated() -> Bool { true }
+    func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]?) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        AsyncThrowingStream { continuation in continuation.yield(.started) }
+    }
 }

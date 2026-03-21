@@ -12,6 +12,7 @@ extension PipelineIntegrationService {
     ]
 
     func handleEvent(_ event: PipelineUIEvent, for conversationId: UUID) {
+        print("[ChatDebug] handleEvent: \(String(describing: event).prefix(200))")
         switch event {
         case .jobStarted(let p):
             handleJobStarted(p, for: conversationId)
