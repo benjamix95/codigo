@@ -1,0 +1,34 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Accounts` conteneva ancora `AccountUsageDashboardStore`, che e' uno store di dashboard/presentazione e non ownership del dominio account runtime.
+- Sintomo: il conteggio `Accounts` includeva aggregazione UI di usage/ledger/router.
+- Impatto: perimetro del dominio `Accounts` meno pulito e progresso sottostimato.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Accounts`.
+  2. Verificare `AccountUsageDashboardStore.swift` tra i legacy non-UI.
+- Risultato attuale: dashboard store contato come debito di dominio `Accounts`.
+- Risultato atteso: il dashboard store vive in `Services/UsageDashboard`.
+- Causa probabile: collocazione storica sotto `Accounts` nonostante il ruolo di aggregatore UI.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Accounts/AccountUsageDashboardStore.swift`
+  - `App/SoloCodeApp/Sources/Services/UsageDashboard/AccountUsageDashboardStore.swift`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `CLIAccountsStore*`
+  - `ProviderUsageStore`
+  - `CLIAccountRouter`
+- Moduli confinanti da verificare:
+  - `UsageMenuBarView`
+  - `UsageFooterView`
+  - `ProfileSwitcherView`
+- Test da aggiungere o aggiornare:
+  - smoke build/test dell'app sui consumer principali
+- Strategia di fix minimo:
+  - spostare `AccountUsageDashboardStore` fuori da `Accounts`
+  - aggiornare allowlist e progetto, senza cambiare comportamento
+- Verifica post-fix:
+  - `xcodebuild test` mirato
+  - `validate_rust_cutover_boundary.sh` sul diff
+- Commit previsto: `refactor(accounts): relocate usage dashboard support`
