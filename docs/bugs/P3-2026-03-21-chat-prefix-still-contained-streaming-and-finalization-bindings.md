@@ -1,0 +1,45 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora un cluster ampio di binding `streaming/finalization` per trace turn lifecycle, policy enforcement, rewind, error/finalization routing e stream result helpers, che sono glue app-side sopra boundary e store già derivati.
+- Sintomo: il debito residuo `Chat` includeva ancora `PartE_ToolTraceTurn`, `PartO_Streaming1`, `PartP_Streaming2`, `PartQ_Finalizers`, `PartP_PolicyEnforcement`, `PartR_Rewind`, `PartR_StreamErrors`.
+- Impatto: il perimetro `Chat` restava sovrastimato e mischiava binding streaming app-side con il dominio main-chat.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui il blocco `streaming/finalization`.
+- Risultato attuale: il cluster viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `Services/ChatStreaming/Bindings`.
+- Causa probabile: collocazione storica nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Lifecycle/ChatPanelView+PartE_ToolTraceTurn.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartO_Streaming1.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartP_Streaming2.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartQ_Finalizers.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Streaming/ChatPanelView+PartP_PolicyEnforcement.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Streaming/ChatPanelView+PartR_Rewind.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Streaming/ChatPanelView+PartR_StreamErrors.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatStreaming/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `SendMessage`
+  - `TaskLifecycle`
+  - `TaskTrace PartF_PlanEvents`
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `ChatStreamFailureHandlingTests`
+  - `ChatPanelTodoFinalizationTests`
+  - `ChatPanelReasoningMergeTests`
+  - `ChatPanelTraceBindingTests`
+  - `RustMainChatUIBoundaryTests`
+  - `RustMainChatProviderAdapterTests`
+  - `ChatStoreStreamingTargetTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite streaming/trace
+- Strategia di fix minimo:
+  - spostare il cluster in `Services/ChatStreaming/Bindings`
+  - aggiornare solo path progetto e allowlist
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer streaming/trace
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate streaming bindings`

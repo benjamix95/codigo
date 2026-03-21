@@ -175,9 +175,15 @@ extension ChatStore {
     @MainActor
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
         guard let conversationId else { return }
-        _ = applyRustStoreAction("set_streaming_state") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
-            request.boolValue = streaming
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
+           let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+           let targetIndex = fallbackAssistantMutationIndex(in: conversations[conversationIndex]) {
+            conversations[conversationIndex].messages[targetIndex].isStreaming = streaming
+        } else {
+            _ = applyRustStoreAction("set_streaming_state") { request in
+                request.conversationId = conversationId.uuidString.lowercased()
+                request.boolValue = streaming
+            }
         }
         if !streaming {
             saveConversationsImmediately()
@@ -192,6 +198,13 @@ extension ChatStore {
         if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
            let index = conversations.firstIndex(where: { $0.id == conversationId }) {
             conversations[index].messages.append(message)
+            let trimmedTitle = conversations[index].title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let fallbackTitle = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            if message.role == .user,
+               !fallbackTitle.isEmpty,
+               (trimmedTitle.isEmpty || trimmedTitle == "New conversation") {
+                conversations[index].title = fallbackTitle
+            }
         } else {
             _ = applyRustStoreAction("append_message") { request in
                 request.conversationId = conversationId.uuidString.lowercased()
@@ -205,9 +218,15 @@ extension ChatStore {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        _ = applyRustStoreAction("sync_assistant_content") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
-            request.text = resolvedContent
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
+           let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+           let targetIndex = fallbackAssistantMutationIndex(in: conversations[conversationIndex]) {
+            conversations[conversationIndex].messages[targetIndex].content = resolvedContent
+        } else {
+            _ = applyRustStoreAction("sync_assistant_content") { request in
+                request.conversationId = conversationId.uuidString.lowercased()
+                request.text = resolvedContent
+            }
         }
         persistAssistantMutation(immediately: persistImmediately)
     }
@@ -232,10 +251,20 @@ extension ChatStore {
     @MainActor
     func insertMessage(_ message: ChatMessage, before messageId: UUID, in conversationId: UUID?) {
         guard let conversationId else { return }
-        _ = applyRustStoreAction("insert_message_before") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
-            request.messageId = messageId.uuidString.lowercased()
-            request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
+           let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) {
+            let anchorIndex = conversations[conversationIndex].messages.firstIndex { $0.id == messageId }
+            if let anchorIndex {
+                conversations[conversationIndex].messages.insert(message, at: anchorIndex)
+            } else {
+                conversations[conversationIndex].messages.append(message)
+            }
+        } else {
+            _ = applyRustStoreAction("insert_message_before") { request in
+                request.conversationId = conversationId.uuidString.lowercased()
+                request.messageId = messageId.uuidString.lowercased()
+                request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+            }
         }
         saveConversations()
     }
@@ -243,10 +272,30 @@ extension ChatStore {
     @MainActor
     func removeTrailingEmptyAssistantMessages(in conversationId: UUID?) {
         guard let conversationId else { return }
-        _ = applyRustStoreAction("remove_trailing_empty_assistant_messages") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
+           let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) {
+            while let last = conversations[conversationIndex].messages.last,
+                  last.role == .assistant,
+                  !last.isStreaming,
+                  last.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                conversations[conversationIndex].messages.removeLast()
+            }
+        } else {
+            _ = applyRustStoreAction("remove_trailing_empty_assistant_messages") { request in
+                request.conversationId = conversationId.uuidString.lowercased()
+            }
         }
         saveConversationsImmediately()
+    }
+
+    @MainActor
+    private func fallbackAssistantMutationIndex(in conversation: Conversation) -> Int? {
+        if let streamingIndex = conversation.messages.lastIndex(where: {
+            $0.role == .assistant && $0.isStreaming
+        }) {
+            return streamingIndex
+        }
+        return conversation.messages.lastIndex(where: { $0.role == .assistant })
     }
 
     @MainActor
