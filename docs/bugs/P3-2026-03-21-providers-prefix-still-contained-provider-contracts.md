@@ -1,0 +1,34 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Providers` conteneva ancora i contratti/shared registry `LLMProvider` e `ProviderRegistry`, che sono infrastruttura comune dei backend e non ownership della logica provider-specifica.
+- Sintomo: il conteggio `Providers` includeva protocollo base e registry condiviso, pur essendo usati trasversalmente da `ProviderBackends`, app services e pannelli.
+- Impatto: debito `Providers` sovrastimato e perimetro del dominio meno chiaro.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `Engine/CoderEngine/Sources/Providers`.
+  2. Verificare `LLMProvider.swift` e `ProviderRegistry.swift` tra i residui.
+- Risultato attuale: contratti/provider registry contati come debito `Providers`.
+- Risultato atteso: i contratti condivisi vivono in `Engine/CoderEngine/Sources/ProviderBackends/Core`.
+- Causa probabile: collocazione storica precedente alla separazione tra `Providers` e `ProviderBackends`.
+- Scope consentito:
+  - `Engine/CoderEngine/Sources/Providers/Core/LLMProvider.swift`
+  - `Engine/CoderEngine/Sources/Providers/Core/ProviderRegistry.swift`
+  - `Engine/CoderEngine/Sources/ProviderBackends/Core/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ProviderToolEventMapper`
+  - `ToolEnabledLLMProvider`
+  - backend provider implementations
+- Moduli confinanti da verificare:
+  - `CLIMultiAccountProviderAdapter`
+  - `RustMainChatProviderAdapter`
+  - `ToolEnabledLLMProviderPolicyAckTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sui consumer principali dei contratti spostati
+- Strategia di fix minimo:
+  - spostare `LLMProvider.swift` e `ProviderRegistry.swift` in `ProviderBackends/Core`
+  - aggiornare solo i path del progetto Xcode
+- Verifica post-fix:
+  - `xcodebuild test` mirato sui consumer principali
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(providers): relocate provider core contracts`
