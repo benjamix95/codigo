@@ -1,0 +1,39 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `Debug` del `ChatPanelView` e la barra `FinalChatActions`, che sono glue di presentazione/debug e non ownership del dominio Rust della main chat.
+- Sintomo: il debito residuo `Chat` restava gonfiato da helper di debug panel e da una barra finale di azioni task.
+- Impatto: il perimetro legacy `Chat` risultava più alto del dovuto e mescolava UI/debug glue con logica di dominio.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui il cluster `Support/Extensions/Debug/*` e `Support/Extensions/Messages/ChatPanelView+PartD_FinalChatActions.swift`.
+- Risultato attuale: helper di debug panel e barra finale task vivevano ancora sotto `Chat`.
+- Risultato atteso: vivono in moduli dedicati `Services/Debug/ChatBindings` e `ChatView/FinalActions`.
+- Causa probabile: collocazione storica iniziale nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Debug/**`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Messages/ChatPanelView+PartD_FinalChatActions.swift`
+  - `App/SoloCodeApp/Sources/Services/Debug/ChatBindings/**`
+  - `App/SoloCodeApp/Sources/ChatView/FinalActions/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `TaskTrace`
+  - `Plan`
+  - `Streaming`
+  - qualunque logica Rust o reducer della main chat
+- Moduli confinanti da verificare:
+  - `PipelineIntegrationDebugProjectionTests`
+  - `DebugFlowToolE2ETests`
+  - `DebugStoreTests`
+  - `ChatPanelFinalActionsVisibilityTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite confinata dei consumer debug/final actions
+- Strategia di fix minimo:
+  - spostare il cluster `Debug` in `Services/Debug/ChatBindings`
+  - spostare `FinalChatActions` in `ChatView/FinalActions`
+  - aggiornare solo path progetto e allowlist
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer debug/final actions
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate debug and final actions support`

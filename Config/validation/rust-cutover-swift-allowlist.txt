@@ -52,10 +52,12 @@ binding_adapter|App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Supp
 binding_adapter|App/SoloCodeApp/Sources/Runtime/NetworkMonitor.swift|Network monitor is platform-specific Network.framework reachability glue plus a UI banner, outside Rust main-chat domain ownership.
 binding_adapter|App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift|WorkspaceStore direct-stream loop is now a Swift adapter over Rust-owned provider event reduction and fail-closed runtime semantics.
 binding_adapter|App/SoloCodeApp/Sources/Services/Debug/DebugProjectionEventConsumer.swift|Debug projection consumer is shared UI glue that applies normalized pipeline events to DebugStore and panel visibility effects.
+binding_adapter|App/SoloCodeApp/Sources/Services/Debug/ChatBindings/**|Chat debug binding helpers are debug-specific panel glue over DebugStore, pipeline projection and panel toggles outside Rust-owned main-chat domain.
 binding_adapter|App/SoloCodeApp/Sources/Services/DebugPipeline/**|Debug pipeline support services are debug-specific infrastructure outside the Rust-owned main-chat runtime domain.
 binding_adapter|App/SoloCodeApp/Sources/Services/Project/WorkspaceStore*.swift|Workspace store is project/indexing support infrastructure outside the Rust-owned main-chat runtime domain.
 binding_adapter|App/SoloCodeApp/Sources/Services/TaskCompletionNotifications/ChatPanelView+TaskCompletionNotifications.swift|Task completion notification helper is Swift delivery glue over conversation payload formatting and the shared notification service.
 binding_adapter|App/SoloCodeApp/Sources/Services/UsageDashboard/AccountUsageDashboardStore.swift|Account usage dashboard store is a UI-facing aggregation layer over provider usage, account ledger and router state.
+binding_adapter|App/SoloCodeApp/Sources/ChatView/FinalActions/ChatPanelView+PartD_FinalChatActions.swift|Final chat actions bar is a SwiftUI presentation helper over already-derived conversation metrics and trace summaries.
 binding_adapter|App/SoloCodeApp/Sources/Settings/ProviderFactory/Backends/**|Provider factory backends remain non-main-chat support code outside Rust main-chat ownership.
 binding_adapter|Engine/CoderEngine/Sources/AgentPipeline/**|Relocated pipeline engine files are generic execution infrastructure, not main-chat Rust domain owners.
 binding_adapter|Engine/CoderEngine/Sources/ProviderBackends/**|Relocated provider backend files remain generic provider infrastructure for non-main-chat consumers.
