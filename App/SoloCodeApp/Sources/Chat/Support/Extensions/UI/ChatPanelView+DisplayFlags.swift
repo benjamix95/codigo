@@ -1,6 +1,20 @@
 import SwiftUI
 
 extension ChatPanelView {
+    internal func wireTodoPlanBidirectionalSync() {
+        guard todoStore.onCanonicalTodoStatusChange == nil else { return }
+        todoStore.onCanonicalTodoStatusChange = { [weak chatStore, weak todoStore] _, _, canonicalConversationId in
+            guard let chatStore, let todoStore else { return }
+            let planConvId = canonicalConversationId
+                ?? chatStore.preferredPlanConversationIdForCanonicalSync()
+            if let activeId = planConvId {
+                let canonicalTodos = todoStore.canonicalTodos(for: activeId)
+                guard !canonicalTodos.isEmpty else { return }
+                chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: activeId)
+            }
+        }
+    }
+
     @MainActor
     internal func requestInitialComposerFocusIfNeeded() {
         guard !didAutoFocusComposerOnLaunch else { return }

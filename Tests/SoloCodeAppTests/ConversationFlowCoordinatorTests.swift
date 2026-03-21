@@ -350,6 +350,99 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(result, "ciao mondo")
         XCTAssertEqual(coordinator.state, .completed)
     }
+
+    func testRunStreamFailsWhenRustPolledProviderReturnsTimeoutErrorEvent() async {
+        let polls = RuntimePollQueue()
+        polls.enqueue { request in
+            var snapshot = request.snapshot
+            snapshot.output = MainChatRuntimeOutputBridge(
+                chatContentOverride: nil,
+                shouldHidePlanMarkdown: false,
+                shouldOpenPlanPanel: false,
+                shouldFinalizeStream: true,
+                shouldRetryPoll: false,
+                followUpPrompt: nil,
+                generatedPrompt: nil,
+                terminalError: "Rust timeout"
+            )
+            return MainChatRuntimeProviderPollBridgeResponse(
+                schemaVersion: 1,
+                error: nil,
+                runtimeSnapshot: snapshot,
+                uiEvents: [
+                    MainChatRuntimeUIEventBridge(
+                        kind: .error,
+                        text: "Rust timeout",
+                        rawType: nil,
+                        payload: [:]
+                    )
+                ],
+                isTerminal: true,
+                didTimeout: true
+            )
+        }
+
+        let provider = MainChatRustTransportProvider(
+            id: "codex-cli",
+            displayName: "Codex",
+            attachmentCapabilities: .none,
+            authenticated: true,
+            config: MainChatProviderSessionConfigBridge(
+                providerId: "codex-cli",
+                displayName: "Codex",
+                backend: .codexCli,
+                workspacePath: "/tmp",
+                workspacePaths: ["/tmp"],
+                prompt: "",
+                systemPrompt: nil,
+                contextPrompt: nil,
+                model: nil,
+                apiKey: nil,
+                baseURL: nil,
+                toolDefinitionsJson: nil,
+                extraHeaders: [:],
+                codexPath: "/usr/bin/codex",
+                codexSandbox: "workspace-write",
+                codexAskForApproval: "never",
+                codexModelOverride: nil,
+                codexReasoningEffort: nil,
+                codexModelProvider: nil,
+                codexFastMode: true,
+                codexSessionFullAccess: false,
+                codexPreferResponsesWireAPI: false,
+                claudePath: nil,
+                claudeModel: nil,
+                claudeAllowedTools: [],
+                geminiCliPath: nil,
+                geminiModelOverride: nil,
+                attachments: [],
+                cliAccounts: []
+            ),
+            startSessionBridge: { _ in .init(schemaVersion: 1, error: nil, snapshot: nil, events: []) },
+            pollSessionBridge: { _ in nil },
+            cancelSessionBridge: { _ in nil },
+            runtimePollBridge: { request in polls.next(for: request) }
+        )
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        do {
+            _ = try await coordinator.runStream(
+                provider: provider,
+                prompt: "test",
+                context: ctx,
+                attachments: nil,
+                onText: { _ in },
+                onRaw: { _, _, _ in },
+                onError: { _ in }
+            )
+            XCTFail("Expected timeout-driven provider failure")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Rust timeout"))
+        }
+
+        XCTAssertEqual(coordinator.state, .error)
+    }
 }
 
 private struct ScheduledStreamEvent: Sendable {

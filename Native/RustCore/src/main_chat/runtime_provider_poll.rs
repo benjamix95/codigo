@@ -37,25 +37,47 @@ pub fn poll_provider_runtime(
     }
 
     let mut is_terminal = false;
+    let mut ui_events: Vec<MainChatRuntimeUIEvent> =
+        provider_events.iter().map(ui_event).collect();
     if let Some(snapshot) = session_snapshot {
         match snapshot.status.as_str() {
             "completed" => {
                 is_terminal = true;
                 runtime_snapshot = complete_runtime(runtime_snapshot);
+                ui_events.push(MainChatRuntimeUIEvent {
+                    kind: MainChatRuntimeUIEventKind::Completed,
+                    text: String::new(),
+                    raw_type: None,
+                    payload: Default::default(),
+                });
             }
             "failed" => {
                 is_terminal = true;
+                let message = snapshot
+                    .terminal_error
+                    .as_deref()
+                    .unwrap_or("Provider session failed")
+                    .to_string();
                 runtime_snapshot = fail_runtime(
                     runtime_snapshot,
-                    snapshot
-                        .terminal_error
-                        .as_deref()
-                        .unwrap_or("Provider session failed"),
+                    &message,
                 );
+                ui_events.push(MainChatRuntimeUIEvent {
+                    kind: MainChatRuntimeUIEventKind::Error,
+                    text: message,
+                    raw_type: None,
+                    payload: Default::default(),
+                });
             }
             "cancelled" => {
                 is_terminal = true;
                 runtime_snapshot = interrupt_runtime(runtime_snapshot);
+                ui_events.push(MainChatRuntimeUIEvent {
+                    kind: MainChatRuntimeUIEventKind::Completed,
+                    text: String::new(),
+                    raw_type: None,
+                    payload: Default::default(),
+                });
             }
             _ => {}
         }
@@ -94,9 +116,21 @@ pub fn poll_provider_runtime(
                 )
             }
         };
+        if runtime_snapshot.output.as_ref().map(|item| item.should_retry_poll) != Some(true) {
+            is_terminal = true;
+            ui_events.push(MainChatRuntimeUIEvent {
+                kind: MainChatRuntimeUIEventKind::Error,
+                text: runtime_snapshot
+                    .output
+                    .as_ref()
+                    .and_then(|item| item.terminal_error.clone())
+                    .unwrap_or_else(|| "Rust main chat direct stream timed out.".to_string()),
+                raw_type: None,
+                payload: Default::default(),
+            });
+        }
     }
 
-    let ui_events = provider_events.iter().map(ui_event).collect();
     MainChatRuntimeProviderPollResponse::success(
         runtime_snapshot,
         ui_events,
@@ -250,7 +284,9 @@ mod tests {
     use app_core_protocol::main_chat_provider::{
         MainChatProviderBackend, MainChatProviderSessionConfig, MainChatProviderSessionStartRequest,
     };
-    use app_core_protocol::main_chat_runtime::{MainChatRuntimeProviderPollRequest, MainChatRuntimeSnapshot};
+    use app_core_protocol::main_chat_runtime::{
+        MainChatRuntimeProviderPollRequest, MainChatRuntimeSnapshot, MainChatRuntimeUIEventKind,
+    };
 
     #[test]
     fn poll_provider_runtime_applies_terminal_snapshot_failure() {
@@ -324,4 +360,5 @@ mod tests {
             Some("ciao")
         );
     }
+
 }

@@ -316,33 +316,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                 }
             }
 
-            if response.didTimeout {
-                if runtimeSnapshot.output?.shouldRetryPoll == true {
-                    await Task.yield()
-                    continue
-                }
-                let message = runtimeSnapshot.output?.terminalError
-                    ?? "Rust main chat direct stream timed out."
-                await setState(.error)
-                throw StreamExecutionError.providerError(message)
-            }
-
-            if response.isTerminal {
-                switch turnState.status {
-                case "completed", "cancelled":
-                    await MainActor.run { onSignal?(.streamCompleted(eventTimestamp)) }
-                    await setState(.completed)
-                    return turnState.primaryTextSnapshot
-                case "failed":
-                    let message = runtimeSnapshot.output?.terminalError ?? "Provider session failed"
-                    await MainActor.run { onError(turnState.primaryTextSnapshot + "\n\n[Error: \(message)]") }
-                    await setState(.error)
-                    throw StreamExecutionError.providerError(message)
-                default:
-                    break
-                }
-            }
-
             await Task.yield()
         }
     }
