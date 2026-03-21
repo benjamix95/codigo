@@ -4,6 +4,71 @@ import CoderEngine
 func shouldSkipRustStoreBootstrapForTests(environment: [String: String]) -> Bool { shouldDeferRustReviewCoreBootstrap(environment: environment) }
 
 extension ChatStore {
+    @MainActor
+    private func fallbackAppendMessage(
+        _ message: ChatMessage,
+        in conversationId: UUID
+    ) {
+        guard let index = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        if conversations[index].messages.contains(where: { $0.id == message.id }) {
+            return
+        }
+        conversations[index].messages.append(message)
+        let trimmedTitle = conversations[index].title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackTitle = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if message.role == .user,
+           !fallbackTitle.isEmpty,
+           (trimmedTitle.isEmpty || trimmedTitle == "New conversation") {
+            conversations[index].title = fallbackTitle
+        }
+    }
+
+    @MainActor
+    private func fallbackUpdateAssistantContent(
+        conversationId: UUID,
+        messageId: UUID? = nil,
+        content: String
+    ) {
+        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        let targetIndex: Int? = {
+            if let messageId {
+                return conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageId })
+            }
+            return fallbackAssistantMutationIndex(in: conversations[conversationIndex])
+        }()
+        guard let targetIndex else { return }
+        conversations[conversationIndex].messages[targetIndex].content = content
+        conversations[conversationIndex].messages[targetIndex].primaryTextSnapshot = content
+    }
+
+    @MainActor
+    private func fallbackSetAssistantStreaming(
+        conversationId: UUID,
+        streaming: Bool
+    ) {
+        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+              let targetIndex = fallbackAssistantMutationIndex(in: conversations[conversationIndex]) else { return }
+        conversations[conversationIndex].messages[targetIndex].isStreaming = streaming
+    }
+
+    @MainActor
+    private func fallbackInsertMessage(
+        _ message: ChatMessage,
+        before messageId: UUID,
+        in conversationId: UUID
+    ) {
+        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        if conversations[conversationIndex].messages.contains(where: { $0.id == message.id }) {
+            return
+        }
+        let anchorIndex = conversations[conversationIndex].messages.firstIndex { $0.id == messageId }
+        if let anchorIndex {
+            conversations[conversationIndex].messages.insert(message, at: anchorIndex)
+        } else {
+            conversations[conversationIndex].messages.append(message)
+        }
+    }
+
     private static func fallbackTaskRuntimeState(
         from request: MainChatTaskRuntimeRequestBridge
     ) -> MainChatTaskRuntimeStateBridge? {
@@ -173,14 +238,18 @@ extension ChatStore {
     @MainActor
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
         guard let conversationId else { return }
-        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
-           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-           || !applyRustStoreAction("set_streaming_state") { request in
+        let shouldUseLocalFallback =
+            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+            || !applyRustStoreAction("set_streaming_state") { request in
                request.conversationId = conversationId.uuidString.lowercased()
                request.boolValue = streaming
-           },
-           let targetIndex = fallbackAssistantMutationIndex(in: conversations[conversationIndex]) {
-            conversations[conversationIndex].messages[targetIndex].isStreaming = streaming
+           }
+        if shouldUseLocalFallback
+            || !(conversation(for: conversationId)?.messages.last(where: {
+                $0.role == .assistant && $0.isStreaming == streaming
+            }) != nil)
+        {
+            fallbackSetAssistantStreaming(conversationId: conversationId, streaming: streaming)
         }
         if !streaming {
             saveConversationsImmediately()
@@ -192,20 +261,16 @@ extension ChatStore {
     @MainActor
     func addMessage(_ message: ChatMessage, to conversationId: UUID?) {
         guard let conversationId else { return }
-        if let index = conversations.firstIndex(where: { $0.id == conversationId }),
-           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-           || !applyRustStoreAction("append_message") { request in
+        let shouldUseLocalFallback =
+            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+            || !applyRustStoreAction("append_message") { request in
                request.conversationId = conversationId.uuidString.lowercased()
                request.message = RustMainChatStoreAdapter.messageSnapshot(message)
-           } {
-            conversations[index].messages.append(message)
-            let trimmedTitle = conversations[index].title.trimmingCharacters(in: .whitespacesAndNewlines)
-            let fallbackTitle = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            if message.role == .user,
-               !fallbackTitle.isEmpty,
-               (trimmedTitle.isEmpty || trimmedTitle == "New conversation") {
-                conversations[index].title = fallbackTitle
-            }
+           }
+        if shouldUseLocalFallback
+            || !(conversation(for: conversationId)?.messages.contains(where: { $0.id == message.id }) == true)
+        {
+            fallbackAppendMessage(message, in: conversationId)
         }
         saveConversations()
     }
@@ -214,14 +279,16 @@ extension ChatStore {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
-           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-           || !applyRustStoreAction("sync_assistant_content") { request in
+        let shouldUseLocalFallback =
+            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+            || !applyRustStoreAction("sync_assistant_content") { request in
                request.conversationId = conversationId.uuidString.lowercased()
                request.text = resolvedContent
-           },
-           let targetIndex = fallbackAssistantMutationIndex(in: conversations[conversationIndex]) {
-            conversations[conversationIndex].messages[targetIndex].content = resolvedContent
+           }
+        let didApplyObservedMutation =
+            conversation(for: conversationId)?.messages.last(where: { $0.role == .assistant })?.content == resolvedContent
+        if shouldUseLocalFallback || !didApplyObservedMutation {
+            fallbackUpdateAssistantContent(conversationId: conversationId, content: resolvedContent)
         }
         persistAssistantMutation(immediately: persistImmediately)
     }
@@ -235,15 +302,21 @@ extension ChatStore {
     ) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
-           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-           || !applyRustStoreAction("sync_assistant_content") { request in
+        let shouldUseLocalFallback =
+            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+            || !applyRustStoreAction("sync_assistant_content") { request in
                request.conversationId = conversationId.uuidString.lowercased()
                request.messageId = messageId.uuidString.lowercased()
                request.text = resolvedContent
-           },
-           let targetIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageId }) {
-            conversations[conversationIndex].messages[targetIndex].content = resolvedContent
+           }
+        let didApplyObservedMutation =
+            conversation(for: conversationId)?.messages.first(where: { $0.id == messageId })?.content == resolvedContent
+        if shouldUseLocalFallback || !didApplyObservedMutation {
+            fallbackUpdateAssistantContent(
+                conversationId: conversationId,
+                messageId: messageId,
+                content: resolvedContent
+            )
         }
         persistAssistantMutation(immediately: persistImmediately)
     }
@@ -251,19 +324,17 @@ extension ChatStore {
     @MainActor
     func insertMessage(_ message: ChatMessage, before messageId: UUID, in conversationId: UUID?) {
         guard let conversationId else { return }
-        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
-           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-           || !applyRustStoreAction("insert_message_before") { request in
+        let shouldUseLocalFallback =
+            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+            || !applyRustStoreAction("insert_message_before") { request in
                request.conversationId = conversationId.uuidString.lowercased()
                request.messageId = messageId.uuidString.lowercased()
                request.message = RustMainChatStoreAdapter.messageSnapshot(message)
-           } {
-            let anchorIndex = conversations[conversationIndex].messages.firstIndex { $0.id == messageId }
-            if let anchorIndex {
-                conversations[conversationIndex].messages.insert(message, at: anchorIndex)
-            } else {
-                conversations[conversationIndex].messages.append(message)
-            }
+           }
+        if shouldUseLocalFallback
+            || !(conversation(for: conversationId)?.messages.contains(where: { $0.id == message.id }) == true)
+        {
+            fallbackInsertMessage(message, before: messageId, in: conversationId)
         }
         saveConversations()
     }
