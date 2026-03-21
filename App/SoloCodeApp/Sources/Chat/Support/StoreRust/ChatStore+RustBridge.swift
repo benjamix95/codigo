@@ -189,9 +189,14 @@ extension ChatStore {
     @MainActor
     func addMessage(_ message: ChatMessage, to conversationId: UUID?) {
         guard let conversationId else { return }
-        _ = applyRustStoreAction("append_message") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
-            request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
+           let index = conversations.firstIndex(where: { $0.id == conversationId }) {
+            conversations[index].messages.append(message)
+        } else {
+            _ = applyRustStoreAction("append_message") { request in
+                request.conversationId = conversationId.uuidString.lowercased()
+                request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+            }
         }
         saveConversations()
     }

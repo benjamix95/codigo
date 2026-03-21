@@ -1,0 +1,37 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: in ambiente XCTest, alcune mutazioni del `ChatStore` usate da checkpoint/store projection (`addMessage`, `createCheckpoint`, `rewindConversationState`, `persistPlanBoard`) continuavano a dipendere dal bridge Rust oppure non avevano fallback locale completo.
+- Sintomo: `ChatStoreCheckpointTests` fallivano con `messageCount` errati, checkpoint mancanti e rewind non applicato.
+- Impatto: regressioni nei test app-side del dominio chat store e rischio di nascondere errori nello store quando il bootstrap Rust e' deferito.
+- Gravità: media
+- Steps to reproduce:
+  1. Eseguire `SoloCodeAppTests/ChatStoreCheckpointTests`.
+  2. Osservare checkpoint con `messageCount == 0`, rewind fallito e lookup checkpoint nullo.
+- Risultato attuale: lo stato locale non rifletteva le mutazioni checkpoint in test mode.
+- Risultato atteso: in XCTest, i fallback locali devono rispettare la semantica del reducer Rust dello store.
+- Causa probabile:
+  - `addMessage` continuava a dipendere dal bridge Rust;
+  - i fallback checkpoint non replicavano completamente la semantica di `main_chat/store/checkpoints.rs`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatStore/Checkpoints/ChatStoreCheckpoints.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatStore/Plans/ChatStorePlans+SharedStateSync.swift`
+  - `Tests/SoloCodeAppTests/ChatStoreCheckpointTests.swift`
+- Non-scope:
+  - UI chat
+  - provider runtime
+  - main chat Rust store reducer
+- Moduli confinanti da verificare:
+  - `ChatStoreCheckpointTests`
+  - `ChatStoreTaskOwnershipTests`
+  - `PipelineIntegrationServiceTests`
+- Test da aggiungere o aggiornare:
+  - usare le regressioni esistenti di `ChatStoreCheckpointTests`
+- Strategia di fix minimo:
+  - introdurre fallback locali solo in ambiente test;
+  - allineare il comportamento a `main_chat/store/checkpoints.rs`
+- Verifica post-fix:
+  - `SoloCodeAppTests/ChatStoreCheckpointTests`
+  - `SoloCodeAppTests/ChatStoreTaskOwnershipTests`
+  - `SoloCodeAppTests/PipelineIntegrationServiceTests/testHandleTaskCompletedMarksCanonicalTodoDoneForReviewerAndTestWriter`
+- Commit previsto: `refactor(chat): relocate chat store infrastructure`

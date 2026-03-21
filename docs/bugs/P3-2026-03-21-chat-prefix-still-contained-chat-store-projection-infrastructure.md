@@ -1,0 +1,43 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `StoreProjection` e il support helper `ChatPanelSupport+Core`, entrambi blocchi infrastrutturali separabili dalla UI diretta della chat.
+- Sintomo: il debito residuo `Chat` includeva ancora i blocchi `ChatStore*` tecnici, pur essendo ormai separabili in un servizio dedicato.
+- Impatto: perimetro `Chat` sovrastimato e meno chiaro per manutenzione/stabilità.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare il cluster `Support/StoreProjection` tra i residui.
+- Risultato attuale:
+  - `StoreProjection` vive sotto `Chat/Support`
+  - `ChatPanelSupport+Core` vive sotto `Chat/Support`
+- Risultato atteso:
+  - `StoreProjection` vive in `Services/ChatStore`
+  - `ChatPanelSupport+Core` vive in `Services/ChatThread`
+- Causa probabile: collocazione storica nel modulo chat prima dell’estrazione dello store come servizio dedicato.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreProjection/**`
+  - `App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+Core.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatStore/**`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ChatPanelView`
+  - `StoreRust`
+  - `PipelineRuntime`
+  - runtime provider selection
+- Moduli confinanti da verificare:
+  - `ChatStoreTaskOwnershipTests`
+  - `ChatStorePlansMutationTests`
+  - `ChatStoreCheckpointTests`
+  - `ChatStoreMigrationTests`
+  - `RustMainChatUIBoundaryTests`
+  - `RustMainChatAutoTodoBoundaryTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sui consumer diretti
+- Strategia di fix minimo:
+  - spostare il cluster `StoreProjection` fuori da `Chat`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sulle suite dirette dello store e dei boundary Rust
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate chat store infrastructure`
