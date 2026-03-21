@@ -1,0 +1,34 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Providers` conteneva ancora il cluster `ProviderToolEventMapper`, che è infrastruttura di normalizzazione/mapping dei tool events condivisa tra backend provider, runtime MCP e UI event pipeline.
+- Sintomo: il conteggio `Providers` includeva file che non rappresentano ownership della logica provider-specifica della main chat.
+- Impatto: debito `Providers` sovrastimato e separazione architetturale meno chiara.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `Engine/CoderEngine/Sources/Providers`.
+  2. Verificare l’intero cluster `ProviderToolEventMapper` tra i residui.
+- Risultato attuale: il mapping infrastructure vive dentro `Providers/Core`.
+- Risultato atteso: il cluster vive in `ProviderBackends/Shared/ProviderToolEventMapper`.
+- Causa probabile: collocazione storica precedente alla separazione tra implementazioni provider e infrastruttura comune di event mapping.
+- Scope consentito:
+  - `Engine/CoderEngine/Sources/Providers/Core/ProviderToolEventMapper/**`
+  - `Engine/CoderEngine/Sources/ProviderBackends/Shared/ProviderToolEventMapper/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ToolEnabledLLMProvider`
+  - `LLMProvider`
+  - `ProviderRegistry`
+  - backend provider implementations
+- Moduli confinanti da verificare:
+  - `ProviderToolEventMapperTests`
+  - `UnifiedToolRuntimeMCPConsistencyTests`
+  - `ToolEnabledLLMProviderPolicyAckTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sui consumer diretti
+- Strategia di fix minimo:
+  - spostare il cluster `ProviderToolEventMapper` fuori da `Providers`
+  - aggiornare solo i path del progetto Xcode
+- Verifica post-fix:
+  - `xcodebuild test` su `ProviderToolEventMapperTests`, `UnifiedToolRuntimeMCPConsistencyTests`, `ToolEnabledLLMProviderPolicyAckTests`, consumer app-side
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(providers): relocate tool event mapping infrastructure`
