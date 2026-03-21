@@ -1,0 +1,33 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Accounts` conteneva ancora `CLIAccountAuthDetector*`, che e' supporto di detection/identity e non ownership del dominio account runtime della chat.
+- Sintomo: il conteggio `Accounts` includeva file che classificano installazione/login/identity dei CLI provider ma non governano stato core o routing.
+- Impatto: perimetro del dominio `Accounts` meno pulito e avanzamento di migrazione sottostimato.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Accounts`.
+  2. Osservare `CLIAccountAuthDetector*` tra i legacy non-UI.
+- Risultato attuale: supporto auth detector contato come debito di dominio `Accounts`.
+- Risultato atteso: `CLIAccountAuthDetector*` vive in `Accounts/Support/Authentication`.
+- Causa probabile: collocazione storica in `Accounts/Authentication` prima della separazione netta tra supporto e dominio.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Accounts/Authentication/**`
+  - `App/SoloCodeApp/Sources/Accounts/Support/Authentication/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `CLIAccountsStore*`
+  - `CLIAccountLoginCoordinator*`
+  - `AccountUsageDashboardStore`
+- Moduli confinanti da verificare:
+  - `CLIAccountAuthDetectorTests`
+  - `CLIMultiAccountProviderAdapter`
+  - `CLIAccountLoginCoordinator+Session`
+- Test da aggiungere o aggiornare:
+  - smoke suite esistente su `CLIAccountAuthDetector`
+- Strategia di fix minimo:
+  - spostare `CLIAccountAuthDetector*` sotto `Accounts/Support/Authentication`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sui test del detector
+  - `validate_rust_cutover_boundary.sh` sul diff
+- Commit previsto: `refactor(accounts): relocate cli auth detector support`
