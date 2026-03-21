@@ -15,6 +15,11 @@ enum ProviderSupport {
 
     private static let allAgentProviderIds: [String] = agentProviderIds + agentApiProviderIds
 
+    static func isRegisteredProvider(id: String?, registry: ProviderRegistry) -> Bool {
+        guard let id else { return false }
+        return registry.provider(for: id) != nil
+    }
+
     static func isAgentProvider(id: String?) -> Bool {
         guard let id else { return false }
         return agentProviderIds.contains(id)
@@ -33,8 +38,7 @@ enum ProviderSupport {
     /// Returns true when provider id identifies a registered, known, and authenticated agent/API provider.
     static func isHealthyAgentProvider(id: String?, registry: ProviderRegistry) -> Bool {
         guard let id, isAgentCompatibleProvider(id: id) else { return false }
-        guard let provider = registry.provider(for: id) else { return false }
-        return provider.isAuthenticated()
+        return isRegisteredProvider(id: id, registry: registry)
     }
 
     /// Deterministic first-available provider, honoring `preferred` if healthy.
@@ -113,16 +117,16 @@ enum ProviderSupport {
     static func preferredIDEProvider(in registry: ProviderRegistry) -> String {
         if let selected = registry.selectedProviderId,
            isIDEProvider(id: selected),
-           registry.provider(for: selected)?.isAuthenticated() == true {
+           isRegisteredProvider(id: selected, registry: registry) {
             return selected
         }
 
         for id in preferredIDEProviderIds
-        where registry.provider(for: id)?.isAuthenticated() == true {
+        where isRegisteredProvider(id: id, registry: registry) {
             return id
         }
 
-        if let anyAPI = registry.providers.first(where: { isIDEProvider(id: $0.id) && $0.isAuthenticated() }) {
+        if let anyAPI = registry.providers.first(where: { isIDEProvider(id: $0.id) }) {
             return anyAPI.id
         }
 

@@ -59,8 +59,8 @@ extension ChatPanelView {
         let codexProvider = providerRegistry.provider(for: "codex-cli")
         let claudeProvider = providerRegistry.provider(for: "claude-cli")
         let geminiProvider = providerRegistry.provider(for: "gemini-cli")
-        let anyRealProvider = providerRegistry.providers.first {
-            ProviderSupport.isUserSelectableRealProvider(id: $0.id) && $0.isAuthenticated()
+        let hasAnyRegisteredUserSelectableProvider = providerRegistry.providers.contains {
+            ProviderSupport.isUserSelectableRealProvider(id: $0.id)
         }
         Task.detached {
             let ready = provider?.isAuthenticated() ?? false
@@ -68,7 +68,7 @@ extension ChatPanelView {
                 (codexProvider?.isAuthenticated() ?? false)
                 || (claudeProvider?.isAuthenticated() ?? false)
                 || (geminiProvider?.isAuthenticated() ?? false)
-                || (anyRealProvider != nil)
+                || hasAnyRegisteredUserSelectableProvider
             await MainActor.run {
                 guard generation == checkProviderAuthGeneration else { return }
                 isProviderReady = ready

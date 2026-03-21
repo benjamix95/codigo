@@ -66,6 +66,14 @@ extension ContentView {
             workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
         }
         .fileImporter(isPresented: $isSelectingProjectFolders, allowedContentTypes: [.folder], allowsMultipleSelection: true, onCompletion: handleProjectFolderSelection)
+        .fileImporter(isPresented: $isSelectingAddFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleAddFolderToContext)
+        .onReceive(NotificationCenter.default.publisher(for: .sidebarAddFolderToContext)) { notif in
+            if let contextId = notif.userInfo?["contextId"] as? UUID {
+                pendingAddFolderContextId = contextId
+                isSelectingAddFolder = true
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(providerRegistry)
@@ -221,6 +229,8 @@ extension ContentView {
         .environmentObject(workspaceStore)
         .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
+        .environmentObject(toolTraceStore)
+        .environmentObject(pipelineIntegrationService)
         .ignoresSafeArea(.container, edges: [.top, .bottom])
     }
 

@@ -13,8 +13,10 @@ struct ContentView: View {
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
     @EnvironmentObject var todoStore: TodoStore
     @EnvironmentObject var taskActivityStore: TaskActivityStore
+    @EnvironmentObject var toolTraceStore: ToolTraceStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
+    @EnvironmentObject var pipelineIntegrationService: PipelineIntegrationService
     @EnvironmentObject var appUpdateCenter: AppUpdateCenter
     @StateObject var editorSplitStore = EditorSplitStore()
     @StateObject var editorPanelsStore = EditorPanelsStore()
@@ -40,6 +42,8 @@ struct ContentView: View {
     @State var showAppUpdateAlert = false
     @State var pendingAppUpdate: AppUpdateCenter.AppUpdateManifest?
     @State var isSelectingProjectFolders = false
+    @State var isSelectingAddFolder = false
+    @State var pendingAddFolderContextId: UUID?
     @State var activeActivityItem: ActivityBarItem? = .explorer
     @State var showChatPanel = true
     @State var coderMode: CoderMode = .agent
