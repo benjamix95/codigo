@@ -3,9 +3,14 @@ import Foundation
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var observers: [NSObjectProtocol] = []
+    private static let savedStateFolderNames = [
+        "com.solocode.app.savedState",
+        "Solo Code.savedState",
+    ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
+        disableWindowRestorationLoop()
 
         installWindowStyleObservers()
 
@@ -22,6 +27,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers.removeAll()
+    }
+
+    func applicationShouldSaveApplicationState(_ app: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldRestoreApplicationState(_ app: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        false
     }
 
     private func installWindowStyleObservers() {
@@ -85,6 +102,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.isHidden = true
             button.alphaValue = 0
             button.isEnabled = false
+        }
+    }
+
+    private func disableWindowRestorationLoop() {
+        UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+        let savedStateRoot = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Saved Application State", isDirectory: true)
+        for folderName in Self.savedStateFolderNames {
+            let folderURL = savedStateRoot.appendingPathComponent(folderName, isDirectory: true)
+            try? FileManager.default.removeItem(at: folderURL)
         }
     }
 }
