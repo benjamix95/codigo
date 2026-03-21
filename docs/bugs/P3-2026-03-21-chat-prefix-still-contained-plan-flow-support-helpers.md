@@ -1,0 +1,35 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora i file `ChatPanelSupport+PlanFlow*`, che sono helper di flow/prompt/questionnaire del plan mode e non UI diretta della chat.
+- Sintomo: il debito residuo `Chat` includeva ancora utility pure e funzioni di supporto del plan flow sotto `Chat/Support`.
+- Impatto: perimetro `Chat` meno chiaro e debito strutturale sovrastimato.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare `ChatPanelSupport+PlanFlow.swift`, `ChatPanelSupport+PlanFlowHelpers.swift`, `ChatPanelSupport+PlanQuestionnaire.swift` tra i residui.
+- Risultato attuale: questi helper vivevano ancora sotto `Chat/Support`.
+- Risultato atteso: vivono in `Services/ChatPlan`.
+- Causa probabile: collocazione storica accanto al `ChatPanelView` prima dell’estrazione del plan flow come supporto dedicato.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+PlanFlow.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+PlanFlowHelpers.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+PlanQuestionnaire.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatPlan/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ChatPanelView`
+  - `Extensions/Plan`
+  - runtime provider/store bridge
+- Moduli confinanti da verificare:
+  - `PlanShortcutAndCommandTests`
+  - `PlanFlowPhaseTests`
+  - `ChatPanelBuildBehaviorTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sui consumer diretti
+- Strategia di fix minimo:
+  - spostare i tre helper fuori da `Chat`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sulle suite di plan-flow dirette
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate plan flow support helpers`
