@@ -236,27 +236,33 @@ extension ChatPanelView {
         // Direct fallback: when the pipeline's textDelta path fails to
         // populate the assistant message content, use the raw
         // assistant_update output to write content directly to the store.
-        if t == "assistant_update", let output = p["output"], !output.isEmpty, let convId {
+        if t == "assistant_update",
+           let output = p["output"],
+           !output.isEmpty,
+           let convId,
+           let targetMessageId = currentAssistantPipelineTarget(for: convId)?.messageId
+        {
             let cleaned = ChatStore.stripCoderideMarkers(output, aggressive: true)
             print(
                 "[ChatDebug] assistant_update output=\(output.count) cleaned=\(cleaned.count) cleanedPreview='\(String(cleaned.prefix(120)))'"
             )
             if !cleaned.isEmpty {
                 let currentMsg = chatStore.conversation(for: convId)?
-                    .messages.last(where: { $0.role == .assistant })
+                    .messages.first(where: { $0.id == targetMessageId })
                 let current = currentMsg?.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let hasBlocks = currentMsg?.blocks?.isEmpty == false
                 print(
                     "[ChatDebug] currentContent=\(current.count) hasBlocks=\(hasBlocks ? 1 : 0) msgId=\(currentMsg?.id.uuidString ?? "nil")"
                 )
                 if current.isEmpty {
-                    chatStore.updateLastAssistantMessage(
+                    chatStore.updateAssistantMessage(
+                        messageId: targetMessageId,
                         content: cleaned,
                         in: convId,
                         persistImmediately: false
                     )
                     let after = chatStore.conversation(for: convId)?
-                        .messages.last(where: { $0.role == .assistant })?
+                        .messages.first(where: { $0.id == targetMessageId })?
                         .content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                     print("[ChatDebug] WROTE content=\(cleaned.count) afterVerify=\(after.count)")
                 }

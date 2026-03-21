@@ -43,7 +43,52 @@ extension ChatPanelView {
             timestamp: Date(),
             payload: requestPayload
         )
-        if RustMainChatStoreAdapter.applyUIIntent(request, to: chatStore) != nil {
+        let applied = RustMainChatStoreAdapter.applyUIIntent(request, to: chatStore) != nil
+        if applied {
+            streamContentVersion &+= 1
+        }
+        // Fallback: if the Rust UI intent didn't apply, or applied but the
+        // message content is still empty, update content directly so that
+        // message text always appears inline in the chat.
+        if intent == "stream_replace_text",
+           let text,
+           !text.isEmpty,
+           let targetConversationId,
+           let targetMessageId = currentAssistantPipelineTarget(for: targetConversationId)?.messageId
+        {
+            let currentContent = chatStore.conversation(for: targetConversationId)?
+                .messages.first(where: { $0.id == targetMessageId })?
+                .content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !applied || currentContent.isEmpty {
+                chatStore.updateAssistantMessage(
+                    messageId: targetMessageId,
+                    content: text,
+                    in: targetConversationId,
+                    persistImmediately: false
+                )
+                if !applied { streamContentVersion &+= 1 }
+            }
+        }
+        // Safety net: when Rust fails mid-stream, fall through to Swift
+        // pipeline for raw event rendering so artifacts still appear.
+        if !applied,
+           intent == "stream_apply_raw_event",
+           let targetConversationId
+        {
+            let eventKind = payload["event_kind"] ?? ""
+            if let target = currentAssistantPipelineTarget(for: targetConversationId) {
+                let pipelineEvents = RawArtifactEventAdapter.events(
+                    rawType: eventKind,
+                    payload: payload,
+                    conversationId: targetConversationId,
+                    assistantMessageId: target.messageId,
+                    turnId: target.turnId,
+                    providerId: providerId ?? ""
+                )
+                if !pipelineEvents.isEmpty {
+                    applyChatPipelineEvents(pipelineEvents)
+                }
+            }
             streamContentVersion &+= 1
         }
     }

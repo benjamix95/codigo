@@ -86,6 +86,41 @@ final class RustMainChatUIBoundaryTests: XCTestCase {
     }
 
     @MainActor
+    func testApplyUIIntentDoesNotOverwritePreviousAssistantWhenRuntimeTargetIsMissing() throws {
+        guard ReviewCoreBridge.isEnabled else {
+            throw XCTSkip("Bridge Rust non disponibile nei test app-side")
+        }
+        let suiteName = "RustMainChatUIBoundaryTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let store = ChatStore(userDefaults: defaults)
+        let state = makeStaleRuntimeTargetUIState()
+        RustMainChatStoreAdapter.apply(snapshot: state.storeSnapshot, to: store)
+
+        _ = try XCTUnwrap(
+            RustMainChatStoreAdapter.applyUIIntent(
+                MainChatUIIntentRequestBridge(
+                    schemaVersion: 1,
+                    intent: "stream_replace_text",
+                    state: state,
+                    conversationId: state.selectedConversationId,
+                    turnId: nil,
+                    artifactId: nil,
+                    text: "ignored",
+                    timestamp: nil,
+                    payload: [:]
+                ),
+                to: store
+            )
+        )
+
+        let conversation = try XCTUnwrap(store.conversations.first)
+        XCTAssertEqual(conversation.messages[0].primaryTextSnapshot, "Older answer")
+        XCTAssertEqual(conversation.messages[1].primaryTextSnapshot, "")
+        XCTAssertEqual(conversation.messages[1].content, "")
+    }
+
+    @MainActor
     func testApplyUIIntentFinishSuccessShowsFinalActions() throws {
         guard ReviewCoreBridge.isEnabled else {
             throw XCTSkip("Bridge Rust non disponibile nei test app-side")
@@ -220,6 +255,104 @@ final class RustMainChatUIBoundaryTests: XCTestCase {
                 ]
             ),
             selectedConversationId: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!.uuidString.lowercased(),
+            draftText: "continue",
+            planPanelVisible: false,
+            followLive: true,
+            collapsedArtifactIdsByTurn: [:],
+            autoTodoRuntimeStateByMessage: [:]
+        )
+    }
+
+    private func makeStaleRuntimeTargetUIState() -> MainChatUIStateBridge {
+        MainChatUIStateBridge(
+            storeSnapshot: MainChatStoreSnapshotBridge(
+                conversations: [
+                    MainChatStoreConversationSnapshotBridge(
+                        id: UUID(uuidString: "00000000-0000-0000-0000-000000000011")!.uuidString.lowercased(),
+                        threadRootConversationId: UUID(uuidString: "00000000-0000-0000-0000-000000000011")!.uuidString.lowercased(),
+                        title: "Main",
+                        messages: [
+                            MainChatStoreMessageSnapshotBridge(
+                                id: UUID(uuidString: "00000000-0000-0000-0000-000000000012")!.uuidString.lowercased(),
+                                role: "assistant",
+                                content: "Older answer",
+                                primaryTextSnapshot: "Older answer",
+                                blocks: nil,
+                                turnMetadata: nil,
+                                isStreaming: false,
+                                imagePaths: nil,
+                                attachments: nil,
+                                planAttachment: nil,
+                                reasoningText: nil,
+                                subagentCards: nil
+                            ),
+                            MainChatStoreMessageSnapshotBridge(
+                                id: UUID(uuidString: "00000000-0000-0000-0000-000000000013")!.uuidString.lowercased(),
+                                role: "assistant",
+                                content: "",
+                                primaryTextSnapshot: "",
+                                blocks: nil,
+                                turnMetadata: nil,
+                                isStreaming: true,
+                                imagePaths: nil,
+                                attachments: nil,
+                                planAttachment: nil,
+                                reasoningText: nil,
+                                subagentCards: nil
+                            ),
+                        ],
+                        createdAt: nil,
+                        contextId: nil,
+                        contextFolderPath: nil,
+                        mode: "Agent",
+                        preferredProviderId: "codex-cli",
+                        contextMemorySummaryMarkdown: nil,
+                        contextMemoryGeneratedAt: nil,
+                        contextMemorySourceMessageCount: nil,
+                        isArchived: false,
+                        isPinned: false,
+                        isFavorite: false,
+                        lastInputTokens: nil,
+                        workspaceId: nil,
+                        adHocFolderPaths: [],
+                        checkpoints: []
+                    )
+                ],
+                planBoards: [:]
+            ),
+            runtimeSnapshot: MainChatRuntimeSnapshotBridge(
+                turnState: MainChatBridgeState(
+                    conversationId: UUID(uuidString: "00000000-0000-0000-0000-000000000011")!,
+                    assistantMessageId: UUID(uuidString: "00000000-0000-0000-0000-000000000099")!,
+                    turnId: "turn-stale",
+                    providerId: "codex-cli",
+                    sequence: 1,
+                    isStreaming: true,
+                    startedAt: Date(timeIntervalSinceReferenceDate: 10),
+                    completedAt: nil,
+                    updatedAt: Date(timeIntervalSinceReferenceDate: 10),
+                    status: "streaming",
+                    orderedTextStreamIds: ["main"],
+                    textByStreamId: ["main": "New answer from stale runtime"],
+                    reasoningByGroupId: [:],
+                    artifacts: []
+                ),
+                mode: .directStream,
+                directStream: nil,
+                plan: nil,
+                output: MainChatRuntimeOutputBridge(
+                    chatContentOverride: nil,
+                    shouldHidePlanMarkdown: false,
+                    shouldOpenPlanPanel: false,
+                    shouldFinalizeStream: false,
+                    shouldRetryPoll: false,
+                    followUpPrompt: nil,
+                    generatedPrompt: nil,
+                    terminalError: nil
+                )
+            ),
+            taskRuntimeState: MainChatTaskRuntimeStateBridge(taskStates: []),
+            selectedConversationId: UUID(uuidString: "00000000-0000-0000-0000-000000000011")!.uuidString.lowercased(),
             draftText: "continue",
             planPanelVisible: false,
             followLive: true,

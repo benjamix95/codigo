@@ -19,8 +19,7 @@ pub fn sync_store_from_runtime(state: &mut MainChatUiState) {
     let target_index = conversation
         .messages
         .iter()
-        .position(|message| message.id == turn_state.assistant_message_id)
-        .or_else(|| conversation.messages.iter().rposition(|message| message.role == "assistant"));
+        .position(|message| message.id == turn_state.assistant_message_id);
     let Some(target_index) = target_index else { return };
     let message = &mut conversation.messages[target_index];
     message.content = resolved_message_content(turn_state);

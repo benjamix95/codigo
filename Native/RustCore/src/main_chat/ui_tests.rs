@@ -90,6 +90,26 @@ fn ui_intent_stream_replace_text_syncs_runtime_text_into_store_snapshot() {
 }
 
 #[test]
+fn ui_intent_stream_replace_text_does_not_overwrite_previous_assistant_when_runtime_target_is_stale() {
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "stream_replace_text".to_string(),
+        state: stale_runtime_target_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: Some("ignored because runtime target is stale".to_string()),
+        timestamp: Some(42.0),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    let conversation = &state.store_snapshot.conversations[0];
+    assert_eq!(conversation.messages[0].primary_text_snapshot.as_deref(), Some("Older answer"));
+    assert_eq!(conversation.messages[1].primary_text_snapshot.as_deref(), Some(""));
+    assert_eq!(conversation.messages[1].content, "");
+}
+
+#[test]
 fn ui_intent_stream_finish_marks_store_message_not_streaming() {
     let response = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,
@@ -411,6 +431,88 @@ fn base_ui_state() -> MainChatUiState {
         }),
         selected_conversation_id: Some("conv-1".to_string()),
         draft_text: "continue".to_string(),
+        plan_panel_visible: false,
+        follow_live: true,
+        collapsed_artifact_ids_by_turn: Default::default(),
+        auto_todo_runtime_state_by_message: Default::default(),
+    }
+}
+
+fn stale_runtime_target_ui_state() -> MainChatUiState {
+    MainChatUiState {
+        store_snapshot: MainChatStoreSnapshot {
+            conversations: vec![MainChatStoreConversationSnapshot {
+                id: "conv-1".to_string(),
+                thread_root_conversation_id: "conv-1".to_string(),
+                title: "Main".to_string(),
+                messages: vec![
+                    MainChatStoreMessageSnapshot {
+                        id: "msg-old".to_string(),
+                        role: "assistant".to_string(),
+                        content: "Older answer".to_string(),
+                        primary_text_snapshot: Some("Older answer".to_string()),
+                        blocks: None,
+                        turn_metadata: None,
+                        is_streaming: false,
+                        image_paths: None,
+                        attachments: None,
+                        plan_attachment: None,
+                        reasoning_text: None,
+                        subagent_cards: None,
+                    },
+                    MainChatStoreMessageSnapshot {
+                        id: "msg-current".to_string(),
+                        role: "assistant".to_string(),
+                        content: String::new(),
+                        primary_text_snapshot: Some(String::new()),
+                        blocks: None,
+                        turn_metadata: None,
+                        is_streaming: true,
+                        image_paths: None,
+                        attachments: None,
+                        plan_attachment: None,
+                        reasoning_text: None,
+                        subagent_cards: None,
+                    },
+                ],
+                created_at: None,
+                context_id: None,
+                context_folder_path: None,
+                mode: Some("Agent".to_string()),
+                preferred_provider_id: Some("codex".to_string()),
+                context_memory_summary_markdown: None,
+                context_memory_generated_at: None,
+                context_memory_source_message_count: None,
+                is_archived: false,
+                is_pinned: false,
+                is_favorite: false,
+                last_input_tokens: None,
+                workspace_id: None,
+                ad_hoc_folder_paths: vec![],
+                checkpoints: vec![],
+            }],
+            plan_boards: Default::default(),
+        },
+        runtime_snapshot: Some(MainChatRuntimeSnapshot {
+            turn_state: MainChatTurnState {
+                conversation_id: "conv-1".to_string(),
+                assistant_message_id: "msg-missing".to_string(),
+                turn_id: "turn-2".to_string(),
+                status: "streaming".to_string(),
+                is_streaming: true,
+                ordered_text_stream_ids: vec!["main".to_string()],
+                text_by_stream_id: [("main".to_string(), "New answer".to_string())].into_iter().collect(),
+                artifacts: vec![],
+                ..Default::default()
+            },
+            mode: None,
+            direct_stream: None,
+            plan: None,
+            output: None,
+        }),
+        task_runtime_state: None,
+        selected_conversation_id: Some("conv-1".to_string()),
+        draft_text: String::new(),
         plan_panel_visible: false,
         follow_live: true,
         collapsed_artifact_ids_by_turn: Default::default(),

@@ -12,8 +12,10 @@ func resolvePipelineBindingTarget(
 ) -> (messageId: UUID, turnId: String)? {
     guard let conversation else { return nil }
 
-    if let activeTurn,
-       let boundMessage = conversation.messages.first(where: { $0.id == activeTurn.assistantMessageId }) {
+    if let activeTurn {
+        guard let boundMessage = conversation.messages.first(where: { $0.id == activeTurn.assistantMessageId }) else {
+            return nil
+        }
         let turnId = boundMessage.turnMetadata?.turnId ?? boundMessage.id.uuidString
         return (boundMessage.id, turnId)
     }

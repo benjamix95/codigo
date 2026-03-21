@@ -102,4 +102,22 @@ final class ChatPanelTraceBindingTests: XCTestCase {
 
         XCTAssertEqual(target?.messageId, boundMessageId)
     }
+
+    func testResolvePipelineBindingTargetDoesNotFallbackWhenActiveTurnMessageIsMissing() {
+        let streamingMessageId = UUID()
+        let conversation = Conversation(
+            id: UUID(),
+            title: "Trace",
+            messages: [
+                ChatMessage(id: streamingMessageId, role: .assistant, content: "streaming", isStreaming: true)
+            ]
+        )
+        let activeTurn = ToolTraceTurnContext(
+            conversationId: conversation.id,
+            assistantMessageId: UUID(),
+            providerId: "codex"
+        )
+
+        XCTAssertNil(resolvePipelineBindingTarget(conversation: conversation, activeTurn: activeTurn))
+    }
 }
