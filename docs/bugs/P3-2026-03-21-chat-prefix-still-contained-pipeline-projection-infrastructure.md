@@ -1,0 +1,38 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `PipelineProjection` e il support state `ChatPanelThreadUIState`, entrambi blocchi infrastrutturali condivisi e separabili dalla UI diretta della chat.
+- Sintomo: il debito residuo `Chat` includeva un blocco tecnico separabile che non rappresenta UI diretta della chat.
+- Impatto: perimetro `Chat` sovrastimato e meno leggibile dal punto di vista architetturale.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare il cluster `Support/PipelineProjection` tra i residui.
+- Risultato attuale: il cluster viveva sotto `Chat/Support` e `ChatPanelThreadUIState` sotto `Chat/Support`.
+- Risultato atteso:
+  - `PipelineProjection` vive in `Services/ChatPipeline/Projection`
+  - `ChatPanelThreadUIState` vive in `Services/ChatThread`
+- Causa probabile: collocazione storica iniziale nel modulo chat prima dell’estrazione del runtime/projection pipeline.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/PipelineProjection/**`
+  - `App/SoloCodeApp/Sources/Chat/Support/ChatPanelThreadUIState.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatPipeline/Projection/**`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `PipelineRuntime`
+  - `StoreProjection`
+  - `ChatPanelView`
+  - bridge Rust store/runtime
+- Moduli confinanti da verificare:
+  - `ChatPipelineReducerTests`
+  - `PipelineIntegrationServiceTests`
+  - `PipelineIntegrationDebugProjectionTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sui consumer diretti
+- Strategia di fix minimo:
+  - spostare il cluster `PipelineProjection` fuori da `Chat`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sulle suite dei consumer diretti
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate pipeline projection infrastructure`
