@@ -3,13 +3,6 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
-func shouldRecordFallbackTurnStartEvent(
-    isTaskActive: Bool,
-    scopedActivityCount: Int
-) -> Bool {
-    isTaskActive && scopedActivityCount == 0
-}
-
 extension ChatPanelView {
     internal func finalChatActionButton(
         icon: String,
@@ -296,6 +289,6 @@ extension ChatPanelView {
     }
 
     internal func visibleSwarmCardsForChat(from cards: [SwarmLiveCardState]) -> [SwarmLiveCardState] {
-        return cards
+        cards
     }
 }

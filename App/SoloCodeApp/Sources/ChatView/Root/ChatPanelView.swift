@@ -1,7 +1,6 @@
 import AppKit
 import CoderEngine
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct ChatPanelView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
@@ -149,13 +148,10 @@ struct ChatPanelView: View {
     @State  var composerTimerAutoHideTask: Task<Void, Never>?
     @State  var composerTaskStartDate: Date?
     @State  var lastTaskEndedByManualStop = false
-
-    // MARK: - Prompt Optimizer State
     @State  var isOptimizingPrompt = false
     @State  var showPromptOptimizerPopup = false
     @State  var optimizedPromptResult = ""
     @State  var promptOptimizerTask: Task<Void, Never>?
-
     @State  var isAnyAgentProviderReady = false
     @State  var checkProviderAuthGeneration = 0
     @State  var userModeOverrideUntilConversationChange = false
@@ -218,86 +214,11 @@ struct ChatPanelView: View {
     @State  var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
     @State  var autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge] = [:]
     @State  var didReceiveExplicitTodoByMessage: Set<UUID> = []
-    /// Minimum interval between streaming content updates.
-    /// Adaptive: starts at ~60fps (0.016s) for fast LLMs, scales to ~30fps if needed.
-     let streamThrottleInterval: TimeInterval = 0.020
-    /// Minimum interval for plan-streaming updates routed to the Plan Panel.
-     let planStreamThrottleInterval: TimeInterval = 0.066
-    /// Coalescing flush interval for task activity feed.
-     let taskActivityFlushInterval: TimeInterval = 0.1
-    /// Backlog threshold used only for lightweight stream diagnostics.
-     let taskBacklogDiagnosticThreshold = 40
-     let checkpointGitStore = ConversationCheckpointGitStore()
-     let cliAccountsStore = CLIAccountsStore.shared
-     let cliAccountRouter = CLIAccountRouter.shared
-
-     static let attachmentPastedNotification = Notification.Name("CoderIDE.AttachmentPasted")
-    static let planBuildShortcutNotification = Notification.Name("CoderIDE.PlanBuildShortcutPressed")
-    static let debugPanelToggleNotification = Notification.Name("CoderIDE.DebugPanelToggle")
-    static let threadDeletionRequestedNotification = Notification.Name("CoderIDE.ThreadDeletionRequested")
-     static let threadSearchAskAINotification = Notification.Name(
-        "CoderIDE.ThreadSearchAskAI")
-     static let markdownExportContentType = UTType(filenameExtension: "md") ?? .plainText
-     let topInteractiveInset: CGFloat = 7
-     let chatColumnMaxWidth: CGFloat = 960
-    /// Stable scroll anchor placed at the very bottom of the messages LazyVStack.
-    /// Scrolling to this instead of individual message IDs avoids LazyVStack
-    /// height-estimation thrashing that causes an infinite scroll-up loop
-    /// when the conversation has more than one exchange.
-     let chatScrollTopAnchorId = "chat-scroll-top-anchor"
-     let chatScrollBottomAnchorId = "chat-scroll-bottom-anchor"
-
-     var activeModeColor: Color { modeColor(for: coderMode) }
-     var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
-     var showPlanRequestIndicator: Bool {
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return planToggleEnabled || hasStrictPlanCommandPrefix(trimmed)
-    }
-     var composerRuntimeStartDate: Date? {
-        guard isLoadingForCurrentConversation else { return nil }
-        return pipelineIntegrationService.snapshot(for: conversationId)?.jobStartTime
-            ?? chatStore.taskStartDate(for: conversationId)
-            ?? composerTaskStartDate
-    }
-     var composerFrozenTimerText: String? { composerFrozenTimerState?.text }
-     var composerFrozenTimerDismissible: Bool { composerFrozenTimerState?.dismissible == true }
-     var shouldShowTaskPanelTodoSection: Bool {
-        let planFlowActive =
-            coderMode == .plan
-            || planToggleEnabled
-            || planFlowPhase == .analyzing
-            || planFlowPhase == .questioning
-            || planFlowPhase == .generating
-            || planFlowPhase == .proposalReady
-            || planFlowPhase == .readyToBuild
-            || planFlowPhase == .building
-        return !planFlowActive
-    }
-     var isPlanPreChoiceState: Bool {
-        if planningState != .idle {
-            return true
-        }
-        switch planFlowPhase {
-        case .analyzing, .questioning, .generating, .proposalReady:
-            return true
-        case .idle, .readyToBuild, .building:
-            return false
-        }
-    }
-     var hasInlinePlanSession: Bool {
-        coderMode == .plan || (coderMode == .agent && planToggleEnabled)
-    }
-     var hasActivePlanContext: Bool {
-        hasActivePlanContext(for: conversationId)
-    }
-    var planPanelConversationId: UUID? { conversationId }
-
-    var body: some View {
-        applyNotificationAndImporterModifiers(
-            to: applyRuntimeLifecycleModifiers(
-                to: applyProviderSelectionModifiers(to: rootLayout)
-            )
-        )
-    }
-
+    let streamThrottleInterval: TimeInterval = 0.020
+    let planStreamThrottleInterval: TimeInterval = 0.066
+    let taskActivityFlushInterval: TimeInterval = 0.1
+    let taskBacklogDiagnosticThreshold = 40
+    let checkpointGitStore = ConversationCheckpointGitStore()
+    let cliAccountsStore = CLIAccountsStore.shared
+    let cliAccountRouter = CLIAccountRouter.shared
 }

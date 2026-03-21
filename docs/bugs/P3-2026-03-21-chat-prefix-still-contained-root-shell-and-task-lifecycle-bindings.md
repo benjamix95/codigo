@@ -1,0 +1,41 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il guscio finale `ChatPanelView`, i modifier UI root e il binding `TaskLifecycle`, nonostante il dominio operativo della main chat fosse gia' stato drenato.
+- Sintomo: `rust_cutover_guard` continuava a riportare tre legacy non-UI residui in `App/SoloCodeApp/Sources/Chat`.
+- Impatto: il cutover strutturale non arrivava a zero e il perimetro Swift della main chat restava ambiguo.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare i residui `ChatPanelView.swift`, `ChatPanelView+PartA_UI.swift` e `ChatPanelView+PartE_TaskLifecycle.swift`.
+- Risultato attuale: il shell root e il lifecycle binding vivevano ancora dentro `Chat`, con un file UI sopra soglia dimensionale.
+- Risultato atteso: i file vivono in `ChatView/Root` e `Services/ChatInteraction/ChatBindings`, con split ordinato sotto soglia.
+- Causa probabile: collocazione storica del monolite `ChatPanelView` e mancato split finale dopo le tranche precedenti.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/ChatPanelView.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartA_UI.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartE_TaskLifecycle.swift`
+  - `App/SoloCodeApp/Sources/ChatView/Root/**`
+  - `App/SoloCodeApp/Sources/Services/ChatInteraction/ChatBindings/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - logica Rust della main chat
+  - bridge provider/store Rust
+  - feature nuove o refactor comportamentali
+- Moduli confinanti da verificare:
+  - `ChatPanelBuildBehaviorTests`
+  - `ChatPanelScrollSafetyTests`
+  - `ChatPanelPositionTests`
+  - `ChatPanelTaskCompletionNotificationFlowTests`
+  - `ChatBackgroundExecutionStateTests`
+  - `ChatPanelFinalActionsVisibilityTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite dei consumer shell/lifecycle esistenti
+- Strategia di fix minimo:
+  - spostare il root shell fuori da `Chat`
+  - spezzare `PartA_UI` in layout e lifecycle modifiers
+  - spezzare i piccoli helper lifecycle per rispettare il limite di dimensione
+  - aggiornare solo il wiring Xcode necessario
+- Verifica post-fix:
+  - `validate_rust_cutover_boundary.sh` sul diff finale
+  - `xcodebuild test` sui consumer shell/lifecycle della chat
+- Commit previsto: `refactor(chat): relocate final root shell bindings`
