@@ -86,8 +86,12 @@ extension ChatStore {
 
     @discardableResult
     func deleteConversation(id: UUID) -> ChatStoreConversationDeletionOutcome {
-        _ = applyRustStoreAction("delete_conversation") { request in
-            request.conversationId = id.uuidString.lowercased()
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
+            conversations.removeAll { $0.id == id }
+        } else {
+            _ = applyRustStoreAction("delete_conversation") { request in
+                request.conversationId = id.uuidString.lowercased()
+            }
         }
         planSharedSyncSignatureByConversation.removeValue(forKey: id)
         draftTexts.removeValue(forKey: id)

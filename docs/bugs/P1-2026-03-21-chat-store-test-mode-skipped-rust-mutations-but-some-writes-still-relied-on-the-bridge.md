@@ -1,0 +1,32 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: in ambiente XCTest il `ChatStore` saltava parte del bootstrap Rust, ma alcune mutazioni (`deleteConversation`, `persistPlanBoard`) continuavano a dipendere dal bridge Rust e fallivano silenziosamente.
+- Sintomo: `ChatStoreTaskOwnershipTests` fallivano su cancellazione dell’ultima conversazione e sul fallback del `preferredPlanConversationIdForCanonicalSync`.
+- Impatto: stato store incoerente nei test app-side e rischio di mascherare regressioni nel layer `Chat` quando il review core Rust è deferito.
+- Gravità: media
+- Steps to reproduce:
+  1. Eseguire `SoloCodeAppTests/ChatStoreTaskOwnershipTests`.
+  2. Osservare failure in `testDeleteLastConversationAutoCreatesReplacementThread` e `testPreferredPlanConversationIdForCanonicalSyncFallsBackToLatestBoard`.
+- Risultato attuale: le mutazioni che dipendono dal bridge Rust non aggiornano lo stato locale quando il bootstrap Rust è deferito nei test.
+- Risultato atteso: in ambiente test, le mutazioni devono avere un fallback locale coerente con il comportamento osservabile del `ChatStore`.
+- Causa probabile: il path test-only era già previsto per `createConversation`, ma non per `deleteConversation` e `persistPlanBoard`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Conversations/ChatStoreConversations.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreProjection/Plans/ChatStorePlans+SharedStateSync.swift`
+  - `Tests/SoloCodeAppTests/ChatStoreTaskOwnershipTests.swift`
+- Non-scope:
+  - reducer Rust dello store
+  - runtime provider
+  - UI chat
+- Moduli confinanti da verificare:
+  - `ChatStoreTaskOwnershipTests`
+  - `PipelineIntegrationServiceTests`
+- Test da aggiungere o aggiornare:
+  - usare le regressioni esistenti di `ChatStoreTaskOwnershipTests`
+- Strategia di fix minimo:
+  - usare mutazioni locali solo quando il bootstrap Rust è esplicitamente deferito nei test
+  - non cambiare il comportamento di produzione
+- Verifica post-fix:
+  - `SoloCodeAppTests/ChatStoreTaskOwnershipTests`
+  - `SoloCodeAppTests/PipelineIntegrationServiceTests/testHandleTaskCompletedMarksCanonicalTodoDoneForReviewerAndTestWriter`
+- Commit previsto: `fix(chat): mirror store mutations locally when rust is deferred in tests`

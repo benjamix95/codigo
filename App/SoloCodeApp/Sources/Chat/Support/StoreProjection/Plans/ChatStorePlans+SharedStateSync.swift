@@ -27,9 +27,13 @@ extension ChatStore {
     }
 
     func persistPlanBoard(_ board: PlanBoard, for conversationId: UUID) {
-        _ = applyRustStoreAction("set_plan_board") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
-            request.planBoard = RustMainChatStoreAdapter.planBoardSnapshot(board)
+        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
+            planBoards[conversationId] = board
+        } else {
+            _ = applyRustStoreAction("set_plan_board") { request in
+                request.conversationId = conversationId.uuidString.lowercased()
+                request.planBoard = RustMainChatStoreAdapter.planBoardSnapshot(board)
+            }
         }
         savePlanBoards()
         syncPlanBoardToSharedState(board, conversationId: conversationId)
