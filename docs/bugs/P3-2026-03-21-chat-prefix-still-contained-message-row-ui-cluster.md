@@ -1,0 +1,31 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `MessageRow`, che è UI pura per il rendering dei messaggi.
+- Sintomo: il debito residuo `Chat` includeva ancora viste SwiftUI e helper di rendering della singola row messaggio.
+- Impatto: perimetro `Chat` ancora sovrastimato dal lato UI.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare `Chat/MessageRow/*` tra i residui.
+- Risultato attuale: il cluster `MessageRow` viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `ChatView/MessageRow`.
+- Causa probabile: collocazione storica iniziale nel modulo chat.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/MessageRow/**`
+  - `App/SoloCodeApp/Sources/ChatView/MessageRow/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ChatTurnView`
+  - `ClickableMessageContent`
+  - `MessageToolTrace`
+- Moduli confinanti da verificare:
+  - `MessageRowCopyEligibilityTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite della message row
+- Strategia di fix minimo:
+  - spostare il cluster `MessageRow` fuori da `Chat`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` su `MessageRowCopyEligibilityTests`
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate message row ui cluster`
