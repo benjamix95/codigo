@@ -1,0 +1,41 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `Timeline`, il relativo helper `TodoCardSelection` e l'helper `TaskCompletionNotifications`, che sono UI/supporto di presentazione e delivery notifiche gia' esterno al core Rust.
+- Sintomo: il debito residuo `Chat` includeva ancora viste SwiftUI, helper di presentazione collegati al rendering timeline e un helper di notifica task completato.
+- Impatto: perimetro `Chat` ancora sovrastimato dal lato UI.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare `Chat/Timeline/*` tra i residui.
+- Risultato attuale: il cluster `Timeline` viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `ChatView/Timeline`.
+- Causa probabile: collocazione storica iniziale nel modulo chat.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Timeline/**`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/UI/ChatPanelView+TodoCardSelection.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Notifications/ChatPanelView+TaskCompletionNotifications.swift`
+  - `App/SoloCodeApp/Sources/ChatView/Timeline/**`
+  - `App/SoloCodeApp/Sources/Services/TaskCompletionNotifications/ChatPanelView+TaskCompletionNotifications.swift`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `MessageToolTrace`
+  - `MessageRow`
+  - `TaskStatus`
+  - altri helper `ChatPanelView` fuori dal file `TodoCardSelection`
+- Moduli confinanti da verificare:
+  - `ChatTodoExecutionCardMetricsTests`
+  - `ChatTodoVisibilityTests`
+  - `ChatPanelTaskCompletionNotificationFlowTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite della timeline, della selezione todo e delle notifiche task
+- Strategia di fix minimo:
+  - spostare il cluster `Timeline` fuori da `Chat`
+  - spostare `TodoCardSelection` accanto al cluster timeline per rientrare nel tranche gate con il minimo allargamento possibile
+  - spostare `TaskCompletionNotifications` accanto ai servizi notifica gia' esistenti, per drenare un helper legacy realmente contato dal gate
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` su `ChatTodoExecutionCardMetricsTests`
+  - `xcodebuild test` su `ChatTodoVisibilityTests`
+  - `xcodebuild test` su `ChatPanelTaskCompletionNotificationFlowTests`
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate timeline ui cluster`
