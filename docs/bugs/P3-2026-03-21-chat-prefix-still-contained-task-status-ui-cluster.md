@@ -1,0 +1,32 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `TaskStatus`, che è UI pura del task/activity panel e della task control bar.
+- Sintomo: il debito residuo `Chat` includeva viste SwiftUI e helper di rendering che non appartengono alla logica di dominio della chat.
+- Impatto: perimetro `Chat` sovrastimato e meno chiaro dal punto di vista manutentivo.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare `Chat/TaskStatus/*` tra i residui.
+- Risultato attuale: il cluster `TaskStatus` viveva ancora sotto `Chat`.
+- Risultato atteso: il cluster vive in `Tasking/Views/TaskStatus`.
+- Causa probabile: collocazione storica iniziale accanto a `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/TaskStatus/**`
+  - `App/SoloCodeApp/Sources/Tasking/Views/TaskStatus/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ChatPanelView`
+  - `Tasking/Stores`
+  - runtime/store bridge
+- Moduli confinanti da verificare:
+  - `TaskActivityPanelScopingTests`
+  - `TaskActivityPanelInstantGrepSnapshotTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sulle viste/task panel
+- Strategia di fix minimo:
+  - spostare il cluster UI `TaskStatus` fuori da `Chat`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sulle suite del task activity panel
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate task status ui cluster`
