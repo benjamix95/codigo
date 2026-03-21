@@ -11,6 +11,20 @@ enum ComposerTextViewFocusCoordinator {
     }
 }
 
+enum ComposerTextViewUpdateCoordinator {
+    static func applyViewState(
+        parent: ComposerTextView,
+        coordinator: ComposerTextView.Coordinator
+    ) {
+        coordinator.parent = parent
+        guard let textView = coordinator.textView else { return }
+        if textView.string != parent.text {
+            textView.string = parent.text
+        }
+        textView.onSubmit = parent.onSubmit
+    }
+}
+
 struct ComposerTextView: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
@@ -49,13 +63,11 @@ struct ComposerTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        ComposerTextViewUpdateCoordinator.applyViewState(
+            parent: self,
+            coordinator: context.coordinator
+        )
         guard let textView = context.coordinator.textView else { return }
-        if textView.string != text {
-            textView.string = text
-        }
-        if textView.onSubmit == nil {
-            textView.onSubmit = onSubmit
-        }
         context.coordinator.updateHeight(minHeight: minHeight, maxHeight: maxHeight)
 
         // Defer focus changes to avoid modifying state during view update
