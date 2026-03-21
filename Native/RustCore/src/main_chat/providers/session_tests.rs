@@ -3,6 +3,7 @@ use app_core_protocol::main_chat_provider::{
     MainChatProviderBackend, MainChatProviderSessionConfig, MainChatProviderSessionRequest,
     MainChatProviderSessionStartRequest,
 };
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
@@ -58,6 +59,9 @@ fn cancel_session_marks_snapshot_cancelled() {
 
 #[test]
 fn missing_cli_path_bubbles_error_into_session_events() {
+    if codex_is_detectable() {
+        return;
+    }
     let session_id = "provider-cli-error-test".to_string();
     let _ = start_session(MainChatProviderSessionStartRequest {
         schema_version: 1,
@@ -72,4 +76,19 @@ fn missing_cli_path_bubbles_error_into_session_events() {
     let snapshot = response.snapshot.unwrap();
     assert_eq!(snapshot.status, "failed");
     assert!(response.events.iter().any(|event| event.kind == app_core_protocol::main_chat_provider::MainChatProviderEventKind::Error));
+}
+
+fn codex_is_detectable() -> bool {
+    find_in_path(std::env::var("PATH").ok().as_deref().unwrap_or(""), "codex")
+        || ["/opt/homebrew/bin/codex", "/usr/local/bin/codex"]
+            .into_iter()
+            .any(|path| Path::new(path).is_file())
+}
+
+fn find_in_path(path_env: &str, executable: &str) -> bool {
+    path_env
+        .split(':')
+        .filter(|segment| !segment.trim().is_empty())
+        .map(|dir| format!("{dir}/{executable}"))
+        .any(|candidate| Path::new(&candidate).is_file())
 }

@@ -1003,7 +1003,6 @@
 		9A25E4FC286261BA43F95ED4 /* PlanHistoryStore+Mutations.swift in Sources */ = {isa = PBXBuildFile; fileRef = C201FDCD69C5657D6C9B55B3 /* PlanHistoryStore+Mutations.swift */; };
 		9A6BB509F02B5DF971EB3AA7 /* EventNormalizerPlanRequestUserInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 238C3ACB33CF45849B65F59B /* EventNormalizerPlanRequestUserInputTests.swift */; };
 		9A83883EAFC575C977678BCB /* MonacoRuntimeAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644157E64BF0348E10A4353C /* MonacoRuntimeAssetResolver.swift */; };
-		9AB13DE7C8884A1A2EA96B4B /* ChatPanelView+PartI_TurnProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C6F31E165BB310515ACB65B /* ChatPanelView+PartI_TurnProvider.swift */; };
 		9ACB9A7D61ED59529DB826B5 /* AgentNameAssignerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E215BD076795860AC6E0FB65 /* AgentNameAssignerTests.swift */; };
 		9B0467801436E99DE65CCF97 /* SwarmPanelView+Overview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C72DDD5D8F5EE02F71879A6 /* SwarmPanelView+Overview.swift */; };
 		9B187C4AE627DA004F82860C /* LanguageServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB801D9C56ACD5F39A3A390D /* LanguageServiceTests.swift */; };
@@ -2030,7 +2029,6 @@
 		2C33603367988F0508989A12 /* ReviewPanelChatStructuredLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewPanelChatStructuredLogView.swift; path = App/SoloCodeApp/Sources/Panels/CodeReview/Views/Chat/ReviewPanelChatStructuredLogView.swift; sourceTree = "<group>"; };
 		2C3478D2505FACB4AB532217 /* ReviewSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReviewSession.swift; path = Engine/CoderEngine/Sources/AgentPipeline/Contracts/ReviewSession.swift; sourceTree = "<group>"; };
 		2C63A52960BBD793A068F8FC /* MCPConfigLoader+TomlHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPConfigLoader+TomlHelpers.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Config/Parsing/MCPConfigLoader+TomlHelpers.swift"; sourceTree = "<group>"; };
-		2C6F31E165BB310515ACB65B /* ChatPanelView+PartI_TurnProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelView+PartI_TurnProvider.swift"; path = "App/SoloCodeApp/Sources/Chat/Support/Extensions/Providers/ChatPanelView+PartI_TurnProvider.swift"; sourceTree = "<group>"; };
 		2CD0E408BE742E7CC1CD7C9D /* OpenAIAPIProvider+Resilience.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "OpenAIAPIProvider+Resilience.swift"; path = "Engine/CoderEngine/Sources/ProviderBackends/OpenAI/Resilience/OpenAIAPIProvider+Resilience.swift"; sourceTree = "<group>"; };
 		2CF3D146067F81DB55FE6BDB /* TargetedTestsSelectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TargetedTestsSelectorTests.swift; path = Tests/CoderEngineTests/Validation/TargetedTestsSelectorTests.swift; sourceTree = "<group>"; };
 		2D0886E0F3EC6419947668D7 /* ProviderToolEventMapperTests+Search.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ProviderToolEventMapperTests+Search.swift"; path = "Tests/CoderEngineTests/ProviderToolEventMapper/ProviderToolEventMapperTests+Search.swift"; sourceTree = "<group>"; };
@@ -3630,7 +3628,6 @@
 				1D1E60AD4F6EF70579B9C260 /* ChatPanelView+PartO_PlanPromptBuilders.swift */,
 				1DCCF88FAFFD61F863E0ECEB /* ChatPanelView+PartI_RuntimeHelpers.swift */,
 				A72BAAA2EB1F21DA28C2179A /* ChatPanelView+PartI_ToolRuntimePolicy.swift */,
-				2C6F31E165BB310515ACB65B /* ChatPanelView+PartI_TurnProvider.swift */,
 				754303884495A2CE10EBE30B /* ChatPanelView+PartN_RuntimeProvider.swift */,
 				7543038A4495A2CE10EBE30B /* ChatPanelView+PartN_RuntimeTransportSelection.swift */,
 				7543038B4495A2CE10EBE30B /* MainChatProviderBridgeModels.swift */,
@@ -6479,7 +6476,6 @@
 				DCC0E7E467F6DA03CC34E575 /* ChatPanelView+PartO_PlanPromptBuilders.swift in Sources */,
 				E186AEA950EB30F54FFEEC08 /* ChatPanelView+PartI_RuntimeHelpers.swift in Sources */,
 				437B4CA3AA05027624C8EE3C /* ChatPanelView+PartI_ToolRuntimePolicy.swift in Sources */,
-				9AB13DE7C8884A1A2EA96B4B /* ChatPanelView+PartI_TurnProvider.swift in Sources */,
 				F1197324AF38EB9E6FAE9E65 /* ChatPanelView+PartN_RuntimeProvider.swift in Sources */,
 				F1197326AF38EB9E6FAE9E65 /* ChatPanelView+PartN_RuntimeTransportSelection.swift in Sources */,
 				F1197327AF38EB9E6FAE9E65 /* MainChatProviderBridgeModels.swift in Sources */,

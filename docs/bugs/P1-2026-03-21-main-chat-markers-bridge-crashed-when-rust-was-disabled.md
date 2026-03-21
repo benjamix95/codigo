@@ -1,0 +1,43 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: il bridge Swift dei `main_chat markers` andava in crash quando il review-core Rust era disabilitato o non bootstrapato.
+- Sintomo:
+  - `Fatal error: Main chat markers runtime unavailable for extract_last_operational_thinking_line`
+- Impatto:
+  - crash del flusso `streamingDetailText`
+  - rischio di crash anche per altre utility markers richiamate senza runtime Rust disponibile
+- Gravita': alta
+- Steps to reproduce:
+  - eseguire `SOLOCODE_REVIEW_CORE_FORCE_SWIFT=1 xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -parallel-testing-enabled NO -only-testing:SoloCodeAppTests/ChatStoreMarkerSanitizationTests/testExtractLastOperationalThinkingLineReturnsLastOperationalLine`
+- Risultato attuale:
+  - la call a `ChatStore.extractLastOperationalThinkingLine(...)` termina con trap in `ChatStore+RustBridge.swift`
+- Risultato atteso:
+  - fallback non fatale quando il runtime Rust markers non e' disponibile
+  - nessuna reintroduzione di parsing markers in Swift
+- Causa probabile:
+  - il bridge Swift trattava l'indisponibilita' del review-core come path impossibile, ma `ReviewCoreBridge.isEnabled` puo' essere `false` legittimamente in test o con flag di fallback Swift
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift`
+  - `Tests/SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests.swift`
+  - `docs/bugs`
+  - `docs/changelog`
+- Non-scope:
+  - runtime provider
+  - action bridge del main chat store
+  - mutation logic del task runtime
+- Moduli confinanti da verificare:
+  - `streamingDetailText`
+  - marker sanitization
+  - bootstrap policy Rust in ambiente XCTest
+- Test da aggiungere o aggiornare:
+  - regressione XCTest per `extractLastOperationalThinkingLine(...)` con runtime Rust disabilitato
+  - smoke test per `stripCoderideMarkers(...)` con runtime Rust disabilitato
+- Strategia di fix minimo:
+  - mantenere la logica markers in Rust
+  - introdurre una guardia esplicita su `ReviewCoreBridge.isEnabled`
+  - degradare `stripCoderideMarkers(...)` e `extractLastOperationalThinkingLine(...)` senza assertion quando il runtime e' indisponibile
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -parallel-testing-enabled NO -only-testing:SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -parallel-testing-enabled NO -only-testing:SoloCodeAppTests/ChatStoreMarkerSanitizationTests`
+- Commit previsto:
+  - `fix(chat): avoid marker bridge crash when rust runtime is unavailable`

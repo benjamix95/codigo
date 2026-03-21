@@ -33,3 +33,8 @@
 ## Note
 - questa tranche non sposta altro runtime business in Rust
 - chiude pero' il prerequisito strutturale: da ora ogni modifica nel dominio `main chat` deve ridurre backlog reale o restare fuori dal perimetro
+- follow-up hotfix 2026-03-21:
+  - [main-chat-markers-bridge-bootstrap-guard.md](/Users/benjaminstoica/SoloCode/docs/changelog/2026-03-21-main-chat-markers-bridge-bootstrap-guard.md)
+  - [main-chat-markers-runtime-fallback.md](/Users/benjaminstoica/SoloCode/docs/changelog/2026-03-21-main-chat-markers-runtime-fallback.md)
+  - [rust-codex-path-resolution-parity.md](/Users/benjaminstoica/SoloCode/docs/changelog/2026-03-21-rust-codex-path-resolution-parity.md)
+  - nessun cambiamento di scope o ownership della baseline: solo hardening e parity sui boundary gia' aperti nella tranche 0

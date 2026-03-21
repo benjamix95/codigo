@@ -1,4 +1,5 @@
 import Foundation
+import CoderEngine
 
 struct ProviderFactoryConfig {
     var openaiApiKey: String
@@ -57,5 +58,12 @@ struct ProviderFactoryConfig {
         if !tavilyApiKey.isEmpty { keys["tavily"] = tavilyApiKey }
         if !serperApiKey.isEmpty { keys["serper"] = serperApiKey }
         return keys
+    }
+
+    func resolvedCodexPath(
+        detect: (String?) -> String? = { CodexDetector.findCodexPath(customPath: $0) }
+    ) -> String? {
+        let trimmed = codexPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        return detect(trimmed.isEmpty ? nil : trimmed)
     }
 }

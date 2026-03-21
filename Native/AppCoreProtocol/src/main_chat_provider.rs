@@ -108,6 +108,57 @@ pub struct MainChatProviderSessionConfig {
     pub cli_accounts: Vec<MainChatCLIAccountSnapshot>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatRuntimeTransportRequest {
+    pub schema_version: i32,
+    pub selected_provider_id: Option<String>,
+    pub fallback_selected_provider_id: Option<String>,
+    pub coder_mode: Option<String>,
+    #[serde(default)]
+    pub should_run_plan_inline: bool,
+    #[serde(default)]
+    pub force_plan_inline: bool,
+    pub prefer_code_review_runtime_provider: Option<bool>,
+    pub plan_mode_backend: String,
+    pub code_review_execution_backend: String,
+    pub openai_api_key: String,
+    pub openai_model: String,
+    pub anthropic_api_key: String,
+    pub anthropic_model: String,
+    pub google_api_key: String,
+    pub google_model: String,
+    pub codex_model_override: String,
+    pub codex_sandbox: String,
+    #[serde(default)]
+    pub codex_session_full_access: bool,
+    pub claude_model: String,
+    #[serde(default)]
+    pub claude_allowed_tools: Vec<String>,
+    pub gemini_model_override: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatRuntimeTransportResponse {
+    pub schema_version: i32,
+    pub error: Option<MainChatProviderBridgeError>,
+    pub provider_id: Option<String>,
+    pub backend: Option<MainChatProviderBackend>,
+    pub model: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    #[serde(default)]
+    pub extra_headers: BTreeMap<String, String>,
+    pub codex_sandbox: Option<String>,
+    #[serde(default)]
+    pub codex_session_full_access: bool,
+    #[serde(default)]
+    pub claude_allowed_tools: Vec<String>,
+    #[serde(default)]
+    pub read_only_plan: bool,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum MainChatProviderEventKind {
@@ -198,6 +249,56 @@ impl MainChatProviderSessionResponse {
             }),
             snapshot: None,
             events: Vec::new(),
+        }
+    }
+}
+
+impl MainChatRuntimeTransportResponse {
+    pub fn success(
+        provider_id: String,
+        backend: MainChatProviderBackend,
+        model: Option<String>,
+        api_key: Option<String>,
+        base_url: Option<String>,
+        extra_headers: BTreeMap<String, String>,
+        codex_sandbox: Option<String>,
+        codex_session_full_access: bool,
+        claude_allowed_tools: Vec<String>,
+        read_only_plan: bool,
+    ) -> Self {
+        Self {
+            schema_version: 1,
+            error: None,
+            provider_id: Some(provider_id),
+            backend: Some(backend),
+            model,
+            api_key,
+            base_url,
+            extra_headers,
+            codex_sandbox,
+            codex_session_full_access,
+            claude_allowed_tools,
+            read_only_plan,
+        }
+    }
+
+    pub fn error(code: &str, message: &str) -> Self {
+        Self {
+            schema_version: 1,
+            error: Some(MainChatProviderBridgeError {
+                code: code.to_string(),
+                message: message.to_string(),
+            }),
+            provider_id: None,
+            backend: None,
+            model: None,
+            api_key: None,
+            base_url: None,
+            extra_headers: BTreeMap::new(),
+            codex_sandbox: None,
+            codex_session_full_access: false,
+            claude_allowed_tools: Vec::new(),
+            read_only_plan: false,
         }
     }
 }

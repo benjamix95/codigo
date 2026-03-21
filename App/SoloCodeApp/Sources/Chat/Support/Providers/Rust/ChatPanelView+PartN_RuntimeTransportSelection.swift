@@ -2,57 +2,24 @@ import Foundation
 import CoderEngine
 
 extension ChatPanelView {
-    private func fallbackLegacyRuntimeProvider(
-        selectedProvider: any LLMProvider,
-        shouldRunPlanInline: Bool,
-        forcePlanInline: Bool,
-        preferCodeReviewRuntimeProvider: Bool?
-    ) -> (any LLMProvider)? {
-        resolveRuntimeProvider(
-            selectedProvider: selectedProvider,
-            shouldRunPlanInline: shouldRunPlanInline,
-            forcePlanInline: forcePlanInline,
-            preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider
-        )
-    }
-
     internal func resolveMainChatTransportProvider(
         selectedProvider: any LLMProvider,
         shouldRunPlanInline: Bool,
         forcePlanInline: Bool,
         preferCodeReviewRuntimeProvider: Bool? = nil
     ) -> (any LLMProvider)? {
-        guard ReviewCoreBridge.isEnabled else {
-            return fallbackLegacyRuntimeProvider(
-                selectedProvider: selectedProvider,
-                shouldRunPlanInline: shouldRunPlanInline,
-                forcePlanInline: forcePlanInline,
-                preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider
-            )
-        }
+        guard ReviewCoreBridge.isEnabled else { return nil }
         let cfg = providerFactoryConfig()
-        let resolvedProviderId = MainChatRustTransportSupport.resolveProviderId(
+        guard let resolved = MainChatRustTransportSupport.resolveTransportConfig(
             selectedProviderId: providerRegistry.selectedProviderId,
-            selectedProvider: selectedProvider,
+            fallbackSelectedProviderId: selectedProvider.id,
             coderMode: coderMode,
             shouldRunPlanInline: shouldRunPlanInline,
             forcePlanInline: forcePlanInline,
             preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider,
             config: cfg
-        )
-        let readOnlyPlan = forcePlanInline || shouldRunPlanInline || coderMode == .plan
-
-        guard let resolved = MainChatRustTransportSupport.resolvedConfig(
-            providerId: resolvedProviderId,
-            config: cfg,
-            readOnlyPlan: readOnlyPlan
         ) else {
-            return fallbackLegacyRuntimeProvider(
-                selectedProvider: selectedProvider,
-                shouldRunPlanInline: shouldRunPlanInline,
-                forcePlanInline: forcePlanInline,
-                preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider
-            )
+            return nil
         }
 
         let runtimeProvider = providerRegistry.provider(for: resolved.providerId)
@@ -88,7 +55,7 @@ extension ChatPanelView {
                 baseURL: resolved.baseURL,
                 toolDefinitionsJson: nil,
                 extraHeaders: resolved.extraHeaders,
-                codexPath: cfg.codexPath.isEmpty ? nil : cfg.codexPath,
+                codexPath: cfg.resolvedCodexPath(),
                 codexSandbox: resolved.codexSandbox,
                 codexAskForApproval: cfg.codexAskForApproval,
                 codexModelOverride: cfg.codexModelOverride.isEmpty ? nil : cfg.codexModelOverride,

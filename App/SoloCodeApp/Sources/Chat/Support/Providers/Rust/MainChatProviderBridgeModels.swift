@@ -105,6 +105,45 @@ struct MainChatProviderSessionConfigBridge: Codable, Equatable {
     let cliAccounts: [MainChatCLIAccountSnapshotBridge]
 }
 
+struct MainChatRuntimeTransportRequestBridge: Encodable {
+    let schemaVersion: Int
+    let selectedProviderId: String?
+    let fallbackSelectedProviderId: String?
+    let coderMode: String?
+    let shouldRunPlanInline: Bool
+    let forcePlanInline: Bool
+    let preferCodeReviewRuntimeProvider: Bool?
+    let planModeBackend: String
+    let codeReviewExecutionBackend: String
+    let openaiApiKey: String
+    let openaiModel: String
+    let anthropicApiKey: String
+    let anthropicModel: String
+    let googleApiKey: String
+    let googleModel: String
+    let codexModelOverride: String
+    let codexSandbox: String
+    let codexSessionFullAccess: Bool
+    let claudeModel: String
+    let claudeAllowedTools: [String]
+    let geminiModelOverride: String
+}
+
+struct MainChatRuntimeTransportResponseBridge: Decodable {
+    let schemaVersion: Int
+    let error: MainChatBridgeError?
+    let providerId: String?
+    let backend: MainChatProviderBackendBridge?
+    let model: String?
+    let apiKey: String?
+    let baseURL: String?
+    let extraHeaders: [String: String]
+    let codexSandbox: String?
+    let codexSessionFullAccess: Bool
+    let claudeAllowedTools: [String]
+    let readOnlyPlan: Bool
+}
+
 struct MainChatProviderSessionStartRequestBridge: Encodable {
     let schemaVersion: Int
     let sessionId: String

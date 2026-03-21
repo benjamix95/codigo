@@ -137,122 +137,58 @@ struct MainChatRustResolvedProviderConfig {
 }
 
 enum MainChatRustTransportSupport {
-    static func resolveProviderId(
+    static func resolveTransportConfig(
         selectedProviderId: String?,
-        selectedProvider: any LLMProvider,
+        fallbackSelectedProviderId: String?,
         coderMode: CoderMode,
         shouldRunPlanInline: Bool,
         forcePlanInline: Bool,
         preferCodeReviewRuntimeProvider: Bool?,
         config: ProviderFactoryConfig
-    ) -> String {
-        if forcePlanInline || shouldRunPlanInline || coderMode == .plan {
-            return ProviderFactory.resolveSwarmBackendId(
-                configuredBackendId: config.planModeBackend,
-                agentProviderId: selectedProviderId
-            )
-        }
-        if shouldUseCodeReviewRuntimeProvider(
-            coderMode: coderMode,
-            preferredOverride: preferCodeReviewRuntimeProvider
-        ) {
-            return ProviderFactory.resolveSwarmBackendId(
-                configuredBackendId: config.codeReviewExecutionBackend,
-                agentProviderId: selectedProviderId
-            )
-        }
-        return selectedProviderId ?? selectedProvider.id
-    }
-
-    static func resolvedConfig(
-        providerId: String,
-        config: ProviderFactoryConfig,
-        readOnlyPlan: Bool
     ) -> MainChatRustResolvedProviderConfig? {
-        guard let backend = MainChatProviderBridgeSupport.backend(for: providerId) else {
+        let request = MainChatRuntimeTransportRequestBridge(
+            schemaVersion: 1,
+            selectedProviderId: selectedProviderId,
+            fallbackSelectedProviderId: fallbackSelectedProviderId,
+            coderMode: coderMode.rawValue,
+            shouldRunPlanInline: shouldRunPlanInline,
+            forcePlanInline: forcePlanInline,
+            preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider,
+            planModeBackend: config.planModeBackend,
+            codeReviewExecutionBackend: config.codeReviewExecutionBackend,
+            openaiApiKey: config.openaiApiKey,
+            openaiModel: config.openaiModel,
+            anthropicApiKey: config.anthropicApiKey,
+            anthropicModel: config.anthropicModel,
+            googleApiKey: config.googleApiKey,
+            googleModel: config.googleModel,
+            codexModelOverride: config.codexModelOverride,
+            codexSandbox: config.codexSandbox,
+            codexSessionFullAccess: config.codexSessionFullAccess,
+            claudeModel: config.claudeModel,
+            claudeAllowedTools: config.claudeAllowedTools,
+            geminiModelOverride: config.geminiModelOverride
+        )
+        guard let response: MainChatRuntimeTransportResponseBridge = ReviewCoreBridge.call(
+            functionName: "chat_core_provider_resolve_transport",
+            request: request
+        ), response.error == nil,
+              let providerId = response.providerId,
+              let backend = response.backend else {
             return nil
         }
 
-        let claudeAllowedTools = readOnlyPlan
-            ? ["Read", "Glob", "Grep"]
-            : config.claudeAllowedTools
-        let codexSandbox = readOnlyPlan ? "workspace-read" : config.codexSandbox
-        let codexSessionFullAccess = readOnlyPlan ? false : config.codexSessionFullAccess
-
-        switch backend {
-        case .codexCli:
-            return MainChatRustResolvedProviderConfig(
-                providerId: providerId,
-                backend: backend,
-                model: config.codexModelOverride.isEmpty ? nil : config.codexModelOverride,
-                apiKey: nil,
-                baseURL: nil,
-                extraHeaders: [:],
-                codexSandbox: codexSandbox,
-                codexSessionFullAccess: codexSessionFullAccess,
-                claudeAllowedTools: claudeAllowedTools
-            )
-        case .claudeCli:
-            return MainChatRustResolvedProviderConfig(
-                providerId: providerId,
-                backend: backend,
-                model: config.claudeModel,
-                apiKey: nil,
-                baseURL: nil,
-                extraHeaders: [:],
-                codexSandbox: codexSandbox,
-                codexSessionFullAccess: codexSessionFullAccess,
-                claudeAllowedTools: claudeAllowedTools
-            )
-        case .geminiCli:
-            return MainChatRustResolvedProviderConfig(
-                providerId: providerId,
-                backend: backend,
-                model: config.geminiModelOverride.isEmpty ? nil : config.geminiModelOverride,
-                apiKey: nil,
-                baseURL: nil,
-                extraHeaders: [:],
-                codexSandbox: codexSandbox,
-                codexSessionFullAccess: codexSessionFullAccess,
-                claudeAllowedTools: claudeAllowedTools
-            )
-        case .openaiApi:
-            return MainChatRustResolvedProviderConfig(
-                providerId: providerId,
-                backend: backend,
-                model: config.openaiModel,
-                apiKey: config.openaiApiKey,
-                baseURL: "https://api.openai.com/v1/chat/completions",
-                extraHeaders: [:],
-                codexSandbox: codexSandbox,
-                codexSessionFullAccess: codexSessionFullAccess,
-                claudeAllowedTools: claudeAllowedTools
-            )
-        case .anthropicApi:
-            return MainChatRustResolvedProviderConfig(
-                providerId: providerId,
-                backend: backend,
-                model: config.anthropicModel,
-                apiKey: config.anthropicApiKey,
-                baseURL: "https://api.anthropic.com/v1/messages",
-                extraHeaders: [:],
-                codexSandbox: codexSandbox,
-                codexSessionFullAccess: codexSessionFullAccess,
-                claudeAllowedTools: claudeAllowedTools
-            )
-        case .googleApi:
-            return MainChatRustResolvedProviderConfig(
-                providerId: providerId,
-                backend: backend,
-                model: config.googleModel,
-                apiKey: config.googleApiKey,
-                baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-                extraHeaders: [:],
-                codexSandbox: codexSandbox,
-                codexSessionFullAccess: codexSessionFullAccess,
-                claudeAllowedTools: claudeAllowedTools
-            )
-        }
+        return MainChatRustResolvedProviderConfig(
+            providerId: providerId,
+            backend: backend,
+            model: response.model,
+            apiKey: response.apiKey,
+            baseURL: response.baseURL,
+            extraHeaders: response.extraHeaders,
+            codexSandbox: response.codexSandbox,
+            codexSessionFullAccess: response.codexSessionFullAccess,
+            claudeAllowedTools: response.claudeAllowedTools
+        )
     }
 
     static func isAuthenticated(

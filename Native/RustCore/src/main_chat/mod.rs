@@ -27,7 +27,10 @@ mod ui_tests;
 pub use provider::bridge_provider_stream;
 pub use markers::handle_request as handle_markers_request;
 pub use reasoning_stream::handle_reasoning_request;
-pub use providers::{cancel_session, get_snapshot, resolve_thread_provider_selection, resume_session, start_session};
+pub use providers::{
+    cancel_session, get_snapshot, resolve_runtime_transport, resolve_thread_provider_selection,
+    resume_session, start_session,
+};
 pub use reducer::apply_event;
 pub use store::{handle_action as handle_store_action, load_snapshot as load_store_snapshot, replace_snapshot as replace_store_snapshot};
 pub use task_runtime::handle_task_runtime_action;

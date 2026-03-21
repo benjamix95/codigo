@@ -1,0 +1,44 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: il bridge Swift dei markers `main chat` poteva andare in assertion su `extract_last_operational_thinking_line` e `strip_coderide_markers` quando il review core Rust era deliberatamente differito o non ancora caricato.
+- Sintomo:
+  - crash con `Fatal error: Main chat markers runtime unavailable for extract_last_operational_thinking_line`
+  - possibile crash analogo su `strip_coderide_markers`
+- Impatto:
+  - bootstrap host app instabile nei test app-side
+  - regressione possibile anche in ambienti debug dove la dylib Rust non e' ancora disponibile
+- Gravita': P1
+- Steps to reproduce:
+  1. disabilitare il review core Rust con `SOLOCODE_REVIEW_CORE_FORCE_SWIFT=1` oppure avviare l'host XCTest prima del bootstrap esplicito della dylib
+  2. invocare [ChatStore+RustBridge.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift)
+  3. osservare l'assertion sul runtime markers non disponibile
+- Risultato attuale:
+  - il bridge markers tenta comunque la chiamata e puo' andare in assertion
+- Risultato atteso:
+  - la logica markers resta interamente in Rust quando il runtime e' disponibile
+  - il bridge non deve crashare se il runtime e' intenzionalmente differito o temporaneamente assente
+- Causa probabile:
+  - le facciate Swift dei markers non verificavano `ReviewCoreBridge.isEnabled` prima di invocare `chat_core_markers_handle`
+- Scope consentito:
+  - [ChatStore+RustBridge.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift)
+  - [ChatStoreRustBootstrapPolicyTests.swift](/Users/benjaminstoica/SoloCode/Tests/SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests.swift)
+  - doc bug/changelog
+- Non-scope:
+  - algoritmi markers Rust
+  - FFI `chat_core_markers_handle`
+  - pipeline provider/store runtime
+- Moduli confinanti da verificare:
+  - `ReviewCoreBridge.isEnabled`
+  - `ChatStoreMarkerSanitizationTests`
+  - bootstrap host app `Solo Code`
+- Test da aggiungere o aggiornare:
+  - regressioni su bridge markers con review core forzato off
+- Strategia di fix minimo:
+  - mantenere tutta la logica markers in Rust
+  - rendere il bridge Swift no-op/safe quando il runtime non e' disponibile, senza reintrodurre parsing markers in Swift
+- Verifica post-fix:
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatStoreMarkerSanitizationTests`
+  - `scripts/solocode-validate --trigger gitCommit --workspace /Users/benjaminstoica/SoloCode --files 'App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift' 'Tests/SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests.swift'`
+- Commit previsto:
+  - `fix(chat): avoid marker bridge assertions when rust runtime is deferred`

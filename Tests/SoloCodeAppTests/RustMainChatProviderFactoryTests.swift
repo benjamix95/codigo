@@ -84,6 +84,71 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         )
     }
 
+    func testProviderFactoryConfigResolvesDetectedCodexPathForRustTransport() {
+        let config = makeProviderFactoryConfig(codexPath: "")
+
+        XCTAssertEqual(
+            config.resolvedCodexPath { customPath in
+                XCTAssertNil(customPath)
+                return "/tmp/detected-codex"
+            },
+            "/tmp/detected-codex"
+        )
+    }
+
+    func testProviderFactoryConfigPreservesConfiguredCodexPathForRustTransportResolution() {
+        let config = makeProviderFactoryConfig(codexPath: "/tmp/custom-codex")
+
+        XCTAssertEqual(
+            config.resolvedCodexPath { customPath in
+                XCTAssertEqual(customPath, "/tmp/custom-codex")
+                return customPath
+            },
+            "/tmp/custom-codex"
+        )
+    }
+
+    func testRuntimeTransportResolutionUsesRustBoundaryForReadOnlyPlan() {
+        let config = makeProviderFactoryConfig(codexPath: "")
+
+        let resolved = MainChatRustTransportSupport.resolveTransportConfig(
+            selectedProviderId: "codex-cli",
+            fallbackSelectedProviderId: "codex-cli",
+            coderMode: .plan,
+            shouldRunPlanInline: false,
+            forcePlanInline: false,
+            preferCodeReviewRuntimeProvider: nil,
+            config: config
+        )
+
+        XCTAssertEqual(resolved?.providerId, "codex-cli")
+        XCTAssertEqual(resolved?.backend, .codexCli)
+        XCTAssertEqual(resolved?.codexSandbox, "workspace-read")
+        XCTAssertFalse(resolved?.codexSessionFullAccess ?? true)
+        XCTAssertEqual(resolved?.claudeAllowedTools, ["Read", "Glob", "Grep"])
+    }
+
+    func testRuntimeTransportResolutionFailsClosedWhenRustBridgeIsDisabled() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            ReviewCoreBridge.resetForTests()
+        }
+
+        let resolved = MainChatRustTransportSupport.resolveTransportConfig(
+            selectedProviderId: "codex-cli",
+            fallbackSelectedProviderId: "codex-cli",
+            coderMode: .agent,
+            shouldRunPlanInline: false,
+            forcePlanInline: false,
+            preferCodeReviewRuntimeProvider: nil,
+            config: makeProviderFactoryConfig(codexPath: "")
+        )
+
+        XCTAssertNil(resolved)
+    }
+
     private func baseConfig() -> MainChatProviderSessionConfigBridge {
         MainChatProviderSessionConfigBridge(
             providerId: "codex-cli",
@@ -118,4 +183,51 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         )
     }
 
+    private func makeProviderFactoryConfig(codexPath: String) -> ProviderFactoryConfig {
+        ProviderFactoryConfig(
+            openaiApiKey: "",
+            openaiModel: "",
+            anthropicApiKey: "",
+            anthropicModel: "",
+            googleApiKey: "",
+            googleModel: "",
+            minimaxApiKey: "",
+            minimaxModel: "",
+            openrouterApiKey: "",
+            openrouterModel: "",
+            grokApiKey: "",
+            grokModel: "",
+            codexPath: codexPath,
+            codexSandbox: "workspace-write",
+            codexSessionFullAccess: false,
+            codexAskForApproval: "never",
+            codexModelOverride: "",
+            codexReasoningEffort: "",
+            codexFastMode: false,
+            codexModelProvider: "",
+            codexPreferResponsesWireAPI: false,
+            planModeBackend: "codex",
+            swarmOrchestrator: "auto",
+            swarmWorkerBackend: "auto",
+            swarmEnabledRoles: "",
+            globalYolo: false,
+            codeReviewPartitions: 1,
+            codeReviewAnalysisOnly: false,
+            codeReviewMaxRounds: 1,
+            codeReviewAnalysisBackend: "codex-cli",
+            codeReviewExecutionBackend: "codex-cli",
+            claudePath: "",
+            claudeModel: "",
+            claudeAllowedTools: [],
+            geminiCliPath: "",
+            geminiModelOverride: "",
+            unifiedToolRuntimeEnabled: false,
+            agentsHardBlockEnabled: false,
+            mcpEditEnforcementEnabled: false,
+            webSearchProvider: "",
+            braveSearchApiKey: "",
+            tavilyApiKey: "",
+            serperApiKey: ""
+        )
+    }
 }

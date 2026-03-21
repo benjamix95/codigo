@@ -1,26 +1,22 @@
 import Foundation
 import CoderEngine
 
-func shouldSkipRustStoreBootstrapForTests(environment: [String: String]) -> Bool {
-    shouldDeferRustReviewCoreBootstrap(environment: environment)
-}
+func shouldSkipRustStoreBootstrapForTests(environment: [String: String]) -> Bool { shouldDeferRustReviewCoreBootstrap(environment: environment) }
 
 extension ChatStore {
+    private static var isRustMarkersRuntimeAvailable: Bool { ReviewCoreBridge.isEnabled }
+
     static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
+        guard isRustMarkersRuntimeAvailable else { return aggressive ? content.trimmingCharacters(in: .whitespacesAndNewlines) : content }
         let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "strip_coderide_markers", text: content, aggressive: aggressive)
-        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else {
-            assertionFailure("Main chat markers runtime unavailable for strip_coderide_markers")
-            return aggressive ? content.trimmingCharacters(in: .whitespacesAndNewlines) : content
-        }
+        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else { return aggressive ? content.trimmingCharacters(in: .whitespacesAndNewlines) : content }
         return result
     }
 
     static func extractLastOperationalThinkingLine(from content: String) -> String? {
+        guard isRustMarkersRuntimeAvailable else { return nil }
         let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "extract_last_operational_thinking_line", text: content, aggressive: nil)
-        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else {
-            assertionFailure("Main chat markers runtime unavailable for extract_last_operational_thinking_line")
-            return nil
-        }
+        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else { return nil }
         return result.isEmpty ? nil : result
     }
 

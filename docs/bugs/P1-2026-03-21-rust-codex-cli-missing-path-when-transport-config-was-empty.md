@@ -1,0 +1,53 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: il provider `codex-cli` della main chat Rust poteva fallire con `missing_codex_path` quando il bridge Swift inoltrava `codexPath` vuoto e il runtime Rust non eseguiva auto-detect del binario.
+- Sintomo:
+  - task pipeline fallito con `missing_codex_path`
+  - UI con `Task failed`, `Turn failed`, `Job failed with errors`
+- Impatto:
+  - impossibile eseguire task Codex CLI anche quando il binario era installato ma non propagato esplicitamente
+  - gap di parita' tra provider legacy Swift e transport Rust
+- Gravita': P1
+- Steps to reproduce:
+  1. selezionare `codex-cli` come provider runtime
+  2. lasciare vuoto `codex_path` nel config della chat
+  3. avere il binario Codex disponibile tramite auto-detect ma non nel payload bridge
+  4. avviare un task/explorer e osservare `missing_codex_path`
+- Risultato attuale:
+  - il bridge Rust riceve `codexPath` nil/empty
+  - il provider Rust controlla solo override account e `config.codex_path`
+- Risultato atteso:
+  - il bridge Swift passa sempre un path Codex risolto quando possibile
+  - il provider Rust fa comunque fallback locale su auto-detect prima di restituire `missing_codex_path`
+- Causa probabile:
+  - ownership divisa della config Codex: Swift faceva auto-detect nel provider legacy, mentre il transport Rust si aspettava un path gia' valorizzato
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Settings/ProviderFactory/Config/ProviderFactoryConfig.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/ChatPanelView+PartN_RuntimeTransportSelection.swift`
+  - `Native/RustCore/src/main_chat/providers/cli/codex.rs`
+  - test Rust/App-side collegati
+  - doc/changelog
+- Non-scope:
+  - proiezione UI `Task failed` / `Turn failed`
+  - reducer chat
+  - markers / store runtime
+- Moduli confinanti da verificare:
+  - `CodexDetector`
+  - `MainChatRustTransportProvider`
+  - `CLIMultiAccountProviderAdapter`
+  - `ThreadProviderSelectionService`
+- Test da aggiungere o aggiornare:
+  - unit test Rust sul resolver `codex_path`
+  - test app-side del config resolver per il transport Rust
+- Strategia di fix minimo:
+  - aggiungere un helper Swift condiviso per il `codexPath` risolto
+  - far consumare quel valore al bridge Rust
+  - aggiungere un resolver Rust con precedence `account override -> config -> auto-detect`
+  - preservare `missing_codex_path` solo quando tutte le sorgenti falliscono
+- Verifica post-fix:
+  - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml resolves_codex_executable -- --nocapture`
+  - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml missing_codex_path -- --nocapture`
+  - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml missing_cli_path_bubbles_error_into_session_events -- --nocapture`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests`
+- Commit previsto:
+  - `fix(chat): resolve codex path before rust transport fallback`

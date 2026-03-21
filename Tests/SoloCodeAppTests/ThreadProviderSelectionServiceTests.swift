@@ -3,6 +3,22 @@ import CoderEngine
 @testable import CoderIDE
 
 final class ThreadProviderSelectionServiceTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        unsetenv("SOLOCODE_REVIEW_CORE_DISABLE_RUST")
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        unsetenv("SOLOCODE_REVIEW_CORE_DISABLE_RUST")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
     func testModeNilWithPreferredProviderRestoresPreferred() {
         let registry = ProviderRegistry()
         registry.register(ThreadProviderMockProvider(id: "codex-cli", authenticated: true))

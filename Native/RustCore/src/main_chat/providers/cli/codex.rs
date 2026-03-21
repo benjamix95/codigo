@@ -4,16 +4,13 @@ use crate::main_chat::providers::parsing::jsonl::parse_jsonl_line;
 use crate::main_chat::providers::session::{
     emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, is_cancelled, running_cli_account,
 };
-use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
+use app_core_protocol::main_chat_provider::{MainChatCLIAccountSnapshot, MainChatProviderSessionConfig};
 use std::collections::BTreeMap;
+use std::path::Path;
 
 pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> Result<(), String> {
     let account = running_cli_account(session_id, config, "codex")?;
-    let executable = account
-        .as_ref()
-        .and_then(|item| item.env_overrides.get("CODEX_PATH").cloned())
-        .or_else(|| config.codex_path.clone())
-        .ok_or_else(|| "missing_codex_path".to_string())?;
+    let executable = resolve_codex_executable(account.as_ref(), config)?;
     let prompt = join_cli_prompt(
         config.system_prompt.as_deref(),
         &config.prompt,
@@ -33,6 +30,73 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
         |line| consume_line(session_id, line),
         || is_cancelled(session_id),
     )
+}
+
+fn resolve_codex_executable(
+    account: Option<&MainChatCLIAccountSnapshot>,
+    config: &MainChatProviderSessionConfig,
+) -> Result<String, String> {
+    resolve_codex_executable_with(account, config, detect_codex_path)
+}
+
+fn resolve_codex_executable_with<F>(
+    account: Option<&MainChatCLIAccountSnapshot>,
+    config: &MainChatProviderSessionConfig,
+    detect: F,
+) -> Result<String, String>
+where
+    F: Fn() -> Option<String>,
+{
+    let candidates = [
+        account.and_then(|item| item.env_overrides.get("CODEX_PATH").cloned()),
+        config.codex_path.clone(),
+        detect(),
+    ];
+    candidates
+        .into_iter()
+        .flatten()
+        .find_map(valid_executable_path)
+        .ok_or_else(|| "missing_codex_path".to_string())
+}
+
+fn valid_executable_path(candidate: String) -> Option<String> {
+    let trimmed = candidate.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let path = Path::new(trimmed);
+    if path.is_file() {
+        return Some(trimmed.to_string());
+    }
+    None
+}
+
+fn detect_codex_path() -> Option<String> {
+    find_in_path(std::env::var("PATH").ok().as_deref().unwrap_or(""), "codex")
+        .or_else(|| default_codex_candidates().into_iter().find_map(valid_executable_path))
+}
+
+fn find_in_path(path_env: &str, executable: &str) -> Option<String> {
+    path_env
+        .split(':')
+        .filter(|segment| !segment.trim().is_empty())
+        .map(|dir| format!("{dir}/{executable}"))
+        .find_map(valid_executable_path)
+}
+
+fn default_codex_candidates() -> Vec<String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    [
+        "/opt/homebrew/bin/codex".to_string(),
+        "/usr/local/bin/codex".to_string(),
+        format!("{home}/.npm/bin/codex"),
+        format!("{home}/.local/bin/codex"),
+        format!("{home}/.yarn/bin/codex"),
+        format!("{home}/.bun/bin/codex"),
+    ]
+    .into_iter()
+    .filter(|path| !path.contains("//"))
+    .collect()
 }
 
 fn build_exec_arguments(config: &MainChatProviderSessionConfig, prompt: &str) -> Vec<String> {
@@ -199,12 +263,4 @@ fn normalize_tool_name(name: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::normalize_tool_name;
-
-    #[test]
-    fn normalizes_codex_tool_names() {
-        assert_eq!(normalize_tool_name("planRequestUserInput"), "plan_request_user_input");
-        assert_eq!(normalize_tool_name("mermaidRender"), "mermaid_render");
-    }
-}
+mod tests;
