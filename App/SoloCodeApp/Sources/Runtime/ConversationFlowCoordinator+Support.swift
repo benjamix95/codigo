@@ -66,29 +66,6 @@ struct MainChatRuntimeProviderPollBridgeResponse: Decodable {
     let didTimeout: Bool
 }
 
-actor IteratorHolder<Stream: AsyncSequence> {
-    private var iterator: Stream.AsyncIterator
-
-    init(_ stream: Stream) {
-        self.iterator = stream.makeAsyncIterator()
-    }
-
-    func next() async throws -> Stream.AsyncIterator.Element? {
-        var iterator = self.iterator
-        let value = try await iterator.next()
-        self.iterator = iterator
-        return value
-    }
-}
-
-enum StreamWatchdogError: LocalizedError {
-    case timeout
-
-    var errorDescription: String? {
-        "Stream watchdog timed out."
-    }
-}
-
 extension ConversationFlowCoordinator {
     func startDirectRuntime(
         providerId: String,
@@ -133,34 +110,6 @@ extension ConversationFlowCoordinator {
             timestamp: timestamp,
             providerId: providerId,
             status: "streaming"
-        )
-    }
-
-    func applyDirectRuntimeProviderEvent(
-        timestamp: Date,
-        providerId: String,
-        eventKind: String,
-        payload: [String: String]
-    ) -> MainChatRuntimeSnapshotBridge? {
-        callRuntimeAction(
-            action: "direct_stream_apply_provider_event",
-            snapshot: directRuntimeSnapshotState() ?? planRuntimeSnapshotState(),
-            timestamp: timestamp,
-            providerId: providerId,
-            eventKind: eventKind,
-            payload: payload
-        )
-    }
-
-    func handleDirectRuntimeTimeout(
-        timestamp: Date,
-        isInitialPoll: Bool
-    ) -> MainChatRuntimeSnapshotBridge? {
-        callRuntimeAction(
-            action: "direct_stream_timeout",
-            snapshot: directRuntimeSnapshotState() ?? planRuntimeSnapshotState(),
-            timestamp: timestamp,
-            isInitialPoll: isInitialPoll
         )
     }
 
@@ -231,29 +180,4 @@ extension ConversationFlowCoordinator {
         return response?.error == nil ? response?.runtimeSnapshot : nil
     }
 
-    func nextEvent(
-        withinSeconds timeout: Int,
-        isInitialPoll: Bool,
-        pendingTask: Task<StreamEvent?, Error>
-    ) async throws -> StreamEvent? {
-        try await withThrowingTaskGroup(of: StreamEvent?.self) { group in
-            group.addTask {
-                try await pendingTask.value
-            }
-            group.addTask {
-                let safeTimeout = max(1, timeout)
-                try await Task.sleep(nanoseconds: UInt64(safeTimeout) * 1_000_000_000)
-                throw isInitialPoll
-                    ? StreamWatchdogError.timeout
-                    : StreamWatchdogError.timeout
-            }
-            do {
-                guard let value = try await group.next() else {
-                    throw StreamWatchdogError.timeout
-                }
-                group.cancelAll()
-                return value
-            }
-        }
-    }
 }

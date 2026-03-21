@@ -1,5 +1,9 @@
 import Foundation
 
+struct GitService: Sendable {
+    let gitPath = "/usr/bin/git"
+}
+
 extension GitService {
     @discardableResult
     func pull(gitRoot: String) throws -> String {

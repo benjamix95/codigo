@@ -21,12 +21,23 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
     }
 
     func testRunStreamCallsOnTextIncrementallyForEachDelta() async throws {
-        let provider = MockStreamingProvider(events: [
-            .started,
-            .textDelta("Ciao"),
-            .textDelta(" mondo"),
-            .completed,
-        ])
+        let provider = makeRustTransportProvider(
+            polls: [
+                .init(
+                    textByStreamId: ["main": "Ciao"],
+                    uiEvents: [.init(kind: .textDelta, text: "Ciao", rawType: nil, payload: [:])]
+                ),
+                .init(
+                    textByStreamId: ["main": "Ciao mondo"],
+                    uiEvents: [
+                        .init(kind: .textDelta, text: " mondo", rawType: nil, payload: [:]),
+                        .init(kind: .completed, text: "", rawType: nil, payload: [:]),
+                    ],
+                    status: "completed",
+                    isTerminal: true
+                ),
+            ]
+        )
         let coordinator = ConversationFlowCoordinator()
         let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
 
@@ -47,17 +58,25 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
     }
 
     func testRunStreamHandlesRawHeavyBurstWithoutBlockingTextPropagation() async throws {
-        var events: [StreamEvent] = [.started]
-        for idx in 0..<250 {
-            events.append(.raw(type: "command_execution", payload: [
+        let rawEvents = (0..<250).map { idx in
+            MainChatRuntimeUIEventBridge(kind: .raw, text: "", rawType: "command_execution", payload: [
                 "id": "cmd-\(idx)",
                 "status": "in_progress"
-            ]))
+            ])
         }
-        events.append(.textDelta("Final output"))
-        events.append(.completed)
-
-        let provider = MockStreamingProvider(events: events)
+        let provider = makeRustTransportProvider(
+            polls: [
+                .init(
+                    textByStreamId: ["main": "Final output"],
+                    uiEvents: rawEvents + [
+                        .init(kind: .textDelta, text: "Final output", rawType: nil, payload: [:]),
+                        .init(kind: .completed, text: "", rawType: nil, payload: [:]),
+                    ],
+                    status: "completed",
+                    isTerminal: true
+                )
+            ]
+        )
         let coordinator = ConversationFlowCoordinator()
         let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
 
@@ -81,12 +100,20 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
 
     func testRunStreamCanExecuteOffMainActorWhileDispatchingCallbacksOnMain() async throws {
         let result = try await Task.detached { () throws -> (String, ConversationFlowCoordinator.State) in
-            let provider = MockStreamingProvider(events: [
-                .started,
-                .raw(type: "command_execution", payload: ["id": "cmd-1", "status": "started"]),
-                .textDelta("ok"),
-                .completed,
-            ])
+            let provider = self.makeRustTransportProvider(
+                polls: [
+                    .init(
+                        textByStreamId: ["main": "ok"],
+                        uiEvents: [
+                            .init(kind: .raw, text: "", rawType: "command_execution", payload: ["id": "cmd-1", "status": "started"]),
+                            .init(kind: .textDelta, text: "ok", rawType: nil, payload: [:]),
+                            .init(kind: .completed, text: "", rawType: nil, payload: [:]),
+                        ],
+                        status: "completed",
+                        isTerminal: true
+                    )
+                ]
+            )
             let coordinator = ConversationFlowCoordinator()
             let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
 
@@ -114,12 +141,20 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
     }
 
     func testRunStreamFailsWhenProviderEmitsErrorEvent() async {
-        let provider = MockStreamingProvider(events: [
-            .started,
-            .textDelta("partial"),
-            .error("boom"),
-            .completed,
-        ])
+        let provider = makeRustTransportProvider(
+            polls: [
+                .init(
+                    textByStreamId: ["main": "partial"],
+                    uiEvents: [
+                        .init(kind: .textDelta, text: "partial", rawType: nil, payload: [:]),
+                        .init(kind: .error, text: "boom", rawType: nil, payload: [:]),
+                    ],
+                    status: "failed",
+                    terminalError: "boom",
+                    isTerminal: true
+                )
+            ]
+        )
         let coordinator = ConversationFlowCoordinator()
         let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
 
@@ -144,10 +179,25 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
     }
 
     func testRunStreamReusesPendingReadAcrossInitialTimeoutRetries() async throws {
-        let provider = MockStreamingProvider(scheduledEvents: [
-            ScheduledStreamEvent(delayNanoseconds: 1_200_000_000, event: .textDelta("late")),
-            ScheduledStreamEvent(delayNanoseconds: 0, event: .completed),
-        ])
+        let provider = makeRustTransportProvider(
+            polls: [
+                .init(
+                    textByStreamId: [:],
+                    uiEvents: [],
+                    shouldRetryPoll: true,
+                    didTimeout: true
+                ),
+                .init(
+                    textByStreamId: ["main": "late"],
+                    uiEvents: [
+                        .init(kind: .textDelta, text: "late", rawType: nil, payload: [:]),
+                        .init(kind: .completed, text: "", rawType: nil, payload: [:]),
+                    ],
+                    status: "completed",
+                    isTerminal: true
+                )
+            ]
+        )
         let coordinator = ConversationFlowCoordinator(
             initialEventTimeoutOverride: 1,
             initialRetryOverride: 2
@@ -178,7 +228,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
             ReviewCoreBridge.resetForTests()
         }
 
-        let provider = MockStreamingProvider(events: [.started, .textDelta("ciao"), .completed])
+        let provider = makeRustTransportProvider(polls: [])
         let coordinator = ConversationFlowCoordinator()
         let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
 
@@ -443,58 +493,149 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(coordinator.state, .error)
     }
+    nonisolated private func makeRustTransportProvider(
+        polls: [RuntimePollResult]
+    ) -> MainChatRustTransportProvider {
+        let queue = RuntimePollQueue(results: polls)
+        return MainChatRustTransportProvider(
+            id: "codex-cli",
+            displayName: "Codex",
+            attachmentCapabilities: .none,
+            authenticated: true,
+            config: MainChatProviderSessionConfigBridge(
+                providerId: "codex-cli",
+                displayName: "Codex",
+                backend: .codexCli,
+                workspacePath: "/tmp",
+                workspacePaths: ["/tmp"],
+                prompt: "",
+                systemPrompt: nil,
+                contextPrompt: nil,
+                model: nil,
+                apiKey: nil,
+                baseURL: nil,
+                toolDefinitionsJson: nil,
+                extraHeaders: [:],
+                codexPath: "/usr/bin/codex",
+                codexSandbox: "workspace-write",
+                codexAskForApproval: "never",
+                codexModelOverride: nil,
+                codexReasoningEffort: nil,
+                codexModelProvider: nil,
+                codexFastMode: false,
+                codexSessionFullAccess: false,
+                codexPreferResponsesWireAPI: false,
+                claudePath: nil,
+                claudeModel: nil,
+                claudeAllowedTools: [],
+                geminiCliPath: nil,
+                geminiModelOverride: nil,
+                attachments: [],
+                cliAccounts: []
+            ),
+            startSessionBridge: { _ in .init(schemaVersion: 1, error: nil, snapshot: nil, events: []) },
+            pollSessionBridge: { _ in nil },
+            cancelSessionBridge: { _ in nil },
+            runtimePollBridge: { request in queue.next(for: request) }
+        )
+    }
 }
 
-private struct ScheduledStreamEvent: Sendable {
-    let delayNanoseconds: UInt64
-    let event: StreamEvent
-}
+private struct RuntimePollResult {
+    let textByStreamId: [String: String]
+    let uiEvents: [MainChatRuntimeUIEventBridge]
+    let status: String
+    let terminalError: String?
+    let shouldRetryPoll: Bool
+    let didTimeout: Bool
+    let isTerminal: Bool
 
-private final class MockStreamingProvider: LLMProvider, @unchecked Sendable {
-    let id: String = "mock-stream"
-    let displayName: String = "Mock Stream"
-
-    private let scheduledEvents: [ScheduledStreamEvent]
-
-    init(events: [StreamEvent]) {
-        self.scheduledEvents = events.map { ScheduledStreamEvent(delayNanoseconds: 0, event: $0) }
-    }
-
-    init(scheduledEvents: [ScheduledStreamEvent]) {
-        self.scheduledEvents = scheduledEvents
-    }
-
-    func isAuthenticated() -> Bool { true }
-
-    func send(
-        prompt: String,
-        context: WorkspaceContext,
-        imageURLs: [URL]?
-    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let scheduledEvents = self.scheduledEvents
-        return AsyncThrowingStream { continuation in
-            Task {
-                for item in scheduledEvents {
-                    if item.delayNanoseconds > 0 {
-                        try? await Task.sleep(nanoseconds: item.delayNanoseconds)
-                    }
-                    continuation.yield(item.event)
-                }
-                continuation.finish()
-            }
-        }
+    init(
+        textByStreamId: [String: String],
+        uiEvents: [MainChatRuntimeUIEventBridge],
+        status: String = "streaming",
+        terminalError: String? = nil,
+        shouldRetryPoll: Bool = false,
+        didTimeout: Bool = false,
+        isTerminal: Bool = false
+    ) {
+        self.textByStreamId = textByStreamId
+        self.uiEvents = uiEvents
+        self.status = status
+        self.terminalError = terminalError
+        self.shouldRetryPoll = shouldRetryPoll
+        self.didTimeout = didTimeout
+        self.isTerminal = isTerminal
     }
 }
 
 private final class RuntimePollQueue {
-    private var handlers: [(MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse] = []
+    private var results: [RuntimePollResult]
+    private var handlers: [(MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse]
 
-    func enqueue(_ handler: @escaping (MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse) {
+    init(results: [RuntimePollResult] = []) {
+        self.results = results
+        self.handlers = []
+    }
+
+    func enqueue(
+        _ handler: @escaping (MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse
+    ) {
         handlers.append(handler)
     }
 
     func next(for request: MainChatRuntimeProviderPollBridgeRequest) -> MainChatRuntimeProviderPollBridgeResponse? {
-        guard !handlers.isEmpty else { return nil }
-        return handlers.removeFirst()(request)
+        if !handlers.isEmpty {
+            return handlers.removeFirst()(request)
+        }
+        guard !results.isEmpty else { return nil }
+        let result = results.removeFirst()
+        let snapshot = MainChatRuntimeSnapshotBridge(
+            turnState: MainChatBridgeState(
+                conversationId: request.snapshot.turnState.conversationId,
+                assistantMessageId: request.snapshot.turnState.assistantMessageId,
+                turnId: request.snapshot.turnState.turnId,
+                providerId: request.snapshot.turnState.providerId,
+                sequence: request.snapshot.turnState.sequence,
+                isStreaming: result.status == "streaming",
+                startedAt: request.snapshot.turnState.startedAt,
+                completedAt: result.isTerminal ? Date() : request.snapshot.turnState.completedAt,
+                updatedAt: Date(),
+                status: result.status,
+                orderedTextStreamIds: result.textByStreamId.isEmpty ? request.snapshot.turnState.orderedTextStreamIds : ["main"],
+                textByStreamId: result.textByStreamId.isEmpty ? request.snapshot.turnState.textByStreamId : result.textByStreamId,
+                reasoningByGroupId: request.snapshot.turnState.reasoningByGroupId,
+                artifacts: request.snapshot.turnState.artifacts
+            ),
+            mode: request.snapshot.mode,
+            directStream: {
+                var direct = request.snapshot.directStream
+                let receivedAnyEvent = direct?.hasReceivedAnyEvent == true || !result.uiEvents.isEmpty
+                let emittedFirstText = direct?.emittedFirstText == true
+                    || result.uiEvents.contains { $0.kind == .textDelta || $0.kind == .textReplace }
+                direct?.hasReceivedAnyEvent = receivedAnyEvent
+                direct?.emittedFirstText = emittedFirstText
+                return direct
+            }(),
+            plan: request.snapshot.plan,
+            output: MainChatRuntimeOutputBridge(
+                chatContentOverride: nil,
+                shouldHidePlanMarkdown: request.snapshot.output?.shouldHidePlanMarkdown ?? false,
+                shouldOpenPlanPanel: request.snapshot.output?.shouldOpenPlanPanel ?? false,
+                shouldFinalizeStream: result.isTerminal,
+                shouldRetryPoll: result.shouldRetryPoll,
+                followUpPrompt: nil,
+                generatedPrompt: nil,
+                terminalError: result.terminalError
+            )
+        )
+        return MainChatRuntimeProviderPollBridgeResponse(
+            schemaVersion: 1,
+            error: nil,
+            runtimeSnapshot: snapshot,
+            uiEvents: result.uiEvents,
+            isTerminal: result.isTerminal,
+            didTimeout: result.didTimeout
+        )
     }
 }

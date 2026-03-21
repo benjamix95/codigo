@@ -131,123 +131,10 @@ final class ConversationFlowCoordinator: ObservableObject {
             )
         }
 
-        let stream = try await provider.send(prompt: prompt, context: context, attachments: attachments)
-        let iteratorHolder = IteratorHolder(stream)
-        var pendingNextTask: Task<StreamEvent?, Error>?
-
-        while true {
-            let timeout = runtimeSnapshot.currentPollTimeoutSeconds ?? 90
-            let maybeEvent: StreamEvent?
-            do {
-                if pendingNextTask == nil {
-                    pendingNextTask = Task { try await iteratorHolder.next() }
-                }
-                guard let activeTask = pendingNextTask else { break }
-                maybeEvent = try await nextEvent(
-                    withinSeconds: timeout,
-                    isInitialPoll: !runtimeSnapshot.hasReceivedAnyEvent,
-                    pendingTask: activeTask
-                )
-                pendingNextTask = nil
-            } catch is StreamWatchdogError {
-                guard let timeoutSnapshot = handleDirectRuntimeTimeout(
-                    timestamp: Date(),
-                    isInitialPoll: !runtimeSnapshot.hasReceivedAnyEvent
-                ) else {
-                    await setState(.error)
-                    throw StreamExecutionError.providerError("Rust main chat direct stream timeout runtime unavailable.")
-                }
-                runtimeSnapshot = timeoutSnapshot
-                setDirectRuntimeSnapshot(timeoutSnapshot)
-                if timeoutSnapshot.output?.shouldRetryPoll == true {
-                    await Task.yield()
-                    continue
-                }
-                let message = timeoutSnapshot.output?.terminalError
-                    ?? "Rust main chat direct stream timed out."
-                await setState(.error)
-                throw StreamExecutionError.providerError(message)
-            }
-
-            guard let event = maybeEvent else { break }
-            let hadAnyEvent = runtimeSnapshot.hasReceivedAnyEvent
-            let hadFirstText = runtimeSnapshot.emittedFirstText
-            let eventTimestamp = Date()
-            guard let nextSnapshot = applyDirectRuntimeProviderEvent(
-                timestamp: eventTimestamp,
-                providerId: provider.id,
-                eventKind: Self.runtimeEventKind(event),
-                payload: Self.runtimePayload(event)
-            ) else {
-                await setState(.error)
-                throw StreamExecutionError.providerError("Rust main chat direct stream event reducer unavailable.")
-            }
-            runtimeSnapshot = nextSnapshot
-            setDirectRuntimeSnapshot(nextSnapshot)
-            turnState = nextSnapshot.turnState.chatTurnState
-            if !hadAnyEvent, runtimeSnapshot.hasReceivedAnyEvent {
-                await MainActor.run { onSignal?(.firstEvent(eventTimestamp)) }
-            }
-
-            switch event {
-            case .started:
-                break
-            case .textDelta(let delta):
-                if !hadFirstText, runtimeSnapshot.emittedFirstText {
-                    await MainActor.run { onSignal?(.firstTextDelta(eventTimestamp)) }
-                }
-                await MainActor.run { onText(turnState.primaryTextSnapshot) }
-            case .textReplace(let replacement):
-                if !hadFirstText, runtimeSnapshot.emittedFirstText {
-                    await MainActor.run { onSignal?(.firstTextDelta(eventTimestamp)) }
-                }
-                await MainActor.run { onText(turnState.primaryTextSnapshot) }
-            case .raw(let type, let payload):
-                await MainActor.run { onRaw(type, payload, provider.id) }
-            case .error(let message):
-                _ = finishDirectRuntime(
-                    status: "failed",
-                    detail: message,
-                    wasCancelled: false,
-                    timestamp: Date()
-                ).map { snapshot in
-                    runtimeSnapshot = snapshot
-                    setDirectRuntimeSnapshot(snapshot)
-                }
-                await MainActor.run { onError(turnState.primaryTextSnapshot + "\n\n[Error: \(message)]") }
-                await setState(.error)
-                throw StreamExecutionError.providerError(message)
-            case .completed:
-                let completedAt = Date()
-                _ = finishDirectRuntime(
-                    status: "completed",
-                    detail: nil,
-                    wasCancelled: false,
-                    timestamp: completedAt
-                ).map { snapshot in
-                    runtimeSnapshot = snapshot
-                    setDirectRuntimeSnapshot(snapshot)
-                }
-                await MainActor.run { onSignal?(.streamCompleted(completedAt)) }
-                await setState(.completed)
-                return turnState.primaryTextSnapshot
-            }
-
-            await Task.yield()
-        }
-
-        let completedAt = Date()
-        _ = finishDirectRuntime(
-            status: "completed",
-            detail: nil,
-            wasCancelled: false,
-            timestamp: completedAt
-        ).map { snapshot in
-            setDirectRuntimeSnapshot(snapshot)
-        }
-        await MainActor.run { onSignal?(.streamCompleted(completedAt)) }
-        await setState(.completed)
-        return turnState.primaryTextSnapshot
+        await setState(.error)
+        throw StreamExecutionError.providerError(
+            "Legacy generic stream coordinator path retired for main chat runtime."
+        )
     }
 
     private func runRustTransportStream(
@@ -299,14 +186,16 @@ final class ConversationFlowCoordinator: ObservableObject {
                 case .started:
                     break
                 case .textDelta, .textReplace:
-                    await MainActor.run { onText(turnState.primaryTextSnapshot) }
+                    let textSnapshot = turnState.primaryTextSnapshot
+                    await MainActor.run { onText(textSnapshot) }
                 case .raw:
                     await MainActor.run { onRaw(event.rawType ?? "provider_raw", event.payload, provider.id) }
                 case .error:
                     let message = event.text.isEmpty
                         ? (runtimeSnapshot.output?.terminalError ?? "Provider stream failed")
                         : event.text
-                    await MainActor.run { onError(turnState.primaryTextSnapshot + "\n\n[Error: \(message)]") }
+                    let textSnapshot = turnState.primaryTextSnapshot
+                    await MainActor.run { onError(textSnapshot + "\n\n[Error: \(message)]") }
                     await setState(.error)
                     throw StreamExecutionError.providerError(message)
                 case .completed:
