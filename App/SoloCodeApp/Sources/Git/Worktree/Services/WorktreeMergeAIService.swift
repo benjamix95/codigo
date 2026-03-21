@@ -204,29 +204,38 @@ extension WorktreeMergeAIService {
         if let promptRunner {
             return try await promptRunner(provider, gitRoot, prompt)
         }
-        let coordinator = ConversationFlowCoordinator()
-        var lastText = ""
+        var accumulatedText = ""
         do {
-            return try await coordinator.runStream(
-                provider: provider,
+            let stream = try await provider.send(
                 prompt: prompt,
                 context: WorkspaceContext(
                     workspacePaths: [URL(fileURLWithPath: gitRoot)],
                     openFiles: []
                 ),
-                attachments: nil,
-                onText: { text in
-                    lastText = text
-                },
-                onRaw: { _, _, _ in },
-                onError: { text in
-                    lastText = text
-                },
-                onSignal: nil
+                attachments: nil
             )
+            for try await event in stream {
+                switch event {
+                case .started:
+                    break
+                case .textDelta(let text):
+                    accumulatedText += text
+                case .textReplace(let text):
+                    accumulatedText = text
+                case .raw:
+                    break
+                case .completed:
+                    return accumulatedText
+                case .error(let message):
+                    let detail = mergedOutput(stdout: accumulatedText, stderr: message)
+                    throw WorktreeMergeAIServiceError.runtimeFailed(detail)
+                }
+            }
+            return accumulatedText
+        } catch let error as WorktreeMergeAIServiceError {
+            throw error
         } catch {
-            let message = error.localizedDescription
-            let detail = mergedOutput(stdout: lastText, stderr: message)
+            let detail = mergedOutput(stdout: accumulatedText, stderr: error.localizedDescription)
             throw WorktreeMergeAIServiceError.runtimeFailed(detail)
         }
     }

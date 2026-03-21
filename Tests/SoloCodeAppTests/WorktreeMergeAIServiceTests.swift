@@ -147,6 +147,19 @@ final class WorktreeMergeAIServiceTests: XCTestCase {
         XCTAssertEqual(promptCounter.value, 1)
     }
 
+    func testRunHeadlessPromptUsesGenericProviderStreamWithoutCoordinator() async throws {
+        let provider = MockWorktreeProvider(id: "codex-cli", authenticated: true)
+        let service = WorktreeMergeAIService()
+
+        let result = try await service.runHeadlessPrompt(
+            provider: provider,
+            gitRoot: tempDirURL.path,
+            prompt: "hello"
+        )
+
+        XCTAssertEqual(result, "ok")
+    }
+
     private func makeNodeProject(named name: String) throws -> URL {
         let dir = tempDirURL.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
