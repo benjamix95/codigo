@@ -1,0 +1,35 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora due helper separabili, `TraceDebug` e `PromptOptimization`, che sono glue di policy/input sopra servizi già esistenti e non ownership del dominio Rust della main chat.
+- Sintomo: il debito residuo `Chat` includeva ancora `PartG_TraceDebug` e `PartL_PromptOptimization` nonostante i moduli target fossero già stati creati.
+- Impatto: il perimetro `Chat` restava sovrastimato di due file legacy non-UI.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui `PartG_TraceDebug` e `PartL_PromptOptimization`.
+- Risultato attuale: i due helper vivevano ancora sotto `Chat`.
+- Risultato atteso: vivono in `Services/ChatTaskTrace/Bindings` e `Services/ChatComposer/ChatBindings`.
+- Causa probabile: file lasciati indietro rispetto alle tranche precedenti sui moduli target.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartG_TraceDebug.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartL_PromptOptimization.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatTaskTrace/Bindings/**`
+  - `App/SoloCodeApp/Sources/Services/ChatComposer/ChatBindings/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `SendMessage`
+  - `TaskLifecycle`
+  - `ChatPanelView` root
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `ToolTraceVisibilityTests`
+  - `ProviderFactoryCodeReviewTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite dei consumer gia' esistenti
+- Strategia di fix minimo:
+  - spostare i due helper nei moduli gia' esistenti
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer confinanti
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate trace and prompt helpers`
