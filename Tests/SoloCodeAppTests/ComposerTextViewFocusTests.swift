@@ -89,6 +89,62 @@ final class ComposerTextViewFocusTests: XCTestCase {
         XCTAssertEqual(latestText, "Nuovo messaggio")
     }
 
+    func testNativeTextViewPublishesTextChangesThroughDirectCallback() {
+        var latestText = ""
+        let textView = ComposerNativeNSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+        let parent = ComposerTextView(
+            text: Binding(
+                get: { latestText },
+                set: { latestText = $0 }
+            ),
+            isFocused: .constant(false),
+            minHeight: 22,
+            maxHeight: 140,
+            onSubmit: {}
+        )
+        let coordinator = parent.makeCoordinator()
+        coordinator.textView = textView
+
+        ComposerTextViewUpdateCoordinator.applyViewState(
+            parent: parent,
+            coordinator: coordinator
+        )
+
+        textView.string = "Sync diretto"
+        textView.didChangeText()
+
+        XCTAssertEqual(latestText, "Sync diretto")
+    }
+
+    func testSubmitFlushesLatestNativeTextBeforeInvokingCallback() {
+        var latestText = ""
+        var submitSnapshots: [String] = []
+        let textView = ComposerNativeNSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+        let parent = ComposerTextView(
+            text: Binding(
+                get: { latestText },
+                set: { latestText = $0 }
+            ),
+            isFocused: .constant(false),
+            minHeight: 22,
+            maxHeight: 140,
+            onSubmit: { submitSnapshots.append(latestText) }
+        )
+        let coordinator = parent.makeCoordinator()
+        coordinator.textView = textView
+
+        ComposerTextViewUpdateCoordinator.applyViewState(
+            parent: parent,
+            coordinator: coordinator
+        )
+
+        textView.string = "Messaggio finale"
+        textView.keyDown(with: makeReturnKeyEvent())
+
+        XCTAssertEqual(latestText, "Messaggio finale")
+        XCTAssertEqual(submitSnapshots, ["Messaggio finale"])
+    }
+
     func testDeferredBlurDoesNotClearFocusFromAnotherControl() {
         let window = makeWindow()
         let composer = ComposerNativeNSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))

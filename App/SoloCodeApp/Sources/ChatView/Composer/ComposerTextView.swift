@@ -22,6 +22,20 @@ enum ComposerTextViewUpdateCoordinator {
             textView.string = parent.text
         }
         textView.onSubmit = parent.onSubmit
+        textView.onTextChange = { nextText in
+            if coordinator.parent.text != nextText {
+                coordinator.parent.text = nextText
+            }
+            coordinator.updateHeight(
+                minHeight: coordinator.parent.minHeight,
+                maxHeight: coordinator.parent.maxHeight
+            )
+        }
+        textView.onFocusChange = { isFocused in
+            if coordinator.parent.isFocused != isFocused {
+                coordinator.parent.isFocused = isFocused
+            }
+        }
     }
 }
 
@@ -132,6 +146,29 @@ struct ComposerTextView: NSViewRepresentable {
 
 final class ComposerNativeNSTextView: NSTextView {
     var onSubmit: (() -> Void)?
+    var onTextChange: ((String) -> Void)?
+    var onFocusChange: ((Bool) -> Void)?
+
+    override func didChangeText() {
+        super.didChangeText()
+        onTextChange?(string)
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became {
+            onFocusChange?(true)
+        }
+        return became
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned {
+            onFocusChange?(false)
+        }
+        return resigned
+    }
 
     override func keyDown(with event: NSEvent) {
         let chars = event.charactersIgnoringModifiers ?? ""
@@ -144,6 +181,7 @@ final class ComposerNativeNSTextView: NSTextView {
                 return
             }
             if !flags.contains(.command) && !flags.contains(.option) && !flags.contains(.control) {
+                onTextChange?(string)
                 onSubmit?()
                 return
             }

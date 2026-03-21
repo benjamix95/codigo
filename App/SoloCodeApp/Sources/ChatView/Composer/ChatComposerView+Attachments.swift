@@ -152,7 +152,6 @@ extension ChatComposerView {
             (hasText || !attachedAttachments.isEmpty)
             && !isLoading
             && !awaitingChoice
-            && isProviderReady
 
         return Button(action: onSend) {
             Image(systemName: "arrow.up")
