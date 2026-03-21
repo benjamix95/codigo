@@ -1,0 +1,32 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `MessageToolTrace`, che e' UI pura per la visualizzazione dei trace events degli assistant turns.
+- Sintomo: il debito residuo `Chat` includeva ancora viste SwiftUI e helper di rendering/collapsed summary del tool trace.
+- Impatto: perimetro `Chat` sovrastimato e meno pulito dal punto di vista architetturale.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare `Chat/MessageToolTrace/*` tra i residui.
+- Risultato attuale: il cluster `MessageToolTrace` viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `Tasking/Views/MessageToolTrace`.
+- Causa probabile: collocazione storica iniziale vicino a `ChatTurnView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/MessageToolTrace/**`
+  - `App/SoloCodeApp/Sources/Tasking/Views/MessageToolTrace/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ToolTraceStore`
+  - `ToolTraceVisibility`
+  - `ChatTurnView`
+- Moduli confinanti da verificare:
+  - `MessageToolTraceMCPCamelCaseTests`
+  - `ToolTraceVisibilityTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sul trace UI
+- Strategia di fix minimo:
+  - spostare il cluster `MessageToolTrace` fuori da `Chat`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sulle suite dirette del trace
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate message tool trace ui cluster`
