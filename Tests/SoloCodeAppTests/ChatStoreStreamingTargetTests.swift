@@ -137,6 +137,63 @@ final class ChatStoreStreamingTargetTests: XCTestCase {
         XCTAssertEqual(conversation.title, "Hello from rust store")
     }
 
+    func testAddMessageFallsBackWhenRustStoreBridgeIsUnavailable() throws {
+        let original = getenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT").map { String(cString: $0) }
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        defer {
+            if let original {
+                setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", original, 1)
+            } else {
+                unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            }
+        }
+
+        let store = makeStore()
+        let conversationId = try XCTUnwrap(store.conversations.first?.id)
+
+        store.addMessage(ChatMessage(role: .user, content: "Messaggio visibile"), to: conversationId)
+        store.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        let conversation = try XCTUnwrap(store.conversation(for: conversationId))
+        XCTAssertEqual(conversation.messages.count, 2)
+        XCTAssertEqual(conversation.messages.first?.content, "Messaggio visibile")
+        XCTAssertTrue(conversation.messages.last?.isStreaming ?? false)
+        XCTAssertEqual(conversation.title, "Messaggio visibile")
+    }
+
+    func testUpdateLastAssistantMessageFallsBackWhenRustStoreBridgeIsUnavailable() throws {
+        let original = getenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT").map { String(cString: $0) }
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        defer {
+            if let original {
+                setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", original, 1)
+            } else {
+                unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            }
+        }
+
+        let store = makeStore()
+        let conversationId = try XCTUnwrap(store.conversations.first?.id)
+
+        store.addMessage(ChatMessage(role: .user, content: "Prompt"), to: conversationId)
+        store.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        store.updateLastAssistantMessage(
+            content: "Risposta aggiornata",
+            in: conversationId,
+            persistImmediately: false
+        )
+
+        let conversation = try XCTUnwrap(store.conversation(for: conversationId))
+        XCTAssertEqual(conversation.messages.last?.content, "Risposta aggiornata")
+    }
+
     func testRemoveTrailingEmptyAssistantMessages() async throws {
         let store = makeStore()
         let conversationId = try XCTUnwrap(store.conversations.first?.id)

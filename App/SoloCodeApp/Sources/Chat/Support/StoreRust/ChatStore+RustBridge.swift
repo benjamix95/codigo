@@ -173,15 +173,14 @@ extension ChatStore {
     @MainActor
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
         guard let conversationId else { return }
-        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
-           let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+           || !applyRustStoreAction("set_streaming_state") { request in
+               request.conversationId = conversationId.uuidString.lowercased()
+               request.boolValue = streaming
+           },
            let targetIndex = fallbackAssistantMutationIndex(in: conversations[conversationIndex]) {
             conversations[conversationIndex].messages[targetIndex].isStreaming = streaming
-        } else {
-            _ = applyRustStoreAction("set_streaming_state") { request in
-                request.conversationId = conversationId.uuidString.lowercased()
-                request.boolValue = streaming
-            }
         }
         if !streaming {
             saveConversationsImmediately()
@@ -193,8 +192,12 @@ extension ChatStore {
     @MainActor
     func addMessage(_ message: ChatMessage, to conversationId: UUID?) {
         guard let conversationId else { return }
-        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
-           let index = conversations.firstIndex(where: { $0.id == conversationId }) {
+        if let index = conversations.firstIndex(where: { $0.id == conversationId }),
+           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+           || !applyRustStoreAction("append_message") { request in
+               request.conversationId = conversationId.uuidString.lowercased()
+               request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+           } {
             conversations[index].messages.append(message)
             let trimmedTitle = conversations[index].title.trimmingCharacters(in: .whitespacesAndNewlines)
             let fallbackTitle = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -202,11 +205,6 @@ extension ChatStore {
                !fallbackTitle.isEmpty,
                (trimmedTitle.isEmpty || trimmedTitle == "New conversation") {
                 conversations[index].title = fallbackTitle
-            }
-        } else {
-            _ = applyRustStoreAction("append_message") { request in
-                request.conversationId = conversationId.uuidString.lowercased()
-                request.message = RustMainChatStoreAdapter.messageSnapshot(message)
             }
         }
         saveConversations()
@@ -216,15 +214,14 @@ extension ChatStore {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
-           let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+           || !applyRustStoreAction("sync_assistant_content") { request in
+               request.conversationId = conversationId.uuidString.lowercased()
+               request.text = resolvedContent
+           },
            let targetIndex = fallbackAssistantMutationIndex(in: conversations[conversationIndex]) {
             conversations[conversationIndex].messages[targetIndex].content = resolvedContent
-        } else {
-            _ = applyRustStoreAction("sync_assistant_content") { request in
-                request.conversationId = conversationId.uuidString.lowercased()
-                request.text = resolvedContent
-            }
         }
         persistAssistantMutation(immediately: persistImmediately)
     }
@@ -238,10 +235,15 @@ extension ChatStore {
     ) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        _ = applyRustStoreAction("sync_assistant_content") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
-            request.messageId = messageId.uuidString.lowercased()
-            request.text = resolvedContent
+        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+           || !applyRustStoreAction("sync_assistant_content") { request in
+               request.conversationId = conversationId.uuidString.lowercased()
+               request.messageId = messageId.uuidString.lowercased()
+               request.text = resolvedContent
+           },
+           let targetIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageId }) {
+            conversations[conversationIndex].messages[targetIndex].content = resolvedContent
         }
         persistAssistantMutation(immediately: persistImmediately)
     }
@@ -249,19 +251,18 @@ extension ChatStore {
     @MainActor
     func insertMessage(_ message: ChatMessage, before messageId: UUID, in conversationId: UUID?) {
         guard let conversationId else { return }
-        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment),
-           let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) {
+        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+           shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+           || !applyRustStoreAction("insert_message_before") { request in
+               request.conversationId = conversationId.uuidString.lowercased()
+               request.messageId = messageId.uuidString.lowercased()
+               request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+           } {
             let anchorIndex = conversations[conversationIndex].messages.firstIndex { $0.id == messageId }
             if let anchorIndex {
                 conversations[conversationIndex].messages.insert(message, at: anchorIndex)
             } else {
                 conversations[conversationIndex].messages.append(message)
-            }
-        } else {
-            _ = applyRustStoreAction("insert_message_before") { request in
-                request.conversationId = conversationId.uuidString.lowercased()
-                request.messageId = messageId.uuidString.lowercased()
-                request.message = RustMainChatStoreAdapter.messageSnapshot(message)
             }
         }
         saveConversations()
