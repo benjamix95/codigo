@@ -1,0 +1,40 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `PipelineRuntime` (`PipelineIntegrationService*`) e il support helper `ChatPanelSupport+UIHelpers`, entrambi blocchi di servizio/supporto separabili dalla UI diretta della chat.
+- Sintomo: il debito residuo `Chat` includeva un blocco service-oriented separabile, non UI della chat.
+- Impatto: perimetro `Chat` sovrastimato e accoppiato a un runtime di servizio riusabile.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare l’intero cluster `Support/PipelineRuntime` tra i residui.
+- Risultato attuale:
+  - `PipelineIntegrationService*` vive sotto `Chat/Support`
+  - `ChatPanelSupport+UIHelpers` vive sotto `Chat/Support`
+- Risultato atteso:
+  - `PipelineIntegrationService*` vive in `Services/ChatPipeline/Runtime`
+  - `ChatPanelSupport+UIHelpers` vive in `Services/ChatThread`
+- Causa probabile: collocazione storica nel modulo chat prima dell’estrazione della pipeline come servizio condiviso.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/PipelineRuntime/**`
+  - `App/SoloCodeApp/Sources/Chat/Support/ChatPanelSupport+UIHelpers.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatPipeline/Runtime/**`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+UIHelpers.swift`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `StoreProjection`
+  - `ChatPanelView`
+  - bridge Rust store/runtime
+- Moduli confinanti da verificare:
+  - `PipelineIntegrationServiceTests`
+  - `PipelineIntegrationDebugProjectionTests`
+  - `PipelineIntegrationVerifiedFindingsTests`
+  - `PipelineIntegrationLifecycleTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sui consumer diretti
+- Strategia di fix minimo:
+  - spostare il cluster `PipelineRuntime` fuori da `Chat`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sulle suite dirette del service
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate pipeline runtime service`
