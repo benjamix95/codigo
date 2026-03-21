@@ -1,0 +1,43 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora un cluster ampio di binding per task activity, execution controls, importer modifiers e display flags, che sono glue UI/runtime del pannello e non ownership del dominio Rust della main chat.
+- Sintomo: il debito residuo `Chat` includeva ancora helper di backlog activity, pause/resume/interrupt e modifier di presentazione del composer.
+- Impatto: il perimetro `Chat` restava sovrastimato e mescolava binding UI/runtime con il dominio main-chat.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui `PartH_TaskActivity`, `PartE_ExecutionControl`, `DisplayFlags`, `PartA_NotificationModifiers`.
+- Risultato attuale: il cluster task activity/execution viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `Services/ChatInteraction/ChatBindings`.
+- Causa probabile: collocazione storica iniziale nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ComposerUI/ChatPanelView+PartH_TaskActivity.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Lifecycle/ChatPanelView+PartE_ExecutionControl.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/UI/ChatPanelView+DisplayFlags.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/UI/ChatPanelView+PartA_NotificationModifiers.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatInteraction/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `TaskTrace`
+  - `Streaming`
+  - `Plan`
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `ChatBackgroundExecutionStateTests`
+  - `ComposerRuntimeTimerTests`
+  - `TaskActivityVisibilityTests`
+  - `TaskActivityStoreInstantGrepTests`
+  - `TaskActivityStoreScopedActivitiesTests`
+  - `TaskActivityStoreSwarmCardsTests`
+  - `ExecutionControllerPauseResumeTests`
+  - `TaskActivityPanelScopingTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite activity/execution
+- Strategia di fix minimo:
+  - spostare il cluster in `Services/ChatInteraction/ChatBindings`
+  - aggiornare solo path progetto e allowlist
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer activity/execution
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate task activity bindings`
