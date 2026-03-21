@@ -1,5 +1,5 @@
 use crate::main_chat_runtime::{
-    MainChatPlanPhase, MainChatPlanningStateKind, MainChatRuntimeSnapshot,
+    MainChatPlanPhase, MainChatPlanningStateKind, MainChatPlanQuestionnaire, MainChatRuntimeSnapshot,
 };
 use crate::main_chat_store::{
     MainChatStoreSnapshot, MainChatStoreSubagentCardSnapshot, MainChatStoreTimelineBlockSnapshot,
@@ -127,6 +127,7 @@ pub struct MainChatUiPlanSnapshot {
     #[serde(default)]
     pub question_epoch: i32,
     pub clarification_questions: Option<String>,
+    pub clarification_questionnaire: Option<MainChatPlanQuestionnaire>,
     pub proposal_content: Option<String>,
     pub summary_title: Option<String>,
     pub chosen_path: Option<String>,

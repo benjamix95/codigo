@@ -1,0 +1,46 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: il `plan` continuava a consegnare a Swift solo markdown di chiarificazione, costringendo il panel a ricostruire il questionario strutturato lato UI.
+- Sintomo: `PlanPanelView` e i path di restore continuavano a chiamare `PlanOptionsParser.parseClarificationQuestionnaire(...)` per capire la struttura delle domande.
+- Impatto: ownership del questionario ancora divisa tra Rust e Swift; rischio di divergenza tra decisioni Rust e wizard UI.
+- Gravità: media
+- Steps to reproduce:
+  1. Far emettere al `plan` un blocco `## Questions`.
+  2. Verificare che il runtime Rust esponga solo `clarificationQuestions` markdown.
+  3. Verificare che il panel ricostruisca il questionario via parser Swift.
+- Risultato attuale: il wizard UI dipende ancora da parser Swift per la struttura del questionario.
+- Risultato atteso: Rust deve emettere anche il questionario tipizzato; Swift deve solo renderizzarlo.
+- Causa probabile: il cutover precedente aveva spostato phase/state ma non il payload strutturato delle clarifications.
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_runtime.rs`
+  - `Native/AppCoreProtocol/src/main_chat_ui.rs`
+  - `Native/RustCore/src/main_chat/plan_markdown.rs`
+  - `Native/RustCore/src/main_chat/plan_runtime.rs`
+  - `Native/RustCore/src/main_chat/plan_ui_flow.rs`
+  - `Native/RustCore/src/main_chat/ui_projection.rs`
+  - `App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/MainChatStoreBridgeModels.swift`
+  - `App/SoloCodeApp/Sources/ChatView/Root/ChatPanelView.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatComposer/ChatBindings/ChatPanelView+PartB_*.swift`
+  - `App/SoloCodeApp/Sources/Panels/PlanPanel/PlanPanelView.swift`
+- Non-scope:
+  - Mermaid
+  - rendering markdown del body finale del piano
+  - parser UI-only per helper visuali del wizard
+- Moduli confinanti da verificare:
+  - `RustMainChatUIBoundaryPlanTests`
+  - `PlanPanelVisualSmokeTests`
+  - `PlanShortcutAndCommandTests`
+  - `PlanOptionsParserTests`
+- Test da aggiungere o aggiornare:
+  - Rust tests parser questionario
+  - app-side boundary tests con il nuovo campo strutturato
+  - smoke test del panel con parametro `clarificationQuestionnaire`
+- Strategia di fix minimo:
+  - aggiungere `clarificationQuestionnaire` al boundary Rust
+  - popolarlo in `plan_apply_question_result`, `plan_receive_clarification_questions` e clarifications di phase 3
+  - usare il dato strutturato nel panel, mantenendo il parser Swift solo come fallback/UI support
+- Verifica post-fix:
+  - `cargo test -p solocode_rust_core --quiet`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatUIBoundaryPlanTests -only-testing:SoloCodeAppTests/PlanShortcutAndCommandTests -only-testing:SoloCodeAppTests/PlanPanelVisualSmokeTests -only-testing:SoloCodeAppTests/PlanOptionsParserTests`
+- Commit previsto: `fix(plan): move clarification questionnaire structure into rust`

@@ -111,6 +111,7 @@ extension ChatPanelView {
                 planUserRequest = plan.userRequest
                 planAnalysisContext = plan.analysisContext
                 planClarificationAnswers = plan.clarificationAnswers
+                planClarificationQuestionnaire = plan.clarificationQuestionnaire
                 planClarificationCycles = plan.clarificationCycles
                 planShouldRunInline = plan.shouldRunInline
                 planQuestionToolRequestEpoch = max(planQuestionToolRequestEpoch, plan.questionEpoch)
@@ -122,11 +123,14 @@ extension ChatPanelView {
         switch planSnapshot.planningStateKind ?? .idle {
         case .idle:
             planningState = .idle
+            planClarificationQuestionnaire = nil
         case .awaitingClarification:
+            planClarificationQuestionnaire = planSnapshot.clarificationQuestionnaire
             planningState = .awaitingClarification(
                 questions: planSnapshot.clarificationQuestions ?? ""
             )
         case .awaitingChoice:
+            planClarificationQuestionnaire = nil
             let options = planOptionsFromSnapshot(
                 titles: planSnapshot.optionTitles,
                 fullTexts: planSnapshot.optionFullTexts

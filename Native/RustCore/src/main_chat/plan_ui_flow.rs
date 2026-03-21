@@ -1,4 +1,5 @@
 use crate::main_chat::runtime::handle_runtime_action;
+use crate::main_chat::plan_markdown::parse_clarification_questionnaire;
 use crate::main_chat::state::{ensure_plan_defaults, reset_output};
 use app_core_protocol::main_chat_runtime::{
     MainChatPlanPhase, MainChatPlanningStateKind, MainChatRuntimeActionRequest,
@@ -61,6 +62,10 @@ pub fn receive_clarification_questions(
     plan.phase = Some(MainChatPlanPhase::Questioning);
     plan.planning_state_kind = Some(MainChatPlanningStateKind::AwaitingClarification);
     plan.clarification_questions = Some(questions);
+    plan.clarification_questionnaire = plan
+        .clarification_questions
+        .as_ref()
+        .and_then(|value| parse_clarification_questionnaire(value));
     plan.question_epoch += 1;
     runtime_snapshot.output.as_mut().expect("output defaults").should_open_plan_panel = true;
     state.runtime_snapshot = Some(runtime_snapshot);

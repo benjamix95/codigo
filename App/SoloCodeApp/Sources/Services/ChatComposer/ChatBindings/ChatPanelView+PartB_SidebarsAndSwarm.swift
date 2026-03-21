@@ -15,6 +15,7 @@ extension ChatPanelView {
             planningState: planningState,
             planFlowPhase: planFlowPhase,
             planStreamingContent: planStreamingContent,
+            clarificationQuestionnaire: planClarificationQuestionnaire,
             questionsWereVisited: planClarificationCycles > 0,
             clarificationIdentitySeed: resolveClarificationIdentitySeed(
                 planClarificationCycles: planClarificationCycles,

@@ -54,6 +54,7 @@ extension ChatPanelView {
                             )
                             planFlowPhase = .idle
                             planningState = .idle
+                            planClarificationQuestionnaire = nil
                             clearPlanStreamingState()
                         case .questioning where !isPausedForClarification:
                             NSLog(
@@ -61,6 +62,7 @@ extension ChatPanelView {
                             )
                             planFlowPhase = .idle
                             planningState = .idle
+                            planClarificationQuestionnaire = nil
                             clearPlanStreamingState()
                         default:
                             break
@@ -238,6 +240,7 @@ extension ChatPanelView {
                     }
                     planFlowPhase = .idle
                     planningState = .idle
+                    planClarificationQuestionnaire = nil
                     clearPlanStreamingState()
                 }
             }

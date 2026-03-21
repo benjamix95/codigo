@@ -1,8 +1,8 @@
 use crate::main_chat::plan_markdown::{
     clarifications_needed_section, extract_clarification_payload, extract_display_summary_title,
-    extract_todos_from_option_text, has_no_questions_needed_signal, parse_plan_screening_decision,
-    plan_screening_status_message, should_allow_follow_up_clarification,
-    should_ask_plan_clarifications, todo_compliant_options,
+    extract_todos_from_option_text, has_no_questions_needed_signal, parse_clarification_questionnaire,
+    parse_plan_screening_decision, plan_screening_status_message,
+    should_allow_follow_up_clarification, should_ask_plan_clarifications, todo_compliant_options,
 };
 use crate::main_chat::plan_prompts::{
     build_phase0_screening_prompt, build_phase1_analysis_prompt, build_phase2_question_prompt,
@@ -88,12 +88,17 @@ pub fn handle_plan_action(
                 plan.planning_state_kind = Some(MainChatPlanningStateKind::AwaitingClarification);
                 plan.clarification_cycles += 1;
                 plan.clarification_questions = Some(questions_markdown);
+                plan.clarification_questionnaire = plan
+                    .clarification_questions
+                    .as_ref()
+                    .and_then(|value| parse_clarification_questionnaire(value));
                 snapshot.output.as_mut()?.chat_content_override =
                     Some("Questions ready — answer in the plan panel.".to_string());
                 snapshot.output.as_mut()?.should_open_plan_panel = true;
             } else {
                 plan.phase = Some(MainChatPlanPhase::Generating);
                 plan.planning_state_kind = Some(MainChatPlanningStateKind::Idle);
+                plan.clarification_questionnaire = None;
                 snapshot.output.as_mut()?.generated_prompt = Some(build_phase3_generation_prompt(
                     &plan.user_request,
                     &plan.analysis_context,
@@ -113,6 +118,7 @@ pub fn handle_plan_action(
             plan.clarification_answers = text.unwrap_or_default();
             plan.planning_state_kind = Some(MainChatPlanningStateKind::Idle);
             plan.phase = Some(MainChatPlanPhase::Analyzing);
+            plan.clarification_questionnaire = None;
         }
         "plan_prepare_post_clarification_analysis_prompt" => {
             plan.phase = Some(MainChatPlanPhase::Analyzing);
@@ -137,6 +143,10 @@ pub fn handle_plan_action(
                     plan.planning_state_kind = Some(MainChatPlanningStateKind::AwaitingClarification);
                     plan.clarification_cycles += 1;
                     plan.clarification_questions = Some(questions_markdown);
+                    plan.clarification_questionnaire = plan
+                        .clarification_questions
+                        .as_ref()
+                        .and_then(|value| parse_clarification_questionnaire(value));
                     snapshot.output.as_mut()?.chat_content_override =
                         Some("Questions ready — answer in the plan panel.".to_string());
                     snapshot.output.as_mut()?.should_open_plan_panel = true;
@@ -145,6 +155,7 @@ pub fn handle_plan_action(
             }
             plan.phase = Some(MainChatPlanPhase::Generating);
             plan.planning_state_kind = Some(MainChatPlanningStateKind::Idle);
+            plan.clarification_questionnaire = None;
             snapshot.output.as_mut()?.generated_prompt = Some(build_phase3_generation_prompt(
                 &plan.user_request,
                 &plan.analysis_context,
@@ -177,10 +188,15 @@ pub fn handle_plan_action(
                 plan.planning_state_kind = Some(MainChatPlanningStateKind::AwaitingClarification);
                 plan.clarification_cycles += 1;
                 plan.clarification_questions = Some(questions_markdown);
+                plan.clarification_questionnaire = plan
+                    .clarification_questions
+                    .as_ref()
+                    .and_then(|value| parse_clarification_questionnaire(value));
                 snapshot.output.as_mut()?.chat_content_override =
                     Some("Additional clarifications needed — answer in the plan panel.".to_string());
                 snapshot.output.as_mut()?.should_open_plan_panel = true;
             } else {
+                plan.clarification_questionnaire = None;
                 let compliant_options = todo_compliant_options(&generation);
                 if !compliant_options.is_empty() {
                     let first = compliant_options
@@ -260,6 +276,7 @@ pub fn handle_plan_action(
             *plan = Default::default();
             plan.phase = Some(MainChatPlanPhase::Idle);
             plan.planning_state_kind = Some(MainChatPlanningStateKind::Idle);
+            plan.clarification_questionnaire = None;
         }
         _ => {}
     }

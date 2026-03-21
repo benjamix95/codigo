@@ -112,6 +112,7 @@ struct ChatPanelView: View {
     @State  var planAnalysisContext: String = ""
     @State  var planUserRequest: String = ""
     @State  var planClarificationAnswers: String = ""
+    @State  var planClarificationQuestionnaire: PlanClarificationQuestionnaire?
     @State  var planClarificationCycles: Int = 0
     @State  var planStreamingContent: String = ""
     @State  var planStreamingContentByConversation: [UUID: String] = [:]

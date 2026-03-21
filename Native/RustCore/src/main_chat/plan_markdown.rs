@@ -1,3 +1,6 @@
+use app_core_protocol::main_chat_runtime::{
+    MainChatPlanQuestion, MainChatPlanQuestionOption, MainChatPlanQuestionnaire,
+};
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -141,6 +144,134 @@ pub fn parse_plan_option_records(text: &str) -> Vec<PlanOptionRecord> {
     records
 }
 
+pub fn parse_clarification_questionnaire(text: &str) -> Option<MainChatPlanQuestionnaire> {
+    let normalized = text.trim();
+    if normalized.is_empty() || !clarification_header_regex().is_match(normalized) {
+        return None;
+    }
+
+    let mut in_block = false;
+    let mut questions = Vec::new();
+    let mut current_id: Option<i32> = None;
+    let mut current_prompt = String::new();
+    let mut current_options: Vec<MainChatPlanQuestionOption> = Vec::new();
+    let mut current_has_checkbox_options = false;
+    let mut invalid_block = false;
+
+    let mut flush_question = |questions: &mut Vec<MainChatPlanQuestion>,
+                              current_id: &mut Option<i32>,
+                              current_prompt: &mut String,
+                              current_options: &mut Vec<MainChatPlanQuestionOption>,
+                              current_has_checkbox_options: &mut bool,
+                              invalid_block: &mut bool| {
+        let Some(question_id) = *current_id else {
+            return;
+        };
+        let prompt = current_prompt.trim().to_string();
+        if prompt.is_empty() || current_options.len() < 2 {
+            *invalid_block = true;
+            return;
+        }
+        let has_text_marker = multi_select_marker_regex().is_match(&prompt);
+        let cleaned_prompt = if has_text_marker {
+            multi_select_marker_regex()
+                .replace_all(&prompt, "")
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .trim()
+                .to_string()
+        } else {
+            prompt
+        };
+        questions.push(MainChatPlanQuestion {
+            id: question_id,
+            prompt: cleaned_prompt,
+            options: current_options.clone(),
+            is_multi_select: has_text_marker || *current_has_checkbox_options,
+        });
+        *current_id = None;
+        current_prompt.clear();
+        current_options.clear();
+        *current_has_checkbox_options = false;
+    };
+
+    for raw_line in normalized.lines() {
+        let trimmed = raw_line.trim();
+        if clarification_header_regex().is_match(trimmed) {
+            in_block = true;
+            continue;
+        }
+        if !in_block {
+            continue;
+        }
+        if trimmed.starts_with('#') {
+            break;
+        }
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let looks_like_numeric_option_line = current_id.is_some() && numeric_option_line_regex().is_match(trimmed);
+        if !looks_like_numeric_option_line {
+            if let Some(capture) = question_line_regex().captures(trimmed) {
+                flush_question(
+                    &mut questions,
+                    &mut current_id,
+                    &mut current_prompt,
+                    &mut current_options,
+                    &mut current_has_checkbox_options,
+                    &mut invalid_block,
+                );
+                if invalid_block {
+                    return if questions.is_empty() {
+                        None
+                    } else {
+                        Some(MainChatPlanQuestionnaire { questions })
+                    };
+                }
+                current_id = capture.get(1).and_then(|value| value.as_str().parse::<i32>().ok());
+                current_prompt = capture
+                    .get(2)
+                    .map(|value| value.as_str().trim().to_string())
+                    .unwrap_or_default();
+                continue;
+            }
+        }
+
+        if current_id.is_none() {
+            return None;
+        }
+
+        if let Some(option) = parse_question_option(trimmed, &current_options) {
+            if checkbox_option_regex().is_match(trimmed) {
+                current_has_checkbox_options = true;
+            }
+            current_options.push(option);
+            continue;
+        }
+
+        if current_options.is_empty() {
+            current_prompt = format!("{} {}", current_prompt, trimmed).trim().to_string();
+        } else if let Some(last) = current_options.last_mut() {
+            last.text = format!("{} {}", last.text, trimmed).trim().to_string();
+        }
+    }
+
+    flush_question(
+        &mut questions,
+        &mut current_id,
+        &mut current_prompt,
+        &mut current_options,
+        &mut current_has_checkbox_options,
+        &mut invalid_block,
+    );
+    if invalid_block && questions.is_empty() {
+        return None;
+    }
+    (!questions.is_empty()).then_some(MainChatPlanQuestionnaire { questions })
+}
+
 pub fn todo_compliant_options(text: &str) -> Vec<PlanOptionRecord> {
     parse_plan_option_records(text)
         .into_iter()
@@ -251,6 +382,70 @@ fn cleanup_markdown_inline(raw: &str) -> String {
         .to_string()
 }
 
+fn parse_question_option(
+    line: &str,
+    existing: &[MainChatPlanQuestionOption],
+) -> Option<MainChatPlanQuestionOption> {
+    let (raw_id, raw_text) = if let Some(capture) = alpha_option_regex().captures(line) {
+        (
+            capture.get(1).map(|value| value.as_str().to_string()),
+            capture.get(2).map(|value| value.as_str().to_string()),
+        )
+    } else if let Some(capture) = numeric_option_regex().captures(line) {
+        (
+            capture.get(1).map(|value| value.as_str().to_string()),
+            capture.get(2).map(|value| value.as_str().to_string()),
+        )
+    } else if let Some(capture) = bullet_option_regex().captures(line) {
+        (None, capture.get(1).map(|value| value.as_str().to_string()))
+    } else {
+        return None;
+    };
+
+    let mut text = raw_text?.trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+
+    let is_recommended = recommended_suffix_regex().is_match(&text);
+    if is_recommended {
+        text = recommended_suffix_regex()
+            .replace_all(&text, "")
+            .trim()
+            .to_string();
+    }
+
+    Some(MainChatPlanQuestionOption {
+        id: normalized_option_id(raw_id.as_deref(), existing),
+        text,
+        is_recommended,
+    })
+}
+
+fn normalized_option_id(raw_id: Option<&str>, existing: &[MainChatPlanQuestionOption]) -> String {
+    if let Some(raw_id) = raw_id {
+        let candidate = raw_id.trim();
+        if !candidate.is_empty() {
+            let normalized = candidate.to_uppercase();
+            if !existing.iter().any(|option| option.id.eq_ignore_ascii_case(&normalized)) {
+                return normalized;
+            }
+        }
+    }
+
+    let used = existing
+        .iter()
+        .map(|option| option.id.to_uppercase())
+        .collect::<Vec<_>>();
+    for letter in 'A'..='Z' {
+        let candidate = letter.to_string();
+        if !used.iter().any(|value| value == &candidate) {
+            return candidate;
+        }
+    }
+    (existing.len() + 1).to_string()
+}
+
 fn option_header_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
@@ -310,6 +505,70 @@ fn clarifications_needed_regex() -> &'static Regex {
     })
 }
 
+fn clarification_header_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(
+            r"(?im)^\s*#{1,3}\s*(?:clarification\s*questions|questions\s*to\s*clarify|questions|clarifications?\s*needed|need(?:ed)?\s*clarifications?)\s*:?\s*$",
+        )
+        .expect("valid clarification header regex")
+    })
+}
+
+fn question_line_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"^\s*(\d+)[.)]\s*(.+)$").expect("valid question line regex"))
+}
+
+fn alpha_option_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r"^\s*(?:[-*•]\s*)?(?:\[\s*[xX ]?\s*\]\s*)?([A-Za-z])[.)]\s+(.+)$")
+            .expect("valid alpha option regex")
+    })
+}
+
+fn numeric_option_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r"^\s*(?:[-*•]\s*)?(?:\[\s*[xX ]?\s*\]\s*)?(\d{1,2})\)\s+(.+)$")
+            .expect("valid numeric option regex")
+    })
+}
+
+fn bullet_option_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"^\s*[-*•]\s*(?:\[\s*[xX ]?\s*\]\s*)?(.+)$").expect("valid bullet option regex"))
+}
+
+fn checkbox_option_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"^\s*[-*•]\s*\[\s*[xX ]?\s*\]").expect("valid checkbox regex"))
+}
+
+fn multi_select_marker_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(
+            r"(?i)(?:\(\s*)?(?:select\s+all\s+that\s+apply|select\s+multiple(?:\s+options)?|multi[-\s]?select|seleziona\s+(?:tutto(?:\s+quello\s+che\s+si\s+applica)?|multiplo|multiple|piu)(?:\s+opzioni)?)\s*(?:\))?",
+        )
+        .expect("valid multi select regex")
+    })
+}
+
+fn recommended_suffix_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r"(?i)\s*\((recommended|consigliato|consigliata)\)\s*$")
+            .expect("valid recommended suffix regex")
+    })
+}
+
+fn numeric_option_line_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"^\s*\d+\)\s+\S+").expect("valid numeric option line regex"))
+}
+
 fn fenced_line_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| Regex::new(r"(?m)^```[^\n]*$").expect("valid fenced line regex"))
@@ -326,7 +585,7 @@ fn no_questions_regex() -> &'static Regex {
 mod tests {
     use super::{
         extract_display_summary_title, extract_todos_from_option_text, has_no_questions_needed_signal,
-        parse_plan_option_records, todo_compliant_options,
+        parse_clarification_questionnaire, parse_plan_option_records, todo_compliant_options,
     };
 
     #[test]
@@ -395,5 +654,22 @@ graph TD
 ```
 "#;
         assert_eq!(extract_todos_from_option_text(input), vec!["First", "Second"]);
+    }
+
+    #[test]
+    fn parses_structured_clarification_questionnaire() {
+        let input = r#"
+## Questions
+1. Quale modulo deve avere priorita'? (select multiple)
+A) Parser (Recommended)
+B) UI
+- [ ] C) Altro
+"#;
+
+        let questionnaire = parse_clarification_questionnaire(input).expect("questionnaire");
+        assert_eq!(questionnaire.questions.len(), 1);
+        assert!(questionnaire.questions[0].is_multi_select);
+        assert_eq!(questionnaire.questions[0].options.len(), 3);
+        assert!(questionnaire.questions[0].options[0].is_recommended);
     }
 }

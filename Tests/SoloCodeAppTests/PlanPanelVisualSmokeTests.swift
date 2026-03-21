@@ -84,6 +84,7 @@ final class PlanPanelVisualSmokeTests: XCTestCase {
             planningState: planningState,
             planFlowPhase: flowPhase,
             planStreamingContent: streamingContent,
+            clarificationQuestionnaire: nil,
             questionsWereVisited: true,
             clarificationIdentitySeed: seed,
             showHistorySection: false,

@@ -31,6 +31,33 @@ pub enum MainChatPlanningStateKind {
     AwaitingChoice,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatPlanQuestionOption {
+    pub id: String,
+    pub text: String,
+    #[serde(default)]
+    pub is_recommended: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatPlanQuestion {
+    pub id: i32,
+    pub prompt: String,
+    #[serde(default)]
+    pub options: Vec<MainChatPlanQuestionOption>,
+    #[serde(default)]
+    pub is_multi_select: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatPlanQuestionnaire {
+    #[serde(default)]
+    pub questions: Vec<MainChatPlanQuestion>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MainChatDirectStreamSnapshot {
@@ -52,6 +79,7 @@ pub struct MainChatPlanSnapshot {
     pub phase: Option<MainChatPlanPhase>,
     pub planning_state_kind: Option<MainChatPlanningStateKind>,
     pub clarification_questions: Option<String>,
+    pub clarification_questionnaire: Option<MainChatPlanQuestionnaire>,
     pub proposal_content: Option<String>,
     pub summary_title: Option<String>,
     pub chosen_path: Option<String>,

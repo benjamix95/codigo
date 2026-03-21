@@ -199,6 +199,7 @@ fn plan_snapshot_from_sources(
         planning_state_kind: runtime_plan.and_then(|plan| plan.planning_state_kind.clone()),
         question_epoch: runtime_plan.map(|plan| plan.question_epoch).unwrap_or_default(),
         clarification_questions: runtime_plan.and_then(|plan| plan.clarification_questions.clone()),
+        clarification_questionnaire: runtime_plan.and_then(|plan| plan.clarification_questionnaire.clone()),
         proposal_content: runtime_plan.and_then(|plan| plan.proposal_content.clone()).or_else(|| {
             plan_board.and_then(|board| board.walkthrough_markdown.clone())
         }),

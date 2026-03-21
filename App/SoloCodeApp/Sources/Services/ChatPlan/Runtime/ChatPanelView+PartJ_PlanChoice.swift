@@ -157,6 +157,7 @@ extension ChatPanelView {
         )
         let truncatedPrompt = String(prompt.prefix(16_000))
         clearPlanStreamingState()
+        planClarificationQuestionnaire = nil
         _ = applyPlanUIIntent(
             "submit_clarification_answers",
             conversationId: conversationId,

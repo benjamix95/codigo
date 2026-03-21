@@ -18,6 +18,7 @@ struct PlanPanelView: View {
     let planFlowPhase: PlanFlowPhase
     /// Live streaming content from multi-turn plan flow (displayed during analyzing/questioning/generating phases).
     let planStreamingContent: String
+    let clarificationQuestionnaire: PlanClarificationQuestionnaire?
     /// Whether the clarification questions phase was visited during this plan flow.
     let questionsWereVisited: Bool
     /// Increases whenever a clarification round is emitted, forcing wizard state reset.
@@ -90,7 +91,8 @@ struct PlanPanelView: View {
 
                     // 2) Clarification questions (only when truly waiting)
                     if case .awaitingClarification(let questions) = planningState {
-                        if let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: questions) {
+                        if let questionnaire = clarificationQuestionnaire
+                            ?? PlanOptionsParser.parseClarificationQuestionnaire(from: questions) {
                             PlanClarificationWizardView(
                                 questionnaire: questionnaire,
                                 planColor: planColor,

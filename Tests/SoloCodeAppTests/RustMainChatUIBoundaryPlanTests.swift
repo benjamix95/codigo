@@ -98,6 +98,7 @@ final class RustMainChatUIBoundaryPlanTests: XCTestCase {
                     phase: .idle,
                     planningStateKind: .idle,
                     clarificationQuestions: nil,
+                    clarificationQuestionnaire: nil,
                     proposalContent: nil,
                     summaryTitle: nil,
                     chosenPath: nil,

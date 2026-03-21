@@ -125,6 +125,7 @@ extension ChatPanelView {
             planAnalysisContext = ""
             planUserRequest = ""
             planClarificationAnswers = ""
+            planClarificationQuestionnaire = nil
             planningState = .idle
             planFlowPhase = .idle
             return
@@ -159,6 +160,7 @@ extension ChatPanelView {
             planStreamingContentByConversation[conversationId] ?? "",
             isBuildScopedConversation: isBuildScopedConversation
         ) {
+            planClarificationQuestionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: questionsMarkdown)
             planFlowPhase = .questioning
             planningState = .awaitingClarification(questions: questionsMarkdown)
             planStreamingContent = questionsMarkdown
@@ -168,6 +170,7 @@ extension ChatPanelView {
         planAnalysisContext = ""
         planUserRequest = ""
         planClarificationAnswers = ""
+        planClarificationQuestionnaire = nil
         planningState = .idle
         planFlowPhase = .idle
     }
