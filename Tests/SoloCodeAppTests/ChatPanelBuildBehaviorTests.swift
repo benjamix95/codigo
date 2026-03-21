@@ -160,4 +160,71 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
         let prompt = buildPlanClarificationPrompt(submission)
         XCTAssertTrue(prompt.contains("Final user note: (omitted)"))
     }
+
+    func testResolveSendTargetConversationKeepsCurrentSelection() {
+        let currentConversationId = UUID()
+        let context = EffectiveContext.empty()
+
+        let resolution = resolveSendTargetConversation(
+            currentConversationId: currentConversationId,
+            effectiveContext: context,
+            reusableConversationId: UUID()
+        ) { _, _ in
+            XCTFail("Non deve creare una nuova conversazione quando una selezione esiste gia'")
+            return UUID()
+        }
+
+        XCTAssertEqual(resolution.conversationId, currentConversationId)
+        XCTAssertFalse(resolution.requiresSelectionUpdate)
+    }
+
+    func testResolveSendTargetConversationPrefersReusableEmptyConversation() {
+        let reusableConversationId = UUID()
+
+        let resolution = resolveSendTargetConversation(
+            currentConversationId: nil,
+            effectiveContext: .empty(),
+            reusableConversationId: reusableConversationId
+        ) { _, _ in
+            XCTFail("Non deve creare una conversazione quando ne esiste gia' una vuota riusabile")
+            return UUID()
+        }
+
+        XCTAssertEqual(resolution.conversationId, reusableConversationId)
+        XCTAssertTrue(resolution.requiresSelectionUpdate)
+    }
+
+    func testResolveSendTargetConversationCreatesConversationUsingEffectiveContextScope() {
+        let context = ProjectContext(
+            kind: .workspace,
+            name: "Workspace",
+            folderPaths: ["/tmp/app", "/tmp/lib"],
+            isPinned: true,
+            lastActiveFolderPath: "/tmp/lib"
+        )
+        let effective = EffectiveContext(
+            contextId: context.id,
+            folderPaths: context.folderPaths,
+            isWorkspace: true,
+            context: context
+        )
+        let createdConversationId = UUID()
+        var capturedContextId: UUID?
+        var capturedFolderPath: String?
+
+        let resolution = resolveSendTargetConversation(
+            currentConversationId: nil,
+            effectiveContext: effective,
+            reusableConversationId: nil
+        ) { contextId, folderPath in
+            capturedContextId = contextId
+            capturedFolderPath = folderPath
+            return createdConversationId
+        }
+
+        XCTAssertEqual(resolution.conversationId, createdConversationId)
+        XCTAssertTrue(resolution.requiresSelectionUpdate)
+        XCTAssertEqual(capturedContextId, context.id)
+        XCTAssertEqual(capturedFolderPath, "/tmp/lib")
+    }
 }

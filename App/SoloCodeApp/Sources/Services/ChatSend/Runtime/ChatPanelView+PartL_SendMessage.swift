@@ -3,6 +3,22 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func resolveSendTargetConversation(
+    currentConversationId: UUID?,
+    effectiveContext: EffectiveContext,
+    reusableConversationId: UUID?,
+    createConversation: (UUID?, String?) -> UUID
+) -> (conversationId: UUID, requiresSelectionUpdate: Bool) {
+    if let currentConversationId {
+        return (currentConversationId, false)
+    }
+    if let reusableConversationId {
+        return (reusableConversationId, true)
+    }
+    let folderScope = effectiveContext.context.flatMap { $0.folderPaths.count > 1 ? $0.activeFolderPath : nil }
+    return (createConversation(effectiveContext.contextId, folderScope), true)
+}
+
 extension ChatPanelView {
     internal func sendMessage(preferCodeReviewRuntimeProvider: Bool? = nil) {
         let parsedInput = parsePlanCommandInput(inputText)
@@ -16,17 +32,24 @@ extension ChatPanelView {
             }
             return autoCodeReviewRequest.prefersCodeReviewRuntimeProvider ? true : nil
         }()
-        if forcePlanInline {
-            // `/plan` should force the planning flow — panel opens after screening in Phase 0.
-            planToggleEnabled = true
-        }
+        if forcePlanInline { planToggleEnabled = true }
         guard !text.isEmpty || !attachedComposerAttachments.isEmpty else { return }
-        guard let targetConversationId = conversationId else {
-            appendTechnicalErrorMessage(
-                "[Error] No conversation selected. Create or select a thread and try again.",
-                in: nil
-            )
-            return
+        let reusableConversationId = chatStore.reusableEmptyConversation(
+            contextId: effectiveContext.contextId,
+            contextFolderPath: effectiveContext.context.flatMap {
+                $0.folderPaths.count > 1 ? $0.activeFolderPath : nil
+            }
+        )?.id
+        let targetResolution = resolveSendTargetConversation(
+            currentConversationId: conversationId,
+            effectiveContext: effectiveContext,
+            reusableConversationId: reusableConversationId
+        ) { contextId, folderPath in
+            chatStore.createConversation(contextId: contextId, contextFolderPath: folderPath, mode: coderMode)
+        }
+        let targetConversationId = targetResolution.conversationId
+        if targetResolution.requiresSelectionUpdate {
+            selectedConversationId = targetConversationId
         }
 
         let targetConversation = chatStore.conversation(for: targetConversationId)
@@ -51,7 +74,6 @@ extension ChatPanelView {
         }
         hasJustCompletedTask = false
 
-        // Check rate limit before proceeding — show alert popup if at 100%
         if let rateLimitMsg = providerUsageStore.rateLimitAlertMessage(
             for: providerRegistry.selectedProviderId)
         {
@@ -68,7 +90,6 @@ extension ChatPanelView {
             return
         }
 
-        // Opening the plan panel should not automatically activate planning.
         let shouldRunPlanInline = resolveShouldRunPlanInline(
             forcePlanInline: forcePlanInline,
             coderMode: coderMode,
@@ -87,7 +108,6 @@ extension ChatPanelView {
             clearPlanStreamingState()
         }
         if isPlanModeRequested {
-            // Guard against launching a new plan flow while one is already in progress
             switch planFlowPhase {
             case .analyzing, .questioning, .generating, .building:
                 appendTechnicalErrorMessage(
@@ -106,14 +126,12 @@ extension ChatPanelView {
             planClarificationCycles = 0
             clearPlanStreamingState()
             planShouldRunInline = shouldRunPlanInline
-            // Panel opens after Phase 0 screening in runMultiTurnPlanFlow — not here
         } else if planFlowPhase != .building {
             planFlowPhase = .idle
             planningState = .idle
             clearPlanStreamingState()
         }
 
-        // 1. Resolve the runtime provider
         guard
             let runtimeProvider = resolveMainChatTransportProvider(
                 selectedProvider: selectedProvider,
@@ -146,7 +164,6 @@ extension ChatPanelView {
             runtimeProviderId: effectiveRuntimeProvider.id
         )
 
-        // 2. Build workspace context & checkpoint
         let ctx = effectiveContext.toWorkspaceContext(
             openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
             activeSelection: nil,
@@ -164,7 +181,6 @@ extension ChatPanelView {
             return
         }
 
-        // 3. Prepare messages in chat store
         let turnId = UUID()
         let attachmentBundle = buildAttachmentBundle(
             attachments: attachedComposerAttachments,
@@ -216,10 +232,6 @@ extension ChatPanelView {
         ) {
             clearTaskActivityPipeline()
         }
-        // Preserve manual todos across turns; for a new standard turn reset all agent todos,
-        // including stale canonical plan tasks from previous plans/conversations.
-        // During an active plan build, keep canonical todos so the build's todo
-        // tracking isn't wiped by a concurrent user message.
         let hasActivePlanBuildTask = activeBuildAgentConversationId.map {
             chatStore.isTaskActive(for: $0)
         } ?? false
@@ -261,7 +273,6 @@ extension ChatPanelView {
         let attachmentsToSend = attachmentBundle.llm.isEmpty ? nil : attachmentBundle.llm
         attachedComposerAttachments = []
 
-        // 4. Build the prompt with mode-specific instructions
         let basePrompt = buildPrompt(userText: text, shouldRunPlanInline: shouldRunPlanInline)
         let prompt = attachmentBundle.fallbackPreamble.isEmpty
             ? basePrompt
