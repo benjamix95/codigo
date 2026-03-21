@@ -1,0 +1,36 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Providers` conteneva ancora l’intero cluster `ToolEnabledLLMProvider`, che e' un wrapper/orchestrator condiviso sopra i backend provider e non una implementazione provider-specifica.
+- Sintomo: il debito residuo `Providers` restava interamente concentrato in un decorator/tool-runtime layer usato trasversalmente da backend CLI/API, review flow e runtime.
+- Impatto: il prefisso `Providers` continuava a rappresentare un perimetro architetturale ambiguo e sovrastimato.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `Engine/CoderEngine/Sources/Providers`.
+  2. Verificare che tutti i file residui appartengano al cluster `ToolEnabledLLMProvider`.
+- Risultato attuale: il wrapper `ToolEnabledLLMProvider` viveva ancora in `Providers/Core`.
+- Risultato atteso: il cluster vive in `ProviderBackends/Shared/ToolEnabledLLMProvider`.
+- Causa probabile: collocazione storica precedente alla separazione tra backend concreti e wrapper shared di orchestration tool/provider.
+- Scope consentito:
+  - `Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider.swift`
+  - `Engine/CoderEngine/Sources/Providers/Core/ToolEnabledLLMProvider/**`
+  - `Engine/CoderEngine/Sources/ProviderBackends/Shared/ToolEnabledLLMProvider/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - logica Rust core
+  - `ProviderBackends` concreti CLI/API
+  - `Chat` app-side
+- Moduli confinanti da verificare:
+  - `ToolEnabledLLMProviderPolicyAckTests`
+  - `ProviderToolEventMapperTests`
+  - `UnifiedToolRuntimeMCPConsistencyTests`
+  - `CLIMultiAccountProviderAdapterTests`
+  - `RustMainChatProviderAdapterTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite sui consumer diretti
+- Strategia di fix minimo:
+  - spostare il cluster `ToolEnabledLLMProvider` fuori da `Providers`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` sulle suite dei consumer diretti
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(providers): relocate tool enabled provider wrapper`
