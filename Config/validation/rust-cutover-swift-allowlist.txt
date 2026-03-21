@@ -53,6 +53,7 @@ binding_adapter|App/SoloCodeApp/Sources/Runtime/NetworkMonitor.swift|Network mon
 binding_adapter|App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift|WorkspaceStore direct-stream loop is now a Swift adapter over Rust-owned provider event reduction and fail-closed runtime semantics.
 binding_adapter|App/SoloCodeApp/Sources/Services/Debug/DebugProjectionEventConsumer.swift|Debug projection consumer is shared UI glue that applies normalized pipeline events to DebugStore and panel visibility effects.
 binding_adapter|App/SoloCodeApp/Sources/Services/DebugPipeline/**|Debug pipeline support services are debug-specific infrastructure outside the Rust-owned main-chat runtime domain.
+binding_adapter|App/SoloCodeApp/Sources/Services/Project/WorkspaceStore*.swift|Workspace store is project/indexing support infrastructure outside the Rust-owned main-chat runtime domain.
 binding_adapter|App/SoloCodeApp/Sources/Settings/ProviderFactory/Backends/**|Provider factory backends remain non-main-chat support code outside Rust main-chat ownership.
 binding_adapter|Engine/CoderEngine/Sources/AgentPipeline/**|Relocated pipeline engine files are generic execution infrastructure, not main-chat Rust domain owners.
 binding_adapter|Engine/CoderEngine/Sources/ProviderBackends/**|Relocated provider backend files remain generic provider infrastructure for non-main-chat consumers.

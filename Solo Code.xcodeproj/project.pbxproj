@@ -1310,6 +1310,8 @@
 		CB77B2FE3A4BB284A4D1D8EF /* TestProjectDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4318C1AA6E9EDF724EAC2953 /* TestProjectDetectorTests.swift */; };
 		CBDC6FC87E49AF18C7B58B7E /* ChatStoreSummarizationMemoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 277680293CBFEDE4A7E4E202 /* ChatStoreSummarizationMemoryTests.swift */; };
 		CC51A24B4980DA7B765C02C7 /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC332639B396E795EB6B8314 /* WorkspaceStore.swift */; };
+		CC51A24C4980DA7B765C02C7 /* WorkspaceStore+Workspaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33263AB396E795EB6B8314 /* WorkspaceStore+Workspaces.swift */; };
+		CC51A24D4980DA7B765C02C7 /* WorkspaceStore+Paths.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33263BB396E795EB6B8314 /* WorkspaceStore+Paths.swift */; };
 		CC56876271A260BEDC6C6233 /* ExecutionControllerTerminationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C94F1982E11D3888A433F775 /* ExecutionControllerTerminationTests.swift */; };
 		CCCD7BC828E5706F6D1B80EB /* CDPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65BB0A203646C2105057FBFD /* CDPClient.swift */; };
 		CCEE95E63A3DA87C4C1244AB /* EditorPlaceholderView+Tabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98871627468C4637EF9D5A48 /* EditorPlaceholderView+Tabs.swift */; };
@@ -3014,7 +3016,9 @@
 		CB5C5724C0DDAD9808FCB3C0 /* WindowTitlebarChatAccessory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WindowTitlebarChatAccessory.swift; path = App/SoloCodeApp/Sources/App/Utilities/WindowTitlebarChatAccessory.swift; sourceTree = "<group>"; };
 		CB6A45CF3E32562AF7C9779C /* UsageFooterView+WorktreeModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UsageFooterView+WorktreeModal.swift"; path = "App/SoloCodeApp/Sources/Tasking/Views/Usage/UsageFooterView+WorktreeModal.swift"; sourceTree = "<group>"; };
 		CBB778BE4A30C2BE8064F7E1 /* EditorPlaceholderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorPlaceholderView.swift; path = App/SoloCodeApp/Sources/App/Placeholder/EditorPlaceholderView.swift; sourceTree = "<group>"; };
-		CC332639B396E795EB6B8314 /* WorkspaceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorkspaceStore.swift; path = App/SoloCodeApp/Sources/Runtime/WorkspaceStore.swift; sourceTree = "<group>"; };
+		CC332639B396E795EB6B8314 /* WorkspaceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorkspaceStore.swift; path = App/SoloCodeApp/Sources/Services/Project/WorkspaceStore.swift; sourceTree = "<group>"; };
+		CC33263AB396E795EB6B8314 /* WorkspaceStore+Workspaces.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "WorkspaceStore+Workspaces.swift"; path = "App/SoloCodeApp/Sources/Services/Project/WorkspaceStore+Workspaces.swift"; sourceTree = "<group>"; };
+		CC33263BB396E795EB6B8314 /* WorkspaceStore+Paths.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "WorkspaceStore+Paths.swift"; path = "App/SoloCodeApp/Sources/Services/Project/WorkspaceStore+Paths.swift"; sourceTree = "<group>"; };
 		CC5FB71B0BE782E6909A7A5E /* CircularProgressView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CircularProgressView.swift; path = App/SoloCodeApp/Sources/Services/CircularProgressView.swift; sourceTree = "<group>"; };
 		CC8385BDCBED6EE256A4637A /* PipelineLockManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineLockManager.swift; path = Engine/CoderEngine/Sources/AgentPipeline/Locking/PipelineLockManager.swift; sourceTree = "<group>"; };
 		CC86CC7F5C2BA7B183C7A29C /* MCPSessionManager+Logging.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MCPSessionManager+Logging.swift"; path = "Engine/CoderEngine/Sources/Infrastructure/MCP/Session/Logging/MCPSessionManager+Logging.swift"; sourceTree = "<group>"; };
@@ -3942,6 +3946,8 @@
 				5383F73D318B5D1C84E9A919 /* PipelineIntegrationServiceModels.swift */,
 				82646C3CAC92FAC104E35859 /* WorkspaceStore+ProjectContextSync.swift */,
 				CC332639B396E795EB6B8314 /* WorkspaceStore.swift */,
+				CC33263AB396E795EB6B8314 /* WorkspaceStore+Workspaces.swift */,
+				CC33263BB396E795EB6B8314 /* WorkspaceStore+Paths.swift */,
 				633558BF8F59DA6555FAC3EB /* AppUpdateCenter.swift */,
 				337C6D1935D5B95099830816 /* AppUpdateCenter+Checks.swift */,
 				D0AC200D065BE1091F9BB3EC /* AppUpdateCenter+Helpers.swift */,
@@ -6784,6 +6790,8 @@
 				2583DE4A36E56E327A0BC9FF /* PipelineIntegrationServiceModels.swift in Sources */,
 				D0C23AE6AE8EFFF3599EFFC3 /* WorkspaceStore+ProjectContextSync.swift in Sources */,
 				CC51A24B4980DA7B765C02C7 /* WorkspaceStore.swift in Sources */,
+				CC51A24C4980DA7B765C02C7 /* WorkspaceStore+Workspaces.swift in Sources */,
+				CC51A24D4980DA7B765C02C7 /* WorkspaceStore+Paths.swift in Sources */,
 				1FF9989F310D5BEA80AD816E /* AppUpdateCenter.swift in Sources */,
 				E27CE7655AB6501BC7D2CEFA /* AppUpdateCenter+Checks.swift in Sources */,
 				25B0F8C09852B3A3C866715F /* AppUpdateCenter+Helpers.swift in Sources */,

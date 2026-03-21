@@ -1,0 +1,35 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: `WorkspaceStore` era ancora l'ultimo file legacy dentro il prefisso `Runtime` pur essendo un project/indexing store, non runtime della main chat.
+- Sintomo: il prefisso `Runtime` non andava a zero anche dopo il cutover del direct stream Rust-only.
+- Impatto: ownership del dominio runtime poco chiara e file monolitico da 475 righe ancora dentro il prefisso sbagliato.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Runtime`.
+  2. Verificare che l'unico residuo legacy sia `WorkspaceStore.swift`.
+- Risultato attuale: `WorkspaceStore` resta contato come debito runtime.
+- Risultato atteso: `WorkspaceStore` vive in `Services/Project` ed e' spezzato in file sotto soglia.
+- Causa probabile: collocazione storica del workspace/indexing store sotto `Runtime` prima della separazione del dominio main-chat runtime.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Runtime/WorkspaceStore.swift`
+  - `App/SoloCodeApp/Sources/Services/Project/WorkspaceStore*.swift`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `WorkspaceStore+ProjectContextSync.swift`
+  - logica Rust del direct stream
+  - account/provider cutover
+- Moduli confinanti da verificare:
+  - `WorkspaceStorePathNormalizationTests`
+  - `WorkspaceStoreContextSyncTests`
+  - `ConversationFlowCoordinatorTests`
+- Test da aggiungere o aggiornare:
+  - smoke suite esistente su `WorkspaceStore`
+- Strategia di fix minimo:
+  - spostare `WorkspaceStore` in `Services/Project`
+  - spezzarlo in file tematici sotto soglia
+  - non alterare contratti o API pubbliche
+- Verifica post-fix:
+  - `xcodebuild test` su test `WorkspaceStore` e runtime confinante
+  - `validate_rust_cutover_boundary.sh` sul diff
+- Commit previsto: `refactor(runtime): relocate workspace store support`
