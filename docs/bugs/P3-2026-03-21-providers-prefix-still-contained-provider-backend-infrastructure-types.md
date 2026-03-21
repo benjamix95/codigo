@@ -1,0 +1,36 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Providers` conteneva ancora tipi/shared helpers infrastrutturali dei backend (`StreamEvent`, `ModelPricing`, `CLIErrorClassifier`) gia' usati dai moduli `ProviderBackends`.
+- Sintomo: il conteggio `Providers` includeva file che rappresentano contratti/eventi/prezzi generici e non ownership della logica provider della chat.
+- Impatto: perimetro `Providers` poco chiaro e avanzamento della migrazione sottostimato.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `Engine/CoderEngine/Sources/Providers`.
+  2. Verificare `StreamEvent.swift`, `ModelPricing.swift`, `CLIErrorClassifier.swift` tra i legacy.
+- Risultato attuale: infrastruttura backend generica conteggiata come debito del dominio `Providers`.
+- Risultato atteso: questi file vivono in `Engine/CoderEngine/Sources/ProviderBackends`.
+- Causa probabile: collocazione storica precedente alla separazione tra `Providers` e `ProviderBackends`.
+- Scope consentito:
+  - `Engine/CoderEngine/Sources/Providers/Core/StreamEvent.swift`
+  - `Engine/CoderEngine/Sources/Providers/Core/ModelPricing.swift`
+  - `Engine/CoderEngine/Sources/Providers/Shared/CLIErrorClassifier.swift`
+  - `Engine/CoderEngine/Sources/ProviderBackends/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `LLMProvider`
+  - `ProviderRegistry`
+  - `ProviderToolEventMapper`
+  - `ToolEnabledLLMProvider`
+- Moduli confinanti da verificare:
+  - parser/provider tests che usano `StreamEvent`
+  - `CLIMultiAccountProviderAdapter`
+  - `ProviderUsageStore`
+- Test da aggiungere o aggiornare:
+  - smoke suite esistente sui consumer principali dei tre tipi
+- Strategia di fix minimo:
+  - spostare i tre file in `ProviderBackends`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` mirato su consumer app/engine
+  - `validate_rust_cutover_boundary.sh` sul diff
+- Commit previsto: `refactor(providers): relocate backend shared types`
