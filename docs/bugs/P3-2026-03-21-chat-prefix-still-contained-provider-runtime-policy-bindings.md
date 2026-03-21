@@ -1,0 +1,38 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `provider/runtime policy` della chat, che gestisce sync del provider selezionato, helper di risoluzione provider e riallineamento della tool runtime policy come glue sopra registry/config già esistenti.
+- Sintomo: il debito residuo `Chat` includeva ancora `PartI_ProviderSync`, `PartI_RuntimeHelpers`, `PartI_ToolRuntimePolicy`.
+- Impatto: il perimetro `Chat` restava sovrastimato e mescolava binding di provider selection con il dominio main-chat.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui il cluster provider/runtime policy.
+- Risultato attuale: il cluster viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `Services/ChatProviders/Bindings`.
+- Causa probabile: collocazione storica nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartI_ProviderSync.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Providers/ChatPanelView+PartI_RuntimeHelpers.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Providers/ChatPanelView+PartI_ToolRuntimePolicy.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatProviders/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `SendMessage`
+  - `Streaming`
+  - `TaskTrace`
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `ThreadProviderSelectionServiceTests`
+  - `ProviderFactoryClaudeAllowedToolsTests`
+  - `RustMainChatProviderFactoryTests`
+  - `PlanShortcutAndCommandTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite provider/runtime policy
+- Strategia di fix minimo:
+  - spostare il cluster in `Services/ChatProviders/Bindings`
+  - aggiornare solo path progetto e allowlist
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer provider/runtime policy
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate provider runtime bindings`
