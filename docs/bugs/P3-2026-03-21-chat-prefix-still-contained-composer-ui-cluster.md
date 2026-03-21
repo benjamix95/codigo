@@ -1,0 +1,32 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora il cluster `Composer`, che è UI pura del composer e del text view della chat.
+- Sintomo: il debito residuo `Chat` includeva viste SwiftUI/AppKit e helper di focus/controls del composer.
+- Impatto: perimetro `Chat` ancora sovrastimato dal lato UI.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire il conteggio dei file Swift legacy nel prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare `Chat/Composer/*` e `Chat/ComposerTextView.swift` tra i residui.
+- Risultato attuale: il cluster composer viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `ChatView/Composer`.
+- Causa probabile: collocazione storica iniziale nel modulo chat.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Composer/**`
+  - `App/SoloCodeApp/Sources/Chat/ComposerTextView.swift`
+  - `App/SoloCodeApp/Sources/ChatView/Composer/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ChatPanelView`
+  - `MessageRow`
+  - `TaskStatus`
+- Moduli confinanti da verificare:
+  - `ComposerTextViewFocusTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite del composer
+- Strategia di fix minimo:
+  - spostare il cluster `Composer` fuori da `Chat`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` su `ComposerTextViewFocusTests`
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate composer ui cluster`
