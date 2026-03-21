@@ -1,0 +1,33 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Accounts` conteneva ancora `CLIAccountsStore*`, che e' uno store/persistence adapter app-side, non ownership della policy di routing account gia' drenata verso Rust/support.
+- Sintomo: il conteggio `Accounts` manteneva due file legacy pur dopo il drenaggio di provisioning, auth detector, login coordinator e dashboard store.
+- Impatto: il prefisso `Accounts` non andava a zero nonostante il residuo fosse local store glue.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Accounts`.
+  2. Verificare `CLIAccountsStore.swift` e `CLIAccountsStore+Persistence.swift` come unici legacy rimasti.
+- Risultato attuale: local store/persistence contato come debito di dominio `Accounts`.
+- Risultato atteso: `CLIAccountsStore*` vive in `Accounts/Support/Store`.
+- Causa probabile: collocazione storica in `Accounts/Store` prima della separazione supporto/dominio.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Accounts/Store/**`
+  - `App/SoloCodeApp/Sources/Accounts/Support/Store/**`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - routing Rust `cli_account_routing`
+  - `CLIAccountRouter`
+  - login sheet SwiftUI
+- Moduli confinanti da verificare:
+  - `CLIAccountLoginCoordinatorTests`
+  - `CLIProfileProvisionerTests`
+  - consumer UI che istanziano `CLIAccountsStore.shared`
+- Test da aggiungere o aggiornare:
+  - smoke suite esistente dei consumer accounts
+- Strategia di fix minimo:
+  - spostare `CLIAccountsStore*` in `Support/Store`
+  - aggiornare solo i path del progetto
+- Verifica post-fix:
+  - `xcodebuild test` mirato sui consumer accounts
+  - `validate_rust_cutover_boundary.sh` sul diff
+- Commit previsto: `refactor(accounts): relocate cli accounts store support`
