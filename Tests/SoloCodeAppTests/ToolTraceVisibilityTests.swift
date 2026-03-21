@@ -3,6 +3,48 @@ import XCTest
 @testable import CoderIDE
 
 final class ToolTraceVisibilityTests: XCTestCase {
+    func testLiveOperationalEventsBypassPolicyAckVisibilityGate() {
+        XCTAssertTrue(
+            shouldBypassPolicyAckLiveVisibilityGate(
+                type: "command_execution",
+                payload: ["command": "swift test"]
+            )
+        )
+        XCTAssertTrue(
+            shouldBypassPolicyAckLiveVisibilityGate(
+                type: "assistant_update",
+                payload: ["group_id": "assistant-1", "output": "Sto controllando il reducer"]
+            )
+        )
+        XCTAssertTrue(
+            shouldBypassPolicyAckLiveVisibilityGate(
+                type: "agent",
+                payload: ["swarm_id": "swarm-coder", "detail": "started"]
+            )
+        )
+        XCTAssertTrue(
+            shouldBypassPolicyAckLiveVisibilityGate(
+                type: "web_search_started",
+                payload: ["query": "pipeline chat"]
+            )
+        )
+        XCTAssertTrue(
+            shouldBypassPolicyAckLiveVisibilityGate(
+                type: "mcp_tool_call",
+                payload: ["tool": "mcp_list_servers", "is_mcp": "true"]
+            )
+        )
+    }
+
+    func testNonLiveUnknownOperationalEventStillNeedsPolicyAckGate() {
+        XCTAssertFalse(
+            shouldBypassPolicyAckLiveVisibilityGate(
+                type: "custom_tool_event",
+                payload: ["toolCallId": "tc-camel-ops-1"]
+            )
+        )
+    }
+
     func testPolicyAckIsIncludedButNotDisplayed() {
         let activity = TaskActivity(
             type: "policy_ack",

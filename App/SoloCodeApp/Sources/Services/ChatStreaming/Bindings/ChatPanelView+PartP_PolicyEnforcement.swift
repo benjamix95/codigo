@@ -3,6 +3,39 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldBypassPolicyAckLiveVisibilityGate(
+    type rawType: String,
+    payload: [String: String]
+) -> Bool {
+    let type = rawType
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    let directTypes: Set<String> = [
+        "assistant_update",
+        "agent",
+        "subagent_text",
+        "bash",
+        "command_execution",
+        "file_change",
+        "edit",
+        "search",
+        "semantic_search",
+        "instant_grep",
+        "mcp_tool_call",
+        "skill_invocation",
+        "permission_denied",
+        "tool_execution_error",
+        "tool_timeout",
+        "tool_validation_error",
+        "error",
+    ]
+    if directTypes.contains(type) { return true }
+    if ["web_search", "web_fetch", "read_batch", "debug_", "plan_"].contains(where: type.hasPrefix) {
+        return true
+    }
+    return payload["swarm_id"] != nil && (type == "agent" || type == "subagent_text")
+}
+
 extension ChatPanelView {
     @MainActor
     internal func processPolicyAckEvent(
@@ -48,6 +81,9 @@ extension ChatPanelView {
     ) -> Bool {
         guard agentsHardBlockEnabled else { return false }
         if isSwarmPolicyAckExemptProvider(providerId) {
+            return false
+        }
+        if shouldBypassPolicyAckLiveVisibilityGate(type: type, payload: payload) {
             return false
         }
         guard ToolTraceVisibility.requiresPolicyAck(type: type, payload: payload) else { return false }
