@@ -1,0 +1,43 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora un cluster ampio di binding `TaskTrace` per auto-todo runtime, todo write/read, debug todo lifecycle e review summary routing, che funzionano come glue app-side sopra store e boundary già esistenti.
+- Sintomo: il debito residuo `Chat` includeva ancora il blocco `PartF_*` anche dopo il drenaggio di plan/thread/provider.
+- Impatto: il perimetro `Chat` restava sovrastimato e confondeva trace binding app-side con il dominio main-chat.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui il blocco `TaskTrace`.
+- Risultato attuale: i binding task trace vivevano ancora sotto `Chat`.
+- Risultato atteso: vivono in `Services/ChatTaskTrace/Bindings`.
+- Causa probabile: collocazione storica nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_AutoTodoRuntime.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_CodeReviewActions.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_CodeReviewMutations.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_DebugTodoEvents+Helpers.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_DebugTodoEvents.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_DebugTodoLifecycle.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_TodoEvents.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatTaskTrace/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ChatPanelView+PartF_PlanEvents.swift`
+  - `Streaming`
+  - `SendMessage`
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `RustMainChatAutoTodoBoundaryTests`
+  - `ChatPanelTodoFinalizationTests`
+  - `ChatPanelAutoTodoTracePayloadTests`
+  - `TodoStoreTests`
+  - `ToolTraceVisibilityTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite task trace/auto-todo
+- Strategia di fix minimo:
+  - spostare il cluster in `Services/ChatTaskTrace/Bindings`
+  - lasciare `PartF_PlanEvents` fuori dalla tranche per gestirlo poi con split dedicato sotto soglia
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer task trace/auto-todo
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate task trace bindings`
