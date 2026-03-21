@@ -35,6 +35,7 @@ fn ui_projection_merges_runtime_state_plan_and_task_flags() {
 
 #[test]
 fn ui_intent_choose_plan_option_updates_store_and_runtime_phase() {
+    let choice = "## Option A: Rust cutover\n## Todo\n- [ ] Move parser".to_string();
     let response = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,
         intent: "choose_plan_option".to_string(),
@@ -42,7 +43,7 @@ fn ui_intent_choose_plan_option_updates_store_and_runtime_phase() {
         conversation_id: Some("conv-1".to_string()),
         turn_id: None,
         artifact_id: None,
-        text: Some("Option A".to_string()),
+        text: Some(choice.clone()),
         timestamp: Some(42.0),
         payload: Default::default(),
     });
@@ -54,7 +55,7 @@ fn ui_intent_choose_plan_option_updates_store_and_runtime_phase() {
             .plan_boards
             .get("conv-1")
             .and_then(|board| board.chosen_path.as_deref()),
-        Some("Option A")
+        Some(choice.as_str())
     );
     assert_eq!(
         state
@@ -64,7 +65,7 @@ fn ui_intent_choose_plan_option_updates_store_and_runtime_phase() {
             .and_then(|plan| plan.phase.clone()),
         Some(MainChatPlanPhase::ReadyToBuild)
     );
-    assert_eq!(snapshot.plan.chosen_path.as_deref(), Some("Option A"));
+    assert_eq!(snapshot.plan.chosen_path.as_deref(), Some(choice.as_str()));
 }
 
 #[test]

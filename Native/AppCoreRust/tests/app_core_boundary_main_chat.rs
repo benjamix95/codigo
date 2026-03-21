@@ -155,6 +155,56 @@ fn boundary_audit_treats_storerust_bridge_files_as_allowed_when_rule_is_present(
     assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Chat"), Some(&1));
 }
 
+#[test]
+fn boundary_audit_treats_plan_services_support_files_as_allowed_when_rules_are_present() {
+    let workspace = make_workspace("plan-services-allowlist");
+    write_file(
+        &workspace,
+        "Config/validation/rust-cutover-swift-allowlist.txt",
+        concat!(
+            "binding_adapter|App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanFlowHelpers.swift|Plan flow helper file now contains only panel-routing, epoch bookkeeping and UI-local policy glue over Rust-owned planning decisions.\n",
+            "binding_adapter|App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanQuestionnaire.swift|Plan questionnaire helper file is retained only for UI-side clarification formatting, resume prompt helpers and generic task-reset glue outside the Rust-owned runtime path.\n",
+            "binding_adapter|App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift|Chat thread core helpers remain Swift-side binding glue after removing plan-state classification from the runtime path.\n",
+        ),
+    );
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanFlowHelpers.swift",
+        "import Foundation\nstruct PlanFlowHelpers {}\n",
+    );
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanQuestionnaire.swift",
+        "import Foundation\nstruct PlanQuestionnaireHelpers {}\n",
+    );
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift",
+        "import Foundation\nstruct ChatThreadCoreHelpers {}\n",
+    );
+
+    let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
+        workspace_root: workspace.to_string_lossy().to_string(),
+        allowlist_path: workspace.join("Config/validation/rust-cutover-swift-allowlist.txt").to_string_lossy().to_string(),
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanFlowHelpers.swift".to_string(),
+            "App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanQuestionnaire.swift".to_string(),
+            "App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift".to_string(),
+        ],
+        new_files: vec![],
+        enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Services".to_string()],
+        legacy_non_ui_budget_by_prefix: Default::default(),
+        include_missing_candidate_files: false,
+    }))
+    .expect("boundary dispatch should succeed");
+
+    let AppCoreResponse::BoundaryAudit(report) = response;
+    assert_eq!(report.summary.allowed_swift_files, 3);
+    assert_eq!(report.summary.legacy_non_ui_files, 0);
+    assert_eq!(report.summary.enforced_legacy_non_ui_files, 0);
+    assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Services"), None);
+}
+
 
 fn make_workspace(label: &str) -> PathBuf {
     let suffix = SystemTime::now().duration_since(UNIX_EPOCH).expect("system time").as_nanos();

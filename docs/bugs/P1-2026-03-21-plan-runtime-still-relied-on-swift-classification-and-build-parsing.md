@@ -1,0 +1,47 @@
+# Bug Fix Record
+- Categoria: A
+- Bug: il runtime del `plan` delegava ancora a Swift la classificazione dell'output finale, la validazione `## Todo`, la derivazione delle opzioni e la preparazione della scelta/build, lasciando il cutover Rust incompleto.
+- Sintomo: il flusso `plan` produceva snapshot Rust ma Swift continuava a decidere screening fallback, question-phase summary, proposal parsing, repair loop e canonical todos post-scelta.
+- Impatto: ownership del dominio `plan` frammentata tra Rust e Swift, rischio di divergenza semantica tra snapshot Rust e UI/build runtime, boundary guard non allineato al confine reale.
+- Gravità: alta
+- Steps to reproduce:
+  1. Eseguire una richiesta `/plan` che produca piu' opzioni con `## Todo`.
+  2. Verificare che la validazione opzioni/todo e la costruzione del `PlanBoard` passino da `ChatPanelView+PartM_Phase3.swift`.
+  3. Verificare che la build della scelta continui a parsare il markdown in `ChatPanelView+PartK_PlanExecution.swift`.
+- Risultato attuale: il runtime live del `plan` dipendeva ancora da parser/classifier Swift per proposal-ready e build gating.
+- Risultato atteso: Rust deve emettere risultato strutturato del `plan` e Swift deve limitarsi a renderizzare snapshot e inviare intent.
+- Causa probabile: il cutover precedente aveva spostato phase/state e projection, ma non la semantica strutturata di proposal/choice/build.
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_runtime.rs`
+  - `Native/AppCoreProtocol/src/main_chat_ui.rs`
+  - `Native/RustCore/src/main_chat/**`
+  - `App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/MainChatStoreBridgeModels.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatPlan/Runtime/**`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Native/AppCoreRust/tests/app_core_boundary_main_chat.rs`
+- Non-scope:
+  - rendering Mermaid
+  - parser Mermaid
+  - view SwiftUI/AppKit del plan panel
+- Moduli confinanti da verificare:
+  - boundary `main_chat` Rust
+  - `PlanPanelView`
+  - `ChatPanelView` multi-turn flow
+  - `TodoStore` canonical plan todos
+- Test da aggiungere o aggiornare:
+  - Rust tests per snapshot/ui intent del `plan`
+  - app-side tests boundary `RustMainChatUIBoundaryPlanTests`
+  - audit boundary `app_core_boundary_main_chat`
+- Strategia di fix minimo:
+  - aggiungere campi strutturati `summaryTitle`, `optionTitles`, `canonicalTodos`, `chosenPath` allo snapshot Rust
+  - spostare parser decisionale del proposal/build in Rust
+  - lasciare Swift come adapter/rendering
+  - aggiornare allowlist solo per i file rimasti realmente glue/UI policy
+- Verifica post-fix:
+  - `cargo test -p solocode_rust_core --quiet`
+  - `cargo test -p app_core_rust --quiet`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatUIBoundaryPlanTests -only-testing:SoloCodeAppTests/PlanBuildIntegrationFlowTests -only-testing:SoloCodeAppTests/PlanShortcutAndCommandTests -only-testing:SoloCodeAppTests/PlanQuestionPhaseDecisionTests -only-testing:SoloCodeAppTests/PlanOutputClassifierTests`
+  - `cargo run -p app_core_rust --bin rust_cutover_guard -- --workspace /Users/benjaminstoica/SoloCode --allowlist /Users/benjaminstoica/SoloCode/Config/validation/rust-cutover-swift-allowlist.txt --candidate-files <plan-cluster> --fail-on-legacy-non-ui --format json`
+- Commit previsto: `fix(plan): move proposal and build semantics into rust`

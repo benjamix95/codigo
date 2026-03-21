@@ -217,9 +217,13 @@ extension ChatPanelView {
         let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let hasTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(trimmed)
-        let todos = PlanOptionsParser.extractTodosFromOptionText(trimmed)
-        if hasTodoHeader, !todos.isEmpty {
+        let runtimeSelection = applyPlanUIIntent(
+            "choose_plan_option",
+            conversationId: explicitPlanConversationId ?? conversationId,
+            text: trimmed
+        )
+        let canonicalTodos = runtimeSelection?.state?.runtimeSnapshot?.plan?.canonicalTodos ?? []
+        if !canonicalTodos.isEmpty {
             executeWithPlanChoice(
                 trimmed,
                 fromPlanConversationId: explicitPlanConversationId

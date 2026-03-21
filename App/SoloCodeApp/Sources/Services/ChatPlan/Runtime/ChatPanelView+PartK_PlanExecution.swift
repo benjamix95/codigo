@@ -48,21 +48,6 @@ extension ChatPanelView {
             )
             return
         }
-        let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
-        let planTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
-        guard hasRequiredTodoHeader, !planTodos.isEmpty else {
-            appendTechnicalErrorMessage(
-                "[Plan] Build requires a todo checklist in the selected option.",
-                in: conversationId
-            )
-            if !showPlanPanel {
-                openPlanPanelForCurrentContext(
-                    preserveHistorySelection: true,
-                    source: .manualDeepLink
-                )
-            }
-            return
-        }
         let provider: any LLMProvider
         let normalizedOverride = providerOverrideId?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let overrideId = normalizedOverride, !overrideId.isEmpty {
@@ -126,13 +111,27 @@ extension ChatPanelView {
             return
         }
 
-        _ = applyPlanUIIntent(
+        let selectionResponse = applyPlanUIIntent(
             "choose_plan_option",
             conversationId: planConversationId,
             text: choice
         )
+        let canonicalTodoTitles = selectionResponse?.state?.runtimeSnapshot?.plan?.canonicalTodos ?? []
+        guard !canonicalTodoTitles.isEmpty else {
+            appendTechnicalErrorMessage(
+                "[Plan] Build requires a todo checklist in the selected option.",
+                in: conversationId
+            )
+            if !showPlanPanel {
+                openPlanPanelForCurrentContext(
+                    preserveHistorySelection: true,
+                    source: .manualDeepLink
+                )
+            }
+            return
+        }
 
-        todoStore.upsertCanonicalPlanTodos(planTodos, conversationId: planConversationId)
+        todoStore.upsertCanonicalPlanTodos(canonicalTodoTitles, conversationId: planConversationId)
         let canonicalTodos = todoStore.prepareCanonicalPlanTodosForBuild(
             conversationId: planConversationId
         )
@@ -181,7 +180,7 @@ extension ChatPanelView {
         executePlanBuildViaPipeline(
             provider: provider,
             ctx: ctx,
-            planTodos: planTodos,
+            planTodos: canonicalTodoTitles,
             agentConvId: agentConvId,
             planConversationId: planConversationId,
             planBuildAssistantMessageId: planBuildAssistantMessageId

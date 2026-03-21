@@ -20,7 +20,7 @@ extension ChatPanelView {
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
                 chatStore.updateLastAssistantMessage(
-                    content: planScreeningStatusMessage(for: .unknown),
+                    content: "Starting codebase analysis...",
                     in: conversationId
                 )
             }
@@ -48,7 +48,7 @@ extension ChatPanelView {
                 shouldRunInline: shouldRunPlanInline
             )
             let screeningStatus = screeningSnapshot?.output?.chatContentOverride
-                ?? planScreeningStatusMessage(for: parsePlanScreeningDecision(from: screeningText))
+                ?? "Starting codebase analysis..."
 
             // Finalize screening in chat and open plan panel
             await MainActor.run {
@@ -273,9 +273,8 @@ extension ChatPanelView {
             return
         }
         finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
-        let phase2Summary = hasNoQuestionsNeededSignal(questionText)
-            ? "No questions needed. Generating plan..."
-            : "Question phase completed. Generating plan..."
+        let phase2Summary = questionRuntimeSnapshot?.output?.chatContentOverride
+            ?? "Question phase completed. Generating plan..."
         await MainActor.run {
             guard shouldMutatePlanState(
                 targetConversationId: conversationId,

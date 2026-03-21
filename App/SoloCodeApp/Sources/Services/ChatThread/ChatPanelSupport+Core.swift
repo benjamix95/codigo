@@ -336,11 +336,8 @@ func nextPlanFlowPhaseForOutput(
     coderMode: CoderMode,
     shouldRunPlanInline: Bool
 ) -> PlanFlowPhase {
-    let classification = PlanOutputClassifier.classify(
-        fullText: fullText,
-        current: current,
-        coderMode: coderMode,
-        shouldRunPlanInline: shouldRunPlanInline
-    )
-    return classification.isConfident ? classification.nextPhase : current
+    _ = fullText
+    _ = coderMode
+    _ = shouldRunPlanInline
+    return current
 }

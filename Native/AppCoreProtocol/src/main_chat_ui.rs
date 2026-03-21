@@ -128,9 +128,14 @@ pub struct MainChatUiPlanSnapshot {
     pub question_epoch: i32,
     pub clarification_questions: Option<String>,
     pub proposal_content: Option<String>,
+    pub summary_title: Option<String>,
     pub chosen_path: Option<String>,
     #[serde(default)]
     pub option_full_texts: Vec<String>,
+    #[serde(default)]
+    pub option_titles: Vec<String>,
+    #[serde(default)]
+    pub canonical_todos: Vec<String>,
     #[serde(default)]
     pub goal: String,
     #[serde(default)]

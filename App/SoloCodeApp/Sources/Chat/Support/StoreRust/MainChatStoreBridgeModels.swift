@@ -262,7 +262,7 @@ struct MainChatUIMessageSnapshotBridge: Decodable {
 
 struct MainChatUIComposerSnapshotBridge: Decodable { let draftText: String; let canSend: Bool; let canCancel: Bool; let isFollowingLive: Bool }
 struct MainChatUITaskSnapshotBridge: Decodable { let isLoading: Bool; let startedAt: Date?; let statusText: String?; let terminalError: String?; let shouldRetryPoll: Bool; let shouldFinalizeStream: Bool }
-struct MainChatUIPlanSnapshotBridge: Decodable { let isVisible: Bool; let phase: MainChatPlanPhaseBridge?; let planningStateKind: MainChatPlanningStateKindBridge?; let questionEpoch: Int; let clarificationQuestions: String?; let proposalContent: String?; let chosenPath: String?; let optionFullTexts: [String]; let goal: String; let stepCount: Int; let shouldHideMarkdown: Bool; let shouldRunInline: Bool; let isReadyToBuild: Bool }
+struct MainChatUIPlanSnapshotBridge: Decodable { let isVisible: Bool; let phase: MainChatPlanPhaseBridge?; let planningStateKind: MainChatPlanningStateKindBridge?; let questionEpoch: Int; let clarificationQuestions: String?; let proposalContent: String?; let summaryTitle: String?; let chosenPath: String?; let optionFullTexts: [String]; let optionTitles: [String]; let canonicalTodos: [String]; let goal: String; let stepCount: Int; let shouldHideMarkdown: Bool; let shouldRunInline: Bool; let isReadyToBuild: Bool }
 struct MainChatUIAutoTodoRuntimeStateBridge: Codable, Equatable { let todoId: String; let conversationId: String; let title: String; let activeForm: String; let linkedFiles: [String]; let operationCount: Int }
 enum MainChatUITodoMutationBridge: String, Decodable { case upsertRuntimeTodo, setStatus, removeTodo, clearMessageRuntimeState }
 struct MainChatUITodoPatchBridge: Decodable {

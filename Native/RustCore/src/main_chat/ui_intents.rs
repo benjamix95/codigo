@@ -11,6 +11,9 @@ use crate::main_chat::ui_state_sync::{
     apply_terminal_text_override, mark_store_stream_finished, sync_store_from_runtime,
 };
 use crate::main_chat::ui_projection::project_ui;
+use app_core_protocol::main_chat_store::{
+    MainChatStorePlanBoardSnapshot, MainChatStorePlanOptionSnapshot, MainChatStorePlanStepSnapshot,
+};
 use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
 use app_core_protocol::main_chat_ui::{
     MainChatUiIntentRequest, MainChatUiIntentResponse, MainChatUiProjectRequest,
@@ -157,15 +160,40 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
             let Some(chosen_path) = request.text.clone() else {
                 return MainChatUiIntentResponse::error("missing_text", "text is required");
             };
-            if let Some(board) = state.store_snapshot.plan_boards.get_mut(&conversation_id) {
-                board.chosen_path = Some(chosen_path);
+            state = match apply_runtime_action(
+                state,
+                "plan_choose_option",
+                request.timestamp,
+                None,
+                Some(chosen_path.clone()),
+                None,
+                None,
+                Vec::new(),
+                None,
+            ) {
+                Ok(state) => state,
+                Err(error) => return error,
+            };
+            let choice_is_valid = state
+                .runtime_snapshot
+                .as_ref()
+                .and_then(|runtime| runtime.plan.as_ref())
+                .and_then(|plan| plan.chosen_path.as_ref())
+                .map(|value| value.trim() == chosen_path.trim())
+                .unwrap_or(false);
+            if !choice_is_valid {
+                return MainChatUiIntentResponse::error(
+                    "invalid_plan_choice",
+                    "Selected plan option is missing a valid todo checklist",
+                );
             }
+            sync_plan_board_from_runtime(&mut state, &conversation_id, request.timestamp);
             state = match apply_runtime_action(
                 state,
                 "plan_ready_to_build",
                 request.timestamp,
                 None,
-                request.text,
+                Some(chosen_path),
                 None,
                 None,
                 Vec::new(),
@@ -285,4 +313,91 @@ fn apply_runtime_action(
     };
     state.runtime_snapshot = Some(runtime_snapshot);
     Ok(state)
+}
+
+fn sync_plan_board_from_runtime(
+    state: &mut app_core_protocol::main_chat_ui::MainChatUiState,
+    conversation_id: &str,
+    timestamp: Option<f64>,
+) {
+    let Some(plan) = state
+        .runtime_snapshot
+        .as_ref()
+        .and_then(|runtime| runtime.plan.as_ref())
+    else {
+        return;
+    };
+
+    let existing = state.store_snapshot.plan_boards.get(conversation_id).cloned();
+    let options = plan
+        .option_full_texts
+        .iter()
+        .enumerate()
+        .map(|(index, full_text)| MainChatStorePlanOptionSnapshot {
+            id: index as i32 + 1,
+            title: plan
+                .option_titles
+                .get(index)
+                .cloned()
+                .unwrap_or_else(|| format!("Option {}", index + 1)),
+            full_text: full_text.clone(),
+        })
+        .collect::<Vec<_>>();
+    let steps = plan
+        .canonical_todos
+        .iter()
+        .enumerate()
+        .map(|(index, title)| MainChatStorePlanStepSnapshot {
+            id: format!("{}", index + 1),
+            title: title.clone(),
+            description: title.clone(),
+            target_file: None,
+            status: "pending".to_string(),
+            linked_files: Vec::new(),
+            depends_on: if index == 0 {
+                Vec::new()
+            } else {
+                vec![format!("{}", index)]
+            },
+            notes: String::new(),
+            updated_at: timestamp,
+        })
+        .collect::<Vec<_>>();
+
+    let board = MainChatStorePlanBoardSnapshot {
+        goal: plan
+            .summary_title
+            .clone()
+            .or_else(|| existing.as_ref().map(|board| board.goal.clone()))
+            .unwrap_or_else(|| plan.user_request.clone()),
+        options: if !options.is_empty() {
+            options
+        } else {
+            existing
+                .as_ref()
+                .map(|board| board.options.clone())
+                .unwrap_or_default()
+        },
+        chosen_path: plan
+            .chosen_path
+            .clone()
+            .or_else(|| existing.as_ref().and_then(|board| board.chosen_path.clone())),
+        steps: if !steps.is_empty() {
+            steps
+        } else {
+            existing
+                .as_ref()
+                .map(|board| board.steps.clone())
+                .unwrap_or_default()
+        },
+        updated_at: timestamp.or_else(|| existing.as_ref().and_then(|board| board.updated_at)),
+        walkthrough_markdown: existing.as_ref().and_then(|board| board.walkthrough_markdown.clone()),
+        walkthrough_summary: existing.as_ref().and_then(|board| board.walkthrough_summary.clone()),
+        walkthrough_outcome: existing.as_ref().and_then(|board| board.walkthrough_outcome.clone()),
+    };
+
+    state
+        .store_snapshot
+        .plan_boards
+        .insert(conversation_id.to_string(), board);
 }

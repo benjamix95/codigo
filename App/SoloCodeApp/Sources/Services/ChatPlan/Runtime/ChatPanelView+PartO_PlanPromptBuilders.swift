@@ -127,7 +127,10 @@ extension ChatPanelView {
                 questions: planSnapshot.clarificationQuestions ?? ""
             )
         case .awaitingChoice:
-            let options = parsePlanOptions(planSnapshot.optionFullTexts)
+            let options = planOptionsFromSnapshot(
+                titles: planSnapshot.optionTitles,
+                fullTexts: planSnapshot.optionFullTexts
+            )
             planningState = .awaitingChoice(
                 planContent: planSnapshot.proposalContent ?? "",
                 options: options
@@ -253,10 +256,16 @@ extension ChatPanelView {
         return String(decoding: data, as: UTF8.self)
     }
 
-    private func parsePlanOptions(_ optionFullTexts: [String]) -> [PlanOption] {
-        optionFullTexts.flatMap { text in
-            let strict = PlanOptionsParser.parseStrict(from: text)
-            return strict.isEmpty ? PlanOptionsParser.parse(from: text) : strict
+    private func planOptionsFromSnapshot(
+        titles: [String],
+        fullTexts: [String]
+    ) -> [PlanOption] {
+        fullTexts.enumerated().map { index, fullText in
+            PlanOption(
+                id: index + 1,
+                title: titles.indices.contains(index) ? titles[index] : "Option \(index + 1)",
+                fullText: fullText
+            )
         }
     }
 }

@@ -202,10 +202,22 @@ fn plan_snapshot_from_sources(
         proposal_content: runtime_plan.and_then(|plan| plan.proposal_content.clone()).or_else(|| {
             plan_board.and_then(|board| board.walkthrough_markdown.clone())
         }),
-        chosen_path: plan_board.and_then(|board| board.chosen_path.clone()),
+        summary_title: runtime_plan.and_then(|plan| plan.summary_title.clone()),
+        chosen_path: runtime_plan
+            .and_then(|plan| plan.chosen_path.clone())
+            .or_else(|| plan_board.and_then(|board| board.chosen_path.clone())),
         option_full_texts: runtime_plan.map(|plan| plan.option_full_texts.clone()).unwrap_or_default(),
-        goal: plan_board.map(|board| board.goal.clone()).unwrap_or_default(),
-        step_count: plan_board.map(|board| board.steps.len() as i32).unwrap_or_default(),
+        option_titles: runtime_plan.map(|plan| plan.option_titles.clone()).unwrap_or_default(),
+        canonical_todos: runtime_plan.map(|plan| plan.canonical_todos.clone()).unwrap_or_default(),
+        goal: runtime_plan
+            .and_then(|plan| plan.summary_title.clone())
+            .or_else(|| plan_board.map(|board| board.goal.clone()))
+            .unwrap_or_default(),
+        step_count: runtime_plan
+            .map(|plan| plan.canonical_todos.len() as i32)
+            .filter(|count| *count > 0)
+            .or_else(|| plan_board.map(|board| board.steps.len() as i32))
+            .unwrap_or_default(),
         should_hide_markdown: runtime_output.map(|output| output.should_hide_plan_markdown).unwrap_or(false),
         should_run_inline: runtime_plan.map(|plan| plan.should_run_inline).unwrap_or(false),
         is_ready_to_build: runtime_plan

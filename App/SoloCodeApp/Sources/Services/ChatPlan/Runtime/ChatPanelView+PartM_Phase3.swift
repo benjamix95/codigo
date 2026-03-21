@@ -80,12 +80,6 @@ extension ChatPanelView {
             onSignal: nil
         )
 
-        func parsePlanOptions(_ text: String) -> [PlanOption] {
-            let strict = PlanOptionsParser.parseStrict(from: text)
-            if !strict.isEmpty { return strict }
-            return PlanOptionsParser.parse(from: text)
-        }
-
         let didReceiveToolDrivenQuestionnaire = await MainActor.run { () -> Bool in
             planQuestionToolEpoch(for: conversationId) > questionToolEpochBaseline
         }
@@ -93,12 +87,6 @@ extension ChatPanelView {
             clearStreamingReasoning(for: conversationId)
             finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
             return
-        }
-
-        func areAllOptionsTodoCompliant(_ options: [PlanOption]) -> Bool {
-            guard !options.isEmpty else { return false }
-            let compliant = PlanOptionsParser.todoCompliantOptions(from: options)
-            return compliant.count == options.count
         }
 
         var full = generationResult
@@ -134,12 +122,9 @@ extension ChatPanelView {
             return
         }
 
-        var options = parsePlanOptions(full)
-
-        // Hard enforcement: every option must contain an explicit `## Todo` section.
         let maxRepairAttempts = 2
         var repairAttempt = 0
-        while !areAllOptionsTodoCompliant(options),
+        while generationRuntimeSnapshot?.plan?.phase != .proposalReady,
               repairAttempt < maxRepairAttempts,
               generationRuntimeSnapshot?.output?.generatedPrompt != nil {
             repairAttempt += 1
@@ -181,7 +166,6 @@ extension ChatPanelView {
             )
 
             full = repairedResult
-            options = parsePlanOptions(full)
             generationRuntimeSnapshot = planRuntimeAction(
                 "plan_apply_generation_result",
                 text: full,
@@ -200,25 +184,24 @@ extension ChatPanelView {
         clearStreamingReasoning(for: conversationId)
         finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
 
-        if !options.isEmpty, areAllOptionsTodoCompliant(options) {
-            let compliantOptions = PlanOptionsParser.todoCompliantOptions(from: options)
-            let board = PlanBoard.build(from: full, options: compliantOptions)
+        let runtimePlan = generationRuntimeSnapshot?.plan
+        let options = runtimePlan.map(planOptionsFromRuntimeSnapshot) ?? []
+        let canonicalTodos = runtimePlan?.canonicalTodos ?? []
+
+        if generationRuntimeSnapshot?.plan?.phase == .proposalReady, !options.isEmpty {
+            let board = makePlanBoardFromRuntimePlan(runtimePlan, options: options)
             chatStore.setPlanBoard(board, for: conversationId)
             let currentConv = chatStore.conversation(for: conversationId)
-            let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
-            // Build a rich chat recap with title + todos (synced with panel)
-            let todoList = compliantOptions.first.map {
-                PlanOptionsParser.extractTodosFromOptionText($0.fullText)
-            } ?? []
-            let todoMarkdown = todoList.enumerated().map { idx, t in
+            let summaryTitle = runtimePlan?.summaryTitle ?? board.goal
+            let todoMarkdown = canonicalTodos.enumerated().map { idx, t in
                 "  \(idx + 1). \(t)"
             }.joined(separator: "\n")
             let recap: String
             if todoMarkdown.isEmpty {
-                recap = "Plan ready: **\(parsedSummary.title)**\n\nOpen the Plan Panel to review and build."
+                recap = "Plan ready: **\(summaryTitle)**\n\nOpen the Plan Panel to review and build."
             } else {
                 recap = """
-                Plan ready: **\(parsedSummary.title)**
+                Plan ready: **\(summaryTitle)**
 
                 Steps:
                 \(todoMarkdown)
@@ -236,9 +219,9 @@ extension ChatPanelView {
                 conversationId: conversationId,
                 contextId: currentConv?.contextId,
                 contextFolderPath: currentConv?.contextFolderPath,
-                title: parsedSummary.title,
+                title: summaryTitle,
                 markdown: full,
-                options: compliantOptions,
+                options: options,
                 chosenPath: board.chosenPath,
                 tags: [],
                 sourceMessageId: nil
@@ -262,7 +245,7 @@ extension ChatPanelView {
                 _ = planRuntimeAction(
                     "plan_store_proposal",
                     planContent: full,
-                    optionFullTexts: compliantOptions.map(\.fullText),
+                    optionFullTexts: options.map(\.fullText),
                     shouldRunInline: shouldRunPlanInline
                 )
                 if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
@@ -290,5 +273,41 @@ extension ChatPanelView {
                 )
             }
         }
+    }
+
+    private func planOptionsFromRuntimeSnapshot(_ runtimePlan: MainChatPlanSnapshotBridge) -> [PlanOption] {
+        runtimePlan.optionFullTexts.enumerated().map { index, fullText in
+            PlanOption(
+                id: index + 1,
+                title: runtimePlan.optionTitles.indices.contains(index)
+                    ? runtimePlan.optionTitles[index]
+                    : "Option \(index + 1)",
+                fullText: fullText
+            )
+        }
+    }
+
+    private func makePlanBoardFromRuntimePlan(
+        _ runtimePlan: MainChatPlanSnapshotBridge?,
+        options: [PlanOption]
+    ) -> PlanBoard {
+        let canonicalTodos = runtimePlan?.canonicalTodos ?? []
+        let steps = canonicalTodos.enumerated().map { index, title in
+            PlanStep(
+                id: String(index + 1),
+                title: title,
+                description: title,
+                targetFile: nil,
+                status: .pending
+            )
+        }
+        return PlanBoard(
+            goal: runtimePlan?.summaryTitle ?? runtimePlan?.userRequest ?? "Operational plan in progress",
+            options: options,
+            chosenPath: runtimePlan?.chosenPath,
+            steps: steps,
+            updatedAt: .now,
+            walkthroughMarkdown: nil
+        )
     }
 }

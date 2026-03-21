@@ -4,6 +4,7 @@ mod auto_todo_support;
 mod continuation;
 mod markers;
 mod persistence;
+mod plan_markdown;
 mod plan_prompts;
 mod plan_runtime;
 mod plan_ui_flow;

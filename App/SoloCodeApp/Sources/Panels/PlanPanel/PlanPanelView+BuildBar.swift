@@ -162,12 +162,6 @@ extension PlanPanelView {
             buildHint = "No option selected."
             return
         }
-        let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
-        let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
-        guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
-            buildHint = "Build requires a todo checklist. Edit the plan or select a valid option."
-            return
-        }
         buildHint = "Build started..."
         let allowIdleRebuild = shouldAllowIdleRebuildFromMainBuildAction(
             phase: planFlowPhase,
