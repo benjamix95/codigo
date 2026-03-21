@@ -4,6 +4,61 @@ import CoderEngine
 func shouldSkipRustStoreBootstrapForTests(environment: [String: String]) -> Bool { shouldDeferRustReviewCoreBootstrap(environment: environment) }
 
 extension ChatStore {
+    private static func fallbackTaskRuntimeState(
+        from request: MainChatTaskRuntimeRequestBridge
+    ) -> MainChatTaskRuntimeStateBridge? {
+        guard request.schemaVersion == 1 else { return nil }
+
+        var states = request.state.taskStates
+
+        func taskIndex(_ conversationId: String) -> Int? {
+            states.firstIndex { $0.conversationId == conversationId }
+        }
+
+        switch request.operation {
+        case "begin_task":
+            guard let conversationId = request.conversationId else { return nil }
+            if let index = taskIndex(conversationId) {
+                let current = states[index]
+                states[index] = MainChatTaskStateSnapshotBridge(
+                    conversationId: conversationId,
+                    startedAt: request.startedAt ?? current.startedAt,
+                    statusText: "Thinking"
+                )
+            } else {
+                states.append(
+                    MainChatTaskStateSnapshotBridge(
+                        conversationId: conversationId,
+                        startedAt: request.startedAt,
+                        statusText: "Thinking"
+                    )
+                )
+            }
+        case "end_task":
+            guard let conversationId = request.conversationId else { return nil }
+            states.removeAll { $0.conversationId == conversationId }
+        case "set_task_status":
+            guard let conversationId = request.conversationId,
+                  let statusText = request.statusText else { return nil }
+            if let index = taskIndex(conversationId) {
+                let current = states[index]
+                states[index] = MainChatTaskStateSnapshotBridge(
+                    conversationId: conversationId,
+                    startedAt: current.startedAt,
+                    statusText: statusText
+                )
+            }
+        default:
+            return nil
+        }
+
+        states.sort {
+            ($0.startedAt ?? .distantPast) < ($1.startedAt ?? .distantPast)
+                || (($0.startedAt == $1.startedAt) && $0.conversationId < $1.conversationId)
+        }
+        return MainChatTaskRuntimeStateBridge(taskStates: states)
+    }
+
     private static var isRustMarkersRuntimeAvailable: Bool { ReviewCoreBridge.isEnabled }
 
     static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
@@ -84,6 +139,7 @@ extension ChatStore {
         _ operation: String,
         configure: (inout MainChatTaskRuntimeRequestBridge) -> Void
     ) -> Bool {
+        let environment = ProcessInfo.processInfo.environment
         var request = MainChatTaskRuntimeRequestBridge(
             schemaVersion: 1,
             operation: operation,
@@ -93,10 +149,15 @@ extension ChatStore {
             startedAt: nil
         )
         configure(&request)
-        guard let state = RustMainChatStoreAdapter.handleTaskRuntime(request) else {
+        if let state = RustMainChatStoreAdapter.handleTaskRuntime(request) {
+            RustMainChatStoreAdapter.apply(taskRuntimeState: state, to: self)
+            return true
+        }
+        guard shouldSkipRustStoreBootstrapForTests(environment: environment),
+              let fallbackState = Self.fallbackTaskRuntimeState(from: request) else {
             return false
         }
-        RustMainChatStoreAdapter.apply(taskRuntimeState: state, to: self)
+        RustMainChatStoreAdapter.apply(taskRuntimeState: fallbackState, to: self)
         return true
     }
 

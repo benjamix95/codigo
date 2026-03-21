@@ -1,0 +1,32 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: `PipelineIntegrationService` poteva far crashare i test app-side quando il task runtime Rust era deferito/disabilitato nel contesto XCTest.
+- Sintomo: chiamare `chatStore.beginTask/endTask/setTaskStatus` da `PipelineIntegrationServiceTests` causava `assertionFailure("Main chat task runtime unavailable ...")`.
+- Impatto: crash in validazione app-side e impossibilita' di testare i consumer della chat pipeline quando il review core Rust e' deferito nei test.
+- Gravità: media
+- Steps to reproduce:
+  1. Eseguire `SoloCodeAppTests/PipelineIntegrationServiceTests/testHandleTaskCompletedMarksCanonicalTodoDoneForReviewerAndTestWriter`.
+  2. Osservare il crash su `ChatStore+RustBridge.swift` durante `beginTask`.
+- Risultato attuale: crash del processo di test.
+- Risultato atteso: nessun crash; in ambiente test il task runtime deve applicare la stessa transizione in locale quando il bridge Rust non risponde.
+- Causa probabile: `applyRustTaskRuntimeAction` ritornava `false` con review core Rust deferito nei test e `requireRustTaskRuntime` trasformava il caso in `assertionFailure`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift`
+  - `Tests/SoloCodeAppTests/PipelineIntegrationServiceTests.swift`
+- Non-scope:
+  - store snapshot reducer
+  - pipeline projection
+  - runtime provider selection
+- Moduli confinanti da verificare:
+  - `ChatStoreTaskOwnershipTests`
+  - `PipelineIntegrationServiceTests`
+  - `ChatPipelineReducerTests`
+- Test da aggiungere o aggiornare:
+  - regressione su `PipelineIntegrationServiceTests`
+- Strategia di fix minimo:
+  - introdurre un fallback locale del task runtime solo quando il bootstrap Rust e' esplicitamente deferito nei test
+  - mantenere invariata la semantica del reducer rispetto a `main_chat/task_runtime.rs`
+- Verifica post-fix:
+  - `SoloCodeAppTests/PipelineIntegrationServiceTests/testHandleTaskCompletedMarksCanonicalTodoDoneForReviewerAndTestWriter`
+  - `SoloCodeAppTests/ChatStoreTaskOwnershipTests`
+- Commit previsto: `fix(chat): avoid task runtime crash when rust is deferred in tests`
