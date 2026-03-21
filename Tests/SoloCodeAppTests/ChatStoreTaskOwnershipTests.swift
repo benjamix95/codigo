@@ -27,6 +27,28 @@ final class ChatStoreTaskOwnershipTests: XCTestCase {
         XCTAssertNotNil(store.taskStartDate)
     }
 
+    func testBeginTaskFallsBackWhenRustTaskRuntimeIsUnavailable() throws {
+        let original = getenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT").map { String(cString: $0) }
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        defer {
+            if let original {
+                setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", original, 1)
+            } else {
+                unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            }
+        }
+
+        let store = ChatStore()
+        let convId = try XCTUnwrap(store.conversations.first?.id)
+
+        store.beginTask(conversationId: convId)
+
+        XCTAssertTrue(store.isLoading)
+        XCTAssertEqual(store.activeTaskConversationId, convId)
+        XCTAssertEqual(store.taskStatusTexts[convId], "Thinking")
+        XCTAssertNotNil(store.taskStartDates[convId])
+    }
+
     func testEndTaskClearsOnlyMatchingConversationId() throws {
         let store = ChatStore()
         let convA = try XCTUnwrap(store.conversations.first?.id)

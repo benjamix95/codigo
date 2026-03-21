@@ -139,7 +139,6 @@ extension ChatStore {
         _ operation: String,
         configure: (inout MainChatTaskRuntimeRequestBridge) -> Void
     ) -> Bool {
-        let environment = ProcessInfo.processInfo.environment
         var request = MainChatTaskRuntimeRequestBridge(
             schemaVersion: 1,
             operation: operation,
@@ -153,8 +152,7 @@ extension ChatStore {
             RustMainChatStoreAdapter.apply(taskRuntimeState: state, to: self)
             return true
         }
-        guard shouldSkipRustStoreBootstrapForTests(environment: environment),
-              let fallbackState = Self.fallbackTaskRuntimeState(from: request) else {
+        guard let fallbackState = Self.fallbackTaskRuntimeState(from: request) else {
             return false
         }
         RustMainChatStoreAdapter.apply(taskRuntimeState: fallbackState, to: self)
@@ -167,7 +165,7 @@ extension ChatStore {
         configure: (inout MainChatTaskRuntimeRequestBridge) -> Void
     ) {
         guard applyRustTaskRuntimeAction(operation, configure: configure) else {
-            assertionFailure("Main chat task runtime unavailable for \(operation)")
+            NSLog("[ChatStore] Main chat task runtime unavailable for %@", operation)
             return
         }
     }
