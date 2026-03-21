@@ -1,0 +1,31 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: il bridge `buildPanelPrompt` del review panel restituiva il placeholder `"Rust review panel prompt runtime required."` in ambiente XCTest quando il bootstrap Rust era differito, facendo fallire i consumer che si aspettavano il prompt review reale.
+- Sintomo: `ProviderFactoryCodeReviewTests` fallivano sui controlli `Security focus`, `Bug focus`, `Additional instructions` e `REVIEW_SCOPE`.
+- Impatto: regressione nella suite app-side che valida l’instradamento review/security/bug-hunt dal composer verso il runtime review.
+- Gravità: media
+- Steps to reproduce:
+  1. Eseguire `xcodebuild test` su `ProviderFactoryCodeReviewTests` in ambiente XCTest standard.
+  2. Osservare che `makeAutoCodeReviewRequest` produce un prompt privo delle sezioni review attese.
+- Risultato attuale: il bridge Rust non era disponibile in XCTest e il coordinator cadeva nel placeholder.
+- Risultato atteso: in test deve esistere un fallback Swift equivalente al prompt Rust, così il contratto osservabile resta stabile.
+- Causa probabile: `shouldDeferRustReviewCoreBootstrap` disabilita volutamente il core Rust durante XCTest quando non e' presente un path libreria esplicito.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/CodeReview/Services/ReviewCommandRustBridge.swift`
+  - `App/SoloCodeApp/Sources/CodeReview/Services/ReviewPanelPromptSwiftFallback.swift`
+  - `Tests/SoloCodeAppTests/ProviderFactoryCodeReviewTests.swift`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - runtime review live
+  - prompt builder Rust
+  - logica del composer binding cluster
+- Moduli confinanti da verificare:
+  - `ProviderFactoryCodeReviewTests`
+- Test da aggiungere o aggiornare:
+  - regressione su fallback review prompt con `SOLOCODE_REVIEW_CORE_FORCE_SWIFT=1`
+- Strategia di fix minimo:
+  - aggiungere un fallback Swift test-only/bootstrapping fallback per `buildPanelPrompt`
+  - riusare lo stesso contratto testato dal prompt Rust
+- Verifica post-fix:
+  - `xcodebuild test` su `ProviderFactoryCodeReviewTests`
+- Commit previsto: `fix(review): add xctest prompt fallback for review bridge`

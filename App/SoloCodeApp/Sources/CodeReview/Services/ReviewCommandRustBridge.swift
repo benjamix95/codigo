@@ -163,7 +163,13 @@ struct ReviewCommandRustBridge {
             functionName: "review_core_panel_build_prompt",
             request: request
         )
-        return response?.prompt
+        if let prompt = response?.prompt {
+            return prompt
+        }
+        if shouldDeferRustReviewCoreBootstrap(environment: ProcessInfo.processInfo.environment) {
+            return ReviewPanelPromptSwiftFallback.build(request)
+        }
+        return nil
     }
 }
 

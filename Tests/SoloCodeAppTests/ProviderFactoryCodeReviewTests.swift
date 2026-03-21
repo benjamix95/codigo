@@ -153,6 +153,21 @@ final class ProviderFactoryCodeReviewTests: XCTestCase {
         XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
     }
 
+    func testAutoCodeReviewRequestUsesSwiftPromptFallbackWhenReviewCoreDeferred() {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        defer { unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT") }
+
+        let request = makeAutoCodeReviewRequest(
+            userText: "Fai una review di sicurezza del diff e cerca vulnerabilità authz.",
+            coderMode: .agent
+        )
+
+        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:uncommitted]"))
+        XCTAssertTrue(request.prompt.contains("Security focus:"))
+        XCTAssertTrue(request.prompt.contains("Additional instructions:"))
+    }
+
     private func makeConfig() -> ProviderFactoryConfig {
         ProviderFactoryConfig(
             openaiApiKey: "",

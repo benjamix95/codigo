@@ -1,0 +1,39 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Chat` conteneva ancora un cluster ampio di helper `ComposerUI`, sidebars swarm/debug/plan e binding per code review/attachment intake, che sono glue UI-runtime e non ownership del dominio Rust della main chat.
+- Sintomo: il debito residuo `Chat` includeva ancora il blocco composer/sidebar pur avendo già separato la view composer pura.
+- Impatto: il perimetro `Chat` restava sovrastimato e mescolava binding UI con il dominio main-chat.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Chat`.
+  2. Verificare tra i legacy residui i file `PartB_ComposerUI`, `PartB_SidebarsAndSwarm`, `PartK_ComposerReplyAttachments`, `PartH_ComposerMode`, `PartH_CodeReviewModes`.
+- Risultato attuale: il blocco composer/sidebar viveva ancora sotto `Chat`.
+- Risultato atteso: vive in `Services/ChatComposer/ChatBindings`.
+- Causa probabile: collocazione storica iniziale nel modulo monolitico `ChatPanelView`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartB_ComposerUI.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/Composer/**`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ComposerUI/ChatPanelView+PartH_ComposerMode.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ComposerUI/ChatPanelView+PartH_CodeReviewModes.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatComposer/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - `ChatPanelView+PartH_TaskActivity.swift`
+  - `TaskTrace`
+  - `Streaming`
+  - logica Rust della main chat
+- Moduli confinanti da verificare:
+  - `ProviderFactoryCodeReviewTests`
+  - `ChatPanelBuildBehaviorTests`
+  - `ChatBackgroundExecutionStateTests`
+  - `ComposerRuntimeTimerTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico; smoke suite dei consumer composer/sidebar
+- Strategia di fix minimo:
+  - spostare il blocco composer/sidebar in `Services/ChatComposer/ChatBindings`
+  - aggiornare solo path progetto e allowlist
+- Verifica post-fix:
+  - `xcodebuild test` sui consumer composer/sidebar
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(chat): relocate composer binding cluster`
