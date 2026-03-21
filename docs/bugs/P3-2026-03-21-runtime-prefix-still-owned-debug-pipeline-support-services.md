@@ -1,0 +1,36 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il prefisso `Runtime` includeva ancora servizi `DebugPipeline` che non appartengono al dominio runtime della main chat.
+- Sintomo: il conteggio di migrazione `Runtime` restava gonfiato da file Swift di infrastruttura debug e costringeva tranche miste con debito non pertinente al direct stream Rust.
+- Impatto: avanzamento del cutover runtime falsato, ownership del prefisso meno chiara, manutenzione peggiore.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Eseguire `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Runtime`.
+  2. Osservare che i file `DebugPipeline/*` risultano ancora legacy non-UI dentro `Runtime`.
+- Risultato attuale: servizi debug non-main-chat contati come residuo del runtime chat.
+- Risultato atteso: i servizi `DebugPipeline` vivono in un albero dedicato fuori dal dominio `Runtime` della main chat.
+- Causa probabile: collocazione storica dei file sotto `Runtime` prima della separazione piu' netta tra main-chat runtime e infrastruttura debug.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Runtime/DebugPipeline/**`
+  - `App/SoloCodeApp/Sources/Services/DebugPipeline/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt`
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - logica del direct stream Rust
+  - `WorkspaceStore.swift`
+  - account/provider cutover
+- Moduli confinanti da verificare:
+  - `DebugStore`
+  - `DebugService`
+  - `ConversationFlowCoordinator`
+- Test da aggiungere o aggiornare:
+  - smoke `DebugStoreTests`
+  - smoke `DebugServiceFlowTests`
+  - smoke `ConversationFlowCoordinatorTests`
+- Strategia di fix minimo:
+  - spostare i file `DebugPipeline` fuori da `Runtime` in `Services/DebugPipeline`
+  - aggiornare project file e allowlist senza alterare la logica
+- Verifica post-fix:
+  - `xcodebuild test` mirato su debug/runtime
+  - `validate_rust_cutover_boundary.sh` sul diff della tranche
+- Commit previsto: `refactor(runtime): relocate debug pipeline support services`
