@@ -302,3 +302,4 @@ extension ChatPanelView {
     // MARK: - Handle Stream Result (plan options + swarm delegation)
 
 }
+

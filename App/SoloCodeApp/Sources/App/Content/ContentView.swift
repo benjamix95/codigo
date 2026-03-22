@@ -44,6 +44,9 @@ struct ContentView: View {
     @State var isSelectingProjectFolders = false
     @State var isSelectingAddFolder = false
     @State var pendingAddFolderContextId: UUID?
+    /// Unified folder picker state: only one fileImporter can be active at a time.
+    @State var pendingFolderPickerKind: FolderPickerKind = .none
+    @State var showFolderPicker = false
     @State var activeActivityItem: ActivityBarItem? = .explorer
     @State var showChatPanel = true
     @State var coderMode: CoderMode = .agent

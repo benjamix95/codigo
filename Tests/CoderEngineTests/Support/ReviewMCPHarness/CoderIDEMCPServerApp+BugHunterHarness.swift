@@ -73,7 +73,27 @@ extension CoderIDEMCPServerApp {
         guard let bridged = rustBugHunterToolResult(name: "bughunter_status", args: args) else {
             return bugHunterError("Error: Rust review core unavailable for bughunter_status")
         }
-        return bridged
+        guard bridged.isError != true else { return bridged }
+        let runId = (args["run_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !runId.isEmpty,
+              let bugHunterSnapshot = MCPSharedState.readBugHunterSnapshot(runId: runId),
+              let reviewSessionId = bugHunterSnapshot.reviewSessionId,
+              let reviewSnapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: reviewSessionId) else {
+            return bridged
+        }
+        let statusPayload = VerifiedFindingsStatusService.payload(snapshot: reviewSnapshot, entryPoint: .mcp)
+        let extraLines = [
+            ("verified_envelope_source", statusPayload["verified_envelope_source"]),
+            ("verified_replay_findings", statusPayload["verified_replay_findings"]),
+        ].compactMap { key, value -> String? in
+            guard let value, !value.isEmpty else { return nil }
+            return "\(key): \(value)"
+        }
+        guard !extraLines.isEmpty,
+              case .text(let text) = bridged.content.first else {
+            return bridged
+        }
+        return bugHunterOK(([text] + extraLines).joined(separator: "\n"))
     }
 
     static func handleBugHunterFindings(args: [String: String]) -> CallTool.Result {

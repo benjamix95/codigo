@@ -79,6 +79,8 @@ struct ChatPanelView: View {
     @AppStorage("claude_allowed_tools")  var claudeAllowedTools = "Read,Edit,Bash,Write,Search,Task"
     @AppStorage("gemini_cli_path")  var geminiCliPath = ""
     @AppStorage("gemini_model_override")  var geminiModelOverride = ""
+    @AppStorage("kilo_path")  var kiloPath = ""
+    @AppStorage("kilo_model")  var kiloModel = ""
     @AppStorage("unified_tool_runtime_enabled")  var unifiedToolRuntimeEnabled = true
     @AppStorage("agents_hard_block_enabled")  var agentsHardBlockEnabled = true
     @AppStorage("mcp_edit_enforcement_enabled")  var mcpEditEnforcementEnabled = true

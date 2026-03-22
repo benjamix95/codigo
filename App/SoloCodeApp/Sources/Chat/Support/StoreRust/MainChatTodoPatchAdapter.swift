@@ -19,33 +19,21 @@ enum MainChatTodoPatchAdapter {
                     continue
                 }
                 let conversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
-                if todoStore.todos.contains(where: { $0.id == todoId }) {
-                    todoStore.upsertFromAgent(
-                        id: todoId,
-                        title: title,
-                        status: status,
-                        priority: priority,
-                        notes: patch.notes,
-                        activeForm: patch.activeForm,
-                        linkedFiles: patch.linkedFiles,
-                        conversationId: conversationId
-                    )
-                } else {
-                    todoStore.todos.append(
-                        TodoItem(
-                            id: todoId,
-                            title: title,
-                            status: status,
-                            priority: priority,
-                            source: .agent,
-                            notes: patch.notes ?? "",
-                            linkedFiles: patch.linkedFiles,
-                            planConversationId: conversationId,
-                            activeForm: patch.activeForm ?? ""
-                        )
-                    )
-                    todoStore.saveTodos()
-                }
+                // Always use upsertFromAgent — it has 3-level deduplication:
+                // 1. Match by exact ID
+                // 2. Match by canonical key (fuzzy)
+                // 3. Match by case-insensitive title within scope
+                // Direct append bypassed all dedup and caused 100+ duplicate tasks.
+                todoStore.upsertFromAgent(
+                    id: todoId,
+                    title: title,
+                    status: status,
+                    priority: priority,
+                    notes: patch.notes,
+                    activeForm: patch.activeForm,
+                    linkedFiles: patch.linkedFiles,
+                    conversationId: conversationId
+                )
                 if patch.shouldEmitTraceUpdate,
                    let conversationId
                 {

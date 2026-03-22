@@ -170,4 +170,66 @@ public extension DebugLogServer {
             sessionId: activeSessionId
         ))
     }
+
+    // MARK: - Hypothesis Persistence
+
+    /// Persist hypothesis state as a special log entry so it survives runtime restarts.
+    func persistHypothesis(
+        id: String,
+        title: String,
+        status: String,
+        confidence: Int,
+        description: String,
+        rootCauseType: String,
+        relatedFiles: [String],
+        evidence: [String]
+    ) {
+        ensureLoadedFromDiskIfNeeded()
+        var data: [String: String] = [
+            "hypothesis_id": id,
+            "title": title,
+            "status": status,
+            "confidence": "\(confidence)",
+            "description": description,
+        ]
+        if !rootCauseType.isEmpty { data["root_cause_type"] = rootCauseType }
+        if !relatedFiles.isEmpty { data["related_files"] = relatedFiles.joined(separator: ",") }
+        if !evidence.isEmpty { data["evidence"] = evidence.joined(separator: "|||") }
+
+        append(LogEntry(
+            severity: "info",
+            source: "hypothesis_persist",
+            message: "[\(status)] \(title)",
+            detail: description,
+            category: "hypothesis_state",
+            sessionId: activeSessionId,
+            hypothesisId: id,
+            data: data
+        ))
+    }
+
+    /// Recover persisted hypotheses from log entries after restart.
+    func recoverHypotheses() -> [(id: String, title: String, status: String, confidence: Int, description: String, rootCauseType: String, relatedFiles: [String], evidence: [String])] {
+        ensureLoadedFromDiskIfNeeded()
+        // Find latest hypothesis_state entry per hypothesis_id
+        var latestByHypId: [String: LogEntry] = [:]
+        for entry in entries where entry.category == "hypothesis_state" {
+            guard let data = entry.data, let hid = data["hypothesis_id"] else { continue }
+            latestByHypId[hid] = entry
+        }
+
+        return latestByHypId.values.compactMap { entry in
+            guard let data = entry.data,
+                  let hid = data["hypothesis_id"],
+                  let title = data["title"],
+                  let status = data["status"] else { return nil }
+            let confidence = Int(data["confidence"] ?? "50") ?? 50
+            let description = data["description"] ?? ""
+            let rootCauseType = data["root_cause_type"] ?? ""
+            let relatedFiles = (data["related_files"] ?? "").split(separator: ",").map(String.init).filter { !$0.isEmpty }
+            let evidence = (data["evidence"] ?? "").components(separatedBy: "|||").filter { !$0.isEmpty }
+            return (id: hid, title: title, status: status, confidence: confidence, description: description, rootCauseType: rootCauseType, relatedFiles: relatedFiles, evidence: evidence)
+        }
+    }
+
 }

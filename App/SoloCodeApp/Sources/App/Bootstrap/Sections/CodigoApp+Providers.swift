@@ -91,6 +91,23 @@ extension CodigoApp {
                 )
             )
         }
+        if providerRegistry.provider(for: "kilo-cli") == nil {
+            providerRegistry.register(
+                ProviderFactory.kiloProvider(
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "kilo-cli",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
+                )
+            )
+        }
         if providerRegistry.provider(for: "gemini-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.geminiProvider(
@@ -189,6 +206,8 @@ extension CodigoApp {
             openrouterModel: openrouterModel,
             grokApiKey: grokApiKey,
             grokModel: grokModel,
+            kiloPath: kiloPath,
+            kiloModel: kiloModel,
             codexPath: codexPath,
             codexSandbox: effectiveSandbox,
             codexSessionFullAccess: codexSessionFullAccess,

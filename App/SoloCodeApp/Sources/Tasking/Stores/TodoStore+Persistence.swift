@@ -6,7 +6,9 @@ extension TodoStore {
         guard let data = userDefaults.data(forKey: storageKey) else { return }
         do {
             todos = try JSONDecoder().decode([TodoItem].self, from: data)
-            if deduplicateCanonicalTodos() {
+            var didClean = deduplicateCanonicalTodos()
+            if deduplicateRuntimeTodosByTitle() { didClean = true }
+            if didClean {
                 saveTodos()
             }
         } catch {
@@ -16,7 +18,45 @@ extension TodoStore {
         }
     }
 
+    /// Removes duplicate runtime todos with the same title, keeping only the most recent one.
+    /// This cleans up accumulated duplicates like "Review bug cluster" x 105.
+    @discardableResult
+    func deduplicateRuntimeTodosByTitle() -> Bool {
+        var seenTitles: [String: Int] = [:] // title → index of newest
+        var duplicateIndices: Set<Int> = []
+
+        for (index, todo) in todos.enumerated() {
+            guard !todo.isPlanCanonical else { continue }
+            let key = todo.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !key.isEmpty else { continue }
+            if let existingIndex = seenTitles[key] {
+                // Keep the one with more recent updatedAt
+                let existing = todos[existingIndex]
+                if todo.updatedAt > existing.updatedAt {
+                    duplicateIndices.insert(existingIndex)
+                    seenTitles[key] = index
+                } else {
+                    duplicateIndices.insert(index)
+                }
+            } else {
+                seenTitles[key] = index
+            }
+        }
+
+        guard !duplicateIndices.isEmpty else { return false }
+        let beforeCount = todos.count
+        todos = todos.enumerated().filter { !duplicateIndices.contains($0.offset) }.map(\.element)
+        let removed = beforeCount - todos.count
+        #if DEBUG
+        print("[TodoStore] Removed \(removed) duplicate runtime todos")
+        #endif
+        return true
+    }
+
+    static let maxTodoCount = 50
+
     func saveTodos() {
+        trimExcessTodos()
         do {
             let data = try JSONEncoder().encode(todos)
             userDefaults.set(data, forKey: storageKey)
@@ -26,6 +66,24 @@ extension TodoStore {
             print("[TodoStore] ⚠️ Failed to encode todos: \(error.localizedDescription)")
             #endif
         }
+    }
+
+    /// Removes oldest completed/blocked todos when count exceeds the max limit.
+    /// Keeps all open/in-progress todos and newest completed ones.
+    private func trimExcessTodos() {
+        guard todos.count > Self.maxTodoCount else { return }
+
+        // Separate active (open/in-progress) from finished (done/blocked)
+        let active = todos.filter { $0.status == .pending || $0.status == .inProgress }
+        var finished = todos.filter { $0.status == .done || $0.status == .blocked }
+
+        // Sort finished by updatedAt descending — keep newest
+        finished.sort { $0.updatedAt > $1.updatedAt }
+
+        let maxFinished = max(0, Self.maxTodoCount - active.count)
+        let kept = finished.prefix(maxFinished)
+
+        todos = active + kept
     }
 
     /// Write current todos to the shared state file so the MCP server

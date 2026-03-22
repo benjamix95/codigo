@@ -57,6 +57,19 @@ enum DebugProjectionEventConsumer {
                 }
             }
             let previousPhase = debugStore.phase
+            // Warn if agent jumped to fixing without asking questions or proposing hypotheses
+            if phase == .fixing
+                && debugStore.clarificationQuestions.isEmpty
+                && debugStore.hypotheses.isEmpty
+                && previousPhase != .fixing {
+                debugStore.skippedQuestionsWarning = true
+                debugStore.addLog(
+                    severity: .warning,
+                    source: "debug_pipeline",
+                    message: "Agent advanced to fixing without asking questions or proposing hypotheses",
+                    category: "system"
+                )
+            }
             debugStore.setPhase(phase)
             let shouldClearQuestions = phase == .fixing
                 || phase == .instrumenting
@@ -87,11 +100,16 @@ enum DebugProjectionEventConsumer {
                     debugStore.setPhase(.reproducing)
                 }
                 debugStore.clarificationQuestions = normalizedPrompt
+                debugStore.isAwaitingReproduceConfirmation = true
+            case "fix_confirmation":
+                debugStore.clarificationQuestions = normalizedPrompt
+                debugStore.isAwaitingFixConfirmation = true
             default:
                 if debugStore.phase == .idle {
                     debugStore.setPhase(.describing)
                 }
                 debugStore.clarificationQuestions = normalizedPrompt
+                debugStore.isAwaitingUserClarification = true
             }
 
         case .debugResolved(let summary):
@@ -105,9 +123,9 @@ enum DebugProjectionEventConsumer {
                 return effects
             }
             let normalizedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-            debugStore.resolveSession(
-                summary: normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
-            )
+            let resolvedSummary = normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
+            debugStore.addResolutionSummaryFinding(summary: resolvedSummary)
+            debugStore.resolveSession(summary: resolvedSummary)
 
         case .debugLog(let payload):
             debugStore.addLog(
@@ -151,6 +169,10 @@ enum DebugProjectionEventConsumer {
                         category: "debug"
                     )
                 }
+                // Generate finding when hypothesis is confirmed
+                if status == .confirmed, let hypothesis = debugStore.hypotheses.first(where: { $0.id == hypothesisId }) {
+                    debugStore.addFinding(fromHypothesis: hypothesis)
+                }
             default:
                 let title = (payload.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !title.isEmpty else { return effects }
@@ -165,12 +187,14 @@ enum DebugProjectionEventConsumer {
             }
 
         case .debugMark(let payload):
-            debugStore.addDebugMarker(DebugMarker(
+            let marker = DebugMarker(
                 filePath: payload.filePath,
                 lineNumber: payload.lineNumber,
                 markerComment: payload.comment,
                 originalContent: payload.originalContent
-            ))
+            )
+            debugStore.addDebugMarker(marker)
+            debugStore.addFinding(fromMarker: marker)
             if debugStore.phase == .fixing {
                 debugStore.setPhase(.instrumenting)
             }

@@ -103,7 +103,7 @@ struct ThinkingBlockView: View {
         }
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .onChange(of: isLiveStreaming) { streaming in
-            if streaming { isExpanded = true }
+            if streaming { DispatchQueue.main.async { isExpanded = true } }
         }
     }
 
@@ -201,7 +201,7 @@ struct ThinkingBlocksView: View {
         }
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .onChange(of: isLiveStreaming) { streaming in
-            if streaming { isExpanded = true }
+            if streaming { DispatchQueue.main.async { isExpanded = true } }
         }
     }
 }

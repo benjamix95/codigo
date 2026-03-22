@@ -1,0 +1,39 @@
+## Bug Fix Record
+- Categoria: B
+- Bug: piu' harness/test helper Rust-first erano fuori contratto rispetto al comportamento atteso da `CodeReviewHandlerTests`, `BugHunterHandlerTests`, `BugHunterWorkflowServiceTests` e `CoderIDEMCPServerPlanToolsTests`.
+- Sintomo:
+  - `review_start` provava a risolvere una sessione inesistente prima ancora di accodare il comando
+  - i read tool `review_status` / `review_findings` non avevano fallback Swift nei test quando il core Rust veniva forzato off
+  - `bughunter_status` non riportava i campi enriched verified findings attesi dal contratto dei test
+  - i test plan/todo non preparavano il review core Rust richiesto dagli handler MCP
+- Impatto: ampie tranche rosse nel bundle `CoderEngineTests` pur con logica prodotto principale invariata.
+- Gravita': media
+- Steps to reproduce:
+  - eseguire le suite `CodeReviewHandlerTests`, `BugHunterHandlerTests`, `BugHunterWorkflowServiceTests`, `CoderIDEMCPServerPlanToolsTests`
+- Risultato attuale:
+  - payload `isError`/JSON discordanti con le attese dei test e bootstrap Rust mancante nei test plan/workflow
+- Risultato atteso:
+  - harness e setup test devono riflettere il contratto Rust-first attuale senza introdurre errori artificiali
+- Causa probabile:
+  - drift tra harness di test e path Rust-first effettivo, piu' setup incompleto del review core in alcune suite
+- Scope consentito:
+  - `Tests/CoderEngineTests/Support/ReviewMCPHarness/*`
+  - `Tests/CoderEngineTests/CoderIDEMCPServerPlanToolsTests.swift`
+  - `Tests/CoderEngineTests/CodeReview/CodeReviewMultiSwarmProviderTests+TaskExtraction.swift`
+- Non-scope:
+  - semantica del prodotto UI/macOS
+  - persistence e parser Codex
+- Moduli confinanti da verificare:
+  - `CodeReviewHandlerTests`
+  - `CoderIDEMCPServerPlanToolsTests`
+  - `BugHunterHandlerTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test: la suite rossa esistente copriva gia' i contratti
+- Strategia di fix minimo:
+  - correggere solo harness/setup test e fallback read-side, senza rifattorizzare il server MCP di produzione
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/CodeReviewHandlerTests`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/CoderIDEMCPServerPlanToolsTests`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/BugHunterHandlerTests/testBugHunterStatusIncludesVerifiedFindingsCounters`
+- Commit previsto:
+  - `test(mcp): realign rust-first harnesses for review bughunter and plan tools`

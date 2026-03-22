@@ -167,7 +167,6 @@ extension ChatPanelView {
         case .debug:
             applyStrictAgentModeProviderSelection(preferredProviderId: currentConv?.preferredProviderId)
             debugToggleEnabled = true
-            showDebugPanel = true
         case .plan:
             applyStrictAgentModeProviderSelection(preferredProviderId: currentConv?.preferredProviderId)
             // Only reset plan state when no active flow is in progress
@@ -214,7 +213,6 @@ extension ChatPanelView {
         }
         if mode != .debug && !debugStore.phase.isActive {
             debugToggleEnabled = false
-            showDebugPanel = false
         }
         if mode != .browser {
             showBrowserPanel = false

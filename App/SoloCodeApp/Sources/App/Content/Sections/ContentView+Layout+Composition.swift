@@ -65,12 +65,23 @@ extension ContentView {
         .onChange(of: activeContextSyncFingerprint) { _ in
             workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
         }
-        .fileImporter(isPresented: $isSelectingProjectFolders, allowedContentTypes: [.folder], allowsMultipleSelection: true, onCompletion: handleProjectFolderSelection)
-        .fileImporter(isPresented: $isSelectingAddFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleAddFolderToContext)
+        .fileImporter(
+            isPresented: $showFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: pendingFolderPickerKind == .openProject,
+            onCompletion: handleUnifiedFolderSelection
+        )
+        .onChange(of: isSelectingProjectFolders) { newValue in
+            guard newValue else { return }
+            isSelectingProjectFolders = false
+            pendingFolderPickerKind = .openProject
+            showFolderPicker = true
+            NSApp.activate(ignoringOtherApps: true)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .sidebarAddFolderToContext)) { notif in
             if let contextId = notif.userInfo?["contextId"] as? UUID {
-                pendingAddFolderContextId = contextId
-                isSelectingAddFolder = true
+                pendingFolderPickerKind = .addFolderToContext(contextId)
+                showFolderPicker = true
                 NSApp.activate(ignoringOtherApps: true)
             }
         }
@@ -92,9 +103,7 @@ extension ContentView {
             pendingAppUpdate = update
             showAppUpdateAlert = true
         }
-        .onChange(of: isSelectingProjectFolders) { isPresented in
-            if isPresented { NSApp.activate(ignoringOtherApps: true) }
-        }
+        // NOTE: isSelectingProjectFolders onChange is handled above via unified folder picker
         .onReceive(NotificationCenter.default.publisher(for: BrowserTabManager.browserShouldOpenNotification)) { _ in
             if !showBrowserPanel {
                 withAnimation(.snappy(duration: 0.2)) { showBrowserPanel = true }
@@ -102,19 +111,27 @@ extension ContentView {
         }
         .onChange(of: showPlanPanel) { isOpen in
             guard isOpen else { return }
-            showDebugPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
+            DispatchQueue.main.async {
+                showDebugPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
+            }
         }
         .onChange(of: showDebugPanel) { isOpen in
             guard isOpen else { return }
-            showPlanPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
+            DispatchQueue.main.async {
+                showPlanPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
+            }
         }
         .onChange(of: showSwarmPanel) { isOpen in
             guard isOpen else { return }
-            showPlanPanel = false; showDebugPanel = false; showCodeReviewPanel = false
+            DispatchQueue.main.async {
+                showPlanPanel = false; showDebugPanel = false; showCodeReviewPanel = false
+            }
         }
         .onChange(of: showCodeReviewPanel) { isOpen in
             guard isOpen else { return }
-            showPlanPanel = false; showDebugPanel = false; showSwarmPanel = false
+            DispatchQueue.main.async {
+                showPlanPanel = false; showDebugPanel = false; showSwarmPanel = false
+            }
         }
         .onChangeCompat(of: gitPanelStore.isOpen) { wasOpen, isOpen in
             guard autoResizeSidePanels else { return }

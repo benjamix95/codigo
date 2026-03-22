@@ -1,8 +1,40 @@
 import XCTest
+import CoderEngine
 @testable import CoderIDE
 
 @MainActor
 final class ChatStoreMarkerSanitizationTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        unsetenv("SOLOCODE_REVIEW_CORE_DISABLE_RUST")
+        ReviewCoreBridge.resetForTests()
+    }
+
+    override func tearDown() {
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        unsetenv("SOLOCODE_REVIEW_CORE_DISABLE_RUST")
+        ReviewCoreBridge.resetForTests()
+        super.tearDown()
+    }
+
+    private func withSwiftReviewCoreFallback<T>(_ body: () throws -> T) rethrows -> T {
+        let original = getenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT").map { String(cString: $0) }
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+        defer {
+            if let original {
+                setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", original, 1)
+            } else {
+                unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+            }
+            ReviewCoreBridge.resetForTests()
+        }
+        return try body()
+    }
+
     func testStripCoderideMarkersRemovesCompleteAndIncompleteMarkers() {
         let input = """
         Before [CODERIDE:read|path=Sources/A.swift] after
@@ -211,5 +243,30 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
             ChatStore.extractLastOperationalThinkingLine(from: input),
             "Reading config"
         )
+    }
+
+    func testExtractLastOperationalThinkingLineReturnsNilWhenRustRuntimeIsUnavailable() {
+        let input = """
+        Done
+        Explored files
+        Reading config
+        """
+
+        withSwiftReviewCoreFallback {
+            XCTAssertNil(ChatStore.extractLastOperationalThinkingLine(from: input))
+        }
+    }
+
+    func testStripCoderideMarkersDoesNotCrashWhenRustRuntimeIsUnavailable() {
+        let input = """
+        Before [CODERIDE:read|path=Sources/A.swift] after
+        """
+
+        withSwiftReviewCoreFallback {
+            XCTAssertEqual(
+                ChatStore.stripCoderideMarkers(input),
+                "Before [CODERIDE:read|path=Sources/A.swift] after"
+            )
+        }
     }
 }

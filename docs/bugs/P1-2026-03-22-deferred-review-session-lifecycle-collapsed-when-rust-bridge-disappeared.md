@@ -1,0 +1,34 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: una review deferred gia' avviata poteva perdere la transizione terminale se il bridge Rust veniva disabilitato tra `start` e `complete`.
+- Sintomo: `CodigoAppCodeReviewCommandLoopTests.testDeferredReviewFailsWhenRustFinalizationRuntimeBecomesUnavailable` osservava snapshot persistita in fase `idle` invece che `completed`.
+- Impatto: stato incoerente tra command log deferred e snapshot della sessione review.
+- Gravita': alta
+- Steps to reproduce:
+  - avviare una deferred review con runtime Rust disponibile
+  - disabilitare il bridge Rust prima che il provider completi la sessione
+  - attendere la finalizzazione del command
+- Risultato attuale:
+  - il command falliva closed correttamente, ma la sessione live non raggiungeva sempre uno stato terminale persistito
+- Risultato atteso:
+  - le transizioni lifecycle essenziali `start/complete/fail` devono restare coerenti anche se il bridge Rust non risponde piu' a review gia' avviata
+- Causa probabile:
+  - `CodeReviewSessionState.applySessionAction(...)` falliva hard quando `ReviewSessionRustBridge.applyAction(...)` ritornava `nil`, senza fallback locale per le transizioni lifecycle
+- Scope consentito:
+  - `Engine/CoderEngine/Sources/Infrastructure/ReviewCore/Session/CodeReviewSessionState.swift`
+  - test command-loop e lifecycle confinanti
+- Non-scope:
+  - mutazioni review non lifecycle
+  - finalizzazione patch e workflow PR
+- Moduli confinanti da verificare:
+  - `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift`
+  - `Tests/CoderEngineTests/CodeReview/CodeReviewSessionStateTests.swift`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test: i test rossi esistenti coprono gia' il contratto
+- Strategia di fix minimo:
+  - introdurre un fallback locale solo per `start`, `complete`, `fail` quando il bridge Rust non e' disponibile
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testDeferredReviewFailsWhenRustFinalizationRuntimeBecomesUnavailable`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/CodeReviewSessionStateTests`
+- Commit previsto:
+  - `fix(review): preserve deferred lifecycle when rust bridge drops mid-run`

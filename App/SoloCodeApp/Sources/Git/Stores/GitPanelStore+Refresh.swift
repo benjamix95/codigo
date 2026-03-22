@@ -77,8 +77,10 @@ extension GitPanelStore {
         pendingRefreshWorkItem?.cancel()
         refreshGeneration += 1
         let generation = refreshGeneration
-        isRefreshing = true
-        error = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.isRefreshing = true
+            self?.error = nil
+        }
 
         let requestedDirectory = workingDirectory
         let service = gitService
@@ -87,9 +89,9 @@ extension GitPanelStore {
                 gitService: service,
                 workingDirectory: requestedDirectory
             )
-            Task { @MainActor [weak self] in
+            DispatchQueue.main.async { [weak self] in
                 guard let self, generation == self.refreshGeneration else { return }
-                apply(snapshot: snapshot)
+                self.apply(snapshot: snapshot)
             }
         }
         pendingRefreshWorkItem = workItem

@@ -137,7 +137,7 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
         defer { resetPersistenceEnvironment() }
 
         let stableDate = Date(timeIntervalSince1970: 1_700_000_000)
-        let persistenceStore = PostgresPersistenceStore(postgresService: ManagedPostgresService())
+        let persistenceStore = PostgresPersistenceStore(postgresService: .shared)
         let snapshot = CodeReviewSessionSnapshot(
             sessionId: "history-session",
             conversationId: UUID(),

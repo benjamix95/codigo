@@ -84,7 +84,7 @@ final class FindingIdentityServiceTests: XCTestCase {
     }
 
     func testRustIdentityBridgeMatchesSwiftSemanticsWhenLibraryIsAvailable() throws {
-        let path = reviewCoreLibraryPath(from: #filePath)
+        let path = reviewCoreLibraryPathForCodeReviewTests(from: #filePath)
         guard FileManager.default.fileExists(atPath: path) else {
             throw XCTSkip("Libreria review core Rust non disponibile")
         }
@@ -146,15 +146,4 @@ final class FindingIdentityServiceTests: XCTestCase {
         XCTAssertEqual(match?.score ?? 0.0, 0.85, accuracy: 0.0001)
         XCTAssertTrue(ReviewCoreBridge.loadedState().loaded)
     }
-}
-
-private func reviewCoreLibraryPath(from sourceFile: StaticString) -> String {
-    let sourceURL = URL(fileURLWithPath: "\(sourceFile)")
-    return sourceURL
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .appendingPathComponent("Native/RustCore/build/lib/libsolocode_rust_core.dylib")
-        .path
 }

@@ -39,6 +39,8 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
     case verify
     case clean
     case resolve
+    case awaitReproduceGate = "await_reproduce_gate"
+    case awaitFixGate = "await_fix_gate"
     case nativeStart = "native_start"
     case nativeRefresh = "native_refresh"
     case nativeSyncBreakpoints = "native_sync_breakpoints"
@@ -52,13 +54,13 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
         switch self {
         case .activateMode, .gatherContext, .analyzeIssue:
             return .describing
-        case .requestReproduction, .reproduce:
+        case .requestReproduction, .reproduce, .awaitReproduceGate:
             return .reproducing
         case .instrument:
             return .instrumenting
         case .fix, .reviewFix:
             return .fixing
-        case .verify, .clean:
+        case .verify, .clean, .awaitFixGate:
             return .verifying
         case .resolve:
             return .resolved
@@ -75,7 +77,8 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
              .nativeSyncWatches, .nativeStepIn, .nativeStepOver,
              .nativeStepOut, .nativeStop:
             return .nativeCommand
-        case .activateMode, .requestReproduction, .resolve:
+        case .activateMode, .requestReproduction, .resolve,
+             .awaitReproduceGate, .awaitFixGate:
             return .mcpTool
         case .gatherContext, .analyzeIssue, .reproduce,
              .instrument, .fix, .reviewFix, .verify, .clean:
@@ -94,6 +97,7 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
         case .reproduce, .instrument, .fix, .clean:
             return .debugger
         case .activateMode, .requestReproduction, .resolve,
+             .awaitReproduceGate, .awaitFixGate,
              .nativeStart, .nativeRefresh, .nativeSyncBreakpoints,
              .nativeSyncWatches, .nativeStepIn, .nativeStepOver,
              .nativeStepOut, .nativeStop:

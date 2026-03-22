@@ -101,7 +101,7 @@ extension CoderIDETools {
                 "properties": .object([
                     "kind": .object([
                         "type": "string",
-                        "description": "Request kind: question or reproduce"
+                        "description": "Request kind: question, reproduce, or fix_confirmation"
                     ]),
                     "prompt": .object([
                         "type": "string",

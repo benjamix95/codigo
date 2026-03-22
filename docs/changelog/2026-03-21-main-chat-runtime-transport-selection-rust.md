@@ -26,8 +26,10 @@
 - verde:
   - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml runtime_transport -- --nocapture`
   - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml resolves_codex_executable -- --nocapture`
-- da tenere verde insieme alla tranche:
-  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests -only-testing:SoloCodeAppTests/ThreadProviderSelectionServiceTests -only-testing:SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests`
+- verde:
+  - `cargo test --manifest-path /Users/benjaminstoica/SoloCode/Native/RustCore/Cargo.toml main_chat::providers::cli::process::tests -- --nocapture`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests -only-testing:SoloCodeAppTests/ThreadProviderSelectionServiceTests -only-testing:SoloCodeAppTests/CLIMultiAccountProviderAdapterTests -only-testing:SoloCodeAppTests/ProviderFactoryRuntimeParityTests -only-testing:SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests -only-testing:SoloCodeAppTests/ChatStoreMarkerSanitizationTests`
+  - `scripts/validate_rust_cutover_boundary.sh --workspace /Users/benjaminstoica/SoloCode --files 'App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/ChatPanelView+PartN_RuntimeTransportSelection.swift,App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift,App/SoloCodeApp/Sources/Settings/ProviderFactory/Config/ProviderFactoryConfig.swift,Native/RustCore/src/main_chat/providers/cli/codex.rs,Native/RustCore/src/main_chat/providers/session_tests.rs,Tests/SoloCodeAppTests/CLIMultiAccountProviderAdapterTests.swift,Tests/SoloCodeAppTests/ChatStoreMarkerSanitizationTests.swift,Tests/SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests.swift,Tests/SoloCodeAppTests/ProviderFactoryRuntimeParityTests.swift,Tests/SoloCodeAppTests/RustMainChatProviderFactoryTests.swift,Tests/SoloCodeAppTests/ThreadProviderSelectionServiceTests.swift' --format json`
 
 ## Rischio controllato
 - nessun fallback legacy Swift reintrodotto nel path live della main chat

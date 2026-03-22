@@ -188,6 +188,8 @@ extension ChatPanelView {
             openrouterModel: openrouterModel,
             grokApiKey: "",
             grokModel: "",
+            kiloPath: kiloPath,
+            kiloModel: kiloModel,
             codexPath: codexPath,
             codexSandbox: effectiveSandbox,
             codexSessionFullAccess: codexSessionFullAccess,

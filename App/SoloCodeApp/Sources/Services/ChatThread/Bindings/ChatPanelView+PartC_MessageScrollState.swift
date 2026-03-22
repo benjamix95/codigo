@@ -60,13 +60,13 @@ extension ChatPanelView {
         let isActive = newSet.contains(cid)
         let wasActive = oldSet.contains(cid)
         if !wasActive && isActive {
-            isFollowingLive = true
+            DispatchQueue.main.async { isFollowingLive = true }
             if let target = liveScrollTarget() {
                 scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
             }
         } else if wasActive && !isActive {
             cancelFallbackTurnStartEvent()
-            isFollowingLive = true
+            DispatchQueue.main.async { isFollowingLive = true }
             if let target = latestMessageScrollTarget() {
                 scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
                 scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0.16)

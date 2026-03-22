@@ -55,31 +55,31 @@ extension ChatPanelView {
                 NotificationCenter.default.post(name: Self.planBuildShortcutNotification, object: nil)
                 return nil
             }
-            // Cmd+Shift+D toggles debug panel
+            // Cmd+Shift+D toggles debug panel visibility
             let normalized = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if normalized.contains([.command, .shift]),
                !normalized.contains(.option),
                !normalized.contains(.control),
                event.charactersIgnoringModifiers?.lowercased() == "d" {
-                debugToggleEnabled.toggle()
+                showDebugPanel.toggle()
                 return nil
             }
             guard event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v"
             else {
                 return event
             }
-            let attachments = AttachmentIntakeService.attachmentsFromPasteboard()
-            if !attachments.isEmpty {
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: Self.attachmentPastedNotification,
-                        object: nil,
-                        userInfo: ["attachments": attachments]
-                    )
-                }
-                return nil
+            AttachmentIntakeService.attachmentsFromPasteboard { attachments in
+                guard !attachments.isEmpty else { return }
+                NotificationCenter.default.post(
+                    name: Self.attachmentPastedNotification,
+                    object: nil,
+                    userInfo: ["attachments": attachments]
+                )
             }
-            return event
+            // Return nil immediately to consume the Cmd+V so the text
+            // editor does not also paste text while we process attachments.
+            // If no attachments are found the completion is a no-op.
+            return nil
         }
     }
     internal func isShiftTab(_ event: NSEvent) -> Bool {

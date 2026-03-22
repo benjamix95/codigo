@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod cli_account_routing;
 mod ffi;
 mod main_chat;

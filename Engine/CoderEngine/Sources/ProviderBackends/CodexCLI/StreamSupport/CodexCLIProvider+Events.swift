@@ -143,6 +143,20 @@ extension CodexCLIProvider {
             }
         }
 
+        // Process agent message chunks BEFORE captureAssistantUpdateState
+        // so that processAgentMessageChunk can compute the delta correctly.
+        // If captureAssistantUpdateState runs first, it updates
+        // lastObservedAgentText and the delta computation finds no diff.
+        if let agentChunk = extractAgentMessageChunk(from: json) {
+            events.append(
+                contentsOf: processAgentMessageChunk(
+                    agentChunk.text,
+                    isDelta: agentChunk.isDelta,
+                    state: &state
+                )
+            )
+        }
+
         captureAssistantUpdateState(from: json, state: &state)
         if let assistantUpdatePayload = extractAssistantUpdatePayload(from: json) {
             appendRawEvent(
@@ -163,16 +177,6 @@ extension CodexCLIProvider {
                 ],
                 state: &state,
                 events: &events
-            )
-        }
-
-        if let agentChunk = extractAgentMessageChunk(from: json) {
-            events.append(
-                contentsOf: processAgentMessageChunk(
-                    agentChunk.text,
-                    isDelta: agentChunk.isDelta,
-                    state: &state
-                )
             )
         }
 
@@ -230,7 +234,7 @@ extension CodexCLIProvider {
         if !rawDelta.isEmpty {
             emitMarkerEvents(from: rawDelta, state: &state, events: &events)
             let cleaned = scrubTechnicalTextChunk(rawDelta, carry: &state.scrubCarry)
-            if !cleaned.isEmpty {
+            if !cleaned.isEmpty && isDelta {
                 state.turn.emittedAnyAssistantDelta = true
                 state.cumulativeVisibleText += cleaned
                 events.append(.textDelta(cleaned))

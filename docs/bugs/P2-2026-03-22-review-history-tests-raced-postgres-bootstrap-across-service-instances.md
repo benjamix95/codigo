@@ -1,0 +1,31 @@
+## Bug Fix Record
+- Categoria: B
+- Bug: il test storico review usava due istanze `ManagedPostgresService` sulla stessa root temporanea, causando bootstrap concorrente di Postgres.
+- Sintomo: `initdb` falliva con `data exists but is not empty` e `ReviewPanelFindingsHistoryTests.testRefreshHistoricalFindingsReadsPersistedWorkspaceHistory` non leggeva alcun record persistito.
+- Impatto: suite history/persistence flakey e perdita del contratto di lettura dei finding storici persistiti.
+- Gravita': media
+- Steps to reproduce:
+  - attivare la persistence nei test
+  - persistere con uno store costruito con `ManagedPostgresService()`
+  - leggere poi dallo store che usa il singleton/shared sullo stesso root path
+- Risultato attuale:
+  - due bootstrap separati correvano sulla stessa directory temporanea
+- Risultato atteso:
+  - writer e reader di test devono condividere lo stesso bootstrap service per la stessa root temporanea
+- Causa probabile:
+  - il test scriveva con un service locale ma il reader usava il path standard basato sul singleton
+- Scope consentito:
+  - `Tests/SoloCodeAppTests/ReviewPanelFindingsHistoryTests.swift`
+- Non-scope:
+  - persistence layer SQL
+  - loader storico runtime
+- Moduli confinanti da verificare:
+  - `ReviewPanelFindingsHistoryTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test: il test rosso esistente copriva gia' la regressione
+- Strategia di fix minimo:
+  - usare il singleton `ManagedPostgresService.shared` anche per il writer del test
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPanelFindingsHistoryTests/testRefreshHistoricalFindingsReadsPersistedWorkspaceHistory`
+- Commit previsto:
+  - `test(history): share postgres bootstrap service in persisted history test`

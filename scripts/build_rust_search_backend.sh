@@ -17,8 +17,19 @@ BUNDLE_OUT="${SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR:-}"
 LIB_NAME="libsolocode_rust_core"
 DYLIB_EXT="dylib"
 
-if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
-  echo "[rust-search] cargo/rustc non disponibili; backend Rust disattivato"
+resolve_cargo() {
+  command -v cargo 2>/dev/null && return 0
+  for p in "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo /opt/homebrew/bin/cargo; do
+    if [[ -x "$p" ]]; then
+      export PATH="$(dirname "$p"):$PATH"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if ! resolve_cargo || ! command -v rustc >/dev/null 2>&1; then
+  echo "warning: [rust-search] cargo/rustc non trovati nel PATH né in posizioni standard (~/.cargo/bin, /usr/local/bin, /opt/homebrew/bin). La dylib Rust NON verrà compilata." >&2
   exit 0
 fi
 

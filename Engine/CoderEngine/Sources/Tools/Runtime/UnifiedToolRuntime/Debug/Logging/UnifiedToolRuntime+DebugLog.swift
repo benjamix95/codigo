@@ -70,9 +70,29 @@ extension UnifiedToolRuntime {
     }
 
     func executeDebugLogBatch(batchJSON: String, call _: ToolCall, startDate: Date) async -> ToolResult {
-        guard let jsonData = batchJSON.data(using: .utf8),
-              let entries = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else {
-            return ToolResult(ok: false, payload: ["detail": "batch must be a JSON array of log entries: [{severity, source, message, ...}]"], durationMs: 0)
+        guard let jsonData = batchJSON.data(using: .utf8) else {
+            return ToolResult(ok: false, payload: ["detail": "batch must be valid UTF-8 text"], durationMs: 0)
+        }
+        let entries: [[String: Any]]
+        if let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
+            entries = parsed
+        } else {
+            // Fallback: try to log the raw text as a single entry
+            await debugLogServer.log(
+                severity: "warning",
+                source: "debug_log_batch",
+                message: "Batch JSON parse failed — logged raw text as single entry",
+                detail: batchJSON,
+                category: "debug"
+            )
+            let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+            return ToolResult(ok: true, payload: [
+                "title": "debug_log (batch fallback)",
+                "detail": "JSON parse failed — raw text logged as single entry",
+                "output": "Batch parse failed. Logged raw text as fallback.",
+                "logged_count": "1",
+                "total_count": "1"
+            ], durationMs: ms)
         }
 
         var logged = 0

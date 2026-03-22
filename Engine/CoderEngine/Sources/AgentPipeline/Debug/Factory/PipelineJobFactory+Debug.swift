@@ -100,7 +100,8 @@ extension PipelineJobFactory {
                 return true
             case .intake:
                 switch stage {
-                case .activateMode, .gatherContext, .analyzeIssue, .requestReproduction:
+                case .activateMode, .gatherContext, .analyzeIssue, .requestReproduction,
+                     .awaitReproduceGate:
                     return true
                 default:
                     return false
@@ -108,7 +109,8 @@ extension PipelineJobFactory {
             case .investigation:
                 switch stage {
                 case .nativeStart, .nativeSyncBreakpoints, .nativeSyncWatches,
-                     .reproduce, .instrument, .fix, .reviewFix, .verify:
+                     .reproduce, .instrument, .fix, .reviewFix, .verify,
+                     .awaitFixGate:
                     return true
                 default:
                     return false
@@ -190,6 +192,13 @@ extension PipelineJobFactory {
             priority: 88,
             metadata: ["mcp_tool": "debug_request_user"]
         )
+        appendStage(
+            .awaitReproduceGate,
+            title: "Await Reproduce Confirmation",
+            taskType: .bugfix,
+            priority: 87,
+            metadata: ["mcp_tool": "debug_request_user", "gate_kind": "reproduce", "user_gate": "true"]
+        )
 
         if request.includeNativeStages {
             appendStage(
@@ -247,6 +256,14 @@ extension PipelineJobFactory {
             taskType: .test,
             priority: 60,
             metadata: ["debug_tool": "debug_test_check"]
+        )
+
+        appendStage(
+            .awaitFixGate,
+            title: "Await Fix Confirmation",
+            taskType: .bugfix,
+            priority: 57,
+            metadata: ["mcp_tool": "debug_request_user", "gate_kind": "fix_confirmation", "user_gate": "true"]
         )
 
         if request.includeCleanupStage {

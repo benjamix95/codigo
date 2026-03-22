@@ -10,22 +10,8 @@ extension SidebarView {
         let dateGroups = SidebarDateGrouper.group(regularThreads)
         let now = Date()
 
-        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            // Section header with action buttons
+        return VStack(alignment: .leading, spacing: 0) {
             threadsSectionHeader(threads: threads)
-
-            // Context label — subtle
-            if let context = currentContext {
-                Text(context.name)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                    .padding(.leading, 2)
-            } else {
-                Text("Global threads")
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                    .padding(.leading, 2)
-            }
 
             if threads.isEmpty {
                 SidebarEmptyState(
@@ -41,31 +27,17 @@ extension SidebarView {
             } else {
                 // Pinned threads
                 if !pinnedThreads.isEmpty {
-                    threadSubsectionTitle("Pinned")
+                    dateSeparator("Pinned")
                     ForEach(pinnedThreads) { conv in
                         threadRow(conv, referenceDate: now, metrics: metricsFor(conv))
                     }
                 }
 
-                // Date-grouped regular threads
+                // Date-grouped threads
                 ForEach(dateGroups, id: \.group) { dateGroup in
-                    threadSubsectionTitle(dateGroup.group.rawValue)
-
-                    if let context = currentContext, context.folderPaths.count > 1 {
-                        ForEach(groupedThreadsByFolder(from: dateGroup.threads), id: \.folder) { group in
-                            Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "General")
-                                .font(.system(size: 9.5, weight: .medium))
-                                .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                                .padding(.horizontal, DesignSystem.Sidebar.insetXS)
-                                .padding(.top, DesignSystem.Spacing.xs)
-                            ForEach(group.threads) { conv in
-                                threadRow(conv, referenceDate: now, metrics: metricsFor(conv))
-                            }
-                        }
-                    } else {
-                        ForEach(dateGroup.threads) { conv in
-                            threadRow(conv, referenceDate: now, metrics: metricsFor(conv))
-                        }
+                    dateSeparator(dateGroup.group.rawValue)
+                    ForEach(dateGroup.threads) { conv in
+                        threadRow(conv, referenceDate: now, metrics: metricsFor(conv))
                     }
                 }
 
@@ -85,19 +57,20 @@ extension SidebarView {
 
     private func threadsSectionHeader(threads: [Conversation]) -> some View {
         HStack(spacing: DesignSystem.Spacing.xs) {
-            Image(systemName: "bubble.left.and.text.bubble.right.fill")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.7))
-
             Text("Threads")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .textCase(.uppercase)
                 .tracking(0.5)
 
+            if !threads.isEmpty {
+                Text("\(threads.count)")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
+            }
+
             Spacer()
 
-            // Action buttons — compact icon row
             HStack(spacing: 2) {
                 Button {
                     favoritesOnly.toggle()
@@ -120,17 +93,6 @@ extension SidebarView {
                 }
                 .buttonStyle(.plain)
                 .help("Show archived")
-
-                Button {
-                    createThread(contextId: currentContext?.id)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .frame(width: 22, height: 22)
-                }
-                .buttonStyle(.plain)
-                .help("New thread")
 
                 if !threads.isEmpty {
                     Menu {
@@ -159,6 +121,22 @@ extension SidebarView {
                 }
             }
         }
+        .padding(.bottom, DesignSystem.Spacing.xs)
+    }
+
+    // MARK: - Thin Date Separator
+
+    private func dateSeparator(_ title: String) -> some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Text(title)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.textQuaternary)
+            Rectangle()
+                .fill(DesignSystem.Colors.borderSubtle)
+                .frame(height: 0.5)
+        }
+        .padding(.top, DesignSystem.Spacing.sm)
+        .padding(.bottom, DesignSystem.Spacing.xxs)
     }
 
     // MARK: - AI Search Prompt
@@ -193,17 +171,5 @@ extension SidebarView {
                 }
             }
         }
-    }
-
-    // MARK: - Subsection Title
-
-    func threadSubsectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 9.5, weight: .semibold))
-            .foregroundStyle(DesignSystem.Colors.textQuaternary)
-            .textCase(.uppercase)
-            .tracking(0.4)
-            .padding(.horizontal, DesignSystem.Sidebar.insetXS)
-            .padding(.top, DesignSystem.Spacing.sm)
     }
 }

@@ -59,19 +59,15 @@ extension TodoStore {
         return sortedCanonicalFirstTodos(legacyUnscoped)
     }
 
-    /// Returns todos suitable for chat/task live cards, scoped to the current conversation.
-    /// Includes canonical and runtime todos with legacy fallback behavior.
+    /// Returns todos suitable for chat/task live cards, scoped STRICTLY to the current conversation.
+    /// No legacy fallback — only shows todos that belong to this conversation.
     func displayTodosForChat(for conversationId: UUID?) -> [TodoItem] {
         guard let conversationId else {
             return sortedCanonicalFirstTodos()
         }
 
-        let scopedCanonical = canonicalTodos(for: conversationId)
-        let isRuntimeInScope = runtimeScopeFilter(for: conversationId)
-        let scopedRuntime = todos.filter { isRuntimeInScope($0) }
-        let canonicalIds = Set(scopedCanonical.map(\.id))
-        let merged = scopedCanonical + scopedRuntime.filter { !canonicalIds.contains($0.id) }
-        return sortedCanonicalFirstTodos(merged)
+        let scoped = todos.filter { $0.planConversationId == conversationId }
+        return sortedCanonicalFirstTodos(scoped)
     }
 
     func canonicalScopeFilter(for conversationId: UUID?) -> (TodoItem) -> Bool {
@@ -92,13 +88,11 @@ extension TodoStore {
         guard let conversationId else {
             return { !$0.isPlanCanonical }
         }
-        let hasScoped = todos.contains { !$0.isPlanCanonical && $0.planConversationId == conversationId }
+        // Strict scoping: only show runtime todos that belong to this conversation.
+        // No legacy fallback — unscoped todos from other conversations stay hidden.
         return { item in
             guard !item.isPlanCanonical else { return false }
-            if let scopedConversation = item.planConversationId {
-                return scopedConversation == conversationId
-            }
-            return !hasScoped
+            return item.planConversationId == conversationId
         }
     }
 }

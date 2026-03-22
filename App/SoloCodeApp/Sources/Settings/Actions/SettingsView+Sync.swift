@@ -4,7 +4,7 @@ import SwiftUI
 extension SettingsView {
     func syncProviders() {
         syncOpenAI(); syncAnthropic(); syncGoogle(); syncMiniMax(); syncOpenRouter(); syncGrok()
-        syncCodex(); syncClaude(); syncGemini()
+        syncCodex(); syncClaude(); syncGemini(); syncKilo()
         syncSwarm(); syncCodeReview(); syncPlanProvider()
     }
     func syncPlanProvider() {}
@@ -149,6 +149,23 @@ extension SettingsView {
             ))
         syncSwarm(); syncPlanProvider()
     }
+    func syncKilo() {
+        let cfg = providerFactoryConfig()
+        reregisterProviderPreservingSelection(id: "kilo-cli", provider:
+            ProviderFactory.kiloProvider(
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "kilo-cli",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
+            ))
+    }
     func syncGemini() {
         let cfg = providerFactoryConfig()
         reregisterProviderPreservingSelection(id: "gemini-cli", provider:
@@ -182,6 +199,7 @@ extension SettingsView {
             minimaxApiKey: minimaxApiKey, minimaxModel: minimaxModel,
             openrouterApiKey: openrouterApiKey, openrouterModel: openrouterModel,
             grokApiKey: grokApiKey, grokModel: grokModel,
+            kiloPath: kiloPath, kiloModel: kiloModel,
             codexPath: codexPath, codexSandbox: codexSandbox,
             codexSessionFullAccess: codexSessionFullAccess,
             codexAskForApproval: codexAskForApproval,

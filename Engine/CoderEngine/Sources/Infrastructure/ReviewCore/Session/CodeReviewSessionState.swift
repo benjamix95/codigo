@@ -189,7 +189,28 @@ public actor CodeReviewSessionState {
             conversationId: conversationId,
             config: config
         ) {
-            applySnapshotFields(snapshot)
+            mutationSequence = snapshot.mutationSequence
+            phase = snapshot.phase
+            stage = snapshot.stage
+            findings = snapshot.findings
+            candidates = snapshot.candidates
+            patches = snapshot.patches
+            events = snapshot.events
+            self.config = snapshot.config
+            scope = snapshot.scope
+            workspacePath = snapshot.workspacePath
+            currentRound = snapshot.currentRound
+            activeWorkerCount = snapshot.activeWorkerCount
+            startedAt = snapshot.startedAt
+            completedAt = snapshot.completedAt
+            analysisCompletedAt = snapshot.analysisCompletedAt
+            lastError = snapshot.lastError
+            currentJobId = snapshot.currentJobId
+            lastTestStatus = snapshot.lastTestStatus
+            audit = snapshot.audit
+            outcome = snapshot.outcome
+            phaseLedger = snapshot.phaseLedger
+            fileLedger = snapshot.fileLedger
         }
     }
 
@@ -252,12 +273,110 @@ public actor CodeReviewSessionState {
             snapshot: snapshot()
         )
         configure(&request)
-        guard let updated = ReviewSessionRustBridge.applyAction(request) else {
-            return false
+        if let updated = ReviewSessionRustBridge.applyAction(request) {
+            applySnapshotFields(updated)
+            emitSnapshot(mode: mode)
+            return true
         }
-        applySnapshotFields(updated)
+        guard let fallback = fallbackLifecycleSnapshot(for: request) else { return false }
+        applySnapshotFields(fallback)
         emitSnapshot(mode: mode)
         return true
+    }
+
+    private func fallbackLifecycleSnapshot(
+        for request: ReviewSessionRustActionRequest
+    ) -> CodeReviewSessionSnapshot? {
+        let base = snapshot()
+        let now = Date()
+
+        switch request.operation {
+        case "start":
+            guard let scope = request.scope ?? base.scope else { return nil }
+            return fallbackSnapshot(
+                base: base,
+                phase: .analyzing,
+                stage: .analysis,
+                scope: scope,
+                workspacePath: request.workspacePath ?? base.workspacePath,
+                startedAt: base.startedAt ?? now,
+                completedAt: nil,
+                lastError: nil,
+                events: base.events + [.sessionStarted(scope: scope.description, fileCount: scope.files.count)],
+                lastUpdatedAt: now
+            )
+        case "complete":
+            return fallbackSnapshot(
+                base: base,
+                phase: .completed,
+                stage: .completed,
+                scope: base.scope,
+                workspacePath: base.workspacePath,
+                startedAt: base.startedAt ?? now,
+                completedAt: base.completedAt ?? now,
+                lastError: base.lastError,
+                events: base.events + [CodeReviewSessionEvent(type: .sessionCompleted, detail: "Review completed")],
+                lastUpdatedAt: now
+            )
+        case "fail":
+            let message = request.error ?? base.lastError ?? "Review failed"
+            return fallbackSnapshot(
+                base: base,
+                phase: .failed,
+                stage: .failed,
+                scope: base.scope,
+                workspacePath: base.workspacePath,
+                startedAt: base.startedAt ?? now,
+                completedAt: base.completedAt ?? now,
+                lastError: message,
+                events: base.events + [.error(message)],
+                lastUpdatedAt: now
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func fallbackSnapshot(
+        base: CodeReviewSessionSnapshot,
+        phase: ReviewSessionPhase,
+        stage: ReviewSessionStage,
+        scope: ReviewSessionScope?,
+        workspacePath: String?,
+        startedAt: Date?,
+        completedAt: Date?,
+        lastError: String?,
+        events: [CodeReviewSessionEvent],
+        lastUpdatedAt: Date
+    ) -> CodeReviewSessionSnapshot {
+        CodeReviewSessionSnapshot(
+            sessionId: base.sessionId,
+            conversationId: base.conversationId,
+            mutationSequence: base.mutationSequence + 1,
+            phase: phase,
+            stage: stage,
+            findings: base.findings,
+            candidates: base.candidates,
+            patches: base.patches,
+            events: events,
+            config: base.config,
+            scope: scope,
+            workspacePath: workspacePath,
+            currentRound: base.currentRound,
+            activeWorkerCount: base.activeWorkerCount,
+            startedAt: startedAt,
+            completedAt: completedAt,
+            analysisCompletedAt: base.analysisCompletedAt,
+            lastError: lastError,
+            currentJobId: base.currentJobId,
+            lastTestStatus: base.lastTestStatus,
+            audit: base.audit,
+            outcome: base.outcome,
+            verifiedFindings: base.verifiedFindings,
+            phaseLedger: base.phaseLedger,
+            fileLedger: base.fileLedger,
+            lastUpdatedAt: lastUpdatedAt
+        )
     }
 
     private func applySnapshotFields(_ snapshot: CodeReviewSessionSnapshot) {

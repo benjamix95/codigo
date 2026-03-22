@@ -135,6 +135,8 @@ extension MCPSharedState {
         }
     }
 
+    private static var hasLoggedDecodeError = false
+
     private static func readBugHunterCommandsUnsafe() -> [MCPSharedBugHunterCommand] {
         let data: Data
         do {
@@ -143,20 +145,32 @@ extension MCPSharedState {
             if !FileManager.default.fileExists(atPath: bugHunterCommandsFilePath.path) {
                 return []
             }
-            bugHunterCommandsLogger.error("Failed to read BugHunter commands file: \(error.localizedDescription)")
+            if !hasLoggedDecodeError {
+                bugHunterCommandsLogger.error("Failed to read BugHunter commands file: \(error.localizedDescription)")
+                hasLoggedDecodeError = true
+            }
             return []
         }
+        if data.isEmpty { return [] }
         if let decoded = ReviewPersistenceRustAdapter.decodeBugHunterCommands(from: data) {
+            hasLoggedDecodeError = false
             return decoded
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        do {
-            return try decoder.decode([MCPSharedBugHunterCommand].self, from: data)
-        } catch {
-            bugHunterCommandsLogger.error("Failed to decode BugHunter commands: \(error.localizedDescription)")
-            return []
+        if let decoded = try? decoder.decode([MCPSharedBugHunterCommand].self, from: data) {
+            hasLoggedDecodeError = false
+            return decoded
         }
+        if let decoded = BugHunterRustFormatDecoder.decode(from: data) {
+            hasLoggedDecodeError = false
+            return decoded
+        }
+        if !hasLoggedDecodeError {
+            bugHunterCommandsLogger.error("Failed to decode BugHunter commands (logged once)")
+            hasLoggedDecodeError = true
+        }
+        return []
     }
 
     private static func writeBugHunterCommandsUnsafe(_ commands: [MCPSharedBugHunterCommand]) {

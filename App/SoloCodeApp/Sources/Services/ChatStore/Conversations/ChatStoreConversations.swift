@@ -8,6 +8,12 @@ struct ChatStoreConversationDeletionOutcome: Equatable {
 }
 
 extension ChatStore {
+    @MainActor
+    private func fallbackAppendConversationIfMissing(_ conversation: Conversation) {
+        guard !conversations.contains(where: { $0.id == conversation.id }) else { return }
+        conversations.append(conversation)
+    }
+
     func hasUserMessages(_ conversation: Conversation) -> Bool {
         conversation.messages.contains(where: { $0.role == .user })
     }
@@ -29,12 +35,13 @@ extension ChatStore {
     @discardableResult
     func createConversation(contextId: UUID? = nil, contextFolderPath: String? = nil, mode: CoderMode? = nil) -> UUID {
         let conv = Conversation(contextId: contextId, contextFolderPath: contextFolderPath, mode: mode)
-        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
-            conversations.append(conv)
-        } else {
-            _ = applyRustStoreAction("create_conversation") { request in
+        let shouldUseLocalFallback =
+            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+            || !applyRustStoreAction("create_conversation") { request in
                 request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
             }
+        if shouldUseLocalFallback || !conversations.contains(where: { $0.id == conv.id }) {
+            fallbackAppendConversationIfMissing(conv)
         }
         saveConversations()
         return conv.id
@@ -44,12 +51,13 @@ extension ChatStore {
     @discardableResult
     func createConversation(workspaceId: UUID? = nil, adHocFolderPaths: [String] = [], mode: CoderMode? = nil) -> UUID {
         let conv = Conversation(contextId: workspaceId, mode: mode, workspaceId: workspaceId, adHocFolderPaths: adHocFolderPaths)
-        if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
-            conversations.append(conv)
-        } else {
-            _ = applyRustStoreAction("create_conversation") { request in
+        let shouldUseLocalFallback =
+            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
+            || !applyRustStoreAction("create_conversation") { request in
                 request.conversation = RustMainChatStoreAdapter.conversationSnapshot(conv)
             }
+        if shouldUseLocalFallback || !conversations.contains(where: { $0.id == conv.id }) {
+            fallbackAppendConversationIfMissing(conv)
         }
         saveConversations()
         return conv.id
@@ -142,9 +150,12 @@ extension ChatStore {
     func setTitle(conversationId: UUID, title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        _ = applyRustStoreAction("set_title") { request in
+        let rustApplied = applyRustStoreAction("set_title") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.title = trimmed
+        }
+        if !rustApplied, let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+            conversations[idx].title = trimmed
         }
         saveConversations()
     }

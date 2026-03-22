@@ -7,34 +7,30 @@ extension SidebarView {
 
     var sidebarContent: some View {
         VStack(spacing: 0) {
+            // Fixed header: Search + New Thread
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                SidebarSearchBar(query: $sidebarQuery)
+
+                SidebarNewThreadButton(
+                    onNewThread: { createThread(contextId: currentContext?.id) }
+                )
+            }
+            .padding(.top, sidebarTopContentInset)
+            .padding(.horizontal, DesignSystem.Sidebar.insetMD)
+            .padding(.bottom, DesignSystem.Spacing.sm)
+
+            // Scrollable threads (primary content)
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    SidebarNewThreadButton(
-                        onNewThread: { createThread(contextId: currentContext?.id) },
-                        onOpenProject: { isSelectingProjectFolders = true }
-                    )
-
-                    SidebarSearchBar(query: $sidebarQuery)
-
-                    contextSection
-                        .padding(.top, DesignSystem.Spacing.sm)
-
+                LazyVStack(alignment: .leading, spacing: 0) {
                     threadsSection
-                        .padding(.top, DesignSystem.Spacing.xs)
-
-                    if isIDEMode, let context = currentContext, !context.folderPaths.isEmpty {
-                        explorerSection(context: context)
-                            .padding(.top, DesignSystem.Spacing.sm)
-                    }
                 }
-                .padding(.top, sidebarTopContentInset)
                 .padding(.horizontal, DesignSystem.Sidebar.insetMD)
                 .padding(.bottom, DesignSystem.Sidebar.insetMD)
             }
 
-            taskCloudSection
+            // Pinned context strip above footer
+            contextStrip
                 .padding(.horizontal, DesignSystem.Sidebar.insetMD)
-                .padding(.vertical, DesignSystem.Spacing.sm)
         }
         .safeAreaInset(edge: .bottom) { footer }
         .fileImporter(

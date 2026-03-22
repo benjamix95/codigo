@@ -171,18 +171,6 @@ extension SidebarView {
         }
     }
 
-    func loadCodexTasks() {
-        guard let path = codexState.status.path else { return }
-        isLoadingTasks = true
-        Task {
-            let tasks = await CodexCloudTasks.list(codexPath: path)
-            await MainActor.run {
-                codexTasks = tasks
-                isLoadingTasks = false
-            }
-        }
-    }
-
     func handleAddFolderSelection(result: Result<[URL], Error>) {
         guard let contextId = pendingAddFolderContextId else { return }
         defer { pendingAddFolderContextId = nil }

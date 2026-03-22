@@ -100,7 +100,8 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
                         return
                     }
 
-                    for event in response?.events ?? [] {
+                    let events = response?.events ?? []
+                    for event in events {
                         switch event.kind {
                         case .started:
                             continuation.yield(.started)
@@ -226,6 +227,8 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
             claudeAllowedTools: baseConfig.claudeAllowedTools,
             geminiCliPath: baseConfig.geminiCliPath,
             geminiModelOverride: baseConfig.geminiModelOverride,
+            kiloPath: baseConfig.kiloPath,
+            kiloModel: baseConfig.kiloModel,
             attachments: (attachments ?? []).map(MainChatProviderAttachmentBridge.init),
             cliAccounts: baseConfig.cliAccounts
         )

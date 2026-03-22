@@ -70,15 +70,9 @@ extension ChatPanelView {
             debugStore: debugStore,
             taskActivities: scopedTaskActivities(for: conversationId),
             todoStore: todoStore,
+            conversationId: conversationId,
             onClose: {
-                debugToggleEnabled = false
                 showDebugPanel = false
-                if coderMode == .debug && !debugStore.phase.isActive {
-                    selectMode(.agent)
-                }
-            },
-            onSubmitQuestion: { question in
-                executeDebugPipelineIntent(.startSession(summary: question))
             },
             onStop: {
                 suspendRuntimeDebugProjection(for: conversationId)
@@ -100,39 +94,6 @@ extension ChatPanelView {
                     persistDebugState(for: conversationId)
                     return
                 }
-            },
-            onNativeStart: {
-                executeDebugNativePipelineIntent(.start)
-            },
-            onNativeStop: {
-                executeDebugNativePipelineIntent(.stop)
-            },
-            onNativeRefresh: {
-                executeDebugNativePipelineIntent(.refresh)
-            },
-            onNativeSync: {
-                executeDebugNativePipelineIntent(.syncCurrentConfiguration)
-            },
-            onNativeApplyWatches: {
-                executeDebugNativePipelineIntent(.syncWatchExpressions(debugStore.parsedNativeWatchExpressions))
-            },
-            onNativeStepIn: {
-                executeDebugNativePipelineIntent(.stepIn)
-            },
-            onNativeStepOver: {
-                executeDebugNativePipelineIntent(.stepOver)
-            },
-            onNativeStepOut: {
-                executeDebugNativePipelineIntent(.stepOut)
-            },
-            onNativeAddBreakpoint: {
-                executeDebugNativeAddBreakpointIntent()
-            },
-            onNativeToggleBreakpoint: { breakpointId in
-                executeDebugNativeToggleBreakpointIntent(breakpointId)
-            },
-            onNativeRemoveBreakpoint: { breakpointId in
-                executeDebugNativeRemoveBreakpointIntent(breakpointId)
             }
         )
         .frame(width: CGFloat(debugPanelWidthStorage))

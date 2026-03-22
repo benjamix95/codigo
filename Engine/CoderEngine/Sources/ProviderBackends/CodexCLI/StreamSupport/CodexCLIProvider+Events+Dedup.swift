@@ -5,16 +5,21 @@ extension CodexCLIProvider {
         state: inout CodexStreamParserState
     ) -> [StreamEvent] {
         guard !state.turn.lastValidAgentMessage.isEmpty else { return [] }
-        guard !state.turn.emittedAnyAssistantDelta else { return [] }
 
         var events: [StreamEvent] = []
         emitMarkerEvents(from: state.turn.lastValidAgentMessage, state: &state, events: &events)
         var cleanupCarry = ""
         let cleaned = scrubTechnicalTextChunk(state.turn.lastValidAgentMessage, carry: &cleanupCarry)
-        if !cleaned.isEmpty {
+        let trimmedCleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedCleaned.isEmpty {
+            let previouslyVisibleText = state.cumulativeVisibleText
             state.turn.emittedAnyAssistantDelta = true
-            state.cumulativeVisibleText += cleaned
-            events.append(.textDelta(cleaned))
+            state.cumulativeVisibleText = trimmedCleaned
+            if state.turn.emittedAnyAssistantDelta && !previouslyVisibleText.isEmpty && previouslyVisibleText != trimmedCleaned {
+                events.append(.textReplace(trimmedCleaned))
+            } else {
+                events.append(.textDelta(trimmedCleaned))
+            }
         }
         return events
     }
@@ -87,8 +92,8 @@ extension CodexCLIProvider {
 
     static func extractAgentMessageChunk(from json: [String: Any]) -> (text: String, isDelta: Bool)? {
         let eventType = (json["type"] as? String) ?? ""
-        let finalLikeItemTypes: Set<String> = ["assistant_message", "final_answer", "message", "text"]
-        let finalLikeEventTypes: Set<String> = ["assistant_message", "final_answer", "message", "text"]
+        let finalLikeItemTypes: Set<String> = ["assistant_message", "agent_message", "final_answer", "message", "text"]
+        let finalLikeEventTypes: Set<String> = ["assistant_message", "agent_message", "final_answer", "message", "text"]
 
         if eventType.hasPrefix("item."),
            let item = json["item"] as? [String: Any],

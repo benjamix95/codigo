@@ -1,0 +1,43 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: la suite app-side falliva su due path review indipendenti:
+  - sync findings strutturati dal blocco `review_findings` verso timeline/session snapshot
+  - `close_finding` del command loop review
+- Sintomo:
+  - `CodeReviewPanelSessionScopingTests.testStructuredChatFindingsSyncsIntoFindingsTimelineAndDeduplicates` restava con `findings.count == 0`
+  - `CodigoAppCodeReviewCommandLoopCloseFindingTests.testCloseFindingCommandUsesRustMutationForValidatedPatchAppliedFinding` tornava `.failed`
+- Impatto: validation pipeline bloccata, impossibilita' di committare in sicurezza il tranche `main chat`
+- Gravita': alta
+- Steps to reproduce:
+  - eseguire i due test XCTest sopra in isolamento
+- Risultato attuale:
+  - il decode Swift del payload chat findings era troppo rigido sullo `snapshot` opzionale
+  - `close_finding` passava dal planner `patch_action` e non entrava nel ramo diretto di mutazione snapshot Rust
+- Risultato atteso:
+  - sync findings deve usare comunque `visibleContent/findings/insertedCount` anche se lo snapshot canonico Rust non e' decodificabile
+  - `close_finding` deve usare il mutatore Rust dello snapshot e chiudere il finding validato
+- Causa probabile:
+  - DTO Swift di `ReviewCoreChatExtractionResponse` non tollerava failure di decode dello `snapshot`
+  - switch del command loop guardava `plan.kind` e non `plan.action` per `close_finding`
+- Scope consentito:
+  - `CodeReviewPanelStore+ChatFindings.swift`
+  - `CodigoApp+CodeReviewCommands.swift`
+  - `CodeReviewPanelSessionScopingTests.swift`
+  - changelog/bug doc
+- Non-scope:
+  - refactor del review panel runtime
+  - refactor generale del command loop review
+- Moduli confinanti da verificare:
+  - `CodeReviewPanelSessionScopingTests`
+  - `CodigoAppCodeReviewCommandLoopCloseFindingTests`
+- Test da aggiungere o aggiornare:
+  - riallineamento del test stale su `selectedModes`
+  - riesecuzione isolata dei failure review
+- Strategia di fix minimo:
+  - custom decode tollerante per `ReviewCoreChatExtractionResponse`
+  - routing esplicito di `close_finding` sul mutatore Rust diretto
+- Verifica post-fix:
+  - `xcodebuild test-without-building ... -only-testing:SoloCodeAppTests/CodeReviewPanelSessionScopingTests/...`
+  - `xcodebuild test-without-building ... -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopCloseFindingTests/...`
+- Commit previsto:
+  - `fix(review): unblock panel findings sync and close-finding command`

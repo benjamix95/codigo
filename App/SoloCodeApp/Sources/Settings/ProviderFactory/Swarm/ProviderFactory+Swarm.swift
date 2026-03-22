@@ -3,7 +3,7 @@ import Foundation
 
 extension ProviderFactory {
     static let allSubagentBackendIds: [String] = [
-        "codex-cli", "claude-cli", "gemini-cli",
+        "codex-cli", "claude-cli", "gemini-cli", "kilo-cli",
         "openai-api", "anthropic-api", "google-api",
         "openrouter-api", "minimax-api", "grok-api"
     ]
@@ -17,6 +17,8 @@ extension ProviderFactory {
             return "claude"
         case "gemini-cli", "gemini":
             return "gemini"
+        case "kilo-cli", "kilo":
+            return "kilo"
         case "openai-api", "openai":
             return "openai-api"
         case "anthropic-api":
@@ -163,6 +165,15 @@ extension ProviderFactory {
             )
         case "gemini", "gemini-cli":
             return geminiProvider(
+                config: config,
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths,
+                toolPolicy: toolPolicyOverride
+            )
+        case "kilo", "kilo-cli":
+            return kiloProvider(
                 config: config,
                 executionController: executionController,
                 executionScope: executionScope,

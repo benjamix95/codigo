@@ -93,9 +93,6 @@ extension ChatPanelView {
                 }
             }
             .onChangeCompat(of: showDebugPanel) { wasOpen, isShowing in
-                if debugToggleEnabled != isShowing {
-                    debugToggleEnabled = isShowing
-                }
                 if isShowing && showPlanPanel {
                     showPlanPanel = false
                 }
@@ -121,8 +118,11 @@ extension ChatPanelView {
             }
             .onChange(of: debugToggleEnabled) { isEnabled in
                 guard !isRestoringThreadUIState else { return }
-                guard showDebugPanel != isEnabled else { return }
-                showDebugPanel = isEnabled
+                if isEnabled {
+                    selectMode(.debug)
+                } else if coderMode == .debug && !debugStore.phase.isActive {
+                    selectMode(.agent)
+                }
             }
             .onChangeCompat(of: showPlanPanel) { wasOpen, isOpen in
                 syncPlanPanelVisibilityToRust(isOpen)
@@ -192,11 +192,13 @@ extension ChatPanelView {
             }
             .onChange(of: selectedConversationId) { _ in
                 gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-                composerFrozenTimerState = nil
-                composerTaskStartDate = nil
-                composerTimerAutoHideTask?.cancel()
-                composerTimerAutoHideTask = nil
-                lastTaskEndedByManualStop = false
+                DispatchQueue.main.async {
+                    composerFrozenTimerState = nil
+                    composerTaskStartDate = nil
+                    composerTimerAutoHideTask?.cancel()
+                    composerTimerAutoHideTask = nil
+                    lastTaskEndedByManualStop = false
+                }
             }
             .onChange(of: inputText) { newValue in
                 guard let cid = conversationId else { return }
@@ -218,41 +220,45 @@ extension ChatPanelView {
                 let wasActive = oldSet.contains(cid)
                 let isActive = newSet.contains(cid)
                 if !wasActive && isActive {
-                    composerTaskStartDate = chatStore.taskStartDate(for: cid) ?? Date()
-                    composerFrozenTimerState = nil
-                    composerTimerAutoHideTask?.cancel()
-                    composerTimerAutoHideTask = nil
-                    lastTaskEndedByManualStop = false
+                    DispatchQueue.main.async {
+                        composerTaskStartDate = chatStore.taskStartDate(for: cid) ?? Date()
+                        composerFrozenTimerState = nil
+                        composerTimerAutoHideTask?.cancel()
+                        composerTimerAutoHideTask = nil
+                        lastTaskEndedByManualStop = false
+                    }
                 }
                 if wasActive && !isActive {
                     if skipNextLoadingCompletedHandling {
                         skipNextLoadingCompletedHandling = false
                         return
                     }
-                    hasJustCompletedTask = true
-                    gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-                    isFollowingLive = true
-                    newEventsWhileDetached = 0
-                    let startDate = composerTaskStartDate ?? Date()
-                    let elapsed = max(0, Int(Date().timeIntervalSince(startDate)))
-                    let frozen = buildComposerFrozenTimerState(
-                        elapsedSeconds: elapsed,
-                        endedByManualStop: lastTaskEndedByManualStop
-                    )
-                    composerFrozenTimerState = frozen
-                    composerTaskStartDate = nil
-                    composerTimerAutoHideTask?.cancel()
-                    composerTimerAutoHideTask = nil
-                    if let delay = frozen.autoHideDelay {
-                        composerTimerAutoHideTask = Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            guard !Task.isCancelled else { return }
-                            if !self.isLoadingForCurrentConversation {
-                                composerFrozenTimerState = nil
+                    DispatchQueue.main.async {
+                        hasJustCompletedTask = true
+                        gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                        isFollowingLive = true
+                        newEventsWhileDetached = 0
+                        let startDate = composerTaskStartDate ?? Date()
+                        let elapsed = max(0, Int(Date().timeIntervalSince(startDate)))
+                        let frozen = buildComposerFrozenTimerState(
+                            elapsedSeconds: elapsed,
+                            endedByManualStop: lastTaskEndedByManualStop
+                        )
+                        composerFrozenTimerState = frozen
+                        composerTaskStartDate = nil
+                        composerTimerAutoHideTask?.cancel()
+                        composerTimerAutoHideTask = nil
+                        if let delay = frozen.autoHideDelay {
+                            composerTimerAutoHideTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                                guard !Task.isCancelled else { return }
+                                if !self.isLoadingForCurrentConversation {
+                                    composerFrozenTimerState = nil
+                                }
                             }
                         }
+                        lastTaskEndedByManualStop = false
                     }
-                    lastTaskEndedByManualStop = false
                 }
             }
         let swarmTracked = lifecycleTracked

@@ -104,6 +104,26 @@ final class DebugStore: ObservableObject {
 
     var pendingResolutionAfterClean: String?
 
+    /// Debug findings extracted from hypotheses and markers.
+    @Published var debugFindings: [DebugFinding] = []
+
+    /// Whether the pipeline is awaiting user clarification before advancing.
+    @Published var isAwaitingUserClarification: Bool = false
+
+    /// Whether the pipeline is awaiting reproduce confirmation before advancing.
+    @Published var isAwaitingReproduceConfirmation: Bool = false
+
+    /// Whether the pipeline is awaiting fix confirmation before cleanup.
+    @Published var isAwaitingFixConfirmation: Bool = false
+
+    /// Warning: agent skipped questions (no hypotheses before fix phase).
+    @Published var skippedQuestionsWarning: Bool = false
+
+    // MARK: - Log File Monitor
+
+    var logFileMonitorSource: DispatchSourceFileSystemObject?
+    var logFileMonitorHandle: FileHandle?
+
     static let maxFixLoopIterations = 5
 
     let nativeDebugConfiguration: DebugServiceConfiguration

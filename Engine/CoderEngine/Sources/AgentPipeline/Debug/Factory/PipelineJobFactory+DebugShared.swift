@@ -12,8 +12,12 @@ extension PipelineJobFactory {
 
     static func timeoutForDebugStage(_ stage: DebugStageKind) -> Int {
         switch stage {
-        case .activateMode, .requestReproduction, .resolve:
+        case .activateMode, .resolve:
             return 45_000
+        case .requestReproduction:
+            return 60_000
+        case .awaitReproduceGate, .awaitFixGate:
+            return 600_000 // 10 min — user must reproduce/test before confirming
         case .verify:
             return 180_000
         case .nativeStart, .nativeRefresh, .nativeSyncBreakpoints,
@@ -28,7 +32,8 @@ extension PipelineJobFactory {
 
     static func riskForDebugStage(_ stage: DebugStageKind) -> RiskLevel {
         switch stage {
-        case .activateMode, .requestReproduction, .resolve:
+        case .activateMode, .requestReproduction, .resolve,
+             .awaitReproduceGate, .awaitFixGate:
             return .low
         case .gatherContext, .analyzeIssue, .reviewFix, .verify:
             return .medium

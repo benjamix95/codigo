@@ -15,6 +15,9 @@ struct ProviderFactoryConfig {
     var grokApiKey: String
     var grokModel: String
 
+    var kiloPath: String = ""
+    var kiloModel: String = ""
+
     var codexPath: String
     var codexSandbox: String
     var codexSessionFullAccess: Bool
@@ -64,6 +67,20 @@ struct ProviderFactoryConfig {
         detect: (String?) -> String? = { CodexDetector.findCodexPath(customPath: $0) }
     ) -> String? {
         let trimmed = codexPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        return detect(trimmed.isEmpty ? nil : trimmed)
+    }
+
+    func resolvedClaudePath(
+        detect: (String?) -> String? = { ClaudeDetector.findClaudePath(customPath: $0) }
+    ) -> String? {
+        let trimmed = claudePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        return detect(trimmed.isEmpty ? nil : trimmed)
+    }
+
+    func resolvedKiloPath(
+        detect: (String?) -> String? = { KiloDetector.findKiloPath(customPath: $0) }
+    ) -> String? {
+        let trimmed = kiloPath.trimmingCharacters(in: .whitespacesAndNewlines)
         return detect(trimmed.isEmpty ? nil : trimmed)
     }
 }

@@ -110,13 +110,34 @@ extension DebugPanelView {
                     Text("Reproduce the bug")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Text("Follow the steps above, then confirm")
+                    Text("Follow the steps above, then click Proceed")
                         .font(.system(size: 10.5))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
             }
 
-            Button(action: onProceed) {
+            // Show collected runtime logs count
+            let runtimeCount = debugStore.runtimeLogs.count
+            if runtimeCount > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 9))
+                    Text("\(runtimeCount) runtime log\(runtimeCount == 1 ? "" : "s") collected")
+                        .font(.system(size: 10))
+                }
+                .foregroundStyle(accent.opacity(0.7))
+            }
+
+            Text("The agent will analyze collected logs and propose fix hypotheses.")
+                .font(.system(size: 10))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+
+            Button {
+                debugStore.isAwaitingReproduceConfirmation = false
+                debugStore.userConfirmedReproduce = true
+                debugStore.clarificationQuestions = ""
+                onProceed()
+            } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "play.fill")
                         .font(.system(size: 10))
@@ -150,7 +171,7 @@ extension DebugPanelView {
                     Text("Verification")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Text("Verify the fix, then mark as resolved")
+                    Text("Click 'Mark Fixed' to remove all debug markers and resolve")
                         .font(.system(size: 10.5))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }

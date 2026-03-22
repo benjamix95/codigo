@@ -171,10 +171,20 @@ final class BugHunterWorkflowServiceTests: XCTestCase {
     override func setUp() {
         super.setUp()
         try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        setenv(
+            "SOLOCODE_REVIEW_CORE_LIBRARY_PATH",
+            reviewCoreLibraryPathForCodeReviewTests(from: #filePath),
+            1
+        )
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
         super.tearDown()
     }
 

@@ -195,7 +195,7 @@ struct PlanPanelView: View {
         .onChange(of: providerRegistry.selectedProviderId) { _ in refreshProviderAuthCache() }
         .onChange(of: planProviderId) { _ in refreshProviderAuthCache() }
         .onReceive(providerRegistry.objectWillChange) { _ in
-            refreshProviderAuthCache()
+            DispatchQueue.main.async { refreshProviderAuthCache() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .providersDidRegister)) { _ in
             refreshProviderAuthCache()

@@ -40,8 +40,52 @@ enum RustMainChatStoreAdapter {
     }
 
     @MainActor
-    static func apply(snapshot: MainChatStoreSnapshotBridge, to store: ChatStore) {
-        store.conversations = snapshot.conversations.compactMap(conversation)
+    static func apply(
+        snapshot: MainChatStoreSnapshotBridge,
+        to store: ChatStore,
+        preserveLocalMessages: Bool = false
+    ) {
+        if preserveLocalMessages {
+            let previousById = Dictionary(
+                uniqueKeysWithValues: store.conversations.map { ($0.id, $0) }
+            )
+            var incoming = snapshot.conversations.compactMap(conversation)
+            for i in incoming.indices {
+                guard let previous = previousById[incoming[i].id] else { continue }
+                let previousMsgById = Dictionary(
+                    uniqueKeysWithValues: previous.messages.map { ($0.id, $0) }
+                )
+                // For messages in both: if Rust has empty content/blocks but
+                // local has richer content, prefer the local version.
+                for j in incoming[i].messages.indices {
+                    guard let localMsg = previousMsgById[incoming[i].messages[j].id] else { continue }
+                    let rustContent = incoming[i].messages[j].content
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let localContent = localMsg.content
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let rustHasBlocks = incoming[i].messages[j].blocks?.isEmpty == false
+                    let localHasBlocks = localMsg.blocks?.isEmpty == false
+                    if rustContent.isEmpty && (!localContent.isEmpty || localHasBlocks) {
+                        incoming[i].messages[j] = localMsg
+                    } else if !rustHasBlocks && localHasBlocks && rustContent == localContent {
+                        incoming[i].messages[j] = localMsg
+                    }
+                }
+                // Add messages missing from Rust snapshot
+                let incomingIds = Set(incoming[i].messages.map(\.id))
+                let missing = previous.messages.filter { !incomingIds.contains($0.id) }
+                if !missing.isEmpty {
+                    incoming[i].messages.append(contentsOf: missing)
+                }
+            }
+            let incomingIds = Set(incoming.map(\.id))
+            for prev in store.conversations where !incomingIds.contains(prev.id) {
+                incoming.append(prev)
+            }
+            store.conversations = incoming
+        } else {
+            store.conversations = snapshot.conversations.compactMap(conversation)
+        }
         store.planBoards = Dictionary(uniqueKeysWithValues: snapshot.planBoards.compactMap { key, value in
             guard let uuid = UUID(uuidString: key) else { return nil }
             return (uuid, planBoard(value))
@@ -131,7 +175,7 @@ enum RustMainChatStoreAdapter {
     ) -> MainChatUIIntentResponseBridge? {
         guard let response = handleUIIntent(request) else { return nil }
         if let state = response.state {
-            apply(snapshot: state.storeSnapshot, to: store)
+            apply(snapshot: state.storeSnapshot, to: store, preserveLocalMessages: true)
             apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
         }
         return response
@@ -220,7 +264,7 @@ enum RustMainChatStoreAdapter {
             planAttachment: snapshot.planAttachment.flatMap(planAttachment)
         )
         message.reasoningText = snapshot.reasoningText
-        message.subagentCards = nil
+        message.subagentCards = snapshot.subagentCards?.compactMap(subagentCard)
         return message
     }
 
@@ -252,6 +296,10 @@ enum RustMainChatStoreAdapter {
     }
     static func subagentCardSnapshot(_ card: SubagentCardSnapshot) -> MainChatStoreSubagentCardSnapshotBridge {
         MainChatStoreSubagentCardSnapshotBridge(swarmId: card.swarmId, status: card.status.rawValue, title: card.title, detail: card.detail, summary: card.summary, errorCount: card.errorCount, warningCount: card.warningCount, resultPreview: card.resultPreview)
+    }
+    private static func subagentCard(_ snapshot: MainChatStoreSubagentCardSnapshotBridge) -> SubagentCardSnapshot? {
+        guard let status = SwarmCardStatus(rawValue: snapshot.status) else { return nil }
+        return SubagentCardSnapshot(swarmId: snapshot.swarmId, status: status, title: snapshot.title, detail: snapshot.detail, summary: snapshot.summary, errorCount: snapshot.errorCount, warningCount: snapshot.warningCount, resultPreview: snapshot.resultPreview)
     }
     static func checkpointSnapshot(_ checkpoint: ConversationCheckpoint) -> MainChatStoreCheckpointSnapshotBridge {
         MainChatStoreCheckpointSnapshotBridge(id: checkpoint.id.uuidString.lowercased(), createdAt: checkpoint.createdAt, messageCount: checkpoint.messageCount, planBoardSnapshot: checkpoint.planBoardSnapshot.map(planBoardSnapshot), linkedPlanConversationId: checkpoint.linkedPlanConversationId?.uuidString.lowercased(), linkedPlanBoardSnapshot: checkpoint.linkedPlanBoardSnapshot.map(planBoardSnapshot), gitStates: checkpoint.gitStates.map(gitStateSnapshot))

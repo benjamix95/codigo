@@ -10,20 +10,33 @@ extension CoderIDEMCPServerApp {
                 args: args,
                 conversationId: resolveReviewConversationId(args)
             )
-            guard let bridged = rustReviewToolResult(
-                name: "review_start",
-                args: request.payload
+            let snapshots = MCPSharedState.readCodeReviewSnapshots(
+                conversationId: request.conversationId
+            )
+            guard let bridged = ReviewMCPRustBridge.handleReviewTool(
+                toolName: "review_start",
+                args: request.payload,
+                reviewSnapshots: snapshots,
+                activeReviewSnapshot: nil
             ) else {
                 return reviewError("Error: Rust review core unavailable for review_start")
             }
-            if bridged.isError == true {
-                return bridged
+            if bridged.isError {
+                return reviewError(bridged.message)
             }
-            guard (try? MCPSharedState.enqueueUniqueCodeReviewStartCommandRustOnly(
+            if MCPSharedState.hasQueuedCodeReviewStart(
                 sessionId: request.sessionId,
-                conversationId: request.conversationId,
-                payload: request.payload
-            )) != nil else {
+                conversationId: request.conversationId
+            ) {
+                return reviewError("Error: session_id '\(request.sessionId)' already has a queued start command")
+            }
+            do {
+                _ = try MCPSharedState.enqueueUniqueCodeReviewStartCommandRustOnly(
+                    sessionId: request.sessionId,
+                    conversationId: request.conversationId,
+                    payload: request.payload
+                )
+            } catch {
                 return reviewError("Error: Rust review queue unavailable for review_start")
             }
             return reviewOK(

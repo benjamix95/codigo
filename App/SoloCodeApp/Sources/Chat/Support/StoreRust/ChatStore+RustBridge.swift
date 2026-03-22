@@ -146,7 +146,26 @@ extension ChatStore {
         if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
             return local
         }
-        return RustMainChatStoreAdapter.loadNormalizedSnapshot(local) ?? local
+        guard let normalized = RustMainChatStoreAdapter.loadNormalizedSnapshot(local) else {
+            return local
+        }
+        // Guard: normalization must not drop messages or strip content.
+        // If it does, the Rust core returned a broken snapshot — fall back to local.
+        let localMessageCount = local.conversations.reduce(0) { $0 + $1.messages.count }
+        let normalizedMessageCount = normalized.conversations.reduce(0) { $0 + $1.messages.count }
+        if localMessageCount > 0 && normalizedMessageCount < localMessageCount {
+            return local
+        }
+        let localContentSize = local.conversations.reduce(0) { total, conv in
+            total + conv.messages.reduce(0) { $0 + $1.content.count }
+        }
+        let normalizedContentSize = normalized.conversations.reduce(0) { total, conv in
+            total + conv.messages.reduce(0) { $0 + $1.content.count }
+        }
+        if localContentSize > 0 && normalizedContentSize == 0 {
+            return local
+        }
+        return normalized
     }
 
     @MainActor
@@ -194,7 +213,12 @@ extension ChatStore {
         guard let snapshot = RustMainChatStoreAdapter.handle(request) else {
             return false
         }
-        RustMainChatStoreAdapter.apply(snapshot: snapshot, to: self)
+        let isRemoveAction = action.hasPrefix("remove_")
+        RustMainChatStoreAdapter.apply(
+            snapshot: snapshot,
+            to: self,
+            preserveLocalMessages: !isRemoveAction
+        )
         return true
     }
 
@@ -466,6 +490,34 @@ extension ChatStore {
             request.conversationId = conversationId.uuidString.lowercased()
             request.messageId = messageId.uuidString.lowercased()
             request.message = RustMainChatStoreAdapter.messageSnapshot(pipelineMessage)
+        }
+        // Fallback: ensure local message is always up-to-date with pipeline state,
+        // even when the Rust store didn't propagate the content update.
+        // Preserve existing non-empty content when the pipeline state has empty
+        // primary text — this prevents artifact-only commits from wiping text
+        // written by the assistant_update fallback path.
+        if let convIdx = conversations.firstIndex(where: { $0.id == conversationId }),
+           let msgIdx = conversations[convIdx].messages.firstIndex(where: { $0.id == messageId }) {
+            let existingContent = conversations[convIdx].messages[msgIdx].content
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if pipelineMessage.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !existingContent.isEmpty {
+                let preserved = conversations[convIdx].messages[msgIdx].content
+                pipelineMessage.content = preserved
+                pipelineMessage.primaryTextSnapshot = preserved
+                // Also fix the primary text block inside blocks so that
+                // resolvedTimelineBlocks renders the preserved content.
+                if var blocks = pipelineMessage.blocks,
+                   let idx = blocks.firstIndex(where: { $0.kind == .primaryText }) {
+                    blocks[idx] = PersistedChatTimelineBlock(
+                        id: blocks[idx].id,
+                        kind: .primaryText,
+                        text: preserved
+                    )
+                    pipelineMessage.blocks = blocks
+                }
+            }
+            conversations[convIdx].messages[msgIdx] = pipelineMessage
         }
         persistAssistantMutation(immediately: persistImmediately)
     }

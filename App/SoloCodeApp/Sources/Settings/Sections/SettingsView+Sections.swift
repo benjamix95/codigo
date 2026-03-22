@@ -211,8 +211,32 @@ extension SettingsView {
                     HStack {
                         fieldLabel("Path")
                         TextField("Auto-detect", text: $claudePath).textFieldStyle(.roundedBorder)
-                        let claudeInstalled = !claudePath.isEmpty || PathFinder.find(executable: "claude") != nil
-                        statusBadge(connected: claudeInstalled, label: claudeInstalled ? "Installed" : "Not found")
+                        let claudeDetected = ClaudeDetector.detect(
+                            customPath: claudePath.isEmpty ? nil : claudePath
+                        )
+                        statusBadge(
+                            connected: claudeDetected.isInstalled && claudeDetected.isLoggedIn,
+                            label: !claudeDetected.isInstalled
+                                ? "Not found"
+                                : (claudeDetected.isLoggedIn ? "Connected" : "Token expired")
+                        )
+                    }
+
+                    let claudeStatus = ClaudeDetector.detect(
+                        customPath: claudePath.isEmpty ? nil : claudePath
+                    )
+                    if claudeStatus.isInstalled && !claudeStatus.isLoggedIn {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text("OAuth token expired. Open Claude Desktop app to refresh, or click below.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button("Re-authenticate Claude") {
+                            connectToClaude()
+                        }
+                        .buttonStyle(.borderedProminent).controlSize(.small)
                     }
 
                     Divider()
@@ -263,6 +287,36 @@ extension SettingsView {
             .onAppear { geminiState.refresh() }
 
             multiAccountProviderSection(.gemini)
+
+            GroupBox("Kilo CLI") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        fieldLabel("Path")
+                        TextField("Auto-detect", text: $kiloPath).textFieldStyle(.roundedBorder)
+                        statusBadge(
+                            connected: kiloState.status.isInstalled,
+                            label: kiloState.status.isInstalled ? "Installed" : "Not found"
+                        )
+                    }
+                    if !kiloState.status.isInstalled {
+                        Button("Detect Kilo") {
+                            kiloState.refresh()
+                            if kiloState.status.isInstalled { syncKilo() }
+                        }
+                        .buttonStyle(.borderedProminent).controlSize(.small)
+                    }
+                    Divider()
+                    fieldLabel("Model")
+                    Picker("", selection: $kiloModel) {
+                        Text("Auto").tag("")
+                        ForEach(kiloModels, id: \.self) { m in
+                            Text(m).tag(m)
+                        }
+                    }
+                    .labelsHidden()
+                }.padding(4)
+            }
+            .onAppear { kiloState.refresh() }
         }
         .sheet(item: $loginSheetAccount) { account in
             CLIAccountLoginSheet(

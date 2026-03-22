@@ -290,7 +290,9 @@ extension CodigoApp {
         guard let snapshot = resolveCodeReviewSnapshot(sessionId: sessionId, conversationId: conversationId) else {
             return .immediate(success: false, message: "Review session not found")
         }
-        guard let workspaceRoot = workspaceStore.activeWorkspacePaths.first?.path else {
+        let context = codeReviewCommandContext()
+        guard let workspaceRoot = context.workspacePaths.first?.path
+            ?? workspaceStore.activeWorkspacePaths.first?.path else {
             return .immediate(success: false, message: "No active workspace is available for code review")
         }
 

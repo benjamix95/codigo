@@ -545,6 +545,48 @@ fn debug_and_skill_tools_work() {
 
     write_message(child.stdin.as_mut().expect("stdin"), json!({
         "jsonrpc":"2.0","id":62,"method":"tools/call",
+        "params":{"name":"coderide_debug_request_user","arguments":{"kind":"question","prompt":"What OS?"}}
+    }));
+    let request_question = read_message(&mut child);
+    assert_eq!(
+        request_question["result"]["content"][0]["text"].as_str(),
+        Some("OK \u{2014} debug user request queued (question)")
+    );
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":63,"method":"tools/call",
+        "params":{"name":"coderide_debug_request_user","arguments":{"kind":"reproduce","prompt":"Steps please"}}
+    }));
+    let request_reproduce = read_message(&mut child);
+    assert_eq!(
+        request_reproduce["result"]["content"][0]["text"].as_str(),
+        Some("OK \u{2014} debug user request queued (reproduce)")
+    );
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":64,"method":"tools/call",
+        "params":{"name":"coderide_debug_request_user","arguments":{"kind":"fix_confirmation","prompt":"Confirm fix"}}
+    }));
+    let request_fix = read_message(&mut child);
+    assert_eq!(
+        request_fix["result"]["content"][0]["text"].as_str(),
+        Some("OK \u{2014} debug user request queued (fix_confirmation)")
+    );
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":65,"method":"tools/call",
+        "params":{"name":"coderide_debug_request_user","arguments":{"kind":"invalid_kind","prompt":"test"}}
+    }));
+    let request_invalid = read_message(&mut child);
+    assert!(
+        request_invalid["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap_or("")
+            .contains("invalid kind")
+    );
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":66,"method":"tools/call",
         "params":{"name":"coderide_skill","arguments":{"skill":"demo-skill","task":"run checks"}}
     }));
     let skill = read_message(&mut child);

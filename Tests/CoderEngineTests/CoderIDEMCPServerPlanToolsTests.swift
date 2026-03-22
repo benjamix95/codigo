@@ -15,6 +15,13 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
     override func setUpWithError() throws {
         backupPlanStateData = try? Data(contentsOf: planStateURL)
         try? FileManager.default.removeItem(at: planStateURL)
+        setenv(
+            "SOLOCODE_REVIEW_CORE_LIBRARY_PATH",
+            reviewCoreLibraryPathForCodeReviewTests(from: #filePath),
+            1
+        )
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
     }
 
     override func tearDownWithError() throws {
@@ -23,6 +30,9 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         } else {
             try? FileManager.default.removeItem(at: planStateURL)
         }
+        unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
+        unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
+        ReviewCoreBridge.resetForTests()
     }
 
     func testStructuredMCPEditPayloadOmitsDiffPreview() {

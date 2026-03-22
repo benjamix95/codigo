@@ -33,7 +33,9 @@ extension ChatPanelView {
             return autoCodeReviewRequest.prefersCodeReviewRuntimeProvider ? true : nil
         }()
         if forcePlanInline { planToggleEnabled = true }
-        guard !text.isEmpty || !attachedComposerAttachments.isEmpty else { return }
+        guard !text.isEmpty || !attachedComposerAttachments.isEmpty else {
+            return
+        }
         let reusableConversationId = chatStore.reusableEmptyConversation(
             contextId: effectiveContext.contextId,
             contextFolderPath: effectiveContext.context.flatMap {
@@ -170,15 +172,33 @@ extension ChatPanelView {
             activeFilePath: openFilesStore.openFilePath,
             scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
         )
-        do {
-            try createCheckpointBeforeTurn(conversationId: targetConversationId, workspaceContext: ctx)
-        } catch {
-            resetPlanFlowAfterPreflightFailureIfNeeded()
-            appendTechnicalErrorMessage(
-                "[Checkpoint error: \(error.localizedDescription)]",
-                in: targetConversationId
-            )
-            return
+        let checkpointConvId = targetConversationId
+        let checkpointCtx = ctx
+        let checkpointPlanSnapshotId: UUID? = nil
+        Task.detached { [checkpointGitStore = self.checkpointGitStore, chatStore = self.chatStore] in
+            let pathStrings = checkpointCtx.workspacePaths.map(\.path)
+            do {
+                let states = try checkpointGitStore.captureSnapshots(
+                    conversationId: checkpointConvId, workspacePaths: pathStrings)
+                await MainActor.run {
+                    chatStore.createCheckpoint(
+                        for: checkpointConvId,
+                        gitStates: states,
+                        planConversationIdForSnapshot: checkpointPlanSnapshotId
+                    )
+                }
+            } catch {
+                if let gitError = error as? ConversationCheckpointGitStore.GitStoreError,
+                   case .notGitRepository = gitError {
+                    await MainActor.run {
+                        chatStore.createCheckpoint(
+                            for: checkpointConvId,
+                            gitStates: [],
+                            planConversationIdForSnapshot: checkpointPlanSnapshotId
+                        )
+                    }
+                }
+            }
         }
 
         let turnId = UUID()

@@ -1409,7 +1409,16 @@ final class CodeReviewPanelLiveMutationRustTests: XCTestCase {
         ReviewPanelChatSessionStore.shared.clearAll()
     }
 
+    private func requireRustReviewCore() throws {
+        setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(from: #filePath), 1)
+        ReviewCoreBridge.resetForTests()
+        guard ReviewCoreBridge.loadedState().loaded else {
+            throw XCTSkip("Rust review core non disponibile in ambiente.")
+        }
+    }
+
     func testLiveDismissUsesRustMutatorAndPersistsSnapshot() async throws {
+        try requireRustReviewCore()
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
         let store = CodeReviewPanelStore(

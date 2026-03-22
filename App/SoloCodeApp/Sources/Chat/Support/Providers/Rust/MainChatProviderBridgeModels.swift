@@ -5,6 +5,7 @@ enum MainChatProviderBackendBridge: String, Codable {
     case codexCli = "codex_cli"
     case claudeCli = "claude_cli"
     case geminiCli = "gemini_cli"
+    case kiloCli = "kilo_cli"
     case openaiApi = "openai_api"
     case anthropicApi = "anthropic_api"
     case googleApi = "google_api"
@@ -101,6 +102,8 @@ struct MainChatProviderSessionConfigBridge: Codable, Equatable {
     let claudeAllowedTools: [String]
     let geminiCliPath: String?
     let geminiModelOverride: String?
+    var kiloPath: String? = nil
+    var kiloModel: String? = nil
     let attachments: [MainChatProviderAttachmentBridge]
     let cliAccounts: [MainChatCLIAccountSnapshotBridge]
 }
@@ -211,6 +214,7 @@ enum MainChatProviderBridgeSupport {
         case "codex-cli": return .codexCli
         case "claude-cli": return .claudeCli
         case "gemini-cli": return .geminiCli
+        case "kilo-cli": return .kiloCli
         case "openai-api": return .openaiApi
         case "anthropic-api": return .anthropicApi
         case "google-api": return .googleApi
@@ -222,7 +226,7 @@ enum MainChatProviderBridgeSupport {
         switch providerId {
         case "codex-cli", "claude-cli", "openai-api", "anthropic-api":
             return ProviderAttachmentCapabilities(nativeImage: true, nativeDocument: false, nativeFile: false)
-        case "gemini-cli", "google-api":
+        case "kilo-cli", "gemini-cli", "google-api":
             return ProviderAttachmentCapabilities(nativeImage: false, nativeDocument: false, nativeFile: false)
         default:
             return .none

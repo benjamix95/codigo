@@ -32,6 +32,7 @@ struct ModeControlsBarView: View {
     @Binding var openaiModel: String
     @Binding var claudeModel: String
     @Binding var openrouterModel: String
+    @Binding var kiloModel: String
 
     // MARK: - Models
 
@@ -46,6 +47,7 @@ struct ModeControlsBarView: View {
     let onSyncSwarmProvider: () -> Void
     let onSyncPlanProvider: () -> Void
     let onSyncOpenRouterProvider: () -> Void
+    let onSyncKiloProvider: () -> Void
     let onSyncToolRuntimePolicy: () -> Void
     let onUserSelectedProvider: () -> Void
     let onDelegateToAgent: () -> Void
@@ -59,6 +61,7 @@ struct ModeControlsBarView: View {
     @State private var availableWidth: CGFloat = 900
     @State private var resolvedTier: ControlsTier = .full
     @StateObject var openRouterModelPickerStore = OpenRouterModelPickerStore()
+    @ObservedObject var openAIModelPickerStore = OpenAIModelPickerStore.shared
 
     // MARK: - Collapse Tiers
 
@@ -76,10 +79,10 @@ struct ModeControlsBarView: View {
                 GeometryReader { proxy in
                     Color.clear
                         .onAppear {
-                            updateAvailableWidth(proxy.size.width)
+                            DispatchQueue.main.async { updateAvailableWidth(proxy.size.width) }
                         }
                         .onChange(of: proxy.size.width) { newWidth in
-                            updateAvailableWidth(newWidth)
+                            DispatchQueue.main.async { updateAvailableWidth(newWidth) }
                         }
                 }
             }
@@ -171,7 +174,7 @@ struct ModeControlsBarView: View {
     }
 
     func hasAccessLevel(_ pid: String) -> Bool {
-        ["codex-cli", "gemini-cli", "claude-cli", "openrouter-api",
+        ["codex-cli", "gemini-cli", "claude-cli", "kilo-cli", "openrouter-api",
          "openai-api", "anthropic-api", "google-api", "minimax-api", "grok-api"].contains(pid)
     }
 
@@ -181,6 +184,8 @@ struct ModeControlsBarView: View {
         case "codex-cli": codexModelPicker
         case "gemini-cli": geminiModelPicker
         case "claude-cli": claudeModelPicker
+        case "kilo-cli": kiloModelPicker
+        case "openai-api": openAIModelPicker
         case "openrouter-api": openRouterModelPicker
         default: EmptyView()
         }

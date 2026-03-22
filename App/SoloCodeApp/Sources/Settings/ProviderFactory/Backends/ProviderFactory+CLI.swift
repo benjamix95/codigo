@@ -85,6 +85,41 @@ extension ProviderFactory {
         )
     }
 
+    static func kiloProvider(
+        config: ProviderFactoryConfig, executionController: ExecutionController?,
+        executionScope: ExecutionScope = .agent,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = [],
+        toolPolicy: ToolRuntimePolicy? = nil,
+        environmentOverride: [String: String]? = nil,
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
+    ) -> any LLMProvider {
+        let base = KiloCLIProvider(
+            kiloPath: config.kiloPath.isEmpty ? nil : config.kiloPath,
+            model: config.kiloModel.isEmpty ? nil : config.kiloModel,
+            executionController: executionController,
+            executionScope: executionScope,
+            environmentOverride: environmentOverride
+        )
+        guard config.unifiedToolRuntimeEnabled else { return base }
+        let effectivePolicy = toolPolicy ?? toolRuntimePolicy(from: config)
+        return ToolEnabledLLMProvider(
+            base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
+            ),
+            policy: effectivePolicy,
+            executionScope: executionScope,
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
+        )
+    }
+
     static func geminiProvider(
         config: ProviderFactoryConfig, executionController: ExecutionController?,
         executionScope: ExecutionScope = .agent,

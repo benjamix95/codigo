@@ -1,0 +1,42 @@
+## Bug Fix Record
+- Categoria: A
+- Bug: `scripts/solocode-validate --trigger ciFull` crashava su Bash 3.2 quando la suite partiva senza file esplicitamente passati e `FILES`/`TEST_ARGS` restavano vuoti sotto `set -u`.
+- Sintomo:
+  - il validator terminava subito con `scripts/solocode-validate: line 137: FILES[@]: unbound variable`
+  - la `ciFull` non arrivava neppure ai gate successivi
+- Impatto: blocco della validation pipeline completa, impossibilita' di verificare build/test e quindi di sbloccare il merge in sicurezza
+- Gravita': alta
+- Steps to reproduce:
+  - eseguire `scripts/solocode-validate --trigger ciFull --workspace /Users/benjaminstoica/SoloCode --format text` su macOS con Bash 3.2
+  - lasciare il validator nella condizione in cui `FILES_CSV` e i gruppi test restano vuoti
+- Risultato attuale:
+  - l'espansione di array vuoti sotto `set -u` faceva abortire lo script prima del gate `rustCutoverBoundary`
+- Risultato atteso:
+  - `ciFull` deve completare anche quando non ci sono file di input espliciti
+  - gli array vuoti devono degradare in modo sicuro senza trap
+- Causa probabile:
+  - lo script assumeva che `${#FILES[@]}` e altre espansioni array fossero sempre sicure, ma Bash 3.2 con `set -u` puo' sollevare `unbound variable` su array vuoti
+- Scope consentito:
+  - `scripts/solocode-validate`
+  - test di regressione per il wrapper validator
+  - `docs/bugs`
+  - `docs/changelog`
+- Non-scope:
+  - semantica dei gate di validazione
+  - regole Rust cutover
+  - build/test app-side non legati al crash del wrapper
+- Moduli confinanti da verificare:
+  - `scripts/validate_rust_cutover_boundary.sh`
+  - gate `build-for-testing` e `test-without-building`
+  - suite `CoderEngineTests` che copre il wrapper di validazione
+- Test da aggiungere o aggiornare:
+  - regressione in `Tests/CoderEngineTests/Validation/SoloCodeValidateScriptTests.swift`
+  - smoke della `ciFull` su validator con `FILES` vuoti
+- Strategia di fix minimo:
+  - rendere sicura l'ispezione degli array vuoti sotto `set -u`
+  - mantenere invariata la pipeline, cambiando solo la gestione degli input vuoti
+- Verifica post-fix:
+  - `scripts/solocode-validate --trigger ciFull --workspace /Users/benjaminstoica/SoloCode --format text`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/SoloCodeValidateScriptTests`
+- Commit previsto:
+  - `fix(validation): make ciFull validator safe on empty arrays under bash 3.2`

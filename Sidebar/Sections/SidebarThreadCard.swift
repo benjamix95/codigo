@@ -65,17 +65,6 @@ extension SidebarView {
                         )
                     }
 
-                    // Message count badge
-                    if metrics.messageCount > 0 {
-                        HStack(spacing: 2) {
-                            Image(systemName: "bubble.left")
-                                .font(.system(size: 7, weight: .medium))
-                            Text("\(metrics.messageCount)")
-                                .font(.system(size: 9, weight: .medium, design: .rounded))
-                        }
-                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                    }
-
                     // Progress indicator
                     if isActive {
                         ProgressView()

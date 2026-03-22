@@ -56,10 +56,10 @@ struct MessageToolTraceView: View {
         .padding(.vertical, 4)
         .frame(maxWidth: 760, alignment: .leading)
         .onAppear {
-            syncAutoPresentationState(derived: currentDerived())
+            DispatchQueue.main.async { syncAutoPresentationState(derived: currentDerived()) }
         }
         .onChange(of: eventsChangeToken) { _ in
-            syncAutoPresentationState(derived: currentDerived())
+            DispatchQueue.main.async { syncAutoPresentationState(derived: currentDerived()) }
         }
         .onChange(of: isExpanded) { expanded in
             guard expanded else { return }

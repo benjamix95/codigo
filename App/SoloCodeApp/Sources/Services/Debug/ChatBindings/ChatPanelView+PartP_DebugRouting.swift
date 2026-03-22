@@ -69,7 +69,8 @@ extension ChatPanelView {
             return false
         }
         guard let eventConversationId else {
-            return true
+            NSLog("[DebugRouting] Discarding unscoped debug event (nil conversationId)")
+            return false
         }
         return eventConversationId == selectedConversationId
     }

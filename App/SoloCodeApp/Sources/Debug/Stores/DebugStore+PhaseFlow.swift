@@ -19,26 +19,36 @@ extension DebugStore {
         resolutionSummary = ""
         userConfirmedReproduce = false
         awaitingDebugClean = false
+        isAwaitingUserClarification = false
+        isAwaitingReproduceConfirmation = false
+        isAwaitingFixConfirmation = false
+        skippedQuestionsWarning = false
+        debugFindings.removeAll()
         pendingResolutionAfterClean = nil
         currentRunId = nil
         fixLoopIteration = 0
         debugFlowDiagram = Self.defaultDebugFlowDiagram
         resetLogFilters()
         addLog(severity: .info, source: "debug_session", message: "Debug session started", category: "system")
+
+        // Auto-load runtime logs from disk and start monitoring
+        loadRuntimeLogsFromDisk(path: Self.defaultDebugLogPath)
+        startLogFileMonitor(path: Self.defaultDebugLogPath)
     }
 
-    func setPhase(_ newPhase: DebugFlowPhase) {
+    @discardableResult
+    func setPhase(_ newPhase: DebugFlowPhase) -> Bool {
         let currentPhase = phase
         if currentPhase == newPhase {
             if newPhase == .reproducing && currentRunId == nil {
                 currentRunId = UUID().uuidString
             }
-            return
+            return true
         }
 
         if newPhase == .describing, currentPhase == .idle || currentPhase == .resolved {
             startDebugSession(errorContext: errorSummary)
-            return
+            return true
         }
 
         guard Self.isValidTransition(from: currentPhase, to: newPhase) else {
@@ -48,13 +58,14 @@ extension DebugStore {
                 message: "Ignored invalid phase transition \(currentPhase.rawValue) → \(newPhase.rawValue)",
                 category: "system"
             )
-            return
+            return false
         }
 
         phase = newPhase
         if newPhase == .reproducing && currentRunId == nil {
             currentRunId = UUID().uuidString
         }
+        return true
     }
 
     /// Start a new reproduce run (generates new runId, clears old runtime logs for this run)
@@ -86,6 +97,7 @@ extension DebugStore {
     }
 
     func resetSession() {
+        stopLogFileMonitor()
         phase = .idle
         logs.removeAll()
         hypotheses.removeAll()
@@ -101,6 +113,11 @@ extension DebugStore {
         resolutionSummary = ""
         userConfirmedReproduce = false
         awaitingDebugClean = false
+        isAwaitingUserClarification = false
+        isAwaitingReproduceConfirmation = false
+        isAwaitingFixConfirmation = false
+        skippedQuestionsWarning = false
+        debugFindings.removeAll()
         pendingResolutionAfterClean = nil
         currentRunId = nil
         fixLoopIteration = 0

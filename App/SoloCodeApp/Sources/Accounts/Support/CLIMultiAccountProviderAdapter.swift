@@ -185,14 +185,14 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
 
     func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]?) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let driver = Task {
                 var attempted = Set<UUID>()
                 var account = await MainActor.run {
                     router.selectedOrNextAvailableAccount(for: providerKind)
                 }
                 var lastErrorMessage = ""
 
-                while let selected = account, !attempted.contains(selected.id) {
+                while let selected = account, !attempted.contains(selected.id), !Task.isCancelled {
                     attempted.insert(selected.id)
                     let secret = await MainActor.run { accountsStore.secret(for: selected.id) }
                     let env = CLIProfileProvisioner.environmentOverrides(provider: providerKind, profilePath: selected.profilePath, secret: secret)
@@ -201,6 +201,7 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
                     do {
                         let stream = try await provider.send(prompt: prompt, context: context, imageURLs: imageURLs)
                         for try await event in stream {
+                            guard !Task.isCancelled else { return }
                             if case .raw(let type, let payload) = event, type == "usage" {
                                 let input = Int(payload["input_tokens"] ?? "0") ?? 0
                                 let output = Int(payload["output_tokens"] ?? "0") ?? 0
@@ -218,6 +219,7 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
                         continuation.finish()
                         return
                     } catch {
+                        guard !Task.isCancelled else { return }
                         let message = lastErrorMessage.isEmpty ? error.localizedDescription : lastErrorMessage
                         let classified = CLIErrorClassifier.classify(providerId: id, message: message)
                         await MainActor.run {
@@ -246,8 +248,14 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
                     }
                 }
 
-                continuation.yield(.error("All \(providerKind.displayName) accounts are exhausted or unavailable."))
-                continuation.finish(throwing: CoderEngineError.notAuthenticated)
+                if !Task.isCancelled {
+                    continuation.yield(.error("All \(providerKind.displayName) accounts are exhausted or unavailable."))
+                    continuation.finish(throwing: CoderEngineError.notAuthenticated)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                driver.cancel()
             }
         }
     }

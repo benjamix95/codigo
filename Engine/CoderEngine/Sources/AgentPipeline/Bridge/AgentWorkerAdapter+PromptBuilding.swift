@@ -196,6 +196,10 @@ extension AgentWorkerAdapter {
             lines.append("Remove temporary debug markers and instrumentation after verification.")
         case .resolve:
             lines.append("Resolve the debug session with a concise summary of the outcome.")
+        case .awaitReproduceGate:
+            lines.append("Wait for the user to confirm they have reproduced the bug. Use debug_request_user kind=reproduce to prompt. The pipeline pauses until confirmation.")
+        case .awaitFixGate:
+            lines.append("Wait for the user to verify the fix works. Use debug_request_user kind=fix_confirmation to prompt. The pipeline pauses until the user clicks Mark Fixed.")
         case .nativeStart, .nativeRefresh, .nativeSyncBreakpoints, .nativeSyncWatches,
              .nativeStepIn, .nativeStepOver, .nativeStepOut, .nativeStop:
             lines.append("Coordinate the native debugging stage and emit state updates for the IDE.")

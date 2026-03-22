@@ -1,0 +1,35 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: il cutover del `plan` non era ancora completamente Rust-owned; tre helper non-UI restavano sotto `App/SoloCodeApp/Sources/Services` e venivano ancora contati come legacy dal guard di boundary.
+- Sintomo: `rust_cutover_guard` sul prefisso `App/SoloCodeApp/Sources/Services` riportava ancora `3` file Swift non-UI per il blocco `Plan`.
+- Impatto: il cutover del `plan` non poteva essere considerato chiuso e il gate non poteva passare a `legacy_non_ui = 0` per il dominio.
+- Gravità: media
+- Steps to reproduce:
+  1. Eseguire `cargo run --quiet --manifest-path Native/AppCoreRust/Cargo.toml --bin rust_cutover_guard -- --workspace /Users/benjaminstoica/SoloCode --allowlist /Users/benjaminstoica/SoloCode/Config/validation/rust-cutover-swift-allowlist.txt --candidate-files App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanFlowHelpers.swift,App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanQuestionnaire.swift,App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift --fail-on-legacy-non-ui --format text`.
+  2. Verificare che il report indichi `Legacy non-UI: 3`.
+- Risultato attuale: i tre helper plan restavano ancora nel dominio Swift dei Services e continuavano a essere contati come legacy non-UI.
+- Risultato atteso: il dominio `plan` deve essere completamente Rust-owned; i boundary di Services devono contenere solo UI, binding o markdown rendering.
+- Causa probabile: la tranche di cutover ha già spostato il runtime principale, ma ha lasciato ancora alcuni helper decisionali e di supporto nel lato Swift.
+- Scope consentito:
+  - `Native/AppCoreRust/tests/app_core_boundary_main_chat.rs`
+  - `docs/bugs/**`
+  - `docs/changelog/**`
+  - `Config/validation/rust-cutover-swift-allowlist.txt` solo se serve a correggere il gate senza toccare Mermaid o la UI
+- Non-scope:
+  - `Native/RustCore/src/main_chat/**`
+  - `App/SoloCodeApp/Sources/Services/ChatPlan/Runtime/**`
+  - `App/SoloCodeApp/Sources/Planning/**` tranne il rendering markdown già esistente
+  - Mermaid, artifact Mermaid e rendering Mermaid
+- Moduli confinanti da verificare:
+  - `app_core_boundary_main_chat`
+  - `rust_cutover_guard`
+  - `RustMainChatUIBoundaryPlanTests`
+- Test da aggiungere o aggiornare:
+  - regressione boundary che fissa i tre file residui come legacy non-UI finché non vengono spostati nel core Rust
+- Strategia di fix minimo:
+  - non cambiare il comportamento di produzione in questa tranche; aggiungere invece una copertura di boundary che documenta e blocca il residuo
+- Verifica post-fix:
+  - `cargo test -p app_core_rust --test app_core_boundary_main_chat`
+  - `cargo test -p app_core_rust`
+  - `cargo test -p solocode_rust_core`
+- Commit previsto: `test(boundary): pin remaining plan swift residue in services`

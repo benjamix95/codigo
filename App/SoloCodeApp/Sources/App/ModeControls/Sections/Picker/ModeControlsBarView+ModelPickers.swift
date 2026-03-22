@@ -71,6 +71,72 @@ extension ModeControlsBarView {
                 ?? geminiModelOverride)
     }
 
+    // MARK: - OpenAI Model Picker
+    var openAIModelPicker: some View {
+        let models = openAIModelPickerStore.models
+        return Menu {
+            ForEach(models, id: \.self) { model in
+                Button {
+                    openaiModel = model
+                } label: {
+                    HStack {
+                        Text(model)
+                        if OpenAIAPIProvider.isReasoningModel(model) {
+                            Text("Reasoning").font(.system(size: 9, weight: .bold)).foregroundStyle(.blue)
+                        }
+                        if openaiModel == model { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(openaiModel).font(.caption).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    // MARK: - Kilo Model Picker
+    var kiloModelPicker: some View {
+        Menu {
+            Button {
+                kiloModel = ""
+                onSyncKiloProvider()
+            } label: {
+                HStack {
+                    Text("Auto")
+                    if kiloModel.isEmpty { Image(systemName: "checkmark") }
+                }
+            }
+            Divider()
+            ForEach(kiloModels, id: \.self) { model in
+                Button {
+                    kiloModel = model
+                    onSyncKiloProvider()
+                } label: {
+                    HStack {
+                        Text(model)
+                        if model.hasSuffix(":free") {
+                            Text("FREE").font(.system(size: 9, weight: .bold)).foregroundStyle(.green)
+                        }
+                        if kiloModel == model { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(kiloModel.isEmpty ? "Auto" : kiloModel).font(.caption).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
     // MARK: - OpenRouter Model Picker
     var openRouterModelPicker: some View {
         let freeModels = openRouterModelPickerStore.freeModels

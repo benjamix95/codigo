@@ -1,0 +1,38 @@
+## Bug Fix Record
+- Categoria: B
+- Bug: il parser stream Codex esponeva troppo presto il testo dei turn intermedi e usava `textReplace` anche per il turno singolo finale.
+- Sintomo: i test `CodexCLIProviderStreamParsingTests+AgentUpdates` e `+Turns` vedevano `textDelta` prematuri e conteggi `textReplace` maggiori del previsto.
+- Impatto: regressione nella semantica visuale dei turn assistant e del reasoning derivato dai turn intermedi.
+- Gravita': media
+- Steps to reproduce:
+  - parsare una sequenza multi-turn con `agent_message` full-text e `turn.completed`
+  - osservare gli eventi emessi dal parser
+- Risultato attuale:
+  - gli update intermedi sporcavano subito il body assistant
+  - il turno singolo finale emetteva `textReplace` invece di restare solo `textDelta`
+- Risultato atteso:
+  - il full-text del turno deve diventare visibile al completamento del turno
+  - i turn intermedi devono essere spostati nel reasoning solo al turno successivo
+  - `textReplace("")` serve solo a svuotare il body quando un turno intermedio viene archiviato
+- Causa probabile:
+  - `processAgentMessageChunk(...)` trattava anche i full snapshot come delta visibili immediati
+  - `finalizeAssistantTurnIfNeeded(...)` emetteva sempre `textReplace`
+- Scope consentito:
+  - `Engine/CoderEngine/Sources/ProviderBackends/CodexCLI/StreamSupport/CodexCLIProvider+Events.swift`
+  - `Engine/CoderEngine/Sources/ProviderBackends/CodexCLI/StreamSupport/CodexCLIProvider+Events+Dedup.swift`
+- Non-scope:
+  - mapping MCP/IDE state
+  - sanitizzazione testo e tool event mapping
+- Moduli confinanti da verificare:
+  - `Tests/CoderEngineTests/CodexCLI/CodexCLIProviderStreamParsingTests+AgentUpdates.swift`
+  - `Tests/CoderEngineTests/CodexCLI/CodexCLIProviderStreamParsingTests+Turns.swift`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test: i test rossi esistenti coprivano gia' il contratto
+- Strategia di fix minimo:
+  - differenziare il path `delta` da quello `full-text`
+  - usare `textReplace("")` solo per pulire il turn precedente quando viene retrocesso a reasoning
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/CodexCLIProviderStreamParsingTests/testAgentMessageProducesOperationalUpdateBeforeFinalTurnText`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/CodexCLIProviderStreamParsingTests/testMultiTurnMovesIntermediateTextToReasoning`
+- Commit previsto:
+  - `fix(codex): align turn visibility and textReplace semantics`

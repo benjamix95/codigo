@@ -134,10 +134,10 @@ extension ChatPanelView {
             GeometryReader { proxy in
                 Color.clear
                     .onAppear {
-                        chatHeaderWidth = proxy.size.width
+                        DispatchQueue.main.async { chatHeaderWidth = proxy.size.width }
                     }
                     .onChange(of: proxy.size.width) { newWidth in
-                        chatHeaderWidth = newWidth
+                        DispatchQueue.main.async { chatHeaderWidth = newWidth }
                     }
             }
         )

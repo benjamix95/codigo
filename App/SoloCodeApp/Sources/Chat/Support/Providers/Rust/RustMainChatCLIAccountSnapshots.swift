@@ -66,7 +66,14 @@ func shouldUpdateInlineReasoningState(
             streamingSegmentTurnIndex: nil
         )
     )
-    return response?.shouldUpdateInlineReasoningState ?? false
+    if let result = response?.shouldUpdateInlineReasoningState {
+        return result
+    }
+    // Swift fallback when Rust bridge is unavailable (e.g. unit tests).
+    guard let eventId = eventConversationId, let selectedId = selectedConversationId else {
+        return false
+    }
+    return eventId == selectedId
 }
 
 enum ChatReasoningPresentationPolicy {
@@ -158,17 +165,32 @@ struct ChatReasoningStreamReducer {
                 streamingSegmentTurnIndex: streamingSegmentTurnIndex
             )
         )
-        guard let next = response?.state else { return state }
-        return State(
-            blocks: next.blocks.map { ReasoningBlock(id: $0.id, text: $0.text) },
-            text: next.text,
-            segments: next.segments.map {
-                MessageSegment(
-                    id: $0.id,
-                    kind: $0.kind == "text" ? .text($0.text) : .reasoning($0.text)
-                )
-            }
-        )
+        if let next = response?.state {
+            return State(
+                blocks: next.blocks.map { ReasoningBlock(id: $0.id, text: $0.text) },
+                text: next.text,
+                segments: next.segments.map { seg in
+                    MessageSegment(
+                        id: seg.id,
+                        kind: {
+                            switch seg.kind {
+                            case "text": return .text(seg.text)
+                            case "toolTrace": return .toolTrace([])
+                            default: return .reasoning(seg.text)
+                            }
+                        }()
+                    )
+                }
+            )
+        }
+        // Swift fallback when Rust bridge is unavailable (e.g. unit tests).
+        var blocks = state.blocks
+        if let idx = blocks.firstIndex(where: { $0.id == groupId }) {
+            blocks[idx] = ReasoningBlock(id: groupId, text: output)
+        } else {
+            blocks.append(ReasoningBlock(id: groupId, text: output))
+        }
+        return State(blocks: blocks, text: output, segments: state.segments)
     }
 }
 

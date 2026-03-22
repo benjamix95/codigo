@@ -87,8 +87,8 @@ fn debug_request_user(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     if kind.is_empty() || prompt.is_empty() {
         return CallToolResult::error("Error: 'kind' and 'prompt' are required");
     }
-    if !["question", "reproduce"].contains(&kind.as_str()) {
-        return CallToolResult::error("Error: invalid kind. Use: question or reproduce");
+    if !["question", "reproduce", "fix_confirmation"].contains(&kind.as_str()) {
+        return CallToolResult::error("Error: invalid kind. Use: question, reproduce, or fix_confirmation");
     }
     CallToolResult::text(format!("OK — debug user request queued ({kind})"))
 }

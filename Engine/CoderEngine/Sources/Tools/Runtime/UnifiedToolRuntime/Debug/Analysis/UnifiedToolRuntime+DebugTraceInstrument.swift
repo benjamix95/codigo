@@ -149,6 +149,15 @@ extension UnifiedToolRuntime {
         guard !expression.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "expression is required"], durationMs: 0)
         }
+        // Basic validation: reject expressions with unbalanced delimiters or suspicious patterns
+        let parenBalance = expression.reduce(0) { $0 + ($1 == "(" ? 1 : $1 == ")" ? -1 : 0) }
+        let braceBalance = expression.reduce(0) { $0 + ($1 == "{" ? 1 : $1 == "}" ? -1 : 0) }
+        let bracketBalance = expression.reduce(0) { $0 + ($1 == "[" ? 1 : $1 == "]" ? -1 : 0) }
+        if parenBalance != 0 || braceBalance != 0 || bracketBalance != 0 {
+            return ToolResult(ok: false, payload: [
+                "detail": "Expression has unbalanced delimiters (parens: \(parenBalance), braces: \(braceBalance), brackets: \(bracketBalance)). Fix the expression syntax."
+            ], durationMs: 0)
+        }
         let allowedTypes: Set<String> = ["log", "assert", "timing", "variable", "conditional_break"]
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
         guard allowedTypes.contains(instrType) else {

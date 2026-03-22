@@ -53,7 +53,7 @@ extension ModeControlsBarView {
                 )
         }
         .buttonStyle(.plain)
-        .help("Toggle Debug panel")
+        .help("Toggle Debug mode")
     }
 
     var browserIconButton: some View {

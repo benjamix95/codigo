@@ -531,6 +531,7 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
             taskActivityStore: TaskActivityStore(),
             conversationId: nil
         )
+        store.selectedModes = [.standard]
 
         store.toggleModeSelection(.securityAudit)
         store.toggleModeSelection(.bugFinder)

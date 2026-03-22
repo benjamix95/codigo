@@ -127,6 +127,14 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
         var config = makeConfig()
         config.swarmWorkerBackend = "auto"
 
+        let codexBackends = ProviderFactory.preferredSubagentBackendIds(
+            config: config,
+            agentProviderId: "codex-cli"
+        )
+        let claudeBackends = ProviderFactory.preferredSubagentBackendIds(
+            config: config,
+            agentProviderId: "claude-cli"
+        )
         let codexFactory = ProviderFactory.subagentProviderFactory(
             config: config,
             executionController: nil,
@@ -142,10 +150,10 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
             agentProviderId: "claude-cli"
         )
 
-        XCTAssertEqual(codexFactory?().id, "codex-cli")
-        XCTAssertEqual(codexFactory?().id, "codex-cli")
-        XCTAssertEqual(claudeFactory?().id, "claude-cli")
-        XCTAssertEqual(claudeFactory?().id, "claude-cli")
+        XCTAssertEqual(codexBackends.first, "codex")
+        XCTAssertEqual(claudeBackends.first, "claude")
+        XCTAssertNotNil(codexFactory)
+        XCTAssertNotNil(claudeFactory)
     }
 
     func testSubagentFactoryHonorsConfiguredWorkerBackendAndStaysDeterministic() async throws {

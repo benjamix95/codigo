@@ -70,6 +70,38 @@ func parsePlanCommandInput(_ rawInput: String) -> PlanCommandParseResult {
     )
 }
 
+func composerContextFolderPath(for effectiveContext: EffectiveContext) -> String? {
+    guard let context = effectiveContext.context, context.folderPaths.count > 1 else { return nil }
+    return context.activeFolderPath
+}
+
+@MainActor
+func resolveComposerSendConversationId(
+    selectedConversationId: UUID?,
+    effectiveContext: EffectiveContext,
+    coderMode: CoderMode,
+    chatStore: ChatStore
+) -> UUID {
+    if let selectedConversationId {
+        return selectedConversationId
+    }
+
+    let contextFolderPath = composerContextFolderPath(for: effectiveContext)
+    if let reusable = chatStore.reusableEmptyConversation(
+        contextId: effectiveContext.contextId,
+        contextFolderPath: contextFolderPath,
+        mode: coderMode
+    ) {
+        return reusable.id
+    }
+
+    return chatStore.createConversation(
+        contextId: effectiveContext.contextId,
+        contextFolderPath: contextFolderPath,
+        mode: coderMode
+    )
+}
+
 func isShiftTabShortcut(flags: NSEvent.ModifierFlags, charsIgnoringModifiers: String?, keyCode: UInt16)
     -> Bool
 {

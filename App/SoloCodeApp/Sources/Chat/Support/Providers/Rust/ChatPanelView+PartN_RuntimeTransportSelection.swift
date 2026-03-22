@@ -8,9 +8,13 @@ extension ChatPanelView {
         forcePlanInline: Bool,
         preferCodeReviewRuntimeProvider: Bool? = nil
     ) -> (any LLMProvider)? {
-        guard ReviewCoreBridge.isEnabled else { return nil }
+        guard ReviewCoreBridge.isEnabled else {
+            return selectedProvider
+        }
+
         let cfg = providerFactoryConfig()
-        guard let resolved = MainChatRustTransportSupport.resolveTransportConfig(
+
+        let resolved = MainChatRustTransportSupport.resolveTransportConfig(
             selectedProviderId: providerRegistry.selectedProviderId,
             fallbackSelectedProviderId: selectedProvider.id,
             coderMode: coderMode,
@@ -18,25 +22,31 @@ extension ChatPanelView {
             forcePlanInline: forcePlanInline,
             preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider,
             config: cfg
-        ) else {
-            return nil
+        )
+
+        guard let resolved else {
+            return selectedProvider
         }
 
         let runtimeProvider = providerRegistry.provider(for: resolved.providerId)
+
         let displayName = runtimeProvider?.displayName ?? selectedProvider.displayName
         let attachmentCapabilities =
             runtimeProvider?.attachmentCapabilities
             ?? MainChatProviderBridgeSupport.attachmentCapabilities(for: resolved.providerId)
+
         let baseAuthenticated = runtimeProvider?.isAuthenticated() ?? selectedProvider.isAuthenticated()
+
         let cliAccounts = multiCLIAccountEnabled
             ? CLIProviderKind.fromProviderId(resolved.providerId).map(cliAccountSnapshots(for:)) ?? []
             : []
+
         let authenticated = MainChatRustTransportSupport.isAuthenticated(
             baseAuthenticated: baseAuthenticated,
             cliAccounts: cliAccounts
         )
 
-        return MainChatRustTransportProvider(
+        let provider = MainChatRustTransportProvider(
             id: resolved.providerId,
             displayName: displayName,
             attachmentCapabilities: attachmentCapabilities,
@@ -64,14 +74,18 @@ extension ChatPanelView {
                 codexFastMode: cfg.codexFastMode,
                 codexSessionFullAccess: resolved.codexSessionFullAccess,
                 codexPreferResponsesWireAPI: cfg.codexPreferResponsesWireAPI,
-                claudePath: cfg.claudePath.isEmpty ? nil : cfg.claudePath,
+                claudePath: cfg.resolvedClaudePath(),
                 claudeModel: cfg.claudeModel,
                 claudeAllowedTools: resolved.claudeAllowedTools,
                 geminiCliPath: cfg.geminiCliPath.isEmpty ? nil : cfg.geminiCliPath,
                 geminiModelOverride: cfg.geminiModelOverride.isEmpty ? nil : cfg.geminiModelOverride,
+                kiloPath: cfg.resolvedKiloPath(),
+                kiloModel: cfg.kiloModel.isEmpty ? nil : cfg.kiloModel,
                 attachments: [],
                 cliAccounts: cliAccounts
             )
         )
+
+        return provider
     }
 }

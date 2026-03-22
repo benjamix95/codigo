@@ -30,6 +30,22 @@ let grokModels = [
     "grok-3", "grok-3-mini",
 ]
 
+let kiloModels = [
+    "kilo/giga-potato-thinking",
+    "kilo/giga-potato",
+    "kilo/corethink:free",
+    "kilo/kilo-auto/free",
+    "kilo/kilo/auto-free",
+    "kilo/x-ai/grok-code-fast-1:optimized:free",
+    "kilo/minimax/minimax-m2.5:free",
+    "kilo/nvidia/nemotron-3-super-120b-a12b:free",
+    "kilo/arcee-ai/trinity-large-preview:free",
+    "kilo/stepfun/step-3.5-flash:free",
+    "kilo/xiaomi/mimo-v2-pro:free",
+    "kilo/xiaomi/mimo-v2-omni:free",
+    "kilo/openrouter/free",
+]
+
 // MARK: - OpenRouter
 
 func normalizeOpenRouterModelId(_ raw: String) -> String {

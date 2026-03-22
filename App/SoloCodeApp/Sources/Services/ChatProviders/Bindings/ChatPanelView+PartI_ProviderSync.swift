@@ -142,6 +142,26 @@ extension ChatPanelView {
         checkProviderAuth()
     }
 
+    internal func syncKiloProvider() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: runtimeWorkspacePaths,
+            agentProviderId: "kilo-cli"
+        )
+        let p = ProviderFactory.kiloProvider(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: runtimeWorkspacePaths,
+            subagentProviderFactory: subagentFactory
+        )
+        reregisterProviderPreservingSelection(id: "kilo-cli", provider: p)
+        checkProviderAuth()
+    }
+
     internal func syncOpenRouterProvider() {
         let cfg = providerFactoryConfig()
         let subagentFactory = ProviderFactory.subagentProviderFactory(

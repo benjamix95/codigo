@@ -111,6 +111,23 @@ struct AppBundleProjectStructureTests {
     }
 
     @Test
+    func appTargetBuildPhaseBundlesRustReviewCoreAndValidationRequiresIt() throws {
+        let projectURL = repoRootURL()
+            .appendingPathComponent("Solo Code.xcodeproj", isDirectory: true)
+            .appendingPathComponent("project.pbxproj")
+        let validationScriptURL = repoRootURL()
+            .appendingPathComponent("scripts", isDirectory: true)
+            .appendingPathComponent("validate_app_bundle.sh")
+
+        let pbxproj = try String(contentsOf: projectURL)
+        let validationScript = try String(contentsOf: validationScriptURL)
+
+        #expect(pbxproj.contains("Build Rust Review Core"))
+        #expect(pbxproj.contains("SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR"))
+        #expect(validationScript.contains("Contents/MacOS/solocode_rust/libsolocode_rust_core.dylib"))
+    }
+
+    @Test
     func monacoAndFontResourcesUseMainBundleLayout() {
         #expect(MonacoRuntimeAssetResolver.readAccessURL() != nil)
         #expect(RuntimeResourceLocator.fontsDirectoryURL() != nil)

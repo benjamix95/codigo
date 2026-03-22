@@ -48,6 +48,8 @@ struct SettingsView: View {
     @AppStorage("codex_additional_write_roots") var codexAdditionalWriteRoots = ""
     @AppStorage("codex_check_update") var codexCheckUpdate = true
     @AppStorage("codex_developer_instructions") var codexDeveloperInstructions = ""
+    @AppStorage("kilo_path") var kiloPath = ""
+    @AppStorage("kilo_model") var kiloModel = ""
     @AppStorage("claude_path") var claudePath = ""
     @AppStorage("claude_model") var claudeModel = "claude-sonnet-4-6"
     @AppStorage("claude_allowed_tools") var claudeAllowedTools = "Read,Edit,Bash,Write,Search,Task"
@@ -103,6 +105,7 @@ struct SettingsView: View {
     @StateObject var codexState = CodexStateStore()
     @StateObject var codexMCPHealth = CodexMCPHealthStore.shared
     @StateObject var geminiState = GeminiStateStore()
+    @StateObject var kiloState = KiloStateStore()
     @StateObject var cliAccountsStore = CLIAccountsStore.shared
     @StateObject var cliUsageLedger = CLIAccountUsageLedgerStore.shared
     @StateObject var accountLoginCoordinator = CLIAccountLoginCoordinator()
@@ -235,6 +238,8 @@ struct SettingsView: View {
             .onChange(of: claudeModel) { _ in syncClaude() }
             .onChange(of: claudeAllowedTools) { _ in syncClaude() }
             .onChange(of: geminiCliPath) { _ in syncGemini() }
+            .onChange(of: kiloPath) { _ in kiloState.refresh(); syncKilo() }
+            .onChange(of: kiloModel) { _ in syncKilo() }
     }
 
     func applyBehaviorSyncs<V: View>(_ content: V) -> some View {
@@ -254,10 +259,14 @@ struct SettingsView: View {
                 workspaceStore.indexActiveWorkspace()
             }
             .onChange(of: uiSansFontSize) { newValue in
-                uiSansFontSize = Double(FontPreferences.sanitizeSize(newValue, kind: .sans))
+                let sanitized = Double(FontPreferences.sanitizeSize(newValue, kind: .sans))
+                guard sanitized != newValue else { return }
+                DispatchQueue.main.async { uiSansFontSize = sanitized }
             }
             .onChange(of: uiCodeFontSize) { newValue in
-                uiCodeFontSize = Double(FontPreferences.sanitizeSize(newValue, kind: .code))
+                let sanitized = Double(FontPreferences.sanitizeSize(newValue, kind: .code))
+                guard sanitized != newValue else { return }
+                DispatchQueue.main.async { uiCodeFontSize = sanitized }
             }
     }
 }

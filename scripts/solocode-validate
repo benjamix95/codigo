@@ -37,12 +37,20 @@ if [[ -n "${FILES_CSV:-}" ]]; then
   while IFS= read -r file; do
     trimmed="$(echo "$file" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
     [[ -n "$trimmed" ]] && FILES+=("$trimmed")
-  done < <(printf '%s' "$FILES_CSV" | tr ',' '\n')
+  done < <(printf '%s\n' "$FILES_CSV" | tr ',' '\n')
 fi
 
 log() {
   if [[ "$FORMAT" == "text" ]]; then
     echo "$1"
+  fi
+}
+
+array_count() {
+  if [[ "$#" -eq 1 && -z "${1:-}" ]]; then
+    echo 0
+  else
+    echo "$#"
   fi
 }
 
@@ -64,7 +72,7 @@ fail() {
 pass() {
   log "[PASSED] $1"
 }
-DERIVED_DATA_PATH="${TMPDIR%/}/solocode-validate-derived-data"; SOURCE_PACKAGES_DIR="${TMPDIR%/}/solocode-validate-source-packages-$$"
+DERIVED_DATA_PATH="${TMPDIR%/}/solocode-validate-derived-data-$$"; SOURCE_PACKAGES_DIR="${TMPDIR%/}/solocode-validate-source-packages-$$"
 
 build_for_testing() {
   chmod -R u+w "$DERIVED_DATA_PATH" "$SOURCE_PACKAGES_DIR" 2>/dev/null || true; python3 -c 'import shutil,sys; [shutil.rmtree(path, ignore_errors=True) for path in sys.argv[1:]]' "$DERIVED_DATA_PATH" "$SOURCE_PACKAGES_DIR"
@@ -94,7 +102,8 @@ run_tests_without_building() {
     || fail "$stage" "$(tail -n 60 "$log_file")"
 }
 
-if [[ ${#FILES[@]} -eq 0 && "$TRIGGER" != "ciFull" ]]; then
+files_count="$(array_count "${FILES[@]-}")"
+if [[ "$files_count" -eq 0 && "$TRIGGER" != "ciFull" ]]; then
   fail "scope" "Nessun file da validare."
 fi
 
@@ -121,7 +130,8 @@ print(len(text.splitlines()) if text else 0)
 PY
 }
 
-for file in "${FILES[@]}"; do
+for file in "${FILES[@]-}"; do
+  [[ -z "$file" ]] && continue
   is_code_file "$file" || continue
   [[ -f "$file" ]] || continue
   lines="$(line_count "$file")"
@@ -143,7 +153,9 @@ pass "rustCutoverBoundary"
 xcodebuild build \
   -workspace "Solo Code.xcworkspace" \
   -scheme "$([[ "$TRIGGER" == "ciFull" ]] && echo "Solo Code-Release" || echo "Solo Code-Debug")" \
-  -destination "platform=macOS" >/tmp/solocode-validate-build.log 2>&1 \
+  -destination "platform=macOS" \
+  -derivedDataPath "$DERIVED_DATA_PATH" \
+  -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" >/tmp/solocode-validate-build.log 2>&1 \
   || fail "build" "$(tail -n 40 /tmp/solocode-validate-build.log)"
 pass "build"
 
@@ -153,7 +165,8 @@ need_app_fallback="false"
 need_integration="false"
 native_only_validation="true"
 
-for file in "${FILES[@]}"; do
+for file in "${FILES[@]-}"; do
+  [[ -z "$file" ]] && continue
   case "$file" in
     Native/*|Config/validation/*|scripts/solocode-validate|scripts/validate_rust_cutover_boundary.sh|.github/workflows/validation.yml|.gitignore|docs/*)
       ;;
@@ -243,7 +256,8 @@ done
 if [[ "$TRIGGER" == "ciFull" ]]; then need_engine_fallback="true"; need_app_fallback="true"; need_integration="true"; fi
 
 [[ "$need_engine_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests"); [[ "$need_app_fallback" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeAppTests"); [[ "$need_integration" == "true" ]] && TEST_ARGS+=("-only-testing:SoloCodeIntegrationTests")
-[[ ${#TEST_ARGS[@]} -eq 0 && "$native_only_validation" != "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
+test_args_seed_count="$(array_count "${TEST_ARGS[@]-}")"
+[[ "$test_args_seed_count" -eq 0 && "$native_only_validation" != "true" ]] && TEST_ARGS+=("-only-testing:CoderEngineTests")
 
 deduped_args=()
 for arg in "${TEST_ARGS[@]-}"; do
@@ -254,7 +268,7 @@ for arg in "${TEST_ARGS[@]-}"; do
   done
   [[ "$skip" == "false" ]] && deduped_args+=("$arg")
 done
-test_args_count="${#deduped_args[@]}"
+test_args_count="$(array_count "${deduped_args[@]-}")"
 if [[ "$test_args_count" -gt 0 ]]; then
   TEST_ARGS=("${deduped_args[@]}")
 else
@@ -270,7 +284,8 @@ else
 fi
 
 needs_security="false"
-for file in "${FILES[@]}"; do
+for file in "${FILES[@]-}"; do
+  [[ -z "$file" ]] && continue
   case "$file" in
     App/SoloCodeApp/Sources/Accounts/*|App/SoloCodeApp/Sources/Git/*|App/SoloCodeApp/Sources/CodeReview/*|App/SoloCodeApp/Sources/Runtime/*|Engine/CoderEngine/Sources/CodeReview/*|Engine/CoderEngine/Sources/Pipeline/Patching/*|Engine/CoderEngine/Sources/Tools/Runtime/*|Engine/CoderEngine/Sources/Infrastructure/MCP/*|Engine/CoderEngine/Sources/Infrastructure/Process/*|Tools/CoderIDEMCPServer/Sources/*)
       needs_security="true"
@@ -280,7 +295,12 @@ done
 
 if [[ "$needs_security" == "true" || "$TRIGGER" == "ciFull" ]]; then
   private_key_marker='-----BEGIN PRIVATE'; secret_scan_pattern="(AKIA[0-9A-Z]{16}|${private_key_marker} KEY-----|password\s*=\s*[^[:space:])]+|token\s*=\s*[^[:space:])]+)"
-  if rg -n --hidden --glob '!App/SoloCodeApp/Resources/**' "$secret_scan_pattern" "${FILES[@]}" >/tmp/solocode-validate-security.log 2>&1; then
+  if [[ "$files_count" -gt 0 ]]; then
+    security_scan_paths=("${FILES[@]}")
+  else
+    security_scan_paths=(".")
+  fi
+  if rg -n --hidden --glob '!App/SoloCodeApp/Resources/**' "$secret_scan_pattern" "${security_scan_paths[@]}" >/tmp/solocode-validate-security.log 2>&1; then
     fail "security" "$(cat /tmp/solocode-validate-security.log)"
   fi
   pass "security"
@@ -309,7 +329,7 @@ if [[ "$TRIGGER" == "ciFull" ]]; then
 fi
 
 if [[ "$FORMAT" == "json" ]]; then
-  printf '{"status":"passed","trigger":"%s","files":%s}\n' "$TRIGGER" "$(printf '%s\n' "${FILES[@]}" | python3 -c 'import json,sys; print(json.dumps([line.strip() for line in sys.stdin if line.strip()]))')"
+  printf '{"status":"passed","trigger":"%s","files":%s}\n' "$TRIGGER" "$(printf '%s\n' "${FILES[@]-}" | python3 -c 'import json,sys; print(json.dumps([line.strip() for line in sys.stdin if line.strip()]))')"
 else
   echo "Validation passed for $TRIGGER"
 fi

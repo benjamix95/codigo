@@ -20,15 +20,37 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
     let warningCount: Int?
     let resultPreview: String?
 
+    init(
+        swarmId: String,
+        status: SwarmCardStatus,
+        title: String,
+        detail: String,
+        summary: String?,
+        errorCount: Int,
+        warningCount: Int?,
+        resultPreview: String?
+    ) {
+        self.swarmId = swarmId
+        self.status = status
+        self.title = title
+        self.detail = detail
+        self.summary = summary
+        self.errorCount = errorCount
+        self.warningCount = warningCount
+        self.resultPreview = resultPreview
+    }
+
     init(from card: SwarmLiveCardState) {
-        self.swarmId = card.swarmId
-        self.status = card.status
-        self.title = card.displayName.isEmpty ? card.currentStepTitle : card.displayName
-        self.detail = card.currentDetail
-        self.summary = card.summary
-        self.errorCount = card.errorCount
-        self.warningCount = card.warningCount
-        self.resultPreview = Self.extractPreview(from: card.liveText)
+        self.init(
+            swarmId: card.swarmId,
+            status: card.status,
+            title: card.displayName.isEmpty ? card.currentStepTitle : card.displayName,
+            detail: card.currentDetail,
+            summary: card.summary,
+            errorCount: card.errorCount,
+            warningCount: card.warningCount,
+            resultPreview: Self.extractPreview(from: card.liveText)
+        )
     }
 
     private static func extractPreview(from text: String) -> String? {

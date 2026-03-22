@@ -4,12 +4,9 @@ import UniformTypeIdentifiers
 import CoderEngine
 
 struct SidebarView: View {
-    @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var workspaceStore: WorkspaceStore
     @EnvironmentObject var projectContextStore: ProjectContextStore
-    @EnvironmentObject var openFilesStore: OpenFilesStore
-    @EnvironmentObject var codexState: CodexStateStore
     @EnvironmentObject var todoStore: TodoStore
     @EnvironmentObject var pipelineIntegrationService: PipelineIntegrationService
     @EnvironmentObject var toolTraceStore: ToolTraceStore
@@ -22,11 +19,8 @@ struct SidebarView: View {
     @State var sidebarQuery = ""
     @State var isSelectingAddFolder = false
     @State var pendingAddFolderContextId: UUID?
-    @State var codexTasks: [CodexCloudTask] = []
-    @State var isLoadingTasks = false
     @State var contextToRename: ProjectContext?
     @State var conversationToRename: Conversation?
-    @State var expandedFolders: Set<String> = []
     @State var showArchived = false
     @State var favoritesOnly = false
 

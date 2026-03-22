@@ -210,5 +210,44 @@ extension CoderIDETools {
             ]),
             annotations: .init(title: "Debug Test Check")
         ),
+        // --- Debug IDE Control Tools (phase, user interaction, resolution) ---
+        Tool(
+            name: "coderide_debug_set_phase",
+            description: "Set the current debug flow phase. Controls the debug panel progress bar and phase-specific UI.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "phase": .object(["type": "string", "description": "Phase to set: describing, reproducing, fixing, instrumenting, verifying, resolved"]),
+                    "detail": .object(["type": "string", "description": "Optional detail or reason for the phase change"]),
+                ]),
+                "required": .array([.string("phase")]),
+            ]),
+            annotations: .init(title: "Debug Set Phase")
+        ),
+        Tool(
+            name: "coderide_debug_request_user",
+            description: "Request user input during debugging. The debug panel will show the question and wait for the user to respond. Use kind=reproduce to ask for reproduction steps (shows Proceed button), kind=fix_confirmation to ask before cleanup (shows Mark Fixed button).",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "kind": .object(["type": "string", "description": "Request type: reproduce, question, fix_confirmation"]),
+                    "prompt": .object(["type": "string", "description": "The question or instructions to show the user"]),
+                ]),
+                "required": .array([.string("kind"), .string("prompt")]),
+            ]),
+            annotations: .init(title: "Debug Request User")
+        ),
+        Tool(
+            name: "coderide_debug_resolve",
+            description: "Finalize and resolve the current debug session with a summary. Triggers cleanup of all debug markers and instrumentation if configured.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "summary": .object(["type": "string", "description": "Summary of the debug session outcome — what was found, what was fixed"]),
+                ]),
+                "required": .array([.string("summary")]),
+            ]),
+            annotations: .init(title: "Debug Resolve")
+        ),
     ]
 }

@@ -7,14 +7,6 @@ extension SidebarView {
         chatStore.conversation(for: selectedConversationId)
     }
 
-    var isIDEMode: Bool {
-        if let mode = selectedConversation?.mode {
-            return mode == .ide
-        }
-        let pid = providerRegistry.selectedProviderId
-        return ProviderSupport.isIDEProvider(id: pid) && !ProviderSupport.isAgentCompatibleProvider(id: pid)
-    }
-
     /// Current project/workspace context. With no thread selected, keeps activeContextId
     /// so the project doesn't "close" when all conversations are deleted.
     var currentContext: ProjectContext? {
@@ -67,24 +59,6 @@ extension SidebarView {
                 if $0.isFavorite != $1.isFavorite { return $0.isFavorite && !$1.isFavorite }
                 return $0.createdAt > $1.createdAt
             }
-    }
-
-    func groupedThreadsByFolder(from threads: [Conversation]) -> [(folder: String?, threads: [Conversation])] {
-        guard let context = currentContext else { return [(nil, threads)] }
-        var map: [String?: [Conversation]] = [:]
-        for conv in threads {
-            let key = context.folderPaths.contains(conv.contextFolderPath ?? "") ? conv.contextFolderPath : nil
-            map[key, default: []].append(conv)
-        }
-        let orderedFolders = context.folderPaths.map(Optional.some)
-        var result: [(String?, [Conversation])] = orderedFolders.compactMap { folder in
-            guard let threads = map[folder], !threads.isEmpty else { return nil }
-            return (folder, threads)
-        }
-        if let generic = map[nil], !generic.isEmpty {
-            result.append((nil, generic))
-        }
-        return result
     }
 
     var currentContextSyncFingerprint: String {

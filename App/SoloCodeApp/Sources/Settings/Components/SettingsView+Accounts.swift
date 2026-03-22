@@ -200,6 +200,17 @@ extension SettingsView {
         let currency = usage.creditsCurrency ?? "USD"
         return String(format: "Credits: %.2f %@", balance, currency)
     }
+    func connectToClaude() {
+        guard ClaudeDetector.findClaudePath(customPath: claudePath.isEmpty ? nil : claudePath) != nil else { return }
+        let existingAccounts = cliAccountsStore.accounts(for: .claude)
+        if let first = existingAccounts.first {
+            loginSheetAccount = first
+        } else {
+            let account = cliAccountsStore.addAccountQuick(provider: .claude)
+            pendingLoginAccountIds.insert(account.id)
+            loginSheetAccount = account
+        }
+    }
     func connectToCodex() {
         guard codexState.status.path != nil || CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) != nil else { return }
         if codexState.status.isLoggedIn {

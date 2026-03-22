@@ -14,8 +14,9 @@ extension CodeReviewPanelStore {
     }
 
     var currentHistoricalLiveRunState: ReviewHistoricalLiveBoardState? {
-        guard let snapshot = currentSnapshot,
-              let pipeline = currentPipelineJobState else { return nil }
+        guard let snapshot = currentSnapshot else { return nil }
+        let pipeline = currentPipelineJobState
+            ?? ReviewPipelineJobStateBuilder.build(snapshot: snapshot)
         let workerPlans = currentHistoryLiveWorkerPlans
         let liveCards = currentHistoryLiveCards
         let hasArtifacts = snapshot.isActive
@@ -25,16 +26,27 @@ extension CodeReviewPanelStore {
             || !workerPlans.isEmpty
             || !liveCards.isEmpty
         guard hasArtifacts else { return nil }
-        return ReviewPanelHistoryLiveRustAdapter
+        if let rustBoard = ReviewPanelHistoryLiveRustAdapter
             .derive(snapshot: snapshot, workerPlans: workerPlans, liveCards: liveCards)?
-            .makeBoardState(pipeline: pipeline)
+            .makeBoardState(pipeline: pipeline) {
+            return rustBoard
+        }
+        return ReviewPanelHistoryLiveSwiftFallback.derive(
+            snapshot: snapshot,
+            workerPlans: workerPlans,
+            liveCards: liveCards,
+            pipeline: pipeline
+        )
     }
 
     func fallbackHistoricalFindings() -> [HistoricalFindingRecord] {
         let snapshots = availableSnapshots
         guard !snapshots.isEmpty else { return [] }
         let derived = snapshots
-            .compactMap(deriveHistoricalFindingsFromSnapshotWithRust)
+            .compactMap { snapshot -> [HistoricalFindingRecord]? in
+                deriveHistoricalFindingsFromSnapshotWithRust(snapshot)
+                    ?? ReviewPanelHistorySwiftFallback.deriveHistoricalFindings(from: snapshot)
+            }
             .flatMap { $0 }
         guard !derived.isEmpty else { return [] }
         return shapeHistoricalFindingsWithRust(derived) ?? derived

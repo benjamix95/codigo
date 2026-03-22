@@ -139,12 +139,14 @@ extension CodeReviewPanelStore {
             functionName: "review_core_panel_chat_extract",
             request: request
         )
-        guard response?.error == nil,
-              let payload = response?.payload,
-              payload.foundBlock else {
-            return nil
+        if let response, response.error == nil, response.foundBlock {
+            return response.payload
         }
-        return payload
+        return ReviewPanelChatFindingsSwiftFallback.extract(
+            content: content,
+            existing: existing,
+            currentSnapshot: currentSnapshot
+        )
     }
 
     func syncStructuredFindingsFromChatResponse(

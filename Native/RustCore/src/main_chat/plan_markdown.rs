@@ -158,7 +158,7 @@ pub fn parse_clarification_questionnaire(text: &str) -> Option<MainChatPlanQuest
     let mut current_has_checkbox_options = false;
     let mut invalid_block = false;
 
-    let mut flush_question = |questions: &mut Vec<MainChatPlanQuestion>,
+    let flush_question = |questions: &mut Vec<MainChatPlanQuestion>,
                               current_id: &mut Option<i32>,
                               current_prompt: &mut String,
                               current_options: &mut Vec<MainChatPlanQuestionOption>,

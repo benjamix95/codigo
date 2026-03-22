@@ -41,6 +41,14 @@ extension ProviderFactory {
                 executionScope: .agent,
                 environmentOverride: nil
             )
+        case "kilo", "kilo-cli":
+            return KiloCLIProvider(
+                kiloPath: config.kiloPath.isEmpty ? nil : config.kiloPath,
+                model: config.kiloModel.isEmpty ? nil : config.kiloModel,
+                executionController: executionController,
+                executionScope: .agent,
+                environmentOverride: nil
+            )
         case "openai-api", "openai":
             guard !config.openaiApiKey.isEmpty else { return nil }
             return OpenAIAPIProvider(

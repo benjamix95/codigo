@@ -88,6 +88,15 @@ enum PromptToolsPolicy {
       20. `debug_resolve` → resolve session with comprehensive summary.
       21. `debug_clean` → remove all debug markers/instrumentation. Use dry_run=true first to preview.
 
+      MANDATORY DEBUG RULES — follow strictly:
+      - In PHASE 1 (DESCRIBE): You MUST ask at least 2 questions to the user via `debug_request_user` to understand the context before advancing. Example questions: "What error are you seeing?", "When did this start?", "What changed recently?"
+      - In PHASE 2 (REPRODUCE): You MUST ask the user for reproduction steps via `debug_request_user kind=reproduce` and WAIT for user confirmation (Proceed button) before continuing. The pipeline WILL BLOCK until the user confirms.
+      - In PHASE 3 (FIX): You MUST propose at least one hypothesis via `debug_hypothesize action=propose` BEFORE applying any fix. Use `debug_instrument` to insert logging, NOT manual file edits for debug code. Use `debug_snapshot action=capture` before AND after every fix.
+      - In PHASE 4 (VERIFY): You MUST show test results and ask for confirmation via `debug_request_user kind=fix_confirmation` before cleanup. The pipeline WILL BLOCK until the user clicks "Mark Fixed".
+      - NEVER skip a phase. NEVER advance without using `debug_set_phase`. NEVER apply a fix without a hypothesis.
+      - Use `debug_instrument` for ALL debugging instrumentation (log/assert/timing/variable). The agent's markers are automatically tracked and cleaned up by `debug_clean`.
+      - Use `debug_log` with hypothesis_id= to link observations to hypotheses for structured debugging.
+
       Additional debug tool tips:
       - `debug_mark` vs `debug_instrument`: Use debug_mark for simple comment markers. Use debug_instrument for real executable code (logging, assertions, timing).
       - `debug_query` supports group_by= for aggregation, time_range= for recent logs, export formats (json/markdown).

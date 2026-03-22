@@ -5,17 +5,95 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleReviewStatus(args: [String: String]) -> CallTool.Result {
-        guard let bridged = rustReviewToolResult(name: "review_status", args: args) else {
-            return reviewError("Error: Rust review core unavailable for review_status")
+        let resolved = resolveReviewSessionId(
+            args: args,
+            requireExplicitWhenAmbiguous: true
+        )
+        if let error = resolved.error {
+            return error == "No active review session." || error == "No review session found."
+                ? reviewOK(error)
+                : reviewError(error)
         }
-        return bridged
+        guard let sessionId = resolved.sessionId else {
+            return reviewOK("No active review session.")
+        }
+        if let bridged = rustReviewToolResult(name: "review_status", args: args) {
+            return bridged
+        }
+        guard let payload = MCPSharedState.readCodeReviewStatus(sessionId: sessionId) else {
+            return reviewOK("No active review session.")
+        }
+        return reviewOK(renderReviewStatusPayload(payload))
     }
 
     static func handleReviewFindings(args: [String: String]) -> CallTool.Result {
-        guard let bridged = rustReviewToolResult(name: "review_findings", args: args) else {
-            return reviewError("Error: Rust review core unavailable for review_findings")
+        let severity = sanitizedReviewArg(args, key: "severity")
+        if !severity.isEmpty {
+            let validSeverities: Set<String> = ["critical", "warning", "suggestion", "info"]
+            if !validSeverities.contains(severity.lowercased()) {
+                return reviewError("Error: invalid severity '\(severity)'")
+            }
         }
-        return bridged
+        let status = sanitizedReviewArg(args, key: "status")
+        if !status.isEmpty {
+            let validStatuses: Set<String> = [
+                "open", "fix_applied", "patch_preparing", "patch_ready", "patch_applying",
+                "patch_applied", "patch_failed", "pr_opened", "merged", "dismissed",
+                "wont_fix", "closed", "blocked", "candidate", "verified",
+                "rejected_false_positive", "inconclusive",
+            ]
+            if !validStatuses.contains(status.lowercased()) {
+                return reviewError("Error: invalid status '\(status)'")
+            }
+        }
+        let origin = sanitizedReviewArg(args, key: "origin")
+        if !origin.isEmpty {
+            let validOrigins: Set<String> = ["reviewer", "bugHunter", "securityAuditor", "audit_tool"]
+            if !validOrigins.contains(origin) {
+                return reviewError("Error: invalid origin '\(origin)'")
+            }
+        }
+        let category = sanitizedReviewArg(args, key: "category")
+        if !category.isEmpty {
+            let validCategories: Set<String> = [
+                "correctness", "regression", "concurrency", "security",
+                "tests", "maintainability", "performance", "other",
+            ]
+            if !validCategories.contains(category.lowercased()) {
+                return reviewError("Error: invalid category '\(category)'")
+            }
+        }
+        let resolved = resolveReviewSessionId(
+            args: args,
+            requireExplicitWhenAmbiguous: true
+        )
+        if let error = resolved.error {
+            return error == "No active review session." || error == "No review session found."
+                ? reviewOK(error)
+                : reviewError(error)
+        }
+        guard let sessionId = resolved.sessionId else {
+            return reviewOK("No active review session.")
+        }
+        if let bridged = rustReviewToolResult(name: "review_findings", args: args) {
+            return bridged
+        }
+        let kind = sanitizedReviewArg(args, key: "kind").lowercased()
+        let payload = MCPSharedState.readCodeReviewFindings(
+            sessionId: sessionId,
+            kind: kind.isEmpty ? "verified" : kind,
+            severity: optionalReviewArg(args, key: "severity"),
+            status: optionalReviewArg(args, key: "status"),
+            origin: optionalReviewArg(args, key: "origin"),
+            category: optionalReviewArg(args, key: "category"),
+            file: optionalReviewArg(args, key: "file"),
+            limit: Int(args["limit"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 50,
+            includeSensitiveDetails: false
+        )
+        if payload.isEmpty {
+            return reviewOK("No findings match the current query.")
+        }
+        return reviewOK(renderReviewFindingsPayload(payload))
     }
 
     static func handleReviewDiffSummary(args: [String: String]) -> CallTool.Result {
@@ -55,12 +133,14 @@ extension CoderIDEMCPServerApp {
             args: args,
             requireExplicitWhenAmbiguous: true
         )
-        if let message = resolved.error {
-            return reviewError(message)
+        if let error = resolved.error {
+            return error == "No active review session." || error == "No review session found."
+                ? reviewOK(error)
+                : reviewError(error)
         }
         guard let sessionId = resolved.sessionId,
               let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
-            return reviewError("Error: unable to load the requested review session")
+            return reviewOK("No diff data available")
         }
 
         let fileFilter = sanitizedReviewArg(args, key: "file")
@@ -81,15 +161,15 @@ extension CoderIDEMCPServerApp {
         }
 
         let workspacePath = URL(fileURLWithPath: snapshot.workspacePath ?? FileManager.default.currentDirectoryPath)
-        guard let rendered = ReviewDiffSummaryRustBridge.renderSummary(
+        if let rendered = ReviewDiffSummaryRustBridge.renderSummary(
             snapshot: snapshot,
             workspacePath: workspacePath,
             fileFilter: fileFilter.isEmpty ? nil : fileFilter,
             filteredFiles: filteredFiles
-        ) else {
-            return reviewError("Error: Rust review core unavailable for review_diff_summary")
+        ) {
+            return reviewOK(rendered)
         }
-        return reviewOK(rendered)
+        return reviewOK("No diff data available for session_id: \(sessionId)")
     }
 
     static func handleReviewListSessions(args: [String: String]) -> CallTool.Result {
@@ -104,5 +184,33 @@ extension CoderIDEMCPServerApp {
             return reviewError("Error: Rust review core unavailable for review_get_outcome")
         }
         return bridged
+    }
+
+    private static func renderReviewStatusPayload(_ payload: [String: String]) -> String {
+        payload.keys.sorted().compactMap { key in
+            guard let value = payload[key], !value.isEmpty else { return nil }
+            return "\(key): \(value)"
+        }.joined(separator: "\n")
+    }
+
+    private static func renderReviewFindingsPayload(_ payload: [[String: String]]) -> String {
+        let lines = payload.enumerated().map { index, finding in
+            let severity = finding["severity"] ?? "?"
+            let title = finding["message_summary"] ?? finding["message"] ?? "n/a"
+            let file = finding["file_label"] ?? finding["file_path"] ?? "redacted"
+            let line = finding["line_number"].map { ":\($0)" } ?? ""
+            let origin = finding["origin"] ?? "unknown"
+            let category = finding["category"] ?? "unknown"
+            return "[\(index + 1)] [\(severity)] \(file)\(line) — \(title) (origin: \(origin), category: \(category))"
+        }
+        return "Findings\n" + lines.joined(separator: "\n")
+    }
+
+    private static func optionalReviewArg(
+        _ args: [String: String],
+        key: String
+    ) -> String? {
+        let value = sanitizedReviewArg(args, key: key)
+        return value.isEmpty ? nil : value
     }
 }

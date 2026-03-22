@@ -200,7 +200,7 @@ extension ChatPanelView {
 
         if let runtimeSnapshot,
            runtimeSnapshot.plan?.planningStateKind == .awaitingClarification,
-           let q = runtimeSnapshot.plan?.clarificationQuestions
+           runtimeSnapshot.plan?.clarificationQuestions != nil
         {
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }

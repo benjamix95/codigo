@@ -51,9 +51,7 @@ struct ProcessRunner {
         if let cwd = workingDirectory {
             process.currentDirectoryURL = cwd
         }
-        if let env = environment {
-            process.environment = (ProcessInfo.processInfo.environment).merging(env) { _, new in new }
-        }
+        process.environment = Self.augmentedEnvironment(extra: environment)
 
         let stdoutPipe = Pipe()
         process.standardOutput = stdoutPipe
@@ -297,6 +295,34 @@ struct ProcessRunner {
             }
         }
         return nil
+    }
+
+    // MARK: - Environment Augmentation
+
+    /// Builds a process environment that always includes common tool
+    /// directories in PATH. This is necessary because GUI apps launched
+    /// by Xcode (or Finder) inherit a minimal PATH that excludes
+    /// Homebrew, Cargo, Bun, and other user-installed tool locations.
+    private static func augmentedEnvironment(extra: [String: String]?) -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        if let extra { env.merge(extra) { _, new in new } }
+
+        let currentPath = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let requiredDirs = [
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "\(NSHomeDirectory())/.cargo/bin",
+            "\(NSHomeDirectory())/.local/bin",
+            "\(NSHomeDirectory())/.bun/bin",
+            "\(NSHomeDirectory())/.nvm/versions/node", // nvm symlink parent
+        ]
+        let pathComponents = Set(currentPath.components(separatedBy: ":"))
+        let missing = requiredDirs.filter { !pathComponents.contains($0) }
+        if !missing.isEmpty {
+            env["PATH"] = (missing + [currentPath]).joined(separator: ":")
+        }
+        return env
     }
 
     /// Sendable wrapper used by stream termination callbacks.

@@ -99,7 +99,7 @@ extension ChatPanelView {
 
         if let runtimeSnapshot = generationRuntimeSnapshot,
            runtimeSnapshot.plan?.planningStateKind == .awaitingClarification,
-           let clarificationsText = runtimeSnapshot.plan?.clarificationQuestions
+           let _ = runtimeSnapshot.plan?.clarificationQuestions
         {
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }

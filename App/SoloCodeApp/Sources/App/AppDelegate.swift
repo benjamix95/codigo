@@ -1,4 +1,5 @@
 import AppKit
+import CoderEngine
 import Foundation
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -11,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
         disableWindowRestorationLoop()
+        logRustRuntimeStatus()
 
         installWindowStyleObservers()
 
@@ -38,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
-        false
+        true
     }
 
     private func installWindowStyleObservers() {
@@ -102,6 +104,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.isHidden = true
             button.alphaValue = 0
             button.isEnabled = false
+        }
+    }
+
+    private func logRustRuntimeStatus() {
+        let state = ReviewCoreBridge.loadedState()
+        if state.loaded, let version = state.version {
+            NSLog("[SoloCode] Rust runtime: OK — %@ (%@)", version, state.libraryPath ?? "unknown path")
+        } else {
+            NSLog("[SoloCode] ⚠️ Rust runtime: NOT LOADED — reason: %@. Chat will degrade. Do Clean Build (Cmd+Shift+K) then Run.", state.failureReason ?? "unknown")
+            NSLog("[SoloCode] Bundle.main: %@", Bundle.main.bundleURL.path)
+            if let exec = Bundle.main.executableURL {
+                NSLog("[SoloCode] Executable dir: %@", exec.deletingLastPathComponent().path)
+            }
+            NSLog("[SoloCode] CWD: %@", FileManager.default.currentDirectoryPath)
         }
     }
 

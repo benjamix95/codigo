@@ -1,5 +1,8 @@
 import Darwin
 import Foundation
+import OSLog
+
+private let rustFFILogger = Logger(subsystem: "com.codigo.CoderEngine", category: "RustFFI")
 
 private typealias RustVersionFn = @convention(c) () -> UnsafePointer<CChar>?
 private typealias RustSearchFn = @convention(c) (UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?
@@ -130,9 +133,20 @@ final class RustSearchFFIClient: @unchecked Sendable {
         lastFailureReason = nil
         loadedLibraryPath = nil
 
-        for candidate in Self.candidateLibraryPaths() where FileManager.default.fileExists(atPath: candidate) {
+        let candidates = Self.candidateLibraryPaths()
+        rustFFILogger.info("Rust dylib: probing \(candidates.count) candidate paths")
+
+        for (index, candidate) in candidates.enumerated() {
+            let exists = FileManager.default.fileExists(atPath: candidate)
+            if !exists {
+                rustFFILogger.debug("  [\(index)] MISS: \(candidate)")
+                continue
+            }
+            rustFFILogger.info("  [\(index)] EXISTS: \(candidate) — attempting dlopen")
             guard let handle = dlopen(candidate, RTLD_NOW | RTLD_LOCAL) else {
-                lastFailureReason = "dlopen_failed:\(candidate):\(Self.currentDLError() ?? "unknown")"
+                let dlErr = Self.currentDLError() ?? "unknown"
+                lastFailureReason = "dlopen_failed:\(candidate):\(dlErr)"
+                rustFFILogger.error("  [\(index)] dlopen FAILED: \(dlErr)")
                 continue
             }
             guard
@@ -141,6 +155,7 @@ final class RustSearchFFIClient: @unchecked Sendable {
                 let freePtr = dlsym(handle, "solocode_free_buffer")
             else {
                 lastFailureReason = "missing_required_symbol:\(candidate)"
+                rustFFILogger.error("  [\(index)] MISSING SYMBOL in \(candidate)")
                 dlclose(handle)
                 continue
             }
@@ -153,12 +168,14 @@ final class RustSearchFFIClient: @unchecked Sendable {
             )
             loadedLibraryPath = candidate
             api = resolved
+            rustFFILogger.info("Rust dylib: LOADED from \(candidate)")
             return resolved
         }
 
         if lastFailureReason == nil {
             lastFailureReason = "library_missing"
         }
+        rustFFILogger.error("Rust dylib: FAILED — reason=\(self.lastFailureReason ?? "unknown"), tried \(candidates.count) paths")
         return nil
     }
 
@@ -172,26 +189,70 @@ final class RustSearchFFIClient: @unchecked Sendable {
 
     private static func candidateLibraryPaths() -> [String] {
         var candidates: [String] = []
+        let env = ProcessInfo.processInfo.environment
+        let libName = "libsolocode_rust_core.dylib"
+        let subdir = "solocode_rust"
+
         for key in ["SOLOCODE_REVIEW_CORE_LIBRARY_PATH", "SOLOCODE_RUST_SEARCH_LIBRARY_PATH"] {
-            guard let path = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else { continue }
+            guard let path = env[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else { continue }
             candidates.append(path)
         }
-        let cwd = FileManager.default.currentDirectoryPath
-        candidates.append("\(cwd)/Native/target/debug/libsolocode_rust_core.dylib")
-        candidates.append("\(cwd)/Native/RustCore/build/lib/libsolocode_rust_core.dylib")
+
         if let executableDir = Bundle.main.executableURL?.deletingLastPathComponent() {
-            candidates.append(executableDir.appendingPathComponent("solocode_rust/libsolocode_rust_core.dylib").path)
+            candidates.append(executableDir.appendingPathComponent("\(subdir)/\(libName)").path)
         }
-        for relativePath in ["Contents/MacOS/solocode_rust/libsolocode_rust_core.dylib", "Contents/Resources/solocode_rust/libsolocode_rust_core.dylib"] {
+        for relativePath in [
+            "Contents/MacOS/\(subdir)/\(libName)",
+            "Contents/Resources/\(subdir)/\(libName)",
+        ] {
             candidates.append(Bundle.main.bundleURL.appendingPathComponent(relativePath).path)
         }
+
+        if let builtProducts = env["BUILT_PRODUCTS_DIR"]?.trimmingCharacters(in: .whitespacesAndNewlines), !builtProducts.isEmpty {
+            candidates.append("\(builtProducts)/\(subdir)/\(libName)")
+        }
+        if let srcRoot = env["SRCROOT"]?.trimmingCharacters(in: .whitespacesAndNewlines), !srcRoot.isEmpty {
+            candidates.append("\(srcRoot)/Native/RustCore/build/lib/\(libName)")
+            candidates.append("\(srcRoot)/Native/target/debug/\(libName)")
+        }
+
+        let cwd = FileManager.default.currentDirectoryPath
+        candidates.append("\(cwd)/Native/target/debug/\(libName)")
+        candidates.append("\(cwd)/Native/RustCore/build/lib/\(libName)")
+
+        if let workspace = env["SOLOCODE_WORKSPACE_PATH"]?.trimmingCharacters(in: .whitespacesAndNewlines), !workspace.isEmpty {
+            candidates.append("\(workspace)/Native/target/debug/\(libName)")
+            candidates.append("\(workspace)/Native/RustCore/build/lib/\(libName)")
+        }
+
+        scanDerivedDataForDylib(libName, subdir: subdir, into: &candidates)
+
         var cursor = Bundle.main.bundleURL
         for _ in 0..<4 {
             cursor.deleteLastPathComponent()
-            candidates.append(cursor.appendingPathComponent("solocode_rust/libsolocode_rust_core.dylib").path)
-            candidates.append(cursor.appendingPathComponent("libsolocode_rust_core.dylib").path)
+            candidates.append(cursor.appendingPathComponent("\(subdir)/\(libName)").path)
+            candidates.append(cursor.appendingPathComponent(libName).path)
         }
         return Array(NSOrderedSet(array: candidates)) as? [String] ?? candidates
+    }
+
+    private static func scanDerivedDataForDylib(
+        _ libName: String,
+        subdir: String,
+        into candidates: inout [String]
+    ) {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let derivedData = home.appendingPathComponent("Library/Developer/Xcode/DerivedData")
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: derivedData, includingPropertiesForKeys: nil
+        ) else { return }
+        for entry in entries where entry.lastPathComponent.hasPrefix("Solo_Code-") {
+            for config in ["Debug", "Release"] {
+                let path = entry
+                    .appendingPathComponent("Build/Products/\(config)/Solo Code.app/Contents/MacOS/\(subdir)/\(libName)")
+                candidates.append(path.path)
+            }
+        }
     }
 
     private static func currentDLError() -> String? {
@@ -326,3 +387,4 @@ public enum ReviewCoreBridge {
         RustSearchFFIClient.shared.resetForTests()
     }
 }
+

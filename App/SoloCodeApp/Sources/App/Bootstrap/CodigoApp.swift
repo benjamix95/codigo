@@ -24,6 +24,7 @@ struct CodigoApp: App {
     @StateObject var pipelineIntegrationService = PipelineIntegrationService()
     @State var didStartCodeReviewCommandLoop = false
     @State var didStartBugHunterCommandLoop = false
+    @State private var startupReady = false
 
     @AppStorage("openai_api_key") var apiKey = ""
     @AppStorage("openai_model") var model = "gpt-4o-mini"
@@ -71,6 +72,8 @@ struct CodigoApp: App {
     @AppStorage("gemini_model_override") var geminiModelOverride = ""
     @AppStorage("grok_api_key") var grokApiKey = ""
     @AppStorage("grok_model") var grokModel = "grok-4-1-fast-reasoning"
+    @AppStorage("kilo_path") var kiloPath = ""
+    @AppStorage("kilo_model") var kiloModel = ""
     @AppStorage("web_search_provider") var webSearchProvider = "duckduckgo"
     @AppStorage("brave_search_api_key") var braveSearchApiKey = ""
     @AppStorage("tavily_api_key") var tavilyApiKey = ""
@@ -78,61 +81,7 @@ struct CodigoApp: App {
 
     var body: some Scene {
         WindowGroup("") {
-            ContentView()
-                .preferredColorScheme(colorScheme)
-                .environment(\.font, resolvedSansFont)
-                .environmentObject(providerRegistry)
-                .environmentObject(chatStore)
-                .environmentObject(workspaceStore)
-                .environmentObject(projectContextStore)
-                .environmentObject(openFilesStore)
-                .environmentObject(taskActivityStore)
-                .environmentObject(toolTraceStore)
-                .environmentObject(todoStore)
-                .environmentObject(swarmProgressStore)
-                .environmentObject(codexState)
-                .environmentObject(executionController)
-                .environmentObject(providerUsageStore)
-                .environmentObject(gitPanelStore)
-                .environmentObject(planHistoryStore)
-                .environmentObject(accountUsageDashboardStore)
-                .environmentObject(appUpdateCenter)
-                .environmentObject(pipelineIntegrationService)
-                .onAppear {
-                    configureWindow()
-                    bootstrapPersistenceIfNeeded()
-                    Task { @MainActor in
-                        FontPreferences.registerBundledFonts()
-                        projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
-                        workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
-                        chatStore.migrateLegacyContextsIfNeeded(
-                            contextStore: projectContextStore, workspaceStore: workspaceStore)
-                        chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
-                        CLIAccountsStore.shared.bootstrapAccountsIfNeeded()
-                        CLIAccountRouter.shared.bootstrapActiveSelectionsIfNeeded()
-                        CodexMCPHealthStore.shared.refresh()
-                        await appUpdateCenter.checkForUpdates()
-                        registerProviders()
-                        pipelineIntegrationService.configure(
-                            chatStore: chatStore,
-                            taskActivityStore: taskActivityStore,
-                            swarmProgressStore: swarmProgressStore,
-                            todoStore: todoStore,
-                            executionController: executionController
-                        )
-                        gitPanelStore.postCommitBugHunterObserver = { commit, gitRoot in
-                            Task { @MainActor in
-                                self.enqueueBugHunterPostCommit(
-                                    commit: commit,
-                                    gitRoot: gitRoot,
-                                    triggerKind: .appCommit
-                                )
-                            }
-                        }
-                        startCodeReviewCommandLoopIfNeeded()
-                        startBugHunterCommandLoopIfNeeded()
-                    }
-                }
+            rootContentView
         }
         .windowStyle(HiddenTitleBarWindowStyle())
         .commands {
@@ -148,5 +97,83 @@ struct CodigoApp: App {
                 Image(systemName: "chart.bar.fill")
             }
         }
+    }
+
+    @ViewBuilder
+    private var rootContentView: some View {
+        Group {
+            if startupReady {
+                configuredContentView
+            } else {
+                ZStack {
+                    DesignSystem.Colors.backgroundDeep.ignoresSafeArea()
+                    ProgressView()
+                        .controlSize(.regular)
+                }
+                .task {
+                    guard !startupReady else { return }
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                    startupReady = true
+                }
+            }
+        }
+        .onAppear {
+            configureWindow()
+            bootstrapPersistenceIfNeeded()
+            Task { @MainActor in
+                FontPreferences.registerBundledFonts()
+                projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+                workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
+                chatStore.migrateLegacyContextsIfNeeded(
+                    contextStore: projectContextStore, workspaceStore: workspaceStore)
+                chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
+                CLIAccountsStore.shared.bootstrapAccountsIfNeeded()
+                CLIAccountRouter.shared.bootstrapActiveSelectionsIfNeeded()
+                CodexMCPHealthStore.shared.refresh()
+                await appUpdateCenter.checkForUpdates()
+                registerProviders()
+                pipelineIntegrationService.configure(
+                    chatStore: chatStore,
+                    taskActivityStore: taskActivityStore,
+                    swarmProgressStore: swarmProgressStore,
+                    todoStore: todoStore,
+                    executionController: executionController
+                )
+                gitPanelStore.postCommitBugHunterObserver = { commit, gitRoot in
+                    Task { @MainActor in
+                        self.enqueueBugHunterPostCommit(
+                            commit: commit,
+                            gitRoot: gitRoot,
+                            triggerKind: .appCommit
+                        )
+                    }
+                }
+                startCodeReviewCommandLoopIfNeeded()
+                startBugHunterCommandLoopIfNeeded()
+            }
+        }
+    }
+
+    private var configuredContentView: some View {
+        ContentView()
+            .preferredColorScheme(colorScheme)
+            .environment(\.font, resolvedSansFont)
+            .environmentObject(providerRegistry)
+            .environmentObject(chatStore)
+            .environmentObject(workspaceStore)
+            .environmentObject(projectContextStore)
+            .environmentObject(openFilesStore)
+            .environmentObject(taskActivityStore)
+            .environmentObject(toolTraceStore)
+            .environmentObject(todoStore)
+            .environmentObject(swarmProgressStore)
+            .environmentObject(codexState)
+            .environmentObject(executionController)
+            .environmentObject(providerUsageStore)
+            .environmentObject(gitPanelStore)
+            .environmentObject(planHistoryStore)
+            .environmentObject(accountUsageDashboardStore)
+            .environmentObject(appUpdateCenter)
+            .environmentObject(pipelineIntegrationService)
     }
 }

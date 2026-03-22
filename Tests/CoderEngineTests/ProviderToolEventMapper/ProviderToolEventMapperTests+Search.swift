@@ -49,6 +49,20 @@ extension ProviderToolEventMapperTests {
         XCTAssertEqual(mapped?.payload["prompt"], "Can you reproduce this?")
     }
 
+    func testDebugRequestUserFixConfirmationMapsCorrectly() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_debug_request_user",
+            payload: [
+                "kind": "fix_confirmation",
+                "prompt": "Verify the fix before cleanup"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "debug_user_request")
+        XCTAssertEqual(mapped?.payload["kind"], "fix_confirmation")
+        XCTAssertEqual(mapped?.payload["prompt"], "Verify the fix before cleanup")
+    }
+
     func testDebugResolveUsesDetailFallbackWhenSummaryMissing() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "coderide_debug_resolve",

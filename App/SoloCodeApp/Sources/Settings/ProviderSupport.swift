@@ -1,7 +1,7 @@
 import CoderEngine
 
 enum ProviderSupport {
-    static let agentProviderIds = ["codex-cli", "claude-cli", "gemini-cli"]
+    static let agentProviderIds = ["codex-cli", "claude-cli", "gemini-cli", "kilo-cli"]
 
     /// API providers that support Agent mode (tools, multi-turn, read_batch).
     static let agentApiProviderIds = [

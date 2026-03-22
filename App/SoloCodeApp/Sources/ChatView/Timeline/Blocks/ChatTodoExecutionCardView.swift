@@ -86,25 +86,28 @@ struct ChatTodoExecutionCardView: View {
     }
 
     private var checklistSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(Array(orderedItems.enumerated()), id: \.element.id) { index, todo in
-                HStack(alignment: .top, spacing: 12) {
-                    statusIcon(for: todo.status)
-                        .padding(.top, 2)
-                    Text("\(index + 1).")
-                        .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    Text(todo.title)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(todo.status == .done ? .secondary : .primary)
-                        .strikethrough(todo.status == .done, color: .primary.opacity(0.18))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(Array(orderedItems.enumerated()), id: \.element.id) { index, todo in
+                    HStack(alignment: .top, spacing: 12) {
+                        statusIcon(for: todo.status)
+                            .padding(.top, 2)
+                        Text("\(index + 1).")
+                            .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Text(todo.title)
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundStyle(todo.status == .done ? .secondary : .primary)
+                            .strikethrough(todo.status == .done, color: .primary.opacity(0.18))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
                 }
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
+        .frame(maxHeight: 280)
     }
 
     private func microStatusRow(text: String) -> some View {

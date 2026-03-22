@@ -31,6 +31,11 @@ extension PipelineIntegrationService {
 
     func flushPendingDebugEvents(for conversationId: UUID, into debugStore: DebugStore) {
         guard !suppressedDebugProjectionConversationIds.contains(conversationId) else {
+            let discardedCount = pendingDebugEventsByConversation[conversationId]?.count ?? 0
+            if discardedCount > 0 {
+                NSLog("[DebugProjection] Discarding %d buffered debug events for suppressed conversation %@",
+                      discardedCount, conversationId.uuidString)
+            }
             pendingDebugEventsByConversation.removeValue(forKey: conversationId)
             return
         }
