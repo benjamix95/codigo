@@ -1,9 +1,45 @@
 import CoderEngine
 import Foundation
 
+func inlinePolicyAckHashesForStreamingUpdate(
+    existingContent: String?,
+    incomingContent: String,
+    isReplacement: Bool
+) -> [String] {
+    guard !incomingContent.isEmpty else { return [] }
+    let combinedContent = isReplacement
+        ? incomingContent
+        : (existingContent ?? "") + incomingContent
+    return inlinePolicyAckHashes(in: combinedContent)
+}
+
 // MARK: - Event Mapping
 
 extension PipelineIntegrationService {
+    private func processInlinePolicyAckMarkersFromPipelineText(
+        existingContent: String?,
+        incomingContent: String,
+        isReplacement: Bool,
+        conversationId: UUID
+    ) {
+        guard let runtime = runtime(for: conversationId),
+              let callback = runtime.rawEventHandler else {
+            return
+        }
+
+        let hashes = inlinePolicyAckHashesForStreamingUpdate(
+            existingContent: existingContent,
+            incomingContent: incomingContent,
+            isReplacement: isReplacement
+        )
+        guard !hashes.isEmpty else { return }
+
+        let providerId = runtime.chatTurnState.providerId ?? runtime.providerId
+        for hash in hashes {
+            callback("policy_ack", ["hash": hash], providerId, conversationId)
+        }
+    }
+
     private static let canonicalTodoCompletionRoles: Set<AgentRole> = [
         .coder,
         .docWriter,
@@ -218,10 +254,25 @@ extension PipelineIntegrationService {
     // MARK: - Streaming Events
 
     private func handleTextDelta(_ p: TextDeltaPayload, for conversationId: UUID) {
+        let existingContent = runtime(for: conversationId)?
+            .chatTurnState
+            .textByStreamId[p.taskId]
+        processInlinePolicyAckMarkersFromPipelineText(
+            existingContent: existingContent,
+            incomingContent: p.delta,
+            isReplacement: false,
+            conversationId: conversationId
+        )
         consumePipelineUIEvent(.textDelta(p), for: conversationId)
     }
 
     private func handleTextReplace(_ p: TextReplacePayload, for conversationId: UUID) {
+        processInlinePolicyAckMarkersFromPipelineText(
+            existingContent: nil,
+            incomingContent: p.replacement,
+            isReplacement: true,
+            conversationId: conversationId
+        )
         consumePipelineUIEvent(.textReplace(p), for: conversationId)
     }
 

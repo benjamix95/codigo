@@ -24,6 +24,20 @@ final class ChatStreamFailureHandlingTests: XCTestCase {
         XCTAssertTrue(inlinePolicyAckHashes(in: content).isEmpty)
     }
 
+    func testInlinePolicyAckHashesForStreamingUpdateCombinesPartialDeltaMarkers() {
+        let existingContent = "[CODERIDE:policy_ack|ha"
+        let incomingContent = "sh=abc123]\nTodo"
+
+        XCTAssertEqual(
+            inlinePolicyAckHashesForStreamingUpdate(
+                existingContent: existingContent,
+                incomingContent: incomingContent,
+                isReplacement: false
+            ),
+            ["abc123"]
+        )
+    }
+
     func testShouldPreservePartialAssistantContentForProviderErrors() {
         let error = ConversationFlowCoordinator.StreamExecutionError.providerError("boom")
 
