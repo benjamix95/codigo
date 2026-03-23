@@ -527,4 +527,29 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
             workspace: tmp
         )
     }
+
+    func testRustPreferredCanonicalToolFailsClosedWhenRegistryIsWarmButAliasIsMissing() async throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        registerCoderideAlias("read")
+
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let runtime = UnifiedToolRuntime()
+        let (call, ctx) = makeCall(
+            name: "grep",
+            args: ["pattern": "needle"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "mcp_unavailable")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+        XCTAssertNil(completed?["mcp_tool"])
+    }
 }

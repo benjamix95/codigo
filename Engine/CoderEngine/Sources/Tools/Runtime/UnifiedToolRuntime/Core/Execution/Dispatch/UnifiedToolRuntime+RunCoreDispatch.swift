@@ -9,6 +9,15 @@ extension UnifiedToolRuntime {
     ) async -> ToolResult {
         do {
             if context.policy.enableMCP,
+               Self.shouldPreferRustAlias(for: normalizedName),
+               MCPNativeToolRegistry.shared.hasTools(),
+               preferredRustAliasRoute(for: normalizedName) == nil {
+                throw ToolRuntimeError.mcpUnavailable(
+                    "Rust MCP route required for '\(normalizedName)' but no native alias is registered"
+                )
+            }
+
+            if context.policy.enableMCP,
                let aliasRoute = preferredRustAliasRoute(for: normalizedName) {
                 return await executeNativeMCPTool(
                     functionName: normalizedName,
@@ -31,6 +40,7 @@ extension UnifiedToolRuntime {
             let isMCP = context.policy.enableMCP && (
                 MCPNativeToolRegistry.shared.routing[normalizedName] != nil ||
                 MCPNativeToolRegistry.shared.aliasRoute(for: normalizedName) != nil ||
+                (Self.shouldPreferRustAlias(for: normalizedName) && MCPNativeToolRegistry.shared.hasTools()) ||
                 canFallbackToMCP(toolName: normalizedName, call: call)
             )
             let mcpPayload = isMCP ? ["is_mcp": "true"] : [String: String]()
@@ -44,6 +54,7 @@ extension UnifiedToolRuntime {
             let isMCP = context.policy.enableMCP && (
                 MCPNativeToolRegistry.shared.routing[normalizedName] != nil ||
                 MCPNativeToolRegistry.shared.aliasRoute(for: normalizedName) != nil ||
+                (Self.shouldPreferRustAlias(for: normalizedName) && MCPNativeToolRegistry.shared.hasTools()) ||
                 canFallbackToMCP(toolName: normalizedName, call: call)
             )
             let mcpPayload = isMCP ? ["is_mcp": "true"] : [String: String]()
