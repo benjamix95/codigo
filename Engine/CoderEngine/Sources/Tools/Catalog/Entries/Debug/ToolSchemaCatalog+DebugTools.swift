@@ -50,7 +50,7 @@ extension ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "debug_session",
-            description: "Manage debug sessions with lifecycle control, snapshots, and export. Use 'start' at the beginning, 'snapshot' to save state for comparison, 'stats' for session metrics, 'export' for a full report, and 'end'/'clear' to finish.",
+            description: "Manage debug sessions with lifecycle control, snapshots, and export. Use 'start' at the beginning, 'snapshot' to save state for comparison, 'stats' for session metrics, 'export' for a full report, and 'stop' to finish after resolve.",
             properties: [
                 "action": ["type": "string", "description": "start|end|stop|clear|snapshot|export|stats"],
                 "label": ["type": "string", "description": "Label for snapshot (used with action=snapshot). Use descriptive names like 'before-fix', 'after-refactor'."]
@@ -110,9 +110,9 @@ extension ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "debug_request_user",
-            description: "Request user input or ask them to reproduce the bug. Use 'question' to ask clarifying questions, 'reproduce' to ask the user to trigger the bug so instrumentation can capture data.",
+            description: "Request user input during debugging. Use 'question' for clarifications, 'reproduce' to ask the user to trigger the bug, and 'fix_confirmation' to ask for final verification before cleanup.",
             properties: [
-                "kind": ["type": "string", "description": "question|reproduce"],
+                "kind": ["type": "string", "description": "question|reproduce|fix_confirmation"],
                 "prompt": ["type": "string", "description": "The question or step-by-step reproduction instructions"]
             ],
             required: ["kind", "prompt"]

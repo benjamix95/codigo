@@ -12,6 +12,7 @@ public actor DebugLogServer {
 
     /// Current active session ID.
     var activeSessionId: String?
+    var activeSessionLogFileURL: URL?
 
     /// Ensure a single load pass before first query/write.
     var hasLoadedFromDisk = false

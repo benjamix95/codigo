@@ -37,7 +37,7 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
         XCTAssertTrue(receivedEffects[0].shouldRevealDebugPanel)
     }
 
-    func testSuspendDebugProjectionDropsLateEventsUntilResumed() {
+    func testSuspendDebugProjectionBuffersLateEventsUntilResumed() {
         let service = PipelineIntegrationService()
         let debugStore = DebugStore()
         let conversationId = UUID()
@@ -60,17 +60,6 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
         XCTAssertEqual(debugStore.phase, .idle)
 
         service.resumeDebugProjection(for: conversationId)
-        service.handleRawEvent(
-            RawEventPayload(
-                jobId: "job-3",
-                taskId: "task-3",
-                rawType: "debug_phase_update",
-                payload: [
-                    "phase": "verifying"
-                ]
-            ),
-            for: conversationId
-        )
 
         XCTAssertEqual(debugStore.phase, .verifying)
     }

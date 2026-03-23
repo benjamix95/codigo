@@ -83,10 +83,11 @@ enum PromptToolsPolicy {
       17. `debug_hypothesize` action=update → confirm or reject hypothesis based on test results.
 
       PHASE 5 — RESOLVE:
-      18. `debug_timeline` → generate chronological event timeline for the full session.
-      19. `debug_session` action=export → export full debug report.
-      20. `debug_resolve` → resolve session with comprehensive summary.
-      21. `debug_clean` → remove all debug markers/instrumentation. Use dry_run=true first to preview.
+      18. `debug_clean` → remove all debug markers/instrumentation. Use dry_run=true first to preview.
+      19. `debug_timeline` → generate chronological event timeline for the full session.
+      20. `debug_session` action=export → export full debug report.
+      21. `debug_resolve` → resolve session with comprehensive summary.
+      22. `debug_session` action=stop → close the active debug session.
 
       MANDATORY DEBUG RULES — follow strictly:
       - In PHASE 1 (DESCRIBE): You MUST ask at least 2 questions to the user via `debug_request_user` to understand the context before advancing. Example questions: "What error are you seeing?", "When did this start?", "What changed recently?"

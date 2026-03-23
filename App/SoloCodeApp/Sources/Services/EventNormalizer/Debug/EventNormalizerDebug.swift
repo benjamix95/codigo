@@ -36,7 +36,9 @@ extension EventNormalizer {
             .debugUserRequest(kind: kind, prompt: prompt),
             .taskActivity(TaskActivity(
                 type: "debug_user_request",
-                title: kind == "reproduce" ? "Debug request • reproduce" : "Debug request • question",
+                title: kind == "reproduce"
+                    ? "Debug request • reproduce"
+                    : (kind == "fix_confirmation" ? "Debug request • fix confirmation" : "Debug request • question"),
                 detail: prompt,
                 payload: payload,
                 timestamp: timestamp,
@@ -205,6 +207,78 @@ extension EventNormalizer {
             timestamp: timestamp,
             phase: phaseForType("debug_query", payload: payload),
             isRunning: runningStateForType("debug_query", payload: payload),
+            groupId: debugGroupingId(payload: payload)
+        )))
+        return events
+    }
+
+    static func normalizeDebugTraceAnalyze(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
+        var events: [NormalizedEvent] = []
+        if let tracePayload = parseDebugTraceAnalyzePayload(payload: payload) {
+            events.append(.debugTraceAnalyze(tracePayload))
+        }
+        events.append(.taskActivity(TaskActivity(
+            type: "debug_trace_analyze",
+            title: payload["title"] ?? defaultTitle(for: "debug_trace_analyze"),
+            detail: payload["detail"] ?? payload["error_type"],
+            payload: payload,
+            timestamp: timestamp,
+            phase: phaseForType("debug_trace_analyze", payload: payload),
+            isRunning: runningStateForType("debug_trace_analyze", payload: payload),
+            groupId: debugGroupingId(payload: payload)
+        )))
+        return events
+    }
+
+    static func normalizeDebugSnapshot(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
+        var events: [NormalizedEvent] = []
+        if let snapshotPayload = parseDebugSnapshotPayload(payload: payload) {
+            events.append(.debugSnapshot(snapshotPayload))
+        }
+        events.append(.taskActivity(TaskActivity(
+            type: "debug_snapshot",
+            title: payload["title"] ?? defaultTitle(for: "debug_snapshot"),
+            detail: payload["detail"] ?? payload["action"],
+            payload: payload,
+            timestamp: timestamp,
+            phase: phaseForType("debug_snapshot", payload: payload),
+            isRunning: runningStateForType("debug_snapshot", payload: payload),
+            groupId: debugGroupingId(payload: payload)
+        )))
+        return events
+    }
+
+    static func normalizeDebugTimeline(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
+        var events: [NormalizedEvent] = []
+        if let timelinePayload = parseDebugTimelinePayload(payload: payload) {
+            events.append(.debugTimeline(timelinePayload))
+        }
+        events.append(.taskActivity(TaskActivity(
+            type: "debug_timeline",
+            title: payload["title"] ?? defaultTitle(for: "debug_timeline"),
+            detail: payload["detail"] ?? payload["format"],
+            payload: payload,
+            timestamp: timestamp,
+            phase: phaseForType("debug_timeline", payload: payload),
+            isRunning: runningStateForType("debug_timeline", payload: payload),
+            groupId: debugGroupingId(payload: payload)
+        )))
+        return events
+    }
+
+    static func normalizeDebugTestCheck(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
+        var events: [NormalizedEvent] = []
+        if let testPayload = parseDebugTestCheckPayload(payload: payload) {
+            events.append(.debugTestCheck(testPayload))
+        }
+        events.append(.taskActivity(TaskActivity(
+            type: "debug_test_check",
+            title: payload["title"] ?? defaultTitle(for: "debug_test_check"),
+            detail: payload["detail"] ?? payload["overall_status"],
+            payload: payload,
+            timestamp: timestamp,
+            phase: phaseForType("debug_test_check", payload: payload),
+            isRunning: runningStateForType("debug_test_check", payload: payload),
             groupId: debugGroupingId(payload: payload)
         )))
         return events

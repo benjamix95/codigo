@@ -75,6 +75,7 @@ extension UnifiedToolRuntime {
             id: newHypothesisId, title: title, status: normalizedStatus,
             confidence: clampedConfidence, description: description,
             rootCauseType: rootCauseType, relatedFiles: relatedFiles,
+            relatedTests: relatedTests,
             evidence: evidence != nil ? [evidence!] : []
         )
 
@@ -97,6 +98,7 @@ extension UnifiedToolRuntime {
             "confidence": "\(clampedConfidence)",
             "root_cause_type": rootCauseType,
             "related_files": relatedFiles.joined(separator: ","),
+            "related_tests": relatedTests.joined(separator: ","),
             "evidence": evidence ?? ""
         ], durationMs: ms)
     }
@@ -148,6 +150,7 @@ extension UnifiedToolRuntime {
             id: resolvedHypothesisId, title: existing.title, status: nextStatus,
             confidence: existing.confidence, description: existing.description,
             rootCauseType: existing.rootCauseType, relatedFiles: existing.relatedFiles,
+            relatedTests: existing.relatedTests,
             evidence: existing.evidence
         )
 
@@ -170,6 +173,7 @@ extension UnifiedToolRuntime {
             "confidence": "\(existing.confidence)",
             "root_cause_type": existing.rootCauseType,
             "related_files": existing.relatedFiles.joined(separator: ","),
+            "related_tests": existing.relatedTests.joined(separator: ","),
             "evidence": evidence ?? ""
         ], durationMs: ms)
     }

@@ -5,36 +5,18 @@ extension UnifiedToolRuntimeTests {
     func testDebugTestCheckReturnsFailureWhenTestsFail() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()
-        defer { try? FileManager.default.removeItem(at: tmp) }
-
-        try """
-        // swift-tools-version: 5.9
-        import PackageDescription
-
-        let package = Package(
-            name: "FailingPkg",
-            targets: [
-                .target(name: "FailingPkg"),
-                .testTarget(name: "FailingPkgTests", dependencies: ["FailingPkg"])
-            ]
-        )
-        """.write(to: tmp.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
-
-        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Sources/FailingPkg"), withIntermediateDirectories: true)
-        try "public struct Greeter { public static func greet() -> String { \"hi\" } }"
-            .write(to: tmp.appendingPathComponent("Sources/FailingPkg/Greeter.swift"), atomically: true, encoding: .utf8)
-
-        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Tests/FailingPkgTests"), withIntermediateDirectories: true)
-        try """
-        import XCTest
-        @testable import FailingPkg
-
-        final class FailingPkgTests: XCTestCase {
-            func testAlwaysFails() {
-                XCTAssertEqual(Greeter.greet(), "bye")
-            }
+        defer {
+            unsetenv("SOLOCODE_DEBUG_XCODEBUILD_PATH")
+            try? FileManager.default.removeItem(at: tmp)
         }
-        """.write(to: tmp.appendingPathComponent("Tests/FailingPkgTests/FailingPkgTests.swift"), atomically: true, encoding: .utf8)
+
+        _ = try writeValidationConfig(in: tmp)
+        let fakeXcodebuild = try makeFakeXcodebuild(in: tmp, script: """
+        #!/bin/zsh
+        echo "Test Case '-[SoloCodeAppTests.ParserTests testAlwaysFails]' failed (0.123 seconds)"
+        exit 65
+        """)
+        setenv("SOLOCODE_DEBUG_XCODEBUILD_PATH", fakeXcodebuild.path, 1)
 
         let (call, ctx) = makeCall(
             name: "debug_test_check",
@@ -52,36 +34,19 @@ extension UnifiedToolRuntimeTests {
     func testDebugSessionStartClearsFailingTestScopeCache() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()
-        defer { try? FileManager.default.removeItem(at: tmp) }
-
-        try """
-        // swift-tools-version: 5.9
-        import PackageDescription
-
-        let package = Package(
-            name: "FailingPkg",
-            targets: [
-                .target(name: "FailingPkg"),
-                .testTarget(name: "FailingPkgTests", dependencies: ["FailingPkg"])
-            ]
-        )
-        """.write(to: tmp.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
-
-        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Sources/FailingPkg"), withIntermediateDirectories: true)
-        try "public struct Greeter { public static func greet() -> String { \"hi\" } }"
-            .write(to: tmp.appendingPathComponent("Sources/FailingPkg/Greeter.swift"), atomically: true, encoding: .utf8)
-
-        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Tests/FailingPkgTests"), withIntermediateDirectories: true)
-        try """
-        import XCTest
-        @testable import FailingPkg
-
-        final class FailingPkgTests: XCTestCase {
-            func testAlwaysFails() {
-                XCTAssertEqual(Greeter.greet(), "bye")
-            }
+        defer {
+            unsetenv("SOLOCODE_DEBUG_XCODEBUILD_PATH")
+            try? FileManager.default.removeItem(at: tmp)
         }
-        """.write(to: tmp.appendingPathComponent("Tests/FailingPkgTests/FailingPkgTests.swift"), atomically: true, encoding: .utf8)
+
+        _ = try writeValidationConfig(in: tmp)
+        let fakeXcodebuild = try makeFakeXcodebuild(in: tmp, script: """
+        #!/bin/zsh
+        echo "$@" >> "${PWD}/xcodebuild-invocations.log"
+        echo "Test Case '-[SoloCodeAppTests.ParserTests testAlwaysFails]' failed (0.123 seconds)"
+        exit 65
+        """)
+        setenv("SOLOCODE_DEBUG_XCODEBUILD_PATH", fakeXcodebuild.path, 1)
 
         let (runAll, runAllCtx) = makeCall(
             name: "debug_test_check",
@@ -133,7 +98,7 @@ extension UnifiedToolRuntimeTests {
 
         XCTAssertEqual(completed?["status"], "failed")
         XCTAssertEqual(completed?["error_code"], "validation")
-        XCTAssertTrue((completed?["detail"] ?? "").contains("Swift Package"))
+        XCTAssertTrue((completed?["detail"] ?? "").contains("validation config"))
     }
 
     func testDebugHypothesizeIsIDBasedForProposeAndUpdate() async throws {

@@ -29,15 +29,26 @@ public enum DebugBackendPolicy: String, Codable, Sendable, Equatable, CaseIterab
 /// Stage tipizzato della debug pipeline.
 public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
     case activateMode = "activate_mode"
+    case sessionStart = "session_start"
+    case sessionExport = "session_export"
+    case sessionStop = "session_stop"
+    case setDescribePhase = "set_describe_phase"
+    case setReproducePhase = "set_reproduce_phase"
+    case setFixPhase = "set_fix_phase"
+    case setVerifyPhase = "set_verify_phase"
     case gatherContext = "gather_context"
     case analyzeIssue = "analyze_issue"
+    case requestClarification = "request_clarification"
     case requestReproduction = "request_reproduction"
     case reproduce
     case instrument
+    case snapshot
+    case hypothesize
     case fix
     case reviewFix = "review_fix"
     case verify
     case clean
+    case timeline
     case resolve
     case awaitReproduceGate = "await_reproduce_gate"
     case awaitFixGate = "await_fix_gate"
@@ -52,17 +63,18 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
 
     public var defaultPhase: DebugPipelinePhase {
         switch self {
-        case .activateMode, .gatherContext, .analyzeIssue:
+        case .activateMode, .sessionStart, .setDescribePhase,
+             .gatherContext, .analyzeIssue, .requestClarification:
             return .describing
-        case .requestReproduction, .reproduce, .awaitReproduceGate:
+        case .setReproducePhase, .requestReproduction, .reproduce, .awaitReproduceGate:
             return .reproducing
         case .instrument:
             return .instrumenting
-        case .fix, .reviewFix:
+        case .setFixPhase, .snapshot, .hypothesize, .fix, .reviewFix:
             return .fixing
-        case .verify, .clean, .awaitFixGate:
+        case .setVerifyPhase, .verify, .clean, .awaitFixGate, .sessionExport, .sessionStop:
             return .verifying
-        case .resolve:
+        case .timeline, .resolve:
             return .resolved
         case .nativeStart, .nativeRefresh, .nativeSyncBreakpoints,
              .nativeSyncWatches, .nativeStepIn, .nativeStepOver,
@@ -77,11 +89,14 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
              .nativeSyncWatches, .nativeStepIn, .nativeStepOver,
              .nativeStepOut, .nativeStop:
             return .nativeCommand
-        case .activateMode, .requestReproduction, .resolve,
-             .awaitReproduceGate, .awaitFixGate:
+        case .activateMode, .sessionStart, .sessionExport, .sessionStop,
+             .setDescribePhase, .setReproducePhase, .setFixPhase, .setVerifyPhase,
+             .requestClarification, .requestReproduction,
+             .resolve, .awaitReproduceGate, .awaitFixGate:
             return .mcpTool
         case .gatherContext, .analyzeIssue, .reproduce,
-             .instrument, .fix, .reviewFix, .verify, .clean:
+             .instrument, .snapshot, .hypothesize, .fix,
+             .reviewFix, .verify, .clean, .timeline:
             return .singleAgent
         }
     }
@@ -94,9 +109,12 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
             return .testWriter
         case .gatherContext, .analyzeIssue:
             return .explorer
-        case .reproduce, .instrument, .fix, .clean:
+        case .reproduce, .instrument, .snapshot, .hypothesize,
+             .fix, .clean, .timeline:
             return .debugger
-        case .activateMode, .requestReproduction, .resolve,
+        case .activateMode, .sessionStart, .sessionExport, .sessionStop,
+             .setDescribePhase, .setReproducePhase, .setFixPhase, .setVerifyPhase,
+             .requestClarification, .requestReproduction, .resolve,
              .awaitReproduceGate, .awaitFixGate,
              .nativeStart, .nativeRefresh, .nativeSyncBreakpoints,
              .nativeSyncWatches, .nativeStepIn, .nativeStepOver,

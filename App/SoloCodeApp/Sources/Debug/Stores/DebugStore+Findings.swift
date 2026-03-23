@@ -70,6 +70,7 @@ extension DebugStore {
     func addFinding(fromHypothesis hypothesis: DebugHypothesis) {
         let finding = DebugFinding(
             title: hypothesis.title,
+            filePath: hypothesis.relatedFiles.first,
             severity: .high,
             hypothesisId: hypothesis.id.uuidString,
             status: .investigating

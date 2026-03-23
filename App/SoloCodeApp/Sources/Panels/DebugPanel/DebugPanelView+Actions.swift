@@ -110,10 +110,27 @@ extension DebugPanelView {
                     Text("Reproduce the bug")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Text("Follow the steps above, then click Proceed")
+                    Text("Follow the steps below, then click Proceed")
                         .font(.system(size: 10.5))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
+            }
+
+            // Show reproduction steps from clarification questions
+            if !debugStore.clarificationQuestions.isEmpty {
+                Text(debugStore.clarificationQuestions)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(DesignSystem.Colors.warning.opacity(0.06))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(DesignSystem.Colors.warning.opacity(0.18), lineWidth: 0.5)
+                    )
             }
 
             // Show collected runtime logs count
@@ -175,6 +192,23 @@ extension DebugPanelView {
                         .font(.system(size: 10.5))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
+            }
+
+            // Show verification instructions from clarification questions
+            if !debugStore.clarificationQuestions.isEmpty {
+                Text(debugStore.clarificationQuestions)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(DesignSystem.Colors.success.opacity(0.06))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(DesignSystem.Colors.success.opacity(0.18), lineWidth: 0.5)
+                    )
             }
 
             HStack(spacing: 10) {

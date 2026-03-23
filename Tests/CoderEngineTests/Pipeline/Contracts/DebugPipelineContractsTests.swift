@@ -23,12 +23,19 @@ final class DebugPipelineContractsTests: XCTestCase {
     }
 
     func testDebugStageDefaultsExposePipelineSemantics() {
+        XCTAssertEqual(DebugStageKind.sessionStart.defaultPhase, .describing)
+        XCTAssertEqual(DebugStageKind.sessionStart.defaultExecutionStyle, .mcpTool)
+        XCTAssertNil(DebugStageKind.sessionStart.defaultAgentRole)
+
         XCTAssertEqual(DebugStageKind.gatherContext.defaultPhase, .describing)
         XCTAssertEqual(DebugStageKind.gatherContext.defaultExecutionStyle, .singleAgent)
         XCTAssertEqual(DebugStageKind.gatherContext.defaultAgentRole, .explorer)
 
+        XCTAssertEqual(DebugStageKind.hypothesize.defaultPhase, .fixing)
+        XCTAssertEqual(DebugStageKind.hypothesize.defaultAgentRole, .debugger)
         XCTAssertEqual(DebugStageKind.verify.defaultPhase, .verifying)
         XCTAssertEqual(DebugStageKind.verify.defaultAgentRole, .testWriter)
+        XCTAssertEqual(DebugStageKind.timeline.defaultPhase, .resolved)
 
         XCTAssertTrue(DebugStageKind.nativeStepOver.isNativeStage)
         XCTAssertEqual(DebugStageKind.nativeStepOver.defaultExecutionStyle, .nativeCommand)

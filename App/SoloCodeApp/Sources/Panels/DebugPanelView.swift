@@ -84,6 +84,19 @@ struct DebugPanelView: View {
                         )
                     }
 
+                    if !debugStore.lastTraceAnalysis.isEmpty
+                        || !debugStore.lastSnapshotReport.isEmpty
+                        || !debugStore.lastTimelineReport.isEmpty
+                        || !debugStore.lastTestCheckReport.isEmpty
+                        || !debugStore.lastSessionExport.isEmpty {
+                        sectionHeader(
+                            "Analysis",
+                            icon: "waveform.path.ecg",
+                            count: 0
+                        )
+                        analysisContent
+                    }
+
                     sectionHeader(
                         "Hypotheses",
                         icon: "lightbulb",
@@ -103,6 +116,8 @@ struct DebugPanelView: View {
                     logsContent
                     runtimeLogsContent
 
+                    streamLogsSection
+
                     sectionHeader(
                         "Markers",
                         icon: "mappin",
@@ -121,6 +136,11 @@ struct DebugPanelView: View {
                 }
             }
             .onChange(of: debugStore.runtimeLogs.count) { _ in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo("debug-scroll-anchor", anchor: .bottom)
+                }
+            }
+            .onChange(of: debugStore.streamLogs.count) { _ in
                 withAnimation(.easeOut(duration: 0.2)) {
                     proxy.scrollTo("debug-scroll-anchor", anchor: .bottom)
                 }

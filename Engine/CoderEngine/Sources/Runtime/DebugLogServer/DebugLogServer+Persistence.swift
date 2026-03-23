@@ -19,18 +19,28 @@ public extension DebugLogServer {
 
     func appendLineToDisk(_ line: String) {
         let lineData = (line + "\n").data(using: .utf8) ?? Data()
-        if !FileManager.default.fileExists(atPath: logFileURL.path) {
-            _ = FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
-        }
+        let urls = [logFileURL, activeSessionLogFileURL].compactMap { $0 }
 
-        do {
-            let handle = try FileHandle(forWritingTo: logFileURL)
-            defer { try? handle.close() }
-            try handle.seekToEnd()
-            try handle.write(contentsOf: lineData)
-            return
-        } catch {
-            persistToDisk()
+        for url in urls {
+            if let dir = url.deletingLastPathComponent() as URL? {
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            }
+            if !FileManager.default.fileExists(atPath: url.path) {
+                _ = FileManager.default.createFile(atPath: url.path, contents: nil)
+            }
+
+            do {
+                let handle = try FileHandle(forWritingTo: url)
+                defer { try? handle.close() }
+                try handle.seekToEnd()
+                try handle.write(contentsOf: lineData)
+            } catch {
+                if url == logFileURL {
+                    persistToDisk()
+                } else {
+                    try? line.write(to: url, atomically: true, encoding: .utf8)
+                }
+            }
         }
     }
 
@@ -105,5 +115,13 @@ public extension DebugLogServer {
             trimEntriesToFitFileSize(Self.maxFileSize)
             persistToDisk()
         }
+    }
+}
+
+extension DebugLogServer {
+    static func sessionLogFileURL(workspacePath: String, sessionId: String) -> URL {
+        URL(fileURLWithPath: workspacePath)
+            .appendingPathComponent(".codigo/debug", isDirectory: true)
+            .appendingPathComponent("session_\(sessionId).jsonl")
     }
 }

@@ -12,8 +12,12 @@ extension PipelineJobFactory {
 
     static func timeoutForDebugStage(_ stage: DebugStageKind) -> Int {
         switch stage {
-        case .activateMode, .resolve:
+        case .activateMode, .sessionStart, .sessionExport, .sessionStop,
+             .setDescribePhase, .setReproducePhase, .setFixPhase,
+             .setVerifyPhase, .resolve:
             return 45_000
+        case .requestClarification:
+            return 60_000
         case .requestReproduction:
             return 60_000
         case .awaitReproduceGate, .awaitFixGate:
@@ -25,17 +29,21 @@ extension PipelineJobFactory {
              .nativeStepOut, .nativeStop:
             return 90_000
         case .gatherContext, .analyzeIssue, .reproduce,
-             .instrument, .fix, .reviewFix, .clean:
+             .instrument, .snapshot, .hypothesize,
+             .fix, .reviewFix, .clean, .timeline:
             return 120_000
         }
     }
 
     static func riskForDebugStage(_ stage: DebugStageKind) -> RiskLevel {
         switch stage {
-        case .activateMode, .requestReproduction, .resolve,
-             .awaitReproduceGate, .awaitFixGate:
+        case .activateMode, .sessionStart, .sessionExport, .sessionStop,
+             .setDescribePhase, .setReproducePhase, .setFixPhase,
+             .setVerifyPhase, .requestClarification, .requestReproduction,
+             .resolve, .awaitReproduceGate, .awaitFixGate:
             return .low
-        case .gatherContext, .analyzeIssue, .reviewFix, .verify:
+        case .gatherContext, .analyzeIssue, .reviewFix, .verify,
+             .snapshot, .hypothesize, .timeline:
             return .medium
         case .reproduce, .instrument, .fix, .clean,
              .nativeStart, .nativeRefresh, .nativeSyncBreakpoints,

@@ -120,6 +120,10 @@ struct DebugHypothesis: Identifiable, Codable {
     let title: String
     let description: String
     var status: HypothesisStatus
+    var confidence: Int
+    var rootCauseType: String
+    var relatedFiles: [String]
+    var relatedTests: [String]
     var evidence: [String]      // supporting evidence collected
     let createdAt: Date
 
@@ -148,6 +152,10 @@ struct DebugHypothesis: Identifiable, Codable {
         title: String,
         description: String,
         status: HypothesisStatus = .proposed,
+        confidence: Int = 50,
+        rootCauseType: String = "",
+        relatedFiles: [String] = [],
+        relatedTests: [String] = [],
         evidence: [String] = [],
         createdAt: Date = Date()
     ) {
@@ -155,6 +163,10 @@ struct DebugHypothesis: Identifiable, Codable {
         self.title = title
         self.description = description
         self.status = status
+        self.confidence = confidence
+        self.rootCauseType = rootCauseType
+        self.relatedFiles = relatedFiles
+        self.relatedTests = relatedTests
         self.evidence = evidence
         self.createdAt = createdAt
     }
@@ -173,6 +185,8 @@ struct RuntimeLogEntry: Identifiable, Codable {
     let hypothesisId: String?     // links to the hypothesis this log supports
 
     init(
+        id: String = UUID().uuidString,
+        timestamp: Date = Date(),
         location: String,
         message: String,
         data: [String: String] = [:],
@@ -180,8 +194,8 @@ struct RuntimeLogEntry: Identifiable, Codable {
         runId: String? = nil,
         hypothesisId: String? = nil
     ) {
-        self.id = UUID().uuidString
-        self.timestamp = Date()
+        self.id = id
+        self.timestamp = timestamp
         self.location = location
         self.message = message
         self.data = data
@@ -236,3 +250,15 @@ struct DebugBreakpoint: Identifiable, Codable {
     }
 }
 
+/// Lightweight entry for the real-time stream log panel.
+struct DebugStreamLogEntry: Identifiable {
+    let id: UUID
+    let timestamp: Date
+    let message: String
+
+    init(timestamp: Date = Date(), message: String) {
+        self.id = UUID()
+        self.timestamp = timestamp
+        self.message = message
+    }
+}

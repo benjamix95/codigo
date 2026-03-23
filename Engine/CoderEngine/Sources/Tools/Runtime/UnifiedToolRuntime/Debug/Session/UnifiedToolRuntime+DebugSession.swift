@@ -8,7 +8,8 @@ extension UnifiedToolRuntime {
 
         switch action {
         case "start":
-            let sessionId = await debugLogServer.startSession()
+            let workspacePath = context.workspaceContext.workspacePath.path
+            let sessionId = await debugLogServer.startSession(workspacePath: workspacePath)
             debugHypotheses.removeAll()
             debugSessionSnapshots.removeAll()
             debugFailingTestFilters.removeAll()
@@ -18,7 +19,8 @@ extension UnifiedToolRuntime {
                 "detail": "Debug session started (id: \(sessionId.prefix(8)))",
                 "output": "Session \(sessionId) started",
                 "action": "start",
-                "session_id": sessionId
+                "session_id": sessionId,
+                "workspace_path": workspacePath
             ], durationMs: ms)
 
         case "end", "stop":
@@ -37,7 +39,8 @@ extension UnifiedToolRuntime {
                 "title": "debug_session",
                 "detail": detail,
                 "output": summary,
-                "action": action
+                "action": action,
+                "workspace_path": context.workspaceContext.workspacePath.path
             ], durationMs: ms)
 
         case "clear":
@@ -50,7 +53,8 @@ extension UnifiedToolRuntime {
                 "title": "debug_session",
                 "detail": "Session logs cleared",
                 "output": "Session logs cleared",
-                "action": "clear"
+                "action": "clear",
+                "workspace_path": context.workspaceContext.workspacePath.path
             ], durationMs: ms)
 
         case "snapshot":
@@ -119,7 +123,9 @@ extension UnifiedToolRuntime {
                 "title": "debug_session",
                 "detail": "Session exported as markdown",
                 "output": md,
-                "action": "export"
+                "action": "export",
+                "session_id": await debugLogServer.currentSessionId() ?? "",
+                "workspace_path": context.workspaceContext.workspacePath.path
             ], durationMs: ms)
 
         case "stats":
@@ -144,7 +150,9 @@ extension UnifiedToolRuntime {
                 "title": "debug_session",
                 "detail": "Session stats: \(logResult.totalCount) logs, \(debugHypotheses.count) hypotheses",
                 "output": stats,
-                "action": "stats"
+                "action": "stats",
+                "session_id": await debugLogServer.currentSessionId() ?? "",
+                "workspace_path": context.workspaceContext.workspacePath.path
             ], durationMs: ms)
 
         default:

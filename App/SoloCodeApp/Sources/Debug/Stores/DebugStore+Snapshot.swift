@@ -12,10 +12,21 @@ extension DebugStore {
         var runtimeLogs: [RuntimeLogEntry]
         var instrumentationPoints: [InstrumentationPoint]
         var currentRunId: String?
+        var activeDebugSessionId: String?
+        var debugWorkspacePath: String?
         var debugFlowDiagram: String
+        var lastTraceAnalysis: String
+        var lastSnapshotReport: String
+        var lastTimelineReport: String
+        var lastTestCheckReport: String
+        var lastSessionExport: String
         var fixLoopIteration: Int
         var userConfirmedReproduce: Bool
         var awaitingDebugClean: Bool
+        var isAwaitingUserClarification: Bool
+        var isAwaitingReproduceConfirmation: Bool
+        var isAwaitingFixConfirmation: Bool
+        var skippedQuestionsWarning: Bool
         var pendingResolutionAfterClean: String?
         var severityFilter: Set<DebugEntrySeverity>
         var categoryFilter: String?
@@ -43,10 +54,21 @@ extension DebugStore {
             runtimeLogs: runtimeLogs,
             instrumentationPoints: instrumentationPoints,
             currentRunId: currentRunId,
+            activeDebugSessionId: activeDebugSessionId,
+            debugWorkspacePath: debugWorkspacePath,
             debugFlowDiagram: debugFlowDiagram,
+            lastTraceAnalysis: lastTraceAnalysis,
+            lastSnapshotReport: lastSnapshotReport,
+            lastTimelineReport: lastTimelineReport,
+            lastTestCheckReport: lastTestCheckReport,
+            lastSessionExport: lastSessionExport,
             fixLoopIteration: fixLoopIteration,
             userConfirmedReproduce: userConfirmedReproduce,
             awaitingDebugClean: awaitingDebugClean,
+            isAwaitingUserClarification: isAwaitingUserClarification,
+            isAwaitingReproduceConfirmation: isAwaitingReproduceConfirmation,
+            isAwaitingFixConfirmation: isAwaitingFixConfirmation,
+            skippedQuestionsWarning: skippedQuestionsWarning,
             pendingResolutionAfterClean: pendingResolutionAfterClean,
             severityFilter: severityFilter,
             categoryFilter: categoryFilter,
@@ -74,10 +96,21 @@ extension DebugStore {
         runtimeLogs = snapshot.runtimeLogs
         instrumentationPoints = snapshot.instrumentationPoints
         currentRunId = snapshot.currentRunId
+        activeDebugSessionId = snapshot.activeDebugSessionId
+        debugWorkspacePath = snapshot.debugWorkspacePath
         debugFlowDiagram = snapshot.debugFlowDiagram
+        lastTraceAnalysis = snapshot.lastTraceAnalysis
+        lastSnapshotReport = snapshot.lastSnapshotReport
+        lastTimelineReport = snapshot.lastTimelineReport
+        lastTestCheckReport = snapshot.lastTestCheckReport
+        lastSessionExport = snapshot.lastSessionExport
         fixLoopIteration = snapshot.fixLoopIteration
         userConfirmedReproduce = snapshot.userConfirmedReproduce
         awaitingDebugClean = snapshot.awaitingDebugClean
+        isAwaitingUserClarification = snapshot.isAwaitingUserClarification
+        isAwaitingReproduceConfirmation = snapshot.isAwaitingReproduceConfirmation
+        isAwaitingFixConfirmation = snapshot.isAwaitingFixConfirmation
+        skippedQuestionsWarning = snapshot.skippedQuestionsWarning
         pendingResolutionAfterClean = snapshot.pendingResolutionAfterClean
         severityFilter = snapshot.severityFilter
         categoryFilter = snapshot.categoryFilter

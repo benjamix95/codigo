@@ -156,7 +156,7 @@ extension CoderIDEMCPServerApp {
         case "debug_request_user":
             let kind = (args["kind"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let prompt = (args["prompt"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let validKinds: Set<String> = ["question", "reproduce"]
+            let validKinds: Set<String> = ["question", "reproduce", "fix_confirmation"]
             if kind.isEmpty || prompt.isEmpty {
                 return CallTool.Result(
                     content: [.text("Error: 'kind' and 'prompt' parameters are required")],
@@ -165,7 +165,7 @@ extension CoderIDEMCPServerApp {
             }
             if !validKinds.contains(kind) {
                 return CallTool.Result(
-                    content: [.text("Error: invalid kind '\(kind)'. Use: question, reproduce")],
+                    content: [.text("Error: invalid kind '\(kind)'. Use: question, reproduce, fix_confirmation")],
                     isError: true
                 )
             }

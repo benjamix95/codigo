@@ -169,6 +169,24 @@ extension AgentWorkerAdapter {
         if let tool = task.metadata["mcp_tool"] ?? task.metadata["debug_tool"], !tool.isEmpty {
             lines.append("Preferred tool for this stage: \(tool)")
         }
+        if let action = task.metadata["action"], !action.isEmpty {
+            lines.append("Required action: \(action)")
+        }
+        if let label = task.metadata["label"], !label.isEmpty {
+            lines.append("Required label: \(label)")
+        }
+        if let compareWith = task.metadata["compare_with"], !compareWith.isEmpty {
+            lines.append("Compare with: \(compareWith)")
+        }
+        if let requestKind = task.metadata["request_kind"], !requestKind.isEmpty {
+            lines.append("Request kind: \(requestKind)")
+        }
+        if let gateKind = task.metadata["gate_kind"], !gateKind.isEmpty {
+            lines.append("Gate kind: \(gateKind)")
+        }
+        if let questionIndex = task.metadata["question_index"], !questionIndex.isEmpty {
+            lines.append("Clarification question index: \(questionIndex)")
+        }
         if let targetPath = task.metadata["target_path"], !targetPath.isEmpty {
             lines.append("Target path: \(targetPath)")
         }
@@ -176,16 +194,36 @@ extension AgentWorkerAdapter {
         switch debugStage {
         case .activateMode:
             lines.append("Activate debug mode and establish the debug session context.")
+        case .sessionStart:
+            lines.append("Start the structured debug session and return the active session identifier.")
+        case .sessionExport:
+            lines.append("Export the full debug session report after cleanup is complete.")
+        case .sessionStop:
+            lines.append("Stop the debug session only after the session has been resolved.")
+        case .setDescribePhase:
+            lines.append("Move the debug flow into the describing phase before gathering context.")
+        case .setReproducePhase:
+            lines.append("Move the debug flow into the reproducing phase before asking for reproduce confirmation.")
+        case .setFixPhase:
+            lines.append("Move the debug flow into the fixing phase before hypotheses, snapshots, and code changes.")
+        case .setVerifyPhase:
+            lines.append("Move the debug flow into the verifying phase before test verification and cleanup.")
         case .gatherContext:
             lines.append("Collect the minimum context needed to understand the failure.")
         case .analyzeIssue:
             lines.append("Form hypotheses and identify the likeliest root cause.")
+        case .requestClarification:
+            lines.append("Ask a clarifying debug question with kind=question. Collect the minimum missing context needed to continue.")
         case .requestReproduction:
             lines.append("Ask the user only for the reproduction details needed to continue.")
         case .reproduce:
             lines.append("Reproduce the issue and capture concrete evidence.")
         case .instrument:
             lines.append("Add temporary instrumentation or markers only when they help prove a hypothesis.")
+        case .snapshot:
+            lines.append("Capture or compare debug snapshots exactly as required by the stage metadata.")
+        case .hypothesize:
+            lines.append("Propose or update structured hypotheses using debug_hypothesize and evidence from the current session.")
         case .fix:
             lines.append("Apply the smallest safe fix that addresses the validated cause.")
         case .reviewFix:
@@ -194,6 +232,8 @@ extension AgentWorkerAdapter {
             lines.append("Run verification steps or tests and state clearly whether the fix holds.")
         case .clean:
             lines.append("Remove temporary debug markers and instrumentation after verification.")
+        case .timeline:
+            lines.append("Generate the final chronological timeline for the resolved debug session.")
         case .resolve:
             lines.append("Resolve the debug session with a concise summary of the outcome.")
         case .awaitReproduceGate:

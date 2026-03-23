@@ -81,14 +81,40 @@ pub fn input_schema_for(name: &str) -> Value {
         "coderide_debug_request_user" => object_schema(&[("kind", "string"), ("prompt", "string")], &["kind", "prompt"]),
         "coderide_debug_resolve" => object_schema(&[("summary", "string")], &["summary"]),
         "coderide_debug_log" => object_schema(
-            &[("severity", "string"), ("source", "string"), ("message", "string"), ("detail", "string"), ("category", "string")],
+            &[
+                ("severity", "string"), ("source", "string"), ("message", "string"),
+                ("detail", "string"), ("category", "string"), ("run_id", "string"),
+                ("hypothesis_id", "string"), ("data", "string"),
+            ],
             &["severity", "source", "message"],
         ),
-        "coderide_debug_session" => object_schema(&[("action", "string")], &["action"]),
+        "coderide_debug_session" => object_schema(&[("action", "string"), ("label", "string")], &["action"]),
         "coderide_debug_hypothesize" => object_schema(
-            &[("action", "string"), ("hypothesis_id", "string"), ("title", "string"), ("description", "string"), ("status", "string"), ("evidence", "string")],
+            &[
+                ("action", "string"), ("hypothesis_id", "string"), ("title", "string"),
+                ("description", "string"), ("status", "string"), ("evidence", "string"),
+                ("confidence", "string"), ("root_cause_type", "string"),
+                ("related_files", "string"), ("related_tests", "string"),
+            ],
             &["action"],
         ),
+        "coderide_debug_context" => object_schema(&[("scope", "string")], &[]),
+        "coderide_debug_mark" => object_schema(
+            &[("path", "string"), ("line", "string"), ("comment", "string"), ("code", "string"), ("type", "string"), ("expression", "string"), ("hypothesis_id", "string")],
+            &["path", "line", "comment"],
+        ),
+        "coderide_debug_clean" => object_schema(
+            &[("path", "string"), ("type", "string"), ("dry_run", "string"), ("hypothesis_id", "string")],
+            &[],
+        ),
+        "coderide_debug_trace_analyze" => object_schema(&[("error_text", "string"), ("error_type", "string"), ("context", "string")], &["error_text"]),
+        "coderide_debug_instrument" => object_schema(
+            &[("path", "string"), ("line", "string"), ("type", "string"), ("expression", "string"), ("condition", "string"), ("hypothesis_id", "string"), ("label", "string")],
+            &["path", "line", "type", "expression"],
+        ),
+        "coderide_debug_timeline" => object_schema(&[("filter", "string"), ("time_range", "string"), ("hypothesis_id", "string"), ("format", "string")], &[]),
+        "coderide_debug_snapshot" => object_schema(&[("action", "string"), ("label", "string"), ("compare_with", "string")], &["action"]),
+        "coderide_debug_test_check" => object_schema(&[("scope", "string"), ("path", "string"), ("filter", "string"), ("hypothesis_id", "string"), ("timeout_ms", "string")], &[]),
         "coderide_activate_plan_mode" | "coderide_activate_debug_mode" => object_schema(&[("reason", "string")], &[]),
         "coderide_show_swarm_panel" => object_schema(&[("swarm_id", "string")], &[]),
         "coderide_policy_ack" => object_schema(&[("hash", "string")], &["hash"]),

@@ -12,6 +12,15 @@ final class DebugStoreTests: XCTestCase {
         store.addRuntimeLog(location: "A.swift:10", message: "old runtime")
         store.addInstrumentation(filePath: "A.swift", lineNumber: 11, type: .logging, code: "print(1)")
         store.addDebugMarker(DebugMarker(filePath: "A.swift", lineNumber: 12, markerComment: "old marker"))
+        store.streamLogs.append(DebugStreamLogEntry(message: "old stream log"))
+        store.streamLogNewCount = 5
+        store.activeDebugSessionId = "session-1"
+        store.debugWorkspacePath = "/tmp/workspace"
+        store.lastTraceAnalysis = "old trace"
+        store.lastSnapshotReport = "old snapshot"
+        store.lastTimelineReport = "old timeline"
+        store.lastTestCheckReport = "old tests"
+        store.lastSessionExport = "old export"
         store.userConfirmedReproduce = true
         store.awaitingDebugClean = true
         store.phase = .fixing
@@ -32,6 +41,15 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertTrue(store.runtimeLogs.isEmpty)
         XCTAssertTrue(store.instrumentationPoints.isEmpty)
         XCTAssertTrue(store.debugMarkers.isEmpty)
+        XCTAssertTrue(store.streamLogs.isEmpty)
+        XCTAssertEqual(store.streamLogNewCount, 0)
+        XCTAssertEqual(store.activeDebugSessionId, "session-1")
+        XCTAssertEqual(store.debugWorkspacePath, "/tmp/workspace")
+        XCTAssertTrue(store.lastTraceAnalysis.isEmpty)
+        XCTAssertTrue(store.lastSnapshotReport.isEmpty)
+        XCTAssertTrue(store.lastTimelineReport.isEmpty)
+        XCTAssertTrue(store.lastTestCheckReport.isEmpty)
+        XCTAssertTrue(store.lastSessionExport.isEmpty)
         XCTAssertFalse(store.userConfirmedReproduce)
         XCTAssertFalse(store.awaitingDebugClean)
         XCTAssertTrue(store.streamingContent.isEmpty)
@@ -54,6 +72,8 @@ final class DebugStoreTests: XCTestCase {
         store.phase = .verifying
         store.addDebugMarker(DebugMarker(filePath: "A.swift", lineNumber: 12, markerComment: "legacy"))
         store.addInstrumentation(filePath: "A.swift", lineNumber: 14, type: .logging, code: "print(1)")
+        store.streamLogs.append(DebugStreamLogEntry(message: "stale log"))
+        store.streamLogNewCount = 3
 
         let files = store.beginMarkFixed(summary: "Fixed crash")
         XCTAssertTrue(store.awaitingDebugClean)
@@ -67,6 +87,8 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertEqual(store.resolutionSummary, "Fixed crash")
         XCTAssertTrue(store.debugMarkers.isEmpty)
         XCTAssertTrue(store.instrumentationPoints.isEmpty)
+        XCTAssertTrue(store.streamLogs.isEmpty, "Stream logs must be cleared on mark-fixed")
+        XCTAssertEqual(store.streamLogNewCount, 0)
     }
 
     func testCancelPendingMarkFixedRestoresCleanupWaitState() {
@@ -114,12 +136,16 @@ final class DebugStoreTests: XCTestCase {
         store.severityFilter = [.error]
         store.categoryFilter = "runtime"
         store.searchQuery = "needle"
+        store.activeDebugSessionId = "session-1"
+        store.debugWorkspacePath = "/tmp/workspace"
 
         store.resetSession()
 
         XCTAssertEqual(store.severityFilter, Set(DebugEntrySeverity.allCases))
         XCTAssertNil(store.categoryFilter)
         XCTAssertEqual(store.searchQuery, "")
+        XCTAssertNil(store.activeDebugSessionId)
+        XCTAssertNil(store.debugWorkspacePath)
     }
 
     func testRuntimeLogUsesExplicitRunIdWhenProvided() {

@@ -50,11 +50,11 @@ public actor DagScheduler {
     }
 
     /// Incrementa i tentativi di un task e lo rimette in pending.
-    public func scheduleRetry(_ taskId: String) {
+    public func scheduleRetry(_ taskId: String, delayMs: Int = 0) {
         guard var task = tasks[taskId] else { return }
         task.attempts += 1
         task.status = .pending
-        task.waitingSince = Date()
+        task.waitingSince = Date().addingTimeInterval(Double(max(0, delayMs)) / 1000.0)
         tasks[taskId] = task
     }
 
@@ -82,6 +82,9 @@ public actor DagScheduler {
     public func getReadyTasks(now: Date = Date()) -> [TaskNode] {
         let ready = tasks.values.filter { task in
             guard task.status == .pending else { return false }
+            if let waitingSince = task.waitingSince, waitingSince > now {
+                return false
+            }
             return task.dependsOn.allSatisfy { depId in
                 tasks[depId]?.status == .completed
             }

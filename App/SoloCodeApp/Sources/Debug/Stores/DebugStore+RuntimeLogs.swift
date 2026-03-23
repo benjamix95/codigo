@@ -12,6 +12,7 @@ extension DebugStore {
         location: String,
         message: String,
         data: [String: String] = [:],
+        sessionId: String? = nil,
         hypothesisId: String? = nil,
         runId: String? = nil
     ) {
@@ -20,6 +21,7 @@ extension DebugStore {
             location: location,
             message: message,
             data: data,
+            sessionId: sessionId,
             runId: (normalizedRunId?.isEmpty == false) ? normalizedRunId : currentRunId,
             hypothesisId: hypothesisId
         ))
@@ -40,4 +42,3 @@ extension DebugStore {
         runtimeLogs.removeAll()
     }
 }
-

@@ -37,7 +37,7 @@ final class PipelineDebugGateStagesTests: XCTestCase {
         XCTAssertLessThan(gateIdx, reproduceIdx, "awaitReproduceGate must come before reproduce")
     }
 
-    func testFixGateIsAfterVerifyAndBeforeClean() throws {
+    func testFixGateWaitsForVerifyAndHypothesisUpdateBeforeClean() throws {
         let request = DebugSessionRequest(
             errorSummary: "Bug",
             includeCleanupStage: true
@@ -48,12 +48,17 @@ final class PipelineDebugGateStagesTests: XCTestCase {
             providerId: "test-provider"
         )
 
-        let verifyIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .verify })
         let gateIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .awaitFixGate })
         let cleanIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .clean })
+        let verifyTask = try XCTUnwrap(tasks.first { $0.debugStage == .verify })
+        let hypothesisUpdateIdx = try XCTUnwrap(tasks.lastIndex { $0.debugStage == .hypothesize })
+        let hypothesisUpdateTask = try XCTUnwrap(tasks.last { $0.debugStage == .hypothesize })
 
-        XCTAssertLessThan(verifyIdx, gateIdx, "verify must come before awaitFixGate")
+        XCTAssertLessThan(tasks.firstIndex { $0.taskId == verifyTask.taskId } ?? 0, gateIdx, "verify must come before awaitFixGate")
+        XCTAssertLessThan(hypothesisUpdateIdx, gateIdx, "hypothesis update must come before awaitFixGate")
         XCTAssertLessThan(gateIdx, cleanIdx, "awaitFixGate must come before clean")
+        let gateTask = try XCTUnwrap(tasks.first { $0.debugStage == .awaitFixGate })
+        XCTAssertTrue(gateTask.dependsOn.contains(verifyTask.taskId) || gateTask.dependsOn.contains(hypothesisUpdateTask.taskId))
     }
 
     // MARK: - Gate Stage Properties
@@ -119,9 +124,11 @@ final class PipelineDebugGateStagesTests: XCTestCase {
                        "Investigation slice should include awaitFixGate")
         XCTAssertFalse(tasks.contains { $0.debugStage == .awaitReproduceGate },
                         "Investigation slice should NOT include awaitReproduceGate")
+        XCTAssertTrue(tasks.contains { $0.debugStage == .setFixPhase })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .setVerifyPhase })
     }
 
-    func testResolutionSliceDoesNotContainGates() {
+    func testResolutionSliceContainsResolutionBackboneOnly() {
         let request = DebugSessionRequest(errorSummary: "Resolved")
         let (_, tasks) = PipelineJobFactory.fromDebugSession(
             request,
@@ -132,6 +139,9 @@ final class PipelineDebugGateStagesTests: XCTestCase {
 
         XCTAssertFalse(tasks.contains { $0.debugStage == .awaitReproduceGate })
         XCTAssertFalse(tasks.contains { $0.debugStage == .awaitFixGate })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .timeline })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .sessionExport })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .sessionStop })
     }
 
     // MARK: - Gate Stage Risk Levels

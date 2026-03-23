@@ -22,6 +22,65 @@ extension DebugPanelView {
 
     // MARK: - Logs Content
 
+    var analysisContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !debugStore.lastTraceAnalysis.isEmpty {
+                analysisReportCard(
+                    title: "Trace Analysis",
+                    body: debugStore.lastTraceAnalysis,
+                    color: DesignSystem.Colors.info
+                )
+            }
+            if !debugStore.lastSnapshotReport.isEmpty {
+                analysisReportCard(
+                    title: "Snapshot",
+                    body: debugStore.lastSnapshotReport,
+                    color: DesignSystem.Colors.warning
+                )
+            }
+            if !debugStore.lastTimelineReport.isEmpty {
+                analysisReportCard(
+                    title: "Timeline",
+                    body: debugStore.lastTimelineReport,
+                    color: accent
+                )
+            }
+            if !debugStore.lastTestCheckReport.isEmpty {
+                analysisReportCard(
+                    title: "Test Check",
+                    body: debugStore.lastTestCheckReport,
+                    color: DesignSystem.Colors.success
+                )
+            }
+            if !debugStore.lastSessionExport.isEmpty {
+                analysisReportCard(
+                    title: "Session Export",
+                    body: debugStore.lastSessionExport,
+                    color: DesignSystem.Colors.textSecondary
+                )
+            }
+        }
+    }
+
+    func analysisReportCard(title: String, body: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+            Text(body)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(color.opacity(0.18), lineWidth: 0.5)
+        )
+    }
+
     var logsContent: some View {
         Group {
             if debugStore.filteredLogs.isEmpty {
@@ -140,7 +199,7 @@ extension DebugPanelView {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
                         .lineLimit(2)
-                    Text(h.status.rawValue.capitalized)
+                    Text("\(h.status.rawValue.capitalized) • \(h.confidence)%")
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundStyle(h.status.color)
                 }
@@ -152,6 +211,22 @@ extension DebugPanelView {
                 .font(.system(size: 11))
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .lineLimit(4)
+
+            if !h.rootCauseType.isEmpty || !h.relatedFiles.isEmpty || !h.relatedTests.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    if !h.rootCauseType.isEmpty {
+                        Text("Type: \(h.rootCauseType)")
+                    }
+                    if !h.relatedFiles.isEmpty {
+                        Text("Files: \(h.relatedFiles.joined(separator: ", "))")
+                    }
+                    if !h.relatedTests.isEmpty {
+                        Text("Tests: \(h.relatedTests.joined(separator: ", "))")
+                    }
+                }
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
 
             if !h.evidence.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {

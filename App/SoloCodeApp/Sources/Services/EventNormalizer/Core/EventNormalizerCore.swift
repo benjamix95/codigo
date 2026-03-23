@@ -130,6 +130,22 @@ enum EventNormalizer {
             return normalizeDebugQuery(payload: payload, timestamp: timestamp)
         }
 
+        if type == "debug_trace_analyze" {
+            return normalizeDebugTraceAnalyze(payload: payload, timestamp: timestamp)
+        }
+
+        if type == "debug_snapshot" {
+            return normalizeDebugSnapshot(payload: payload, timestamp: timestamp)
+        }
+
+        if type == "debug_timeline" {
+            return normalizeDebugTimeline(payload: payload, timestamp: timestamp)
+        }
+
+        if type == "debug_test_check" {
+            return normalizeDebugTestCheck(payload: payload, timestamp: timestamp)
+        }
+
         if type == "activate_plan_mode" {
             return normalizeActivatePlanMode(payload: payload, timestamp: timestamp)
         }

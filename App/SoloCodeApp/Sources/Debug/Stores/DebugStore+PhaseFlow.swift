@@ -10,6 +10,7 @@ extension DebugStore {
         runtimeLogs.removeAll()
         instrumentationPoints.removeAll()
         debugMarkers.removeAll()
+        clearStreamLogs()
         nativeSession = .idle
         resetNativeInputs()
         phase = .describing
@@ -26,14 +27,19 @@ extension DebugStore {
         debugFindings.removeAll()
         pendingResolutionAfterClean = nil
         currentRunId = nil
+        lastTraceAnalysis = ""
+        lastSnapshotReport = ""
+        lastTimelineReport = ""
+        lastTestCheckReport = ""
+        lastSessionExport = ""
         fixLoopIteration = 0
         debugFlowDiagram = Self.defaultDebugFlowDiagram
         resetLogFilters()
         addLog(severity: .info, source: "debug_session", message: "Debug session started", category: "system")
 
         // Auto-load runtime logs from disk and start monitoring
-        loadRuntimeLogsFromDisk(path: Self.defaultDebugLogPath)
-        startLogFileMonitor(path: Self.defaultDebugLogPath)
+        loadRuntimeLogsFromDisk(path: activeDebugLogPath)
+        startLogFileMonitor(path: activeDebugLogPath)
     }
 
     @discardableResult
@@ -61,6 +67,7 @@ extension DebugStore {
             return false
         }
 
+        clearStreamLogs()
         phase = newPhase
         if newPhase == .reproducing && currentRunId == nil {
             currentRunId = UUID().uuidString
@@ -105,6 +112,7 @@ extension DebugStore {
         runtimeLogs.removeAll()
         instrumentationPoints.removeAll()
         debugMarkers.removeAll()
+        clearStreamLogs()
         nativeSession = .idle
         resetNativeInputs()
         streamingContent = ""
@@ -120,6 +128,13 @@ extension DebugStore {
         debugFindings.removeAll()
         pendingResolutionAfterClean = nil
         currentRunId = nil
+        activeDebugSessionId = nil
+        debugWorkspacePath = nil
+        lastTraceAnalysis = ""
+        lastSnapshotReport = ""
+        lastTimelineReport = ""
+        lastTestCheckReport = ""
+        lastSessionExport = ""
         fixLoopIteration = 0
         debugFlowDiagram = ""
         resetLogFilters()

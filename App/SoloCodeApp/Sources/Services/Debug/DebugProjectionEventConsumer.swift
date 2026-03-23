@@ -25,7 +25,9 @@ enum DebugProjectionEventConsumer {
         switch event {
         case .debugPhaseUpdate, .debugUserRequest, .debugResolved, .debugLog,
              .debugHypothesize, .debugMark, .debugInstrument, .debugClean,
-             .debugSession, .debugNativeSession, .debugQuery, .activateDebugMode:
+             .debugSession, .debugNativeSession, .debugQuery,
+             .debugTraceAnalyze, .debugSnapshot, .debugTimeline, .debugTestCheck,
+             .activateDebugMode:
             return true
         default:
             return false
@@ -114,12 +116,8 @@ enum DebugProjectionEventConsumer {
 
         case .debugResolved(let summary):
             if debugStore.awaitingDebugClean {
-                debugStore.addLog(
-                    severity: .warning,
-                    source: "debug_resolve",
-                    message: "Ignoring debug_resolve while waiting for debug_clean",
-                    category: "system"
-                )
+                let normalizedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+                debugStore.pendingResolutionAfterClean = normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
                 return effects
             }
             let normalizedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -158,7 +156,11 @@ enum DebugProjectionEventConsumer {
                 let updated = debugStore.updateHypothesis(
                     id: hypothesisId,
                     status: status,
-                    evidence: payload.evidence
+                    evidence: payload.evidence,
+                    confidence: payload.confidence,
+                    rootCauseType: payload.rootCauseType,
+                    relatedFiles: payload.relatedFiles,
+                    relatedTests: payload.relatedTests
                 )
                 if !updated {
                     debugStore.addLog(
@@ -182,7 +184,11 @@ enum DebugProjectionEventConsumer {
                     title: title,
                     description: description,
                     status: payload.status ?? .proposed,
-                    evidence: payload.evidence
+                    evidence: payload.evidence,
+                    confidence: payload.confidence ?? 50,
+                    rootCauseType: payload.rootCauseType ?? "",
+                    relatedFiles: payload.relatedFiles,
+                    relatedTests: payload.relatedTests
                 )
             }
 
@@ -263,8 +269,15 @@ enum DebugProjectionEventConsumer {
         case .debugSession(let payload):
             switch payload.action {
             case "start":
+                debugStore.configureLogPersistence(
+                    workspacePath: payload.workspacePath,
+                    sessionId: payload.sessionId
+                )
                 if shouldStartDebugSessionOnAutoActivate(currentPhase: debugStore.phase) {
                     debugStore.startDebugSession(errorContext: payload.detail ?? "")
+                }
+                if let sessionId = payload.sessionId, !sessionId.isEmpty {
+                    debugStore.activeDebugSessionId = sessionId
                 }
             case "clear":
                 debugStore.resetSession()
@@ -272,6 +285,9 @@ enum DebugProjectionEventConsumer {
                 if debugStore.phase != .resolved {
                     debugStore.setPhase(.verifying)
                 }
+                debugStore.activeDebugSessionId = nil
+            case "export":
+                debugStore.lastSessionExport = payload.output ?? payload.detail ?? ""
             default:
                 break
             }
@@ -294,6 +310,55 @@ enum DebugProjectionEventConsumer {
                 message: detail,
                 detail: payload.output,
                 category: "debug"
+            )
+
+        case .debugTraceAnalyze(let payload):
+            let report = payload.output ?? payload.detail ?? ""
+            debugStore.lastTraceAnalysis = report
+            if !report.isEmpty {
+                debugStore.addLog(
+                    severity: .info,
+                    source: "debug_trace_analyze",
+                    message: payload.detail ?? "Trace analysis updated",
+                    detail: payload.output,
+                    category: "debug"
+                )
+            }
+
+        case .debugSnapshot(let payload):
+            let report = payload.output ?? payload.detail ?? ""
+            debugStore.lastSnapshotReport = report
+            if !report.isEmpty {
+                debugStore.addLog(
+                    severity: .info,
+                    source: "debug_snapshot",
+                    message: payload.detail ?? "Snapshot \(payload.action)",
+                    detail: payload.output,
+                    category: "debug"
+                )
+            }
+
+        case .debugTimeline(let payload):
+            let report = payload.output ?? payload.detail ?? ""
+            debugStore.lastTimelineReport = report
+            if !report.isEmpty {
+                debugStore.addLog(
+                    severity: .info,
+                    source: "debug_timeline",
+                    message: payload.detail ?? "Timeline generated",
+                    detail: payload.output,
+                    category: "debug"
+                )
+            }
+
+        case .debugTestCheck(let payload):
+            debugStore.lastTestCheckReport = payload.output ?? payload.detail ?? ""
+            debugStore.addLog(
+                severity: payload.overallStatus == "failed" ? .error : .info,
+                source: "debug_test_check",
+                message: payload.detail ?? "Xcode test verification",
+                detail: payload.output,
+                category: "test"
             )
 
         case .activateDebugMode(let reason):

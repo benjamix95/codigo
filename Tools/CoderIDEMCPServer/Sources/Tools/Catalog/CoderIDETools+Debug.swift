@@ -75,7 +75,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_session",
-            description: "Manage debug sessions and lifecycle snapshots. Supports start/end/stop/clear as well as snapshot/export/stats.",
+            description: "Manage debug sessions and lifecycle snapshots. Supports start, export, stop/end, clear, snapshot, and stats.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -98,6 +98,10 @@ extension CoderIDETools {
                     "description": .object(["type": "string", "description": "Detailed description of the hypothesis"]),
                     "status": .object(["type": "string", "description": "Status: proposed, investigating, confirmed, rejected"]),
                     "evidence": .object(["type": "string", "description": "Supporting evidence for the hypothesis"]),
+                    "confidence": .object(["type": "string", "description": "Confidence level 0-100"]),
+                    "root_cause_type": .object(["type": "string", "description": "Root cause classification"]),
+                    "related_files": .object(["type": "string", "description": "Comma-separated related files"]),
+                    "related_tests": .object(["type": "string", "description": "Comma-separated related tests"]),
                 ]),
                 "required": .array([.string("action")]),
             ]),
@@ -197,11 +201,11 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_test_check",
-            description: "Run targeted test verification for a debug fix.",
+            description: "Run targeted Xcode test verification for a debug fix in the Solo Code workspace.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
-                    "scope": .object(["type": "string", "description": "all|related|failing|file"]),
+                    "scope": .object(["type": "string", "description": "all|related|failing|file|integration"]),
                     "path": .object(["type": "string", "description": "File path used by scope=file/related"]),
                     "filter": .object(["type": "string", "description": "Optional test filter"]),
                     "hypothesis_id": .object(["type": "string", "description": "Use files linked to hypothesis"]),

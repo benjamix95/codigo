@@ -113,8 +113,8 @@ extension OrchestratorMainLoop {
             await scheduler.setPreferredAgentRole(taskId, role: nil)
             await scheduler.updateTaskStatus(taskId, status: .blocked)
 
-        case .retryTask(let taskId, _):
-            await scheduler.scheduleRetry(taskId)
+        case .retryTask(let taskId, let delayMs):
+            await scheduler.scheduleRetry(taskId, delayMs: delayMs)
 
         case .failTask(let taskId, _):
             await scheduler.setPreferredAgentRole(taskId, role: nil)

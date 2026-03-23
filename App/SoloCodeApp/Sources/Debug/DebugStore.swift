@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import CoderEngine
 
@@ -40,6 +41,8 @@ final class DebugStore: ObservableObject {
 
     /// Current reproduce run ID (groups runtime logs from a single reproduce)
     @Published var currentRunId: String?
+    @Published var activeDebugSessionId: String?
+    @Published var debugWorkspacePath: String?
 
     /// Mermaid diagram code for the debug flow (static or agent-generated)
     @Published var debugFlowDiagram: String = ""
@@ -118,8 +121,19 @@ final class DebugStore: ObservableObject {
 
     /// Warning: agent skipped questions (no hypotheses before fix phase).
     @Published var skippedQuestionsWarning: Bool = false
+    @Published var lastTraceAnalysis: String = ""
+    @Published var lastSnapshotReport: String = ""
+    @Published var lastTimelineReport: String = ""
+    @Published var lastTestCheckReport: String = ""
+    @Published var lastSessionExport: String = ""
 
     // MARK: - Log File Monitor
+
+    // MARK: - Real-Time Stream Logs
+
+    @Published var streamLogs: [DebugStreamLogEntry] = []
+    @Published var streamLogNewCount: Int = 0
+    var streamLogCancellable: AnyCancellable?
 
     var logFileMonitorSource: DispatchSourceFileSystemObject?
     var logFileMonitorHandle: FileHandle?
@@ -147,5 +161,6 @@ final class DebugStore: ObservableObject {
             ?? DebugService(configuration: nativeDebugConfiguration)
         self.nativeDebugService = resolvedService
         self.nativeDebugCoordinator = DebugExecutionCoordinator(service: resolvedService)
+        setupStreamLogRelay()
     }
 }

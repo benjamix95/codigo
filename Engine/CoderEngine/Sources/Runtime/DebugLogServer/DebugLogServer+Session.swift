@@ -3,10 +3,12 @@ import Foundation
 public extension DebugLogServer {
     // MARK: - Session Management
 
-    func startSession() -> String {
+    func startSession(workspacePath: String? = nil) -> String {
         ensureLoadedFromDiskIfNeeded()
         let sessionId = UUID().uuidString
         activeSessionId = sessionId
+        activeSessionLogFileURL = workspacePath
+            .flatMap { DebugLogServer.sessionLogFileURL(workspacePath: $0, sessionId: sessionId) }
         let entry = LogEntry(
             severity: "info",
             source: "debug_server",
@@ -31,6 +33,7 @@ public extension DebugLogServer {
             append(entry)
         }
         activeSessionId = nil
+        activeSessionLogFileURL = nil
     }
 
     // MARK: - Write
@@ -182,6 +185,7 @@ public extension DebugLogServer {
         description: String,
         rootCauseType: String,
         relatedFiles: [String],
+        relatedTests: [String],
         evidence: [String]
     ) {
         ensureLoadedFromDiskIfNeeded()
@@ -194,6 +198,7 @@ public extension DebugLogServer {
         ]
         if !rootCauseType.isEmpty { data["root_cause_type"] = rootCauseType }
         if !relatedFiles.isEmpty { data["related_files"] = relatedFiles.joined(separator: ",") }
+        if !relatedTests.isEmpty { data["related_tests"] = relatedTests.joined(separator: ",") }
         if !evidence.isEmpty { data["evidence"] = evidence.joined(separator: "|||") }
 
         append(LogEntry(
@@ -209,7 +214,7 @@ public extension DebugLogServer {
     }
 
     /// Recover persisted hypotheses from log entries after restart.
-    func recoverHypotheses() -> [(id: String, title: String, status: String, confidence: Int, description: String, rootCauseType: String, relatedFiles: [String], evidence: [String])] {
+    func recoverHypotheses() -> [(id: String, title: String, status: String, confidence: Int, description: String, rootCauseType: String, relatedFiles: [String], relatedTests: [String], evidence: [String])] {
         ensureLoadedFromDiskIfNeeded()
         // Find latest hypothesis_state entry per hypothesis_id
         var latestByHypId: [String: LogEntry] = [:]
@@ -227,8 +232,9 @@ public extension DebugLogServer {
             let description = data["description"] ?? ""
             let rootCauseType = data["root_cause_type"] ?? ""
             let relatedFiles = (data["related_files"] ?? "").split(separator: ",").map(String.init).filter { !$0.isEmpty }
+            let relatedTests = (data["related_tests"] ?? "").split(separator: ",").map(String.init).filter { !$0.isEmpty }
             let evidence = (data["evidence"] ?? "").components(separatedBy: "|||").filter { !$0.isEmpty }
-            return (id: hid, title: title, status: status, confidence: confidence, description: description, rootCauseType: rootCauseType, relatedFiles: relatedFiles, evidence: evidence)
+            return (id: hid, title: title, status: status, confidence: confidence, description: description, rootCauseType: rootCauseType, relatedFiles: relatedFiles, relatedTests: relatedTests, evidence: evidence)
         }
     }
 

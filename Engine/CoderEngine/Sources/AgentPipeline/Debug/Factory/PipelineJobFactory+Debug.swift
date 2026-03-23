@@ -55,7 +55,7 @@ extension PipelineJobFactory {
         providerId: String,
         slice: DebugPipelineSlice = .full,
         mode: PipelineMode = .strict,
-        maxConcurrentWorkers: Int = 1,
+        maxConcurrentWorkers: Int = 3,
         jobTimeoutMs: Int = 1_200_000
     ) -> (job: PipelineJob, tasks: [TaskNode]) {
         let jobId = "debug_\(UUID().uuidString.prefix(8))"
@@ -92,7 +92,6 @@ extension PipelineJobFactory {
         )
 
         var tasks: [TaskNode] = []
-        var previousTaskId: String?
 
         func shouldInclude(_ stage: DebugStageKind) -> Bool {
             switch slice {
@@ -100,8 +99,9 @@ extension PipelineJobFactory {
                 return true
             case .intake:
                 switch stage {
-                case .activateMode, .gatherContext, .analyzeIssue, .requestReproduction,
-                     .awaitReproduceGate:
+                case .activateMode, .sessionStart, .setDescribePhase, .gatherContext,
+                     .requestClarification, .analyzeIssue, .setReproducePhase,
+                     .requestReproduction, .awaitReproduceGate:
                     return true
                 default:
                     return false
@@ -109,15 +109,17 @@ extension PipelineJobFactory {
             case .investigation:
                 switch stage {
                 case .nativeStart, .nativeSyncBreakpoints, .nativeSyncWatches,
-                     .reproduce, .instrument, .fix, .reviewFix, .verify,
-                     .awaitFixGate:
+                     .reproduce, .instrument, .setFixPhase, .snapshot,
+                     .hypothesize, .fix, .reviewFix, .setVerifyPhase,
+                     .verify, .awaitFixGate:
                     return true
                 default:
                     return false
                 }
             case .resolution:
                 switch stage {
-                case .clean, .nativeStop, .resolve:
+                case .clean, .nativeStop, .timeline, .sessionExport,
+                     .resolve, .sessionStop:
                     return true
                 default:
                     return false
@@ -125,16 +127,18 @@ extension PipelineJobFactory {
             }
         }
 
+        @discardableResult
         func appendStage(
             _ stage: DebugStageKind,
             title: String,
             taskType: TaskType,
             priority: Int,
+            dependsOn dependencies: [String?] = [],
             fileScope: [String] = request.workspaceHints,
             symbolScope: [String] = [],
             metadata: [String: String] = [:]
-        ) {
-            guard shouldInclude(stage) else { return }
+        ) -> String? {
+            guard shouldInclude(stage) else { return nil }
             let taskId = "task_\(tasks.count)_\(sanitizeDebugId(title))"
             var mergedMetadata = debugBaseMetadata(
                 stage: stage,
@@ -146,7 +150,7 @@ extension PipelineJobFactory {
             var task = TaskNode(
                 taskId: taskId,
                 title: title,
-                dependsOn: previousTaskId.map { [$0] } ?? [],
+                dependsOn: dependencies.compactMap { $0 },
                 priority: priority,
                 risk: riskForDebugStage(stage),
                 taskType: taskType,
@@ -161,136 +165,312 @@ extension PipelineJobFactory {
             )
             task.deriveTaskLabel()
             tasks.append(task)
-            previousTaskId = taskId
+            return taskId
         }
 
-        appendStage(
+        let activateModeId = appendStage(
             .activateMode,
             title: "Activate Debug Mode",
             taskType: .bugfix,
             priority: 100,
             metadata: ["mcp_tool": "activate_debug_mode"]
         )
-        appendStage(
+        let sessionStartId = appendStage(
+            .sessionStart,
+            title: "Start Debug Session",
+            taskType: .bugfix,
+            priority: 99,
+            dependsOn: [activateModeId],
+            metadata: ["mcp_tool": "debug_session", "action": "start"]
+        )
+        let setDescribePhaseId = appendStage(
+            .setDescribePhase,
+            title: "Set Describe Phase",
+            taskType: .bugfix,
+            priority: 98,
+            dependsOn: [sessionStartId],
+            metadata: ["mcp_tool": "debug_set_phase", "phase": "describing"]
+        )
+        let gatherContextId = appendStage(
             .gatherContext,
             title: "Gather Debug Context",
             taskType: .bugfix,
             priority: 96,
+            dependsOn: [setDescribePhaseId],
             metadata: ["debug_tool": "debug_context"]
         )
-        appendStage(
+        let describeQuestionOneId = appendStage(
+            .requestClarification,
+            title: "Request Describe Clarification One",
+            taskType: .bugfix,
+            priority: 95,
+            dependsOn: [gatherContextId],
+            metadata: [
+                "mcp_tool": "debug_request_user",
+                "request_kind": "question",
+                "question_index": "1",
+            ]
+        )
+        let describeQuestionTwoId = appendStage(
+            .requestClarification,
+            title: "Request Describe Clarification Two",
+            taskType: .bugfix,
+            priority: 94,
+            dependsOn: [describeQuestionOneId],
+            metadata: [
+                "mcp_tool": "debug_request_user",
+                "request_kind": "question",
+                "question_index": "2",
+            ]
+        )
+        let analyzeIssueId = appendStage(
             .analyzeIssue,
             title: "Analyze Issue",
             taskType: .bugfix,
             priority: 92,
+            dependsOn: [describeQuestionTwoId ?? describeQuestionOneId ?? gatherContextId],
             metadata: ["debug_tool": "debug_trace_analyze"]
         )
-        appendStage(
+        let setReproducePhaseId = appendStage(
+            .setReproducePhase,
+            title: "Set Reproduce Phase",
+            taskType: .bugfix,
+            priority: 90,
+            dependsOn: [analyzeIssueId],
+            metadata: ["mcp_tool": "debug_set_phase", "phase": "reproducing"]
+        )
+        let requestReproductionId = appendStage(
             .requestReproduction,
             title: "Request Reproduction",
             taskType: .bugfix,
             priority: 88,
-            metadata: ["mcp_tool": "debug_request_user"]
+            dependsOn: [setReproducePhaseId],
+            metadata: ["mcp_tool": "debug_request_user", "request_kind": "reproduce"]
         )
-        appendStage(
+        let awaitReproduceGateId = appendStage(
             .awaitReproduceGate,
             title: "Await Reproduce Confirmation",
             taskType: .bugfix,
             priority: 87,
-            metadata: ["mcp_tool": "debug_request_user", "gate_kind": "reproduce", "user_gate": "true"]
+            dependsOn: [requestReproductionId],
+            metadata: [
+                "mcp_tool": "debug_request_user",
+                "gate_kind": "reproduce",
+                "user_gate": "true",
+            ]
         )
 
+        var nativeBackboneTailId = awaitReproduceGateId
         if request.includeNativeStages {
-            appendStage(
+            let nativeStartId = appendStage(
                 .nativeStart,
                 title: "Start Native Debug Session",
                 taskType: .bugfix,
-                priority: 84
+                priority: 84,
+                dependsOn: [awaitReproduceGateId]
             )
-            appendStage(
+            let nativeSyncBreakpointsId = appendStage(
                 .nativeSyncBreakpoints,
                 title: "Sync Native Breakpoints",
                 taskType: .bugfix,
-                priority: 82
+                priority: 82,
+                dependsOn: [nativeStartId]
             )
-            appendStage(
+            nativeBackboneTailId = appendStage(
                 .nativeSyncWatches,
                 title: "Sync Native Watches",
                 taskType: .bugfix,
-                priority: 80
+                priority: 80,
+                dependsOn: [nativeSyncBreakpointsId]
             )
         }
 
-        appendStage(
+        let reproduceId = appendStage(
             .reproduce,
             title: "Reproduce Bug",
             taskType: .bugfix,
-            priority: 76
+            priority: 76,
+            dependsOn: [nativeBackboneTailId]
         )
-        appendStage(
+        let instrumentId = appendStage(
             .instrument,
             title: "Instrument Runtime",
             taskType: .refactor,
             priority: 72,
+            dependsOn: [reproduceId],
             metadata: ["debug_tool": "debug_instrument"]
         )
-        appendStage(
+        let setFixPhaseId = appendStage(
+            .setFixPhase,
+            title: "Set Fix Phase",
+            taskType: .bugfix,
+            priority: 71,
+            dependsOn: [instrumentId],
+            metadata: ["mcp_tool": "debug_set_phase", "phase": "fixing"]
+        )
+        let beforeFixSnapshotId = appendStage(
+            .snapshot,
+            title: "Capture Before Fix Snapshot",
+            taskType: .bugfix,
+            priority: 70,
+            dependsOn: [setFixPhaseId],
+            metadata: [
+                "debug_tool": "debug_snapshot",
+                "action": "capture",
+                "label": "before-fix",
+            ]
+        )
+        let proposeHypothesisId = appendStage(
+            .hypothesize,
+            title: "Propose Debug Hypothesis",
+            taskType: .bugfix,
+            priority: 69,
+            dependsOn: [beforeFixSnapshotId],
+            metadata: ["debug_tool": "debug_hypothesize", "action": "propose"]
+        )
+        let fixId = appendStage(
             .fix,
             title: "Apply Fix",
             taskType: .bugfix,
-            priority: 68
+            priority: 68,
+            dependsOn: [proposeHypothesisId]
+        )
+        let afterFixSnapshotId = appendStage(
+            .snapshot,
+            title: "Capture After Fix Snapshot",
+            taskType: .bugfix,
+            priority: 67,
+            dependsOn: [fixId],
+            metadata: [
+                "debug_tool": "debug_snapshot",
+                "action": "capture",
+                "label": "after-fix",
+            ]
         )
 
+        let setVerifyPhaseId = appendStage(
+            .setVerifyPhase,
+            title: "Set Verify Phase",
+            taskType: .bugfix,
+            priority: 66,
+            dependsOn: [afterFixSnapshotId],
+            metadata: ["mcp_tool": "debug_set_phase", "phase": "verifying"]
+        )
+
+        let reviewFixId: String?
         if request.includeReviewStage {
-            appendStage(
+            reviewFixId = appendStage(
                 .reviewFix,
                 title: "Review Fix",
                 taskType: .refactor,
-                priority: 64
+                priority: 64,
+                dependsOn: [afterFixSnapshotId]
             )
+        } else {
+            reviewFixId = nil
         }
 
-        appendStage(
+        let verifyId = appendStage(
             .verify,
             title: "Verify Fix",
             taskType: .test,
             priority: 60,
+            dependsOn: [setVerifyPhaseId],
             metadata: ["debug_tool": "debug_test_check"]
         )
+        let compareSnapshotId = appendStage(
+            .snapshot,
+            title: "Compare Fix Snapshots",
+            taskType: .bugfix,
+            priority: 59,
+            dependsOn: [verifyId],
+            metadata: [
+                "debug_tool": "debug_snapshot",
+                "action": "compare",
+                "label": "after-fix",
+                "compare_with": "before-fix",
+            ]
+        )
+        let updateHypothesisId = appendStage(
+            .hypothesize,
+            title: "Update Debug Hypothesis",
+            taskType: .bugfix,
+            priority: 58,
+            dependsOn: [compareSnapshotId],
+            metadata: ["debug_tool": "debug_hypothesize", "action": "update"]
+        )
 
-        appendStage(
+        let awaitFixGateId = appendStage(
             .awaitFixGate,
             title: "Await Fix Confirmation",
             taskType: .bugfix,
             priority: 57,
-            metadata: ["mcp_tool": "debug_request_user", "gate_kind": "fix_confirmation", "user_gate": "true"]
+            dependsOn: [reviewFixId, updateHypothesisId],
+            metadata: [
+                "mcp_tool": "debug_request_user",
+                "gate_kind": "fix_confirmation",
+                "user_gate": "true",
+            ]
         )
 
+        let cleanId: String?
         if request.includeCleanupStage {
-            appendStage(
+            cleanId = appendStage(
                 .clean,
                 title: "Clean Debug Artifacts",
                 taskType: .refactor,
                 priority: 56,
+                dependsOn: [awaitFixGateId],
                 metadata: ["debug_tool": "debug_clean"]
             )
+        } else {
+            cleanId = nil
         }
 
+        let nativeStopId: String?
         if request.includeNativeStages {
-            appendStage(
+            nativeStopId = appendStage(
                 .nativeStop,
                 title: "Stop Native Debug Session",
                 taskType: .bugfix,
-                priority: 52
+                priority: 52,
+                dependsOn: [cleanId ?? awaitFixGateId]
             )
+        } else {
+            nativeStopId = nil
         }
 
-        appendStage(
+        let timelineId = appendStage(
+            .timeline,
+            title: "Build Debug Timeline",
+            taskType: .bugfix,
+            priority: 50,
+            dependsOn: [cleanId ?? awaitFixGateId, nativeStopId],
+            metadata: ["debug_tool": "debug_timeline"]
+        )
+        let sessionExportId = appendStage(
+            .sessionExport,
+            title: "Export Debug Session",
+            taskType: .bugfix,
+            priority: 49,
+            dependsOn: [cleanId ?? awaitFixGateId, nativeStopId],
+            metadata: ["mcp_tool": "debug_session", "action": "export"]
+        )
+        let resolveId = appendStage(
             .resolve,
             title: "Resolve Debug Session",
             taskType: .bugfix,
             priority: 48,
+            dependsOn: [timelineId, sessionExportId],
             metadata: ["mcp_tool": "debug_resolve"]
+        )
+        _ = appendStage(
+            .sessionStop,
+            title: "Stop Debug Session",
+            taskType: .bugfix,
+            priority: 47,
+            dependsOn: [resolveId],
+            metadata: ["mcp_tool": "debug_session", "action": "stop"]
         )
 
         return (job, tasks)

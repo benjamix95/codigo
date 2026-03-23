@@ -129,7 +129,11 @@ extension EventNormalizer {
                 ?? payload["title"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             description: payload["description"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             status: normalizeHypothesisStatus(payload["hypothesis_status"] ?? payload["status"]),
-            evidence: payload["evidence"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            evidence: payload["evidence"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            confidence: Int(payload["confidence"] ?? ""),
+            rootCauseType: payload["root_cause_type"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            relatedFiles: parseStringArray(raw: payload["related_files"] ?? ""),
+            relatedTests: parseStringArray(raw: payload["related_tests"] ?? "")
         )
     }
 
@@ -213,7 +217,9 @@ extension EventNormalizer {
         return DebugSessionToolPayload(
             action: action,
             sessionId: payload["session_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            workspacePath: payload["workspace_path"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             detail: payload["detail"],
+            output: payload["output"],
             status: payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
@@ -228,6 +234,58 @@ extension EventNormalizer {
             output: payload["output"],
             detail: payload["detail"],
             status: payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    static func parseDebugTraceAnalyzePayload(payload: [String: String]) -> DebugTraceAnalyzeToolPayload? {
+        if payload["detail"] == nil, payload["output"] == nil, payload["error_type"] == nil {
+            return nil
+        }
+        return DebugTraceAnalyzeToolPayload(
+            errorType: payload["error_type"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            detail: payload["detail"],
+            output: payload["output"]
+        )
+    }
+
+    static func parseDebugSnapshotPayload(payload: [String: String]) -> DebugSnapshotToolPayload? {
+        let action = payload["action"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if action.isEmpty, payload["detail"] == nil, payload["output"] == nil {
+            return nil
+        }
+        return DebugSnapshotToolPayload(
+            action: action,
+            label: payload["label"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            compareWith: payload["compare_with"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            detail: payload["detail"],
+            output: payload["output"]
+        )
+    }
+
+    static func parseDebugTimelinePayload(payload: [String: String]) -> DebugTimelineToolPayload? {
+        if payload["detail"] == nil, payload["output"] == nil, payload["format"] == nil {
+            return nil
+        }
+        return DebugTimelineToolPayload(
+            format: payload["format"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "text",
+            detail: payload["detail"],
+            output: payload["output"]
+        )
+    }
+
+    static func parseDebugTestCheckPayload(payload: [String: String]) -> DebugTestCheckToolPayload? {
+        if payload["detail"] == nil, payload["output"] == nil, payload["overall_status"] == nil {
+            return nil
+        }
+        return DebugTestCheckToolPayload(
+            scope: payload["scope"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "related",
+            detail: payload["detail"],
+            output: payload["output"],
+            status: payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            overallStatus: payload["overall_status"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            passed: Int(payload["passed"] ?? "") ?? 0,
+            failed: Int(payload["failed"] ?? "") ?? 0,
+            schemes: payload["schemes"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
 

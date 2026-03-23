@@ -2,7 +2,7 @@ import XCTest
 @testable import CoderEngine
 
 final class PipelineDebugJobFactoryTests: XCTestCase {
-    func testFromDebugSessionBuildsDebugJobAndSequentialStages() throws {
+    func testFromDebugSessionBuildsDebugJobAndStructuredDagStages() throws {
         let request = DebugSessionRequest(
             errorSummary: "Crash on launch",
             workspaceHints: ["App/SoloCodeApp/Sources/Debug/DebugStore.swift"],
@@ -23,20 +23,33 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         XCTAssertEqual(job.debugSession?.backendPolicy, .appleHybrid)
         XCTAssertEqual(job.debugSession?.errorSummary, "Crash on launch")
         XCTAssertEqual(tasks.first?.debugStage, .activateMode)
-        XCTAssertEqual(tasks.last?.debugStage, .resolve)
+        XCTAssertEqual(tasks.last?.debugStage, .sessionStop)
 
         XCTAssertTrue(tasks.contains { $0.debugStage == .nativeStart })
         XCTAssertTrue(tasks.contains { $0.debugStage == .reviewFix })
         XCTAssertTrue(tasks.contains { $0.debugStage == .clean })
-
-        for index in 1..<tasks.count {
-            XCTAssertEqual(tasks[index].dependsOn, [tasks[index - 1].taskId])
-        }
+        XCTAssertTrue(tasks.contains { $0.debugStage == .sessionStart })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .setDescribePhase })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .requestClarification })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .snapshot })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .hypothesize })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .timeline })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .sessionExport })
 
         let verifyTask = try XCTUnwrap(tasks.first { $0.debugStage == .verify })
         XCTAssertEqual(verifyTask.executionStyle, .singleAgent)
         XCTAssertEqual(verifyTask.preferredAgentRole, .testWriter)
         XCTAssertEqual(verifyTask.taskType, .test)
+
+        let reviewTask = try XCTUnwrap(tasks.first { $0.debugStage == .reviewFix })
+        let setVerifyPhaseTask = try XCTUnwrap(tasks.first { $0.debugStage == .setVerifyPhase })
+        XCTAssertEqual(Set(reviewTask.dependsOn), Set(setVerifyPhaseTask.dependsOn), "review and verify phase setup should branch from the same fix backbone")
+        XCTAssertEqual(Set(verifyTask.dependsOn), Set([setVerifyPhaseTask.taskId]))
+
+        let resolveTask = try XCTUnwrap(tasks.first { $0.debugStage == .resolve })
+        let timelineTask = try XCTUnwrap(tasks.first { $0.debugStage == .timeline })
+        let exportTask = try XCTUnwrap(tasks.first { $0.debugStage == .sessionExport })
+        XCTAssertEqual(Set(resolveTask.dependsOn), Set([timelineTask.taskId, exportTask.taskId]))
     }
 
     func testFromDebugSessionOmitsOptionalStagesWhenDisabled() {

@@ -20,6 +20,33 @@ extension DebugStore {
         return debugDir.appendingPathComponent(filename)
     }
 
+    var activeDebugLogPath: URL {
+        if let workspace = debugWorkspacePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !workspace.isEmpty {
+            return Self.workspaceDebugLogPath(workspace: workspace, sessionId: activeDebugSessionId)
+        }
+        return Self.defaultDebugLogPath
+    }
+
+    func configureLogPersistence(workspacePath: String?, sessionId: String?) {
+        let normalizedWorkspace = workspacePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedSession = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nextWorkspace = normalizedWorkspace?.isEmpty == false ? normalizedWorkspace : debugWorkspacePath
+        let nextSession = normalizedSession?.isEmpty == false ? normalizedSession : activeDebugSessionId
+        let previousPath = activeDebugLogPath
+
+        debugWorkspacePath = nextWorkspace
+        activeDebugSessionId = nextSession
+
+        let nextPath = activeDebugLogPath
+        guard previousPath != nextPath else { return }
+
+        stopLogFileMonitor()
+        runtimeLogs.removeAll()
+        loadRuntimeLogsFromDisk(path: nextPath)
+        startLogFileMonitor(path: nextPath)
+    }
+
     /// Loads runtime logs from a JSONL file on disk into the runtimeLogs array.
     func loadRuntimeLogsFromDisk(path: URL) {
         guard FileManager.default.fileExists(atPath: path.path) else {
@@ -36,17 +63,12 @@ extension DebugStore {
             var loadedCount = 0
             for line in lines {
                 guard let data = line.data(using: .utf8) else { continue }
-                if let entry = try? decoder.decode(DebugLogJSONLEntry.self, from: data) {
+                if let entry = try? decoder.decode(DebugLogJSONLEntry.self, from: data),
+                   entry.isRuntimeLike {
                     let existing = runtimeLogs.contains { $0.id == entry.id }
                     guard !existing else { continue }
 
-                    addRuntimeLog(
-                        location: entry.source ?? "disk",
-                        message: entry.message ?? "",
-                        data: entry.data ?? [:],
-                        hypothesisId: entry.hypothesisId,
-                        runId: entry.runId
-                    )
+                    addRuntimeLog(entry.runtimeLogEntry(defaultLocation: "disk"))
                     loadedCount += 1
                 }
             }
@@ -100,29 +122,19 @@ extension DebugStore {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
 
-            var entries: [(location: String, message: String, data: [String: String], hypothesisId: String?, runId: String?)] = []
+            var entries: [RuntimeLogEntry] = []
             for line in lines {
                 guard let data = line.data(using: .utf8),
-                      let entry = try? decoder.decode(DebugLogJSONLEntry.self, from: data) else { continue }
-                entries.append((
-                    location: entry.source ?? "live",
-                    message: entry.message ?? "",
-                    data: entry.data ?? [:],
-                    hypothesisId: entry.hypothesisId,
-                    runId: entry.runId
-                ))
+                      let entry = try? decoder.decode(DebugLogJSONLEntry.self, from: data),
+                      entry.isRuntimeLike else { continue }
+                entries.append(entry.runtimeLogEntry(defaultLocation: "live"))
             }
 
             if !entries.isEmpty {
                 DispatchQueue.main.async { [weak self] in
                     for e in entries {
-                        self?.addRuntimeLog(
-                            location: e.location,
-                            message: e.message,
-                            data: e.data,
-                            hypothesisId: e.hypothesisId,
-                            runId: e.runId
-                        )
+                        guard self?.runtimeLogs.contains(where: { $0.id == e.id }) != true else { continue }
+                        self?.addRuntimeLog(e)
                     }
                 }
             }
@@ -157,14 +169,39 @@ struct DebugLogJSONLEntry: Codable {
     let detail: String?
     let category: String?
     let data: [String: String]?
+    let sessionId: String?
     let hypothesisId: String?
     let runId: String?
     let tags: [String]?
 
     enum CodingKeys: String, CodingKey {
         case id, timestamp, severity, source, message, detail, category, data
+        case sessionId = "session_id"
         case hypothesisId = "hypothesis_id"
         case runId = "run_id"
         case tags
+    }
+
+    var isRuntimeLike: Bool {
+        if category == "runtime" || category == "instrumentation" {
+            return true
+        }
+        if let hypothesisId, !hypothesisId.isEmpty {
+            return true
+        }
+        return !(data ?? [:]).isEmpty
+    }
+
+    func runtimeLogEntry(defaultLocation: String) -> RuntimeLogEntry {
+        RuntimeLogEntry(
+            id: id ?? UUID().uuidString,
+            timestamp: timestamp ?? Date(),
+            location: source ?? defaultLocation,
+            message: message ?? "",
+            data: data ?? [:],
+            sessionId: sessionId,
+            runId: runId,
+            hypothesisId: hypothesisId
+        )
     }
 }

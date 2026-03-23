@@ -50,9 +50,9 @@ extension ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "debug_test_check",
-            description: "Run a targeted Swift Package test check to verify a fix or detect regressions. More focused than run_tests: identifies tests related to specific files, runs only those, and compares results with previous runs. Use in the Verify phase after applying a fix.",
+            description: "Run a targeted Xcode test check to verify a fix or detect regressions in the Solo Code workspace. Resolves the appropriate scheme from the touched scope, runs only the needed suites, and compares results with previous runs. Use in the Verify phase after applying a fix.",
             properties: [
-                "scope": ["type": "string", "description": "'all' (run all tests), 'related' (tests related to modified files), 'failing' (only previously failing tests), 'file' (tests in/for a specific file)"],
+                "scope": ["type": "string", "description": "'all' (default app suite), 'related' (tests related to modified files), 'failing' (only previously failing tests), 'file' (tests for a specific file), 'integration' (integration-only scheme)"],
                 "path": ["type": "string", "description": "File path to find related tests for (used with scope=file or scope=related)"],
                 "filter": ["type": "string", "description": "Test name filter pattern"],
                 "hypothesis_id": ["type": "string", "description": "Run tests related to the files in this hypothesis"],

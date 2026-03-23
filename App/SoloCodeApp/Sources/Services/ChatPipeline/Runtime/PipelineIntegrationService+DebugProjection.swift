@@ -21,22 +21,19 @@ extension PipelineIntegrationService {
     func suspendDebugProjection(for conversationId: UUID?) {
         guard let conversationId else { return }
         suppressedDebugProjectionConversationIds.insert(conversationId)
-        pendingDebugEventsByConversation.removeValue(forKey: conversationId)
     }
 
     func resumeDebugProjection(for conversationId: UUID?) {
         guard let conversationId else { return }
         suppressedDebugProjectionConversationIds.remove(conversationId)
+        if let binding = debugStoresByConversation[conversationId],
+           let store = binding.store {
+            flushPendingDebugEvents(for: conversationId, into: store)
+        }
     }
 
     func flushPendingDebugEvents(for conversationId: UUID, into debugStore: DebugStore) {
         guard !suppressedDebugProjectionConversationIds.contains(conversationId) else {
-            let discardedCount = pendingDebugEventsByConversation[conversationId]?.count ?? 0
-            if discardedCount > 0 {
-                NSLog("[DebugProjection] Discarding %d buffered debug events for suppressed conversation %@",
-                      discardedCount, conversationId.uuidString)
-            }
-            pendingDebugEventsByConversation.removeValue(forKey: conversationId)
             return
         }
         guard let pending = pendingDebugEventsByConversation.removeValue(forKey: conversationId) else {
@@ -52,6 +49,7 @@ extension PipelineIntegrationService {
 
     func applyOrBufferDebugEvent(_ event: NormalizedEvent, for conversationId: UUID) {
         guard !suppressedDebugProjectionConversationIds.contains(conversationId) else {
+            bufferDebugEvent(event, for: conversationId)
             return
         }
         if let binding = debugStoresByConversation[conversationId],
@@ -60,6 +58,16 @@ extension PipelineIntegrationService {
             binding.applyEffects(effects)
             return
         }
-        pendingDebugEventsByConversation[conversationId, default: []].append(event)
+        bufferDebugEvent(event, for: conversationId)
+    }
+
+    private func bufferDebugEvent(_ event: NormalizedEvent, for conversationId: UUID) {
+        let limit = 500
+        var pending = pendingDebugEventsByConversation[conversationId, default: []]
+        pending.append(event)
+        if pending.count > limit {
+            pending.removeFirst(pending.count - limit)
+        }
+        pendingDebugEventsByConversation[conversationId] = pending
     }
 }

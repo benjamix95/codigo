@@ -6,6 +6,7 @@ extension DebugStore {
         if success {
             _ = cleanAllDebugMarkers()
             _ = cleanAllInstrumentation()
+            clearStreamLogs()
             let summary = pendingResolutionAfterClean ?? resolutionSummary
             resolveSession(summary: summary.isEmpty ? "Debug session resolved" : summary)
             if let detail, !detail.isEmpty {
@@ -29,6 +30,7 @@ extension DebugStore {
     func markFixed(summary: String) -> (markers: [(filePath: String, markers: [DebugMarker])], instrumentation: [InstrumentationPoint]) {
         let markers = cleanAllDebugMarkers()
         let instrumentation = cleanAllInstrumentation()
+        clearStreamLogs()
         resolveSession(summary: summary)
         return (markers, instrumentation)
     }

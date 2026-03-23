@@ -29,6 +29,10 @@ struct DebugHypothesizeToolPayload {
     let description: String?
     let status: DebugHypothesis.HypothesisStatus?
     let evidence: String?
+    let confidence: Int?
+    let rootCauseType: String?
+    let relatedFiles: [String]
+    let relatedTests: [String]
 }
 
 struct DebugMarkToolPayload {
@@ -58,7 +62,9 @@ struct DebugCleanToolPayload {
 struct DebugSessionToolPayload {
     let action: String
     let sessionId: String?
+    let workspacePath: String?
     let detail: String?
+    let output: String?
     let status: String?
 }
 
@@ -76,6 +82,37 @@ struct DebugQueryToolPayload {
     let output: String?
     let detail: String?
     let status: String?
+}
+
+struct DebugTraceAnalyzeToolPayload {
+    let errorType: String?
+    let detail: String?
+    let output: String?
+}
+
+struct DebugSnapshotToolPayload {
+    let action: String
+    let label: String?
+    let compareWith: String?
+    let detail: String?
+    let output: String?
+}
+
+struct DebugTimelineToolPayload {
+    let format: String
+    let detail: String?
+    let output: String?
+}
+
+struct DebugTestCheckToolPayload {
+    let scope: String
+    let detail: String?
+    let output: String?
+    let status: String?
+    let overallStatus: String?
+    let passed: Int
+    let failed: Int
+    let schemes: String?
 }
 
 struct PlanStepUpsertPayload {
@@ -137,6 +174,10 @@ enum NormalizedEvent {
     case debugSession(DebugSessionToolPayload)
     case debugNativeSession(DebugNativeSessionToolPayload)
     case debugQuery(DebugQueryToolPayload)
+    case debugTraceAnalyze(DebugTraceAnalyzeToolPayload)
+    case debugSnapshot(DebugSnapshotToolPayload)
+    case debugTimeline(DebugTimelineToolPayload)
+    case debugTestCheck(DebugTestCheckToolPayload)
     /// LLM requests to auto-activate plan mode panel
     case activatePlanMode(reason: String?)
     /// LLM requests to auto-activate debug mode panel
