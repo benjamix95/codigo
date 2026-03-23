@@ -13,7 +13,10 @@ pub fn replace_or_update_message(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(conversation_index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
@@ -48,7 +51,10 @@ pub fn sync_assistant_content(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(conversation_index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
@@ -74,7 +80,10 @@ pub fn sync_assistant_pipeline_state(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(message_id) = request.message_id.as_deref() else {
         return MainChatStoreResponse::error("missing_message_id", "messageId is required");
@@ -151,7 +160,10 @@ pub fn save_reasoning(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(conversation_index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
@@ -176,7 +188,10 @@ pub fn save_subagent_cards_to_last_assistant(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(conversation_index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
@@ -215,13 +230,17 @@ pub fn set_streaming_state(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(conversation_index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
     };
     let conversation = &mut snapshot.conversations[conversation_index];
-    let Some(message_index) = assistant_target_index(conversation, request.message_id.as_deref()) else {
+    let Some(message_index) = assistant_target_index(conversation, request.message_id.as_deref())
+    else {
         return MainChatStoreResponse::error("missing_message", "assistant message not found");
     };
     conversation.messages[message_index].is_streaming = request.bool_value.unwrap_or(false);
@@ -233,7 +252,10 @@ pub fn remove_assistant_message_if_empty(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(message_id) = request.message_id.as_deref() else {
         return MainChatStoreResponse::error("missing_message_id", "messageId is required");
@@ -242,7 +264,11 @@ pub fn remove_assistant_message_if_empty(
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
     };
     let conversation = &mut snapshot.conversations[conversation_index];
-    let Some(message_index) = conversation.messages.iter().position(|item| item.id == message_id) else {
+    let Some(message_index) = conversation
+        .messages
+        .iter()
+        .position(|item| item.id == message_id)
+    else {
         return MainChatStoreResponse::error("missing_message", "message not found");
     };
     let message = &conversation.messages[message_index];
