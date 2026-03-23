@@ -166,16 +166,9 @@ extension ChatPanelView {
                 quickCommandPresets: composerQuickCommandPresets,
                 slashCommandPresets: composerSlashCommandPresets,
                 reviewModePresets: composerCodeReviewModePresets,
-                showCodeReviewAutofixToggle: coderMode == .codeReviewMultiSwarm,
                 showPlanRequestIndicator: showPlanRequestIndicator,
                 controlsRow: AnyView(composerControlsRow),
                 voiceState: voiceInputController.state,
-                codeReviewAutofixEnabled: Binding(
-                    get: { !codeReviewAnalysisOnly },
-                    set: { enabled in
-                        codeReviewAnalysisOnly = !enabled
-                    }
-                ),
                 onSend: { handleComposerSend() },
                 onApplyQuickCommand: { text in
                     handleComposerQuickCommand(text, runImmediately: false)

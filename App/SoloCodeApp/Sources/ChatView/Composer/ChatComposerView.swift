@@ -57,12 +57,9 @@ struct ChatComposerView: View {
     let quickCommandPresets: [QuickCommandPreset]
     let slashCommandPresets: [QuickCommandPreset]
     let reviewModePresets: [QuickCommandPreset]
-    let showCodeReviewAutofixToggle: Bool
     let showPlanRequestIndicator: Bool
     let controlsRow: AnyView
     let voiceState: VoiceInputController.State
-
-    @Binding var codeReviewAutofixEnabled: Bool
 
     let onSend: () -> Void
     let onApplyQuickCommand: (String) -> Void
@@ -94,9 +91,6 @@ struct ChatComposerView: View {
                 }
                 if !reviewModePresets.isEmpty {
                     reviewModeRow
-                }
-                if showCodeReviewAutofixToggle {
-                    codeReviewAutofixToggleRow
                 }
             }
             .padding(isIDEStyle ? 8 : 12)

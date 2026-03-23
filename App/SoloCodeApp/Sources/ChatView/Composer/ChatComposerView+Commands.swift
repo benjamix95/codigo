@@ -166,57 +166,6 @@ extension ChatComposerView {
         )
     }
 
-    internal var codeReviewAutofixToggleRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(activeModeColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Code Review")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Text(codeReviewAutofixEnabled
-                    ? "Autofix: analysis + parallel fix workers + test loop"
-                    : "Discovery: analysis only, no automatic fixes")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer()
-            Toggle(isOn: $codeReviewAutofixEnabled) {
-                Text(codeReviewAutofixEnabled ? "Autofix" : "Discovery")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(codeReviewAutofixEnabled ? DesignSystem.Colors.success : .secondary)
-            }
-            .toggleStyle(.switch)
-            .labelsHidden()
-            Text(codeReviewAutofixEnabled ? "Autofix" : "Discovery")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(codeReviewAutofixEnabled ? DesignSystem.Colors.success : .secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    (codeReviewAutofixEnabled ? DesignSystem.Colors.success : activeModeColor)
-                        .opacity(0.12),
-                    in: Capsule()
-                )
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.46))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(
-                    (codeReviewAutofixEnabled ? DesignSystem.Colors.success : activeModeColor)
-                        .opacity(0.25),
-                    lineWidth: 0.6
-                )
-        )
-    }
-
     internal var providerNotReadyBanner: some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
