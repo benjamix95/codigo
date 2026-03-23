@@ -118,9 +118,7 @@ enum ThreadProviderSelectionService {
         registry.providers.map { provider in
             ThreadProviderRegistryEntryBridge(
                 id: provider.id,
-                // Keep startup provider resolution cheap. Runtime/send paths and
-                // async auth refresh perform the real authentication checks.
-                isAuthenticated: true
+                isAuthenticated: provider.isAuthenticated()
             )
         }
     }

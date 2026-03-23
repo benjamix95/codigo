@@ -128,6 +128,51 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(resolved?.claudeAllowedTools, ["Read", "Glob", "Grep"])
     }
 
+    func testReadOnlyPlanProviderResolutionPrefersRustResolvedBackendAndConfig() {
+        var config = makeProviderFactoryConfig(codexPath: "")
+        config.planModeBackend = "codex"
+        let resolved = MainChatRustResolvedProviderConfig(
+            providerId: "openai-api",
+            backend: .openaiApi,
+            model: "gpt-5",
+            apiKey: "sk-openai",
+            baseURL: "https://api.openai.com/v1/chat/completions",
+            extraHeaders: [:],
+            codexSandbox: "workspace-read",
+            codexSessionFullAccess: false,
+            claudeAllowedTools: ["Read", "Glob", "Grep"]
+        )
+
+        let resolution = readOnlyPlanProviderResolution(
+            baseConfig: config,
+            selectedProviderId: "codex-cli",
+            rustResolvedConfig: resolved
+        )
+
+        XCTAssertEqual(resolution.backendId, "openai-api")
+        XCTAssertEqual(resolution.config.openaiApiKey, "sk-openai")
+        XCTAssertEqual(resolution.config.openaiModel, "gpt-5")
+        XCTAssertEqual(resolution.config.codexSandbox, "workspace-read")
+        XCTAssertFalse(resolution.config.codexSessionFullAccess)
+        XCTAssertEqual(resolution.config.claudeAllowedTools, ["Read", "Glob", "Grep"])
+    }
+
+    func testReadOnlyPlanProviderResolutionFallsBackToLegacyReadOnlyPolicyWhenRustConfigMissing() {
+        var config = makeProviderFactoryConfig(codexPath: "")
+        config.planModeBackend = "claude"
+
+        let resolution = readOnlyPlanProviderResolution(
+            baseConfig: config,
+            selectedProviderId: "codex-cli",
+            rustResolvedConfig: nil
+        )
+
+        XCTAssertEqual(resolution.backendId, "claude")
+        XCTAssertEqual(resolution.config.codexSandbox, "workspace-read")
+        XCTAssertFalse(resolution.config.codexSessionFullAccess)
+        XCTAssertEqual(resolution.config.claudeAllowedTools, ["Read", "Glob", "Grep"])
+    }
+
     func testRustTransportBypassDoesNotTriggerForCodexWhenRuntimeEnabled() {
         var config = makeProviderFactoryConfig(codexPath: "")
         config.unifiedToolRuntimeEnabled = true

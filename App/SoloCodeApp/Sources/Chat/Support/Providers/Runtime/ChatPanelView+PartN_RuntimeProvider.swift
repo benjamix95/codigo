@@ -3,6 +3,50 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func readOnlyPlanProviderResolution(
+    baseConfig: ProviderFactoryConfig,
+    selectedProviderId: String?,
+    rustResolvedConfig: MainChatRustResolvedProviderConfig?
+) -> (backendId: String, config: ProviderFactoryConfig) {
+    var config = baseConfig
+    if let rustResolvedConfig {
+        switch rustResolvedConfig.providerId {
+        case "codex-cli":
+            config.codexModelOverride = rustResolvedConfig.model ?? config.codexModelOverride
+        case "claude-cli":
+            config.claudeModel = rustResolvedConfig.model ?? config.claudeModel
+        case "gemini-cli":
+            config.geminiModelOverride = rustResolvedConfig.model ?? config.geminiModelOverride
+        case "openai-api":
+            config.openaiApiKey = rustResolvedConfig.apiKey ?? config.openaiApiKey
+            config.openaiModel = rustResolvedConfig.model ?? config.openaiModel
+        case "anthropic-api":
+            config.anthropicApiKey = rustResolvedConfig.apiKey ?? config.anthropicApiKey
+            config.anthropicModel = rustResolvedConfig.model ?? config.anthropicModel
+        case "google-api":
+            config.googleApiKey = rustResolvedConfig.apiKey ?? config.googleApiKey
+            config.googleModel = rustResolvedConfig.model ?? config.googleModel
+        default:
+            break
+        }
+        config.codexSessionFullAccess = rustResolvedConfig.codexSessionFullAccess
+        config.codexSandbox = rustResolvedConfig.codexSandbox ?? config.codexSandbox
+        config.claudeAllowedTools = rustResolvedConfig.claudeAllowedTools
+        return (rustResolvedConfig.providerId, config)
+    }
+
+    // Legacy fallback only when Rust transport resolution is unavailable.
+    config.codexSessionFullAccess = false
+    config.codexSandbox = "workspace-read"
+    config.claudeAllowedTools = ["Read", "Glob", "Grep"]
+
+    let resolvedBackend = ProviderFactory.resolveSwarmBackendId(
+        configuredBackendId: config.planModeBackend,
+        agentProviderId: selectedProviderId
+    )
+    return (resolvedBackend, config)
+}
+
 func shouldUseCodeReviewRuntimeProvider(
     coderMode: CoderMode,
     preferredOverride: Bool? = nil
@@ -12,27 +56,32 @@ func shouldUseCodeReviewRuntimeProvider(
 
 extension ChatPanelView {
     private func resolveReadOnlyPlanRuntimeProvider() -> (any LLMProvider)? {
-        var config = providerFactoryConfig()
-        // Planning must stay strictly read-only, even if the user enabled broader defaults.
-        config.codexSessionFullAccess = false
-        config.codexSandbox = "workspace-read"
-        config.claudeAllowedTools = ["Read", "Glob", "Grep"]
-
-        let resolvedBackend = ProviderFactory.resolveSwarmBackendId(
-            configuredBackendId: config.planModeBackend,
-            agentProviderId: providerRegistry.selectedProviderId
+        let baseConfig = providerFactoryConfig()
+        let resolved = MainChatRustTransportSupport.resolveTransportConfig(
+            selectedProviderId: providerRegistry.selectedProviderId,
+            fallbackSelectedProviderId: providerRegistry.selectedProviderId,
+            coderMode: .plan,
+            shouldRunPlanInline: false,
+            forcePlanInline: false,
+            preferCodeReviewRuntimeProvider: nil,
+            config: baseConfig
+        )
+        let resolution = readOnlyPlanProviderResolution(
+            baseConfig: baseConfig,
+            selectedProviderId: providerRegistry.selectedProviderId,
+            rustResolvedConfig: resolved
         )
 
         guard let provider = ProviderFactory.resolveSwarmBackendProvider(
-            backendId: resolvedBackend,
-            config: config,
+            backendId: resolution.backendId,
+            config: resolution.config,
             executionController: executionController,
-            toolPolicyOverride: ProviderFactory.toolRuntimeReadOnlyPolicy(from: config),
+            toolPolicyOverride: ProviderFactory.toolRuntimeReadOnlyPolicy(from: resolution.config),
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: runtimeWorkspacePaths
         ) else {
             appendTechnicalErrorMessage(
-                "[Plan Mode] Failed to create read-only plan provider for backend '\(resolvedBackend)'. Check plan backend settings and authentication.",
+                "[Plan Mode] Failed to create read-only plan provider for backend '\(resolution.backendId)'. Check plan backend settings and authentication.",
                 in: conversationId
             )
             return nil

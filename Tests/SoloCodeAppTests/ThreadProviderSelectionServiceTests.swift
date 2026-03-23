@@ -78,6 +78,22 @@ final class ThreadProviderSelectionServiceTests: XCTestCase {
         XCTAssertEqual(resolved, "openai-api")
     }
 
+    func testUnauthenticatedRegistrySelectionDoesNotMaskHealthyFallback() {
+        let registry = ProviderRegistry()
+        registry.register(ThreadProviderMockProvider(id: "codex-cli", authenticated: false))
+        registry.register(ThreadProviderMockProvider(id: "claude-cli", authenticated: false))
+        registry.register(ThreadProviderMockProvider(id: "openai-api", authenticated: true))
+        let conversation = Conversation(mode: nil, preferredProviderId: nil)
+
+        let resolved = ThreadProviderSelectionService.resolveProviderId(
+            conversation: conversation,
+            currentProviderId: nil,
+            registry: registry
+        )
+
+        XCTAssertEqual(resolved, "openai-api")
+    }
+
     func testMissingBoundProviderReturnsUnregisteredAllowedProvider() {
         let registry = ProviderRegistry()
         registry.register(ThreadProviderMockProvider(id: "codex-cli", authenticated: true))
