@@ -35,6 +35,7 @@ enum CLIProfileProvisioner {
         let profile = defaultCodexProfileURL(baseProfilesRoot: baseProfilesRoot)
         try? FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
         ensureCodexProfileFiles(at: profile, overwrite: false)
+        syncDefaultCodexAuthIfNeeded(baseProfilesRoot: baseProfilesRoot)
         return profile.path
     }
 
@@ -70,5 +71,64 @@ enum CLIProfileProvisioner {
     /// Repairs a Codex profile without overwriting user customizations.
     static func selfHealCodexProfile(at profileURL: URL) {
         ensureCodexProfileFiles(at: profileURL, overwrite: false)
+    }
+
+    static func syncDefaultCodexAuthIfNeeded(
+        baseProfilesRoot: URL? = nil,
+        sourceAuthPath: String? = nil
+    ) {
+        let profileURL = defaultCodexProfileURL(baseProfilesRoot: baseProfilesRoot)
+        let targetAuthURL = profileURL.appendingPathComponent("auth.json")
+        let sourceURL = URL(fileURLWithPath: sourceAuthPath ?? "\(NSHomeDirectory())/.codex/auth.json")
+
+        guard FileManager.default.fileExists(atPath: sourceURL.path),
+              codexAuthFileLooksValid(at: sourceURL) else {
+            return
+        }
+        if sourceURL.standardizedFileURL == targetAuthURL.standardizedFileURL {
+            return
+        }
+
+        let shouldCopy: Bool
+        if !FileManager.default.fileExists(atPath: targetAuthURL.path) {
+            shouldCopy = true
+        } else if !codexAuthFileLooksValid(at: targetAuthURL) {
+            shouldCopy = true
+        } else {
+            let sourceDate = (try? sourceURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            let targetDate = (try? targetAuthURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            shouldCopy = (sourceDate ?? .distantPast) > (targetDate ?? .distantPast)
+        }
+
+        guard shouldCopy else { return }
+        try? FileManager.default.createDirectory(at: profileURL, withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: targetAuthURL)
+        try? FileManager.default.copyItem(at: sourceURL, to: targetAuthURL)
+    }
+
+    private static func codexAuthFileLooksValid(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        if let apiKey = (json["OPENAI_API_KEY"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !apiKey.isEmpty {
+            return true
+        }
+        if let token = (json["token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !token.isEmpty {
+            return true
+        }
+        if let accessToken = (json["access_token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !accessToken.isEmpty {
+            return true
+        }
+        if let tokens = json["tokens"] as? [String: Any] {
+            let nestedAccess = (tokens["access_token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let nestedId = (tokens["id_token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let nestedRefresh = (tokens["refresh_token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !nestedAccess.isEmpty || !nestedId.isEmpty || !nestedRefresh.isEmpty
+        }
+        return false
     }
 }

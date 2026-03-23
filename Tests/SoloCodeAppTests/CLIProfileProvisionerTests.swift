@@ -206,6 +206,36 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertEqual(config, expectedCodexConfig(using: fakeMCP.path))
     }
 
+    func testDefaultCodexProfilePathCopiesGlobalAuthIntoManagedDefaultProfile() throws {
+        let managedRoot = try makeTemporaryProfileDirectory()
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
+        let sourceAuthDir = try makeTemporaryProfileDirectory()
+        let sourceAuthURL = sourceAuthDir.appendingPathComponent("auth.json")
+        try """
+        {
+          "auth_mode": "chatgpt",
+          "tokens": {
+            "access_token": "access-token",
+            "refresh_token": "refresh-token"
+          }
+        }
+        """.write(to: sourceAuthURL, atomically: true, encoding: .utf8)
+
+        let profilePath = withMCPServerPathOverride(fakeMCP.path) {
+            CLIProfileProvisioner.defaultCodexProfilePath(baseProfilesRoot: managedRoot)
+        }
+        CLIProfileProvisioner.syncDefaultCodexAuthIfNeeded(
+            baseProfilesRoot: managedRoot,
+            sourceAuthPath: sourceAuthURL.path
+        )
+
+        let profileURL = URL(fileURLWithPath: profilePath, isDirectory: true)
+        let copiedAuthURL = profileURL.appendingPathComponent("auth.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: copiedAuthURL.path))
+        let copied = try String(contentsOf: copiedAuthURL, encoding: .utf8)
+        XCTAssertTrue(copied.contains("\"access_token\": \"access-token\""))
+    }
+
     func testClaudeEnvironmentOverridesIsolateHomePerProfile() throws {
         let profile = try makeTemporaryProfileDirectory()
 
