@@ -196,6 +196,14 @@ pub enum MainChatRuntimeUIEventKind {
     Error,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum MainChatRuntimeSignalKind {
+    FirstEvent,
+    FirstTextDelta,
+    StreamCompleted,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MainChatRuntimeUIEvent {
@@ -225,6 +233,8 @@ pub struct MainChatRuntimeProviderPollResponse {
     pub error: Option<MainChatBridgeError>,
     pub runtime_snapshot: Option<MainChatRuntimeSnapshot>,
     #[serde(default)]
+    pub signals: Vec<MainChatRuntimeSignalKind>,
+    #[serde(default)]
     pub ui_events: Vec<MainChatRuntimeUIEvent>,
     #[serde(default)]
     pub provider_events: Vec<MainChatProviderEvent>,
@@ -237,6 +247,7 @@ pub struct MainChatRuntimeProviderPollResponse {
 impl MainChatRuntimeProviderPollResponse {
     pub fn success(
         runtime_snapshot: MainChatRuntimeSnapshot,
+        signals: Vec<MainChatRuntimeSignalKind>,
         ui_events: Vec<MainChatRuntimeUIEvent>,
         provider_events: Vec<MainChatProviderEvent>,
         is_terminal: bool,
@@ -246,6 +257,7 @@ impl MainChatRuntimeProviderPollResponse {
             schema_version: 1,
             error: None,
             runtime_snapshot: Some(runtime_snapshot),
+            signals,
             ui_events,
             provider_events,
             is_terminal,
@@ -261,6 +273,7 @@ impl MainChatRuntimeProviderPollResponse {
                 message: message.to_string(),
             }),
             runtime_snapshot: None,
+            signals: Vec::new(),
             ui_events: Vec::new(),
             provider_events: Vec::new(),
             is_terminal: false,

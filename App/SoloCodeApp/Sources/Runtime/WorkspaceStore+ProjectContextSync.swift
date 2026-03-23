@@ -167,18 +167,22 @@ final class ConversationFlowCoordinator: ObservableObject {
                 throw StreamExecutionError.providerError("Rust main chat provider runtime poll unavailable.")
             }
 
-            let hadAnyEvent = runtimeSnapshot.hasReceivedAnyEvent
-            let hadFirstText = runtimeSnapshot.emittedFirstText
             runtimeSnapshot = nextSnapshot
             setDirectRuntimeSnapshot(nextSnapshot)
             turnState = nextSnapshot.turnState.chatTurnState
             let eventTimestamp = Date()
 
-            if !hadAnyEvent && runtimeSnapshot.hasReceivedAnyEvent {
-                await MainActor.run { onSignal?(.firstEvent(eventTimestamp)) }
-            }
-            if !hadFirstText && runtimeSnapshot.emittedFirstText {
-                await MainActor.run { onSignal?(.firstTextDelta(eventTimestamp)) }
+            for signal in response.signals {
+                await MainActor.run {
+                    switch signal {
+                    case .firstEvent:
+                        onSignal?(.firstEvent(eventTimestamp))
+                    case .firstTextDelta:
+                        onSignal?(.firstTextDelta(eventTimestamp))
+                    case .streamCompleted:
+                        onSignal?(.streamCompleted(eventTimestamp))
+                    }
+                }
             }
 
             for event in response.uiEvents {
@@ -199,7 +203,6 @@ final class ConversationFlowCoordinator: ObservableObject {
                     await setState(.error)
                     throw StreamExecutionError.providerError(message)
                 case .completed:
-                    await MainActor.run { onSignal?(.streamCompleted(eventTimestamp)) }
                     await setState(.completed)
                     return turnState.primaryTextSnapshot
                 }
@@ -241,8 +244,6 @@ final class ConversationFlowCoordinator: ObservableObject {
 }
 
 private extension MainChatRuntimeSnapshotBridge {
-    var hasReceivedAnyEvent: Bool { directStream?.hasReceivedAnyEvent == true }
-    var emittedFirstText: Bool { directStream?.emittedFirstText == true }
     var currentPollTimeoutSeconds: Int? {
         guard let directStream else { return nil }
         return directStream.hasReceivedAnyEvent ? directStream.activityTimeoutSec : directStream.firstEventTimeoutSec

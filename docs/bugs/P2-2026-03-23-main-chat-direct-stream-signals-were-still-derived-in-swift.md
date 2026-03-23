@@ -1,0 +1,42 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: nel direct stream runtime della main chat i segnali `firstEvent`, `firstTextDelta` e `streamCompleted` erano ancora derivati nel coordinator Swift confrontando snapshot locali.
+- Sintomo: `WorkspaceStore+ProjectContextSync.swift` deduceva ancora localmente:
+  - primo evento ricevuto
+  - primo delta testuale
+  - completamento dello stream
+- Impatto: l’ultima parte della state machine del direct stream restava ibrida, con Rust owner della riduzione eventi ma Swift owner del lifecycle signaling.
+- Gravità: media
+- Steps to reproduce:
+  1. Eseguire un direct stream Rust-backed.
+  2. Osservare il loop `runRustTransportStream(...)`.
+  3. Verificare che i callback `onSignal` dipendessero ancora dal confronto snapshot precedente vs snapshot successivo.
+- Risultato attuale: Swift deduceva il lifecycle del direct stream dal delta tra snapshot.
+- Risultato atteso: il poll runtime Rust deve restituire segnali lifecycle espliciti e Swift deve solo applicarli.
+- Causa probabile: il boundary `runtime_provider_poll` restituiva snapshot ed eventi UI, ma non esponeva ancora i segnali di lifecycle già risolti dal core.
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_runtime.rs`
+  - `Native/RustCore/src/main_chat/runtime_provider_poll.rs`
+  - `App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift`
+  - `App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift`
+  - `Tests/SoloCodeAppTests/ConversationFlowCoordinatorTests.swift`
+- Non-scope:
+  - file UI sporchi del dominio chat
+  - `ChatPanelSupport+Core.swift`
+  - pipeline generic/shared provider stack
+- Moduli confinanti da verificare:
+  - `runtime_provider_poll` Rust tests
+  - `ConversationFlowCoordinatorTests`
+- Test da aggiungere o aggiornare:
+  - regression Rust sui segnali `firstEvent` / `firstTextDelta`
+  - regression Rust sul segnale `streamCompleted`
+  - regression Swift che verifica l’uso dei segnali Rust anche senza snapshot diff locale
+- Strategia di fix minimo:
+  - estendere il protocollo `main_chat_runtime` con una lista di segnali runtime
+  - emettere i segnali nel poll Rust
+  - rimuovere il confronto snapshot host-side in `runRustTransportStream(...)`
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml runtime_provider_poll -- --nocapture`
+  - `cargo test --manifest-path Native/AppCoreProtocol/Cargo.toml --quiet`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ConversationFlowCoordinatorTests`
+- Commit previsto: `refactor(chat): move direct stream lifecycle signals into rust`

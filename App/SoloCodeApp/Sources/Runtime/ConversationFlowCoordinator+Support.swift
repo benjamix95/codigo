@@ -42,6 +42,12 @@ enum MainChatRuntimeUIEventKindBridge: String, Decodable {
     case error
 }
 
+enum MainChatRuntimeSignalKindBridge: String, Decodable {
+    case firstEvent
+    case firstTextDelta
+    case streamCompleted
+}
+
 struct MainChatRuntimeUIEventBridge: Decodable {
     let kind: MainChatRuntimeUIEventKindBridge
     let text: String
@@ -61,6 +67,7 @@ struct MainChatRuntimeProviderPollBridgeResponse: Decodable {
     let schemaVersion: Int
     let error: MainChatBridgeError?
     let runtimeSnapshot: MainChatRuntimeSnapshotBridge?
+    var signals: [MainChatRuntimeSignalKindBridge] = []
     let uiEvents: [MainChatRuntimeUIEventBridge]
     let isTerminal: Bool
     let didTimeout: Bool

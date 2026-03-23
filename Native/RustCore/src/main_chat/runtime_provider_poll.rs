@@ -5,7 +5,7 @@ use app_core_protocol::main_chat_provider::{
 };
 use app_core_protocol::main_chat_runtime::{
     MainChatRuntimeActionRequest, MainChatRuntimeProviderPollRequest, MainChatRuntimeProviderPollResponse,
-    MainChatRuntimeUIEvent, MainChatRuntimeUIEventKind,
+    MainChatRuntimeSignalKind, MainChatRuntimeUIEvent, MainChatRuntimeUIEventKind,
 };
 
 pub fn poll_provider_runtime(
@@ -30,6 +30,16 @@ pub fn poll_provider_runtime(
     let provider_events = session_response.events;
     let session_snapshot = session_response.snapshot;
     let mut runtime_snapshot = request.snapshot;
+    let had_any_event = runtime_snapshot
+        .direct_stream
+        .as_ref()
+        .map(|item| item.has_received_any_event)
+        .unwrap_or(false);
+    let had_first_text = runtime_snapshot
+        .direct_stream
+        .as_ref()
+        .map(|item| item.emitted_first_text)
+        .unwrap_or(false);
     let had_events = !provider_events.is_empty();
 
     for event in &provider_events {
@@ -37,6 +47,7 @@ pub fn poll_provider_runtime(
     }
 
     let mut is_terminal = false;
+    let mut signals: Vec<MainChatRuntimeSignalKind> = Vec::new();
     let mut ui_events: Vec<MainChatRuntimeUIEvent> =
         provider_events.iter().map(ui_event).collect();
     if let Some(snapshot) = session_snapshot {
@@ -44,6 +55,7 @@ pub fn poll_provider_runtime(
             "completed" => {
                 is_terminal = true;
                 runtime_snapshot = complete_runtime(runtime_snapshot);
+                signals.push(MainChatRuntimeSignalKind::StreamCompleted);
                 ui_events.push(MainChatRuntimeUIEvent {
                     kind: MainChatRuntimeUIEventKind::Completed,
                     text: String::new(),
@@ -72,6 +84,7 @@ pub fn poll_provider_runtime(
             "cancelled" => {
                 is_terminal = true;
                 runtime_snapshot = interrupt_runtime(runtime_snapshot);
+                signals.push(MainChatRuntimeSignalKind::StreamCompleted);
                 ui_events.push(MainChatRuntimeUIEvent {
                     kind: MainChatRuntimeUIEventKind::Completed,
                     text: String::new(),
@@ -131,8 +144,26 @@ pub fn poll_provider_runtime(
         }
     }
 
+    let has_any_event = runtime_snapshot
+        .direct_stream
+        .as_ref()
+        .map(|item| item.has_received_any_event)
+        .unwrap_or(false);
+    let has_first_text = runtime_snapshot
+        .direct_stream
+        .as_ref()
+        .map(|item| item.emitted_first_text)
+        .unwrap_or(false);
+    if !had_any_event && has_any_event {
+        signals.push(MainChatRuntimeSignalKind::FirstEvent);
+    }
+    if !had_first_text && has_first_text {
+        signals.push(MainChatRuntimeSignalKind::FirstTextDelta);
+    }
+
     MainChatRuntimeProviderPollResponse::success(
         runtime_snapshot,
+        signals,
         ui_events,
         provider_events,
         is_terminal,
@@ -285,7 +316,8 @@ mod tests {
         MainChatProviderBackend, MainChatProviderSessionConfig, MainChatProviderSessionStartRequest,
     };
     use app_core_protocol::main_chat_runtime::{
-        MainChatRuntimeProviderPollRequest, MainChatRuntimeSnapshot, MainChatRuntimeUIEventKind,
+        MainChatRuntimeProviderPollRequest, MainChatRuntimeSignalKind, MainChatRuntimeSnapshot,
+        MainChatRuntimeUIEventKind,
     };
 
     #[test]
@@ -356,9 +388,55 @@ mod tests {
         });
         let snapshot = response.runtime_snapshot.expect("runtime snapshot");
         assert_eq!(
+            response.signals,
+            vec![
+                MainChatRuntimeSignalKind::FirstEvent,
+                MainChatRuntimeSignalKind::FirstTextDelta
+            ]
+        );
+        assert_eq!(
             snapshot.turn_state.text_by_stream_id.get("main").map(String::as_str),
             Some("ciao")
         );
+    }
+
+    #[test]
+    fn poll_provider_runtime_emits_stream_completed_signal_for_cancelled_terminal_snapshot() {
+        let session_id = "runtime-provider-poll-cancelled".to_string();
+        let _ = start_session(MainChatProviderSessionStartRequest {
+            schema_version: 1,
+            session_id: session_id.clone(),
+            config: MainChatProviderSessionConfig {
+                provider_id: "codex-cli".to_string(),
+                display_name: "Codex".to_string(),
+                backend: MainChatProviderBackend::CodexCli,
+                workspace_path: ".".to_string(),
+                workspace_paths: vec![".".to_string()],
+                prompt: "hello".to_string(),
+                ..Default::default()
+            },
+        });
+        let _ = crate::main_chat::providers::cancel_session(
+            app_core_protocol::main_chat_provider::MainChatProviderSessionRequest {
+                schema_version: 1,
+                session_id: session_id.clone(),
+            },
+        );
+
+        let response = poll_provider_runtime(MainChatRuntimeProviderPollRequest {
+            schema_version: 1,
+            session_id,
+            provider_id: "codex-cli".to_string(),
+            snapshot: MainChatRuntimeSnapshot::default(),
+            timeout_ms: 50,
+        });
+        assert!(response
+            .signals
+            .contains(&MainChatRuntimeSignalKind::StreamCompleted));
+        assert!(response
+            .ui_events
+            .iter()
+            .any(|event| event.kind == MainChatRuntimeUIEventKind::Completed));
     }
 
 }

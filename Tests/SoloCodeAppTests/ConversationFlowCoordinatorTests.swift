@@ -276,6 +276,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                 schemaVersion: 1,
                 error: nil,
                 runtimeSnapshot: snapshot,
+                signals: [],
                 uiEvents: [
                     MainChatRuntimeUIEventBridge(
                         kind: .textDelta,
@@ -318,6 +319,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                 schemaVersion: 1,
                 error: nil,
                 runtimeSnapshot: snapshot,
+                signals: [],
                 uiEvents: [
                     MainChatRuntimeUIEventBridge(
                         kind: .textDelta,
@@ -419,6 +421,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                 schemaVersion: 1,
                 error: nil,
                 runtimeSnapshot: snapshot,
+                signals: [],
                 uiEvents: [
                     MainChatRuntimeUIEventBridge(
                         kind: .error,
@@ -493,10 +496,117 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(coordinator.state, .error)
     }
+
+    func testRunStreamUsesRustPollSignalsInsteadOfSnapshotDiffForLifecycleCallbacks() async throws {
+        let polls = RuntimePollQueue()
+        polls.enqueue { request in
+            var snapshot = request.snapshot
+            snapshot.turnState = MainChatBridgeState(
+                conversationId: snapshot.turnState.conversationId,
+                assistantMessageId: snapshot.turnState.assistantMessageId,
+                turnId: snapshot.turnState.turnId,
+                providerId: snapshot.turnState.providerId,
+                sequence: snapshot.turnState.sequence,
+                isStreaming: true,
+                startedAt: snapshot.turnState.startedAt,
+                completedAt: snapshot.turnState.completedAt,
+                updatedAt: snapshot.turnState.updatedAt,
+                status: "streaming",
+                orderedTextStreamIds: ["main"],
+                textByStreamId: ["main": "ciao"],
+                reasoningByGroupId: snapshot.turnState.reasoningByGroupId,
+                artifacts: snapshot.turnState.artifacts
+            )
+            snapshot.directStream?.hasReceivedAnyEvent = false
+            snapshot.directStream?.emittedFirstText = false
+            return MainChatRuntimeProviderPollBridgeResponse(
+                schemaVersion: 1,
+                error: nil,
+                runtimeSnapshot: snapshot,
+                signals: [.firstEvent, .firstTextDelta],
+                uiEvents: [
+                    MainChatRuntimeUIEventBridge(
+                        kind: .textDelta,
+                        text: "ciao",
+                        rawType: nil,
+                        payload: [:]
+                    )
+                ],
+                isTerminal: false,
+                didTimeout: false
+            )
+        }
+        polls.enqueue { request in
+            var snapshot = request.snapshot
+            snapshot.turnState = MainChatBridgeState(
+                conversationId: snapshot.turnState.conversationId,
+                assistantMessageId: snapshot.turnState.assistantMessageId,
+                turnId: snapshot.turnState.turnId,
+                providerId: snapshot.turnState.providerId,
+                sequence: snapshot.turnState.sequence,
+                isStreaming: false,
+                startedAt: snapshot.turnState.startedAt,
+                completedAt: Date(),
+                updatedAt: snapshot.turnState.updatedAt,
+                status: "completed",
+                orderedTextStreamIds: ["main"],
+                textByStreamId: ["main": "ciao"],
+                reasoningByGroupId: snapshot.turnState.reasoningByGroupId,
+                artifacts: snapshot.turnState.artifacts
+            )
+            return MainChatRuntimeProviderPollBridgeResponse(
+                schemaVersion: 1,
+                error: nil,
+                runtimeSnapshot: snapshot,
+                signals: [.streamCompleted],
+                uiEvents: [
+                    MainChatRuntimeUIEventBridge(
+                        kind: .completed,
+                        text: "",
+                        rawType: nil,
+                        payload: [:]
+                    )
+                ],
+                isTerminal: true,
+                didTimeout: false
+            )
+        }
+
+        let provider = makeRustTransportProvider(polls: [], queue: polls)
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        var signals: [ConversationFlowCoordinator.StreamSignal] = []
+
+        let result = try await coordinator.runStream(
+            provider: provider,
+            prompt: "test",
+            context: ctx,
+            attachments: nil,
+            onText: { _ in },
+            onRaw: { _, _, _ in },
+            onError: { _ in },
+            onSignal: { signals.append($0) }
+        )
+
+        XCTAssertEqual(result, "ciao")
+        XCTAssertEqual(
+            signals.map {
+                switch $0 {
+                case .streamStarted: return "streamStarted"
+                case .firstEvent: return "firstEvent"
+                case .firstTextDelta: return "firstTextDelta"
+                case .streamCompleted: return "streamCompleted"
+                }
+            },
+            ["streamStarted", "firstEvent", "firstTextDelta", "streamCompleted"]
+        )
+    }
+
     nonisolated private func makeRustTransportProvider(
-        polls: [RuntimePollResult]
+        polls: [RuntimePollResult],
+        queue: RuntimePollQueue? = nil
     ) -> MainChatRustTransportProvider {
-        let queue = RuntimePollQueue(results: polls)
+        let queue = queue ?? RuntimePollQueue(results: polls)
         return MainChatRustTransportProvider(
             id: "codex-cli",
             displayName: "Codex",
@@ -543,6 +653,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
 
 private struct RuntimePollResult {
     let textByStreamId: [String: String]
+    let signals: [MainChatRuntimeSignalKindBridge]
     let uiEvents: [MainChatRuntimeUIEventBridge]
     let status: String
     let terminalError: String?
@@ -552,6 +663,7 @@ private struct RuntimePollResult {
 
     init(
         textByStreamId: [String: String],
+        signals: [MainChatRuntimeSignalKindBridge] = [],
         uiEvents: [MainChatRuntimeUIEventBridge],
         status: String = "streaming",
         terminalError: String? = nil,
@@ -560,6 +672,7 @@ private struct RuntimePollResult {
         isTerminal: Bool = false
     ) {
         self.textByStreamId = textByStreamId
+        self.signals = signals
         self.uiEvents = uiEvents
         self.status = status
         self.terminalError = terminalError
@@ -633,6 +746,7 @@ private final class RuntimePollQueue {
             schemaVersion: 1,
             error: nil,
             runtimeSnapshot: snapshot,
+            signals: result.signals,
             uiEvents: result.uiEvents,
             isTerminal: result.isTerminal,
             didTimeout: result.didTimeout
