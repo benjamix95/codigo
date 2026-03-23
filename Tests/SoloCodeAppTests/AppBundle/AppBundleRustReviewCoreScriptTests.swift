@@ -28,6 +28,8 @@ struct AppBundleRustReviewCoreScriptTests {
             .appendingPathComponent("build_rust_search_backend.sh")
         let tempRoot = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let fakeHome = tempRoot.appendingPathComponent("fake-home", isDirectory: true)
+        try FileManager.default.createDirectory(at: fakeHome, withIntermediateDirectories: true)
 
         let bundleOutput = tempRoot
             .appendingPathComponent("Solo Code.app", isDirectory: true)
@@ -40,6 +42,7 @@ struct AppBundleRustReviewCoreScriptTests {
             scriptURL,
             environment: [
                 "PATH": "/usr/empty",
+                "HOME": fakeHome.path,
                 "SRCROOT": root.path,
                 "CONFIGURATION": "Debug",
                 "SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR": bundleOutput.path,

@@ -42,6 +42,18 @@ public func shouldDeferRustReviewCoreBootstrap(environment: [String: String]) ->
     return NSClassFromString("XCTestCase") != nil
 }
 
+func shouldScanDerivedDataForRustReviewCoreFallback(
+    environment: [String: String],
+    bundleURL: URL
+) -> Bool {
+    for key in ["SOLOCODE_REVIEW_CORE_LIBRARY_PATH", "SOLOCODE_RUST_SEARCH_LIBRARY_PATH"] {
+        if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+            return false
+        }
+    }
+    return bundleURL.pathExtension.lowercased() != "app"
+}
+
 final class RustSearchFFIClient: @unchecked Sendable {
     static let shared = RustSearchFFIClient()
 
@@ -225,7 +237,12 @@ final class RustSearchFFIClient: @unchecked Sendable {
             candidates.append("\(workspace)/Native/RustCore/build/lib/\(libName)")
         }
 
-        scanDerivedDataForDylib(libName, subdir: subdir, into: &candidates)
+        if shouldScanDerivedDataForRustReviewCoreFallback(
+            environment: env,
+            bundleURL: Bundle.main.bundleURL
+        ) {
+            scanDerivedDataForDylib(libName, subdir: subdir, into: &candidates)
+        }
 
         var cursor = Bundle.main.bundleURL
         for _ in 0..<4 {
@@ -387,4 +404,3 @@ public enum ReviewCoreBridge {
         RustSearchFFIClient.shared.resetForTests()
     }
 }
-
