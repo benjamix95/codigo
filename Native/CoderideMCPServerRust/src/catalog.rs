@@ -1,4 +1,5 @@
 use app_core_protocol::mcp::ToolDefinition;
+use crate::tool_schema::input_schema_for;
 
 const TOOL_NAMES: &str = include_str!("tool_names.txt");
 pub const CATALOG_VERSION: &str = "2026-03-12";
@@ -37,7 +38,14 @@ pub struct ToolSpec {
 pub fn all_tools() -> Vec<ToolDefinition> {
     tool_specs()
         .into_iter()
-        .map(|spec| ToolDefinition::new(spec.name, Some(spec.description.to_string()), spec.read_only))
+        .map(|spec| {
+            ToolDefinition::with_schema(
+                spec.name,
+                Some(spec.description.to_string()),
+                spec.read_only,
+                input_schema_for(spec.name),
+            )
+        })
         .collect()
 }
 

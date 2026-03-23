@@ -31,6 +31,40 @@ fn tools_list_matches_frozen_catalog_size_and_annotations() {
     terminate(child);
 }
 
+#[test]
+fn core_tools_expose_non_empty_input_schemas() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let mut child = spawn_server(&home, &workspace);
+
+    initialize(&mut child);
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 22,
+            "method": "tools/list"
+        }),
+    );
+
+    let listed = read_message(&mut child);
+    let tools = listed["result"]["tools"].as_array().expect("tools array");
+
+    let read = tools.iter().find(|tool| tool["name"] == "coderide_read").expect("read tool");
+    assert_eq!(read["inputSchema"]["required"], json!(["path"]));
+    assert!(read["inputSchema"]["properties"]["path"].is_object());
+
+    let todo_write = tools.iter().find(|tool| tool["name"] == "coderide_todo_write").expect("todo_write tool");
+    assert!(todo_write["inputSchema"]["properties"]["title"].is_object());
+    assert!(todo_write["inputSchema"]["properties"]["todos"].is_object());
+
+    let plan_create = tools.iter().find(|tool| tool["name"] == "coderide_plan_create").expect("plan_create tool");
+    assert_eq!(plan_create["inputSchema"]["required"], json!(["goal"]));
+    assert!(plan_create["inputSchema"]["properties"]["steps"].is_object());
+
+    terminate(child);
+}
+
 fn initialize(child: &mut std::process::Child) {
     write_message(
         child.stdin.as_mut().expect("stdin"),

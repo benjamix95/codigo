@@ -188,6 +188,37 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertTrue(CLIProfileProvisioner.codexProfileMCPFallbackBinaryPath.hasPrefix("/"))
     }
 
+    func testDevelopmentMCPServerBinaryPathFindsNewestRepoBuildArtifact() throws {
+        let repoRoot = try makeTemporaryProfileDirectory()
+        let sourceDir = repoRoot
+            .appendingPathComponent("App/SoloCodeApp/Sources/Accounts/Support/Provisioning", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        let sourceFile = sourceDir.appendingPathComponent("CLIProfileProvisioner+Paths.swift")
+        try "".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let preferred = repoRoot
+            .appendingPathComponent(".build/rust-mcp-server/debug", isDirectory: true)
+        try FileManager.default.createDirectory(at: preferred, withIntermediateDirectories: true)
+        let preferredBinary = preferred.appendingPathComponent("coderide-mcp-server-rust")
+        try "#!/bin/sh\nexit 0\n".write(to: preferredBinary, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: preferredBinary.path)
+
+        let fallback = repoRoot
+            .appendingPathComponent("Native/target/debug", isDirectory: true)
+        try FileManager.default.createDirectory(at: fallback, withIntermediateDirectories: true)
+        let fallbackBinary = fallback.appendingPathComponent("coderide-mcp-server-rust")
+        try "#!/bin/sh\nexit 0\n".write(to: fallbackBinary, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: fallbackBinary.path)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: fallbackBinary.path)
+
+        XCTAssertEqual(
+            CLIProfileProvisioner.newestExecutablePath(
+                CLIProfileProvisioner.developmentMCPServerBinaryPaths(sourceFilePath: sourceFile.path)
+            ),
+            fallbackBinary.path
+        )
+    }
+
     func testDefaultCodexProfilePathSeedsManagedProfileUnderProvidedRoot() throws {
         let managedRoot = try makeTemporaryProfileDirectory()
         let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")

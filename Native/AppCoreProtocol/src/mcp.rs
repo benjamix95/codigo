@@ -98,14 +98,28 @@ pub enum ToolContent {
 
 impl ToolDefinition {
     pub fn new(name: impl Into<String>, description: Option<String>, read_only: bool) -> Self {
+        Self::with_schema(
+            name,
+            description,
+            read_only,
+            serde_json::json!({
+                "type": "object",
+                "properties": {}
+            }),
+        )
+    }
+
+    pub fn with_schema(
+        name: impl Into<String>,
+        description: Option<String>,
+        read_only: bool,
+        input_schema: Value,
+    ) -> Self {
         Self {
             name: name.into(),
             title: None,
             description,
-            input_schema: serde_json::json!({
-                "type": "object",
-                "properties": {}
-            }),
+            input_schema,
             annotations: Some(ToolAnnotations {
                 title: None,
                 read_only_hint: Some(read_only),
