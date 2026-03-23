@@ -9,6 +9,11 @@ extension ChatPanelView {
         outcome: ToolTraceTurnOutcome
     ) {
         let finalOutcome: ToolTraceTurnOutcome = {
+            recoverPolicyAckFromPersistedAssistantMessageIfNeeded(
+                assistantMessageId: active.assistantMessageId,
+                providerId: active.providerId,
+                conversationId: active.conversationId
+            )
             let pendingPolicyQueue = policyAckBlockedQueue[active.assistantMessageId] ?? []
             let policySatisfied = policyAckStateByMessage[active.assistantMessageId]?.isSatisfied == true
             if !pendingPolicyQueue.isEmpty, !policySatisfied {

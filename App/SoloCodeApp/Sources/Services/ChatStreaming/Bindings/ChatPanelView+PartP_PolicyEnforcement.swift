@@ -69,6 +69,48 @@ func shouldBypassPolicyAckLiveVisibilityGate(
 
 extension ChatPanelView {
     @MainActor
+    internal func recoverPolicyAckFromPersistedAssistantMessageIfNeeded(
+        assistantMessageId: UUID,
+        providerId: String,
+        conversationId: UUID
+    ) {
+        guard let state = policyAckStateByMessage[assistantMessageId],
+              !state.isSatisfied else {
+            return
+        }
+        let persistedContent = chatStore.conversation(for: conversationId)?
+            .messages
+            .first(where: { $0.id == assistantMessageId })?
+            .resolvedPrimaryText ?? ""
+        guard !persistedContent.isEmpty else { return }
+
+        let matchingHash = inlinePolicyAckHashes(in: persistedContent).first {
+            $0 == state.expectedHash
+        }
+        guard let matchingHash else { return }
+
+        let enriched = processPolicyAckEvent(
+            payload: [
+                "hash": matchingHash,
+                "title": "Policy acknowledged",
+                "detail": "Policy hash recovered from persisted assistant content",
+            ],
+            providerId: providerId,
+            conversationId: conversationId
+        )
+        recordTaskActivity(
+            type: "policy_ack",
+            payload: enriched,
+            providerId: providerId,
+            conversationId: conversationId
+        )
+        flushPolicyAckBlockedQueue(
+            providerId: providerId,
+            conversationId: conversationId
+        )
+    }
+
+    @MainActor
     internal func processInlinePolicyAckMarkers(
         in content: String,
         providerId: String,
