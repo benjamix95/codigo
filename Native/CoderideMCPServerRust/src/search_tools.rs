@@ -5,7 +5,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub fn handle(name: &str, workspace: &Path, arguments: &BTreeMap<String, Value>) -> Option<CallToolResult> {
+pub fn handle(
+    name: &str,
+    workspace: &Path,
+    arguments: &BTreeMap<String, Value>,
+) -> Option<CallToolResult> {
     match name {
         "coderide_glob" => Some(glob(workspace, arguments)),
         "coderide_grep" => Some(grep(workspace, arguments)),
@@ -48,7 +52,11 @@ fn glob(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult
 
 fn grep(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let query = string_arg(arguments, "query");
-    let pattern = if query.is_empty() { string_arg(arguments, "pattern") } else { query };
+    let pattern = if query.is_empty() {
+        string_arg(arguments, "pattern")
+    } else {
+        query
+    };
     if pattern.is_empty() {
         return CallToolResult::error("Error: 'query' parameter is required");
     }
@@ -61,13 +69,22 @@ fn grep(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult
 
 fn read_range(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let path = resolve_path(workspace, string_arg(arguments, "path"));
-    let start = int_arg(arguments, "start").or_else(|| int_arg(arguments, "start_line")).unwrap_or(1).max(1) as usize;
-    let end = int_arg(arguments, "end").or_else(|| int_arg(arguments, "end_line")).unwrap_or(0) as usize;
+    let start = int_arg(arguments, "start")
+        .or_else(|| int_arg(arguments, "start_line"))
+        .unwrap_or(1)
+        .max(1) as usize;
+    let end = int_arg(arguments, "end")
+        .or_else(|| int_arg(arguments, "end_line"))
+        .unwrap_or(0) as usize;
     let Ok(content) = fs::read_to_string(&path) else {
         return CallToolResult::error(format!("Error: unable to read '{}'", path.display()));
     };
     let lines = content.lines().collect::<Vec<_>>();
-    let safe_end = if end > 0 { end.min(lines.len()) } else { (start + 200).min(lines.len()) };
+    let safe_end = if end > 0 {
+        end.min(lines.len())
+    } else {
+        (start + 200).min(lines.len())
+    };
     if start == 0 || start > safe_end || start > lines.len() {
         return CallToolResult::error("Invalid line range");
     }
@@ -82,16 +99,24 @@ fn read_range(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
 
 fn find_files(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let query = string_arg(arguments, "query");
-    let pattern = if query.is_empty() { string_arg(arguments, "pattern") } else { query };
+    let pattern = if query.is_empty() {
+        string_arg(arguments, "pattern")
+    } else {
+        query
+    };
     if pattern.is_empty() {
         return CallToolResult::error("Missing 'query' argument");
     }
     let extension_filter = string_arg(arguments, "extension");
     let output = run_rg(workspace, &["--files"]);
-    let Ok(output) = output else { return CallToolResult::error("Error: failed to enumerate files"); };
+    let Ok(output) = output else {
+        return CallToolResult::error("Error: failed to enumerate files");
+    };
     let mut matches = output
         .lines()
-        .filter(|line| extension_filter.is_empty() || line.ends_with(&format!(".{extension_filter}")))
+        .filter(|line| {
+            extension_filter.is_empty() || line.ends_with(&format!(".{extension_filter}"))
+        })
         .filter(|line| line.contains(&pattern) || glob_like_match(line, &pattern))
         .take(50)
         .map(ToString::to_string)
@@ -109,7 +134,10 @@ fn find_symbol(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
     if query.is_empty() {
         return CallToolResult::error("Missing 'query' argument");
     }
-    let regex = format!(r"\b(class|struct|enum|protocol|func|let|var)\s+{}\b", regex_escape(&query));
+    let regex = format!(
+        r"\b(class|struct|enum|protocol|func|let|var)\s+{}\b",
+        regex_escape(&query)
+    );
     let Ok(output) = run_rg(workspace, &["-n", "--no-heading", "-e", &regex]) else {
         return CallToolResult::error("Error: failed to search symbols");
     };
@@ -158,21 +186,28 @@ fn file_outline(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTo
     let mut items = Vec::new();
     for (index, line) in content.lines().enumerate() {
         let trimmed = line.trim();
-        if trimmed.starts_with("import ") || trimmed.starts_with("class ") || trimmed.starts_with("struct ")
-            || trimmed.starts_with("enum ") || trimmed.starts_with("protocol ") || trimmed.starts_with("func ")
+        if trimmed.starts_with("import ")
+            || trimmed.starts_with("class ")
+            || trimmed.starts_with("struct ")
+            || trimmed.starts_with("enum ")
+            || trimmed.starts_with("protocol ")
+            || trimmed.starts_with("func ")
         {
             items.push(format!("{}: {}", index + 1, trimmed));
         }
     }
     if items.is_empty() {
-        CallToolResult::text(format!("No symbols found in '{}'. File may not be indexed.", path.display()))
+        CallToolResult::text(format!(
+            "No symbols found in '{}'. File may not be indexed.",
+            path.display()
+        ))
     } else {
         CallToolResult::text(items.join("\n"))
     }
 }
 
 fn codebase_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let query = string_arg(arguments, "query");
+    let query = resolved_codebase_search_query(arguments);
     if query.is_empty() {
         return CallToolResult::error("Missing 'query' argument");
     }
@@ -186,8 +221,37 @@ fn codebase_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
     CallToolResult::text(lines.join("\n"))
 }
 
+fn resolved_codebase_search_query(arguments: &BTreeMap<String, Value>) -> String {
+    let direct = string_arg(arguments, "query");
+    if !direct.is_empty() {
+        return direct;
+    }
+
+    for key in ["path", "file", "filePattern", "pattern"] {
+        let fallback = string_arg(arguments, key);
+        if fallback.is_empty() {
+            continue;
+        }
+        let candidate = Path::new(fallback.trim())
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or(fallback.as_str())
+            .trim()
+            .to_string();
+        if !candidate.is_empty() {
+            return candidate;
+        }
+    }
+
+    String::new()
+}
+
 fn run_rg(workspace: &Path, args: &[&str]) -> Result<String, ()> {
-    let output = Command::new("rg").args(args).current_dir(workspace).output().map_err(|_| ())?;
+    let output = Command::new("rg")
+        .args(args)
+        .current_dir(workspace)
+        .output()
+        .map_err(|_| ())?;
     if output.status.success() || output.status.code() == Some(1) {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -196,7 +260,12 @@ fn run_rg(workspace: &Path, args: &[&str]) -> Result<String, ()> {
 }
 
 fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
-    arguments.get(key).and_then(Value::as_str).unwrap_or_default().trim().to_string()
+    arguments
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
 }
 
 fn int_arg(arguments: &BTreeMap<String, Value>, key: &str) -> Option<i64> {
@@ -205,15 +274,23 @@ fn int_arg(arguments: &BTreeMap<String, Value>, key: &str) -> Option<i64> {
 
 fn resolve_path(workspace: &Path, input: String) -> PathBuf {
     let path = Path::new(input.trim());
-    if path.is_absolute() { path.to_path_buf() } else { workspace.join(path) }
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        workspace.join(path)
+    }
 }
 
 fn regex_escape(input: &str) -> String {
-    regex_chars(input).chars().fold(String::new(), |mut acc, ch| {
-        if ".+*?^$()[]{}|\\".contains(ch) { acc.push('\\'); }
-        acc.push(ch);
-        acc
-    })
+    regex_chars(input)
+        .chars()
+        .fold(String::new(), |mut acc, ch| {
+            if ".+*?^$()[]{}|\\".contains(ch) {
+                acc.push('\\');
+            }
+            acc.push(ch);
+            acc
+        })
 }
 
 fn regex_chars(input: &str) -> String {
@@ -224,14 +301,43 @@ fn glob_like_match(path: &str, pattern: &str) -> bool {
     if !pattern.contains('*') {
         return path.contains(pattern);
     }
-    let parts = pattern.split('*').filter(|part| !part.is_empty()).collect::<Vec<_>>();
+    let parts = pattern
+        .split('*')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
     if parts.is_empty() {
         return true;
     }
     let mut cursor = 0usize;
     for part in parts {
-        let Some(position) = path[cursor..].find(part) else { return false };
+        let Some(position) = path[cursor..].find(part) else {
+            return false;
+        };
         cursor += position + part.len();
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolved_codebase_search_query;
+    use serde_json::Value;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn codebase_search_query_falls_back_to_path_stem() {
+        let mut args = BTreeMap::new();
+        args.insert(
+            "path".to_string(),
+            Value::String(
+                "App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift"
+                    .to_string(),
+            ),
+        );
+
+        assert_eq!(
+            resolved_codebase_search_query(&args),
+            "ChatStore+RustBridge".to_string()
+        );
+    }
 }

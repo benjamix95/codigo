@@ -8,29 +8,55 @@ pub fn handle_bughunter_tool(request: ReviewMCPToolRequest) -> ReviewMCPToolResp
         "bughunter_findings" => bughunter_findings(&request),
         "bughunter_run_history" => bughunter_history(&request),
         "bughunter_explain_cluster" => bughunter_cluster(&request),
-        "bughunter_cancel_run" | "bughunter_autofix_preview" | "bughunter_autofix_apply"
-        | "bughunter_autofix_commit" | "bughunter_install_hook" | "bughunter_uninstall_hook" => {
-            queue_bughunter_action(&request)
-        }
+        "bughunter_cancel_run"
+        | "bughunter_autofix_preview"
+        | "bughunter_autofix_apply"
+        | "bughunter_autofix_commit"
+        | "bughunter_install_hook"
+        | "bughunter_uninstall_hook" => queue_bughunter_action(&request),
         _ => ReviewMCPToolResponse::err(format!("Unknown bugHunter tool: {}", request.tool_name)),
     }
 }
 
 fn bughunter_start(request: &ReviewMCPToolRequest) -> ReviewMCPToolResponse {
-    let source_kind = request.args.get("source_kind").map(|value| value.trim().to_lowercase()).filter(|value| !value.is_empty()).unwrap_or_else(|| "uncommitted".to_string());
-    if !matches!(source_kind.as_str(), "uncommitted" | "commit" | "commit_window" | "branch_window") {
+    let source_kind = request
+        .args
+        .get("source_kind")
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "uncommitted".to_string());
+    if !matches!(
+        source_kind.as_str(),
+        "uncommitted" | "commit" | "commit_window" | "branch_window"
+    ) {
         return ReviewMCPToolResponse::err(format!("Error: invalid source_kind '{}'", source_kind));
     }
-    let git_root = request.args.get("git_root").map(|value| value.trim()).unwrap_or("");
+    let git_root = request
+        .args
+        .get("git_root")
+        .map(|value| value.trim())
+        .unwrap_or("");
     if source_kind != "uncommitted" && git_root.is_empty() {
-        return ReviewMCPToolResponse::err("Error: 'git_root' is required for this BugHunter scope");
+        return ReviewMCPToolResponse::err(
+            "Error: 'git_root' is required for this BugHunter scope",
+        );
     }
-    ReviewMCPToolResponse::ok(format!("OK — bugHunter start queued (run_id=generated, source_kind={source_kind})"))
+    ReviewMCPToolResponse::ok(format!(
+        "OK — bugHunter start queued (run_id=generated, source_kind={source_kind})"
+    ))
 }
 
 fn bughunter_commit_window(request: &ReviewMCPToolRequest) -> ReviewMCPToolResponse {
-    let git_root = request.args.get("git_root").map(|value| value.trim()).unwrap_or("");
-    let primary_commit = request.args.get("primary_commit").map(|value| value.trim()).unwrap_or("");
+    let git_root = request
+        .args
+        .get("git_root")
+        .map(|value| value.trim())
+        .unwrap_or("");
+    let primary_commit = request
+        .args
+        .get("primary_commit")
+        .map(|value| value.trim())
+        .unwrap_or("");
     if git_root.is_empty() || primary_commit.is_empty() {
         return ReviewMCPToolResponse::err("Error: 'git_root' and 'primary_commit' are required");
     }
@@ -58,18 +84,30 @@ fn bughunter_status(request: &ReviewMCPToolRequest) -> ReviewMCPToolResponse {
         lines.push(format!("primary_commit: {}", primary_commit));
     }
     if !snapshot.related_commits.is_empty() {
-        lines.push(format!("related_commits: {}", snapshot.related_commits.join(",")));
+        lines.push(format!(
+            "related_commits: {}",
+            snapshot.related_commits.join(",")
+        ));
     }
     if let Some(message) = &snapshot.last_message {
         lines.push(format!("message: {}", message));
     }
-    lines.push(format!("verified_findings_count: {}", snapshot.verified_findings_count));
-    lines.push(format!("candidate_findings_count: {}", snapshot.candidate_findings_count));
+    lines.push(format!(
+        "verified_findings_count: {}",
+        snapshot.verified_findings_count
+    ));
+    lines.push(format!(
+        "candidate_findings_count: {}",
+        snapshot.candidate_findings_count
+    ));
     if let Some(verdict) = &snapshot.last_revalidation_verdict {
         lines.push(format!("last_revalidation_verdict: {}", verdict));
     }
     if let Some(ready) = snapshot.security_gate_ready {
-        lines.push(format!("security_gate_ready_cached: {}", if ready { "true" } else { "false" }));
+        lines.push(format!(
+            "security_gate_ready_cached: {}",
+            if ready { "true" } else { "false" }
+        ));
     }
     ReviewMCPToolResponse::ok(lines.join("\n"))
 }
@@ -78,26 +116,60 @@ fn bughunter_findings(request: &ReviewMCPToolRequest) -> ReviewMCPToolResponse {
     if request.bughunter_findings_payload.is_empty() {
         return ReviewMCPToolResponse::ok("No BugHunter findings match the query.");
     }
-    let lines = request.bughunter_findings_payload.iter().enumerate().map(|(index, finding)| {
-        let message = finding.get("message").or_else(|| finding.get("message_summary")).cloned().unwrap_or_else(|| "n/a".to_string());
-        let file = finding.get("file_path").or_else(|| finding.get("file_label")).cloned().unwrap_or_else(|| "redacted".to_string());
-        let line = finding.get("line_number").map(|value| format!(":{value}")).unwrap_or_default();
-        let duplicate = finding.get("possible_duplicate_of").map(|value| format!(", duplicate_of: {value}")).unwrap_or_default();
-        let stale = finding.get("stale_status").map(|value| format!(", stale: {value}")).unwrap_or_default();
-        format!(
-            "[{}] [{}] {}{} — {} (domain: {}, status: {}{}{}, id: {}))",
-            index + 1,
-            finding.get("severity").cloned().unwrap_or_else(|| "?".to_string()),
-            file,
-            line,
-            message,
-            finding.get("domain").cloned().unwrap_or_else(|| "bug".to_string()),
-            finding.get("status").cloned().unwrap_or_else(|| "?".to_string()),
-            duplicate,
-            stale,
-            finding.get("id").cloned().unwrap_or_else(|| "?".to_string())
-        )
-    }).collect::<Vec<_>>();
+    let lines = request
+        .bughunter_findings_payload
+        .iter()
+        .enumerate()
+        .map(|(index, finding)| {
+            let message = finding
+                .get("message")
+                .or_else(|| finding.get("message_summary"))
+                .cloned()
+                .unwrap_or_else(|| "n/a".to_string());
+            let file = finding
+                .get("file_path")
+                .or_else(|| finding.get("file_label"))
+                .cloned()
+                .unwrap_or_else(|| "redacted".to_string());
+            let line = finding
+                .get("line_number")
+                .map(|value| format!(":{value}"))
+                .unwrap_or_default();
+            let duplicate = finding
+                .get("possible_duplicate_of")
+                .map(|value| format!(", duplicate_of: {value}"))
+                .unwrap_or_default();
+            let stale = finding
+                .get("stale_status")
+                .map(|value| format!(", stale: {value}"))
+                .unwrap_or_default();
+            format!(
+                "[{}] [{}] {}{} — {} (domain: {}, status: {}{}{}, id: {}))",
+                index + 1,
+                finding
+                    .get("severity")
+                    .cloned()
+                    .unwrap_or_else(|| "?".to_string()),
+                file,
+                line,
+                message,
+                finding
+                    .get("domain")
+                    .cloned()
+                    .unwrap_or_else(|| "bug".to_string()),
+                finding
+                    .get("status")
+                    .cloned()
+                    .unwrap_or_else(|| "?".to_string()),
+                duplicate,
+                stale,
+                finding
+                    .get("id")
+                    .cloned()
+                    .unwrap_or_else(|| "?".to_string())
+            )
+        })
+        .collect::<Vec<_>>();
     ReviewMCPToolResponse::ok(lines.join("\n"))
 }
 
@@ -105,16 +177,26 @@ fn bughunter_history(request: &ReviewMCPToolRequest) -> ReviewMCPToolResponse {
     if request.bughunter_snapshots.is_empty() {
         return ReviewMCPToolResponse::ok("No BugHunter runs found.");
     }
-    let lines = request.bughunter_snapshots.iter().map(|snapshot| {
-        format!(
-            "{} | {} | {} | review={} | message={}",
-            snapshot.run_id,
-            snapshot.status,
-            snapshot.source_kind,
-            snapshot.review_session_id.clone().unwrap_or_else(|| "n/a".to_string()),
-            snapshot.last_message.clone().unwrap_or_else(|| "n/a".to_string()),
-        )
-    }).collect::<Vec<_>>();
+    let lines = request
+        .bughunter_snapshots
+        .iter()
+        .map(|snapshot| {
+            format!(
+                "{} | {} | {} | review={} | message={}",
+                snapshot.run_id,
+                snapshot.status,
+                snapshot.source_kind,
+                snapshot
+                    .review_session_id
+                    .clone()
+                    .unwrap_or_else(|| "n/a".to_string()),
+                snapshot
+                    .last_message
+                    .clone()
+                    .unwrap_or_else(|| "n/a".to_string()),
+            )
+        })
+        .collect::<Vec<_>>();
     ReviewMCPToolResponse::ok(lines.join("\n"))
 }
 
@@ -123,21 +205,64 @@ fn bughunter_cluster(request: &ReviewMCPToolRequest) -> ReviewMCPToolResponse {
         return ReviewMCPToolResponse::ok("No BugHunter cluster available.");
     };
     let lines = vec![
-        format!("cluster_title: {}", payload.get("cluster_title").cloned().unwrap_or_else(|| "n/a".to_string())),
-        format!("cluster_size: {}", payload.get("cluster_size").cloned().unwrap_or_else(|| "0".to_string())),
-        format!("files: {}", payload.get("files").cloned().unwrap_or_default()),
-        format!("avg_confidence: {}", payload.get("avg_confidence").cloned().unwrap_or_else(|| "0.00".to_string())),
-        format!("primary_risk: {}", payload.get("primary_risk").cloned().unwrap_or_else(|| "unknown".to_string())),
+        format!(
+            "cluster_title: {}",
+            payload
+                .get("cluster_title")
+                .cloned()
+                .unwrap_or_else(|| "n/a".to_string())
+        ),
+        format!(
+            "cluster_size: {}",
+            payload
+                .get("cluster_size")
+                .cloned()
+                .unwrap_or_else(|| "0".to_string())
+        ),
+        format!(
+            "files: {}",
+            payload.get("files").cloned().unwrap_or_default()
+        ),
+        format!(
+            "avg_confidence: {}",
+            payload
+                .get("avg_confidence")
+                .cloned()
+                .unwrap_or_else(|| "0.00".to_string())
+        ),
+        format!(
+            "primary_risk: {}",
+            payload
+                .get("primary_risk")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string())
+        ),
     ];
     ReviewMCPToolResponse::ok(lines.join("\n"))
 }
 
 fn queue_bughunter_action(request: &ReviewMCPToolRequest) -> ReviewMCPToolResponse {
-    let run_id = request.args.get("run_id").map(|value| value.trim()).unwrap_or("");
+    let run_id = request
+        .args
+        .get("run_id")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            request
+                .active_bughunter_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.run_id.as_str())
+        })
+        .unwrap_or("");
     if run_id.is_empty() {
         return ReviewMCPToolResponse::err("Error: 'run_id' is required");
     }
-    if request.active_bughunter_snapshot.is_none() {
+    let matches_active = request
+        .active_bughunter_snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.run_id == run_id)
+        .unwrap_or(false);
+    if !matches_active {
         return ReviewMCPToolResponse::err(format!("Error: run_id '{}' was not found", run_id));
     }
     ReviewMCPToolResponse::ok(format!(
@@ -145,4 +270,48 @@ fn queue_bughunter_action(request: &ReviewMCPToolRequest) -> ReviewMCPToolRespon
         request.tool_name.trim_start_matches("bughunter_"),
         run_id
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle_bughunter_tool;
+    use crate::review_mcp::models::{BugHunterSnapshotRecord, ReviewMCPToolRequest};
+
+    #[test]
+    fn cancel_run_uses_active_run_when_run_id_is_missing() {
+        let response = handle_bughunter_tool(ReviewMCPToolRequest {
+            schema_version: 1,
+            tool_name: "bughunter_cancel_run".to_string(),
+            args: Default::default(),
+            review_snapshots: vec![],
+            active_review_snapshot: None,
+            review_findings_payload: vec![],
+            review_status_payload: None,
+            review_outcome_payload: None,
+            bughunter_snapshots: vec![],
+            active_bughunter_snapshot: Some(BugHunterSnapshotRecord {
+                run_id: "run-active".to_string(),
+                conversation_id: None,
+                review_session_id: None,
+                source_kind: "uncommitted".to_string(),
+                trigger_kind: "manual".to_string(),
+                git_root: "/tmp/repo".to_string(),
+                branch_name: None,
+                primary_commit: None,
+                related_commits: vec![],
+                status: "running".to_string(),
+                last_message: None,
+                verified_findings_count: 0,
+                candidate_findings_count: 0,
+                last_revalidation_verdict: None,
+                security_gate_ready: None,
+            }),
+            bughunter_findings_payload: vec![],
+            bughunter_cluster_payload: None,
+            security_gate_payload: None,
+        });
+
+        assert!(!response.is_error);
+        assert!(response.message.contains("run-active"));
+    }
 }
