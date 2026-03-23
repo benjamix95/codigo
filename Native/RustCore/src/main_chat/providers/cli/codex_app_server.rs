@@ -2,7 +2,7 @@ use crate::main_chat::providers::common::string_value;
 use crate::main_chat::providers::session::{emit_error, emit_raw, emit_text_delta, is_cancelled};
 use super::codex_app_server_support::{
     first_result_text, is_turn_completed, json_rpc_id, normalize_status, send_error, send_notification,
-    send_request, send_result, spawn_stderr_collector,
+    send_request, send_result, spawn_stderr_collector, raw_string_field,
 };
 use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
 use serde_json::{json, Value};
@@ -153,12 +153,12 @@ fn handle_notification(session_id: &str, value: &Value, method: &str) -> Result<
             return Err(message);
         }
         "item/agentMessage/delta" => {
-            if let Some(delta) = payload.get("delta").and_then(string_value) {
+            if let Some(delta) = raw_string_field(&payload, "delta") {
                 emit_text_delta(session_id, &delta);
             }
         }
         "item/reasoning/textDelta" | "item/reasoning/summaryTextDelta" => {
-            if let Some(delta) = payload.get("delta").and_then(string_value) {
+            if let Some(delta) = raw_string_field(&payload, "delta") {
                 emit_raw(session_id, "reasoning", BTreeMap::from([("output".to_string(), delta), ("title".to_string(), "Reasoning".to_string())]));
             }
         }

@@ -7,4 +7,28 @@ final class PlanPanelHistoryVisibilityTests: XCTestCase {
         XCTAssertFalse(shouldShowPlanPanelHistory(source: .manualDeepLink))
         XCTAssertTrue(shouldShowPlanPanelHistory(source: .manualShortcut))
     }
+
+    func testAutomaticFlowOpenStateForcesToggleAndResetsHistory() {
+        let state = resolvePlanPanelOpenState(
+            currentPlanToggleEnabled: false,
+            preserveHistorySelection: true,
+            source: .automaticFlow
+        )
+
+        XCTAssertTrue(state.planToggleEnabled)
+        XCTAssertTrue(state.shouldResetHistorySelection)
+        XCTAssertTrue(state.showPlanPanel)
+    }
+
+    func testManualShortcutOpenStateCanPreserveHistory() {
+        let state = resolvePlanPanelOpenState(
+            currentPlanToggleEnabled: true,
+            preserveHistorySelection: true,
+            source: .manualShortcut
+        )
+
+        XCTAssertTrue(state.planToggleEnabled)
+        XCTAssertFalse(state.shouldResetHistorySelection)
+        XCTAssertTrue(state.showPlanPanel)
+    }
 }

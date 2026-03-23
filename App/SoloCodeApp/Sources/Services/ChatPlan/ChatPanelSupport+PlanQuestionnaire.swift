@@ -179,6 +179,11 @@ func shouldEnableTaskPanelForMode(_ mode: CoderMode) -> Bool {
     }
 }
 
+func resolveTaskPanelEnabled(currentValue: Bool, mode: CoderMode) -> Bool {
+    guard shouldEnableTaskPanelForMode(mode) else { return currentValue }
+    return true
+}
+
 func shouldAutoOpenSwarmPanelForEvent(eventConversationId: UUID?, selectedConversationId: UUID?) -> Bool {
     guard let selectedConversationId else { return false }
     guard let eventConversationId else { return true }

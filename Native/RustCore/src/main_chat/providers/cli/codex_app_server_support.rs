@@ -60,6 +60,10 @@ pub(super) fn first_result_text(value: Option<&Value>) -> Option<String> {
         .and_then(string_value)
 }
 
+pub(super) fn raw_string_field(value: &Value, key: &str) -> Option<String> {
+    value.get(key).and_then(Value::as_str).map(ToOwned::to_owned)
+}
+
 pub(super) fn is_turn_completed(value: &Value) -> bool {
     value
         .get("method")
@@ -82,4 +86,22 @@ pub(super) fn spawn_stderr_collector(stderr: std::process::ChildStderr) -> Arc<M
         }
     });
     tail
+}
+
+#[cfg(test)]
+mod tests {
+    use super::raw_string_field;
+    use serde_json::json;
+
+    #[test]
+    fn raw_string_field_preserves_whitespace_and_newlines() {
+        let payload = json!({
+            "delta": " Ho aggiornato la todo list.\nPoi ho aperto il plan panel. "
+        });
+
+        assert_eq!(
+            raw_string_field(&payload, "delta").as_deref(),
+            Some(" Ho aggiornato la todo list.\nPoi ho aperto il plan panel. ")
+        );
+    }
 }

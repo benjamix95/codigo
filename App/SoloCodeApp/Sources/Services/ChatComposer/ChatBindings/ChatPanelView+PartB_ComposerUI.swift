@@ -179,11 +179,17 @@ extension ChatPanelView {
         preserveHistorySelection: Bool = false,
         source: PlanPanelPresentationSource = .manualDeepLink
     ) {
+        let nextState = resolvePlanPanelOpenState(
+            currentPlanToggleEnabled: planToggleEnabled,
+            preserveHistorySelection: preserveHistorySelection,
+            source: source
+        )
         planPanelPresentationSource = source
-        if source == .automaticFlow || !preserveHistorySelection {
+        planToggleEnabled = nextState.planToggleEnabled
+        if nextState.shouldResetHistorySelection {
             planHistoryStore.setSelectedEntry(id: nil)
         }
-        showPlanPanel = true
+        showPlanPanel = nextState.showPlanPanel
         syncPlanPanelVisibilityToRust(true)
     }
 

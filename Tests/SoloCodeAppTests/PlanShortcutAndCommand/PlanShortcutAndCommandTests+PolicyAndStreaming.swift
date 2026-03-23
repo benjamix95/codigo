@@ -41,6 +41,16 @@ extension PlanShortcutAndCommandTests {
         XCTAssertFalse(shouldEnableTaskPanelForMode(.mcpServer))
     }
 
+    func testResolveTaskPanelEnabledForcesEligibleModesOpen() {
+        XCTAssertTrue(resolveTaskPanelEnabled(currentValue: false, mode: .agent))
+        XCTAssertTrue(resolveTaskPanelEnabled(currentValue: false, mode: .plan))
+    }
+
+    func testResolveTaskPanelEnabledPreservesCurrentStateForIneligibleModes() {
+        XCTAssertFalse(resolveTaskPanelEnabled(currentValue: false, mode: .ide))
+        XCTAssertTrue(resolveTaskPanelEnabled(currentValue: true, mode: .ide))
+    }
+
     func testShouldAutoOpenSwarmPanelForEvent_requiresConversationMatch() {
         let selectedConversationId = UUID()
         XCTAssertTrue(
