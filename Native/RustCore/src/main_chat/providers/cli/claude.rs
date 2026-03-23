@@ -38,6 +38,10 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
     let mcp_config_path = write_mcp_config(config);
     if let Some(ref path) = mcp_config_path {
         args.extend(["--mcp-config".to_string(), path.clone()]);
+        // In non-interactive (-p) mode, MCP tool permissions are not
+        // auto-granted.  bypassPermissions lets Claude use MCP tools
+        // without an interactive approval prompt.
+        args.extend(["--permission-mode".to_string(), "bypassPermissions".to_string()]);
         // Block built-in tools that overlap with coderide MCP tools.
         // Claude will discover and use the MCP equivalents instead.
         args.extend([
@@ -45,7 +49,7 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
             "Read,Edit,Write,Bash,Glob,Grep,WebSearch,WebFetch,NotebookEdit,TodoWrite".to_string(),
         ]);
         eprintln!("[CLAUDE_DEBUG] MCP config written to: {}", path);
-        eprintln!("[CLAUDE_DEBUG] Built-in tools blocked in favor of MCP coderide tools");
+        eprintln!("[CLAUDE_DEBUG] Built-in tools blocked, permission-mode=bypassPermissions");
     } else {
         eprintln!("[CLAUDE_DEBUG] MCP config NOT available (server_path={:?})", config.claude_mcp_server_path);
         if !config.claude_allowed_tools.is_empty() {
