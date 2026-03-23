@@ -566,6 +566,32 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(visible, Set(["Legacy canonical", "Legacy runtime"]))
     }
 
+    func testDisplayTodosForChatPrefersScopedTodosOverLegacyFallback() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Legacy runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Scoped runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        let visible = Set(store.displayTodosForChat(for: conversationId).map(\.title))
+        XCTAssertEqual(visible, Set(["Scoped runtime"]))
+    }
+
     func testClearDoesNotFireCanonicalCallback() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Step A", "Step B"])

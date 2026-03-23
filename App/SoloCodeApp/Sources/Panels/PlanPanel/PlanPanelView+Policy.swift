@@ -187,6 +187,33 @@ func preferredPlanPanelOptionContent(
     return options.min(by: { $0.id < $1.id })?.fullText
 }
 
+func fallbackPlanBuildContent(
+    goal: String,
+    chosenPath: String?,
+    steps: [PlanStep]
+) -> String? {
+    if let chosen = chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !chosen.isEmpty {
+        return chosen
+    }
+    let normalizedGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedSteps = steps
+        .map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    guard !normalizedGoal.isEmpty || !normalizedSteps.isEmpty else { return nil }
+
+    let title = normalizedGoal.isEmpty ? "Execution Plan" : normalizedGoal
+    let todoLines = normalizedSteps.isEmpty
+        ? ["- [ ] Follow the generated plan"]
+        : normalizedSteps.map { "- [ ] \($0)" }
+    return """
+    # \(title)
+
+    ## Todo
+    \(todoLines.joined(separator: "\n"))
+    """
+}
+
 private func normalizedPlanFileTitleCandidate(_ raw: String?) -> String? {
     guard let raw else { return nil }
     let normalized = raw

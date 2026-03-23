@@ -73,9 +73,12 @@ extension PlanPanelView {
             planningState: planningState
         )
         if let board = chatStore.planBoard(for: conversationId) {
-            if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !chosen.isEmpty {
-                return (chosen, false)
+            if let liveBoardChoice = fallbackPlanBuildContent(
+                goal: board.goal,
+                chosenPath: board.chosenPath,
+                steps: board.steps
+            ) {
+                return (liveBoardChoice, board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
             }
             if preferLiveBoard {
                 return nil

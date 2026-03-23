@@ -10,6 +10,13 @@ final class PlanPanelPreviewContentTests: XCTestCase {
         )
 
         XCTAssertEqual(content, "## Plan\n\nChosen option body")
+
+        let buildContent = fallbackPlanBuildContent(
+            goal: "Refactor chat",
+            chosenPath: "## Plan\n\nChosen option body",
+            steps: []
+        )
+        XCTAssertEqual(buildContent, "## Plan\n\nChosen option body")
     }
 
     func testMarkdownIsUsedWhenChosenPathIsEmpty() {
@@ -58,5 +65,25 @@ final class PlanPanelPreviewContentTests: XCTestCase {
         )
 
         XCTAssertEqual(content, "## Plan\n\nOption A")
+
+        let buildContent = fallbackPlanBuildContent(
+            goal: "Verifica tool Codex",
+            chosenPath: nil,
+            steps: [
+                PlanStep(id: "1", title: "Create todo", description: nil, targetFile: nil, status: .pending),
+                PlanStep(id: "2", title: "Read README", description: nil, targetFile: nil, status: .pending),
+            ]
+        )
+
+        XCTAssertEqual(
+            content,
+            """
+            # Verifica tool Codex
+
+            ## Todo
+            - [ ] Create todo
+            - [ ] Read README
+            """
+        )
     }
 }

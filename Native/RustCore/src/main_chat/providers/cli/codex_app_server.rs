@@ -10,6 +10,37 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader};
 use std::process::{ChildStdin, Command, Stdio};
 
+#[derive(Default)]
+struct CodexAgentMessageGate {
+    has_seen_operational_event: bool,
+    buffered_text: String,
+}
+
+impl CodexAgentMessageGate {
+    fn push_delta(&mut self, delta: &str) -> Option<String> {
+        if self.has_seen_operational_event {
+            return Some(delta.to_string());
+        }
+        self.buffered_text.push_str(delta);
+        None
+    }
+
+    fn release_after_operational_event(&mut self) -> Option<String> {
+        if self.has_seen_operational_event {
+            return None;
+        }
+        self.has_seen_operational_event = true;
+        self.flush_pending()
+    }
+
+    fn flush_pending(&mut self) -> Option<String> {
+        if self.buffered_text.is_empty() {
+            return None;
+        }
+        Some(std::mem::take(&mut self.buffered_text))
+    }
+}
+
 pub(crate) fn run(
     session_id: &str,
     config: &MainChatProviderSessionConfig,
@@ -66,6 +97,7 @@ fn wait_for_thread_start(
     stdin: &mut ChildStdin,
     reader: &mut BufReader<std::process::ChildStdout>,
 ) -> Result<String, String> {
+    let mut gate = CodexAgentMessageGate::default();
     send_request(stdin, 3, "thread/start", thread_start_params(config))?;
     loop {
         if is_cancelled(session_id) {
@@ -77,7 +109,7 @@ fn wait_for_thread_start(
         }) {
             return Ok(thread_id);
         }
-        handle_message(session_id, stdin, &value)?;
+        handle_message(session_id, stdin, &value, &mut gate)?;
     }
 }
 
@@ -88,6 +120,7 @@ fn start_turn(
     stdin: &mut ChildStdin,
     reader: &mut BufReader<std::process::ChildStdout>,
 ) -> Result<(), String> {
+    let mut gate = CodexAgentMessageGate::default();
     send_request(
         stdin,
         4,
@@ -107,7 +140,7 @@ fn start_turn(
         if handle_response_id(&value, 4)?.is_some() {
             return Ok(());
         }
-        handle_message(session_id, stdin, &value)?;
+        handle_message(session_id, stdin, &value, &mut gate)?;
     }
 }
 
@@ -116,25 +149,34 @@ fn stream_until_turn_completed(
     stdin: &mut ChildStdin,
     reader: &mut BufReader<std::process::ChildStdout>,
 ) -> Result<(), String> {
+    let mut gate = CodexAgentMessageGate::default();
     loop {
         if is_cancelled(session_id) {
             return Err("cancelled".to_string());
         }
         let value = read_json_line(reader)?;
         if is_turn_completed(&value) {
+            if let Some(buffered) = gate.flush_pending() {
+                emit_text_delta(session_id, &buffered);
+            }
             emit_raw(session_id, "turn_completed", BTreeMap::new());
             return Ok(());
         }
-        handle_message(session_id, stdin, &value)?;
+        handle_message(session_id, stdin, &value, &mut gate)?;
     }
 }
 
-fn handle_message(session_id: &str, stdin: &mut ChildStdin, value: &Value) -> Result<(), String> {
+fn handle_message(
+    session_id: &str,
+    stdin: &mut ChildStdin,
+    value: &Value,
+    gate: &mut CodexAgentMessageGate,
+) -> Result<(), String> {
     if let Some(method) = value.get("method").and_then(string_value) {
         if value.get("id").is_some() {
             return handle_server_request(stdin, value, &method);
         }
-        return handle_notification(session_id, value, &method);
+        return handle_notification(session_id, value, &method, gate);
     }
     if let Some(error) = value.get("error").and_then(|item| item.get("message")).and_then(string_value) {
         emit_error(session_id, &error);
@@ -143,7 +185,12 @@ fn handle_message(session_id: &str, stdin: &mut ChildStdin, value: &Value) -> Re
     Ok(())
 }
 
-fn handle_notification(session_id: &str, value: &Value, method: &str) -> Result<(), String> {
+fn handle_notification(
+    session_id: &str,
+    value: &Value,
+    method: &str,
+    gate: &mut CodexAgentMessageGate,
+) -> Result<(), String> {
     let payload = value.get("params").cloned().unwrap_or(Value::Null);
     match method {
         "turn/started" => emit_raw(session_id, "turn_started", BTreeMap::new()),
@@ -154,7 +201,9 @@ fn handle_notification(session_id: &str, value: &Value, method: &str) -> Result<
         }
         "item/agentMessage/delta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
-                emit_text_delta(session_id, &delta);
+                if let Some(visible_delta) = gate.push_delta(&delta) {
+                    emit_text_delta(session_id, &visible_delta);
+                }
             }
         }
         "item/reasoning/textDelta" | "item/reasoning/summaryTextDelta" => {
@@ -162,20 +211,42 @@ fn handle_notification(session_id: &str, value: &Value, method: &str) -> Result<
                 emit_raw(session_id, "reasoning", BTreeMap::from([("output".to_string(), delta), ("title".to_string(), "Reasoning".to_string())]));
             }
         }
-        "item/started" | "item/completed" => handle_item_notification(session_id, method, &payload),
+        "item/started" | "item/completed" => handle_item_notification(session_id, method, &payload, gate),
         _ => {}
     }
     Ok(())
 }
 
-fn handle_item_notification(session_id: &str, method: &str, payload: &Value) {
+fn handle_item_notification(
+    session_id: &str,
+    method: &str,
+    payload: &Value,
+    gate: &mut CodexAgentMessageGate,
+) {
     let item = payload.get("item").cloned().unwrap_or(Value::Null);
     let item_type = item.get("type").and_then(string_value).unwrap_or_default();
     if item_type == "mcpToolCall" {
         emit_mcp_events(session_id, method, &item);
+        let tool = item.get("tool").and_then(string_value).unwrap_or_default();
+        if is_operational_mcp_tool(&tool) {
+            if let Some(buffered) = gate.release_after_operational_event() {
+                emit_text_delta(session_id, &buffered);
+            }
+        }
     } else if item_type == "commandExecution" {
         emit_command_execution(session_id, method, &item);
+        if let Some(buffered) = gate.release_after_operational_event() {
+            emit_text_delta(session_id, &buffered);
+        }
     }
+}
+
+fn is_operational_mcp_tool(tool: &str) -> bool {
+    let normalized = tool
+        .strip_prefix("coderide_")
+        .unwrap_or(tool)
+        .trim();
+    !normalized.is_empty() && normalized != "policy_ack"
 }
 
 fn emit_mcp_events(session_id: &str, method: &str, item: &Value) {
@@ -277,4 +348,36 @@ fn handle_response_id<'a>(value: &'a Value, expected_id: i64) -> Result<Option<&
     if id_value.as_i64() != Some(expected_id) { return Ok(None); }
     if let Some(error) = value.get("error").and_then(|item| item.get("message")).and_then(string_value) { return Err(error); }
     Ok(value.get("result"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_operational_mcp_tool, CodexAgentMessageGate};
+
+    #[test]
+    fn codex_agent_message_gate_buffers_text_until_first_operational_event() {
+        let mut gate = CodexAgentMessageGate::default();
+
+        assert_eq!(gate.push_delta("Prima risposta. "), None);
+        assert_eq!(gate.push_delta("Ancora testo."), None);
+        assert_eq!(
+            gate.release_after_operational_event().as_deref(),
+            Some("Prima risposta. Ancora testo.")
+        );
+        assert_eq!(gate.push_delta(" Dopo il tool.").as_deref(), Some(" Dopo il tool."));
+    }
+
+    #[test]
+    fn codex_agent_message_gate_flushes_direct_answer_without_tools() {
+        let mut gate = CodexAgentMessageGate::default();
+        assert_eq!(gate.push_delta("Risposta finale"), None);
+        assert_eq!(gate.flush_pending().as_deref(), Some("Risposta finale"));
+    }
+
+    #[test]
+    fn policy_ack_is_not_treated_as_operational_tool() {
+        assert!(!is_operational_mcp_tool("coderide_policy_ack"));
+        assert!(is_operational_mcp_tool("coderide_read"));
+        assert!(is_operational_mcp_tool("coderide_todo_write"));
+    }
 }
