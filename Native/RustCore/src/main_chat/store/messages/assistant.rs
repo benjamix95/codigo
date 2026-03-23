@@ -97,12 +97,53 @@ pub fn sync_assistant_pipeline_state(
     if incoming_primary.is_empty() && !existing_primary.is_empty() {
         sync_primary_text_block(&mut merged, &existing_primary);
     }
+    if merged
+        .reasoning_text
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default()
+        .is_empty()
+    {
+        merged.reasoning_text = existing.reasoning_text.clone();
+    }
+    merged.blocks = merge_timeline_blocks(existing.blocks.as_ref(), merged.blocks.as_ref());
+    if merged.subagent_cards.is_none() {
+        merged.subagent_cards = existing.subagent_cards.clone();
+    }
     normalize_message(&mut merged);
     merged.turn_metadata = pipeline_message.turn_metadata.clone();
     merged.reasoning_text = pipeline_message.reasoning_text.clone();
+    if merged
+        .reasoning_text
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default()
+        .is_empty()
+    {
+        merged.reasoning_text = existing.reasoning_text.clone();
+    }
     merged.is_streaming = pipeline_message.is_streaming;
     conversation.messages[message_index] = merged;
     MainChatStoreResponse::success(snapshot)
+}
+
+fn merge_timeline_blocks(
+    existing: Option<&Vec<app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot>>,
+    incoming: Option<&Vec<app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot>>,
+) -> Option<Vec<app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot>> {
+    let mut merged = existing.cloned().unwrap_or_default();
+    for block in incoming.into_iter().flatten() {
+        if let Some(index) = merged.iter().position(|candidate| {
+            candidate.id == block.id
+                || ((block.kind == "primaryText" || block.kind == "reasoning")
+                    && candidate.kind == block.kind)
+        }) {
+            merged[index] = block.clone();
+        } else {
+            merged.push(block.clone());
+        }
+    }
+    (!merged.is_empty()).then_some(merged)
 }
 
 pub fn save_reasoning(

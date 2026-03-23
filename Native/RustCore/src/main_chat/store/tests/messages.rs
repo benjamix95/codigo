@@ -162,6 +162,132 @@ fn sync_assistant_pipeline_state_preserves_existing_visible_text_when_incoming_i
 }
 
 #[test]
+fn sync_assistant_pipeline_state_preserves_existing_timeline_context_when_incoming_snapshot_is_partial() {
+    let mut request = action(
+        MainChatStoreSnapshot {
+            conversations: vec![app_core_protocol::main_chat_store::MainChatStoreConversationSnapshot {
+                id: "conv-pipeline".to_string(),
+                thread_root_conversation_id: "conv-pipeline".to_string(),
+                title: "Pipeline".to_string(),
+                messages: vec![
+                    message("user-1", "user", "hello", false),
+                    app_core_protocol::main_chat_store::MainChatStoreMessageSnapshot {
+                        id: "assistant-1".to_string(),
+                        role: "assistant".to_string(),
+                        content: "Visible answer".to_string(),
+                        primary_text_snapshot: Some("Visible answer".to_string()),
+                        blocks: Some(vec![
+                            app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot {
+                                id: "primary-text".to_string(),
+                                kind: "primaryText".to_string(),
+                                title: None,
+                                text: "Visible answer".to_string(),
+                                items: Vec::new(),
+                                metadata: Default::default(),
+                                is_collapsible: false,
+                                is_collapsed_by_default: false,
+                            },
+                            app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot {
+                                id: "reasoning".to_string(),
+                                kind: "reasoning".to_string(),
+                                title: Some("Thinking".to_string()),
+                                text: "Inspecting files".to_string(),
+                                items: Vec::new(),
+                                metadata: Default::default(),
+                                is_collapsible: true,
+                                is_collapsed_by_default: true,
+                            },
+                            app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot {
+                                id: "commands".to_string(),
+                                kind: "commands".to_string(),
+                                title: Some("Commands executed".to_string()),
+                                text: String::new(),
+                                items: vec!["rg timeline".to_string()],
+                                metadata: Default::default(),
+                                is_collapsible: true,
+                                is_collapsed_by_default: true,
+                            },
+                        ]),
+                        turn_metadata: None,
+                        is_streaming: true,
+                        image_paths: None,
+                        attachments: None,
+                        plan_attachment: None,
+                        reasoning_text: Some("Inspecting files".to_string()),
+                        subagent_cards: Some(vec![
+                            app_core_protocol::main_chat_store::MainChatStoreSubagentCardSnapshot {
+                                swarm_id: "swarm-1".to_string(),
+                                status: "running".to_string(),
+                                title: "Worker".to_string(),
+                                detail: "Scanning timeline".to_string(),
+                                summary: None,
+                                error_count: 0,
+                                warning_count: None,
+                                result_preview: None,
+                                transcript: None,
+                            },
+                        ]),
+                    },
+                ],
+                created_at: None,
+                context_id: None,
+                context_folder_path: None,
+                mode: Some("agent".to_string()),
+                preferred_provider_id: Some("codex".to_string()),
+                context_memory_summary_markdown: None,
+                context_memory_generated_at: None,
+                context_memory_source_message_count: None,
+                is_archived: false,
+                is_pinned: false,
+                is_favorite: false,
+                last_input_tokens: None,
+                workspace_id: None,
+                ad_hoc_folder_paths: Vec::new(),
+                checkpoints: Vec::new(),
+            }],
+            plan_boards: Default::default(),
+        },
+        "sync_assistant_pipeline_state",
+    );
+    request.conversation_id = Some("conv-pipeline".to_string());
+    request.message_id = Some("assistant-1".to_string());
+    request.message = Some(app_core_protocol::main_chat_store::MainChatStoreMessageSnapshot {
+        id: "assistant-1".to_string(),
+        role: "assistant".to_string(),
+        content: String::new(),
+        primary_text_snapshot: Some(String::new()),
+        blocks: Some(vec![app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot {
+            id: "status-1".to_string(),
+            kind: "status".to_string(),
+            title: Some("Status".to_string()),
+            text: "Completed".to_string(),
+            items: Vec::new(),
+            metadata: Default::default(),
+            is_collapsible: true,
+            is_collapsed_by_default: false,
+        }]),
+        turn_metadata: None,
+        is_streaming: false,
+        image_paths: None,
+        attachments: None,
+        plan_attachment: None,
+        reasoning_text: None,
+        subagent_cards: None,
+    });
+
+    let snapshot = unwrap_snapshot(handle_action(request));
+    let message = &snapshot.conversations[0].messages[1];
+    assert_eq!(message.content, "Visible answer");
+    assert_eq!(message.reasoning_text.as_deref(), Some("Inspecting files"));
+    assert_eq!(message.subagent_cards.as_ref().map(Vec::len), Some(1));
+    let blocks = message.blocks.as_ref().expect("blocks");
+    assert!(blocks.iter().any(|block| block.kind == "primaryText" && block.text == "Visible answer"));
+    assert!(blocks.iter().any(|block| block.kind == "reasoning" && block.text == "Inspecting files"));
+    assert!(blocks.iter().any(|block| block.kind == "commands" && block.items == vec!["rg timeline".to_string()]));
+    assert!(blocks.iter().any(|block| block.kind == "status" && block.text == "Completed"));
+}
+
+#[test]
 fn load_snapshot_normalizes_primary_text_and_reasoning_blocks() {
     let response = load_snapshot(MainChatStoreSnapshot {
         conversations: vec![app_core_protocol::main_chat_store::MainChatStoreConversationSnapshot {
