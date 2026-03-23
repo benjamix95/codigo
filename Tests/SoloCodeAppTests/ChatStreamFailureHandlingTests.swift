@@ -38,6 +38,31 @@ final class ChatStreamFailureHandlingTests: XCTestCase {
         )
     }
 
+    func testInlineTodoWritePayloadsForStreamingUpdateExtractsNewlyClosedMarker() {
+        let payloads = inlineTodoWritePayloadsForStreamingUpdate(
+            existingContent: "[CODERIDE:todo_write|title=Run",
+            incomingContent: " tests|status=in_progress]",
+            isReplacement: false
+        )
+
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(payloads.first?["title"], "Run tests")
+        XCTAssertEqual(payloads.first?["status"], "in_progress")
+    }
+
+    func testPipelineSwarmPayloadCarriesStableSwarmMetadata() {
+        let payload = pipelineSwarmPayload(
+            taskId: "task_chat_0",
+            agentName: "Explorer",
+            status: "started"
+        )
+
+        XCTAssertEqual(payload["swarm_id"], "task_chat_0")
+        XCTAssertEqual(payload["group_id"], "swarm-task_chat_0")
+        XCTAssertEqual(payload["agent_name"], "Explorer")
+        XCTAssertEqual(payload["status"], "started")
+    }
+
     func testShouldPreservePartialAssistantContentForProviderErrors() {
         let error = ConversationFlowCoordinator.StreamExecutionError.providerError("boom")
 

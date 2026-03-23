@@ -1,6 +1,13 @@
 import CoderEngine
 import Foundation
 
+private enum InlineTodoWriteMatcher {
+    static let regex = try? NSRegularExpression(
+        pattern: #"\[CODERIDE:todo_write\|([^\]]+)\]"#,
+        options: [.caseInsensitive]
+    )
+}
+
 func inlinePolicyAckHashesForStreamingUpdate(
     existingContent: String?,
     incomingContent: String,
@@ -11,6 +18,71 @@ func inlinePolicyAckHashesForStreamingUpdate(
         ? incomingContent
         : (existingContent ?? "") + incomingContent
     return inlinePolicyAckHashes(in: combinedContent)
+}
+
+func inlineTodoWritePayloadsForStreamingUpdate(
+    existingContent: String?,
+    incomingContent: String,
+    isReplacement: Bool
+) -> [[String: String]] {
+    guard !incomingContent.isEmpty,
+          let regex = InlineTodoWriteMatcher.regex else {
+        return []
+    }
+
+    let prefix = isReplacement ? "" : (existingContent ?? "")
+    let combinedContent = prefix + incomingContent
+    let nsContent = combinedContent as NSString
+    let prefixLength = (prefix as NSString).length
+
+    var payloads: [[String: String]] = []
+    let matches = regex.matches(
+        in: combinedContent,
+        range: NSRange(location: 0, length: nsContent.length)
+    )
+
+    for match in matches where match.numberOfRanges >= 2 {
+        if !isReplacement, match.range.location + match.range.length <= prefixLength {
+            continue
+        }
+        let rawArgs = nsContent.substring(with: match.range(at: 1))
+        let payload = parseInlineCoderideKeyValueArgs(rawArgs)
+        guard EventNormalizer.parseTodoWrite(payload: payload) != nil else { continue }
+        payloads.append(payload)
+    }
+    return payloads
+}
+
+func pipelineSwarmPayload(
+    taskId: String,
+    agentName: String?,
+    status: String
+) -> [String: String] {
+    var payload: [String: String] = [
+        "task_id": taskId,
+        "swarm_id": taskId,
+        "group_id": "swarm-\(taskId)",
+        "status": status,
+    ]
+    let normalizedAgentName = (agentName ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    if !normalizedAgentName.isEmpty {
+        payload["agent_name"] = normalizedAgentName
+    }
+    return payload
+}
+
+private func parseInlineCoderideKeyValueArgs(_ rawArgs: String) -> [String: String] {
+    var payload: [String: String] = [:]
+    for segment in rawArgs.split(separator: "|", omittingEmptySubsequences: false) {
+        let parts = segment.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else { continue }
+        let key = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty, !value.isEmpty else { continue }
+        payload[key] = value
+    }
+    return payload
 }
 
 // MARK: - Event Mapping
@@ -38,6 +110,96 @@ extension PipelineIntegrationService {
         for hash in hashes {
             callback("policy_ack", ["hash": hash], providerId, conversationId)
         }
+    }
+
+    private func processInlineTodoWriteMarkersFromPipelineText(
+        existingContent: String?,
+        incomingContent: String,
+        isReplacement: Bool,
+        conversationId: UUID
+    ) {
+        guard let runtime = runtime(for: conversationId),
+              let callback = runtime.rawEventHandler else {
+            return
+        }
+
+        let payloads = inlineTodoWritePayloadsForStreamingUpdate(
+            existingContent: existingContent,
+            incomingContent: incomingContent,
+            isReplacement: isReplacement
+        )
+        guard !payloads.isEmpty else { return }
+
+        let providerId = runtime.chatTurnState.providerId ?? runtime.providerId
+        for payload in payloads {
+            callback("todo_write", payload, providerId, conversationId)
+        }
+    }
+
+    private func recordPipelineSwarmLifecycleActivity(
+        agentName: String?,
+        title: String,
+        detail: String,
+        conversationId: UUID,
+        isRunning: Bool,
+        taskId: String,
+        status: String
+    ) {
+        let resolvedName = (agentName ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle = resolvedName.isEmpty
+            ? title.trimmingCharacters(in: .whitespacesAndNewlines)
+            : resolvedName
+        var payload = pipelineSwarmPayload(
+            taskId: taskId,
+            agentName: agentName,
+            status: status
+        )
+        payload["conversation_id"] = conversationId.uuidString.lowercased()
+        if !detail.isEmpty {
+            payload["detail"] = detail
+        }
+        taskActivityStore?.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: resolvedTitle.isEmpty ? "Subagent" : resolvedTitle,
+                detail: detail,
+                payload: payload,
+                phase: .executing,
+                isRunning: isRunning,
+                groupId: payload["group_id"]
+            )
+        )
+    }
+
+    private func recordPipelineSubagentTextActivity(
+        taskId: String,
+        text: String,
+        conversationId: UUID
+    ) {
+        let cleaned = ChatStore.stripCoderideMarkers(text, aggressive: true)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return }
+
+        var payload = pipelineSwarmPayload(
+            taskId: taskId,
+            agentName: nil,
+            status: "running"
+        )
+        payload["conversation_id"] = conversationId.uuidString.lowercased()
+        payload["text"] = cleaned
+
+        taskActivityStore?.addActivity(
+            TaskActivity(
+                type: "subagent_text",
+                title: "Subagent update",
+                detail: String(cleaned.prefix(140)),
+                payload: payload,
+                phase: .executing,
+                isRunning: true,
+                groupId: payload["group_id"]
+            )
+        )
     }
 
     private static let canonicalTodoCompletionRoles: Set<AgentRole> = [
@@ -146,6 +308,15 @@ extension PipelineIntegrationService {
             isRunning: true,
             taskId: p.taskId
         )
+        recordPipelineSwarmLifecycleActivity(
+            agentName: p.agentName,
+            title: p.title,
+            detail: "\(p.role.displayName): \(p.title)",
+            conversationId: conversationId,
+            isRunning: true,
+            taskId: p.taskId,
+            status: "started"
+        )
         swarmProgressStore?.markStarted(
             name: p.title,
             conversationId: conversationId
@@ -168,6 +339,15 @@ extension PipelineIntegrationService {
             conversationId: conversationId,
             isRunning: false,
             taskId: p.taskId
+        )
+        recordPipelineSwarmLifecycleActivity(
+            agentName: p.agentName,
+            title: p.title,
+            detail: "\(p.role.displayName): \(p.title) completed in \(p.durationMs)ms",
+            conversationId: conversationId,
+            isRunning: false,
+            taskId: p.taskId,
+            status: "completed"
         )
 
         swarmProgressStore?.markCompleted(
@@ -249,6 +429,15 @@ extension PipelineIntegrationService {
             isRunning: false,
             taskId: p.taskId
         )
+        recordPipelineSwarmLifecycleActivity(
+            agentName: nil,
+            title: "Task failed",
+            detail: p.error,
+            conversationId: conversationId,
+            isRunning: false,
+            taskId: p.taskId,
+            status: "failed"
+        )
     }
 
     // MARK: - Streaming Events
@@ -263,6 +452,17 @@ extension PipelineIntegrationService {
             isReplacement: false,
             conversationId: conversationId
         )
+        processInlineTodoWriteMarkersFromPipelineText(
+            existingContent: existingContent,
+            incomingContent: p.delta,
+            isReplacement: false,
+            conversationId: conversationId
+        )
+        recordPipelineSubagentTextActivity(
+            taskId: p.taskId,
+            text: p.delta,
+            conversationId: conversationId
+        )
         consumePipelineUIEvent(.textDelta(p), for: conversationId)
     }
 
@@ -271,6 +471,17 @@ extension PipelineIntegrationService {
             existingContent: nil,
             incomingContent: p.replacement,
             isReplacement: true,
+            conversationId: conversationId
+        )
+        processInlineTodoWriteMarkersFromPipelineText(
+            existingContent: nil,
+            incomingContent: p.replacement,
+            isReplacement: true,
+            conversationId: conversationId
+        )
+        recordPipelineSubagentTextActivity(
+            taskId: p.taskId,
+            text: p.replacement,
             conversationId: conversationId
         )
         consumePipelineUIEvent(.textReplace(p), for: conversationId)

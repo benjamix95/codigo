@@ -94,57 +94,63 @@ extension PipelineIntegrationService {
 
     private func handleRawTodoWrite(_ p: RawEventPayload, for conversationId: UUID) {
         guard let todoStore, let runtime = runtime(for: conversationId) else { return }
+        let normalizedEvents = EventNormalizer.normalizeTodoWrite(
+            payload: p.payload,
+            timestamp: .now
+        ) ?? []
+        let parsedTodos = normalizedEvents.compactMap { event -> TodoWritePayload? in
+            if case .todoWrite(let todo) = event {
+                return todo
+            }
+            return nil
+        }
+        guard !parsedTodos.isEmpty else { return }
 
-        let parsedTodo = EventNormalizer.parseTodoWrite(payload: p.payload)
-        let title = parsedTodo?.title ?? p.payload["title"] ?? p.taskId
-        let status = parsedTodo?.status ?? .inProgress
-        let todoId = resolvedRawTodoID(from: p, parsedTodo: parsedTodo)
-        let priority = parsedTodo?.priority
-        let activeForm = parsedTodo?.activeForm
-        let linkedFiles = parsedTodo?.files ?? []
-
-        if let planId = runtime.planConversationId {
-            var updated = todoStore.upsertCanonicalOnlyFromAgent(
-                id: todoId,
-                title: title,
-                status: status,
-                priority: priority,
-                notes: p.payload["notes"],
-                activeForm: activeForm,
-                linkedFiles: linkedFiles,
-                conversationId: planId
-            )
-            if !updated {
-                updated = todoStore.upsertCanonicalFromExecutionFallback(
-                    status: status,
-                    priority: priority,
-                    notes: p.payload["notes"],
-                    activeForm: activeForm,
-                    linkedFiles: linkedFiles,
+        for todo in parsedTodos {
+            let todoId = resolvedRawTodoID(from: p, parsedTodo: todo)
+            if let planId = runtime.planConversationId {
+                var updated = todoStore.upsertCanonicalOnlyFromAgent(
+                    id: todoId,
+                    title: todo.title,
+                    status: todo.status,
+                    priority: todo.priority,
+                    notes: todo.notes,
+                    activeForm: todo.activeForm,
+                    linkedFiles: todo.files,
                     conversationId: planId
                 )
-            }
-            if updated, status == .done {
-                _ = todoStore.advanceNextCanonicalTodoIfNeeded(
-                    conversationId: planId
+                if !updated {
+                    updated = todoStore.upsertCanonicalFromExecutionFallback(
+                        status: todo.status,
+                        priority: todo.priority,
+                        notes: todo.notes,
+                        activeForm: todo.activeForm,
+                        linkedFiles: todo.files,
+                        conversationId: planId
+                    )
+                }
+                if updated, todo.status == .done {
+                    _ = todoStore.advanceNextCanonicalTodoIfNeeded(
+                        conversationId: planId
+                    )
+                    let canonicalTodos = todoStore.canonicalTodos(for: planId)
+                    chatStore?.syncPlanStepsFromCanonicalTodos(
+                        canonicalTodos,
+                        in: planId
+                    )
+                }
+            } else {
+                todoStore.upsertFromAgent(
+                    id: todoId,
+                    title: todo.title,
+                    status: todo.status,
+                    priority: todo.priority,
+                    notes: todo.notes,
+                    activeForm: todo.activeForm,
+                    linkedFiles: todo.files,
+                    conversationId: conversationId
                 )
-                let canonicalTodos = todoStore.canonicalTodos(for: planId)
-                chatStore?.syncPlanStepsFromCanonicalTodos(
-                    canonicalTodos,
-                    in: planId
-                )
             }
-        } else {
-            todoStore.upsertFromAgent(
-                id: todoId,
-                title: title,
-                status: status,
-                priority: priority,
-                notes: p.payload["notes"],
-                activeForm: activeForm,
-                linkedFiles: linkedFiles,
-                conversationId: conversationId
-            )
         }
     }
 
