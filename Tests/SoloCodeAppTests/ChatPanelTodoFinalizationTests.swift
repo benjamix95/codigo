@@ -192,6 +192,38 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
         XCTAssertTrue(ids.contains(agentInProgress.id))
     }
 
+    func testSubagentBatchAutoCompletionIgnoresOperationalPlaceholders() {
+        let runtimePlaceholder = TodoItem(
+            id: UUID(),
+            title: "Runtime placeholder",
+            status: .inProgress,
+            source: .agent,
+            isOperationalPlaceholder: true
+        )
+        let realAgentTodo = TodoItem(
+            id: UUID(),
+            title: "Agent task",
+            status: .inProgress,
+            source: .agent
+        )
+        let reviewTodo = TodoItem(
+            id: UUID(),
+            title: "Code Review & Test",
+            status: .pending,
+            source: .agent,
+            isOperationalPlaceholder: true
+        )
+
+        let ids = todoIDsToAutoCompleteAfterSubagentBatch(
+            todos: [runtimePlaceholder, realAgentTodo, reviewTodo],
+            includePendingReviewTodo: true
+        )
+
+        XCTAssertFalse(ids.contains(runtimePlaceholder.id))
+        XCTAssertTrue(ids.contains(realAgentTodo.id))
+        XCTAssertFalse(ids.contains(reviewTodo.id))
+    }
+
     func testTraceEventsContainSuccessfulCodeEditsIgnoresReadBatchEvents() {
         let readEvent = makeToolTraceEvent(
             type: "read_batch_completed",

@@ -129,6 +129,7 @@ func todoIDsToAutoCompleteAfterSubagentBatch(
     let inProgressCandidates = todos.filter {
         isInScope($0)
             && $0.source == .agent
+            && !$0.isOperationalPlaceholder
             && $0.status == .inProgress
             && (!excludeCanonicalTodos || !$0.isPlanCanonical)
     }
@@ -144,6 +145,7 @@ func todoIDsToAutoCompleteAfterSubagentBatch(
        let pendingReview = todos.first(where: {
            isInScope($0)
                && $0.source == .agent
+               && !$0.isOperationalPlaceholder
                && $0.status == .pending
                && normalizedTodoTitle($0.title) == normalizedReviewTitle
        })
@@ -268,6 +270,9 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
         || normalizedType == "reasoning"
         || normalizedType == "usage"
         || normalizedType == "assistant_update"
+        || normalizedType == "agent"
+        || normalizedType == "subagent_text"
+        || normalizedType == "subagent_batch_done"
         || normalizedType == "tool_validation_error"
         || normalizedType == "tool_execution_error"
         || normalizedType == "error"
@@ -289,6 +294,7 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
             && tool != "activate_plan_mode"
             && tool != "coderide_activate_debug_mode"
             && tool != "activate_debug_mode"
+            && !tool.contains("subagent_")
     }
     if normalizedType == "command_execution"
         || normalizedType == "bash"

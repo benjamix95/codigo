@@ -153,6 +153,16 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertNil(violation)
     }
 
+    func testTodoPlanStartPolicyDoesNotTreatSubagentMCPCallAsTodoGatedOperationalWork() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(),
+            type: "mcp_tool_call",
+            payload: ["mcp_tool": "coderide_subagent_explorer"]
+        )
+
+        XCTAssertNil(violation)
+    }
+
     func testLinearChatHidesTodoEventsWhenTodoCardIsVisible() {
         XCTAssertFalse(
             shouldShowOperationEventInLinearChat(
@@ -182,6 +192,16 @@ final class ChatTodoVisibilityTests: XCTestCase {
             shouldShowOperationEventInLinearChat(
                 eventType: "command_execution",
                 payload: ["command": "rg Chat ."],
+                showTodoCard: false
+            )
+        )
+    }
+
+    func testLinearChatHidesPolicyAckMCPCall() {
+        XCTAssertFalse(
+            shouldShowOperationEventInLinearChat(
+                eventType: "mcp_tool_call",
+                payload: ["mcp_tool": "coderide_policy_ack", "is_mcp": "true"],
                 showTodoCard: false
             )
         )
