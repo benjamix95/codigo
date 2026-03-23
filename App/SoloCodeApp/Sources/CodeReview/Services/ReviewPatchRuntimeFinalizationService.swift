@@ -82,7 +82,7 @@ enum ReviewPatchRuntimeFinalizationService {
     }
 }
 
-extension CodigoApp {
+extension SoloCodeApp {
     @MainActor
     func launchDeferredReviewCommand(
         command: MCPSharedCodeReviewCommand,

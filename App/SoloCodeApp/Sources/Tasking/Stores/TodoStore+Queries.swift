@@ -1,28 +1,33 @@
 import Foundation
 
 extension TodoStore {
+    var userVisibleTodos: [TodoItem] {
+        todos.filter { !$0.isOperationalPlaceholder }
+    }
+
     var visibleTodos: [TodoItem] {
         let filtered: [TodoItem]
         switch filter {
         case .open:
-            filtered = todos.filter { $0.status != .done }
+            filtered = userVisibleTodos.filter { $0.status != .done }
         case .inProgress:
-            filtered = todos.filter { $0.status == .inProgress }
+            filtered = userVisibleTodos.filter { $0.status == .inProgress }
         case .completed:
-            filtered = todos.filter { $0.status == .done }
+            filtered = userVisibleTodos.filter { $0.status == .done }
         }
 
         return sortedCanonicalFirstTodos(filtered)
     }
 
     var completionRatio: Double {
-        guard !todos.isEmpty else { return 0 }
-        let done = Double(todos.filter { $0.status == .done }.count)
-        return done / Double(todos.count)
+        let visible = userVisibleTodos
+        guard !visible.isEmpty else { return 0 }
+        let done = Double(visible.filter { $0.status == .done }.count)
+        return done / Double(visible.count)
     }
 
     var openTodosCount: Int {
-        todos.filter { $0.status != .done }.count
+        userVisibleTodos.filter { $0.status != .done }.count
     }
 
     var hasOpenTodos: Bool {
@@ -30,7 +35,7 @@ extension TodoStore {
     }
 
     func sortedCanonicalFirstTodos(_ items: [TodoItem]? = nil) -> [TodoItem] {
-        (items ?? todos).sorted { lhs, rhs in
+        (items ?? userVisibleTodos).filter { !$0.isOperationalPlaceholder }.sorted { lhs, rhs in
             if lhs.isPlanCanonical != rhs.isPlanCanonical { return lhs.isPlanCanonical }
             if lhs.isPlanCanonical, rhs.isPlanCanonical {
                 let lhsScope = lhs.planConversationId?.uuidString ?? ""
@@ -47,7 +52,7 @@ extension TodoStore {
     }
 
     func canonicalTodos(for conversationId: UUID?) -> [TodoItem] {
-        let canonical = todos.filter(\.isPlanCanonical)
+        let canonical = userVisibleTodos.filter(\.isPlanCanonical)
         guard let conversationId else {
             return sortedCanonicalFirstTodos(canonical)
         }
@@ -62,15 +67,16 @@ extension TodoStore {
     /// Returns todos suitable for chat/task live cards, scoped STRICTLY to the current conversation.
     /// Prefer scoped todos, but preserve legacy fallback for unscoped runtime/tool todos.
     func displayTodosForChat(for conversationId: UUID?) -> [TodoItem] {
+        let visible = userVisibleTodos
         guard let conversationId else {
-            return sortedCanonicalFirstTodos()
+            return sortedCanonicalFirstTodos(visible)
         }
 
-        let scoped = todos.filter { $0.planConversationId == conversationId }
+        let scoped = visible.filter { $0.planConversationId == conversationId }
         if !scoped.isEmpty {
             return sortedCanonicalFirstTodos(scoped)
         }
-        let legacyUnscoped = todos.filter { $0.planConversationId == nil }
+        let legacyUnscoped = visible.filter { $0.planConversationId == nil }
         return sortedCanonicalFirstTodos(legacyUnscoped)
     }
 
@@ -95,7 +101,7 @@ extension TodoStore {
         // Strict scoping: only show runtime todos that belong to this conversation.
         // No legacy fallback — unscoped todos from other conversations stay hidden.
         return { item in
-            guard !item.isPlanCanonical else { return false }
+            guard !item.isPlanCanonical, !item.isOperationalPlaceholder else { return false }
             return item.planConversationId == conversationId
         }
     }

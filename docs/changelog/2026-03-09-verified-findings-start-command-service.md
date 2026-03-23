@@ -6,7 +6,7 @@ Portare anche l’avvio della review dietro una surface shared del core, così `
 ## Modifiche
 - aggiunto `VerifiedFindingsStartCommandService`
 - `CodeReviewHandler+Start` ora delega al service shared
-- `CodigoApp+BugHunterExecution` usa il service shared per accodare il review start collegato alla run
+- `SoloCodeApp+BugHunterExecution` usa il service shared per accodare il review start collegato alla run
 - `VerifiedFindingsQueryService` riallineato alla redazione storica di `review_findings`
 - aggiunti test di regressione in `VerifiedFindingsStartCommandServiceTests`
 
@@ -14,7 +14,7 @@ Portare anche l’avvio della review dietro una surface shared del core, così `
 - `Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsStartCommandService.swift`
 - `Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsQueryService.swift`
 - `Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CodeReview/CodeReviewHandler+Start.swift`
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/BugHunter/CodigoApp+BugHunterExecution.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/BugHunter/SoloCodeApp+BugHunterExecution.swift`
 - `Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStartCommandServiceTests.swift`
 - `Solo Code.xcodeproj/project.pbxproj`
 

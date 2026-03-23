@@ -9,7 +9,7 @@ extension SettingsView {
                     "Quando attivo, preserva e sincronizza `gpt-5.4` con `model_context_window = 1000000` e `model_auto_compact_token_limit = 900000` su `~/.codex/config.toml` e sui profili Codex dell'app."
                 )
                 hintBox(
-                    "Quando lo disattivi, Codigo commenta il blocco gestito nel file di configurazione invece di cancellarlo, così puoi riattivarlo senza perdere i valori."
+                    "Quando lo disattivi, Solo Code commenta il blocco gestito nel file di configurazione invece di cancellarlo, così puoi riattivarlo senza perdere i valori."
                 )
             }
             .padding(4)

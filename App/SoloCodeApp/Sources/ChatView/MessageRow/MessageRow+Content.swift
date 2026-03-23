@@ -103,7 +103,14 @@ extension MessageRow {
                     messageActionsRow()
                 }
             } else {
+                let providerId = message.turnMetadata?.providerId ?? ""
+                let shouldRenderInlineReasoning =
+                    ChatReasoningPresentationPolicy.mode(
+                        providerId: providerId,
+                        separateCodexThinkingMessagesEnabled: true
+                    ) == .inline
                 let reasoningBlocks: [ReasoningBlock] = {
+                    guard shouldRenderInlineReasoning else { return [] }
                     if isActivelyStreaming, !streamingReasoningBlocks.isEmpty {
                         return streamingReasoningBlocks
                     }

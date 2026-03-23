@@ -45,14 +45,14 @@ Il lifecycle condiviso `VerifiedFindings` era presente, ma il path BugHunter/Sec
 ## Moduli confinanti da verificare
 - `VerifiedFindingsStartCommandService`
 - `ReviewCandidateVerificationService`
-- `CodigoApp+CodeReviewDeferredCommands`
+- `SoloCodeApp+CodeReviewDeferredCommands`
 - `ReviewPatchWorkflowService`
 - `ReviewPanelChatMessageContext`
 
 ## Test aggiunti o aggiornati
 - `CodeReviewFindingTests`
 - `VerifiedFindingsStartCommandServiceTests`
-- `CodigoAppCodeReviewCommandLoopTests`
+- `SoloCodeAppCodeReviewCommandLoopTests`
 - `ReviewPanelChatMessageContextTests`
 - `ReviewPatchWorkflowServiceTests`
 
@@ -61,7 +61,7 @@ Eseguita con `xcodebuild` diretto perché `xcodebuildmcp` non è disponibile in 
 - suite mirata `CoderEngineTests/CodeReviewFindingTests`
 - suite mirata `CoderEngineTests/VerifiedFindingsStartCommandServiceTests`
 - suite mirata `SoloCodeAppTests/ReviewPanelChatMessageContextTests`
-- suite mirata `SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+- suite mirata `SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
 - suite mirata `SoloCodeAppTests/ReviewPatchWorkflowServiceTests`
 
 Esito:

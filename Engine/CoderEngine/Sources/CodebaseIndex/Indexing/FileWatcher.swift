@@ -69,7 +69,7 @@ public actor FileWatcher {
         }
 
         stream = eventStream
-        FSEventStreamSetDispatchQueue(eventStream, DispatchQueue(label: "com.codigo.filewatcher", qos: .utility))
+        FSEventStreamSetDispatchQueue(eventStream, DispatchQueue(label: "com.solocode.filewatcher", qos: .utility))
         if !FSEventStreamStart(eventStream) {
             FSEventStreamInvalidate(eventStream)
             FSEventStreamRelease(eventStream)

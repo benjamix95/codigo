@@ -13,17 +13,17 @@ public struct CoderRuleDocument: Sendable {
 }
 
 /// Cursor-style rules management:
-/// - global: ~/.codigo/rules/global/*.md
-/// - project: <workspace>/.codigo/rules/project/*.md
+/// - global: ~/.solocode/rules/global/*.md
+/// - project: <workspace>/.solocode/rules/project/*.md
 public enum CoderRulesFile {
     private static var homeDir: String { NSHomeDirectory() }
 
     public static var globalRulesDir: String {
-        (homeDir as NSString).appendingPathComponent(".codigo/rules/global")
+        (homeDir as NSString).appendingPathComponent(".solocode/rules/global")
     }
 
     public static func projectRulesDir(workspacePath: String) -> String {
-        (workspacePath as NSString).appendingPathComponent(".codigo/rules/project")
+        (workspacePath as NSString).appendingPathComponent(".solocode/rules/project")
     }
 
     public static func ensureGlobalRulesDir() {
@@ -71,7 +71,7 @@ public enum CoderRulesFile {
         var lines: [String] = []
         lines.append("## Active rules")
         if !global.isEmpty {
-            lines.append("### Global rules (.codigo/rules/global)")
+            lines.append("### Global rules (.solocode/rules/global)")
             for rule in global {
                 lines.append("- \(rule.name)")
                 lines.append("```md")
@@ -80,7 +80,7 @@ public enum CoderRulesFile {
             }
         }
         if !project.isEmpty {
-            lines.append("### Project rules (.codigo/rules/project)")
+            lines.append("### Project rules (.solocode/rules/project)")
             for rule in project {
                 lines.append("- \(rule.name)")
                 lines.append("```md")

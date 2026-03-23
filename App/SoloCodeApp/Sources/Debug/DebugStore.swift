@@ -16,7 +16,7 @@ final class DebugStore: ObservableObject {
     /// Debug markers inserted in files by the agent (tracked for cleanup)
     @Published var debugMarkers: [DebugMarker] = []
 
-    /// Cursor-style runtime logs collected from .codigo/debug.log
+    /// Cursor-style runtime logs collected from .solocode/debug.log
     @Published var runtimeLogs: [RuntimeLogEntry] = []
 
     /// Instrumentation points the agent has inserted (richer than markers)

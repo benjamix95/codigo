@@ -36,7 +36,7 @@ final class ExtensionRuntimeSandboxCapabilityTests: XCTestCase {
 
     private func makeManifest(capabilities: [ExtensionCapability]) -> ExtensionManifest {
         ExtensionManifest(
-            id: "com.codigo.extensions.capability-test",
+            id: "com.solocode.extensions.capability-test",
             name: "Capability Test",
             version: "1.0.0",
             entryPoint: "Plugin",

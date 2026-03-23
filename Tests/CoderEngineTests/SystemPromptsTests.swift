@@ -28,7 +28,7 @@ final class SystemPromptsTests: XCTestCase {
 
     func testCursorDefaultContainsCoreSections() {
         let prompt = SystemPrompts.cursorDefault
-        XCTAssertTrue(prompt.contains("Codigo"))
+        XCTAssertTrue(prompt.contains("Solo Code"))
         XCTAssertTrue(prompt.contains("Core rules"))
         XCTAssertTrue(prompt.contains("Completion contract"))
         XCTAssertTrue(prompt.contains("Execution discipline"))
@@ -39,7 +39,7 @@ final class SystemPromptsTests: XCTestCase {
 
     func testTaskCompletionStrictContainsIdentity() {
         let prompt = SystemPrompts.taskCompletionStrict
-        XCTAssertTrue(prompt.contains("Codigo"))
+        XCTAssertTrue(prompt.contains("Solo Code"))
         XCTAssertTrue(prompt.contains("str_replace"))
     }
 

@@ -47,7 +47,7 @@ mod tests {
             artifact_base_branch_name: Some("release".to_string()),
             current_branch_name: "main".to_string(),
             existing_branch_name: Some("codex/review-pr-custom".to_string()),
-            worktree_root: "/tmp/codigo-review-prs".to_string(),
+            worktree_root: "/tmp/solocode-review-prs".to_string(),
         });
 
         assert_eq!(
@@ -57,7 +57,7 @@ mod tests {
         assert_eq!(response.base_branch_name.as_deref(), Some("release"));
         assert_eq!(
             response.worktree_path.as_deref(),
-            Some("/tmp/codigo-review-prs/codex-review-pr-custom")
+            Some("/tmp/solocode-review-prs/codex-review-pr-custom")
         );
     }
 }

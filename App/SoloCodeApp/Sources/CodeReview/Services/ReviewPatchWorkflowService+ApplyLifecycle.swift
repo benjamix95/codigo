@@ -410,7 +410,7 @@ private struct ReviewPatchRollbackResultBridgeResponse: Decodable {
     let applyMessage: String?
 }
 
-extension CodigoApp {
+extension SoloCodeApp {
     @MainActor
     func makeCommandReviewSessionState(
         sessionId: String,

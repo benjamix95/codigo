@@ -18,4 +18,4 @@ Il command bus review poteva accodare `close_finding`, ma la validazione e la ch
 ## Verifica
 - `cargo test --manifest-path Native/RustCore/Cargo.toml`
 - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/VerifiedFindingsStartCommandServiceTests -only-testing:CoderEngineTests/BugHunterWorkflowServiceTests`
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`

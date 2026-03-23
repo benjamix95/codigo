@@ -18,7 +18,7 @@
 - Causa probabile: il callsite app-side era rimasto in modalità compatibilità pre-cutover.
 - Scope consentito:
   - [ReviewPatchWorkflowService+ApplyLifecycle.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchWorkflowService+ApplyLifecycle.swift)
-  - [CodigoAppCodeReviewCommandLoopTests.swift](/Users/benjaminstoica/SoloCode/Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift)
+  - [SoloCodeAppCodeReviewCommandLoopTests.swift](/Users/benjaminstoica/SoloCode/Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests.swift)
   - `docs/bugs`
   - `docs/changelog`
 - Non-scope:
@@ -26,7 +26,7 @@
   - patch workflow runtime reducers
   - panel runtime
 - Moduli confinanti da verificare:
-  - `CodigoAppCodeReviewCommandLoopTests`
+  - `SoloCodeAppCodeReviewCommandLoopTests`
   - persisted review snapshot mutation path
 - Test da aggiungere o aggiornare:
   - regression test positivo su snapshot persisted
@@ -35,7 +35,7 @@
   - sostituire la mutazione Swift locale con `ReviewCommandRustBridge.mutateSnapshot(... action: \"apply_fix\" ...)`
   - richiedere `mutation.snapshot` come unico success path canonico
 - Verifica post-fix:
-  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testMarkFindingFixAppliedUsesRustMutationForPersistedSnapshot -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testMarkFindingFixAppliedFailsClosedWhenRustMutationRuntimeIsDisabled`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testMarkFindingFixAppliedUsesRustMutationForPersistedSnapshot -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testMarkFindingFixAppliedFailsClosedWhenRustMutationRuntimeIsDisabled`
   - `./scripts/validate_rust_cutover_boundary.sh --trigger gitCommit --workspace /Users/benjaminstoica/SoloCode --files App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchWorkflowService+ApplyLifecycle.swift --format text`
 - Commit previsto: `refactor(review-apply-fix): route persisted mutation through rust`
 

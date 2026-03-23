@@ -592,6 +592,36 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(visible, Set(["Scoped runtime"]))
     }
 
+    func testOperationalPlaceholdersAreExcludedFromVisibleTodoQueries() {
+        let store = makeStore()
+        let conversationId = UUID()
+
+        store.upsertFromAgent(
+            id: nil,
+            title: "Runtime placeholder",
+            status: .inProgress,
+            priority: .medium,
+            notes: "internal runtime state",
+            activeForm: "Running",
+            isOperationalPlaceholder: true,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Real task",
+            status: .pending,
+            priority: .high,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        XCTAssertEqual(store.userVisibleTodos.map(\.title), ["Real task"])
+        XCTAssertEqual(store.displayTodosForChat(for: conversationId).map(\.title), ["Real task"])
+        XCTAssertEqual(store.openTodosCount, 1)
+    }
+
     func testClearDoesNotFireCanonicalCallback() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Step A", "Step B"])

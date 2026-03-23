@@ -26,7 +26,7 @@
   - `MCPSharedCodeReviewSnapshotStoreTests`
   - `MCPSharedCodeReviewCommandsTests`
   - `MCPSharedBugHunterCommandsTests`
-  - `CodigoAppCodeReviewCommandLoopTests`
+  - `SoloCodeAppCodeReviewCommandLoopTests`
 - Test da aggiungere o aggiornare:
   - unit test Rust su codec persistence
   - smoke tests file/store review snapshot
@@ -37,5 +37,5 @@
   - instradare file persistence e il path Postgres review/bughunter attraverso l’adapter
 - Verifica post-fix:
   - `cargo test --manifest-path Native/RustCore/Cargo.toml`
-  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/MCPSharedCodeReviewSnapshotStoreTests -only-testing:CoderEngineTests/MCPSharedCodeReviewCommandsTests -only-testing:CoderEngineTests/MCPSharedBugHunterCommandsTests -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/MCPSharedCodeReviewSnapshotStoreTests -only-testing:CoderEngineTests/MCPSharedCodeReviewCommandsTests -only-testing:CoderEngineTests/MCPSharedBugHunterCommandsTests -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
 - Commit previsto: `perf(review): move persistence payload shaping into rust core`

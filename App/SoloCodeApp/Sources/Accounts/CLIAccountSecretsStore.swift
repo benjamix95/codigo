@@ -2,10 +2,10 @@ import Foundation
 import os.log
 import Security
 
-private let logger = Logger(subsystem: "app.codigo", category: "CLIAccountSecretsStore")
+private let logger = Logger(subsystem: "app.solocode", category: "CLIAccountSecretsStore")
 
 final class CLIAccountSecretsStore {
-    private let service = "app.codigo.cli.accounts"
+    private let service = "app.solocode.cli.accounts"
 
     func setSecret(_ value: String, for accountId: UUID) {
         let key = accountId.uuidString

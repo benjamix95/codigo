@@ -4,7 +4,7 @@
 - B
 
 ## Bug
-- Lo script di release invocava `./Scripts/build-app.sh` invece di `./scripts/build-app.sh` e provava a zippare `Codigo.app` dal root, non il bundle prodotto in `dist/`.
+- Lo script di release invocava `./Scripts/build-app.sh` invece di `./scripts/build-app.sh` e provava a zippare `Solo Code.app` dal root, non il bundle prodotto in `dist/`.
 
 ## Sintomo
 - Il comando di release non è coerente con il layout reale del repository.
@@ -19,7 +19,7 @@
 ## Steps to reproduce
 1. Aprire `scripts/release.sh`.
 2. Verificare il path `./Scripts/build-app.sh`.
-3. Verificare il comando zip che usa `Codigo.app` dal root.
+3. Verificare il comando zip che usa `Solo Code.app` dal root.
 
 ## Risultato attuale
 - Lo script non punta allo script reale e non zippa il bundle generato dal flusso corrente.

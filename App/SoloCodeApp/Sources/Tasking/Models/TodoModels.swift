@@ -76,6 +76,7 @@ struct TodoItem: Identifiable, Codable {
     var status: TodoStatus
     var priority: TodoPriority
     var source: TodoSource
+    var isOperationalPlaceholder: Bool
     let createdAt: Date
     var updatedAt: Date
     var notes: String
@@ -94,6 +95,7 @@ struct TodoItem: Identifiable, Codable {
         status: TodoStatus = .pending,
         priority: TodoPriority = .medium,
         source: TodoSource = .manual,
+        isOperationalPlaceholder: Bool = false,
         createdAt: Date = .now,
         updatedAt: Date = .now,
         notes: String = "",
@@ -108,6 +110,7 @@ struct TodoItem: Identifiable, Codable {
         self.status = status
         self.priority = priority
         self.source = source
+        self.isOperationalPlaceholder = isOperationalPlaceholder
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.notes = notes
@@ -119,7 +122,7 @@ struct TodoItem: Identifiable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, completed, status, priority, source, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, planOrder, planConversationId, activeForm
+        case id, title, completed, status, priority, source, isOperationalPlaceholder, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, planOrder, planConversationId, activeForm
     }
 
     init(from decoder: Decoder) throws {
@@ -137,6 +140,7 @@ struct TodoItem: Identifiable, Codable {
 
         priority = (try? container.decode(TodoPriority.self, forKey: .priority)) ?? .medium
         source = (try? container.decode(TodoSource.self, forKey: .source)) ?? .manual
+        isOperationalPlaceholder = (try? container.decode(Bool.self, forKey: .isOperationalPlaceholder)) ?? false
         notes = (try? container.decode(String.self, forKey: .notes)) ?? ""
         linkedFiles = (try? container.decode([String].self, forKey: .linkedFiles)) ?? []
         updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? createdAt
@@ -167,6 +171,7 @@ struct TodoItem: Identifiable, Codable {
         try container.encode(status, forKey: .status)
         try container.encode(priority, forKey: .priority)
         try container.encode(source, forKey: .source)
+        try container.encode(isOperationalPlaceholder, forKey: .isOperationalPlaceholder)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encode(notes, forKey: .notes)

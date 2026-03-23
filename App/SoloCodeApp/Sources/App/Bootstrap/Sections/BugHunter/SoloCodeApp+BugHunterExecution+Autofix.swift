@@ -1,7 +1,7 @@
 import CoderEngine
 import Foundation
 
-extension CodigoApp {
+extension SoloCodeApp {
     @MainActor
     func executeBugHunterAutofix(
         _ command: MCPSharedBugHunterCommand,

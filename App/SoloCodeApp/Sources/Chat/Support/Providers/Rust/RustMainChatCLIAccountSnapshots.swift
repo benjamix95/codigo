@@ -127,9 +127,9 @@ enum ChatReasoningPresentationPolicy {
             return mode
         }
         guard shouldAllowSwiftReasoningFallback(environment: ProcessInfo.processInfo.environment) else {
-            return .inline
+            return providerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .inline : .separateMessages
         }
-        return .inline
+        return providerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .inline : .separateMessages
     }
 }
 

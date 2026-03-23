@@ -96,7 +96,7 @@
     return editor.getModel().getValueInRange(selection);
   }
 
-  window.CodigoMonacoBridge = {
+  window.SoloCodeMonacoBridge = {
     decodeBase64: decodeBase64,
     encodeBase64: encodeBase64,
     post: post,

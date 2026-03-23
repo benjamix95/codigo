@@ -26,7 +26,7 @@ final class ReviewPanelCoordinator {
     // MARK: - Review Execution
 
     /// Runs a code review using the multi-swarm provider.
-    /// Replicates the pattern from `CodigoApp.launchDeferredReviewCommand`.
+    /// Replicates the pattern from `SoloCodeApp.launchDeferredReviewCommand`.
     func runReview(
         provider: any LLMProvider,
         prompt: String,

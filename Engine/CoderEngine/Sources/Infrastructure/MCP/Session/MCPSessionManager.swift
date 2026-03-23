@@ -5,7 +5,7 @@ import os
 public actor MCPSessionManager {
     public static let shared = MCPSessionManager()
 
-    static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPSessionManager")
+    static let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "MCPSessionManager")
     var sessions: [String: MCPServerSession] = [:]
     var sessionTeardownInProgress: Set<String> = []
     var sessionTeardownWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]

@@ -19,7 +19,7 @@ extension ContentView {
         let projectName = context.displayLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedProjectName =
             projectName.isEmpty
-            || projectName.compare("codigo", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            || projectName.compare("solocode", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
             ? nil
             : projectName
         return WindowTitlebarChatInfo(

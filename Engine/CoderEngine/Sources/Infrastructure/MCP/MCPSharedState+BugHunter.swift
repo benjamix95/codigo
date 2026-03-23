@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let bugHunterLogger = Logger(subsystem: "com.codigo.CoderEngine", category: "BugHunterIO")
+private let bugHunterLogger = Logger(subsystem: "com.solocode.CoderEngine", category: "BugHunterIO")
 
 extension MCPSharedState {
     public static var bugHunterDirectoryPath: URL {

@@ -35,7 +35,7 @@ enum AttachmentIntakeService {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         let dir = appSupport
-            .appendingPathComponent("Codigo", isDirectory: true)
+            .appendingPathComponent("Solo Code", isDirectory: true)
             .appendingPathComponent("Attachments", isDirectory: true)
             .appendingPathComponent("v1", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -93,23 +93,25 @@ enum AttachmentIntakeService {
         return nil
     }
 
-    /// Reads attachment data from the pasteboard on the main thread (AppKit
-    /// requirement), then moves all image decoding, conversion and file I/O
-    /// to a user-initiated background queue so the user-interactive main
-    /// thread never blocks on lower-QoS work.
+    /// Reads pasteboard metadata on the main thread (lightweight string
+    /// reads only), then moves **all** data reads, image decoding,
+    /// conversion and file I/O to a `.userInitiated` background queue so
+    /// the user-interactive main thread never waits on lower-QoS work.
     static func attachmentsFromPasteboard(completion: @escaping ([ComposerAttachment]) -> Void) {
         let pasteboard = NSPasteboard.general
 
-        // 1. Read file URLs directly via pasteboard property lists instead of
-        //    readObjects(forClasses:) which can trigger internal cross-QoS
-        //    serialization on the default-QoS queue.
+        // 1. Read file URLs via lightweight string property-lists (no
+        //    cross-QoS deserialization).
         let fileURLs: [URL] = fileURLsFromPasteboard(pasteboard)
 
-        // 2. Read raw image bytes on the main thread (fast memcpy, no decode).
-        let rawImageData: Data? = fileURLs.isEmpty ? pasteboardImageData(from: pasteboard) : nil
+        // 2. Determine which image type is available (string comparison
+        //    only – no data copying yet) so we can read the bytes off the
+        //    main thread.
+        let availableImageType: NSPasteboard.PasteboardType? =
+            fileURLs.isEmpty ? firstAvailableImageType(on: pasteboard) : nil
 
-        // 3. Move all heavy work (image decode, PNG conversion, file copy) off
-        //    the main thread at `.userInitiated` QoS to avoid priority inversion.
+        // 3. Move **everything** heavy – including `data(forType:)` – to
+        //    `.userInitiated` QoS to avoid priority inversion.
         DispatchQueue.global(qos: .userInitiated).async {
             var attachments: [ComposerAttachment] = []
 
@@ -121,7 +123,9 @@ enum AttachmentIntakeService {
                 }
             }
 
-            if attachments.isEmpty, let imageData = rawImageData,
+            if attachments.isEmpty,
+               let imageType = availableImageType,
+               let imageData = pasteboard.data(forType: imageType),
                let image = NSImage(data: imageData),
                let url = saveImageToAttachmentStore(image),
                let attachment = importSingleURL(url) {
@@ -231,22 +235,20 @@ enum AttachmentIntakeService {
         return urls
     }
 
-    /// Reads raw image data directly from the pasteboard, avoiding
-    /// `NSImage(pasteboard:)` which spawns a default-QoS decode thread
-    /// and causes a priority inversion when called from user-interactive QoS.
-    private static func pasteboardImageData(from pasteboard: NSPasteboard) -> Data? {
+    /// Returns the first available image pasteboard type **without** reading
+    /// any data.  `availableType(from:)` only checks type metadata, so it
+    /// is safe to call from the main (user-interactive) thread with no
+    /// risk of priority inversion.
+    private static func firstAvailableImageType(
+        on pasteboard: NSPasteboard
+    ) -> NSPasteboard.PasteboardType? {
         let imageTypes: [NSPasteboard.PasteboardType] = [
             .png,
             .tiff,
             NSPasteboard.PasteboardType("public.jpeg"),
             NSPasteboard.PasteboardType("public.heic"),
         ]
-        for type in imageTypes {
-            if let data = pasteboard.data(forType: type) {
-                return data
-            }
-        }
-        return nil
+        return pasteboard.availableType(from: imageTypes)
     }
 
     private static func saveImageToAttachmentStore(_ image: NSImage) -> URL? {

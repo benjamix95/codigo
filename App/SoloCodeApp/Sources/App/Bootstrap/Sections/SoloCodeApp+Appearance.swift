@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-extension CodigoApp {
+extension SoloCodeApp {
     var colorScheme: ColorScheme? {
         switch appearance {
         case "light": return .light

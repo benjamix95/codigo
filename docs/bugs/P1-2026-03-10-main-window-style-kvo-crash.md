@@ -23,7 +23,7 @@
   - rimozione del refresh chrome da tutti i call site
   - redesign titlebar/sidebar
 - Moduli confinanti da verificare:
-  - `CodigoApp+Window`
+  - `SoloCodeApp+Window`
   - `ContentView+Layout+Composition`
   - `WindowSidebarToggleController`
 - Test da aggiungere o aggiornare:

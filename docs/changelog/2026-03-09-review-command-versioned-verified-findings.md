@@ -7,17 +7,17 @@ Rendere effettivo il guard di versione del core `VerifiedFindings` anche nei wor
 - `VerifiedFindingsSessionSyncService` ora:
   - conserva la `version` dei finding già presenti
   - incrementa la `version` quando il contenuto di dominio del finding cambia
-- `CodigoApp+CodeReviewCommandMutations` ora:
+- `SoloCodeApp+CodeReviewCommandMutations` ora:
   - costruisce `VerifiedCommandMeta` con `expectedEntityVersion`
   - risolve la versione corrente del finding dal backend shared
-- `CodigoApp+CodeReviewPatchCommands` passa la versione attesa anche ai comandi patch/revalidate/apply
+- `SoloCodeApp+CodeReviewPatchCommands` passa la versione attesa anche ai comandi patch/revalidate/apply
 - aggiunto test di regressione per il versioning del sync service
 
 ## File toccati
 - `Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsSessionSyncService.swift`
 - `Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/VerifiedFindingsSessionSyncService+Mappings.swift`
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommandMutations.swift`
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewPatchCommands.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+CodeReviewCommandMutations.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/SoloCodeApp+CodeReviewPatchCommands.swift`
 - `Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsSessionSyncServiceTests.swift`
 
 ## Validazione

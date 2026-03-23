@@ -29,7 +29,7 @@
   - `CodeReviewHandlerTests`
   - `SecurityHandlerTests`
   - `BugHunterHandlerTests`
-  - `CodigoAppCodeReviewCommandLoopTests`
+  - `SoloCodeAppCodeReviewCommandLoopTests`
 - Test da aggiungere o aggiornare:
   - unit test Rust su queue review/bughunter
   - regressioni handler MCP review/security/bughunter
@@ -43,5 +43,5 @@
   - `xcodebuild test ... -only-testing:CoderEngineTests/MCPSharedCodeReviewCommandsTests`
   - `xcodebuild test ... -only-testing:CoderEngineTests/MCPSharedBugHunterCommandsTests`
   - `xcodebuild test ... -only-testing:CoderEngineTests/CodeReviewHandlerTests -only-testing:CoderEngineTests/SecurityHandlerTests -only-testing:CoderEngineTests/BugHunterHandlerTests`
-  - `xcodebuild test ... -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+  - `xcodebuild test ... -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
 - Commit previsto: `perf(review): move mcp review shared-state logic into rust core`

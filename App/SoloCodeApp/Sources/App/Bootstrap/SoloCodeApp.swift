@@ -3,7 +3,7 @@ import CoderEngine
 import SwiftUI
 
 @main
-struct CodigoApp: App {
+struct SoloCodeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject var providerRegistry = ProviderRegistry()
     @StateObject var chatStore = ChatStore()

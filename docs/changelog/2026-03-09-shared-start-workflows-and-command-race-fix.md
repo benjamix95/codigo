@@ -7,16 +7,16 @@ Completare il passaggio dello start workflow sotto servizi shared di dominio e c
 - `SecurityWorkflowService` ora costruisce il request di start condiviso
 - `BugHunterWorkflowService` ora costruisce il request di start review collegato alla run
 - `SecurityHandler+Routing` usa il workflow service shared per `security_start`
-- `CodigoApp+BugHunterExecution` usa il workflow service shared per il review-start di `BugHunter`
-- `CodigoApp+CodeReviewDeferredCommands` ora persiste la live review state finale prima di marcare il command come `completed`
+- `SoloCodeApp+BugHunterExecution` usa il workflow service shared per il review-start di `BugHunter`
+- `SoloCodeApp+CodeReviewDeferredCommands` ora persiste la live review state finale prima di marcare il command come `completed`
 - aggiunti test unitari sul building dei request di start in `VerifiedFindingsStartCommandServiceTests`
 
 ## File toccati
 - `Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/SecurityWorkflowService.swift`
 - `Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/BugHunterWorkflowService.swift`
 - `Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/Security/SecurityHandler+Routing.swift`
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/BugHunter/CodigoApp+BugHunterExecution.swift`
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewDeferredCommands.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/BugHunter/SoloCodeApp+BugHunterExecution.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/SoloCodeApp+CodeReviewDeferredCommands.swift`
 - `Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsStartCommandServiceTests.swift`
 
 ## Validazione
@@ -24,7 +24,7 @@ Eseguita con `xcodebuildmcp`:
 
 ```bash
 xcodebuildmcp macos test --project-path 'Solo Code.xcodeproj' --scheme 'Solo Code-Debug' \
-  --json '{"extraArgs":["-only-testing:CoderEngineTests/VerifiedFindingsStartCommandServiceTests","-only-testing:CoderEngineTests/CodeReviewHandlerTests","-only-testing:CoderEngineTests/SecurityHandlerTests","-only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests"]}'
+  --json '{"extraArgs":["-only-testing:CoderEngineTests/VerifiedFindingsStartCommandServiceTests","-only-testing:CoderEngineTests/CodeReviewHandlerTests","-only-testing:CoderEngineTests/SecurityHandlerTests","-only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests"]}'
 ```
 
 Esito:

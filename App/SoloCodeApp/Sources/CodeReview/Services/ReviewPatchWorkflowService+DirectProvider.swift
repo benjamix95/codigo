@@ -13,7 +13,7 @@ extension ReviewPatchWorkflowService {
         currentBranchName: String
     ) throws -> ReviewPatchOpenPRExecutionContext {
         let worktreeRoot = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("codigo-review-prs")
+            .appendingPathComponent("solocode-review-prs")
             .path
         let response: ReviewPatchOpenPRExecutionContextResponse? = ReviewCoreBridge.call(
             functionName: "review_core_patch_build_open_pr_execution_context",
@@ -165,7 +165,7 @@ extension ReviewPatchWorkflowService {
         let baseBranch = try gitService.currentBranch(gitRoot: gitRoot)
         let branchName = prepareContext.branchName
         let worktreePath = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("codigo-review-patches")
+            .appendingPathComponent("solocode-review-patches")
             .appendingPathComponent(branchName.replacingOccurrences(of: "/", with: "-"))
             .path
 
@@ -277,7 +277,7 @@ private struct ReviewPatchPrepareResultBridgeResponse: Decodable {
     let verificationReport: String?
 }
 
-extension CodigoApp {
+extension SoloCodeApp {
     @MainActor
     func handlePatchWorkflowCommand(
         _ command: MCPSharedCodeReviewCommand

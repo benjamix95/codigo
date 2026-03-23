@@ -28,7 +28,7 @@ extension CodexUsageFetcher {
             try process.run()
             let inputWriter = Task.detached(priority: .userInitiated) {
                 let initRequest =
-                    #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"codigo","version":"1.0"},"protocolVersion":"2025-06-18","capabilities":{}}}"# + "\n"
+                    #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"solocode","version":"1.0"},"protocolVersion":"2025-06-18","capabilities":{}}}"# + "\n"
                 inPipe.fileHandleForWriting.write(Data(initRequest.utf8))
                 // app-server può ignorare richieste successive se inviate tutte insieme.
                 try? await Task.sleep(nanoseconds: 120_000_000)

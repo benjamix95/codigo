@@ -1,7 +1,7 @@
 import CoderEngine
 import Foundation
 
-extension CodigoApp {
+extension SoloCodeApp {
     func verifiedCommandMeta(
         for command: MCPSharedCodeReviewCommand,
         entityId: String,

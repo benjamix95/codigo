@@ -7,7 +7,7 @@ enum RuntimeResourceLocator {
 
     static func appIconURL() -> URL? {
         Bundle.main.url(forResource: "AppIcon", withExtension: "icns")
-            ?? Bundle.main.url(forResource: "Codigo", withExtension: "icns")
+            ?? Bundle.main.url(forResource: "SoloCode", withExtension: "icns")
     }
 
     static func fontsDirectoryURL() -> URL? {

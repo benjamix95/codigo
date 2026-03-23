@@ -41,7 +41,7 @@ final class MarkdownContentViewBlockParsingTests: XCTestCase {
             content: """
             | Name | Value |
             | release-note | v1 |
-            | app | codigo |
+            | app | solocode |
             """,
             context: nil,
             onFileClicked: { _ in }

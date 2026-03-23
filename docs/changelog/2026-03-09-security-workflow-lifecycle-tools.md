@@ -18,7 +18,7 @@ Completare il wrapper MCP `Security` sopra il backend shared `Review/VerifiedFin
 - aggiunti test di regressione per il routing `Security` verso il workflow shared
 
 ## File toccati
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommands.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+CodeReviewCommands.swift`
 - `Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/CoderIDEMCPServerApp+IDEStateTools.swift`
 - `Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/Security/SecurityHandler.swift`
 - `Tools/CoderIDEMCPServer/Sources/Runtime/Handlers/Security/SecurityHandler+Routing.swift`

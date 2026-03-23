@@ -15,7 +15,7 @@
 - Causa probabile: `PathFinder.findUsingInteractiveShell(...)` non proteggeva il main thread. In startup questo veniva invocato indirettamente dal bootstrap account, provocando una precondition failure di SwiftUI/AttributeGraph.
 - Scope consentito: `Engine/CoderEngine/Sources/Workspace/PathFinder.swift`, test di regressione `Tests/CoderEngineTests/PathFinderTests.swift`, documentazione bug/changelog.
 - Non-scope: refactor del bootstrap account, redesign dei flussi auth, refactor generalizzato delle view Settings/Profile.
-- Moduli confinanti da verificare: bootstrap `CodigoApp`, `CLIAccountsStore`, resolver CLI Codex/Claude/Gemini, lookup `PathFinder` fuori startup.
+- Moduli confinanti da verificare: bootstrap `SoloCodeApp`, `CLIAccountsStore`, resolver CLI Codex/Claude/Gemini, lookup `PathFinder` fuori startup.
 - Test da aggiungere o aggiornare: copertura di regressione che verifichi il salto della shell lookup sul main thread.
 - Strategia di fix minimo: introdurre un guard in `findUsingInteractiveShell(...)` che ritorna `nil` se chiamato dal main thread, preservando la lookup shell solo nei contesti di background.
 - Verifica post-fix:

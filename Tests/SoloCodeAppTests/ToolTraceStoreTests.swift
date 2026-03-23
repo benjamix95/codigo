@@ -177,11 +177,47 @@ final class ToolTraceStoreTests: XCTestCase {
         )
     }
 
+    func testPersistedTraceLivesUnderSoloCodeApplicationSupportNamespace() {
+        let store = ToolTraceStore()
+        store.startTurn(
+            conversationId: testConversationId,
+            assistantMessageId: testAssistantMessageId,
+            providerId: "codex-cli"
+        )
+        store.append(event: ToolTraceEvent(
+            sequence: 1,
+            timestamp: Date(timeIntervalSince1970: 1),
+            providerId: "codex-cli",
+            conversationId: testConversationId,
+            assistantMessageId: testAssistantMessageId,
+            type: "search",
+            title: "Search",
+            detail: nil,
+            payload: [:],
+            phase: .searching,
+            isRunning: false,
+            groupId: nil,
+            rawKind: "tool"
+        ))
+        store.flushDiskWrites()
+
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        let traceURL = appSupport
+            .appendingPathComponent("Solo Code", isDirectory: true)
+            .appendingPathComponent("ToolTrace", isDirectory: true)
+            .appendingPathComponent("v1", isDirectory: true)
+            .appendingPathComponent(testConversationId.uuidString, isDirectory: true)
+            .appendingPathComponent("\(testAssistantMessageId.uuidString).jsonl", isDirectory: false)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: traceURL.path))
+    }
+
     private func cleanup(conversationId: UUID, assistantMessageId _: UUID) {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         let dir = appSupport
-            .appendingPathComponent("Codigo", isDirectory: true)
+            .appendingPathComponent("Solo Code", isDirectory: true)
             .appendingPathComponent("ToolTrace", isDirectory: true)
             .appendingPathComponent("v1", isDirectory: true)
             .appendingPathComponent(conversationId.uuidString, isDirectory: true)

@@ -21,7 +21,7 @@ tmp/
 
 # macOS
 .DS_Store
-Codigo.app
+Solo Code.app
 
 # Release artifacts
 dist/

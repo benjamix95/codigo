@@ -8,7 +8,7 @@ import os
 /// builds the file tree and provides fast query APIs.
 public actor CodebaseIndex {
 
-    static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "CodebaseIndex")
+    static let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "CodebaseIndex")
 
     // MARK: - State
 
@@ -164,7 +164,7 @@ public actor CodebaseIndex {
 
         let cacheDir = (FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory)
-            .appendingPathComponent("Codigo", isDirectory: true)
+            .appendingPathComponent("Solo Code", isDirectory: true)
             .appendingPathComponent("index", isDirectory: true)
             .appendingPathComponent(hashHex, isDirectory: true)
 

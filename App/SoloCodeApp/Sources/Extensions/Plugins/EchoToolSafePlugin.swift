@@ -2,7 +2,7 @@ import Foundation
 
 struct EchoToolSafePlugin: IDEExtensionPlugin {
     let manifest = ExtensionManifest(
-        id: "com.codigo.extensions.echo-safe",
+        id: "com.solocode.extensions.echo-safe",
         name: "Echo Safe Plugin",
         version: "1.0.0",
         entryPoint: "EchoToolSafePlugin",

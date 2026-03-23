@@ -25,7 +25,7 @@
   - logica del reducer Rust `main_chat`
   - boundary `rust_cutover_guard`
 - Moduli confinanti da verificare:
-  - `CodigoApp`
+  - `SoloCodeApp`
   - servizi bootstrap dell'app
   - eventuali script build-phase Rust
 - Test da aggiungere o aggiornare:

@@ -1,7 +1,7 @@
 import Foundation
 import CoderEngine
 
-extension CodigoApp {
+extension SoloCodeApp {
     func registerProviders() {
         let cfg = providerFactoryConfig()
         if providerRegistry.provider(for: "openai-api") == nil {

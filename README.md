@@ -1,4 +1,4 @@
-# SoloCode
+# Solo Code
 
 IDE nativo per macOS, in Swift/SwiftUI, con assistente AI integrato ("Coder") e supporto a più provider LLM.
 
@@ -40,14 +40,14 @@ open dist/"Solo Code.app"
 
 La prima versione pubblicata è `1.0.0`.
 
-- Versione app: `CFBundleShortVersionString` + `CFBundleVersion` in `App/SoloCodeApp/Sources/Info.plist`
+- Versione app: `CFBundleShortVersionString` + `CFBundleVersion` in `Config/Plists/SoloCode-Info.plist`
 - Manifest aggiornamenti: `docs/update/manifest.json`
 - Note tecniche per versione: `docs/release-notes/<version>.md`
 
 Per creare una nuova release:
 
 ```bash
-./scripts/release.sh --version 1.0.1 --build 2 --download-url "https://github.com/benjamix95/codigo/releases/download/v1.0.1/Codigo.app.zip"
+./scripts/release.sh --version 1.0.1 --build 2 --download-url "https://github.com/benjamix95/solocode/releases/download/v1.0.1/SoloCode.app.zip"
 ```
 
 Per una build firmata in modo production (CLI):
@@ -58,7 +58,7 @@ NOTARIZE=true \
 NOTARY_KEY_PATH="/percorso/AuthKey_ID.p8" \
 NOTARY_KEY_ID="ABC123DEF4" \
 NOTARY_ISSUER_ID="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" \
-./scripts/release.sh --version 1.0.1 --build 3 --download-url "https://github.com/benjamix95/codigo/releases/download/v1.0.1/Codigo.app.zip"
+./scripts/release.sh --version 1.0.1 --build 3 --download-url "https://github.com/benjamix95/solocode/releases/download/v1.0.1/SoloCode.app.zip"
 ```
 
 In alternativa (modalità Apple ID/App Password):
@@ -69,7 +69,7 @@ NOTARIZE=true \
 NOTARY_APPLE_ID="you@example.com" \
 NOTARY_APP_PASSWORD="@keychain:AC_PASSWORD" \
 NOTARY_TEAM_ID="TEAMID" \
-./scripts/release.sh --version 1.0.1 --build 3 --download-url "https://github.com/benjamix95/codigo/releases/download/v1.0.1/Codigo.app.zip"
+./scripts/release.sh --version 1.0.1 --build 3 --download-url "https://github.com/benjamix95/solocode/releases/download/v1.0.1/SoloCode.app.zip"
 ```
 
 Note:
@@ -80,7 +80,7 @@ Note:
 Lanciando lo script verranno aggiornati automaticamente:
 - Info.plist con versione/build
 - `docs/update/manifest.json`
-- pacchetto `.app` e zip in `dist/Codigo-<version>.app.zip` (tramite `./scripts/build-app.sh`)
+- pacchetto `.app` e zip in `dist/SoloCode-<version>.app.zip` (tramite `./scripts/build-app.sh`)
 
 ## Structure
 

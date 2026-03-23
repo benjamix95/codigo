@@ -6,7 +6,7 @@ import SwiftUI
 final class AppUpdateCenter: ObservableObject {
     // MARK: - Configuration
 
-    static let defaultManifestURL = "https://raw.githubusercontent.com/benjamix95/codigo/main/docs/update/manifest.json"
+    static let defaultManifestURL = "https://raw.githubusercontent.com/benjamix95/solocode/main/docs/update/manifest.json"
     static let checkInterval: TimeInterval = 60 * 60 * 24
 
     @Published var state: UpdateState = .idle
@@ -14,7 +14,7 @@ final class AppUpdateCenter: ObservableObject {
     @Published var lastCheckedAt: Date?
     @Published var lastError: String?
 
-    let logger = Logger(subsystem: "com.codigo.app", category: "update")
+    let logger = Logger(subsystem: "com.solocode.app", category: "update")
     let userDefaults: UserDefaults
     let urlSession: URLSession
     private let currentVersionProvider: @MainActor () -> String

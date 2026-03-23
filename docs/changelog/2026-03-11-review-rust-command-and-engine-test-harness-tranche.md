@@ -2,9 +2,9 @@
 
 ## Modifiche
 - estesa la mutazione Rust `review_command::mutator` per coprire anche `close_finding`, mantenendo in Swift solo il wiring del command loop
-- aggiornato `CodigoApp+CodeReviewCommandMutations.swift` per usare il fast path Rust anche su `close_finding`
+- aggiornato `SoloCodeApp+CodeReviewCommandMutations.swift` per usare il fast path Rust anche su `close_finding`
 - aggiunto il test `close_finding_requires_validated_apply_or_terminal_status` nel core Rust
-- aggiunto `CodigoAppCodeReviewCommandLoopCloseFindingTests.swift` per coprire il path command loop app-side della chiusura finding da snapshot persistito
+- aggiunto `SoloCodeAppCodeReviewCommandLoopCloseFindingTests.swift` per coprire il path command loop app-side della chiusura finding da snapshot persistito
 - introdotto `scripts/bootstrap_test_bundles.sh` per rimuovere `com.apple.provenance` / `quarantine` e rifirmare i bundle test
 - aggiornato `scripts/generate_xcode_project.rb` per:
   - embed di `CoderEngine.framework` e `CoderIDEMCPServer.framework` nel bundle `CoderEngineTests.xctest`

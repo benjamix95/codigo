@@ -13,7 +13,7 @@
 
 ```mermaid
 flowchart TD
-    A["AppLaunched @main\nCodigoApp"] --> B["applicationDidFinishLaunching"]
+    A["AppLaunched @main\nSoloCodeApp"] --> B["applicationDidFinishLaunching"]
     B --> C["Window lifecycle ready"]
     C --> D["ProvidersRegistration\nProviderRegistry + account router"]
     C --> E["MCP/Update preflight (best effort)"]

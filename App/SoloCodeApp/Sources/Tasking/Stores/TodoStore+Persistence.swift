@@ -58,7 +58,7 @@ extension TodoStore {
     func saveTodos() {
         trimExcessTodos()
         do {
-            let data = try JSONEncoder().encode(todos)
+            let data = try JSONEncoder().encode(userVisibleTodos)
             userDefaults.set(data, forKey: storageKey)
             syncToSharedState()
         } catch {
@@ -71,11 +71,14 @@ extension TodoStore {
     /// Removes oldest completed/blocked todos when count exceeds the max limit.
     /// Keeps all open/in-progress todos and newest completed ones.
     private func trimExcessTodos() {
-        guard todos.count > Self.maxTodoCount else { return }
+        let visibleCount = userVisibleTodos.count
+        guard visibleCount > Self.maxTodoCount else { return }
 
         // Separate active (open/in-progress) from finished (done/blocked)
-        let active = todos.filter { $0.status == .pending || $0.status == .inProgress }
-        var finished = todos.filter { $0.status == .done || $0.status == .blocked }
+        let placeholders = todos.filter(\.isOperationalPlaceholder)
+        let visible = userVisibleTodos
+        let active = visible.filter { $0.status == .pending || $0.status == .inProgress }
+        var finished = visible.filter { $0.status == .done || $0.status == .blocked }
 
         // Sort finished by updatedAt descending — keep newest
         finished.sort { $0.updatedAt > $1.updatedAt }
@@ -83,13 +86,13 @@ extension TodoStore {
         let maxFinished = max(0, Self.maxTodoCount - active.count)
         let kept = finished.prefix(maxFinished)
 
-        todos = active + kept
+        todos = placeholders + active + kept
     }
 
     /// Write current todos to the shared state file so the MCP server
     /// can serve them via `coderide_todo_read`.
     func syncToSharedState() {
-        let items: [[String: Any]] = todos.map { todo in
+        let items: [[String: Any]] = userVisibleTodos.map { todo in
             var record: [String: Any] = [
                 "id": todo.id.uuidString,
                 "title": todo.title,

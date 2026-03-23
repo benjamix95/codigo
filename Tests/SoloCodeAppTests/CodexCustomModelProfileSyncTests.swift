@@ -13,7 +13,7 @@ final class CodexCustomModelProfileSyncTests: XCTestCase {
 
         CodexCustomModelProfileSync.syncManagedBlock(at: configPath, enabled: true)
         var saved = try String(contentsOfFile: configPath, encoding: .utf8)
-        XCTAssertTrue(saved.contains("# codigo_codex_gpt54_1m_start"))
+        XCTAssertTrue(saved.contains("# solocode_codex_gpt54_1m_start"))
         XCTAssertTrue(saved.contains("model_context_window = 1000000"))
         XCTAssertTrue(saved.contains("model_auto_compact_token_limit = 900000"))
 

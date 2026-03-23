@@ -1,8 +1,8 @@
 (function() {
     'use strict';
 
-    if (window.__codigoBridgeInstalled) return;
-    window.__codigoBridgeInstalled = true;
+    if (window.__solocodeBridgeInstalled) return;
+    window.__solocodeBridgeInstalled = true;
 
     var bridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.browserbridge;
     if (!bridge) return;
@@ -96,8 +96,8 @@
     var origSend = OrigXHR.prototype.send;
 
     OrigXHR.prototype.open = function(method, url) {
-        this.__codigo_method = method;
-        this.__codigo_url = url;
+        this.__solocode_method = method;
+        this.__solocode_url = url;
         return origOpen.apply(this, arguments);
     };
 
@@ -106,8 +106,8 @@
         var startTime = Date.now();
         xhr.addEventListener('loadend', function() {
             post('networkXHR', {
-                url: xhr.__codigo_url || '',
-                method: xhr.__codigo_method || 'GET',
+                url: xhr.__solocode_url || '',
+                method: xhr.__solocode_method || 'GET',
                 status: xhr.status,
                 duration: Date.now() - startTime,
                 timestamp: Date.now()

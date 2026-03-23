@@ -26,7 +26,7 @@ public actor DebugLogServer {
             self.logFileURL = FileManager.default.temporaryDirectory.appendingPathComponent("debug_log.jsonl")
             return
         }
-        let debugDir = cacheDir.appendingPathComponent("com.codigo.debug", isDirectory: true)
+        let debugDir = cacheDir.appendingPathComponent("com.solocode.debug", isDirectory: true)
         try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
         self.logFileURL = debugDir.appendingPathComponent("debug_log.jsonl")
     }

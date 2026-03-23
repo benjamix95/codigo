@@ -25,7 +25,7 @@
   - patch execution semantics
 - Moduli confinanti da verificare:
   - `ReviewPatchWorkflowServiceTests`
-  - `CodigoAppCodeReviewCommandLoopTests`
+  - `SoloCodeAppCodeReviewCommandLoopTests`
 - Test da aggiungere o aggiornare:
   - riallineare `requireReviewCore()` a `#filePath`
   - rendere `testPrepareVerifiedPatchesFailsClosedWhenPatchRuntimeIsUnavailable` esplicitamente dipendente dal runtime Rust, perche' ora esercita il reducer `mark_patch_prepare_failed`
@@ -34,7 +34,7 @@
   - caricare `SOLOCODE_REVIEW_CORE_LIBRARY_PATH` dal path assoluto corretto
   - aggiornare il test failure-path a `async throws` con `try requireReviewCore()`
 - Verifica post-fix:
-  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testAutoPrepareEligibleFindingIdsFailsClosedWhenRustRuntimeIsDisabled -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests/testPrepareVerifiedPatchesRoutesThroughPatchExecutionRuntime -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests/testPrepareVerifiedPatchesFailsClosedWhenPatchRuntimeIsUnavailable -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests/testOpenPRContextUsesRustContextBuilder`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testAutoPrepareEligibleFindingIdsFailsClosedWhenRustRuntimeIsDisabled -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests/testPrepareVerifiedPatchesRoutesThroughPatchExecutionRuntime -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests/testPrepareVerifiedPatchesFailsClosedWhenPatchRuntimeIsUnavailable -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests/testOpenPRContextUsesRustContextBuilder`
 - Commit previsto: `refactor(review-patch): route open pr context through rust`
 
 ## Effetto osservato

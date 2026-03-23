@@ -16,10 +16,10 @@ struct TodoListView: View {
     private var filteredTodos: [TodoItem] {
         let base: [TodoItem]
         switch selectedFilter {
-        case .all: base = store.todos
-        case .open: base = store.todos.filter { $0.status == .pending || $0.status == .blocked }
-        case .doing: base = store.todos.filter { $0.status == .inProgress }
-        case .done: base = store.todos.filter { $0.status == .done }
+        case .all: base = store.userVisibleTodos
+        case .open: base = store.userVisibleTodos.filter { $0.status == .pending || $0.status == .blocked }
+        case .doing: base = store.userVisibleTodos.filter { $0.status == .inProgress }
+        case .done: base = store.userVisibleTodos.filter { $0.status == .done }
         }
         return store.sortedCanonicalFirstTodos(base)
     }

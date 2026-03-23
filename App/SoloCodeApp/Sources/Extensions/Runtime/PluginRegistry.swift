@@ -77,7 +77,7 @@ actor PluginRegistry {
     }
 
     /// Restituisce i descrittori per tipo.
-    func descriptors(ofType type: CodigoPluginType) -> [PluginDescriptor] {
+    func descriptors(ofType type: SoloCodePluginType) -> [PluginDescriptor] {
         descriptors.values
             .filter { $0.pluginType == type }
             .sorted { $0.manifest.name < $1.manifest.name }

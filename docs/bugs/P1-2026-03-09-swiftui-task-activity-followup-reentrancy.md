@@ -9,7 +9,7 @@
   - `TaskActivityStore+Swarm.swift:25`
   - `TaskActivityStore+Buffering.swift:32,44,129,132`
   - `TaskActivityStore+CodeReview.swift:46-49`
-  - `CodigoApp+CodeReviewCommandMutations.swift:81`
+  - `SoloCodeApp+CodeReviewCommandMutations.swift:81`
 - Impatto: comportamento UI non deterministico durante chiusura task e sincronizzazione live delle review.
 - Gravità: alta
 - Steps to reproduce:
@@ -25,8 +25,8 @@
 - Scope consentito:
   - `App/SoloCodeApp/Sources/Tasking/Stores/TaskActivityStore+Query.swift`
   - `App/SoloCodeApp/Sources/Chat/Support/Extensions/ChatPanelView+PartE_TaskLifecycle.swift`
-  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommandMutations.swift`
-  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewDeferredCommands.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+CodeReviewCommandMutations.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/SoloCodeApp+CodeReviewDeferredCommands.swift`
   - `Tests/SoloCodeAppTests/TaskActivityStoreSwarmCardsTests.swift`
 - Non-scope:
   - refactor strutturale di `TaskActivityStore`
@@ -36,7 +36,7 @@
   - `TaskActivityStore+Swarm`
   - `TaskActivityStore+CodeReview`
   - `ChatPanelView+PartE_TaskLifecycle`
-  - `CodigoApp+CodeReviewCommandMutations`
+  - `SoloCodeApp+CodeReviewCommandMutations`
 - Test da aggiungere o aggiornare:
   - copertura per `swarmCardStatesIncludingPending()`
   - riesecuzione delle suite swarm, scoped activities e command loop review
@@ -46,7 +46,7 @@
   - differire con `DispatchQueue.main.async` l’ingest dei review snapshot runtime
 - Verifica post-fix:
   - `xcodebuild build -project 'Solo Code.xcodeproj' -scheme 'Solo Code-Debug' -destination 'platform=macOS'`
-  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/TaskActivityStoreSwarmCardsTests -only-testing:SoloCodeAppTests/TaskActivityStoreScopedActivitiesTests -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests -only-testing:CoderEngineTests/MCPSessionManagerTests`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/TaskActivityStoreSwarmCardsTests -only-testing:SoloCodeAppTests/TaskActivityStoreScopedActivitiesTests -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests -only-testing:CoderEngineTests/MCPSessionManagerTests`
 - Commit previsto: `fix(ui): avoid reentrant swarm and review snapshot publishes`
 
 ## Evidenza raccolta

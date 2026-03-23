@@ -5,6 +5,7 @@ extension TodoStore {
         title: String,
         source: TodoSource = .manual,
         priority: TodoPriority = .medium,
+        isOperationalPlaceholder: Bool = false,
         notes: String = "",
         activeForm: String = "",
         linkedFiles: [String] = []
@@ -16,6 +17,7 @@ extension TodoStore {
                 title: trimmed,
                 priority: priority,
                 source: source,
+                isOperationalPlaceholder: isOperationalPlaceholder,
                 notes: notes,
                 linkedFiles: linkedFiles,
                 activeForm: activeForm
@@ -31,6 +33,7 @@ extension TodoStore {
         priority: TodoPriority?,
         notes: String?,
         activeForm: String? = nil,
+        isOperationalPlaceholder: Bool = false,
         linkedFiles: [String],
         conversationId: UUID? = nil
     ) {
@@ -50,6 +53,7 @@ extension TodoStore {
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
             applyActiveForm(at: idx)
             todos[idx].source = .agent
+            todos[idx].isOperationalPlaceholder = isOperationalPlaceholder
             if let conversationId, !todos[idx].isPlanCanonical {
                 todos[idx].planConversationId = conversationId
             }
@@ -70,6 +74,7 @@ extension TodoStore {
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
             applyActiveForm(at: idx)
             todos[idx].source = .agent
+            todos[idx].isOperationalPlaceholder = isOperationalPlaceholder
             if let conversationId, !todos[idx].isPlanCanonical {
                 todos[idx].planConversationId = conversationId
             }
@@ -87,6 +92,7 @@ extension TodoStore {
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
             applyActiveForm(at: idx)
             todos[idx].source = .agent
+            todos[idx].isOperationalPlaceholder = isOperationalPlaceholder
             if let conversationId, !todos[idx].isPlanCanonical {
                 todos[idx].planConversationId = conversationId
             }
@@ -101,6 +107,7 @@ extension TodoStore {
             status: status ?? .pending,
             priority: priority ?? .medium,
             source: .agent,
+            isOperationalPlaceholder: isOperationalPlaceholder,
             notes: notes ?? "",
             linkedFiles: linkedFiles,
             planConversationId: conversationId,

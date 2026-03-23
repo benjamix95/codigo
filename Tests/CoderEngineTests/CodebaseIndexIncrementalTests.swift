@@ -301,4 +301,12 @@ final class CodebaseIndexIncrementalTests: XCTestCase {
         let status = await index.status()
         XCTAssertNotEqual(status.status, .indexing)
     }
+
+    func testCacheDirectoryUsesSoloCodeCacheNamespace() {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("cache-probe-\(UUID().uuidString)", isDirectory: true)
+        let cacheDir = CodebaseIndex.cacheDirectory(for: [root])
+
+        XCTAssertTrue(cacheDir.path.contains("/Caches/Solo Code/index/"))
+    }
 }

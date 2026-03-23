@@ -1,0 +1,21 @@
+# 2026-03-23 Solo Code Runtime And Release Surface
+
+- rinominati bootstrap app e file correlati da naming legacy a `SoloCodeApp*`, inclusi riferimenti progetto e test del command loop review
+- rinominato il protocollo plugin dal naming legacy a `SoloCodePlugin*`
+- ripulite tutte le occorrenze legacy da:
+  - `Info.plist` e usage descriptions
+  - runtime Monaco web bridge
+  - subsystem logger / queue labels / XPC service names
+  - path persistenti `.solocode/*`, `Application Support/Solo Code`, cache `Solo Code`
+  - update manifest, release notes attive, README e script release/generazione progetto
+- corretto `scripts/release.sh` per usare il plist reale in `Config/Plists/SoloCode-Info.plist`
+- allineati:
+  - `AppUpdateCenter.defaultManifestURL`
+  - URL default release `benjamix95/solocode`
+  - zip di distribuzione `SoloCode.app.zip` e `SoloCode-<version>.app.zip`
+  - asset icon fallback su `SoloCode.icns`
+- aggiunte/regolate regression coverage per:
+  - namespace `Application Support/Solo Code/CLIProfiles`
+  - persistenza trace in `Application Support/Solo Code/ToolTrace`
+  - cache directory `Caches/Solo Code/index`
+  - resource lookup icon app

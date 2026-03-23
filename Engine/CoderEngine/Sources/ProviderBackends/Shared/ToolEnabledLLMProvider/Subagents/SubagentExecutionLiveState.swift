@@ -84,7 +84,7 @@ actor SubagentEventRecorder {
 
 enum SubagentPipelineLogger {
     private static let logger = Logger(
-        subsystem: "com.codigo.CoderEngine",
+        subsystem: "com.solocode.CoderEngine",
         category: "SubagentPipeline"
     )
 

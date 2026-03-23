@@ -591,7 +591,7 @@ final class ReviewPatchWorkflowServiceTests: XCTestCase {
 
         XCTAssertEqual(context.baseBranchName, "main")
         XCTAssertEqual(context.branchName, "codex/review-pr-finding-")
-        XCTAssertTrue(context.worktreePath.hasSuffix("/codigo-review-prs/codex-review-pr-finding-"))
+        XCTAssertTrue(context.worktreePath.hasSuffix("/solocode-review-prs/codex-review-pr-finding-"))
     }
 
     func testOpenPullRequestExecutionContextFailsClosedWhenRustRuntimeUnavailable() {

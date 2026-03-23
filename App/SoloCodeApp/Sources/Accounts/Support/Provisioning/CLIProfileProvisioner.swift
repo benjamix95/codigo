@@ -7,7 +7,7 @@ enum CLIProfileProvisioner {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return appSupport
-            .appendingPathComponent("Codigo", isDirectory: true)
+            .appendingPathComponent("Solo Code", isDirectory: true)
             .appendingPathComponent("CLIProfiles", isDirectory: true)
     }
 

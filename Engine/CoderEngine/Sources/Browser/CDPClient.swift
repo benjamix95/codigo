@@ -10,7 +10,7 @@ import Logging
 ///   3. Use `send(method:params:)` to execute CDP commands
 ///   4. Call `disconnect()` when done
 public actor CDPClient {
-    private static let logger = Logger(label: "com.codigo.CDPClient")
+    private static let logger = Logger(label: "com.solocode.CDPClient")
 
     private let debuggingPort: Int
     private var process: Process?

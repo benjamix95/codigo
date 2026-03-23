@@ -6,7 +6,7 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         let request = DebugSessionRequest(
             errorSummary: "Crash on launch",
             workspaceHints: ["App/SoloCodeApp/Sources/Debug/DebugStore.swift"],
-            targetPath: "/Applications/Codigo.app",
+            targetPath: "/Applications/Solo Code.app",
             arguments: ["--uitest"],
             backendPolicy: .appleHybrid,
             includeNativeStages: true
@@ -14,7 +14,7 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
 
         let (job, tasks) = PipelineJobFactory.fromDebugSession(
             request,
-            workspace: "/tmp/codigo",
+            workspace: "/tmp/solocode",
             providerId: "codex-cli"
         )
 
@@ -62,7 +62,7 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
 
         let (_, tasks) = PipelineJobFactory.fromDebugSession(
             request,
-            workspace: "/tmp/codigo",
+            workspace: "/tmp/solocode",
             providerId: "codex-cli"
         )
 
@@ -85,7 +85,7 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         let request = DebugSessionRequest(
             errorSummary: "Native sync",
             workspaceHints: ["Sources/App.swift"],
-            targetPath: "/Applications/Codigo.app",
+            targetPath: "/Applications/Solo Code.app",
             arguments: ["--uitest"],
             breakpoints: breakpoints,
             watchExpressions: ["counter", "state.value"],
@@ -96,7 +96,7 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         let (job, tasks) = PipelineJobFactory.fromDebugNativeStage(
             request,
             stage: .nativeSyncBreakpoints,
-            workspace: "/tmp/codigo",
+            workspace: "/tmp/solocode",
             providerId: "codex-cli"
         )
 

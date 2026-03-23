@@ -1,12 +1,12 @@
 import Foundation
 
-// MARK: - Codigo Plugin Protocol
+// MARK: - Solo Code Plugin Protocol
 
-/// Protocollo ad alto livello per i plugin Codigo.
+/// Protocollo ad alto livello per i plugin Solo Code.
 /// Estende IDEExtensionPlugin con lifecycle hooks e metadati aggiuntivi.
-protocol CodigoPlugin: IDEExtensionPlugin {
+protocol SoloCodePlugin: IDEExtensionPlugin {
     /// Tipo del plugin (tema, linter, tool, language, snippet).
-    var pluginType: CodigoPluginType { get }
+    var pluginType: SoloCodePluginType { get }
 
     /// Descrizione human-readable del plugin.
     var pluginDescription: String { get }
@@ -21,8 +21,8 @@ protocol CodigoPlugin: IDEExtensionPlugin {
     func onPreferencesChanged(preferences: [String: String]) async
 }
 
-/// Tipo di plugin Codigo.
-enum CodigoPluginType: String, Codable, Sendable, CaseIterable {
+/// Tipo di plugin Solo Code.
+enum SoloCodePluginType: String, Codable, Sendable, CaseIterable {
     case tool       // Tool che esegue operazioni
     case theme      // Tema visuale
     case linter     // Linter/formatter
@@ -46,7 +46,7 @@ enum PluginState: String, Sendable {
 struct PluginDescriptor: Identifiable, Sendable {
     let id: String
     let manifest: ExtensionManifest
-    let pluginType: CodigoPluginType
+    let pluginType: SoloCodePluginType
     let description: String
     let rootPath: String
     let discoveredAt: Date
@@ -56,7 +56,7 @@ struct PluginDescriptor: Identifiable, Sendable {
 
 // MARK: - Default Implementations
 
-extension CodigoPlugin {
+extension SoloCodePlugin {
     var homepageURL: URL? { nil }
     var pluginDescription: String { manifest.name }
 

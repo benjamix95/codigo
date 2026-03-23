@@ -426,7 +426,7 @@ final class PipelineIntegrationServiceTests: XCTestCase {
             "action": "native_start",
             "status": "paused",
             "adapter": "lldb-dap",
-            "target_path": "/tmp/Codigo.app",
+            "target_path": "/tmp/Solo Code.app",
             "breakpoints_count": "1",
             "arguments_json": try encodeJSON(["--flag", "value"]),
             "watch_expressions_json": try encodeJSON(["counter", "state"]),
@@ -457,7 +457,7 @@ final class PipelineIntegrationServiceTests: XCTestCase {
 
         XCTAssertEqual(debugStore.nativeSession.status, .paused)
         XCTAssertEqual(debugStore.nativeSession.adapter, "lldb-dap")
-        XCTAssertEqual(debugStore.nativeTargetPathInput, "/tmp/Codigo.app")
+        XCTAssertEqual(debugStore.nativeTargetPathInput, "/tmp/Solo Code.app")
         XCTAssertEqual(debugStore.nativeArgumentsInput, "--flag, value")
         XCTAssertEqual(debugStore.nativeWatchExpressionsInput, "counter, state")
         XCTAssertEqual(debugStore.breakpoints.count, 1)

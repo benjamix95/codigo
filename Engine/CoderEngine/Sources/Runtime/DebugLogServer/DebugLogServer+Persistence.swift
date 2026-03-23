@@ -121,7 +121,7 @@ public extension DebugLogServer {
 extension DebugLogServer {
     static func sessionLogFileURL(workspacePath: String, sessionId: String) -> URL {
         URL(fileURLWithPath: workspacePath)
-            .appendingPathComponent(".codigo/debug", isDirectory: true)
+            .appendingPathComponent(".solocode/debug", isDirectory: true)
             .appendingPathComponent("session_\(sessionId).jsonl")
     }
 }

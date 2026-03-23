@@ -55,7 +55,7 @@ struct UsageFooterView: View {
     @State var worktreeSheetTask: Task<Void, Never>?
     @State var worktreeActionTask: Task<Void, Never>?
     static let contextEstimateQueue = DispatchQueue(
-        label: "com.codigo.context-estimate",
+        label: "com.solocode.context-estimate",
         qos: .utility
     )
     let cliSecretsStore = CLIAccountSecretsStore()

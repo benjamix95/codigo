@@ -71,7 +71,7 @@
 
   function uriForPath(path, pane) {
     if (path) return monaco.Uri.file(path);
-    return monaco.Uri.parse('inmemory://codigo/' + (pane || 'primary'));
+    return monaco.Uri.parse('inmemory://solocode/' + (pane || 'primary'));
   }
 
   function wordRange(model, position, fallbackWord) {
@@ -88,7 +88,7 @@
     return new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column + word.length);
   }
 
-  window.CodigoMonacoLang = {
+  window.SoloCodeMonacoLang = {
     langForPath: langForPath,
     uriForPath: uriForPath,
     wordRange: wordRange

@@ -276,6 +276,7 @@ struct MainChatUITodoPatchBridge: Decodable {
     let priority: String?
     let notes: String?
     let activeForm: String?
+    let isOperationalPlaceholder: Bool?
     let linkedFiles: [String]
     let shouldEmitTraceUpdate: Bool
     let timestamp: Date?

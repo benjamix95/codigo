@@ -4,7 +4,7 @@ import AppKit
 // MARK: - Adaptive Color Helpers
 
 @inline(__always)
-private func codigoAppearanceIsDark(_ appearance: NSAppearance) -> Bool {
+private func soloCodeAppearanceIsDark(_ appearance: NSAppearance) -> Bool {
     let raw = appearance.name.rawValue
     return raw == NSAppearance.Name.darkAqua.rawValue
         || raw == NSAppearance.Name.vibrantDark.rawValue
@@ -12,14 +12,14 @@ private func codigoAppearanceIsDark(_ appearance: NSAppearance) -> Bool {
         || raw == NSAppearance.Name.accessibilityHighContrastVibrantDark.rawValue
 }
 
-func codigoAdaptiveNS(_ light: NSColor, _ dark: NSColor) -> NSColor {
+func soloCodeAdaptiveNS(_ light: NSColor, _ dark: NSColor) -> NSColor {
     NSColor(name: nil, dynamicProvider: { appearance in
-        codigoAppearanceIsDark(appearance) ? dark : light
+        soloCodeAppearanceIsDark(appearance) ? dark : light
     })
 }
 
-func codigoAdaptive(_ light: NSColor, _ dark: NSColor) -> Color {
-    Color(nsColor: codigoAdaptiveNS(light, dark))
+func soloCodeAdaptive(_ light: NSColor, _ dark: NSColor) -> Color {
+    Color(nsColor: soloCodeAdaptiveNS(light, dark))
 }
 
 // MARK: - Design System
@@ -74,23 +74,23 @@ struct DesignSystem {
         )
 
         // Background layers — neutral dark greys (Cursor style)
-        static let backgroundDeep = codigoAdaptive(
+        static let backgroundDeep = soloCodeAdaptive(
             .windowBackgroundColor,
             NSColor(red: 0.067, green: 0.067, blue: 0.075, alpha: 1)
         )
-        static let backgroundPrimary = codigoAdaptive(
+        static let backgroundPrimary = soloCodeAdaptive(
             .windowBackgroundColor,
             NSColor(red: 0.098, green: 0.098, blue: 0.106, alpha: 1)
         )
-        static let backgroundSecondary = codigoAdaptive(
+        static let backgroundSecondary = soloCodeAdaptive(
             .controlBackgroundColor,
             NSColor(red: 0.118, green: 0.118, blue: 0.128, alpha: 1)
         )
-        static let backgroundTertiary = codigoAdaptive(
+        static let backgroundTertiary = soloCodeAdaptive(
             .textBackgroundColor,
             NSColor(red: 0.137, green: 0.137, blue: 0.149, alpha: 1)
         )
-        static let backgroundElevated = codigoAdaptive(
+        static let backgroundElevated = soloCodeAdaptive(
             .controlBackgroundColor,
             NSColor(red: 0.157, green: 0.157, blue: 0.169, alpha: 1)
         )
@@ -101,37 +101,37 @@ struct DesignSystem {
         static let surfaceGlass = backgroundSecondary
 
         // Chat
-        static let userBubble = codigoAdaptive(
+        static let userBubble = soloCodeAdaptive(
             NSColor.controlAccentColor.withAlphaComponent(0.06),
             NSColor(red: 0.39, green: 0.40, blue: 0.95, alpha: 0.08)
         )
         static let assistantBubble = backgroundSecondary
         /// Neutral user bubble fill — ChatGPT-style (not mode-colored)
-        static let chatUserBubbleFill = codigoAdaptive(
+        static let chatUserBubbleFill = soloCodeAdaptive(
             NSColor(red: 0.945, green: 0.945, blue: 0.957, alpha: 0.92),
             NSColor(red: 0.173, green: 0.173, blue: 0.204, alpha: 0.85)
         )
         /// Default chat surface in minimal mode (opaque, neutral).
-        static let chatPanelSolidBackground = codigoAdaptive(
+        static let chatPanelSolidBackground = soloCodeAdaptive(
             NSColor(red: 0.965, green: 0.965, blue: 0.972, alpha: 1.0),
             NSColor(red: 0.098, green: 0.098, blue: 0.106, alpha: 1.0)
         )
 
         // Borders — neutral greys (Cursor style)
-        static let divider = codigoAdaptive(
+        static let divider = soloCodeAdaptive(
             .separatorColor,
             NSColor(red: 0.196, green: 0.196, blue: 0.208, alpha: 1)
         )
-        static let dividerStrong = codigoAdaptive(
+        static let dividerStrong = soloCodeAdaptive(
             .separatorColor,
             NSColor(red: 0.235, green: 0.235, blue: 0.247, alpha: 1)
         )
         static let border = divider
-        static let borderSubtle = codigoAdaptive(
+        static let borderSubtle = soloCodeAdaptive(
             NSColor.separatorColor.withAlphaComponent(0.5),
             NSColor(red: 0.157, green: 0.157, blue: 0.169, alpha: 1)
         )
-        static let borderAccent = codigoAdaptive(
+        static let borderAccent = soloCodeAdaptive(
             NSColor.separatorColor,
             NSColor(red: 0.255, green: 0.255, blue: 0.267, alpha: 1)
         )
@@ -257,12 +257,12 @@ struct DesignSystem {
 
     // MARK: - AppKit Helpers
     struct AppKit {
-        static let windowBackground = codigoAdaptiveNS(
+        static let windowBackground = soloCodeAdaptiveNS(
             .windowBackgroundColor,
             NSColor(red: 0.050, green: 0.050, blue: 0.075, alpha: 1)
         )
         /// Matches sidebar backgroundSecondary; used for window backgroundColor to fill titlebar gap.
-        static let sidebarBackground = codigoAdaptiveNS(
+        static let sidebarBackground = soloCodeAdaptiveNS(
             .controlBackgroundColor,
             NSColor(red: 0.118, green: 0.118, blue: 0.128, alpha: 1)
         )

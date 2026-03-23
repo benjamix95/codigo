@@ -5,7 +5,7 @@ Portare anche la scelta del finding `autofix` di `BugHunter` sul backend shared 
 
 ## Modifiche
 - aggiunto `BugHunterAutofixSelectionService`
-- `CodigoApp+BugHunterExecution+Autofix` ora:
+- `SoloCodeApp+BugHunterExecution+Autofix` ora:
   - risolve lo stato shared via `VerifiedFindingsService`
   - seleziona il finding autofixable dal canonical snapshot
   - continua a usare il workflow review shared per prepare/apply/revalidate/rollback
@@ -14,7 +14,7 @@ Portare anche la scelta del finding `autofix` di `BugHunter` sul backend shared 
 
 ## File toccati
 - `Engine/CoderEngine/Sources/VerifiedFindingsCore/Application/BugHunterAutofixSelectionService.swift`
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/BugHunter/CodigoApp+BugHunterExecution+Autofix.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/BugHunter/SoloCodeApp+BugHunterExecution+Autofix.swift`
 - `Tests/CoderEngineTests/CodeReview/BugHunterAutofixFilterTests.swift`
 - `Solo Code.xcodeproj/project.pbxproj`
 

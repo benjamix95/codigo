@@ -31,7 +31,7 @@ final class TaskActivityStore: ObservableObject {
     @Published var reviewPanelDerivedStateBySession: [String: ReviewPanelDerivedState] = [:]
     @Published var reviewPanelDerivedStateByConversation: [String: ReviewPanelDerivedState] = [:]
 
-    let swarmLogger = Logger(subsystem: "com.codigo.app", category: "swarm")
+    let swarmLogger = Logger(subsystem: "com.solocode.app", category: "swarm")
     let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit
     let activitiesHardCap = 500
     var instantGrepsHardCap = 20

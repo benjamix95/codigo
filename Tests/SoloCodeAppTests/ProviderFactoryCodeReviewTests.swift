@@ -239,4 +239,16 @@ struct RuntimeResourceLocatorTests {
         #expect(exists)
         #expect(isDirectory.boolValue)
     }
+
+    @Test
+    func appIconLookupReturnsExistingFileWhenFound() {
+        let iconURL = RuntimeResourceLocator.appIconURL()
+        guard let iconURL else { return }
+
+        var isDirectory = ObjCBool(false)
+        let exists = FileManager.default.fileExists(atPath: iconURL.path, isDirectory: &isDirectory)
+        #expect(exists)
+        #expect(!isDirectory.boolValue)
+        #expect(iconURL.lastPathComponent == "AppIcon.icns" || iconURL.lastPathComponent == "SoloCode.icns")
+    }
 }

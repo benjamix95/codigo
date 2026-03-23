@@ -16,7 +16,7 @@ public final class BrowserTabManager: ObservableObject {
 
     private let maxHistoryEntries = 500
 
-    static let browserShouldOpenNotification = Notification.Name("codigoBrowserShouldOpen")
+    static let browserShouldOpenNotification = Notification.Name("soloCodeBrowserShouldOpen")
 
     public var activeTab: BrowserTab? {
         guard let id = activeTabId else { return tabs.first }

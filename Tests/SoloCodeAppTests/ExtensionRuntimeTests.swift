@@ -15,7 +15,7 @@ final class ExtensionRuntimeTests: XCTestCase {
             plugin: EchoToolSafePlugin(),
             workspaceRoots: ["/tmp/workspace"]
         )
-        XCTAssertEqual(loaded.pluginId, "com.codigo.extensions.echo-safe")
+        XCTAssertEqual(loaded.pluginId, "com.solocode.extensions.echo-safe")
         XCTAssertTrue(loaded.exposedTools.contains("echo.safe"))
 
         let response = try await runtime.execute(
@@ -165,7 +165,7 @@ final class ExtensionRuntimeTests: XCTestCase {
         let data = Data(
             """
             {
-              "id": "com.codigo.extensions.legacy",
+              "id": "com.solocode.extensions.legacy",
               "name": "Legacy Contract",
               "version": "1.0.0",
               "entrypoint": "plugin.js",
@@ -219,7 +219,7 @@ final class ExtensionRuntimeTests: XCTestCase {
 
 private struct EmptyExposedToolsReadPlugin: IDEExtensionPlugin {
     let manifest = ExtensionManifest(
-        id: "com.codigo.extensions.empty-exposed-tools",
+        id: "com.solocode.extensions.empty-exposed-tools",
         name: "Empty Exposed Tools",
         version: "1.0.0",
         entryPoint: "EmptyExposedToolsReadPlugin",
@@ -254,7 +254,7 @@ private struct EmptyExposedToolsReadPlugin: IDEExtensionPlugin {
 
 private struct DangerousWritePlugin: IDEExtensionPlugin {
     let manifest = ExtensionManifest(
-        id: "com.codigo.extensions.write-plugin",
+        id: "com.solocode.extensions.write-plugin",
         name: "Write Plugin",
         version: "1.0.0",
         entryPoint: "DangerousWritePlugin",

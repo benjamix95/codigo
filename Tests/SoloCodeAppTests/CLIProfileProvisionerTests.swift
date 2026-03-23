@@ -267,6 +267,11 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertTrue(copied.contains("\"access_token\": \"access-token\""))
     }
 
+    func testBaseProfilesDirUsesSoloCodeApplicationSupportNamespace() {
+        let baseDir = CLIProfileProvisioner.baseProfilesDir()
+        XCTAssertTrue(baseDir.path.contains("/Library/Application Support/Solo Code/CLIProfiles"))
+    }
+
     func testClaudeEnvironmentOverridesIsolateHomePerProfile() throws {
         let profile = try makeTemporaryProfileDirectory()
 

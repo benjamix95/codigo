@@ -9,7 +9,7 @@ Introdurre un layer di persistenza PostgreSQL locale e gestito dall’app come c
   - `PersistenceBootstrapService`
   - `PostgresPersistenceStore`
   - schema splittato per dominio (`Metadata`, `VerifiedFindings`, `Planning`, `Debug`, `Projection`)
-- introdotto bootstrap app dedicato in `CodigoApp+Persistence` e hookup in `CodigoApp.swift`
+- introdotto bootstrap app dedicato in `SoloCodeApp+Persistence` e hookup in `SoloCodeApp.swift`
 - convertiti i bridge `MCPSharedState` a lettura/scrittura DB-first con fallback legacy per:
   - `VerifiedFindings`
   - `CodeReview`
@@ -26,8 +26,8 @@ Introdurre un layer di persistenza PostgreSQL locale e gestito dall’app come c
   - `persistBugHunterSnapshot` ora fa upsert della `conversation` prima di scrivere `bug_hunter_runs`, evitando failure FK e perdita dello stato canonical
 
 ## File toccati
-- `App/SoloCodeApp/Sources/App/Bootstrap/CodigoApp.swift`
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+Persistence.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/SoloCodeApp.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+Persistence.swift`
 - `Engine/CoderEngine/Sources/Infrastructure/MCP/MCPSharedState+BugHunter.swift`
 - `Engine/CoderEngine/Sources/Infrastructure/MCP/MCPSharedState+CodeReview.swift`
 - `Engine/CoderEngine/Sources/Infrastructure/MCP/MCPSharedState+CodeReviewIndex.swift`

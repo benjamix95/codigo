@@ -9,7 +9,7 @@ final class AppDelegateWindowStyleTests: XCTestCase {
         let toolbar = NSToolbar(identifier: "test-toolbar")
         toolbar.showsBaselineSeparator = true
         window.toolbar = toolbar
-        window.title = "Codigo"
+        window.title = "Solo Code"
         window.subtitle = "Subtitle"
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = true

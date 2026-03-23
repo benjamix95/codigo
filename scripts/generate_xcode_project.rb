@@ -30,7 +30,7 @@ def add_resources(project, group, target)
   %w[
     App/SoloCodeApp/Resources/Assets.xcassets
     App/SoloCodeApp/Resources/AppLogo.png
-    App/SoloCodeApp/Resources/Codigo.icns
+    App/SoloCodeApp/Resources/SoloCode.icns
     App/SoloCodeApp/Resources/browser-bridge.js
     App/SoloCodeApp/Resources/Fonts
     App/SoloCodeApp/Resources/monaco

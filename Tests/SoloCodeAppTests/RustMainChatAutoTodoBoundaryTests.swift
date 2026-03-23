@@ -51,6 +51,8 @@ final class RustMainChatAutoTodoBoundaryTests: XCTestCase {
         let startedTodo = try XCTUnwrap(todoStore.todos.first)
         XCTAssertEqual(startedTodo.title, "Complete changes on App.swift")
         XCTAssertEqual(startedTodo.status, .inProgress)
+        XCTAssertTrue(startedTodo.isOperationalPlaceholder)
+        XCTAssertTrue(todoStore.displayTodosForChat(for: UUID(uuidString: "00000000-0000-0000-0000-000000000001")).isEmpty)
 
         let record = try XCTUnwrap(
             RustMainChatStoreAdapter.handleUIIntent(
@@ -77,6 +79,7 @@ final class RustMainChatAutoTodoBoundaryTests: XCTestCase {
         XCTAssertEqual(updatedTodo.id, startedTodo.id)
         XCTAssertEqual(updatedTodo.activeForm, "Editing code")
         XCTAssertEqual(updatedTodo.notes, "Auto-generated: tracking live operational activity until the agent publishes an explicit todo.")
+        XCTAssertTrue(updatedTodo.isOperationalPlaceholder)
 
         let finalize = try XCTUnwrap(
             RustMainChatStoreAdapter.handleUIIntent(

@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let bugHunterHookEventsLogger = Logger(subsystem: "com.codigo.CoderEngine", category: "BugHunterHookEventsIO")
+private let bugHunterHookEventsLogger = Logger(subsystem: "com.solocode.CoderEngine", category: "BugHunterHookEventsIO")
 
 extension MCPSharedState {
     public static func enqueueBugHunterHookEvent(

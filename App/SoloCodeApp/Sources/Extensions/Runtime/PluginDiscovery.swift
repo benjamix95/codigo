@@ -52,14 +52,14 @@ actor PluginDiscovery {
             paths.append(SearchPath(path: builtIn, isBuiltIn: true))
         }
 
-        // Directory utente (~/.codigo/plugins)
+        // Directory utente (~/.solocode/plugins)
         let userDir = NSHomeDirectory()
-        let userPlugins = (userDir as NSString).appendingPathComponent(".codigo/plugins")
+        let userPlugins = (userDir as NSString).appendingPathComponent(".solocode/plugins")
         paths.append(SearchPath(path: userPlugins, isBuiltIn: false))
 
-        // Directory workspace (.codigo/plugins)
+        // Directory workspace (.solocode/plugins)
         if let workspace = workspacePath {
-            let wsPlugins = (workspace as NSString).appendingPathComponent(".codigo/plugins")
+            let wsPlugins = (workspace as NSString).appendingPathComponent(".solocode/plugins")
             paths.append(SearchPath(path: wsPlugins, isBuiltIn: false))
         }
 
@@ -118,7 +118,7 @@ actor PluginDiscovery {
         )
     }
 
-    private func inferPluginType(from manifest: ExtensionManifest) -> CodigoPluginType {
+    private func inferPluginType(from manifest: ExtensionManifest) -> SoloCodePluginType {
         let name = manifest.name.lowercased()
         let tools = Set(manifest.exposedTools.map { $0.lowercased() })
 

@@ -2,12 +2,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INFO_PLIST="$REPO_ROOT/App/SoloCodeApp/Sources/Info.plist"
+INFO_PLIST="$REPO_ROOT/Config/Plists/SoloCode-Info.plist"
 MANIFEST_FILE="$REPO_ROOT/docs/update/manifest.json"
 RELEASE_NOTES_DIR="$REPO_ROOT/docs/release-notes"
 VERSION=""
 BUILD="1"
-DOWNLOAD_URL="https://github.com/benjamix95/codigo/releases/download/v{VERSION}/Codigo.app.zip"
+DOWNLOAD_URL="https://github.com/benjamix95/solocode/releases/download/v{VERSION}/SoloCode.app.zip"
 NOTES_FILE=""
 CHECK_ONLY="false"
 NOTARIZE="false"
@@ -34,8 +34,8 @@ Notarization:
   --notary-team-id <team-id>
 
 Example:
-  $0 --version 1.0.1 --build 2 --download-url https://github.com/benjamix95/codigo/releases/download/v1.0.1/Codigo.app.zip
-  $0 --version 1.0.1 --build 2 --download-url https://github.com/benjamix95/codigo/releases/download/v1.0.1/Codigo.app.zip --notarize --notary-key-path /path/AuthKey.p8 --notary-key-id XYZ123ABC --notary-issuer-id 00000000-1111-2222-3333-444444444444 --codesign-identity "Developer ID Application: NOME (TEAMID)"
+  $0 --version 1.0.1 --build 2 --download-url https://github.com/benjamix95/solocode/releases/download/v1.0.1/Solo-Code.app.zip
+  $0 --version 1.0.1 --build 2 --download-url https://github.com/benjamix95/solocode/releases/download/v1.0.1/Solo-Code.app.zip --notarize --notary-key-path /path/AuthKey.p8 --notary-key-id XYZ123ABC --notary-issuer-id 00000000-1111-2222-3333-444444444444 --codesign-identity "Developer ID Application: NOME (TEAMID)"
 EOF
 }
 
@@ -128,7 +128,7 @@ fi
 if [[ ! -f "$NOTES_FILE" ]]; then
   mkdir -p "$RELEASE_NOTES_DIR"
   cat <<EOF > "$NOTES_FILE"
-# Codigo $VERSION
+# Solo Code $VERSION
 
 - Aggiungi qui le note di questa release.
 EOF
@@ -140,7 +140,7 @@ if [[ ! -f "$INFO_PLIST" ]]; then
 fi
 
 DOWNLOAD_URL="${DOWNLOAD_URL//\{VERSION\}/$VERSION}"
-RELEASE_NOTES_URL="https://raw.githubusercontent.com/benjamix95/codigo/main/docs/release-notes/$VERSION.md"
+RELEASE_NOTES_URL="https://raw.githubusercontent.com/benjamix95/solocode/main/docs/release-notes/$VERSION.md"
 CURRENT_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 SHORT_NOTES="$(head -n 5 "$NOTES_FILE" | tr '\n' ' ')"
 ESCAPED_NOTES="$(escape_json "$SHORT_NOTES")"
@@ -156,7 +156,7 @@ mkdir -p "$(dirname "$MANIFEST_FILE")"
 cat <<EOF > "$MANIFEST_FILE"
 {
   "schema": 1,
-  "app_name": "Codigo",
+  "app_name": "Solo Code",
   "version": "$VERSION",
   "build": "$BUILD",
   "minimum_system_version": "14.0",
@@ -201,8 +201,8 @@ env "${build_env[@]}" "$REPO_ROOT/scripts/build-app.sh"
 mkdir -p "$REPO_ROOT/dist"
 (
   cd "$REPO_ROOT/dist"
-  rm -f "Codigo-$VERSION.app.zip"
-  zip -qr "Codigo-$VERSION.app.zip" "Solo Code.app"
+  rm -f "SoloCode-$VERSION.app.zip"
+  zip -qr "SoloCode-$VERSION.app.zip" "Solo Code.app"
 )
-echo "Release package ready at $REPO_ROOT/dist/Codigo-$VERSION.app.zip"
+echo "Release package ready at $REPO_ROOT/dist/SoloCode-$VERSION.app.zip"
 echo "Manifest updated at $MANIFEST_FILE"

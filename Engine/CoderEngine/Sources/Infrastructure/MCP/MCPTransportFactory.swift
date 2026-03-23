@@ -18,7 +18,7 @@ import System
 
 /// Creates an MCP transport connected to a subprocess
 public enum MCPTransportFactory {
-    private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPTransportFactory")
+    private static let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "MCPTransportFactory")
     private static let ignoreSIGPIPE: Void = {
         #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
         _ = signal(SIGPIPE, SIG_IGN)

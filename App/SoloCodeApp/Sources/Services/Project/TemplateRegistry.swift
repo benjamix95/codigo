@@ -155,7 +155,7 @@ actor TemplateRegistry {
     }
 
     private func loadCustomTemplates() async {
-        let customDir = NSHomeDirectory() + "/.codigo/templates"
+        let customDir = NSHomeDirectory() + "/.solocode/templates"
         let fm = FileManager.default
         guard fm.fileExists(atPath: customDir),
               let entries = try? fm.contentsOfDirectory(atPath: customDir) else { return }

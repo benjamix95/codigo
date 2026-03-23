@@ -71,7 +71,7 @@ final class ExtensionXPCHostTests: XCTestCase {
             grantedCapabilities: [],
             timeout: 0.01
         )
-        let connection = NSXPCConnection(serviceName: "com.codigo.tests.fake")
+        let connection = NSXPCConnection(serviceName: "com.solocode.tests.fake")
 
         do {
             try await host.activateConnection(

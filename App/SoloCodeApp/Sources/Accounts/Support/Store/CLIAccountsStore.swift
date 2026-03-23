@@ -24,7 +24,7 @@ final class CLIAccountsStore: ObservableObject {
     let key = "CoderIDE.cliAccounts"
     private let multiEnabledKey = "multi_cli_account_enabled"
     private let secrets = CLIAccountSecretsStore()
-    private let logger = Logger(subsystem: "com.codigo.app", category: "cli-accounts")
+    private let logger = Logger(subsystem: "com.solocode.app", category: "cli-accounts")
 
     init() {
         self.multiAccountEnabled = UserDefaults.standard.bool(forKey: multiEnabledKey)

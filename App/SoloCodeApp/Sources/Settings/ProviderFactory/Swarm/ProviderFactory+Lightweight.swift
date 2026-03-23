@@ -80,7 +80,7 @@ extension ProviderFactory {
                 id: "openrouter-api",
                 displayName: "OpenRouter",
                 baseURL: "https://openrouter.ai/api/v1/chat/completions",
-                extraHeaders: ["HTTP-Referer": "https://codigo.app", "X-Title": "Codigo"]
+                extraHeaders: ["HTTP-Referer": "https://solocode.app", "X-Title": "Solo Code"]
             )
         case "minimax-api":
             guard !config.minimaxApiKey.isEmpty else { return nil }

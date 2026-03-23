@@ -26,7 +26,7 @@ final class NetworkMonitor: ObservableObject {
     @Published private(set) var isPathSatisfied: Bool = true
 
     private let monitor = NWPathMonitor()
-    private let queue = DispatchQueue(label: "codigo.network-monitor", qos: .utility)
+    private let queue = DispatchQueue(label: "solocode.network-monitor", qos: .utility)
     private var reconnectTask: Task<Void, Never>?
 
     static let maxReconnectAttempts = 5

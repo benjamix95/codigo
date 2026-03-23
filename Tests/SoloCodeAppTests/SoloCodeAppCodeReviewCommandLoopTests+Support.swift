@@ -154,7 +154,7 @@ final class FailingDeferredCodeReviewProvider: LLMProvider, @unchecked Sendable 
 }
 
 @MainActor
-final class CodigoAppCodeReviewCommandLoopCloseFindingTests: XCTestCase {
+final class SoloCodeAppCodeReviewCommandLoopCloseFindingTests: XCTestCase {
     private var workspaceURL: URL!
 
     override func setUpWithError() throws {
@@ -165,7 +165,7 @@ final class CodigoAppCodeReviewCommandLoopCloseFindingTests: XCTestCase {
         ReviewCoreBridge.resetForTests()
         VerifiedFindingsPatchExecutionService.resetForTests()
         workspaceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codigo-review-close-finding-\(UUID().uuidString)")
+            .appendingPathComponent("solocode-review-close-finding-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: workspaceURL, withIntermediateDirectories: true)
     }
 
@@ -201,7 +201,7 @@ final class CodigoAppCodeReviewCommandLoopCloseFindingTests: XCTestCase {
             )
         }
 
-        let app = CodigoApp()
+        let app = SoloCodeApp()
         let patch = ReviewPatchArtifact(
             id: "patch-close-1",
             findingId: "finding-close-1",
@@ -272,7 +272,7 @@ final class CodigoAppCodeReviewCommandLoopCloseFindingTests: XCTestCase {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()
 
-        let app = CodigoApp()
+        let app = SoloCodeApp()
         let patch = ReviewPatchArtifact(
             id: "patch-close-disabled",
             findingId: "finding-close-disabled",

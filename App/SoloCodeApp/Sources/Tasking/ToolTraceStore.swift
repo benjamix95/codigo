@@ -103,7 +103,7 @@ final class ToolTraceStore: ObservableObject {
     }()
 
     /// Background queue for all disk I/O — keeps FileHandle operations off the main thread.
-    private static let diskQueue = DispatchQueue(label: "com.codigo.tooltrace.disk", qos: .utility)
+    private static let diskQueue = DispatchQueue(label: "com.solocode.tooltrace.disk", qos: .utility)
 
     /// Blocks until all pending disk writes have completed. For test use.
     func flushDiskWrites() {
@@ -221,7 +221,7 @@ final class ToolTraceStore: ObservableObject {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return appSupport
-            .appendingPathComponent("Codigo", isDirectory: true)
+            .appendingPathComponent("Solo Code", isDirectory: true)
             .appendingPathComponent("ToolTrace", isDirectory: true)
             .appendingPathComponent("v1", isDirectory: true)
     }

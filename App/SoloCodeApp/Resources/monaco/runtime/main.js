@@ -53,7 +53,7 @@
         endColumn: marker.endColumn
       };
     });
-    window.CodigoMonacoBridge.post('markersChanged', {
+    window.SoloCodeMonacoBridge.post('markersChanged', {
       path: state.currentPath,
       markers: markers
     });
@@ -65,14 +65,14 @@
     if (!model) {
       model = monaco.editor.createModel(
         content || '',
-        window.CodigoMonacoLang.langForPath(path),
-        window.CodigoMonacoLang.uriForPath(path, state.currentPane)
+        window.SoloCodeMonacoLang.langForPath(path),
+        window.SoloCodeMonacoLang.uriForPath(path, state.currentPane)
       );
       state.models.set(key, model);
     } else if (typeof content === 'string' && model.getValue() !== content) {
       model.setValue(content);
     }
-    monaco.editor.setModelLanguage(model, window.CodigoMonacoLang.langForPath(path));
+    monaco.editor.setModelLanguage(model, window.SoloCodeMonacoLang.langForPath(path));
     return model;
   }
 
@@ -94,13 +94,13 @@
   }
 
   require(['vs/editor/editor.main'], function() {
-    window.CodigoMonacoThemes.register(monaco);
-    window.CodigoMonacoProviders.register(monaco);
+    window.SoloCodeMonacoThemes.register(monaco);
+    window.SoloCodeMonacoProviders.register(monaco);
 
     state.editor = monaco.editor.create(document.getElementById('container'), {
       value: '',
       language: 'plaintext',
-      theme: 'codigo-dark',
+      theme: 'solocode-dark',
       minimap: { enabled: true, renderCharacters: false, scale: 1 },
       lineNumbers: 'on',
       wordWrap: 'off',
@@ -127,22 +127,22 @@
       stickyScroll: { enabled: true }
     });
 
-    window.CodigoMonacoActions.register(state.editor);
+    window.SoloCodeMonacoActions.register(state.editor);
 
     state.editor.onDidChangeModelContent(function() {
       if (state.isSettingValue) return;
       clearTimeout(state.debounceTimer);
       state.debounceTimer = setTimeout(function() {
-        window.CodigoMonacoBridge.post('contentChanged', {
+        window.SoloCodeMonacoBridge.post('contentChanged', {
           pane: state.currentPane,
           path: state.currentPath,
-          content: window.CodigoMonacoBridge.encodeBase64(state.editor.getValue())
+          content: window.SoloCodeMonacoBridge.encodeBase64(state.editor.getValue())
         });
       }, 180);
     });
 
     state.editor.onDidChangeCursorPosition(function(event) {
-      window.CodigoMonacoBridge.post('cursorChanged', {
+      window.SoloCodeMonacoBridge.post('cursorChanged', {
         pane: state.currentPane,
         line: event.position.lineNumber,
         column: event.position.column
@@ -151,7 +151,7 @@
 
     state.editor.onDidChangeCursorSelection(function(event) {
       const selection = event.selection;
-      window.CodigoMonacoBridge.post('selectionChanged', {
+      window.SoloCodeMonacoBridge.post('selectionChanged', {
         pane: state.currentPane,
         startLine: selection.startLineNumber,
         startColumn: selection.startColumn,
@@ -175,7 +175,7 @@
       },
       setValue: function(base64Content, filePath) {
         state.isSettingValue = true;
-        switchModel(filePath, window.CodigoMonacoBridge.decodeBase64(base64Content));
+        switchModel(filePath, window.SoloCodeMonacoBridge.decodeBase64(base64Content));
         state.isSettingValue = false;
       },
       setTheme: function(themeName) {
@@ -191,7 +191,7 @@
         state.editor.updateOptions({ readOnly: !!readOnly });
       },
       applyDiagnostics: function(base64Payload, filePath) {
-        const payload = JSON.parse(window.CodigoMonacoBridge.decodeBase64(base64Payload));
+        const payload = JSON.parse(window.SoloCodeMonacoBridge.decodeBase64(base64Payload));
         const model = ensureModel(filePath, null);
         const markers = (payload.markers || []).map(function(marker) {
           return {
@@ -204,7 +204,7 @@
             endColumn: marker.endColumn
           };
         });
-        monaco.editor.setModelMarkers(model, 'codigo', markers);
+        monaco.editor.setModelMarkers(model, 'solocode', markers);
         notifyMarkers();
       },
       setWordWrap: function(wrap) {
@@ -220,18 +220,18 @@
         state.editor.focus();
       },
       runCommand: function(commandId) {
-        window.CodigoMonacoActions.runCommand(state.editor, commandId);
+        window.SoloCodeMonacoActions.runCommand(state.editor, commandId);
       },
       getContent: function() {
-        return window.CodigoMonacoBridge.encodeBase64(state.editor.getValue());
+        return window.SoloCodeMonacoBridge.encodeBase64(state.editor.getValue());
       }
     });
 
-    window.CodigoMonacoMain = {
+    window.SoloCodeMonacoMain = {
       editor: function() { return state.editor; },
       state: function() { return state; }
     };
 
-    window.CodigoMonacoBridge.post('ready', {});
+    window.SoloCodeMonacoBridge.post('ready', {});
   });
 })();

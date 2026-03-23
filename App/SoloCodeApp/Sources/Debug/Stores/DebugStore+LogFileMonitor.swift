@@ -8,14 +8,14 @@ extension DebugStore {
     static var defaultDebugLogPath: URL {
         let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         return cacheDir
-            .appendingPathComponent("com.codigo.debug", isDirectory: true)
+            .appendingPathComponent("com.solocode.debug", isDirectory: true)
             .appendingPathComponent("debug_log.jsonl")
     }
 
     /// Workspace-scoped debug log path.
     static func workspaceDebugLogPath(workspace: String, sessionId: String?) -> URL {
         let wsURL = URL(fileURLWithPath: workspace)
-        let debugDir = wsURL.appendingPathComponent(".codigo/debug", isDirectory: true)
+        let debugDir = wsURL.appendingPathComponent(".solocode/debug", isDirectory: true)
         let filename = sessionId.map { "session_\($0).jsonl" } ?? "debug_log.jsonl"
         return debugDir.appendingPathComponent(filename)
     }

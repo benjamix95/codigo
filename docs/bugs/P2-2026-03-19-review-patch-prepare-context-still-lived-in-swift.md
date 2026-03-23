@@ -48,7 +48,7 @@
 ## Moduli confinanti da verificare
 - `Tests/SoloCodeAppTests/ReviewPatchWorkflowServiceTests.swift`
 - `Tests/SoloCodeAppTests/ReviewPanelProviderSelectionTests.swift`
-- `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift`
+- `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests.swift`
 
 ## Test da aggiungere o aggiornare
 - test Rust del builder `prepare_context`
@@ -65,7 +65,7 @@
 - `cargo test --manifest-path Native/RustCore/Cargo.toml`
 - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests`
 - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPanelProviderSelectionTests`
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
 
 ## Commit previsto
 - `refactor(review-patch): derive prepare context in rust`

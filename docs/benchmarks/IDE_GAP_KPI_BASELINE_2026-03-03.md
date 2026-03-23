@@ -6,7 +6,7 @@ Definire baseline tecnica iniziale per i KPI dell'ADR `ADR-2026-03-03-ide-gap-cl
 
 ## Perimetro baseline iniziale
 
-- Workspace: repo `codigo` locale.
+- Workspace: repo `solocode` locale.
 - Modalità attuale: pre-integrazione `LanguageService` SourceKit-LSP, pre-integrazione `DebugService` DAP/LLDB.
 - Runtime: index locale `CodebaseIndex` e `DebugStore` orchestrativo.
 - Data raccolta baseline: 2026-03-04.
@@ -24,8 +24,8 @@ Definire baseline tecnica iniziale per i KPI dell'ADR `ADR-2026-03-03-ide-gap-cl
 
 ## Dataset baseline (fisso e ripetibile)
 
-- Dataset ID: `codigo-baseline-v1`.
-- Workspace: repository `codigo` completo, checkout locale pulito per il run benchmark.
+- Dataset ID: `solocode-baseline-v1`.
+- Workspace: repository `solocode` completo, checkout locale pulito per il run benchmark.
 - Campionamento:
   - warmup: 5 run per KPI;
   - run misurati: 20 run per KPI;

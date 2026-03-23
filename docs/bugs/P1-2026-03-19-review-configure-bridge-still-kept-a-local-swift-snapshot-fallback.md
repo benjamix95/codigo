@@ -25,7 +25,7 @@
   - patch workflow
   - review session Rust core
 - Moduli confinanti da verificare:
-  - `CodigoAppCodeReviewCommandLoopTests`
+  - `SoloCodeAppCodeReviewCommandLoopTests`
   - persisted snapshot configure path
   - live session configure path
 - Test da aggiungere o aggiornare:
@@ -34,7 +34,7 @@
   - rimuovere il fallback locale
   - restituire solo `mutation.snapshot`
 - Verifica post-fix:
-  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testConfigureCommandUpdatesLiveSessionThroughCommandLoop -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testConfigureCommandUpdatesPersistedSnapshotThroughRustMutation -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testConfigureCommandFailsWhenRustMutationRuntimeIsDisabled`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testConfigureCommandUpdatesLiveSessionThroughCommandLoop -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testConfigureCommandUpdatesPersistedSnapshotThroughRustMutation -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testConfigureCommandFailsWhenRustMutationRuntimeIsDisabled`
   - `./scripts/validate_rust_cutover_boundary.sh --trigger gitCommit --workspace /Users/benjaminstoica/SoloCode --files App/SoloCodeApp/Sources/CodeReview/Services/ReviewCommandRustBridge.swift --format text`
 - Commit previsto: `refactor(review-command): require canonical configure snapshots`
 

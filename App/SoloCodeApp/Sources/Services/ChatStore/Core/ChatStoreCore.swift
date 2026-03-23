@@ -24,7 +24,7 @@ var hasSavedSinceLoad = false
 /// True while large conversation history is hydrating asynchronously from disk.
 var isAsyncConversationLoadPending = false
 /// Background queue for serialization + UserDefaults writes.
-static let persistQueue = DispatchQueue(label: "com.codigo.chatstore.persist", qos: .utility)
+static let persistQueue = DispatchQueue(label: "com.solocode.chatstore.persist", qos: .utility)
 /// Tracks the last time we persisted during a streaming session (to coalesce saves).
 var lastStreamingSaveAt: Date = .distantPast
 

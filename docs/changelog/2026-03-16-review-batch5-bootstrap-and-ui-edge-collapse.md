@@ -4,13 +4,13 @@
 - assorbiti in `ReviewCommandRustBridge.swift`:
   - `CodeReviewCommandLoopDriver.swift`
   - `CodeReviewCommandRuntimeHooks.swift`
-  - `CodigoApp+CodeReviewCommandConfigure.swift`
+  - `SoloCodeApp+CodeReviewCommandConfigure.swift`
 - ricollocati sotto `Views/**`:
   - `ReviewPanelCoordinator.swift`
   - `ReviewPanelChatSessionStore.swift`
 
 ## Verifica eseguita
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
 - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodeReviewPanelValidationTests -only-testing:SoloCodeAppTests/ReviewPanelChatStructuredContentTests`
 - audit strict review-scope:
   - prima: `69` legacy non-UI

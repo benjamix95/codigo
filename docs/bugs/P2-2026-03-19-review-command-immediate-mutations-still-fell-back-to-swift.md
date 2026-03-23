@@ -8,17 +8,17 @@
 - Gravita': media-alta, perche' tocca command lifecycle, stato condiviso e persistenza snapshot live/persistita.
 - Steps to reproduce:
   1. Queueare un `configure`, `dismiss` o `comment`.
-  2. Seguire il path `CodigoApp+CodeReviewCommands -> CodigoApp+CodeReviewCommandMutations`.
+  2. Seguire il path `SoloCodeApp+CodeReviewCommands -> SoloCodeApp+CodeReviewCommandMutations`.
   3. Verificare che su assenza/failure del mutator Rust il codice ricostruisce ancora l’effetto in Swift.
 - Risultato attuale: il command bus review immediato non e' ancora realmente Rust-first.
 - Risultato atteso: `configure`, `dismiss` e `comment` devono passare solo dal mutator Rust; se il review core non risponde, il command fallisce esplicitamente.
 - Causa probabile: i fallback locali erano stati mantenuti per contenere il rischio nelle tranche iniziali del cutover.
 - Scope consentito:
-  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommands.swift`
-  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommandMutations.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+CodeReviewCommands.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+CodeReviewCommandMutations.swift`
   - `App/SoloCodeApp/Sources/CodeReview/Services/ReviewCommandRustBridge.swift`
   - `Engine/CoderEngine/Sources/CodeReview/Session/ReviewSessionRegistry.swift`
-  - `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift`
+  - `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests.swift`
   - `Tests/CoderEngineTests/CodeReview/CodeReviewSessionStateTests+TerminalLifecycle.swift`
   - documentazione `docs/bugs`, `docs/changelog`
 - Non-scope:
@@ -27,7 +27,7 @@
   - MCP read ownership
   - MCP mutate/enqueue ownership
 - Moduli confinanti da verificare:
-  - `CodigoAppCodeReviewCommandLoopTests`
+  - `SoloCodeAppCodeReviewCommandLoopTests`
   - `MCPSharedCodeReviewCommandsTests`
   - mutator Rust `review_core_command_mutate_snapshot`
 - Test da aggiungere o aggiornare:
@@ -39,7 +39,7 @@
   - rimuovere il fallback locale di `mutateReviewSnapshot(...)`
   - far fallire `ReviewSessionRegistry.updateConfig(...)` se il mutator Rust non risponde
 - Verifica post-fix:
-  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testConfigureCommandUpdatesLiveSessionThroughCommandLoop -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testConfigureCommandUpdatesPersistedSnapshotThroughRustMutation -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testConfigureCommandFailsWhenRustMutationRuntimeIsDisabled -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testDismissCommandUsesRustPlannerAndPersistsWontFix -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testCommentCommandUsesRustMutationAndAppendsComment`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testConfigureCommandUpdatesLiveSessionThroughCommandLoop -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testConfigureCommandUpdatesPersistedSnapshotThroughRustMutation -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testConfigureCommandFailsWhenRustMutationRuntimeIsDisabled -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testDismissCommandUsesRustPlannerAndPersistsWontFix -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testCommentCommandUsesRustMutationAndAppendsComment`
   - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/MCPSharedCodeReviewCommandsTests`
 - Commit previsto: `refactor(review-command): require rust mutator for immediate review commands`
 

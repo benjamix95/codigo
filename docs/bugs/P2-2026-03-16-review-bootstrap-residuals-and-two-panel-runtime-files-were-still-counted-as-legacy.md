@@ -12,7 +12,7 @@
   3. Osservare `4` file legacy nel prefisso `App/SoloCodeApp/Sources/Panels/CodeReview`.
 - Risultato attuale:
   - `ReviewCommandRustBridge.swift` vive ora sotto `App/SoloCodeApp/Sources/CodeReview/Services/`
-  - `CodigoApp+CodeReviewDeferredCommands.swift` e `CodigoApp+CodeReviewPatchCommands.swift` sono stati assorbiti nei servizi review esistenti
+  - `SoloCodeApp+CodeReviewDeferredCommands.swift` e `SoloCodeApp+CodeReviewPatchCommands.swift` sono stati assorbiti nei servizi review esistenti
   - `CodeReviewPanelStore+TargetedFix.swift` e `CodeReviewPanelStore+PatchWorkflow+Execution.swift` vivono ora sotto `Views/Runtime/`
 - Risultato atteso: bootstrap review app-side deve arrivare a zero file legacy; il panel-side deve continuare a ridursi lasciando solo il minimo residuo veramente non riclassificabile.
 - Causa probabile: tranche precedenti avevano spostato la logica Rust-backed ma avevano lasciato file Swift piccoli e separati per comodita' di layering locale.
@@ -30,13 +30,13 @@
   - targeted fix planner panel
   - session-scoping panel
 - Test da aggiungere o aggiornare:
-  - nessun test nuovo; usare regression `CodigoAppCodeReviewCommandLoopTests` e il test panel targeted-fix gia' esistente
+  - nessun test nuovo; usare regression `SoloCodeAppCodeReviewCommandLoopTests` e il test panel targeted-fix gia' esistente
 - Strategia di fix minimo:
   - spostare il bridge review fuori dal prefisso hard-fail review
-  - distribuire i metodi bootstrap di `CodigoApp` su file service esistenti con margine sotto 300 linee
+  - distribuire i metodi bootstrap di `SoloCodeApp` su file service esistenti con margine sotto 300 linee
   - ricollocare i due file panel-local nel subtree `Views/Runtime/`
 - Verifica post-fix:
-  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests -only-testing:SoloCodeAppTests/CodeReviewPanelSessionScopingTests/testPanelTargetedFixLaunchUsesRustPlannerWithSourcePrefixAndConfig`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests -only-testing:SoloCodeAppTests/CodeReviewPanelSessionScopingTests/testPanelTargetedFixLaunchUsesRustPlannerWithSourcePrefixAndConfig`
   - audit strict review-scope
 - Commit previsto: `fix(review): drain bootstrap review residuals`
 

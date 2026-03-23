@@ -9,7 +9,7 @@
 ## Sintomo
 - File Swift del pannello review lasciati in root.
 - Documenti funzionali duplicati tra root e `docs/`.
-- Presenza nel root di output locali come `.xcodebuild-test-*`, `.build`, `build`, `Codigo.app`, file temporanei e log.
+- Presenza nel root di output locali come `.xcodebuild-test-*`, `.build`, `build`, `Solo Code.app`, file temporanei e log.
 
 ## Impatto
 - Onboarding più lento.

@@ -6,7 +6,7 @@ import os
 /// BM25-based semantic index for code search by meaning.
 /// Uses AST-aware semantic chunks and inverted indexing for fast retrieval.
 public actor SemanticIndex {
-    static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "SemanticIndex")
+    static let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "SemanticIndex")
 
     // MARK: - BM25 Parameters
     let k1: Double = 1.2

@@ -31,6 +31,7 @@ enum MainChatTodoPatchAdapter {
                     priority: priority,
                     notes: patch.notes,
                     activeForm: patch.activeForm,
+                    isOperationalPlaceholder: patch.isOperationalPlaceholder ?? false,
                     linkedFiles: patch.linkedFiles,
                     conversationId: conversationId
                 )

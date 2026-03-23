@@ -45,7 +45,7 @@ extension ChatPanelView {
         }
 
         let runtimeRoot = standardizedWorkspace
-            .appendingPathComponent(".codigo_attachments", isDirectory: true)
+            .appendingPathComponent(".solocode_attachments", isDirectory: true)
         if pathContainsSymlink(runtimeRoot) {
             return resolvedSource
         }

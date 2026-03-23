@@ -16,7 +16,7 @@ Quando una review session non era live nel registry, il command bus continuava a
 
 ## Verifica
 - `cargo test --manifest-path Native/RustCore/Cargo.toml`
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
 
 ## Residuo
 `close_finding` e parte del patch runtime restano ancora nel bootstrap Swift. Questa tranche chiude solo le mutazioni snapshot offline più frequenti.

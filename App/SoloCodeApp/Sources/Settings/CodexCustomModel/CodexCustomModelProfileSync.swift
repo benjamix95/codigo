@@ -8,8 +8,8 @@ enum CodexCustomModelProfileSync {
     static let modelContextWindow = 1_000_000
     static let autoCompactTokenLimit = 900_000
 
-    private static let blockStart = "# codigo_codex_gpt54_1m_start"
-    private static let blockEnd = "# codigo_codex_gpt54_1m_end"
+    private static let blockStart = "# solocode_codex_gpt54_1m_start"
+    private static let blockEnd = "# solocode_codex_gpt54_1m_end"
     private static let managedKeys = ["model_context_window", "model_auto_compact_token_limit"]
 
     static func allCodexHomes(accounts: [CLIAccount]) -> [String] {
@@ -145,7 +145,7 @@ enum CodexCustomModelProfileSync {
         let prefix = enabled ? "" : "# "
         return [
             blockStart,
-            "# Preset GPT-5.4 1M gestito da Codigo Settings",
+            "# Preset GPT-5.4 1M gestito da Solo Code Settings",
             "\(prefix)model_context_window = \(modelContextWindow)",
             "\(prefix)model_auto_compact_token_limit = \(autoCompactTokenLimit)",
             blockEnd,

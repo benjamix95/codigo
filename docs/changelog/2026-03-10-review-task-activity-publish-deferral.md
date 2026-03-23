@@ -26,9 +26,9 @@ Eliminare i warning `Publishing changes from within view updates is not allowed`
 - aggiornati i bridge review live che reiniettano snapshot:
   - `App/SoloCodeApp/Sources/Runtime/PipelineIntegrationService+VerifiedFindingsReview.swift`
   - `App/SoloCodeApp/Sources/Chat/Support/Extensions/TaskTrace/ChatPanelView+PartF_CodeReviewMutations.swift`
-  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewDeferredCommands.swift`
-  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/CodigoApp+CodeReviewPatchCommands.swift`
-  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommandMutations.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/SoloCodeApp+CodeReviewDeferredCommands.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/SoloCodeApp+CodeReviewPatchCommands.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+CodeReviewCommandMutations.swift`
 - aggiornato `Tests/SoloCodeAppTests/TaskActivityStoreSwarmCardsTests.swift`
   - aggiunta regressione sul defer del path `scheduleAppendOrMergeBatchEvent(...)`
 - mantenuta la regressione esistente su `scheduleCodeReviewSnapshotIngest(...)` in `Tests/SoloCodeAppTests/TaskActivityStoreScopedActivitiesTests.swift`

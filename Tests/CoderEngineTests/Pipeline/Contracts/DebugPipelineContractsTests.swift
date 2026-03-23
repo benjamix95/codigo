@@ -46,7 +46,7 @@ final class DebugPipelineContractsTests: XCTestCase {
             initialPhase: .reproducing,
             backendPolicy: .appleHybrid,
             errorSummary: "Crash on launch",
-            targetPath: "/Applications/Codigo.app",
+            targetPath: "/Applications/Solo Code.app",
             arguments: ["--uitest"],
             workspaceHints: ["App/SoloCodeApp/Sources/Debug"],
             metadata: ["origin": "tests"]

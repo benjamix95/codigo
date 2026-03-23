@@ -22,7 +22,7 @@
   - `Native/RustCore/src/review_models.rs`
   - `Native/RustCore/src/ffi/review_core.rs`
   - `App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchRuntimeFinalizationService.swift`
-  - `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift`
+  - `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests.swift`
   - `docs/bugs`
   - `docs/changelog`
 - Non-scope:
@@ -30,7 +30,7 @@
   - panel patch workflow completo
   - merge/apply/revalidate/rollback workflow
 - Moduli confinanti da verificare:
-  - `CodigoAppCodeReviewCommandLoopTests`
+  - `SoloCodeAppCodeReviewCommandLoopTests`
   - `ReviewPatchRuntimeFinalizationService`
   - reducer Rust `review_finalize`
 - Test da aggiungere o aggiornare:
@@ -42,7 +42,7 @@
   - instradare `autoPrepareEligibleFindingIds(...)` solo via Rust
 - Verifica post-fix:
   - `cargo build --manifest-path Native/RustCore/Cargo.toml`
-  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests/testAutoPrepareEligibleFindingIdsFailsClosedWhenRustRuntimeIsDisabled`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testAutoPrepareEligibleFindingIdsOnlyReturnsVerifiedFilteredOriginsWithoutExistingPatch -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests/testAutoPrepareEligibleFindingIdsFailsClosedWhenRustRuntimeIsDisabled`
 - Commit previsto: `refactor(review-finalize): route auto-prepare target selection through rust`
 
 ## Effetto osservato

@@ -174,7 +174,7 @@ public protocol BrowserBridge: AnyObject {
 }
 
 public actor UnifiedToolRuntime {
-    static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "UnifiedToolRuntime")
+    static let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "UnifiedToolRuntime")
 
     let executionController: ExecutionController?
     let executionScope: ExecutionScope

@@ -26,7 +26,7 @@
   - `BugHunterWorkflowServiceTests`
   - `VerifiedFindingsStartCommandServiceTests`
   - `ReviewPatchWorkflowServiceTests`
-  - `CodigoAppCodeReviewCommandLoopTests`
+  - `SoloCodeAppCodeReviewCommandLoopTests`
 - Test da aggiungere o aggiornare:
   - unit test Rust su queue context e execution plan
   - regressioni Swift su queueLifecycle/apply_patch context
@@ -38,5 +38,5 @@
 - Verifica post-fix:
   - `cargo test --manifest-path Native/RustCore/Cargo.toml`
   - `xcodebuild test ... -only-testing:CoderEngineTests/BugHunterWorkflowServiceTests -only-testing:CoderEngineTests/VerifiedFindingsStartCommandServiceTests`
-  - `xcodebuild test ... -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+  - `xcodebuild test ... -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
 - Commit previsto: `perf(review): move patch lifecycle planning into rust core`

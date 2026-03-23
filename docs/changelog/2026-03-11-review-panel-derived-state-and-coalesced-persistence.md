@@ -23,7 +23,7 @@ Rimuovere il lavoro pesante dal `body` SwiftUI del panel Code Review e ridurre l
 - aggiornato [PersistenceBootstrapService.swift](/Users/benjaminstoica/SoloCode/Engine/CoderEngine/Sources/PersistenceCore/PersistenceBootstrapService.swift)
   - aggiunto stato non bloccante `idle | warming | ready | failed`
   - aggiunto `beginBootstrapIfNeeded()`
-- aggiornato [CodigoApp+Persistence.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+Persistence.swift)
+- aggiornato [SoloCodeApp+Persistence.swift](/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+Persistence.swift)
   - bootstrap persistence avviato via API non bloccante
 - aggiornato reducer Rust:
   - [review_models.rs](/Users/benjaminstoica/SoloCode/Native/RustCore/src/review_models.rs)

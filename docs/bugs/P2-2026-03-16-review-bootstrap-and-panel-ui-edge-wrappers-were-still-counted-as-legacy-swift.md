@@ -2,7 +2,7 @@
 
 ## Bug Fix Record
 - Categoria: B - Importante ma non bloccante
-- Bug: il dominio `CodeReview` manteneva ancora cinque file Swift legacy separati che non giustificavano ownership autonoma: tre wrapper bootstrap (`CodeReviewCommandLoopDriver`, `CodeReviewCommandRuntimeHooks`, `CodigoApp+CodeReviewCommandConfigure`) e due componenti panel-local UI-edge (`ReviewPanelCoordinator`, `CodeReviewPanelChatSessionStore`) ancora fuori da `Views/**`.
+- Bug: il dominio `CodeReview` manteneva ancora cinque file Swift legacy separati che non giustificavano ownership autonoma: tre wrapper bootstrap (`CodeReviewCommandLoopDriver`, `CodeReviewCommandRuntimeHooks`, `SoloCodeApp+CodeReviewCommandConfigure`) e due componenti panel-local UI-edge (`ReviewPanelCoordinator`, `CodeReviewPanelChatSessionStore`) ancora fuori da `Views/**`.
 - Sintomo: l'audit strict review-scope continuava a contare file glue separati nel backlog non-UI anche quando la logica reale era gia' concentrata nel bridge review o nel panel rendering.
 - Impatto: il backlog Swift non-UI del dominio review restava piu' alto del necessario e la migrazione perdeva tracciabilita' sui veri punti di ownership rimasti.
 - Gravita': media
@@ -34,7 +34,7 @@
   - mantenere fallback locale per `configure` quando il core Rust non e' caricato nei test
   - ricollocare coordinator e chat session store nel subtree `Views/**`
 - Verifica post-fix:
-  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
   - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodeReviewPanelValidationTests -only-testing:SoloCodeAppTests/ReviewPanelChatStructuredContentTests`
   - audit strict review-scope
 - Commit previsto: `fix(review): collapse bootstrap wrappers and move panel ui-edge state`

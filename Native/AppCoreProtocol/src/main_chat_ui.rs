@@ -188,6 +188,8 @@ pub struct MainChatUiTodoPatch {
     pub notes: Option<String>,
     pub active_form: Option<String>,
     #[serde(default)]
+    pub is_operational_placeholder: bool,
+    #[serde(default)]
     pub linked_files: Vec<String>,
     #[serde(default)]
     pub should_emit_trace_update: bool,

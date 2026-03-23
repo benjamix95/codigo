@@ -14,7 +14,7 @@ import os
 public actor AgentWorkerAdapter {
 
     private static let logger = Logger(
-        subsystem: "com.codigo.engine", category: "AgentWorkerAdapter"
+        subsystem: "com.solocode.engine", category: "AgentWorkerAdapter"
     )
 
     private let provider: any LLMProvider

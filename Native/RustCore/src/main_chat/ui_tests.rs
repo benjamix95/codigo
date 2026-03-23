@@ -267,6 +267,7 @@ fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
     });
     assert_eq!(begin.todo_patches.len(), 1);
     assert_eq!(begin.todo_patches[0].title.as_deref(), Some("Complete changes on App.swift"));
+    assert!(begin.todo_patches[0].is_operational_placeholder);
 
     let record = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,
@@ -299,6 +300,7 @@ fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
         record.todo_patches[0].notes.as_deref(),
         Some("Auto-generated: tracking live operational activity until the agent publishes an explicit todo.")
     );
+    assert!(record.todo_patches[0].is_operational_placeholder);
 
     let finalize = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,
@@ -325,6 +327,7 @@ fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
         .is_empty());
     assert_eq!(finalize.todo_patches.len(), 2);
     assert_eq!(finalize.todo_patches[0].status.as_deref(), Some("done"));
+    assert!(finalize.todo_patches[0].is_operational_placeholder);
 }
 
 #[test]
@@ -374,6 +377,7 @@ fn ui_intent_auto_todo_discard_clears_runtime_state() {
         discard.todo_patches[0].mutation,
         Some(app_core_protocol::main_chat_ui::MainChatUiTodoMutation::RemoveTodo)
     );
+    assert!(discard.todo_patches[0].is_operational_placeholder);
 }
 
 fn base_ui_state() -> MainChatUiState {

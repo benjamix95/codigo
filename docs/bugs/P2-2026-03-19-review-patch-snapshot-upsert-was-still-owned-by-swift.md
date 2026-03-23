@@ -47,7 +47,7 @@
 
 ## Moduli confinanti da verificare
 - `Tests/SoloCodeAppTests/ReviewPatchWorkflowServiceTests.swift`
-- `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift`
+- `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests.swift`
 - `Tests/SoloCodeAppTests/ReviewPanelProviderSelectionTests.swift`
 
 ## Test da aggiungere o aggiornare
@@ -62,7 +62,7 @@
 
 ## Verifica post-fix
 - `cargo test --manifest-path Native/RustCore/Cargo.toml`
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests -only-testing:SoloCodeAppTests/ReviewPanelProviderSelectionTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests -only-testing:SoloCodeAppTests/ReviewPanelProviderSelectionTests`
 
 ## Commit previsto
 - `refactor(review-patch): route snapshot upsert through rust mutator`

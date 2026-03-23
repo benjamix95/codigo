@@ -187,6 +187,7 @@ fn ffi_ui_handle_intent_auto_todo_begin_and_discard_emit_patches() {
     });
     assert_eq!(begin.todo_patches.len(), 1);
     assert_eq!(begin.todo_patches[0].title.as_deref(), Some("Complete changes on App.swift"));
+    assert!(begin.todo_patches[0].is_operational_placeholder);
 
     let discard = call_intent(&runtime, MainChatUiIntentRequest {
         schema_version: 1,
@@ -206,6 +207,7 @@ fn ffi_ui_handle_intent_auto_todo_begin_and_discard_emit_patches() {
         .collect(),
     });
     assert_eq!(discard.todo_patches.len(), 2);
+    assert!(discard.todo_patches[0].is_operational_placeholder);
 }
 
 fn call_project(runtime: &LoadedRuntime, request: MainChatUiProjectRequest) -> MainChatUiProjectResponse {

@@ -4,7 +4,7 @@
 - Categoria C — minore / organizzativa
 
 ## Bug
-- La suite app-side del command loop review manteneva ancora `CodigoAppCodeReviewCommandLoopCloseFindingTests.swift` come file dedicato per un solo caso compatibile con il file support dello stesso blocco.
+- La suite app-side del command loop review manteneva ancora `SoloCodeAppCodeReviewCommandLoopCloseFindingTests.swift` come file dedicato per un solo caso compatibile con il file support dello stesso blocco.
 
 ## Sintomo
 - Il test `close_finding` viveva separato dai provider helper e dai test di command loop correlati.
@@ -17,21 +17,21 @@
 
 ## Steps to reproduce
 1. Aprire `Tests/SoloCodeAppTests`.
-2. Verificare la presenza di `CodigoAppCodeReviewCommandLoopCloseFindingTests.swift`.
+2. Verificare la presenza di `SoloCodeAppCodeReviewCommandLoopCloseFindingTests.swift`.
 3. Osservare che contiene un solo test del medesimo sottodominio command loop review.
 
 ## Risultato attuale
 - Il test close-finding viveva in un file dedicato residuale.
 
 ## Risultato atteso
-- Questo test deve stare in `CodigoAppCodeReviewCommandLoopTests+Support.swift`.
+- Questo test deve stare in `SoloCodeAppCodeReviewCommandLoopTests+Support.swift`.
 
 ## Causa probabile
 - Residuo organizzativo dopo le tranche command loop review precedenti.
 
 ## Scope consentito
-- `CodigoAppCodeReviewCommandLoopTests+Support.swift`
-- `CodigoAppCodeReviewCommandLoopCloseFindingTests.swift`
+- `SoloCodeAppCodeReviewCommandLoopTests+Support.swift`
+- `SoloCodeAppCodeReviewCommandLoopCloseFindingTests.swift`
 - progetto Xcode
 - docs cutover review
 
@@ -40,7 +40,7 @@
 - review core Rust
 
 ## Moduli confinanti da verificare
-- `CodigoAppCodeReviewCommandLoopCloseFindingTests`
+- `SoloCodeAppCodeReviewCommandLoopCloseFindingTests`
 - build `Solo Code-Debug`
 
 ## Test da aggiungere o aggiornare

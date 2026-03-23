@@ -8,7 +8,7 @@ L'azione `close_finding` compariva sia nel ramo del patch workflow sia in un cas
 
 ## Sintomo
 Durante la compilazione compariva un warning di pattern duplicato su:
-- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommands.swift`
+- `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+CodeReviewCommands.swift`
 
 ## Impatto
 Il warning non bloccava la build, ma rendeva ambiguo il percorso di dispatch e aumentava il rischio di divergenza futura tra lifecycle patch e chiusura finding.

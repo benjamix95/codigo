@@ -39,7 +39,7 @@ actor ProfileService {
                 profilingEnabled: ud.bool(forKey: "profiling_enabled"),
                 xctraceTemplatePath: ud.string(forKey: "xctrace_template") ?? "Time Profiler",
                 outputDirectory: ud.string(forKey: "profiling_output_dir")
-                    ?? NSTemporaryDirectory() + "CodigoProfiles",
+                    ?? NSTemporaryDirectory() + "SoloCodeProfiles",
                 samplingIntervalMs: ud.integer(forKey: "profiling_sample_interval_ms").nonZero ?? 10
             )
         }

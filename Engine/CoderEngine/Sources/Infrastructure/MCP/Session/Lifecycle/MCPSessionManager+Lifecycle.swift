@@ -121,7 +121,7 @@ extension MCPSessionManager {
             serverLabel: cfg.id
         )
         let client = Client(
-            name: "codigo-mcp-client",
+            name: "solocode-mcp-client",
             version: "1.0.0",
             configuration: .default
         )

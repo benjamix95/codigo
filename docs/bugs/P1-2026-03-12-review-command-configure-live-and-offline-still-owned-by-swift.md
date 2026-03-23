@@ -9,7 +9,7 @@
 - Steps to reproduce:
   1. Enqueue di un comando `configure` con `max_workers`, `max_rounds` o `analysis_only`.
   2. Esecuzione sul command loop review.
-  3. Osservazione del path `CodigoApp+CodeReviewCommands.swift` e `ReviewSessionRegistry.swift`.
+  3. Osservazione del path `SoloCodeApp+CodeReviewCommands.swift` e `ReviewSessionRegistry.swift`.
 - Risultato attuale: la config veniva costruita e scritta in Swift con evento sintetico locale.
 - Risultato atteso: la config deve essere normalizzata e applicata dal mutator Rust anche per `configure`, con Swift ridotto a persistence e reidratazione snapshot.
 - Causa probabile: la tranche precedente aveva migrato le mutazioni review piu' frequenti ma non il path di configurazione.
@@ -17,9 +17,9 @@
   - `Native/RustCore/src/review_command/*`
   - `Engine/CoderEngine/Sources/CodeReview/Session/*`
   - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodeReview/*`
-  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/CodigoApp+CodeReviewCommands.swift`
+  - `App/SoloCodeApp/Sources/App/Bootstrap/Sections/SoloCodeApp+CodeReviewCommands.swift`
   - `Tests/CoderEngineTests/CodeReview/ReviewSessionRegistryTests.swift`
-  - `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift`
+  - `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests.swift`
   - `docs/bugs`, `docs/changelog`
 - Non-scope:
   - pipeline execution review

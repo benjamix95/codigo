@@ -19,7 +19,7 @@ enum BugHunterRunIdentityResolver {
     }
 }
 
-extension CodigoApp {
+extension SoloCodeApp {
     @MainActor
     func handleBugHunterCommand(
         _ command: MCPSharedBugHunterCommand

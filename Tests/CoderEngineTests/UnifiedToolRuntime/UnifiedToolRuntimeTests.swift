@@ -4,7 +4,7 @@ import XCTest
 final class UnifiedToolRuntimeTests: XCTestCase {
     func makeTmpWorkspace() throws -> URL {
         let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codigo-tests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("solocode-tests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         return tmp
     }

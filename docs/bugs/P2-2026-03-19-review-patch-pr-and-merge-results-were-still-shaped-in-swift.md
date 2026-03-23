@@ -51,7 +51,7 @@
 
 ## Moduli confinanti da verificare
 - `Tests/SoloCodeAppTests/ReviewPatchWorkflowServiceTests.swift`
-- `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift`
+- `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests.swift`
 - `Tests/SoloCodeAppTests/ReviewPanelProviderSelectionTests.swift`
 
 ## Test da aggiungere o aggiornare

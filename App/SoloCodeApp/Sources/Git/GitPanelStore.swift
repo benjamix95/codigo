@@ -38,7 +38,7 @@ final class GitPanelStore: ObservableObject {
 
     let gitService = GitService()
     let commitMessageGenerator = GitCommitMessageGenerator()
-    let refreshQueue = DispatchQueue(label: "com.codigo.git-panel.refresh", qos: .utility)
+    let refreshQueue = DispatchQueue(label: "com.solocode.git-panel.refresh", qos: .utility)
     var pendingRefreshWorkItem: DispatchWorkItem?
     var postCommitBugHunterObserver: ((GitCommitResult, String) -> Void)?
 

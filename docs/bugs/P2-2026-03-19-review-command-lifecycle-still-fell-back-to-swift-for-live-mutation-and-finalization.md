@@ -44,7 +44,7 @@
 
 ## Moduli confinanti da verificare
 - `Tests/CoderEngineTests/CodeReview/ReviewSessionRegistryTests.swift`
-- `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests.swift`
+- `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests.swift`
 
 ## Test da aggiungere o aggiornare
 - Regressioni engine per `dismiss`, `comment`, `apply_fix` live con runtime Rust disabilitato
@@ -58,7 +58,7 @@
 ## Verifica post-fix
 - `cargo test --manifest-path Native/RustCore/Cargo.toml`
 - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/ReviewSessionRegistryTests`
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests`
 
 ## Commit previsto
 - `fix(review-command): fail closed when rust lifecycle runtime is unavailable`

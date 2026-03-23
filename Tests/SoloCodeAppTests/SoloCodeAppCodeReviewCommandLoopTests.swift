@@ -3,7 +3,7 @@ import CoderEngine
 @testable import CoderIDE
 
 @MainActor
-final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
+final class SoloCodeAppCodeReviewCommandLoopTests: XCTestCase {
     private var workspaceURL: URL!
 
     override func setUpWithError() throws {
@@ -12,7 +12,7 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         CodeReviewCommandRuntimeHooks.providerFactoryOverride = nil
         CodeReviewCommandRuntimeHooks.workspaceContextOverride = nil
         workspaceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codigo-review-command-loop-\(UUID().uuidString)")
+            .appendingPathComponent("solocode-review-command-loop-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: workspaceURL, withIntermediateDirectories: true)
     }
 
@@ -729,8 +729,8 @@ final class CodigoAppCodeReviewCommandLoopTests: XCTestCase {
         )
     }
 
-    private func makeApp() -> CodigoApp {
-        let app = CodigoApp()
+    private func makeApp() -> SoloCodeApp {
+        let app = SoloCodeApp()
         return app
     }
 

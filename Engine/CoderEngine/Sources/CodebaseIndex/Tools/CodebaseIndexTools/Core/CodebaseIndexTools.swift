@@ -6,7 +6,7 @@ import os
 /// Integrates CodebaseIndex with MCP/UnifiedToolRuntime.
 /// Exposes codebase index operations as LLM-invokable tools.
 public actor CodebaseIndexTools {
-    static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "CodebaseIndexTools")
+    static let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "CodebaseIndexTools")
 
     let index: CodebaseIndex
 

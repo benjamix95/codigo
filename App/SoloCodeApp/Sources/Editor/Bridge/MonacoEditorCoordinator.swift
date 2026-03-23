@@ -267,7 +267,7 @@ final class MonacoEditorCoordinator: NSObject, WKScriptMessageHandler, WKNavigat
         let family = "'\(parent.fontFamily.replacingOccurrences(of: "'", with: "\\'"))', 'SF Mono', Menlo, monospace"
         webView.evaluateJavaScript("window.monacoAPI?.setFontFamily(\(MonacoBridgePayloadCodec.jsQuoted(family)))")
         let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let theme = isDark ? "codigo-dark" : "codigo-light"
+        let theme = isDark ? "solocode-dark" : "solocode-light"
         webView.evaluateJavaScript("window.monacoAPI?.setTheme(\(MonacoBridgePayloadCodec.jsQuoted(theme)))")
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let bugHunterCommandsLogger = Logger(subsystem: "com.codigo.CoderEngine", category: "BugHunterCommandsIO")
+private let bugHunterCommandsLogger = Logger(subsystem: "com.solocode.CoderEngine", category: "BugHunterCommandsIO")
 
 extension MCPSharedState {
     private static let staleBugHunterCommandTimeout: TimeInterval = 3605

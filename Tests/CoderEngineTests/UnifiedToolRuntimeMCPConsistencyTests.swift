@@ -5,7 +5,7 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
 
     private func makeTmpWorkspace() throws -> URL {
         let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codigo-mcp-tests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("solocode-mcp-tests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         return tmp
     }

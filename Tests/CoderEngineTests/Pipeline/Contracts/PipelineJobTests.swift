@@ -36,7 +36,7 @@ final class PipelineJobTests: XCTestCase {
             debugSession: DebugPipelineSessionContext(
                 backendPolicy: .appleHybrid,
                 errorSummary: "Crash on launch",
-                targetPath: "/tmp/Codigo.app",
+                targetPath: "/tmp/Solo Code.app",
                 arguments: ["--uitest"],
                 workspaceHints: ["App/SoloCodeApp/Sources/Debug"],
                 metadata: ["origin": "tests"]

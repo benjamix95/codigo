@@ -42,7 +42,7 @@
 
 ## Moduli confinanti da verificare
 - `Tests/SoloCodeAppTests/ReviewPatchWorkflowServiceTests.swift`
-- `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests+Support.swift`
+- `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests+Support.swift`
 
 ## Test da aggiungere o aggiornare
 - gating Rust sul test di successo `close_finding`
@@ -56,7 +56,7 @@
 ## Verifica post-fix
 - `cargo test --manifest-path Native/RustCore/Cargo.toml`
 - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests`
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopCloseFindingTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopCloseFindingTests`
 
 ## Commit previsto
 - `fix(review-patch): route close finding through rust mutator`

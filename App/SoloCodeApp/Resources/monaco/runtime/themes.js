@@ -2,7 +2,7 @@
   'use strict';
 
   function register(monacoInstance) {
-    monacoInstance.editor.defineTheme('codigo-dark', {
+    monacoInstance.editor.defineTheme('solocode-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [
@@ -34,7 +34,7 @@
       }
     });
 
-    monacoInstance.editor.defineTheme('codigo-light', {
+    monacoInstance.editor.defineTheme('solocode-light', {
       base: 'vs',
       inherit: true,
       rules: [
@@ -55,5 +55,5 @@
     });
   }
 
-  window.CodigoMonacoThemes = { register: register };
+  window.SoloCodeMonacoThemes = { register: register };
 })();

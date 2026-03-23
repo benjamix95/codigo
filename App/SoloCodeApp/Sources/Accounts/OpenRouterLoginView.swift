@@ -130,7 +130,7 @@ struct OpenRouterLoginView: View {
             return
         }
 
-        let callbackScheme = "codigo"
+        let callbackScheme = "solocode"
         let callbackURL = "\(callbackScheme)://oauth/callback"
         let oauthState = UUID().uuidString.replacingOccurrences(of: "-", with: "")
 

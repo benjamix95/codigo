@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-extension CodigoApp {
+extension SoloCodeApp {
     @CommandsBuilder
     var appFileCommands: some Commands {
         CommandGroup(replacing: .newItem) {

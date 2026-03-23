@@ -5,7 +5,7 @@
   - `close_finding` del command loop review
 - Sintomo:
   - `CodeReviewPanelSessionScopingTests.testStructuredChatFindingsSyncsIntoFindingsTimelineAndDeduplicates` restava con `findings.count == 0`
-  - `CodigoAppCodeReviewCommandLoopCloseFindingTests.testCloseFindingCommandUsesRustMutationForValidatedPatchAppliedFinding` tornava `.failed`
+  - `SoloCodeAppCodeReviewCommandLoopCloseFindingTests.testCloseFindingCommandUsesRustMutationForValidatedPatchAppliedFinding` tornava `.failed`
 - Impatto: validation pipeline bloccata, impossibilita' di committare in sicurezza il tranche `main chat`
 - Gravita': alta
 - Steps to reproduce:
@@ -21,7 +21,7 @@
   - switch del command loop guardava `plan.kind` e non `plan.action` per `close_finding`
 - Scope consentito:
   - `CodeReviewPanelStore+ChatFindings.swift`
-  - `CodigoApp+CodeReviewCommands.swift`
+  - `SoloCodeApp+CodeReviewCommands.swift`
   - `CodeReviewPanelSessionScopingTests.swift`
   - changelog/bug doc
 - Non-scope:
@@ -29,7 +29,7 @@
   - refactor generale del command loop review
 - Moduli confinanti da verificare:
   - `CodeReviewPanelSessionScopingTests`
-  - `CodigoAppCodeReviewCommandLoopCloseFindingTests`
+  - `SoloCodeAppCodeReviewCommandLoopCloseFindingTests`
 - Test da aggiungere o aggiornare:
   - riallineamento del test stale su `selectedModes`
   - riesecuzione isolata dei failure review
@@ -38,6 +38,6 @@
   - routing esplicito di `close_finding` sul mutatore Rust diretto
 - Verifica post-fix:
   - `xcodebuild test-without-building ... -only-testing:SoloCodeAppTests/CodeReviewPanelSessionScopingTests/...`
-  - `xcodebuild test-without-building ... -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopCloseFindingTests/...`
+  - `xcodebuild test-without-building ... -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopCloseFindingTests/...`
 - Commit previsto:
   - `fix(review): unblock panel findings sync and close-finding command`

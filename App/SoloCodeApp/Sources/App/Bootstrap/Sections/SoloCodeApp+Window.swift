@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-extension CodigoApp {
+extension SoloCodeApp {
     func configureWindow() {
         let candidates = NSApplication.shared.windows.filter { $0.canBecomeMain }
         for window in candidates {

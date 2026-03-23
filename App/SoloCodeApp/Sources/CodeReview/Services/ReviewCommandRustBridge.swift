@@ -28,7 +28,7 @@ struct CodeReviewCommandLoopDriver: Sendable {
 
 enum CodeReviewCommandRuntimeHooks {
     typealias ProviderFactoryOverride = @MainActor (ProviderFactoryConfig, ExecutionController?, String?, CodebaseIndex?, [URL], CodeReviewSessionState?, SessionConfig?) -> (any LLMProvider)?
-    typealias WorkspaceContextOverride = @MainActor (CodigoApp) -> WorkspaceContext?
+    typealias WorkspaceContextOverride = @MainActor (SoloCodeApp) -> WorkspaceContext?
     static var providerFactoryOverride: ProviderFactoryOverride?
     static var workspaceContextOverride: WorkspaceContextOverride?
 
@@ -41,7 +41,7 @@ enum CodeReviewCommandRuntimeHooks {
     }
 
     @MainActor
-    static func workspaceContext(for app: CodigoApp) -> WorkspaceContext {
+    static func workspaceContext(for app: SoloCodeApp) -> WorkspaceContext {
         if let workspaceContextOverride, let override = workspaceContextOverride(app) { return override }
         return WorkspaceContext(
             workspacePaths: app.workspaceStore.activeWorkspacePaths,
@@ -173,7 +173,7 @@ struct ReviewCommandRustBridge {
     }
 }
 
-extension CodigoApp {
+extension SoloCodeApp {
     @MainActor
     func configuredReviewSnapshot(snapshot: CodeReviewSessionSnapshot, sessionId: String, conversationId _: UUID?, config: SessionConfig) -> CodeReviewSessionSnapshot? {
         let payload = ["session_id": sessionId].merging(config.reviewCommandPayload) { _, rhs in rhs }

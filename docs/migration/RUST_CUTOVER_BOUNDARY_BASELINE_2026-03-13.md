@@ -690,8 +690,8 @@
   - `Legacy oltre budget nel tranche gate: 0`
 
 ## Avanzamento tranche 53 review cutover
-- eliminato il file test-side `CodigoAppCodeReviewCommandLoopCloseFindingTests.swift`
-- test close-finding command loop consolidato in `CodigoAppCodeReviewCommandLoopTests+Support.swift`
+- eliminato il file test-side `SoloCodeAppCodeReviewCommandLoopCloseFindingTests.swift`
+- test close-finding command loop consolidato in `SoloCodeAppCodeReviewCommandLoopTests+Support.swift`
 - conteggio osservato del dominio review engine/tooling:
   - prima della tranche: `47` file Swift
   - dopo la tranche: `46` file Swift

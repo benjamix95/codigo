@@ -7,7 +7,7 @@ extension SettingsView {
 
             hintBox("Rules are automatically applied to ALL AI providers (API and CLI). Use global rules for general guidance and project rules for workspace-specific constraints.")
 
-            GroupBox("Global rules (~/.codigo/rules/global/)") {
+            GroupBox("Global rules (~/.solocode/rules/global/)") {
                 VStack(alignment: .leading, spacing: 10) {
                     if globalRuleDocs.isEmpty {
                         Text("No global rules found. Create one to get started.")
@@ -41,7 +41,7 @@ extension SettingsView {
                 }.padding(4)
             }
 
-            GroupBox("Project rules (.codigo/rules/project/)") {
+            GroupBox("Project rules (.solocode/rules/project/)") {
                 VStack(alignment: .leading, spacing: 10) {
                     if currentProjectRootPath == nil {
                         Text("No active workspace. Open a project to manage project rules.")

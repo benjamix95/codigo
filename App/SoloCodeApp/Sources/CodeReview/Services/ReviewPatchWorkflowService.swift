@@ -63,7 +63,7 @@ final class ReviewPatchWorkflowService {
         let baseBranch = try gitService.currentBranch(gitRoot: gitRoot)
         let branchName = prepareContext.branchName
         let worktreePath = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("codigo-review-patches")
+            .appendingPathComponent("solocode-review-patches")
             .appendingPathComponent(branchName.replacingOccurrences(of: "/", with: "-"))
             .path
 

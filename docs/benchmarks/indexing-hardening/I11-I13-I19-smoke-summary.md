@@ -6,6 +6,6 @@
 | incremental_median_ms | 22 | 22 | 0.00% |
 
 Artifacts:
-- pre: `/Users/benjaminstoica/codigo/docs/benchmarks/indexing-hardening/I11-I13-I19-smoke-pre.json`
-- post: `/Users/benjaminstoica/codigo/docs/benchmarks/indexing-hardening/I11-I13-I19-smoke-post.json`
-- logs: `/Users/benjaminstoica/codigo/docs/benchmarks/indexing-hardening/I11-I13-I19-smoke-pre.log`, `/Users/benjaminstoica/codigo/docs/benchmarks/indexing-hardening/I11-I13-I19-smoke-post.log`
+- pre: `/Users/benjaminstoica/SoloCode/docs/benchmarks/indexing-hardening/I11-I13-I19-smoke-pre.json`
+- post: `/Users/benjaminstoica/SoloCode/docs/benchmarks/indexing-hardening/I11-I13-I19-smoke-post.json`
+- logs: `/Users/benjaminstoica/SoloCode/docs/benchmarks/indexing-hardening/I11-I13-I19-smoke-pre.log`, `/Users/benjaminstoica/SoloCode/docs/benchmarks/indexing-hardening/I11-I13-I19-smoke-post.log`

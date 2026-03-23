@@ -172,7 +172,7 @@ struct DebugHypothesis: Identifiable, Codable {
     }
 }
 
-/// Runtime log entry collected from .codigo/debug.log (Cursor-style JSONL).
+/// Runtime log entry collected from .solocode/debug.log (Cursor-style JSONL).
 /// Captures variable states, execution paths, timing — written by agent instrumentation.
 struct RuntimeLogEntry: Identifiable, Codable {
     let id: String

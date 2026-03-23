@@ -100,6 +100,7 @@ enum ToolTraceVisibility {
         if type == "policy_ack" { return true }
         if hiddenIncludeTypes.contains(type) { return false }
         if type == "mcp_tool_call" {
+            if isSuppressedMCPTool(payload: activity.payload) { return false }
             return isRealMCPEvent(payload: activity.payload)
         }
         if operationalTypes.contains(type) { return true }
@@ -111,6 +112,7 @@ enum ToolTraceVisibility {
         let type = normalizedType(event.type)
         if hiddenDisplayTypes.contains(type) { return false }
         if type == "mcp_tool_call" {
+            if isSuppressedMCPTool(payload: event.payload) { return false }
             return isRealMCPEvent(payload: event.payload)
         }
         if operationalTypes.contains(type) { return true }
@@ -122,6 +124,7 @@ enum ToolTraceVisibility {
         let type = normalizedType(activity.type)
         if hiddenDisplayTypes.contains(type) { return false }
         if type == "mcp_tool_call" {
+            if isSuppressedMCPTool(payload: activity.payload) { return false }
             return isRealMCPEvent(payload: activity.payload)
         }
         if operationalTypes.contains(type) { return true }
@@ -188,6 +191,21 @@ enum ToolTraceVisibility {
             return true
         }
         return false
+    }
+
+    private static func isSuppressedMCPTool(payload: [String: String]) -> Bool {
+        let tool = normalizedType(
+            payload["mcp_tool"]
+                ?? payload["mcpTool"]
+                ?? payload["tool"]
+                ?? ""
+        )
+        return tool == "coderide_policy_ack"
+            || tool == "policy_ack"
+            || tool == "coderide_activate_plan_mode"
+            || tool == "activate_plan_mode"
+            || tool == "coderide_activate_debug_mode"
+            || tool == "activate_debug_mode"
     }
 
     private static func isSwarmPayload(_ payload: [String: String]) -> Bool {

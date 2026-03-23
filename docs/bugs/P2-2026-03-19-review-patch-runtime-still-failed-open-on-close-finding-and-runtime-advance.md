@@ -45,7 +45,7 @@
 
 ## Moduli confinanti da verificare
 - `Tests/SoloCodeAppTests/ReviewPatchWorkflowServiceTests.swift`
-- `Tests/SoloCodeAppTests/CodigoAppCodeReviewCommandLoopTests+Support.swift`
+- `Tests/SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopTests+Support.swift`
 
 ## Test da aggiungere o aggiornare
 - test service-level che `close_finding` fallisce closed con runtime patch Rust disabilitato
@@ -61,7 +61,7 @@
 ## Verifica post-fix
 - `cargo test --manifest-path Native/RustCore/Cargo.toml`
 - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ReviewPatchWorkflowServiceTests`
-- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/CodigoAppCodeReviewCommandLoopCloseFindingTests`
+- `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SoloCodeAppCodeReviewCommandLoopCloseFindingTests`
 
 ## Commit previsto
 - `fix(review-patch): fail closed when rust patch runtime is unavailable`

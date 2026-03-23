@@ -59,6 +59,23 @@ final class ToolTraceVisibilityTests: XCTestCase {
         XCTAssertFalse(ToolTraceVisibility.shouldDisplay(event: event))
     }
 
+    func testPolicyAckMCPToolCallIsNotIncludedOrDisplayed() {
+        let activity = TaskActivity(
+            type: "mcp_tool_call",
+            title: "MCP policy ack",
+            payload: [
+                "mcp_tool": "coderide_policy_ack",
+                "is_mcp": "true",
+            ],
+            phase: .executing,
+            isRunning: false
+        )
+        XCTAssertFalse(ToolTraceVisibility.shouldInclude(activity: activity))
+
+        let event = makeEvent(type: "mcp_tool_call", payload: activity.payload)
+        XCTAssertFalse(ToolTraceVisibility.shouldDisplay(event: event))
+    }
+
     func testRequiresPolicyAckForOperationalEvents() {
         XCTAssertTrue(
             ToolTraceVisibility.requiresPolicyAck(

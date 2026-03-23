@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 import OSLog
 
-private let rustFFILogger = Logger(subsystem: "com.codigo.CoderEngine", category: "RustFFI")
+private let rustFFILogger = Logger(subsystem: "com.solocode.CoderEngine", category: "RustFFI")
 
 private typealias RustVersionFn = @convention(c) () -> UnsafePointer<CChar>?
 private typealias RustSearchFn = @convention(c) (UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?

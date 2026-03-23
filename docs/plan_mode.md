@@ -2,7 +2,7 @@
 
 ## Cos'è il Plan Mode
 
-Il Plan Mode è una delle modalità operative di Codigo (insieme ad Agent, Agent Swarm, Code Review, IDE, MCP Server).
+Il Plan Mode è una delle modalità operative di Solo Code (insieme ad Agent, Agent Swarm, Code Review, IDE, MCP Server).
 Si attiva selezionando `Plan` nella barra dei mode controls.
 
 L'obiettivo è separare la **pianificazione** dall'**esecuzione**: prima l'AI analizza il problema e propone opzioni strutturate, poi l'utente sceglie e autorizza l'esecuzione. Questo riduce le modifiche inattese e permette di intervenire prima che il codice venga scritto.

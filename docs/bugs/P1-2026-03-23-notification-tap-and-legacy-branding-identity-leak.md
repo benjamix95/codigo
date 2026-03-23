@@ -1,0 +1,48 @@
+# Bug Fix Record
+- Categoria: A
+- Bug: il tap sulle notifiche poteva riattivare un bundle/app legacy e il prodotto distribuibile conteneva ancora naming legacy in bundle, update manifest, script e namespace runtime.
+- Sintomo: cliccando una notifica task-completion l’OS poteva aprire il bundle registrato sbagliato; inoltre release zip, release notes, prompt identitari, path `Application Support` e varie superfici runtime esponevano ancora naming legacy.
+- Impatto: brand identity incoerente, rischio LaunchServices su bundle legacy/stale, artefatti di distribuzione e aggiornamento non allineati al nome attuale dell’app.
+- Gravità: alta
+- Steps to reproduce:
+  1. Generare una notifica locale dall’app.
+  2. Cliccare la notifica con build legacy/stale registrate in LaunchServices.
+  3. Osservare riattivazione bundle errato e presenza di naming legacy in manifest, zip o superfici runtime.
+- Risultato attuale: il prodotto esponeva ancora naming legacy in più superfici distribuite e runtime.
+- Risultato atteso: tutte le superfici prodotto/distribuzione devono usare soltanto `Solo Code` o `SoloCode`, senza tracce legacy.
+- Causa probabile: rename incompleto, con residui in file bootstrap, project references, release/update scripts, path persistenti, logger subsystem e runtime Monaco/plugin.
+- Scope consentito:
+  - `App/SoloCodeApp/**`
+  - `Engine/CoderEngine/**`
+  - `Config/Plists/SoloCode-Info.plist`
+  - `scripts/release.sh`
+  - `scripts/generate_xcode_project.rb`
+  - `README.md`
+  - `docs/update/manifest.json`
+  - `docs/release-notes/1.0.0.md`
+  - `docs/release-notes/1.1.0-ide-gap-closure.md`
+  - `Tests/**` mirati ai namespace/path aggiornati
+  - `Solo Code.xcodeproj/project.pbxproj`
+- Non-scope:
+  - storico `.git/`
+  - changelog/bug docs storici già pubblicati
+  - release remote GitHub effettiva fuori dal repo locale
+- Moduli confinanti da verificare:
+  - bootstrap app e code review command loop
+  - update manifest / release packaging
+  - runtime resource lookup
+  - CLI profile provisioning
+  - tool trace persistence
+  - codebase index cache persistence
+- Test da aggiungere o aggiornare:
+  - `CLIProfileProvisionerTests`
+  - `ToolTraceStoreTests`
+  - `RuntimeResourceLocatorTests`
+  - `CodebaseIndexIncrementalTests`
+  - `SystemPromptsTests`
+- Strategia di fix minimo: rinominare riferimenti legacy ancora spediti nel prodotto, riallineare naming file/simboli bootstrap/plugin, correggere asset/release/update surface e bloccare regressioni con test sui namespace persistenti.
+- Verifica post-fix:
+  - grep repo mirata senza occorrenze legacy nelle superfici prodotto/distribuzione
+  - build macOS del target app
+  - test mirati su provisioning, runtime resources, prompt, cache e trace persistence
+- Commit previsto: `fix(app): remove legacy branding from runtime and release surfaces`
