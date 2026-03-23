@@ -73,17 +73,16 @@ extension UnifiedToolRuntime {
         context: ToolExecutionContext,
         startDate: Date
     ) async throws -> ToolResult {
+        if let legacyRustFirst = try await runLegacyRustFirstFallbackIfNeeded(
+            call,
+            normalizedName: normalizedName,
+            context: context,
+            startDate: startDate
+        ) {
+            return legacyRustFirst
+        }
+
         switch normalizedName {
-        case "read":
-            return try executeRead(call: call, context: context, startDate: startDate)
-        case _ where SubagentRole.fromToolName(normalizedName) != nil:
-            return await executeSubagentCall(call: call, context: context, startDate: startDate)
-        case "read_range":
-            return try executeReadRange(call: call, context: context, startDate: startDate)
-        case "list_dir":
-            return try executeListDir(call: call, context: context, startDate: startDate)
-        case "git_diff":
-            return await executeGitDiff(call: call, context: context, startDate: startDate)
         case "search_symbols":
             return await executeSearchSymbols(call: call, context: context, startDate: startDate)
         case "run_tests":
@@ -100,51 +99,8 @@ extension UnifiedToolRuntime {
             return await executeWorkspaceStats(call: call, context: context, startDate: startDate)
         case "dependency_audit":
             return await executeDependencyAudit(call: call, context: context, startDate: startDate)
-        case ReviewAuditToolName.securitySecrets,
-             ReviewAuditToolName.securityDependencies,
-             ReviewAuditToolName.securityPatterns,
-             ReviewAuditToolName.securityDataflow,
-             ReviewAuditToolName.securityAuthz,
-             ReviewAuditToolName.securityCrypto,
-             ReviewAuditToolName.securityDeserialization,
-             ReviewAuditToolName.securitySurface,
-             ReviewAuditToolName.securitySupplyChain,
-             ReviewAuditToolName.bugDiffRisks,
-             ReviewAuditToolName.bugTestGaps,
-             ReviewAuditToolName.bugHotspots,
-             ReviewAuditToolName.bugNilCrashPaths,
-             ReviewAuditToolName.bugStateMachine,
-             ReviewAuditToolName.bugConcurrency,
-             ReviewAuditToolName.bugErrorHandling,
-             ReviewAuditToolName.bugAPIContracts,
-             ReviewAuditToolName.bugTestImpact,
-             ReviewAuditToolName.bugDependencyDrift,
-             ReviewAuditToolName.bugDiffSemantics,
-             ReviewAuditToolName.runProfile,
-             ReviewAuditToolName.correlateFindings,
-             ReviewAuditToolName.verifyBundle,
-             ReviewAuditToolName.explainFinding:
-            return await executeAuditTool(
-                name: normalizedName,
-                call: call,
-                context: context,
-                startDate: startDate
-            )
         case "tail_log":
             return await executeTailLog(call: call, context: context, startDate: startDate)
-        case "glob":
-            return await executeGlob(call: call, context: context, startDate: startDate)
-        case "grep":
-            return await executeGrep(call: call, context: context, startDate: startDate)
-        case "str_replace":
-            return try executeStrReplace(call: call, context: context, startDate: startDate)
-        case "create_file":
-            return try executeCreateFile(call: call, context: context, startDate: startDate)
-        case "edit", "write":
-            if let oldStr = call.args["old_string"], !oldStr.isEmpty {
-                return try executeStrReplace(call: call, context: context, startDate: startDate)
-            }
-            return try executeWrite(call: call, context: context, startDate: startDate)
         case "bash":
             let command = call.args["command"] ?? ""
             return await runBash(
@@ -158,10 +114,6 @@ extension UnifiedToolRuntime {
             )
         case "read_terminal":
             return await executeReadTerminal(call: call, startDate: startDate)
-        case "web_search":
-            return await executeWebSearch(call: call, context: context, startDate: startDate)
-        case "web_fetch":
-            return await executeWebFetch(call: call, context: context, startDate: startDate)
         case "browser_navigate":
             return await executeBrowserNavigate(call: call, startDate: startDate)
         case "browser_screenshot":
@@ -182,8 +134,6 @@ extension UnifiedToolRuntime {
             return try executeRegexReplace(call: call, context: context, startDate: startDate)
         case "attempt_completion":
             return await executeAttemptCompletion(call: call, context: context, startDate: startDate)
-        case "diagnostics":
-            return await executeDiagnostics(call: call, context: context, startDate: startDate)
         case "rename_symbol":
             return await executeRenameSymbol(call: call, context: context, startDate: startDate)
         case "find_and_replace_all":
@@ -192,28 +142,6 @@ extension UnifiedToolRuntime {
             return await executeUndoEdit(call: call, context: context, startDate: startDate)
         case "run_single_test":
             return await executeRunSingleTest(call: call, context: context, startDate: startDate)
-        case "debug_log":
-            return await executeDebugLog(call: call, context: context, startDate: startDate)
-        case "debug_query":
-            return await executeDebugQuery(call: call, context: context, startDate: startDate)
-        case "debug_session":
-            return await executeDebugSession(call: call, context: context, startDate: startDate)
-        case "debug_hypothesize":
-            return await executeDebugHypothesize(call: call, context: context, startDate: startDate)
-        case "debug_mark":
-            return await executeDebugMark(call: call, context: context, startDate: startDate)
-        case "debug_clean":
-            return await executeDebugClean(call: call, context: context, startDate: startDate)
-        case "debug_trace_analyze":
-            return await executeDebugTraceAnalyze(call: call, context: context, startDate: startDate)
-        case "debug_instrument":
-            return await executeDebugInstrument(call: call, context: context, startDate: startDate)
-        case "debug_timeline":
-            return await executeDebugTimeline(call: call, context: context, startDate: startDate)
-        case "debug_snapshot":
-            return await executeDebugSnapshot(call: call, context: context, startDate: startDate)
-        case "debug_test_check":
-            return await executeDebugTestCheck(call: call, context: context, startDate: startDate)
         case "apply_diff":
             return try executeApplyDiff(call: call, context: context, startDate: startDate)
         case "batch_read":
@@ -226,16 +154,9 @@ extension UnifiedToolRuntime {
             return await executeGitShow(call: call, context: context, startDate: startDate)
         case "code_context":
             return await executeCodeContext(call: call, context: context, startDate: startDate)
-        case "semantic_search":
-            return await executeSemanticSearch(call: call, context: context, startDate: startDate)
         case "search_health_check":
             return await executeSearchHealthCheck(call: call, context: context, startDate: startDate)
-        case "read_lints":
-            return await executeReadLints(call: call, context: context, startDate: startDate)
-        case "debug_context":
-            return await executeDebugContext(call: call, context: context, startDate: startDate)
-        case "codebase_search", "find_symbol", "list_symbols", "find_references",
-             "project_structure", "file_outline", "find_files", "codebase_stats",
+        case "project_structure", "codebase_stats",
              "dependency_graph", "list_types", "list_tests", "index_status", "reindex":
             return await executeIndexTool(
                 name: normalizedName,
@@ -243,8 +164,6 @@ extension UnifiedToolRuntime {
                 context: context,
                 startDate: startDate
             )
-        case "skill":
-            return await executeSkill(call: call, context: context, startDate: startDate)
         case "mcp", "mcp_call":
             return await executeMCPCall(call: call, context: context, startDate: startDate)
         case "mcp_list_tools":
@@ -295,5 +214,132 @@ extension UnifiedToolRuntime {
             }
             throw ToolRuntimeError.validation("Unsupported tool: \(normalizedName)")
         }
+    }
+
+    private func runLegacyRustFirstFallbackIfNeeded(
+        _ call: ToolCall,
+        normalizedName: String,
+        context: ToolExecutionContext,
+        startDate: Date
+    ) async throws -> ToolResult? {
+        guard shouldUseLegacyRustFirstFallback(
+            normalizedName: normalizedName,
+            context: context
+        ) else {
+            return nil
+        }
+
+        switch normalizedName {
+        case "read":
+            return try executeRead(call: call, context: context, startDate: startDate)
+        case _ where SubagentRole.fromToolName(normalizedName) != nil:
+            return await executeSubagentCall(call: call, context: context, startDate: startDate)
+        case "read_range":
+            return try executeReadRange(call: call, context: context, startDate: startDate)
+        case "list_dir":
+            return try executeListDir(call: call, context: context, startDate: startDate)
+        case "git_diff":
+            return await executeGitDiff(call: call, context: context, startDate: startDate)
+        case ReviewAuditToolName.securitySecrets,
+             ReviewAuditToolName.securityDependencies,
+             ReviewAuditToolName.securityPatterns,
+             ReviewAuditToolName.securityDataflow,
+             ReviewAuditToolName.securityAuthz,
+             ReviewAuditToolName.securityCrypto,
+             ReviewAuditToolName.securityDeserialization,
+             ReviewAuditToolName.securitySurface,
+             ReviewAuditToolName.securitySupplyChain,
+             ReviewAuditToolName.bugDiffRisks,
+             ReviewAuditToolName.bugTestGaps,
+             ReviewAuditToolName.bugHotspots,
+             ReviewAuditToolName.bugNilCrashPaths,
+             ReviewAuditToolName.bugStateMachine,
+             ReviewAuditToolName.bugConcurrency,
+             ReviewAuditToolName.bugErrorHandling,
+             ReviewAuditToolName.bugAPIContracts,
+             ReviewAuditToolName.bugTestImpact,
+             ReviewAuditToolName.bugDependencyDrift,
+             ReviewAuditToolName.bugDiffSemantics,
+             ReviewAuditToolName.runProfile,
+             ReviewAuditToolName.correlateFindings,
+             ReviewAuditToolName.verifyBundle,
+             ReviewAuditToolName.explainFinding:
+            return await executeAuditTool(
+                name: normalizedName,
+                call: call,
+                context: context,
+                startDate: startDate
+            )
+        case "glob":
+            return await executeGlob(call: call, context: context, startDate: startDate)
+        case "grep":
+            return await executeGrep(call: call, context: context, startDate: startDate)
+        case "str_replace":
+            return try executeStrReplace(call: call, context: context, startDate: startDate)
+        case "create_file":
+            return try executeCreateFile(call: call, context: context, startDate: startDate)
+        case "edit", "write":
+            if let oldStr = call.args["old_string"], !oldStr.isEmpty {
+                return try executeStrReplace(call: call, context: context, startDate: startDate)
+            }
+            return try executeWrite(call: call, context: context, startDate: startDate)
+        case "web_search":
+            return await executeWebSearch(call: call, context: context, startDate: startDate)
+        case "web_fetch":
+            return await executeWebFetch(call: call, context: context, startDate: startDate)
+        case "diagnostics":
+            return await executeDiagnostics(call: call, context: context, startDate: startDate)
+        case "debug_log":
+            return await executeDebugLog(call: call, context: context, startDate: startDate)
+        case "debug_query":
+            return await executeDebugQuery(call: call, context: context, startDate: startDate)
+        case "debug_session":
+            return await executeDebugSession(call: call, context: context, startDate: startDate)
+        case "debug_hypothesize":
+            return await executeDebugHypothesize(call: call, context: context, startDate: startDate)
+        case "debug_mark":
+            return await executeDebugMark(call: call, context: context, startDate: startDate)
+        case "debug_clean":
+            return await executeDebugClean(call: call, context: context, startDate: startDate)
+        case "debug_trace_analyze":
+            return await executeDebugTraceAnalyze(call: call, context: context, startDate: startDate)
+        case "debug_instrument":
+            return await executeDebugInstrument(call: call, context: context, startDate: startDate)
+        case "debug_timeline":
+            return await executeDebugTimeline(call: call, context: context, startDate: startDate)
+        case "debug_snapshot":
+            return await executeDebugSnapshot(call: call, context: context, startDate: startDate)
+        case "debug_test_check":
+            return await executeDebugTestCheck(call: call, context: context, startDate: startDate)
+        case "semantic_search":
+            return await executeSemanticSearch(call: call, context: context, startDate: startDate)
+        case "read_lints":
+            return await executeReadLints(call: call, context: context, startDate: startDate)
+        case "debug_context":
+            return await executeDebugContext(call: call, context: context, startDate: startDate)
+        case "codebase_search", "find_symbol", "list_symbols", "find_references",
+             "file_outline", "find_files":
+            return await executeIndexTool(
+                name: normalizedName,
+                call: call,
+                context: context,
+                startDate: startDate
+            )
+        case "skill":
+            return await executeSkill(call: call, context: context, startDate: startDate)
+        default:
+            return nil
+        }
+    }
+
+    private func shouldUseLegacyRustFirstFallback(
+        normalizedName: String,
+        context: ToolExecutionContext
+    ) -> Bool {
+        guard Self.shouldPreferRustAlias(for: normalizedName) else { return false }
+        if !context.policy.enableMCP {
+            return true
+        }
+        return !MCPNativeToolRegistry.shared.hasTools()
     }
 }

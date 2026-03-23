@@ -2,6 +2,14 @@ import XCTest
 @testable import CoderEngine
 
 final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
+    private func makeLocalContext(
+        workspace: URL
+    ) -> ToolExecutionContext {
+        ToolExecutionContext(
+            workspaceContext: WorkspaceContext(workspacePath: workspace),
+            policy: ToolRuntimePolicy(enableMCP: false)
+        )
+    }
 
     private func makeTmpWorkspace() throws -> URL {
         let tmp = FileManager.default.temporaryDirectory
@@ -107,8 +115,8 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         let tmp = try makeTmpWorkspace()
         defer { try? FileManager.default.removeItem(at: tmp) }
 
-        let (call, ctx) = makeCall(name: "grep", workspace: tmp)
-        let events = await runtime.execute(call, context: ctx)
+        let (call, _) = makeCall(name: "grep", workspace: tmp)
+        let events = await runtime.execute(call, context: makeLocalContext(workspace: tmp))
         let completed = extractLastPayload(events)
 
         XCTAssertEqual(completed?["status"], "failed")
@@ -155,12 +163,12 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         )
 
         let runtime = UnifiedToolRuntime(index: index, workspacePaths: [tmp])
-        let (call, ctx) = makeCall(
+        let (call, _) = makeCall(
             name: "find_files",
             args: ["pattern": "ScopedMatch.swift", "path": "ScopeA"],
             workspace: tmp
         )
-        let events = await runtime.execute(call, context: ctx)
+        let events = await runtime.execute(call, context: makeLocalContext(workspace: tmp))
         let completed = extractLastPayload(events)
         let output = completed?["output"] ?? ""
 
@@ -191,12 +199,12 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         )
 
         let runtime = UnifiedToolRuntime(index: index, workspacePaths: [tmp])
-        let (call, ctx) = makeCall(
+        let (call, _) = makeCall(
             name: "codebase_search",
             args: ["query": "SharedScopedSymbol", "path": "ScopeA"],
             workspace: tmp
         )
-        let events = await runtime.execute(call, context: ctx)
+        let events = await runtime.execute(call, context: makeLocalContext(workspace: tmp))
         let completed = extractLastPayload(events)
         let output = completed?["output"] ?? ""
 
