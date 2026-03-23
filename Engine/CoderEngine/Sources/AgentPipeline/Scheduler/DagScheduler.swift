@@ -21,6 +21,9 @@ public enum DagSchedulerError: Error, Sendable, Equatable {
 public actor DagScheduler {
 
     private var tasks: [String: TaskNode] = [:]
+    private var dependentsByTask: [String: Set<String>] = [:]
+    private var readyTaskIDs: Set<String> = []
+    private var statusCounts: [TaskStatus: Int] = [:]
     private let priorityCalculator: PriorityCalculator
 
     public init(priorityCalculator: PriorityCalculator = PriorityCalculator()) {
@@ -35,6 +38,13 @@ public actor DagScheduler {
             throw DagSchedulerError.duplicateTaskId(task.taskId)
         }
         tasks[task.taskId] = task
+        dependentsByTask[task.taskId, default: []] = dependentsByTask[task.taskId, default: []]
+        for dependency in task.dependsOn {
+            dependentsByTask[dependency, default: []].insert(task.taskId)
+        }
+        adjustStatusCounts(from: nil, to: task.status)
+        refreshReadyState(for: task.taskId)
+        refreshDependents(of: task.taskId)
     }
 
     /// Aggiunge un batch di task al DAG.
@@ -46,21 +56,31 @@ public actor DagScheduler {
 
     /// Aggiorna lo stato di un task.
     public func updateTaskStatus(_ taskId: String, status: TaskStatus) {
-        tasks[taskId]?.status = status
+        guard var task = tasks[taskId], task.status != status else { return }
+        adjustStatusCounts(from: task.status, to: status)
+        task.status = status
+        tasks[taskId] = task
+        refreshReadyState(for: taskId)
+        refreshDependents(of: taskId)
     }
 
     /// Incrementa i tentativi di un task e lo rimette in pending.
     public func scheduleRetry(_ taskId: String, delayMs: Int = 0) {
         guard var task = tasks[taskId] else { return }
         task.attempts += 1
+        adjustStatusCounts(from: task.status, to: .pending)
         task.status = .pending
         task.waitingSince = Date().addingTimeInterval(Double(max(0, delayMs)) / 1000.0)
         tasks[taskId] = task
+        refreshReadyState(for: taskId)
+        refreshDependents(of: taskId)
     }
 
     /// Imposta waitingSince su un task (per starvation prevention).
     public func markWaiting(_ taskId: String) {
-        tasks[taskId]?.waitingSince = Date()
+        guard var task = tasks[taskId] else { return }
+        task.waitingSince = Date()
+        tasks[taskId] = task
     }
 
     /// Segna un task come context-enriched (explorer completato).
@@ -80,14 +100,12 @@ public actor DagScheduler {
     ///
     /// Ordinati per effective_priority desc, taskId asc (§5.11 determinismo).
     public func getReadyTasks(now: Date = Date()) -> [TaskNode] {
-        let ready = tasks.values.filter { task in
-            guard task.status == .pending else { return false }
+        let ready = readyTaskIDs.compactMap { taskId -> TaskNode? in
+            guard let task = tasks[taskId], task.status == .pending else { return nil }
             if let waitingSince = task.waitingSince, waitingSince > now {
-                return false
+                return nil
             }
-            return task.dependsOn.allSatisfy { depId in
-                tasks[depId]?.status == .completed
-            }
+            return task
         }
         return priorityCalculator.sorted(Array(ready), now: now)
     }
@@ -119,17 +137,16 @@ public actor DagScheduler {
 
     /// True se tutti i task sono in stato terminale (completed o failed/cancelled).
     public var allTasksTerminal: Bool {
-        tasks.values.allSatisfy { task in
-            task.status == .completed ||
-            task.status == .blocked ||
-            task.status == .failed ||
-            task.status == .cancelled
-        }
+        let terminal = countByStatus(.completed)
+            + countByStatus(.blocked)
+            + countByStatus(.failed)
+            + countByStatus(.cancelled)
+        return terminal == tasks.count
     }
 
     /// Conta task per stato.
     public func countByStatus(_ status: TaskStatus) -> Int {
-        tasks.values.filter { $0.status == status }.count
+        statusCounts[status, default: 0]
     }
 
     /// Failure rate percentuale.
@@ -192,9 +209,47 @@ public actor DagScheduler {
 
     public func reset() {
         tasks.removeAll()
+        dependentsByTask.removeAll()
+        readyTaskIDs.removeAll()
+        statusCounts.removeAll()
     }
 
     // MARK: - Private
+
+    private func adjustStatusCounts(from oldStatus: TaskStatus?, to newStatus: TaskStatus?) {
+        if let oldStatus {
+            statusCounts[oldStatus, default: 0] = max(0, statusCounts[oldStatus, default: 0] - 1)
+        }
+        if let newStatus {
+            statusCounts[newStatus, default: 0] += 1
+        }
+    }
+
+    private func refreshDependents(of taskId: String) {
+        for dependentId in dependentsByTask[taskId] ?? [] {
+            refreshReadyState(for: dependentId)
+        }
+    }
+
+    private func refreshReadyState(for taskId: String) {
+        guard let task = tasks[taskId] else {
+            readyTaskIDs.remove(taskId)
+            return
+        }
+
+        if isStructurallyReady(task) {
+            readyTaskIDs.insert(taskId)
+        } else {
+            readyTaskIDs.remove(taskId)
+        }
+    }
+
+    private func isStructurallyReady(_ task: TaskNode) -> Bool {
+        guard task.status == .pending else { return false }
+        return task.dependsOn.allSatisfy { dependencyId in
+            tasks[dependencyId]?.status == .completed
+        }
+    }
 
     private func riskOrdinal(_ risk: RiskLevel) -> Int {
         switch risk {

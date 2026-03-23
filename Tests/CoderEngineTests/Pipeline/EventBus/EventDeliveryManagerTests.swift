@@ -45,6 +45,7 @@ final class EventDeliveryManagerTests: XCTestCase {
         await manager.deliver(event: makeEvent(), to: sub)
 
         await fulfillment(of: [exp], timeout: 2.0)
+        await waitUntilIdle(manager)
         XCTAssertNotNil(deliveredEvent)
 
         let delivered = await manager.totalDelivered
@@ -80,6 +81,7 @@ final class EventDeliveryManagerTests: XCTestCase {
             event: makeEvent(eventId: "e2", idempotencyKey: "k2"),
             to: sub
         )
+        await waitUntilIdle(manager)
 
         let rate = await manager.successRate()
         XCTAssertEqual(rate, 1.0)
@@ -133,6 +135,7 @@ final class EventDeliveryManagerTests: XCTestCase {
         ) { _ in }
 
         await manager.deliver(event: makeEvent(), to: sub)
+        await waitUntilIdle(manager)
 
         let attempts = await manager.recentAttempts()
         XCTAssertEqual(attempts.count, 1)
@@ -157,6 +160,7 @@ final class EventDeliveryManagerTests: XCTestCase {
         ) { _ in }
 
         await manager.deliver(event: makeEvent(), to: sub)
+        await waitUntilIdle(manager)
 
         let pending = await manager.pendingCount()
         XCTAssertEqual(pending, 0)
@@ -178,6 +182,7 @@ final class EventDeliveryManagerTests: XCTestCase {
         ) { _ in }
 
         await manager.deliver(event: makeEvent(), to: sub)
+        await waitUntilIdle(manager)
         await manager.reset()
 
         let delivered = await manager.totalDelivered
@@ -190,4 +195,43 @@ final class EventDeliveryManagerTests: XCTestCase {
         XCTAssertEqual(pending, 0)
         XCTAssertTrue(attempts.isEmpty)
     }
+
+    func testAttemptLogIsCapped() async {
+        let dlq = makeDLQ()
+        let manager = EventDeliveryManager(
+            maxAttempts: 1,
+            baseDelayMs: 10,
+            maxAttemptLogEntries: 3,
+            deadLetterQueue: dlq
+        )
+
+        let sub = EventSubscription(
+            id: "sub_1",
+            filter: EventSubscriptionFilter()
+        ) { _ in }
+
+        for index in 0..<5 {
+            await manager.deliver(
+                event: makeEvent(eventId: "evt_\(index)", idempotencyKey: "key_\(index)"),
+                to: sub
+            )
+        }
+        await waitUntilIdle(manager)
+
+        let attempts = await manager.recentAttempts(limit: 10)
+        XCTAssertEqual(attempts.count, 3)
+        XCTAssertEqual(attempts.map(\.eventId), ["evt_2", "evt_3", "evt_4"])
+    }
 }
+    private func waitUntilIdle(
+        _ manager: EventDeliveryManager,
+        timeoutNanoseconds: UInt64 = 2_000_000_000
+    ) async {
+        let start = DispatchTime.now().uptimeNanoseconds
+        while await manager.pendingCount() > 0 {
+            if DispatchTime.now().uptimeNanoseconds - start > timeoutNanoseconds {
+                break
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }

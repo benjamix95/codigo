@@ -311,8 +311,8 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         )
 
         let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
-        var firstProviderIds: [String] = []
-        var secondProviderIds: [String] = []
+        var firstCallbacks: [(type: String, providerId: String, conversationId: UUID?)] = []
+        var secondCallbacks: [(type: String, providerId: String, conversationId: UUID?)] = []
 
         service.executeJob(
             makeJob(id: "job-raw-1"),
@@ -329,8 +329,8 @@ final class PipelineIntegrationServiceTests: XCTestCase {
             providerId: "provider-raw-1",
             conversationId: firstConversationId,
             assistantMessageId: UUID(),
-            rawEventHandler: { _, _, providerId, _ in
-                firstProviderIds.append(providerId)
+            rawEventHandler: { type, _, providerId, callbackConversationId in
+                firstCallbacks.append((type, providerId, callbackConversationId))
             }
         )
 
@@ -349,8 +349,8 @@ final class PipelineIntegrationServiceTests: XCTestCase {
             providerId: "provider-raw-2",
             conversationId: secondConversationId,
             assistantMessageId: UUID(),
-            rawEventHandler: { _, _, providerId, _ in
-                secondProviderIds.append(providerId)
+            rawEventHandler: { type, _, providerId, callbackConversationId in
+                secondCallbacks.append((type, providerId, callbackConversationId))
             }
         )
 
@@ -379,13 +379,272 @@ final class PipelineIntegrationServiceTests: XCTestCase {
             for: secondConversationId
         )
 
-        XCTAssertEqual(firstProviderIds, ["provider-raw-1"])
-        XCTAssertEqual(secondProviderIds, ["provider-raw-2"])
+        XCTAssertEqual(firstCallbacks.count, 1)
+        XCTAssertEqual(firstCallbacks.first?.type, "reasoning")
+        XCTAssertEqual(firstCallbacks.first?.providerId, "provider-raw-1")
+        XCTAssertEqual(firstCallbacks.first?.conversationId, firstConversationId)
+        XCTAssertEqual(secondCallbacks.count, 1)
+        XCTAssertEqual(secondCallbacks.first?.type, "reasoning")
+        XCTAssertEqual(secondCallbacks.first?.providerId, "provider-raw-2")
+        XCTAssertEqual(secondCallbacks.first?.conversationId, secondConversationId)
         XCTAssertEqual(service.providerId(for: firstConversationId), "provider-raw-1")
         XCTAssertEqual(service.providerId(for: secondConversationId), "provider-raw-2")
 
         XCTAssertTrue(service.cancelCurrentJob(for: firstConversationId))
         XCTAssertTrue(service.cancelCurrentJob(for: secondConversationId))
+    }
+
+    func testFinalizeExecutionIsIdempotentAfterCancelAndClearsTaskState() async throws {
+        let suiteName = "PipelineIntegrationServiceTests.finalize-cancel.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService(
+            facadeConfig: PipelineFacadeConfig(
+                tickIntervalMs: 10,
+                completionTimeoutMs: 200,
+                maxDeliveryAttempts: 1,
+                dlqCapacity: 32
+            )
+        )
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        var completionContexts: [PipelineCompletionContext] = []
+        let assistantMessageId = UUID()
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-finalize-idempotent"),
+            tasks: [TaskNode(taskId: "task-finalize-idempotent", title: "Finalize cancellation")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-finalize-idempotent",
+                    text: "done",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-finalize-idempotent"
+            ),
+            providerId: "provider-finalize-idempotent",
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            onCompletion: { completionContexts.append($0) }
+        )
+
+        XCTAssertTrue(service.isRunning(for: conversationId))
+        XCTAssertTrue(chatStore.isTaskActive(for: conversationId))
+        XCTAssertEqual(chatStore.activeTaskConversationIds, Set([conversationId]))
+        XCTAssertNotNil(chatStore.taskStartDates[conversationId])
+        XCTAssertEqual(chatStore.taskStatusTexts[conversationId], "Thinking")
+
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertFalse(service.isRunning(for: conversationId))
+        XCTAssertFalse(chatStore.isTaskActive(for: conversationId))
+        XCTAssertTrue(chatStore.activeTaskConversationIds.isEmpty)
+        XCTAssertNil(chatStore.taskStartDates[conversationId])
+        XCTAssertNil(chatStore.taskStatusTexts[conversationId])
+        XCTAssertEqual(completionContexts.count, 1)
+        XCTAssertEqual(completionContexts.first?.conversationId, conversationId)
+        XCTAssertEqual(completionContexts.first?.jobId, "job-finalize-idempotent")
+        XCTAssertTrue(completionContexts.first?.wasCancelled == true)
+        XCTAssertTrue(completionContexts.first?.success == false)
+        XCTAssertNil(service.snapshot(for: conversationId))
+
+        service.finalizeExecution(for: conversationId)
+
+        XCTAssertEqual(completionContexts.count, 1)
+        XCTAssertFalse(chatStore.isTaskActive(for: conversationId))
+        XCTAssertTrue(chatStore.activeTaskConversationIds.isEmpty)
+        XCTAssertNil(chatStore.taskStartDates[conversationId])
+        XCTAssertNil(chatStore.taskStatusTexts[conversationId])
+        XCTAssertNil(service.snapshot(for: conversationId))
+    }
+
+    func testFinalizeExecutionIsIdempotentWhenFinalizeWinsBeforeCancel() async throws {
+        let suiteName = "PipelineIntegrationServiceTests.finalize-first.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService(
+            facadeConfig: PipelineFacadeConfig(
+                tickIntervalMs: 10,
+                completionTimeoutMs: 200,
+                maxDeliveryAttempts: 1,
+                dlqCapacity: 32
+            )
+        )
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        var completionContexts: [PipelineCompletionContext] = []
+        let assistantMessageId = UUID()
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-finalize-first"),
+            tasks: [TaskNode(taskId: "task-finalize-first", title: "Finalize before cancel")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-finalize-first",
+                    text: "done",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-finalize-first"
+            ),
+            providerId: "provider-finalize-first",
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            onCompletion: { completionContexts.append($0) }
+        )
+
+        XCTAssertTrue(service.isRunning(for: conversationId))
+
+        service.finalizeExecution(for: conversationId)
+        XCTAssertFalse(service.cancelCurrentJob(for: conversationId))
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(completionContexts.count, 1)
+        XCTAssertEqual(completionContexts.first?.conversationId, conversationId)
+        XCTAssertEqual(completionContexts.first?.jobId, "job-finalize-first")
+        XCTAssertTrue(completionContexts.first?.wasCancelled == false)
+        XCTAssertTrue(completionContexts.first?.success == true)
+        XCTAssertFalse(service.isRunning(for: conversationId))
+        XCTAssertFalse(chatStore.isTaskActive(for: conversationId))
+        XCTAssertTrue(chatStore.activeTaskConversationIds.isEmpty)
+        XCTAssertNil(chatStore.taskStartDates[conversationId])
+        XCTAssertNil(chatStore.taskStatusTexts[conversationId])
+        XCTAssertNil(service.snapshot(for: conversationId))
+    }
+
+    func testConsumePipelineEventsCoalescesConsecutiveTextDeltasForSameTask() async throws {
+        let suiteName = "PipelineIntegrationServiceTests.coalesce-text.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService(
+            facadeConfig: PipelineFacadeConfig(
+                tickIntervalMs: 10,
+                completionTimeoutMs: 200,
+                maxDeliveryAttempts: 1,
+                dlqCapacity: 32
+            )
+        )
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        let assistantMessageId = UUID()
+        chatStore.addMessage(
+            ChatMessage(id: assistantMessageId, role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-coalesce"),
+            tasks: [TaskNode(taskId: "task-coalesce", title: "Coalesce text")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-coalesce",
+                    text: "done",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-coalesce"
+            ),
+            providerId: "provider-coalesce",
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId
+        )
+
+        service.consumePipelineEvents(
+            [
+                ChatPipelineEvent(
+                    conversationId: conversationId,
+                    assistantMessageId: assistantMessageId,
+                    turnId: assistantMessageId.uuidString,
+                    sequence: 0,
+                    source: "provider-coalesce",
+                    kind: .textDelta,
+                    payload: ["delta": "hello ", "stream_id": "task-coalesce", "task_id": "task-coalesce"]
+                ),
+                ChatPipelineEvent(
+                    conversationId: conversationId,
+                    assistantMessageId: assistantMessageId,
+                    turnId: assistantMessageId.uuidString,
+                    sequence: 0,
+                    source: "provider-coalesce",
+                    kind: .textDelta,
+                    payload: ["delta": "world", "stream_id": "task-coalesce", "task_id": "task-coalesce"]
+                ),
+            ],
+            for: conversationId
+        )
+
+        let content = chatStore.conversation(for: conversationId)?
+            .messages
+            .first(where: { $0.id == assistantMessageId })?
+            .content
+        XCTAssertEqual(content, "hello world")
+
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
     }
 
     func testHandleRawDebugNativeSessionProjectsStateIntoDebugStore() throws {

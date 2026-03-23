@@ -80,6 +80,44 @@ final class EventBusTests: XCTestCase {
         await fulfillment(of: [exp1, exp2], timeout: 2.0)
     }
 
+    func testPublishDoesNotBlockOnRetryingSubscriber() async throws {
+        let dlq = DeadLetterQueue(capacity: 16)
+        let manager = EventDeliveryManager(
+            maxAttempts: 3,
+            baseDelayMs: 200,
+            deadLetterQueue: dlq
+        )
+        let bus = EventBus(
+            deliveryManager: manager,
+            deadLetterQueue: dlq,
+            maxTrackedIdempotencyKeys: 100,
+            idempotencyKeyMaxAge: 3600
+        )
+
+        let fastExpectation = XCTestExpectation(description: "fast subscriber receives event")
+
+        await bus.subscribe(EventSubscription(
+            id: "failing_sub",
+            filter: EventSubscriptionFilter()
+        ) { _ in
+            throw EventBusError.invalidEvent(reason: "forced failure")
+        })
+
+        await bus.subscribe(EventSubscription(
+            id: "fast_sub",
+            filter: EventSubscriptionFilter()
+        ) { _ in
+            fastExpectation.fulfill()
+        })
+
+        let start = Date()
+        try await bus.publish(makeEvent(eventId: "evt_fast", idempotencyKey: "k_fast"))
+        let elapsed = Date().timeIntervalSince(start)
+
+        XCTAssertLessThan(elapsed, 0.1, "publish non deve aspettare il retry del subscriber fallito")
+        await fulfillment(of: [fastExpectation], timeout: 2.0)
+    }
+
     // MARK: - Idempotency
 
     func testPublish_duplicateIdempotencyKey_throws() async throws {

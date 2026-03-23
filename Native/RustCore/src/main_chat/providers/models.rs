@@ -4,6 +4,7 @@ use app_core_protocol::main_chat_provider::{
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::process::Child;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -11,7 +12,7 @@ pub struct ProviderSessionHandle {
     pub snapshot: Arc<Mutex<MainChatProviderSessionSnapshot>>,
     pub events: Arc<Mutex<VecDeque<MainChatProviderEvent>>>,
     pub child: Arc<Mutex<Option<Child>>>,
-    pub cancelled: Arc<Mutex<bool>>,
+    pub cancelled: Arc<AtomicBool>,
 }
 
 impl ProviderSessionHandle {
@@ -30,7 +31,7 @@ impl ProviderSessionHandle {
             })),
             events: Arc::new(Mutex::new(VecDeque::new())),
             child: Arc::new(Mutex::new(None)),
-            cancelled: Arc::new(Mutex::new(false)),
+            cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
 }

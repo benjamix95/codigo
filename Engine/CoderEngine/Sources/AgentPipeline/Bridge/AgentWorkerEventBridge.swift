@@ -7,9 +7,18 @@ import Foundation
 /// into `EventBusEvent` instances that the UI bridge can map to `PipelineUIEvent`.
 public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Sendable {
 
+    private actor SequenceGenerator {
+        private var nextValue: UInt64 = 0
+
+        func next() -> UInt64 {
+            nextValue += 1
+            return nextValue
+        }
+    }
+
     private let eventBus: EventBus
     private let jobId: String
-    private var sequence: UInt64 = 0
+    private let sequencer = SequenceGenerator()
 
     public init(eventBus: EventBus, jobId: String) {
         self.eventBus = eventBus
@@ -22,7 +31,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         jobId: String, taskId: String,
         didEmitTextDelta delta: String
     ) async {
-        let seq = nextSequence()
+        let seq = await sequencer.next()
         let event = EventBusEvent(
             eventId: "evt_stream_\(seq)_delta_\(taskId)",
             jobId: self.jobId,
@@ -39,7 +48,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         jobId: String, taskId: String,
         didReplace replacement: String
     ) async {
-        let seq = nextSequence()
+        let seq = await sequencer.next()
         let event = EventBusEvent(
             eventId: "evt_stream_\(seq)_replace_\(taskId)",
             jobId: self.jobId,
@@ -56,7 +65,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         jobId: String, taskId: String,
         didEmitRaw type: String, payload: [String: String]
     ) async {
-        let seq = nextSequence()
+        let seq = await sequencer.next()
         var mergedPayload = payload
         mergedPayload["raw_type"] = type
         mergedPayload["task_id"] = taskId
@@ -73,10 +82,4 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         try? await eventBus.publish(event)
     }
 
-    // MARK: - Private
-
-    private func nextSequence() -> UInt64 {
-        sequence += 1
-        return sequence
-    }
 }

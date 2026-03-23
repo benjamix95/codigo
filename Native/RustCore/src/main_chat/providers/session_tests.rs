@@ -1,4 +1,7 @@
-use super::session::{cancel_session, poll_session, resume_session, start_session};
+use super::session::{
+    cancel_session, poll_session, resume_session, start_session, test_session_config_exists,
+    test_session_state_exists,
+};
 use app_core_protocol::main_chat_provider::{
     MainChatProviderBackend, MainChatProviderSessionConfig, MainChatProviderSessionPollRequest,
     MainChatProviderSessionRequest, MainChatProviderSessionStartRequest,
@@ -50,11 +53,35 @@ fn cancel_session_marks_snapshot_cancelled() {
         config: minimal_config(MainChatProviderBackend::OpenaiApi),
     });
     assert!(start.snapshot.is_some());
+    assert!(test_session_config_exists(&session_id));
     let cancelled = cancel_session(MainChatProviderSessionRequest {
         schema_version: 1,
         session_id: session_id.clone(),
     });
     assert_eq!(cancelled.snapshot.unwrap().status, "cancelled");
+    assert!(!test_session_config_exists(&session_id));
+    assert!(!test_session_state_exists(&session_id));
+}
+
+#[test]
+fn terminal_poll_clears_session_state_and_config() {
+    let session_id = "provider-terminal-cleanup-test".to_string();
+    let _ = start_session(MainChatProviderSessionStartRequest {
+        schema_version: 1,
+        session_id: session_id.clone(),
+        config: minimal_config(MainChatProviderBackend::OpenaiApi),
+    });
+
+    thread::sleep(Duration::from_millis(50));
+    let response = poll_session(MainChatProviderSessionPollRequest {
+        schema_version: 1,
+        session_id: session_id.clone(),
+        timeout_ms: 200,
+    });
+
+    assert!(response.snapshot.is_some());
+    assert!(!test_session_state_exists(&session_id));
+    assert!(!test_session_config_exists(&session_id));
 }
 
 #[test]

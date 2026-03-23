@@ -198,6 +198,7 @@ public actor EventBus: EventBusProtocol {
         subscriptions.removeAll()
         seenIdempotencyKeys.removeAll()
         idempotencyKeyOrder.removeAll()
+        await deliveryManager.cancelAll()
     }
 
     /// Ripulisce le idempotency key più vecchie di `maxAge`.
@@ -207,12 +208,13 @@ public actor EventBus: EventBusProtocol {
     }
 
     /// Reset completo — utile per i test.
-    public func reset() {
+    public func reset() async {
         subscriptions.removeAll()
         seenIdempotencyKeys.removeAll()
         idempotencyKeyOrder.removeAll()
         sequenceCounter = 0
         isShutdown = false
+        await deliveryManager.reset()
     }
 
     // MARK: - Idempotency Cache

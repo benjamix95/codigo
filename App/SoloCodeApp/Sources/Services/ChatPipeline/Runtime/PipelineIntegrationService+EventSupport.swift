@@ -7,6 +7,7 @@ extension PipelineIntegrationService {
 
     func handleRawEvent(_ p: RawEventPayload, for conversationId: UUID) {
         let rawType = p.rawType
+        let normalizedEnvelope = normalizeRawEventEnvelope(p)
 
         let currentRuntime = runtime(for: conversationId)
         let providerId = currentRuntime?.providerId ?? "pipeline"
@@ -24,8 +25,12 @@ extension PipelineIntegrationService {
             $0.hasPrefix("todo_")
         }) {
             handleRawTodoWrite(p, for: conversationId)
-        } else if isDebugRawEvent(p) {
-            handleRawDebugEvent(p, for: conversationId)
+        } else if envelopeContainsDebugEvent(normalizedEnvelope) {
+            handleRawDebugEvent(
+                p,
+                normalizedEnvelope: normalizedEnvelope,
+                for: conversationId
+            )
         } else if rawType == "plan_step" {
             handleRawPlanStep(p, for: conversationId)
         } else if rawType == "show_task_panel" {
@@ -34,7 +39,10 @@ extension PipelineIntegrationService {
                 for: conversationId
             )
         } else {
-            forwardRawEventToTaskActivity(p, for: conversationId)
+            forwardRawEnvelopeToTaskActivity(
+                normalizedEnvelope,
+                for: conversationId
+            )
         }
     }
 
@@ -73,15 +81,10 @@ extension PipelineIntegrationService {
         )], for: conversationId)
     }
 
-    private func forwardRawEventToTaskActivity(
-        _ p: RawEventPayload,
+    private func forwardRawEnvelopeToTaskActivity(
+        _ envelope: NormalizedEventEnvelope,
         for conversationId: UUID
     ) {
-        let envelope = EventNormalizer.normalizeEnvelope(
-            sourceProvider: "pipeline",
-            type: p.rawType,
-            payload: p.payload
-        )
         taskActivityStore?.addEnvelope(envelope)
         for event in envelope.events {
             if case .taskActivity(let activity) = event {
@@ -172,21 +175,23 @@ extension PipelineIntegrationService {
         chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)
     }
 
-    private func isDebugRawEvent(_ p: RawEventPayload) -> Bool {
-        let envelope = EventNormalizer.normalizeEnvelope(
+    private func normalizeRawEventEnvelope(_ payload: RawEventPayload) -> NormalizedEventEnvelope {
+        EventNormalizer.normalizeEnvelope(
             sourceProvider: "pipeline",
-            type: p.rawType,
-            payload: p.payload
+            type: payload.rawType,
+            payload: payload.payload
         )
+    }
+
+    private func envelopeContainsDebugEvent(_ envelope: NormalizedEventEnvelope) -> Bool {
         return envelope.events.contains(where: { DebugProjectionEventConsumer.handles($0) })
     }
 
-    private func handleRawDebugEvent(_ p: RawEventPayload, for conversationId: UUID) {
-        let envelope = EventNormalizer.normalizeEnvelope(
-            sourceProvider: "pipeline",
-            type: p.rawType,
-            payload: p.payload
-        )
+    private func handleRawDebugEvent(
+        _ p: RawEventPayload,
+        normalizedEnvelope envelope: NormalizedEventEnvelope,
+        for conversationId: UUID
+    ) {
         taskActivityStore?.addEnvelope(envelope)
 
         for event in envelope.events {

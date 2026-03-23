@@ -38,8 +38,9 @@ extension PipelineIntegrationService {
               let runtime = runtime(for: conversationId),
               let chatStore
         else { return }
+        let coalescedEvents = coalescePipelineEvents(events)
         var shouldPersistImmediately = false
-        for event in events {
+        for event in coalescedEvents {
             let sequenced = ChatPipelineEvent(
                 conversationId: event.conversationId,
                 assistantMessageId: event.assistantMessageId,
@@ -89,7 +90,7 @@ extension PipelineIntegrationService {
         let primaryText = runtime.chatTurnState.primaryTextSnapshot
         let textKeys = runtime.chatTurnState.textByStreamId.keys.sorted()
         let streamIds = runtime.chatTurnState.orderedTextStreamIds
-        if !primaryText.isEmpty || !events.filter({ $0.kind == .textDelta || $0.kind == .textReplace }).isEmpty {
+        if !primaryText.isEmpty || !coalescedEvents.filter({ $0.kind == .textDelta || $0.kind == .textReplace }).isEmpty {
             print(
                 "[ChatDebug] commit: primaryText=\(primaryText.count) textKeys=\(textKeys.joined(separator: ",")) streamIds=\(streamIds.joined(separator: ",")) blocks=\(runtime.chatTurnState.blocks.count)"
             )
@@ -128,5 +129,69 @@ extension PipelineIntegrationService {
         }
         runtime.chatTurnState = nextState
         return true
+    }
+
+    private func coalescePipelineEvents(_ events: [ChatPipelineEvent]) -> [ChatPipelineEvent] {
+        guard events.count > 1 else { return events }
+
+        var coalesced: [ChatPipelineEvent] = []
+        for event in events {
+            guard let last = coalesced.last,
+                  canCoalescePipelineEvent(event, with: last) else {
+                coalesced.append(event)
+                continue
+            }
+
+            switch event.kind {
+            case .textDelta:
+                var mergedPayload = last.payload
+                mergedPayload["delta"] = (last.payload["delta"] ?? "") + (event.payload["delta"] ?? "")
+                coalesced[coalesced.count - 1] = ChatPipelineEvent(
+                    conversationId: last.conversationId,
+                    assistantMessageId: last.assistantMessageId,
+                    turnId: last.turnId,
+                    sequence: last.sequence,
+                    source: last.source,
+                    kind: last.kind,
+                    payload: mergedPayload,
+                    timestamp: event.timestamp
+                )
+            case .textReplace:
+                var mergedPayload = last.payload
+                mergedPayload["replacement"] = event.payload["replacement"] ?? last.payload["replacement"]
+                coalesced[coalesced.count - 1] = ChatPipelineEvent(
+                    conversationId: last.conversationId,
+                    assistantMessageId: last.assistantMessageId,
+                    turnId: last.turnId,
+                    sequence: last.sequence,
+                    source: last.source,
+                    kind: last.kind,
+                    payload: mergedPayload,
+                    timestamp: event.timestamp
+                )
+            default:
+                coalesced.append(event)
+            }
+        }
+        return coalesced
+    }
+
+    private func canCoalescePipelineEvent(
+        _ event: ChatPipelineEvent,
+        with previous: ChatPipelineEvent
+    ) -> Bool {
+        guard event.conversationId == previous.conversationId,
+              event.assistantMessageId == previous.assistantMessageId,
+              event.turnId == previous.turnId,
+              event.source == previous.source,
+              event.kind == previous.kind else { return false }
+
+        switch event.kind {
+        case .textDelta, .textReplace:
+            return event.payload["stream_id"] == previous.payload["stream_id"]
+                && event.payload["task_id"] == previous.payload["task_id"]
+        default:
+            return false
+        }
     }
 }

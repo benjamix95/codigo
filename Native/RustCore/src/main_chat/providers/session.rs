@@ -11,6 +11,7 @@ use app_core_protocol::main_chat_provider::{
     MainChatProviderSessionStartRequest,
 };
 use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::Ordering;
 use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -25,7 +26,7 @@ pub(crate) fn is_cancelled(session_id: &str) -> bool {
     let guard = sessions().lock().unwrap();
     guard
         .get(session_id)
-        .and_then(|handle| handle.cancelled.lock().ok().map(|flag| *flag))
+        .map(|handle| handle.cancelled.load(Ordering::SeqCst))
         .unwrap_or(false)
 }
 
@@ -150,16 +151,25 @@ pub fn poll_session(request: MainChatProviderSessionPollRequest) -> MainChatProv
 
     let timeout_ms = request.timeout_ms.max(0) as u64;
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    let mut backoff_ms = 5_u64;
+    let max_backoff_ms = 50_u64;
+
     loop {
         let snapshot = handle.snapshot.lock().unwrap().clone();
         let mut queue = handle.events.lock().unwrap();
         if !queue.is_empty() {
             let events = queue.drain(..).collect();
+            let terminal = matches!(snapshot.status.as_str(), "completed" | "failed" | "cancelled");
+            drop(queue);
+            if terminal {
+                cleanup_session_state(&request.session_id);
+            }
             return MainChatProviderSessionResponse::success(snapshot, events);
         }
         drop(queue);
 
         if matches!(snapshot.status.as_str(), "completed" | "failed" | "cancelled") {
+            cleanup_session_state(&request.session_id);
             return MainChatProviderSessionResponse::success(snapshot, Vec::new());
         }
 
@@ -167,7 +177,8 @@ pub fn poll_session(request: MainChatProviderSessionPollRequest) -> MainChatProv
             return MainChatProviderSessionResponse::success(snapshot, Vec::new());
         }
 
-        thread::sleep(Duration::from_millis(10));
+        thread::sleep(Duration::from_millis(backoff_ms));
+        backoff_ms = (backoff_ms.saturating_mul(2)).min(max_backoff_ms);
     }
 }
 
@@ -180,7 +191,7 @@ pub fn cancel_session(request: MainChatProviderSessionRequest) -> MainChatProvid
         return MainChatProviderSessionResponse::error("missing_session", "Provider session not found");
     };
     drop(guard);
-    *handle.cancelled.lock().unwrap() = true;
+    handle.cancelled.store(true, Ordering::SeqCst);
     handle.events.lock().unwrap().push_back(make_completed_event());
     {
         let mut snapshot = handle.snapshot.lock().unwrap();
@@ -188,6 +199,7 @@ pub fn cancel_session(request: MainChatProviderSessionRequest) -> MainChatProvid
         snapshot.terminal_error = Some("cancelled".to_string());
     }
     let snapshot = handle.snapshot.lock().unwrap().clone();
+    cleanup_session_state(&request.session_id);
     MainChatProviderSessionResponse::success(snapshot, Vec::new())
 }
 
@@ -207,6 +219,10 @@ fn session_response(request: MainChatProviderSessionRequest, consume_events: boo
     } else {
         Vec::new()
     };
+    let terminal = matches!(snapshot.status.as_str(), "completed" | "failed" | "cancelled");
+    if terminal && (consume_events || events.is_empty()) {
+        cleanup_session_state(&request.session_id);
+    }
     MainChatProviderSessionResponse::success(snapshot, events)
 }
 
@@ -271,6 +287,11 @@ fn push_event(session_id: &str, event: app_core_protocol::main_chat_provider::Ma
     }
 }
 
+fn cleanup_session_state(session_id: &str) {
+    sessions().lock().unwrap().remove(session_id);
+    config_store().lock().unwrap().remove(session_id);
+}
+
 static CONFIGS: OnceLock<Mutex<HashMap<String, MainChatProviderSessionConfig>>> = OnceLock::new();
 
 fn config_store() -> &'static Mutex<HashMap<String, MainChatProviderSessionConfig>> {
@@ -294,4 +315,14 @@ pub(crate) fn append_test_event(
     event: app_core_protocol::main_chat_provider::MainChatProviderEvent,
 ) {
     push_event(session_id, event);
+}
+
+#[cfg(test)]
+pub(crate) fn test_session_state_exists(session_id: &str) -> bool {
+    sessions().lock().unwrap().contains_key(session_id)
+}
+
+#[cfg(test)]
+pub(crate) fn test_session_config_exists(session_id: &str) -> bool {
+    config_store().lock().unwrap().contains_key(session_id)
 }

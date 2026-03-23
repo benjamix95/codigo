@@ -8,7 +8,32 @@ use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader};
-use std::process::{ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
+
+struct ChildProcessGuard {
+    child: Option<Child>,
+}
+
+impl ChildProcessGuard {
+    fn new(child: Child) -> Self {
+        Self { child: Some(child) }
+    }
+
+    fn child_mut(&mut self) -> Result<&mut Child, String> {
+        self.child
+            .as_mut()
+            .ok_or_else(|| "codex_app_server_missing_child".to_string())
+    }
+}
+
+impl Drop for ChildProcessGuard {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
 
 #[derive(Default)]
 struct CodexAgentMessageGate;
@@ -33,7 +58,7 @@ pub(crate) fn run(
     executable: &str,
     environment: &BTreeMap<String, String>,
 ) -> Result<(), String> {
-    let mut process = Command::new(executable)
+    let process = Command::new(executable)
         .arg("app-server")
         .current_dir(&config.workspace_path)
         .envs(environment)
@@ -42,16 +67,20 @@ pub(crate) fn run(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("codex_app_server_spawn_failed:{error}"))?;
+    let mut process = ChildProcessGuard::new(process);
 
     let mut stdin = process
+        .child_mut()?
         .stdin
         .take()
         .ok_or_else(|| "codex_app_server_missing_stdin".to_string())?;
     let stdout = process
+        .child_mut()?
         .stdout
         .take()
         .ok_or_else(|| "codex_app_server_missing_stdout".to_string())?;
     let stderr = process
+        .child_mut()?
         .stderr
         .take()
         .ok_or_else(|| "codex_app_server_missing_stderr".to_string())?;
@@ -73,9 +102,6 @@ pub(crate) fn run(
     let thread_id = wait_for_thread_start(session_id, config, &mut stdin, &mut reader)?;
     start_turn(session_id, config, &thread_id, &mut stdin, &mut reader)?;
     let result = stream_until_turn_completed(session_id, &mut stdin, &mut reader);
-
-    let _ = process.kill();
-    let _ = process.wait();
     if let Err(error) = result {
         let tail = stderr_tail
             .lock()
@@ -452,7 +478,27 @@ fn handle_response_id<'a>(value: &'a Value, expected_id: i64) -> Result<Option<&
 
 #[cfg(test)]
 mod tests {
-    use super::{is_operational_mcp_tool, CodexAgentMessageGate};
+    use super::{is_operational_mcp_tool, ChildProcessGuard, CodexAgentMessageGate};
+    use std::process::Command;
+
+    #[test]
+    fn child_process_guard_kills_child_on_drop() {
+        let child = Command::new("/bin/sh")
+            .args(["-c", "sleep 5"])
+            .spawn()
+            .expect("spawn child");
+        let pid = child.id();
+
+        {
+            let _guard = ChildProcessGuard::new(child);
+        }
+
+        let status = Command::new("/bin/sh")
+            .args(["-c", &format!("kill -0 {pid} >/dev/null 2>&1")])
+            .status()
+            .expect("check child liveness");
+        assert!(!status.success(), "child should be gone after guard drop");
+    }
 
     #[test]
     fn codex_agent_message_gate_streams_text_immediately() {

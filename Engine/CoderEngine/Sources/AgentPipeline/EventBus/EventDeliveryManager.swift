@@ -62,10 +62,14 @@ public actor EventDeliveryManager {
     /// Delay massimo in millisecondi.
     public let maxDelayMs: UInt64
 
+    /// Numero massimo di delivery attempt conservati in memoria.
+    public let maxAttemptLogEntries: Int
+
     // MARK: - State
 
     private var pendingRecords: [String: DeliveryRecord] = [:]
     private var attemptLog: [DeliveryAttempt] = []
+    private var deliveryTasks: [String: Task<Void, Never>] = [:]
     private let deadLetterQueue: DeadLetterQueue
 
     // MARK: - Metrics
@@ -79,11 +83,13 @@ public actor EventDeliveryManager {
         maxAttempts: Int = 3,
         baseDelayMs: UInt64 = 100,
         maxDelayMs: UInt64 = 5000,
+        maxAttemptLogEntries: Int = 500,
         deadLetterQueue: DeadLetterQueue
     ) {
         self.maxAttempts = max(1, maxAttempts)
         self.baseDelayMs = baseDelayMs
         self.maxDelayMs = maxDelayMs
+        self.maxAttemptLogEntries = max(1, maxAttemptLogEntries)
         self.deadLetterQueue = deadLetterQueue
     }
 
@@ -95,54 +101,17 @@ public actor EventDeliveryManager {
         to subscription: EventSubscription
     ) async {
         let recordKey = "\(event.eventId)_\(subscription.id)"
-
-        var record = DeliveryRecord(
+        pendingRecords[recordKey] = DeliveryRecord(
             event: event,
             subscription: subscription,
             attempts: 0,
             lastAttemptAt: nil,
             lastError: nil
         )
-
-        for attemptNumber in 1...maxAttempts {
-            record.attempts = attemptNumber
-            record.lastAttemptAt = Date()
-
-            let success = await attemptDelivery(
-                event: record.event,
-                to: subscription,
-                attemptNumber: attemptNumber
-            )
-
-            if success {
-                var delivered = record.event
-                delivered.deliveryStatus = .delivered
-                delivered.deliveryAttempts = attemptNumber
-                record.event = delivered
-                totalDelivered += 1
-                pendingRecords.removeValue(forKey: recordKey)
-                return
-            }
-
-            record.lastError = "delivery_failed_attempt_\(attemptNumber)"
-            pendingRecords[recordKey] = record
-
-            if attemptNumber < maxAttempts {
-                let delay = calculateBackoff(attempt: attemptNumber)
-                try? await Task.sleep(nanoseconds: delay * 1_000_000)
-            }
+        guard deliveryTasks[recordKey] == nil else { return }
+        deliveryTasks[recordKey] = Task { [recordKey] in
+            await self.processDelivery(recordKey: recordKey)
         }
-
-        var deadEvent = record.event
-        deadEvent.deliveryStatus = .deadLettered
-        deadEvent.deliveryAttempts = maxAttempts
-        totalFailed += 1
-        pendingRecords.removeValue(forKey: recordKey)
-
-        await deadLetterQueue.enqueue(
-            deadEvent,
-            reason: .maxAttemptsExceeded(maxAttempts)
-        )
     }
 
     // MARK: - Attempt
@@ -163,7 +132,7 @@ public actor EventDeliveryManager {
                 attemptNumber: attemptNumber,
                 success: true
             )
-            attemptLog.append(attempt)
+            appendAttempt(attempt)
             return true
 
         } catch {
@@ -174,8 +143,65 @@ public actor EventDeliveryManager {
                 success: false,
                 error: error.localizedDescription
             )
-            attemptLog.append(attempt)
+            appendAttempt(attempt)
             return false
+        }
+    }
+
+    private func processDelivery(recordKey: String) async {
+        defer { deliveryTasks.removeValue(forKey: recordKey) }
+        guard var record = pendingRecords[recordKey] else { return }
+
+        for attemptNumber in 1...maxAttempts {
+            if Task.isCancelled {
+                pendingRecords.removeValue(forKey: recordKey)
+                return
+            }
+
+            record.attempts = attemptNumber
+            record.lastAttemptAt = Date()
+            pendingRecords[recordKey] = record
+
+            let success = await attemptDelivery(
+                event: record.event,
+                to: record.subscription,
+                attemptNumber: attemptNumber
+            )
+
+            if success {
+                var delivered = record.event
+                delivered.deliveryStatus = .delivered
+                delivered.deliveryAttempts = attemptNumber
+                totalDelivered += 1
+                pendingRecords.removeValue(forKey: recordKey)
+                return
+            }
+
+            record.lastError = "delivery_failed_attempt_\(attemptNumber)"
+            pendingRecords[recordKey] = record
+
+            if attemptNumber < maxAttempts {
+                let delay = calculateBackoff(attempt: attemptNumber)
+                try? await Task.sleep(nanoseconds: delay * 1_000_000)
+            }
+        }
+
+        var deadEvent = record.event
+        deadEvent.deliveryStatus = .deadLettered
+        deadEvent.deliveryAttempts = maxAttempts
+        totalFailed += 1
+        pendingRecords.removeValue(forKey: recordKey)
+        await deadLetterQueue.enqueue(
+            deadEvent,
+            reason: .maxAttemptsExceeded(maxAttempts)
+        )
+    }
+
+    private func appendAttempt(_ attempt: DeliveryAttempt) {
+        attemptLog.append(attempt)
+        let overflow = attemptLog.count - maxAttemptLogEntries
+        if overflow > 0 {
+            attemptLog.removeFirst(overflow)
         }
     }
 
@@ -206,9 +232,18 @@ public actor EventDeliveryManager {
         return Double(totalDelivered) / Double(total)
     }
 
+    public func cancelAll() {
+        for task in deliveryTasks.values {
+            task.cancel()
+        }
+        deliveryTasks.removeAll()
+        pendingRecords.removeAll()
+    }
+
     // MARK: - Reset
 
     public func reset() {
+        cancelAll()
         pendingRecords.removeAll()
         attemptLog.removeAll()
         totalDelivered = 0

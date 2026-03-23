@@ -42,6 +42,33 @@ public actor PipelineFacade {
     private var runningOrchestrator: OrchestratorMainLoop?
     private var runningWorkerPool: WorkerPool?
 
+    private func failureReason(for error: Error) -> String {
+        if let validationError = error as? PipelineValidationError {
+            return validationError.localizedDescription
+        }
+        if let schedulerError = error as? DagSchedulerError {
+            switch schedulerError {
+            case .duplicateTaskId(let taskId):
+                return "Duplicate task id: \(taskId)"
+            case .dependencyNotFound(let taskId, let missingDep):
+                return "Task \(taskId) depends on missing task \(missingDep)"
+            case .cyclicDependency(let involved):
+                return "Cyclic dependency detected: \(involved.joined(separator: ", "))"
+            }
+        }
+        if let facadeError = error as? PipelineFacadeError {
+            switch facadeError {
+            case .alreadyRunning:
+                return "Pipeline already running"
+            case .jobValidationFailed(let message):
+                return message
+            case .cancelled:
+                return "Pipeline cancelled"
+            }
+        }
+        return error.localizedDescription
+    }
+
     public init(config: PipelineFacadeConfig = PipelineFacadeConfig()) {
         self.config = config
     }
@@ -61,26 +88,26 @@ public actor PipelineFacade {
 
         return AsyncStream { continuation in
             let task = Task {
+                let components: PipelineComponents
                 do {
                     try await self.guardNotRunning(jobId: jobId)
                     try job.validate()
                     for t in tasks { try t.validate() }
+                    components = try await self.buildComponents(
+                        job: job,
+                        tasks: tasks,
+                        facadeConfig: facadeConfig,
+                        workerAdapter: workerAdapter
+                    )
                 } catch {
-                    let reason = (error as? PipelineValidationError)
-                        .map(\.localizedDescription) ?? error.localizedDescription
+                    await self.clearRunning(jobId: jobId)
+                    let reason = self.failureReason(for: error)
                     continuation.yield(.jobFailed(JobFailedPayload(
                         jobId: jobId, reason: reason, failedTasks: 0
                     )))
                     continuation.finish()
                     return
                 }
-
-                let components = await self.buildComponents(
-                    job: job,
-                    tasks: tasks,
-                    facadeConfig: facadeConfig,
-                    workerAdapter: workerAdapter
-                )
                 await self.registerRunningComponents(
                     orchestrator: components.orchestrator,
                     workerPool: components.workerPool
@@ -177,14 +204,18 @@ public actor PipelineFacade {
         tasks: [TaskNode],
         facadeConfig: PipelineFacadeConfig,
         workerAdapter: AgentWorkerAdapter
-    ) async -> PipelineComponents {
+    ) async throws -> PipelineComponents {
         let eventBus = EventBus(
             maxDeliveryAttempts: facadeConfig.maxDeliveryAttempts,
             dlqCapacity: facadeConfig.dlqCapacity
         )
         let stateMachine = JobStateMachine(job: job)
         let scheduler = DagScheduler()
-        for t in tasks { try? await scheduler.addTask(t) }
+        for task in tasks {
+            try await scheduler.addTask(task)
+        }
+        try await scheduler.validateDependencies()
+        try await scheduler.validateAcyclic()
 
         let backpressure = BackpressureController()
         let swarmBudget = SwarmBudgetManager(

@@ -124,7 +124,7 @@ final class PipelineIntegrationService: ObservableObject {
     @discardableResult
     func cancelCurrentJob(for conversationId: UUID?) -> Bool {
         guard let conversationId,
-              let runtime = runtimesByConversation[conversationId] else { return false }
+              let runtime = claimTeardownRuntime(for: conversationId) else { return false }
 
         runtime.wasCancelled = true
         runtime.activeStreamTask?.cancel()
@@ -132,7 +132,11 @@ final class PipelineIntegrationService: ObservableObject {
 
         Task { @MainActor in
             await runtime.facade.cancel()
-            self.finalizeExecution(for: conversationId)
+            self.completeTeardown(
+                runtime,
+                for: conversationId,
+                completionContext: self.completionContext(for: runtime, conversationId: conversationId)
+            )
         }
         return true
     }
@@ -140,7 +144,7 @@ final class PipelineIntegrationService: ObservableObject {
     @discardableResult
     func discardConversationRuntime(for conversationId: UUID?) -> Bool {
         guard let conversationId else { return false }
-        guard let runtime = runtimesByConversation.removeValue(forKey: conversationId) else {
+        guard let runtime = claimTeardownRuntime(for: conversationId) else {
             snapshotsByConversation.removeValue(forKey: conversationId)
             return false
         }
@@ -148,12 +152,7 @@ final class PipelineIntegrationService: ObservableObject {
         runtime.wasCancelled = true
         runtime.activeStreamTask?.cancel()
         runtime.activeStreamTask = nil
-        snapshotsByConversation.removeValue(forKey: conversationId)
-        swarmProgressStore?.clear(conversationId: conversationId)
-        chatStore?.endTask(conversationId: conversationId)
-        unregisterDebugStore(for: conversationId)
-        pendingDebugEventsByConversation.removeValue(forKey: conversationId)
-        suppressedDebugProjectionConversationIds.remove(conversationId)
+        completeTeardown(runtime, for: conversationId, completionContext: nil)
 
         Task { @MainActor in
             await runtime.facade.cancel()
@@ -164,29 +163,13 @@ final class PipelineIntegrationService: ObservableObject {
     // MARK: - Finalize
 
     func finalizeExecution(for conversationId: UUID) {
-        guard let runtime = runtimesByConversation[conversationId] else { return }
+        guard let runtime = claimTeardownRuntime(for: conversationId) else { return }
 
-        runtime.isRunning = false
-        let durationMs = Int(Date().timeIntervalSince(runtime.jobStartTime) * 1000)
-
-        let ctx = PipelineCompletionContext(
-            jobId: runtime.currentJobId,
-            planConversationId: runtime.planConversationId,
-            conversationId: conversationId,
-            completedTasks: runtime.completedTasks,
-            totalTasks: runtime.totalTasks,
-            durationMs: durationMs,
-            success: !runtime.wasCancelled && runtime.lastError == nil,
-            wasCancelled: runtime.wasCancelled
+        completeTeardown(
+            runtime,
+            for: conversationId,
+            completionContext: completionContext(for: runtime, conversationId: conversationId)
         )
-
-        chatStore?.setLastAssistantStreaming(false, in: conversationId)
-        chatStore?.endTask(conversationId: conversationId)
-        runtime.activeStreamTask = nil
-
-        runtime.onCompletion?(ctx)
-        runtimesByConversation.removeValue(forKey: conversationId)
-        persistSnapshot(for: conversationId)
     }
 
     // MARK: - Queries
@@ -200,10 +183,62 @@ final class PipelineIntegrationService: ObservableObject {
         snapshot(for: conversationId)?.isRunning == true
     }
 
+    // MARK: - Teardown
+
+    private func claimTeardownRuntime(for conversationId: UUID) -> PipelineConversationRuntime? {
+        guard let runtime = runtimesByConversation[conversationId] else { return nil }
+        guard runtime.beginTeardownIfNeeded() else { return nil }
+        persistSnapshot(for: conversationId)
+        return runtime
+    }
+
+    private func completionContext(
+        for runtime: PipelineConversationRuntime,
+        conversationId: UUID
+    ) -> PipelineCompletionContext {
+        let durationMs = Int(Date().timeIntervalSince(runtime.jobStartTime) * 1000)
+        return PipelineCompletionContext(
+            jobId: runtime.currentJobId,
+            planConversationId: runtime.planConversationId,
+            conversationId: conversationId,
+            completedTasks: runtime.completedTasks,
+            totalTasks: runtime.totalTasks,
+            durationMs: durationMs,
+            success: !runtime.wasCancelled && runtime.lastError == nil,
+            wasCancelled: runtime.wasCancelled
+        )
+    }
+
+    private func completeTeardown(
+        _ runtime: PipelineConversationRuntime,
+        for conversationId: UUID,
+        completionContext: PipelineCompletionContext?
+    ) {
+        guard runtime.teardownState != .finished else { return }
+
+        runtime.finishTeardown()
+        chatStore?.setLastAssistantStreaming(false, in: conversationId)
+        chatStore?.endTask(conversationId: conversationId)
+        if let completionContext {
+            runtime.onCompletion?(completionContext)
+        }
+        runtimesByConversation.removeValue(forKey: conversationId)
+        snapshotsByConversation.removeValue(forKey: conversationId)
+        swarmProgressStore?.clear(conversationId: conversationId)
+        unregisterDebugStore(for: conversationId)
+        pendingDebugEventsByConversation.removeValue(forKey: conversationId)
+        suppressedDebugProjectionConversationIds.remove(conversationId)
+        persistSnapshot(for: conversationId)
+    }
+
     // MARK: - Runtime Helpers
 
     func runtime(for conversationId: UUID) -> PipelineConversationRuntime? {
-        runtimesByConversation[conversationId]
+        guard let runtime = runtimesByConversation[conversationId],
+              runtime.teardownState == .running else {
+            return nil
+        }
+        return runtime
     }
 
     func providerId(for conversationId: UUID?) -> String? {

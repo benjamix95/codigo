@@ -18,6 +18,12 @@ struct PipelineConversationSnapshot {
 
 @MainActor
 final class PipelineConversationRuntime {
+    enum TeardownState: Equatable {
+        case running
+        case finalizing
+        case finished
+    }
+
     let conversationId: UUID
     let facade: PipelineFacade
     var assistantMessageId: UUID
@@ -37,6 +43,7 @@ final class PipelineConversationRuntime {
     var chatTurnState: ChatTurnState
     var nextPipelineSequence: Int
     var activeStreamTask: Task<Void, Never>?
+    var teardownState: TeardownState
     let jobStartTime: Date
 
     init(
@@ -71,6 +78,7 @@ final class PipelineConversationRuntime {
             providerId: providerId
         )
         self.nextPipelineSequence = 1
+        self.teardownState = .running
         self.jobStartTime = Date()
     }
 
@@ -102,5 +110,27 @@ final class PipelineConversationRuntime {
             providerId: providerId
         )
         self.nextPipelineSequence = 1
+    }
+
+    var isTearDownFinalized: Bool {
+        teardownState == .finished
+    }
+
+    @discardableResult
+    func beginTeardownIfNeeded() -> Bool {
+        switch teardownState {
+        case .running:
+            teardownState = .finalizing
+            isRunning = false
+            return true
+        case .finalizing, .finished:
+            return false
+        }
+    }
+
+    func finishTeardown() {
+        teardownState = .finished
+        activeStreamTask = nil
+        isRunning = false
     }
 }
