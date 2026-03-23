@@ -18,19 +18,34 @@ func resolveTodoCardAssistantMessageId(
     pipelineAssistantMessageId: UUID?,
     latestVisibleAssistantMessageId: UUID?
 ) -> UUID? {
-    let assistantMessageIds = Set(
-        messages.lazy
+    let assistantMessagesById = Dictionary(
+        uniqueKeysWithValues: messages.lazy
             .filter { $0.role == .assistant }
-            .map(\.id)
+            .map { ($0.id, $0) }
     )
 
-    func firstValid(_ candidate: UUID?) -> UUID? {
-        guard let candidate else { return nil }
-        guard assistantMessageIds.contains(candidate) else { return nil }
+    func isVisibleAssistantMessage(_ message: ChatMessage) -> Bool {
+        if message.planAttachment != nil {
+            return true
+        }
+        let content = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !content.isEmpty {
+            return true
+        }
+        let snapshot = (message.primaryTextSnapshot ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return !snapshot.isEmpty
+    }
+
+    func firstValid(_ candidate: UUID?, requireVisibleContent: Bool = false) -> UUID? {
+        guard let candidate, let message = assistantMessagesById[candidate] else { return nil }
+        if requireVisibleContent && !isVisibleAssistantMessage(message) {
+            return nil
+        }
         return candidate
     }
 
-    return firstValid(activeAssistantMessageId)
+    return firstValid(activeAssistantMessageId, requireVisibleContent: true)
         ?? firstValid(latestAssistantMessageIdWithTrace)
         ?? firstValid(pipelineAssistantMessageId)
         ?? firstValid(latestVisibleAssistantMessageId)

@@ -54,7 +54,7 @@ final class ChatTodoVisibilityTests: XCTestCase {
         let resolved = resolveTodoCardAssistantMessageId(
             messages: [
                 ChatMessage(id: tracedAssistantId, role: .assistant, content: "Older reply"),
-                ChatMessage(id: activeAssistantId, role: .assistant, content: ""),
+                ChatMessage(id: activeAssistantId, role: .assistant, content: "Current reply"),
             ],
             activeAssistantMessageId: activeAssistantId,
             latestAssistantMessageIdWithTrace: tracedAssistantId,
@@ -63,6 +63,24 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved, activeAssistantId)
+    }
+
+    func testTodoCardSkipsActiveAssistantStubWithoutVisibleContent() {
+        let activeAssistantId = UUID()
+        let tracedAssistantId = UUID()
+
+        let resolved = resolveTodoCardAssistantMessageId(
+            messages: [
+                ChatMessage(id: tracedAssistantId, role: .assistant, content: "Visible reply"),
+                ChatMessage(id: activeAssistantId, role: .assistant, content: ""),
+            ],
+            activeAssistantMessageId: activeAssistantId,
+            latestAssistantMessageIdWithTrace: tracedAssistantId,
+            pipelineAssistantMessageId: tracedAssistantId,
+            latestVisibleAssistantMessageId: tracedAssistantId
+        )
+
+        XCTAssertEqual(resolved, tracedAssistantId)
     }
 
     func testTodoCardFallsBackToLatestVisibleAssistantWhenPipelineTargetIsMissing() {
@@ -125,6 +143,16 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertNil(violation)
     }
 
+    func testTodoPlanStartPolicyDoesNotTreatPlanModeActivationAsOperationalWork() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(),
+            type: "mcp_tool_call",
+            payload: ["mcp_tool": "coderide_activate_plan_mode"]
+        )
+
+        XCTAssertNil(violation)
+    }
+
     func testLinearChatHidesTodoEventsWhenTodoCardIsVisible() {
         XCTAssertFalse(
             shouldShowOperationEventInLinearChat(
@@ -158,4 +186,5 @@ final class ChatTodoVisibilityTests: XCTestCase {
             )
         )
     }
+
 }

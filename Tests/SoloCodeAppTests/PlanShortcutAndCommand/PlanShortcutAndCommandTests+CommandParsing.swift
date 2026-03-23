@@ -231,7 +231,7 @@ extension PlanShortcutAndCommandTests {
 
     func testPlanPanelAutoOpenPolicy() {
         XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .planStepUpdate))
-        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .flowStarted))
+        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .flowStarted))
         XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingClarification))
         XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingChoice))
     }

@@ -206,7 +206,7 @@ enum PlanPanelAutoOpenTrigger: Equatable {
 func shouldAutoOpenPlanPanel(trigger: PlanPanelAutoOpenTrigger) -> Bool {
     switch trigger {
     case .flowStarted:
-        return true
+        return false
     case .awaitingClarification:
         return true
     case .awaitingChoice:

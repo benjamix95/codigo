@@ -4,22 +4,15 @@ import CoderEngine
 extension ChatPanelView {
     @MainActor
     internal func handleAutoActivatePlanMode(reason: String?) {
+        _ = reason
         // Skip if already in plan mode or a plan flow is actively running.
-        guard coderMode != .plan else { return }
         switch planFlowPhase {
         case .analyzing, .questioning, .generating, .building:
             return
         default:
             break
         }
-        selectMode(.plan)
         planToggleEnabled = true
-        if !showPlanPanel {
-            openPlanPanelForCurrentContext(
-                preserveHistorySelection: false,
-                source: .automaticFlow
-            )
-        }
     }
 
     @MainActor

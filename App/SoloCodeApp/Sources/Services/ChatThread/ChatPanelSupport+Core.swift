@@ -261,6 +261,8 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
     if normalizedType == "policy_ack"
+        || normalizedType == "activate_plan_mode"
+        || normalizedType == "activate_debug_mode"
         || normalizedType == "turn_started"
         || normalizedType == "turn_completed"
         || normalizedType == "reasoning"
@@ -281,13 +283,15 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
         let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        return tool != "coderide_policy_ack" && tool != "policy_ack"
+        return tool != "coderide_policy_ack"
+            && tool != "policy_ack"
+            && tool != "coderide_activate_plan_mode"
+            && tool != "activate_plan_mode"
+            && tool != "coderide_activate_debug_mode"
+            && tool != "activate_debug_mode"
     }
     if normalizedType == "command_execution"
         || normalizedType == "bash"
-        || normalizedType == "agent"
-        || normalizedType == "subagent_text"
-        || normalizedType == "subagent_batch_done"
     {
         return true
     }
@@ -357,6 +361,11 @@ func shouldShowOperationEventInLinearChat(
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         if tool == "coderide_policy_ack" || tool == "policy_ack" {
+            return false
+        }
+        if tool == "coderide_activate_plan_mode" || tool == "activate_plan_mode"
+            || tool == "coderide_activate_debug_mode" || tool == "activate_debug_mode"
+        {
             return false
         }
         if showTodoCard && (tool == "coderide_todo_write" || tool == "todo_write" || tool == "coderide_todo_read" || tool == "todo_read") {
