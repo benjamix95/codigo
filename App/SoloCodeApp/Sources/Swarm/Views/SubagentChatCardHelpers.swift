@@ -1,24 +1,63 @@
 import CoderEngine
 import SwiftUI
 
+enum WorkerPresentationRole: String, CaseIterable {
+    case planner
+    case explorer
+    case coder
+    case debugger
+    case reviewer
+    case bugHunter
+    case docWriter
+    case securityAuditor
+    case testWriter
+
+    var displayName: String {
+        switch self {
+        case .planner: return "Planner"
+        case .explorer: return "Explorer"
+        case .coder: return "Coder"
+        case .debugger: return "Debugger"
+        case .reviewer: return "Reviewer"
+        case .bugHunter: return "BugHunter"
+        case .docWriter: return "DocWriter"
+        case .securityAuditor: return "SecurityAuditor"
+        case .testWriter: return "TestWriter"
+        }
+    }
+
+    static func fromWorkerID(_ raw: String) -> WorkerPresentationRole? {
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .lowercased()
+        switch normalized {
+        case "planner": return .planner
+        case "explorer": return .explorer
+        case "coder": return .coder
+        case "debugger": return .debugger
+        case "reviewer": return .reviewer
+        case "bughunter", "bugfinder": return .bugHunter
+        case "docwriter": return .docWriter
+        case "securityauditor": return .securityAuditor
+        case "testwriter", "tester": return .testWriter
+        default: return nil
+        }
+    }
+}
+
 enum SubagentChatCardHelpers {
     static func roleDisplayName(from swarmId: String) -> String {
         let normalized = swarmId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return "Subagent" }
 
-        if let role = SubagentRole.fromToolName("subagent_\(normalized)") {
+        let head = normalized.components(separatedBy: "-").first ?? normalized
+        if let role = WorkerPresentationRole.fromWorkerID(head) {
             return role.displayName
         }
 
-        let genericRolePrefixes = SubagentRole.allCases.map(\.rawValue)
-        let lowercase = normalized.lowercased()
-        if genericRolePrefixes.contains(where: { prefix in
-            lowercase == prefix || lowercase.hasPrefix("\(prefix)-")
-        }) {
-            return normalized.components(separatedBy: "-").first?.capitalized ?? normalized
-        }
-
-        return normalized
+        return "Subagent"
     }
 
     static func runningSubtitle(

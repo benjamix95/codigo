@@ -39,16 +39,18 @@ struct AgentSwarmHelpView: View {
     private var englishContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle("What is Agent Swarm?")
-            bodyText("Agent Swarm is a multi-agent system that coordinates seven specialized AI agents to solve complex coding tasks. Instead of a single agent handling everything, an orchestrator analyzes your request, creates a structured plan, and delegates specific tasks to expert agents (Planner, Coder, Debugger, Reviewer, DocWriter, SecurityAuditor, TestWriter).")
+            bodyText("Agent Swarm is a multi-agent system with a separate orchestrator supervisor and specialized subagents. The orchestrator analyzes your request, builds the execution plan, and delegates work to specialist subagents such as Planner, Explorer, Coder, Debugger, Reviewer, BugHunter, DocWriter, SecurityAuditor, and TestWriter.")
 
             sectionTitle("How It Works")
-            bodyText("1. You send a message in Agent Swarm mode.\n2. The orchestrator (OpenAI or Codex) analyzes your request and workspace context, then produces a JSON plan: an ordered list of tasks, each assigned to a role.\n3. Workers execute the tasks sequentially. Each worker is a Codex instance with a specialized system prompt.\n4. The chat streams the combined output, with headers like ## Planner, ## Coder to show which agent produced each block.")
+            bodyText("1. You send a message in Agent Swarm mode.\n2. The orchestrator (OpenAI or Codex) supervises planning, scheduling, locks, budgets, and result routing.\n3. The planner and the other specialist subagents execute the assigned work.\n4. The chat shows a separate orchestrator trace plus subagent cards/output for the actual workers.")
 
-            sectionTitle("The Seven Specialist Roles")
+            sectionTitle("Specialist Subagents")
             roleRow("Planner", "Breaks down the task into clear steps without writing code.")
+            roleRow("Explorer", "Analyzes the codebase and gathers context without mutating files.")
             roleRow("Coder", "Implements code changes according to the plan.")
             roleRow("Debugger", "Identifies bugs, analyzes stack traces, and fixes issues.")
             roleRow("Reviewer", "Reviews code for style, best practices, and suggests optimizations.")
+            roleRow("BugHunter", "Hunts regressions, crash risks, test gaps, and structural weaknesses.")
             roleRow("DocWriter", "Writes documentation: README, comments, docstrings.")
             roleRow("SecurityAuditor", "Analyzes code for vulnerabilities and insecure dependencies.")
             roleRow("TestWriter", "Writes unit and integration tests.")
@@ -56,8 +58,8 @@ struct AgentSwarmHelpView: View {
             sectionTitle("Orchestrator Backend")
             bodyText("The orchestrator decides which agents to run and in what order. You can choose:\n- **OpenAI** (default): Uses gpt-4o-mini for fast, lightweight planning.\n- **Codex**: Uses Codex for planning. No extra API key, but slower.")
 
-            sectionTitle("Workers (Always Codex)")
-            bodyText("All specialists run as Codex CLI processes. They inherit your Codex configuration: model, MCP servers, skills, sandbox mode.")
+            sectionTitle("Subagents (Always Codex)")
+            bodyText("All specialist subagents run as Codex CLI processes. They inherit your Codex configuration: model, MCP servers, skills, sandbox mode. The orchestrator remains a separate supervisor role.")
 
             sectionTitle("Configuration")
             bodyText("- **Chat**: Select Orchestrator (OpenAI / Codex) under the input when in Agent Swarm mode.\n- **Settings**: Agent Swarm tab to change the orchestrator backend.")

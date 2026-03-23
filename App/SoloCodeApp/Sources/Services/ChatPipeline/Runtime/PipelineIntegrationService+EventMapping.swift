@@ -63,6 +63,8 @@ func pipelineSwarmPayload(
         "swarm_id": taskId,
         "group_id": "swarm-\(taskId)",
         "status": status,
+        "owner_kind": "worker",
+        "presentation_role": "subagent",
     ]
     let normalizedAgentName = (agentName ?? "")
         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -501,6 +503,8 @@ extension PipelineIntegrationService {
             "task_id": taskId,
             "group_id": taskId,
             "status": isRunning ? "running" : "completed",
+            "owner_kind": "supervisor",
+            "supervisor_kind": "orchestrator",
         ]
         taskActivityStore?.addActivity(
             TaskActivity(

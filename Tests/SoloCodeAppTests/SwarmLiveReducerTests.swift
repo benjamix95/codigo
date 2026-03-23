@@ -391,4 +391,24 @@ final class SwarmLiveReducerTests: XCTestCase {
         XCTAssertEqual(transcript.last?.kind, .assistantText)
         XCTAssertEqual(transcript.last?.detail, "opened ChatTurnView.swift")
     }
+
+    func testReducerDoesNotCreateWorkerCardForSupervisorOnlyEvent() {
+        let activity = TaskActivity(
+            type: "pipeline_task_started",
+            title: "Lock acquisition",
+            detail: "orchestrating",
+            payload: [
+                "owner_kind": "supervisor",
+                "supervisor_kind": "orchestrator",
+                "status": "running",
+            ],
+            timestamp: Date(timeIntervalSince1970: 700),
+            phase: .executing,
+            isRunning: true,
+            groupId: "task-1"
+        )
+
+        let cards = SwarmLiveReducer.reduce(activities: [activity], limitRecentEvents: 80)
+        XCTAssertTrue(cards.isEmpty)
+    }
 }

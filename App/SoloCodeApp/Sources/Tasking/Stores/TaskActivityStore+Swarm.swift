@@ -19,7 +19,7 @@ extension TaskActivityStore {
 
     func ingestSwarmCard(activity: TaskActivity) {
         swarmEventsReceivedCount += 1
-        let owner = SwarmLiveReducer.ownerSwarmId(for: activity, includeOrchestratorFallback: true)
+        let owner = SwarmLiveReducer.ownerSwarmId(for: activity, includeOrchestratorFallback: false)
         if owner == "orchestrator" {
             swarmEventsFallbackCount += 1
         } else if let o = owner {
@@ -27,6 +27,8 @@ extension TaskActivityStore {
             swarmLogger.debug(
                 "Swarm event assigned to subagent '\(o)' type=\(activity.type) stage=\(activity.payload["subagent_stage"] ?? "-") title=\(activity.title) detail=\(activity.detail ?? "-")"
             )
+        } else if SwarmMetadata.isSupervisorEvent(activity.payload) {
+            swarmEventsFallbackCount += 1
         }
         SwarmLiveReducer.apply(
             activity: activity,

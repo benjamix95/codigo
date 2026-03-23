@@ -99,7 +99,9 @@ extension InlineActivityFeedView {
             }
             if let swarmId = SwarmMetadata.swarmId(from: activity.payload)
             {
-                detailField(label: "Sub-agent", value: swarmId, icon: "person.2", color: DesignSystem.Colors.swarmColor)
+                detailField(label: "Subagent", value: swarmId, icon: "person.2", color: DesignSystem.Colors.swarmColor)
+            } else if SwarmMetadata.isSupervisorEvent(activity.payload) {
+                detailField(label: "Orchestrator", value: "supervisor", icon: "point.3.filled.connected.trianglepath.dotted", color: DesignSystem.Colors.planColor)
             }
             if let status = activity.payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines),
                !status.isEmpty

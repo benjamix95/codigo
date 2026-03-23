@@ -28,4 +28,11 @@ final class SwarmLivePresentationTests: XCTestCase {
 
         XCTAssertEqual(line, "read App/SoloCodeApp/Sources/Swarm/SwarmLiveReducer.swift")
     }
+
+    func testWorkerPresentationRoleDisplaysPlannerAsSubagentWorker() {
+        XCTAssertEqual(
+            SubagentChatCardHelpers.roleDisplayName(from: "planner"),
+            "Planner"
+        )
+    }
 }

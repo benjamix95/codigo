@@ -2,6 +2,7 @@ import Foundation
 
 enum SwarmMetadata {
     private static let swarmGroupPrefix = "swarm-"
+    private static let supervisorKinds: Set<String> = ["orchestrator", "supervisor"]
 
     static func swarmId(from payload: [String: String]) -> String? {
         if let direct = (payload["swarm_id"] ?? payload["swarmId"])?
@@ -30,5 +31,27 @@ enum SwarmMetadata {
 
     static func isSwarmEvent(_ payload: [String: String]) -> Bool {
         return swarmId(from: payload) != nil
+    }
+
+    static func supervisorKind(from payload: [String: String]) -> String? {
+        let candidates = [
+            payload["supervisor_kind"],
+            payload["supervisorKind"],
+            payload["owner_kind"],
+            payload["ownerKind"],
+        ]
+        for candidate in candidates {
+            let normalized = candidate?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() ?? ""
+            if supervisorKinds.contains(normalized) {
+                return normalized
+            }
+        }
+        return nil
+    }
+
+    static func isSupervisorEvent(_ payload: [String: String]) -> Bool {
+        supervisorKind(from: payload) != nil
     }
 }

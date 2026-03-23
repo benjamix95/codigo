@@ -4,7 +4,7 @@ extension SwarmProgressView {
     var inlineLiveCardsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text("LIVE AGENTS")
+                Text("LIVE SUBAGENTS")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.tertiary)
                     .tracking(0.8)

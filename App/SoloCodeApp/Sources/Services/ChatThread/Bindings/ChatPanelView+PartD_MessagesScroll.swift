@@ -190,6 +190,9 @@ extension ChatPanelView {
                             guard isLastAssistant, isLoadingForCurrentConversation else { return [] }
                             return scopedTaskActivities(for: conversationId).filter { activity in
                                 guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }
+                                if SwarmMetadata.isSupervisorEvent(activity.payload) {
+                                    return false
+                                }
                                 if SwarmMetadata.isSwarmEvent(activity.payload)
                                     || activity.type == "agent"
                                     || activity.type == "subagent_text"
@@ -197,6 +200,20 @@ extension ChatPanelView {
                                 {
                                     return false
                                 }
+                                if activity.type == "todo_write" || activity.type == "todo_read" {
+                                    return false
+                                }
+                                return true
+                            }
+                        }()
+                        let liveSupervisorActivities: [TaskActivity] = {
+                            guard isLastAssistant, isLoadingForCurrentConversation else { return [] }
+                            let scoped = scopedTaskActivities(for: conversationId)
+                            let hasWorkerCards = !taskActivityStore.swarmCardStates(for: conversationId).isEmpty
+                            guard hasWorkerCards else { return [] }
+                            return scoped.filter { activity in
+                                guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }
+                                guard SwarmMetadata.isSupervisorEvent(activity.payload) else { return false }
                                 if activity.type == "todo_write" || activity.type == "todo_read" {
                                     return false
                                 }
@@ -218,6 +235,7 @@ extension ChatPanelView {
                             streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
                             traceEvents: traceEvents,
                             inlineActivities: liveInlineActivities,
+                            supervisorActivities: liveSupervisorActivities,
                             liveSubagentCards: liveSubagentCards,
                             todoStore: todoStore,
                             conversationId: conversationId,

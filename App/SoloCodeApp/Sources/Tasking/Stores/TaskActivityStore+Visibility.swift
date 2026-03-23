@@ -197,6 +197,9 @@ extension TaskActivityStore {
             default: return "Calling MCP tool"
             }
         }
+        if SwarmMetadata.isSupervisorEvent(last.payload) {
+            return "Orchestrator"
+        }
         if normalizedType == "subagent_text" {
             let source = (last.payload["source"] ?? "").lowercased()
             return source == "reasoning" ? "Subagent thinking" : "Subagent output"

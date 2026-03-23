@@ -26,7 +26,7 @@ enum SwarmLiveReducer {
         dedupeKeys: inout [String: Set<String>],
         limitRecentEvents: Int = defaultRecentEventsLimit
     ) {
-        guard let owner = ownerSwarmId(for: activity, includeOrchestratorFallback: true) else {
+        guard let owner = ownerSwarmId(for: activity, includeOrchestratorFallback: false) else {
             return
         }
         // Skip transient "queued" placeholders — they use temporary IDs
@@ -151,7 +151,10 @@ enum SwarmLiveReducer {
         if let swarmId = SwarmMetadata.swarmId(from: activity.payload) {
             return swarmId
         }
-        return includeOrchestratorFallback ? "orchestrator" : nil
+        if includeOrchestratorFallback, SwarmMetadata.isSupervisorEvent(activity.payload) {
+            return "orchestrator"
+        }
+        return nil
     }
 
     static func isSwarmCriticalTransition(_ activity: TaskActivity) -> Bool {

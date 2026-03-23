@@ -289,6 +289,6 @@ extension ChatPanelView {
     }
 
     internal func visibleSwarmCardsForChat(from cards: [SwarmLiveCardState]) -> [SwarmLiveCardState] {
-        cards
+        cards.filter { $0.swarmId.lowercased() != "orchestrator" }
     }
 }

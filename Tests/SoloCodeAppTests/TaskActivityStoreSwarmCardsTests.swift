@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class TaskActivityStoreSwarmCardsTests: XCTestCase {
-    func testIncrementalUpdatesAcrossParallelSwarmsAndFallbackOrchestrator() {
+    func testIncrementalUpdatesAcrossParallelSwarmsWithoutCreatingFallbackOrchestratorCard() {
         let store = TaskActivityStore()
 
         store.addActivity(
@@ -32,7 +32,10 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
                 type: "web_search_started",
                 title: "Search globale",
                 detail: "started",
-                payload: [:],
+                payload: [
+                    "owner_kind": "supervisor",
+                    "supervisor_kind": "orchestrator",
+                ],
                 phase: .searching,
                 isRunning: true
             ))
@@ -41,7 +44,7 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         let cards = store.swarmCardStates()
         XCTAssertTrue(cards.contains(where: { $0.swarmId == "planner" }))
         XCTAssertTrue(cards.contains(where: { $0.swarmId == "reviewer" }))
-        XCTAssertTrue(cards.contains(where: { $0.swarmId == "orchestrator" }))
+        XCTAssertFalse(cards.contains(where: { $0.swarmId == "orchestrator" }))
     }
 
     func testSwarmIdsAndLaneFilteringUseGroupIdFallback() {

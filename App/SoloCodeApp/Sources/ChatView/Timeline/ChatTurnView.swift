@@ -10,6 +10,7 @@ struct ChatTurnView: View {
     let streamingDetailText: String?
     let traceEvents: [ToolTraceEvent]
     let inlineActivities: [TaskActivity]
+    let supervisorActivities: [TaskActivity]
     let liveSubagentCards: [SwarmLiveCardState]
     @ObservedObject var todoStore: TodoStore
     let conversationId: UUID
@@ -50,6 +51,9 @@ struct ChatTurnView: View {
     private var shouldRenderInlineActivityFeed: Bool {
         message.isStreaming && isActuallyLoading && !inlineActivities.isEmpty
     }
+    private var shouldRenderSupervisorTrace: Bool {
+        !supervisorActivities.isEmpty
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -80,6 +84,21 @@ struct ChatTurnView: View {
                     statusFromLLMOrActivity: streamingDetailText,
                     maxVisible: 24
                 )
+                .frame(maxWidth: 800, alignment: .leading)
+            }
+            if shouldRenderSupervisorTrace {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Orchestrator")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .tracking(0.4)
+                    InlineActivityFeedView(
+                        activities: supervisorActivities,
+                        modeColor: modeColor,
+                        statusFromLLMOrActivity: streamingDetailText,
+                        maxVisible: 12
+                    )
+                }
                 .frame(maxWidth: 800, alignment: .leading)
             }
             if !shouldRenderInlineActivityFeed, !inlineTraceEvents.isEmpty {
