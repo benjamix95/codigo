@@ -114,11 +114,15 @@ extension ChatPanelView {
         return provider
     }
 
-    /// Resolves the path to the `coderide-mcp-server` binary so it can be
-    /// passed to Claude CLI for MCP integration.  Resolution order:
+    /// Resolves the path to the actual Rust MCP server binary so it can
+    /// be passed to Claude CLI for MCP integration.  Resolution order:
     /// 1. Env override `SOLOCODE_MCP_SERVER_PATH`
-    /// 2. Sibling of the running executable (app bundle)
-    /// 3. `Native/target/debug/coderide-mcp-server-rust` (dev build)
+    /// 2. `coderide-mcp-server-rust` sibling in app bundle (Rust binary)
+    /// 3. `Native/target/{debug,release}/coderide-mcp-server-rust` (cargo build)
+    ///
+    /// Note: the Swift wrapper `coderide-mcp-server` is NOT used because
+    /// it requires the Rust binary as a sibling which may not be bundled.
+    /// We resolve the Rust binary directly to avoid the wrapper indirection.
     static func resolveCoderideMCPServerPath() -> String? {
         let fm = FileManager.default
         let env = ProcessInfo.processInfo.environment
@@ -130,13 +134,14 @@ extension ChatPanelView {
             return override
         }
 
-        // Sibling of the main executable inside the .app bundle
         let mainExe = URL(fileURLWithPath: CommandLine.arguments[0])
-        let bundleCandidate = mainExe
-            .deletingLastPathComponent()
-            .appendingPathComponent("coderide-mcp-server")
-        if fm.isExecutableFile(atPath: bundleCandidate.path) {
-            return bundleCandidate.path
+        let bundleDir = mainExe.deletingLastPathComponent()
+
+        // Prefer the Rust binary directly (avoids Swift wrapper indirection)
+        let rustBundleCandidate = bundleDir
+            .appendingPathComponent("coderide-mcp-server-rust")
+        if fm.isExecutableFile(atPath: rustBundleCandidate.path) {
+            return rustBundleCandidate.path
         }
 
         // Development: Rust cargo output
@@ -156,6 +161,12 @@ extension ChatPanelView {
                 break
             }
             dir.deleteLastPathComponent()
+        }
+
+        // Last resort: Swift wrapper (only works if Rust binary is co-located)
+        let swiftWrapper = bundleDir.appendingPathComponent("coderide-mcp-server")
+        if fm.isExecutableFile(atPath: swiftWrapper.path) {
+            return swiftWrapper.path
         }
 
         return nil

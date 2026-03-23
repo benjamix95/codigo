@@ -32,12 +32,20 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
     }
     // If a coderide MCP server binary is available, write a temp config
     // so Claude CLI can call our custom tools (todo, plan, debug, etc.).
-    // When MCP is configured, skip --allowedTools so Claude discovers and
-    // uses ALL coderide tools (132 tools) instead of only its built-in ones.
+    // We also block built-in tools that have MCP equivalents so Claude
+    // is forced to use the coderide MCP versions (which integrate with
+    // the IDE: todo tracking, plan state, debug mode, etc.).
     let mcp_config_path = write_mcp_config(config);
     if let Some(ref path) = mcp_config_path {
         args.extend(["--mcp-config".to_string(), path.clone()]);
+        // Block built-in tools that overlap with coderide MCP tools.
+        // Claude will discover and use the MCP equivalents instead.
+        args.extend([
+            "--disallowedTools".to_string(),
+            "Read,Edit,Write,Bash,Glob,Grep,WebSearch,WebFetch,NotebookEdit,TodoWrite".to_string(),
+        ]);
         eprintln!("[CLAUDE_DEBUG] MCP config written to: {}", path);
+        eprintln!("[CLAUDE_DEBUG] Built-in tools blocked in favor of MCP coderide tools");
     } else {
         eprintln!("[CLAUDE_DEBUG] MCP config NOT available (server_path={:?})", config.claude_mcp_server_path);
         if !config.claude_allowed_tools.is_empty() {
