@@ -4,6 +4,7 @@
 
 - rimossa dalla bubble assistant la resa separata del tool trace
 - aggiunto un feed operativo lineare dentro la stessa risposta chat
+- ripristinato il blocco todo come elemento separato, senza mischiare `todo_*` nel feed operativo
 - ripulite le etichette UI per non mostrare prefissi `MCP call`, `coderide/`, `coderide_*`, `mcp_*`
 - introdotto un gate fail-closed per `codex-cli` in `Agent` mode:
   - prima `todo_write`

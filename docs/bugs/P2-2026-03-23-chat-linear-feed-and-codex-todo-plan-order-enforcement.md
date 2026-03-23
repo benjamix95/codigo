@@ -25,6 +25,7 @@ Due problemi distinti:
 ## Fix applicato
 
 - la bubble assistant usa un feed operativo lineare interno invece del trace widget separato
+- il blocco todo torna a essere separato dal feed operativo, senza inglobare risposta assistant o eventi `todo_*`
 - le etichette UI ripuliscono i riferimenti MCP/coderide
 - per `codex-cli` in `Agent` mode il runtime ora blocca:
   - qualunque evento operativo prima di `todo_write`
@@ -33,6 +34,7 @@ Due problemi distinti:
 ## Regressioni da coprire
 
 - feed chat senza `MessageToolTraceView`
+- todo card separata dal feed operativo
 - assenza di etichette `MCP call` / `coderide_*` nella bubble assistant
 - blocco `todo_first_required`
 - blocco `plan_after_todo_required`

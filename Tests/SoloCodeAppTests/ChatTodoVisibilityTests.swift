@@ -124,4 +124,38 @@ final class ChatTodoVisibilityTests: XCTestCase {
 
         XCTAssertNil(violation)
     }
+
+    func testLinearChatHidesTodoEventsWhenTodoCardIsVisible() {
+        XCTAssertFalse(
+            shouldShowOperationEventInLinearChat(
+                eventType: "todo_write",
+                payload: [:],
+                showTodoCard: true
+            )
+        )
+        XCTAssertFalse(
+            shouldShowOperationEventInLinearChat(
+                eventType: "mcp_tool_call",
+                payload: ["mcp_tool": "coderide_todo_write"],
+                showTodoCard: true
+            )
+        )
+    }
+
+    func testLinearChatHidesPolicyAckButKeepsOperationalEvents() {
+        XCTAssertFalse(
+            shouldShowOperationEventInLinearChat(
+                eventType: "policy_ack",
+                payload: [:],
+                showTodoCard: false
+            )
+        )
+        XCTAssertTrue(
+            shouldShowOperationEventInLinearChat(
+                eventType: "command_execution",
+                payload: ["command": "rg Chat ."],
+                showTodoCard: false
+            )
+        )
+    }
 }

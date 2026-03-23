@@ -335,6 +335,56 @@ func todoPlanStartPolicyViolation(
     return nil
 }
 
+func shouldShowOperationEventInLinearChat(
+    eventType: String,
+    payload: [String: String],
+    showTodoCard: Bool
+) -> Bool {
+    let type = eventType
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if ["policy_ack", "usage", "reasoning", "turn_started", "turn_completed"].contains(type) {
+        return false
+    }
+    if showTodoCard && (type == "todo_write" || type == "todo_read") {
+        return false
+    }
+    if type == "todo_write" || type == "todo_read" {
+        return false
+    }
+    if type == "mcp_tool_call" {
+        let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if tool == "coderide_policy_ack" || tool == "policy_ack" {
+            return false
+        }
+        if showTodoCard && (tool == "coderide_todo_write" || tool == "todo_write" || tool == "coderide_todo_read" || tool == "todo_read") {
+            return false
+        }
+    }
+    if type == "agent" || type == "subagent_text" || type == "subagent_batch_done" {
+        return true
+    }
+    return ToolTraceVisibility.shouldDisplay(
+        event: ToolTraceEvent(
+            sequence: 0,
+            timestamp: .distantPast,
+            providerId: "",
+            conversationId: UUID(),
+            assistantMessageId: UUID(),
+            type: type,
+            title: "",
+            detail: nil,
+            payload: payload,
+            phase: .executing,
+            isRunning: false,
+            groupId: nil,
+            rawKind: "raw"
+        )
+    )
+}
+
 func traceEventsContainSuccessfulCodeEdits(_ traceEvents: [ToolTraceEvent]) -> Bool {
     traceEvents.contains(where: isSuccessfulFileMutationEvent(_:))
 }

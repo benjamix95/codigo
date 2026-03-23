@@ -29,9 +29,12 @@ struct ChatTurnView: View {
                 && block.kind != .status
         }
     }
+    private var todoItems: [TodoItem] {
+        todoStore.displayTodosForChat(for: conversationId)
+    }
     private var linearOperationEvents: [ToolTraceEvent] {
         traceEvents
-            .filter(shouldShowInLinearChatOperationFeed)
+            .filter { shouldShowInLinearChatOperationFeed($0, showTodoCard: shouldShowTodo && !todoItems.isEmpty) }
             .sorted { lhs, rhs in
                 if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
                 return lhs.timestamp < rhs.timestamp
@@ -49,6 +52,16 @@ struct ChatTurnView: View {
             header
             if !linearOperationEvents.isEmpty {
                 linearOperationFeed
+            }
+            if shouldShowTodo, !todoItems.isEmpty {
+                TodoCenterCardView(
+                    store: todoStore,
+                    conversationId: conversationId,
+                    traceEvents: traceEvents,
+                    microStatusText: streamingDetailText,
+                    isStreaming: message.isStreaming && isActuallyLoading,
+                    onReviewChanges: onReviewChanges
+                )
             }
             if let primary = visibleBlocks.first(where: { $0.kind == .primaryText }) {
                 if !primary.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -82,40 +95,52 @@ struct ChatTurnView: View {
     private var linearOperationFeed: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(linearOperationEvents.enumerated()), id: \.element.id) { _, event in
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: linearOperationIcon(for: event))
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(linearOperationColor(for: event))
-                        .frame(width: 14, alignment: .center)
+                HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(linearOperationTitle(for: event))
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if let detail = linearOperationDetail(for: event), !detail.isEmpty {
-                            Text(detail)
-                                .font(.system(size: 10.5))
-                                .foregroundStyle(.tertiary)
-                                .fixedSize(horizontal: false, vertical: true)
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: linearOperationIcon(for: event))
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(linearOperationColor(for: event))
+                                .frame(width: 14, alignment: .center)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(linearOperationTitle(for: event))
+                                    .font(.system(size: 11.5, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let detail = linearOperationDetail(for: event), !detail.isEmpty {
+                                    Text(detail)
+                                        .font(.system(size: 10.5))
+                                        .foregroundStyle(.tertiary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            Spacer(minLength: 0)
                         }
                     }
-                    Spacer(minLength: 0)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: 800, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color(nsColor: .textBackgroundColor).opacity(0.22))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                )
             }
         }
         .padding(.vertical, 2)
         .frame(maxWidth: 800, alignment: .leading)
     }
 
-    private func shouldShowInLinearChatOperationFeed(_ event: ToolTraceEvent) -> Bool {
-        let type = event.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if ["policy_ack", "usage", "reasoning", "turn_started", "turn_completed"].contains(type) {
-            return false
-        }
-        if type == "agent" || type == "subagent_text" || type == "subagent_batch_done" {
-            return true
-        }
-        return ToolTraceVisibility.shouldDisplay(event: event)
+    private func shouldShowInLinearChatOperationFeed(_ event: ToolTraceEvent, showTodoCard: Bool) -> Bool {
+        shouldShowOperationEventInLinearChat(
+            eventType: event.type,
+            payload: event.payload,
+            showTodoCard: showTodoCard
+        )
     }
 
     private func linearOperationTitle(for event: ToolTraceEvent) -> String {
