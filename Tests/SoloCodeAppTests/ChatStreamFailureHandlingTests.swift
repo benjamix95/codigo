@@ -3,6 +3,27 @@ import XCTest
 @testable import CoderIDE
 
 final class ChatStreamFailureHandlingTests: XCTestCase {
+    func testInlinePolicyAckHashesExtractOrderedUniqueHashes() {
+        let content = """
+        [CODERIDE:policy_ack|hash=abc123]
+        Analisi in corso.
+        [CODERIDE:policy_ack|hash=abc123]
+        [CODERIDE:policy_ack|hash=def456|status=ok]
+        """
+
+        XCTAssertEqual(inlinePolicyAckHashes(in: content), ["abc123", "def456"])
+    }
+
+    func testInlinePolicyAckHashesIgnoreMalformedMarkers() {
+        let content = """
+        [CODERIDE:policy_ack]
+        [CODERIDE:policy_ack|hash=]
+        [CODERIDE:policy_ack|title=missing]
+        """
+
+        XCTAssertTrue(inlinePolicyAckHashes(in: content).isEmpty)
+    }
+
     func testShouldPreservePartialAssistantContentForProviderErrors() {
         let error = ConversationFlowCoordinator.StreamExecutionError.providerError("boom")
 

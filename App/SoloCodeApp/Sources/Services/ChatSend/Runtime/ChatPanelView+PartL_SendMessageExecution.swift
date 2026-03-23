@@ -173,6 +173,11 @@ extension ChatPanelView {
                         context: ctx,
                         attachments: attachmentsToSend,
                         onText: { content in
+                            processInlinePolicyAckMarkers(
+                                in: content,
+                                providerId: effectiveRuntimeProvider.id,
+                                conversationId: targetConversationId
+                            )
                             applyMainChatUIStreamIntent(
                                 "stream_replace_text",
                                 conversationId: targetConversationId,

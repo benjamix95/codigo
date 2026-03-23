@@ -3,6 +3,37 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum InlinePolicyAckMatcher {
+    static let regex = try? NSRegularExpression(
+        pattern: #"\[CODERIDE:policy_ack\|[^\]]*?\bhash=([^\]\|\s]+)[^\]]*\]"#,
+        options: [.caseInsensitive]
+    )
+}
+
+func inlinePolicyAckHashes(in content: String) -> [String] {
+    guard !content.isEmpty,
+          let regex = InlinePolicyAckMatcher.regex else {
+        return []
+    }
+
+    let nsContent = content as NSString
+    let matches = regex.matches(
+        in: content,
+        range: NSRange(location: 0, length: nsContent.length)
+    )
+
+    var ordered: [String] = []
+    var seen: Set<String> = []
+    for match in matches where match.numberOfRanges >= 2 {
+        let hash = nsContent.substring(with: match.range(at: 1))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !hash.isEmpty, !seen.contains(hash) else { continue }
+        seen.insert(hash)
+        ordered.append(hash)
+    }
+    return ordered
+}
+
 func shouldBypassPolicyAckLiveVisibilityGate(
     type rawType: String,
     payload: [String: String]
@@ -37,6 +68,61 @@ func shouldBypassPolicyAckLiveVisibilityGate(
 }
 
 extension ChatPanelView {
+    @MainActor
+    internal func processInlinePolicyAckMarkers(
+        in content: String,
+        providerId: String,
+        conversationId: UUID?
+    ) {
+        let hashes = inlinePolicyAckHashes(in: content)
+        guard !hashes.isEmpty else { return }
+
+        for hash in hashes {
+            guard let turn = resolveToolTraceTurn(
+                conversationId: conversationId,
+                providerId: providerId
+            ) else {
+                return
+            }
+            if policyAckStateByMessage[turn.assistantMessageId]?.acknowledgedHash == hash {
+                continue
+            }
+
+            let enriched = processPolicyAckEvent(
+                payload: [
+                    "hash": hash,
+                    "title": "Policy acknowledged",
+                    "detail": "Policy hash accepted (inline marker)",
+                ],
+                providerId: providerId,
+                conversationId: conversationId
+            )
+            recordTaskActivity(
+                type: "policy_ack",
+                payload: enriched,
+                providerId: providerId,
+                conversationId: conversationId
+            )
+
+            let normalizedStatus = (enriched["status"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if normalizedStatus == "acknowledged" {
+                flushPolicyAckBlockedQueue(
+                    providerId: providerId,
+                    conversationId: conversationId
+                )
+            } else if normalizedStatus == "invalid" {
+                appendTechnicalErrorMessage(
+                    "[Policy error] Invalid AGENTS/SKILL acknowledgment received. Expected hash \(enriched["expected_hash"] ?? "?").",
+                    in: conversationId
+                )
+                stopTaskForPolicyViolation(conversationId: conversationId)
+                return
+            }
+        }
+    }
+
     @MainActor
     internal func processPolicyAckEvent(
         payload: [String: String],
