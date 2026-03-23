@@ -122,5 +122,9 @@ extension DebugStore {
         nativeBreakpointFilePathInput = snapshot.nativeBreakpointFilePathInput
         nativeBreakpointLineInput = snapshot.nativeBreakpointLineInput
         nativeBreakpointConditionInput = snapshot.nativeBreakpointConditionInput
+
+        stopLogFileMonitor()
+        guard phase != .idle else { return }
+        startLogFileMonitor(path: activeDebugLogPath)
     }
 }

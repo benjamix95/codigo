@@ -91,12 +91,11 @@ extension DebugStore {
     func startLogFileMonitor(path: URL) {
         stopLogFileMonitor()
 
-        guard FileManager.default.fileExists(atPath: path.path) else {
-            // Create parent directory if needed
-            let dir = path.deletingLastPathComponent()
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            FileManager.default.createFile(atPath: path.path, contents: nil)
-            return
+        let fileManager = FileManager.default
+        let dir = path.deletingLastPathComponent()
+        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        if !fileManager.fileExists(atPath: path.path) {
+            fileManager.createFile(atPath: path.path, contents: nil)
         }
 
         guard let fileHandle = try? FileHandle(forReadingFrom: path) else {

@@ -63,4 +63,36 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
 
         XCTAssertEqual(debugStore.phase, .verifying)
     }
+
+    func testActivateDebugModeStartsDescribingSessionAndRevealsPanel() {
+        let service = PipelineIntegrationService()
+        let debugStore = DebugStore()
+        let conversationId = UUID()
+        var receivedEffects: [DebugProjectionUIEffects] = []
+
+        service.registerDebugStore(
+            debugStore,
+            for: conversationId,
+            applyEffects: { effects in
+                receivedEffects.append(effects)
+            }
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-activate",
+                taskId: "task-activate",
+                rawType: "activate_debug_mode",
+                payload: [
+                    "reason": "Investigate crash on launch"
+                ]
+            ),
+            for: conversationId
+        )
+
+        XCTAssertEqual(debugStore.phase, .describing)
+        XCTAssertEqual(debugStore.errorSummary, "Investigate crash on launch")
+        XCTAssertTrue(receivedEffects.contains { $0.shouldEnableDebugMode })
+        XCTAssertTrue(receivedEffects.contains { $0.shouldRevealDebugPanel })
+    }
 }
