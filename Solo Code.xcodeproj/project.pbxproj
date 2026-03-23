@@ -356,6 +356,7 @@
 		343AE15636A1E0A5050A4D3C /* GitService+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0442CBA794B67702DB3E6202 /* GitService+Sync.swift */; };
 		34413D50A97F23B15118297B /* DebugStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C60E093840295281EBC557 /* DebugStore.swift */; };
 		346A50267FBBB24AE19ED086 /* ChatStreamFailureHandlingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F5CD3361BFCFC6669BE1F3 /* ChatStreamFailureHandlingTests.swift */; };
+		C1A0DE01F0B0A0C0D0E0F001 /* ClaudeProviderIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A0DE01F0B0A0C0D0E0F002 /* ClaudeProviderIntegrationTests.swift */; };
 		348411D8E41448DC5078997E /* UnifiedToolRuntime+SkillExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5CF6B17D01DD898C364F19 /* UnifiedToolRuntime+SkillExecution.swift */; };
 		34A6A319986DE75F54CC2426 /* ToolEnabledLLMProviderPolicyAckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5656ED53FC36107B1D4F6E /* ToolEnabledLLMProviderPolicyAckTests.swift */; };
 		34BBCF9B2A18BC63A3C72C63 /* EventNormalizerTodo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D613AB4A03731EE70B12EB3 /* EventNormalizerTodo.swift */; };
@@ -3262,6 +3263,7 @@
 		E2B873F7F30196D1BB7623D1 /* ProviderUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderUsageStore.swift; path = App/SoloCodeApp/Sources/Settings/ProviderUsageStore.swift; sourceTree = "<group>"; };
 		E2DA16140551E57A5E0E030B /* SwarmProgressView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwarmProgressView.swift; path = App/SoloCodeApp/Sources/Swarm/SwarmProgressView.swift; sourceTree = "<group>"; };
 		E2F5CD3361BFCFC6669BE1F3 /* ChatStreamFailureHandlingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatStreamFailureHandlingTests.swift; path = Tests/SoloCodeAppTests/ChatStreamFailureHandlingTests.swift; sourceTree = "<group>"; };
+		C1A0DE01F0B0A0C0D0E0F002 /* ClaudeProviderIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ClaudeProviderIntegrationTests.swift; path = Tests/SoloCodeAppTests/ClaudeProviderIntegrationTests.swift; sourceTree = "<group>"; };
 		E302C0346E93BE803023FDEF /* ChatPanelSupport+UIHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatPanelSupport+UIHelpers.swift"; path = "App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+UIHelpers.swift"; sourceTree = "<group>"; };
 		E334ADE394633E71DEEEA429 /* ToolSchemaCatalog+PlanTools.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolSchemaCatalog+PlanTools.swift"; path = "Engine/CoderEngine/Sources/Tools/Catalog/Entries/Debug/ToolSchemaCatalog+PlanTools.swift"; sourceTree = "<group>"; };
 		E3742EF6213E7E7D15D35434 /* EditorPlaceholderView+QuickOpen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "EditorPlaceholderView+QuickOpen.swift"; path = "App/SoloCodeApp/Sources/App/Placeholder/Sections/EditorPlaceholderView+QuickOpen.swift"; sourceTree = "<group>"; };
@@ -4828,6 +4830,7 @@
 				277680293CBFEDE4A7E4E202 /* ChatStoreSummarizationMemoryTests.swift */,
 				DC09286BBF1504B14905BEDE /* ChatStoreTaskOwnershipTests.swift */,
 				E2F5CD3361BFCFC6669BE1F3 /* ChatStreamFailureHandlingTests.swift */,
+				C1A0DE01F0B0A0C0D0E0F002 /* ClaudeProviderIntegrationTests.swift */,
 				DA52ACB086C970B394635A80 /* ChatThreadUIStateDefaultsTests.swift */,
 				94627184A322B3ADCCEE079C /* ChatTodoExecutionCardMetricsTests.swift */,
 				6ECBD737925DEF7CF645A73C /* ChatTodoVisibilityTests.swift */,
@@ -6279,6 +6282,7 @@
 				CBDC6FC87E49AF18C7B58B7E /* ChatStoreSummarizationMemoryTests.swift in Sources */,
 				5A999C54CBE798F07C208ADC /* ChatStoreTaskOwnershipTests.swift in Sources */,
 				346A50267FBBB24AE19ED086 /* ChatStreamFailureHandlingTests.swift in Sources */,
+				C1A0DE01F0B0A0C0D0E0F001 /* ClaudeProviderIntegrationTests.swift in Sources */,
 				51EB433680CF2568C4AFCA02 /* ChatThreadUIStateDefaultsTests.swift in Sources */,
 				E32CD9084029783C833C5700 /* ChatTodoExecutionCardMetricsTests.swift in Sources */,
 				47F1B2B680CA98F000949161 /* ChatTodoVisibilityTests.swift in Sources */,

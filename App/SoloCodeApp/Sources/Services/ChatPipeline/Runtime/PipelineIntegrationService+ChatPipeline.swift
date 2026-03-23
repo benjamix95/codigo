@@ -68,25 +68,19 @@ extension PipelineIntegrationService {
             chatStore: chatStore
         ) {
             for sequenced in sequencedEvents {
-                if shouldSkipRustStoreBootstrapForTests(
-                    environment: ProcessInfo.processInfo.environment
-                ) {
-                    runtime.chatTurnState = ChatPipelineReducer.apply(
-                        state: runtime.chatTurnState,
-                        event: sequenced
-                    )
-                    ChatPipelineCommitter.commit(
-                        runtime.chatTurnState,
-                        chatStore: chatStore,
-                        persistImmediately: false
-                    )
-                } else {
-                    NSLog(
-                        "[PipelineIntegrationService] Rust pipeline boundary unavailable for %@",
-                        sequenced.kind.rawValue
-                    )
-                    continue
-                }
+                NSLog(
+                    "[PipelineIntegrationService] Rust pipeline boundary unavailable for %@, applying Swift fallback",
+                    sequenced.kind.rawValue
+                )
+                runtime.chatTurnState = ChatPipelineReducer.apply(
+                    state: runtime.chatTurnState,
+                    event: sequenced
+                )
+                ChatPipelineCommitter.commit(
+                    runtime.chatTurnState,
+                    chatStore: chatStore,
+                    persistImmediately: false
+                )
             }
         }
 

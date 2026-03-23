@@ -141,12 +141,21 @@ extension ProviderToolEventMapper {
         if let detail = firstString(in: payload, keys: ["detail", "query", "arguments", "args", "path", "file"]), !detail.isEmpty {
             mapped["detail"] = detail
         }
+        if let command = firstString(in: payload, keys: ["command", "command_line", "cmd"]), !command.isEmpty {
+            mapped["command"] = command
+            if mapped["detail"] == nil || mapped["detail"]?.isEmpty == true {
+                mapped["detail"] = command
+            }
+        }
         if let path = firstString(in: payload, keys: ["path", "file", "file_path"]), !path.isEmpty {
             mapped["path"] = path
             mapped["file"] = path
         }
         if let output = firstString(in: payload, keys: ["output", "result", "content"]), !output.isEmpty {
             mapped["output"] = String(output.prefix(6_000))
+        }
+        if let status = firstString(in: payload, keys: ["status"]), !status.isEmpty {
+            mapped["status"] = status
         }
         return ("command_execution", mapped)
     }

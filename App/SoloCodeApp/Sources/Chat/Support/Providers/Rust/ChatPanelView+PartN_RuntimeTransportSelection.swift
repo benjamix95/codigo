@@ -101,6 +101,7 @@ extension ChatPanelView {
                 claudePath: cfg.resolvedClaudePath(),
                 claudeModel: cfg.claudeModel,
                 claudeAllowedTools: resolved.claudeAllowedTools,
+                claudeMcpServerPath: Self.resolveCoderideMCPServerPath(),
                 geminiCliPath: cfg.geminiCliPath.isEmpty ? nil : cfg.geminiCliPath,
                 geminiModelOverride: cfg.geminiModelOverride.isEmpty ? nil : cfg.geminiModelOverride,
                 kiloPath: cfg.resolvedKiloPath(),
@@ -111,5 +112,52 @@ extension ChatPanelView {
         )
 
         return provider
+    }
+
+    /// Resolves the path to the `coderide-mcp-server` binary so it can be
+    /// passed to Claude CLI for MCP integration.  Resolution order:
+    /// 1. Env override `SOLOCODE_MCP_SERVER_PATH`
+    /// 2. Sibling of the running executable (app bundle)
+    /// 3. `Native/target/debug/coderide-mcp-server-rust` (dev build)
+    static func resolveCoderideMCPServerPath() -> String? {
+        let fm = FileManager.default
+        let env = ProcessInfo.processInfo.environment
+
+        if let override = env["SOLOCODE_MCP_SERVER_PATH"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty,
+           fm.isExecutableFile(atPath: override) {
+            return override
+        }
+
+        // Sibling of the main executable inside the .app bundle
+        let mainExe = URL(fileURLWithPath: CommandLine.arguments[0])
+        let bundleCandidate = mainExe
+            .deletingLastPathComponent()
+            .appendingPathComponent("coderide-mcp-server")
+        if fm.isExecutableFile(atPath: bundleCandidate.path) {
+            return bundleCandidate.path
+        }
+
+        // Development: Rust cargo output
+        let sourceFile = URL(fileURLWithPath: #filePath)
+        var dir = sourceFile.deletingLastPathComponent()
+        while dir.path != "/" {
+            let workspace = dir.appendingPathComponent("Solo Code.xcworkspace")
+            let cargo = dir.appendingPathComponent("Native/Cargo.toml")
+            if fm.fileExists(atPath: workspace.path), fm.fileExists(atPath: cargo.path) {
+                for variant in ["debug", "release"] {
+                    let candidate = dir
+                        .appendingPathComponent("Native/target/\(variant)/coderide-mcp-server-rust")
+                    if fm.isExecutableFile(atPath: candidate.path) {
+                        return candidate.path
+                    }
+                }
+                break
+            }
+            dir.deleteLastPathComponent()
+        }
+
+        return nil
     }
 }

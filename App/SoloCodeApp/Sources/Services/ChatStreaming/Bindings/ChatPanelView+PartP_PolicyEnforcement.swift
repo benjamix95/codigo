@@ -65,6 +65,7 @@ func shouldBypassPolicyAckLiveVisibilityGate(
         "assistant_update",
         "agent",
         "subagent_text",
+        "reasoning",
         "bash",
         "command_execution",
         "file_change",

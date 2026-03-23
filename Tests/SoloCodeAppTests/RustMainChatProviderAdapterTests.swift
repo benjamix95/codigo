@@ -89,6 +89,7 @@ final class RustMainChatProviderAdapterTests: XCTestCase {
                 claudePath: nil,
                 claudeModel: nil,
                 claudeAllowedTools: [],
+                claudeMcpServerPath: nil,
                 geminiCliPath: nil,
                 geminiModelOverride: nil,
                 attachments: [],

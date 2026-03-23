@@ -438,6 +438,16 @@ fn emit_command_execution(session_id: &str, method: &str, item: &Value) {
     if let Some(status) = item.get("status").and_then(string_value) {
         payload.insert("status".to_string(), normalize_status(&status));
     }
+    // Extract command output/result — same pattern as emit_mcp_events.
+    if let Some(result_text) = first_result_text(item.get("result")) {
+        payload.insert("output".to_string(), result_text);
+    } else if let Some(output) = item
+        .get("output")
+        .and_then(string_value)
+        .or_else(|| item.get("stdout").and_then(string_value))
+    {
+        payload.insert("output".to_string(), output);
+    }
     if method.ends_with("started") && !payload.contains_key("status") {
         payload.insert("status".to_string(), "started".to_string());
     }

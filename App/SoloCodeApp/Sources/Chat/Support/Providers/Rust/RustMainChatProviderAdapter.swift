@@ -104,13 +104,18 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
                     for event in events {
                         switch event.kind {
                         case .started:
+                            print("[BRIDGE_DEBUG] event=started")
                             continuation.yield(.started)
                         case .textDelta:
+                            print("[BRIDGE_DEBUG] event=textDelta len=\(event.text.count) preview=\(String(event.text.prefix(80)))")
                             continuation.yield(.textDelta(event.text))
                         case .textReplace:
+                            print("[BRIDGE_DEBUG] event=textReplace len=\(event.text.count)")
                             continuation.yield(.textReplace(event.text))
                         case .raw:
-                            continuation.yield(.raw(type: event.rawType ?? "provider_raw", payload: event.payload))
+                            let rt = event.rawType ?? "provider_raw"
+                            print("[BRIDGE_DEBUG] event=raw type=\(rt) keys=\(event.payload.keys.sorted())")
+                            continuation.yield(.raw(type: rt, payload: event.payload))
                         case .error:
                             let message = event.text.isEmpty ? "Provider stream failed" : event.text
                             continuation.yield(.error(message))
@@ -225,6 +230,7 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
             claudePath: baseConfig.claudePath,
             claudeModel: baseConfig.claudeModel,
             claudeAllowedTools: baseConfig.claudeAllowedTools,
+            claudeMcpServerPath: baseConfig.claudeMcpServerPath,
             geminiCliPath: baseConfig.geminiCliPath,
             geminiModelOverride: baseConfig.geminiModelOverride,
             kiloPath: baseConfig.kiloPath,

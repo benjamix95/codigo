@@ -121,7 +121,11 @@ extension OrchestratorMainLoop {
             await scheduler.updateTaskStatus(taskId, status: .failed)
 
         case .abortJob(let reason):
-            try? await stateMachine.abort(reason: reason)
+            do {
+                try await stateMachine.abort(reason: reason)
+            } catch {
+                NSLog("[OrchestratorMainLoop] applyAction abort failed: %@", "\(error)")
+            }
 
         case .continueNormally:
             break

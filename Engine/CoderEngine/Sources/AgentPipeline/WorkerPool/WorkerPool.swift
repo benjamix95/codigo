@@ -199,6 +199,10 @@ public actor WorkerPool {
             totalFailed += 1
         }
 
-        await delegate?.workerPool(self, didComplete: result)
+        if let delegate {
+            await delegate.workerPool(self, didComplete: result)
+        } else {
+            NSLog("[WorkerPool] delegate deallocated, completion for task %@ only stored in pendingResults", result.taskId)
+        }
     }
 }

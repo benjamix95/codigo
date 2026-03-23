@@ -151,6 +151,7 @@ extension ChatStore {
 
     @MainActor
     func normalizeLoadedRustStoreSnapshot() {
+        guard ReviewCoreBridge.isEnabled else { return }
         let local = RustMainChatStoreAdapter.snapshot(from: self)
         if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
             return
@@ -375,9 +376,12 @@ extension ChatStore {
     @MainActor
     func saveSubagentCardsToLastAssistant(_ cards: [SubagentCardSnapshot], in conversationId: UUID?) {
         guard !cards.isEmpty, let conversationId else { return }
-        _ = applyRustStoreAction("save_subagent_cards_to_last_assistant") { request in
+        let applied = applyRustStoreAction("save_subagent_cards_to_last_assistant") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.subagentCards = cards.map(RustMainChatStoreAdapter.subagentCardSnapshot)
+        }
+        if !applied {
+            NSLog("[ChatStore] save_subagent_cards_to_last_assistant failed for conv=%@", conversationId.uuidString)
         }
         saveConversationsImmediately()
     }
@@ -386,9 +390,12 @@ extension ChatStore {
     func saveReasoningToLastAssistant(reasoning: String, in conversationId: UUID?) {
         let trimmed = reasoning.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let conversationId else { return }
-        _ = applyRustStoreAction("save_reasoning") { request in
+        let applied = applyRustStoreAction("save_reasoning") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.text = trimmed
+        }
+        if !applied {
+            NSLog("[ChatStore] save_reasoning failed for conv=%@", conversationId.uuidString)
         }
         saveConversations()
     }
@@ -396,9 +403,12 @@ extension ChatStore {
     @MainActor
     func removeAssistantMessageIfEmpty(messageId: UUID, in conversationId: UUID?) {
         guard let conversationId else { return }
-        _ = applyRustStoreAction("remove_assistant_message_if_empty") { request in
+        let applied = applyRustStoreAction("remove_assistant_message_if_empty") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.messageId = messageId.uuidString.lowercased()
+        }
+        if !applied {
+            NSLog("[ChatStore] remove_assistant_message_if_empty failed for conv=%@ msg=%@", conversationId.uuidString, messageId.uuidString)
         }
         saveConversations()
     }
@@ -406,9 +416,12 @@ extension ChatStore {
     @MainActor
     func removeMessage(messageId: UUID, in conversationId: UUID?) {
         guard let conversationId else { return }
-        _ = applyRustStoreAction("remove_message") { request in
+        let applied = applyRustStoreAction("remove_message") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.messageId = messageId.uuidString.lowercased()
+        }
+        if !applied {
+            NSLog("[ChatStore] remove_message failed for conv=%@ msg=%@", conversationId.uuidString, messageId.uuidString)
         }
         saveConversations()
     }

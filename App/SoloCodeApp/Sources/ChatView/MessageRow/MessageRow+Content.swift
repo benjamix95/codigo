@@ -122,7 +122,11 @@ extension MessageRow {
                 }()
                 if !reasoningBlocks.isEmpty {
                     ThinkingBlocksView(blocks: reasoningBlocks, isLiveStreaming: isActivelyStreaming)
-                        .padding(.bottom, 10)
+                    // Visual divider between reasoning and response
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.06))
+                        .frame(height: 0.5)
+                        .padding(.vertical, 8)
                 }
                 MarkdownContentView(
                     content: message.content,

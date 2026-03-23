@@ -27,19 +27,44 @@ enum KiloEventParser {
         case "tool_start":
             if let part = json["part"] as? [String: Any] {
                 let name = part["name"] as? String ?? "tool"
-                let detail = (part["input"] as? String)
-                    ?? (part["args"] as? String)
-                    ?? ""
-                events.append(.raw(type: "command_execution", payload: [
-                    "title": name,
-                    "detail": String(detail.prefix(200)),
-                    "tool": name,
-                ]))
+                // Extract tool parameters from input dict or string
+                var inputPayload: [String: Any] = [:]
+                if let inputDict = part["input"] as? [String: Any] {
+                    inputPayload = inputDict
+                } else if let inputStr = part["input"] as? String {
+                    inputPayload["detail"] = inputStr
+                }
+                if let argsDict = part["args"] as? [String: Any] {
+                    for (k, v) in argsDict where inputPayload[k] == nil {
+                        inputPayload[k] = v
+                    }
+                } else if let argsStr = part["args"] as? String, inputPayload["detail"] == nil {
+                    inputPayload["detail"] = argsStr
+                }
+                if let mapped = ProviderToolEventMapper.map(toolName: name, payload: inputPayload) {
+                    events.append(.raw(type: mapped.type, payload: mapped.payload))
+                } else {
+                    let mapped = ProviderToolEventMapper.mapFallback(tool: name, payload: inputPayload)
+                    events.append(.raw(type: mapped.type, payload: mapped.payload))
+                }
             }
 
         case "tool_finish":
-            // Tool result — we don't emit anything visible for now
-            break
+            if let part = json["part"] as? [String: Any] {
+                let output = (part["output"] as? String)
+                    ?? (part["result"] as? String)
+                    ?? (part["text"] as? String)
+                    ?? ""
+                if !output.isEmpty {
+                    let name = part["name"] as? String ?? "tool"
+                    events.append(.raw(type: "command_execution", payload: [
+                        "title": name,
+                        "output": String(output.prefix(4_000)),
+                        "tool": name,
+                        "status": "completed",
+                    ]))
+                }
+            }
 
         case "step_finish":
             if let part = json["part"] as? [String: Any],

@@ -112,6 +112,7 @@ struct MainChatProviderSessionConfigBridge: Codable, Equatable {
     let claudePath: String?
     let claudeModel: String?
     let claudeAllowedTools: [String]
+    let claudeMcpServerPath: String?
     let geminiCliPath: String?
     let geminiModelOverride: String?
     var kiloPath: String? = nil

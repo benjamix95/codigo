@@ -174,22 +174,34 @@ final class ChatStreamFailureHandlingTests: XCTestCase {
     }
 
     func testShouldRouteStreamingTextToReasoningBeforeOperationalActivity() {
+        // Agent mode routes text to reasoning (for Codex-like providers)
         XCTAssertTrue(
             shouldRouteStreamingTextToReasoning(
                 coderMode: .agent,
                 hasOperationalActivityInTurn: false
             )
         )
-        XCTAssertFalse(
+        // Agent mode still routes to reasoning even after operational activity
+        // (only Claude CLI is exempt because it has separate thinking blocks)
+        XCTAssertTrue(
             shouldRouteStreamingTextToReasoning(
                 coderMode: .agent,
                 hasOperationalActivityInTurn: true
             )
         )
+        // IDE mode never routes to reasoning
         XCTAssertFalse(
             shouldRouteStreamingTextToReasoning(
                 coderMode: .ide,
                 hasOperationalActivityInTurn: false
+            )
+        )
+        // Claude CLI never routes text to reasoning (has separate thinking blocks)
+        XCTAssertFalse(
+            shouldRouteStreamingTextToReasoning(
+                coderMode: .agent,
+                hasOperationalActivityInTurn: false,
+                providerId: "claude-cli"
             )
         )
     }

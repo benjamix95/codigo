@@ -103,13 +103,18 @@ struct ChatTurnView: View {
                     .padding(.vertical, 4)
                 }
             }
-            ForEach(narrativeBlocks) { block in
-                ArtifactCardView(
-                    block: block,
-                    accentColor: modeColor,
-                    context: context,
-                    onFileClicked: onFileClicked
+            if !narrativeBlocks.isEmpty {
+                let reasoningBlocks = narrativeBlocks.map {
+                    ReasoningBlock(id: $0.id, text: $0.text)
+                }
+                ThinkingBlocksView(
+                    blocks: reasoningBlocks,
+                    isLiveStreaming: message.isStreaming && isActuallyLoading
                 )
+                Rectangle()
+                    .fill(Color.primary.opacity(0.06))
+                    .frame(height: 0.5)
+                    .padding(.vertical, 4)
             }
             if shouldRenderInlineActivityFeed {
                 InlineActivityFeedView(

@@ -28,6 +28,8 @@ struct MessageSegment: Identifiable {
     var kind: MessageSegmentKind
 }
 
+// MARK: - Single Block
+
 struct ThinkingBlockView: View {
     let text: String
     var isLiveStreaming: Bool = false
@@ -54,66 +56,68 @@ struct ThinkingBlockView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isShowingContent ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(headerTextColor)
-                        .frame(width: 10)
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(accentBarColor)
-                    Text(isLiveStreaming ? "Thinking..." : "Thought process")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(headerTextColor)
-                        .tracking(0.2)
-                        .textShimmer(active: isLiveStreaming)
-                    if !isShowingContent {
-                        Text(previewLine)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.quaternary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.bottom, isShowingContent ? 8 : 0)
-
+            headerButton
             if isShowingContent {
-                HStack(alignment: .top, spacing: 0) {
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(accentBarColor)
-                        .frame(width: 2)
-                    Text(text)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(thinkingTextColor)
-                        .lineSpacing(5.5)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, 12)
-                }
-                .padding(.leading, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                reasoningContent(text: text)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(DesignSystem.Colors.thinkingBackground)
-        )
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .onChange(of: isLiveStreaming) { streaming in
             if streaming { DispatchQueue.main.async { isExpanded = true } }
         }
     }
 
+    private var headerButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isShowingContent ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(headerTextColor)
+                    .frame(width: 10)
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(accentBarColor)
+                Text(isLiveStreaming ? "Thinking..." : "Thought process")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(headerTextColor)
+                    .tracking(0.2)
+                    .textShimmer(active: isLiveStreaming)
+                if !isShowingContent {
+                    Text(previewLine)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.quaternary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, isShowingContent ? 8 : 0)
+    }
+
+    private func reasoningContent(text: String) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(accentBarColor)
+                .frame(width: 2)
+            Text(text)
+                .font(.system(size: 11.5))
+                .foregroundStyle(thinkingTextColor)
+                .lineSpacing(5.5)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 12)
+        }
+        .padding(.leading, 4)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
 }
+
+// MARK: - Multi-Block
 
 struct ThinkingBlocksView: View {
     let blocks: [ReasoningBlock]
@@ -142,78 +146,79 @@ struct ThinkingBlocksView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isShowingContent ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(headerTextColor)
-                        .frame(width: 10)
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(accentBarColor)
-                    Text(isLiveStreaming ? "Thinking..." : "Thought process")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(headerTextColor)
-                        .tracking(0.2)
-                        .textShimmer(active: isLiveStreaming)
-                    if blocks.count > 1 {
-                        Text("(\(blocks.count))")
-                            .font(.system(size: 9.5, weight: .medium))
-                            .foregroundStyle(.quaternary)
-                    }
-                    if !isShowingContent {
-                        Text(previewLine)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.quaternary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.bottom, isShowingContent ? 8 : 0)
-
+            headerButton
             if isShowingContent {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
-                        HStack(alignment: .top, spacing: 0) {
-                            RoundedRectangle(cornerRadius: 1.5)
-                                .fill(accentBarColor)
-                                .frame(width: 2)
-                            Text(block.text)
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(thinkingTextColor)
-                                .lineSpacing(5.5)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.leading, 12)
-                                .textShimmer(active: index == blocks.count - 1 && isLiveStreaming)
-                        }
-                        .padding(.leading, 4)
-                        if index != blocks.count - 1 {
-                            Rectangle()
-                                .fill(separatorColor)
-                                .frame(height: 0.5)
-                                .padding(.leading, 18)
-                        }
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                expandedContent
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(DesignSystem.Colors.thinkingBackground)
-        )
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .onChange(of: isLiveStreaming) { streaming in
             if streaming { DispatchQueue.main.async { isExpanded = true } }
         }
+    }
+
+    private var headerButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isShowingContent ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(headerTextColor)
+                    .frame(width: 10)
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(accentBarColor)
+                Text(isLiveStreaming ? "Thinking..." : "Thought process")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(headerTextColor)
+                    .tracking(0.2)
+                    .textShimmer(active: isLiveStreaming)
+                if blocks.count > 1 {
+                    Text("(\(blocks.count))")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.quaternary)
+                }
+                if !isShowingContent {
+                    Text(previewLine)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.quaternary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, isShowingContent ? 8 : 0)
+    }
+
+    private var expandedContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
+                HStack(alignment: .top, spacing: 0) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(accentBarColor)
+                        .frame(width: 2)
+                    Text(block.text)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(thinkingTextColor)
+                        .lineSpacing(5.5)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 12)
+                        .textShimmer(active: index == blocks.count - 1 && isLiveStreaming)
+                }
+                .padding(.leading, 4)
+                if index != blocks.count - 1 {
+                    Rectangle()
+                        .fill(separatorColor)
+                        .frame(height: 0.5)
+                        .padding(.leading, 18)
+                }
+            }
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 }

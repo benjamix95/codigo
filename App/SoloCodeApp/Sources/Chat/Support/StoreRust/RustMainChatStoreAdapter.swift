@@ -45,8 +45,28 @@ enum RustMainChatStoreAdapter {
         to store: ChatStore,
         preserveLocalMessages: Bool = false
     ) {
-        _ = preserveLocalMessages
-        store.conversations = snapshot.conversations.compactMap(conversation)
+        let newConversations = snapshot.conversations.compactMap(conversation)
+        if preserveLocalMessages {
+            let existingStreamingIds = Set(
+                store.conversations
+                    .filter { conv in conv.messages.contains { $0.isStreaming } }
+                    .map(\.id)
+            )
+            var merged = newConversations
+            for existingConv in store.conversations where existingStreamingIds.contains(existingConv.id) {
+                if let idx = merged.firstIndex(where: { $0.id == existingConv.id }) {
+                    let existingStreamingMessages = existingConv.messages.filter(\.isStreaming)
+                    for msg in existingStreamingMessages {
+                        if !merged[idx].messages.contains(where: { $0.id == msg.id }) {
+                            merged[idx].messages.append(msg)
+                        }
+                    }
+                }
+            }
+            store.conversations = merged
+        } else {
+            store.conversations = newConversations
+        }
         store.planBoards = Dictionary(uniqueKeysWithValues: snapshot.planBoards.compactMap { key, value in
             guard let uuid = UUID(uuidString: key) else { return nil }
             return (uuid, planBoard(value))

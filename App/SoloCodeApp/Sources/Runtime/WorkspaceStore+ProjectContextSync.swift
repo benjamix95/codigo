@@ -312,6 +312,9 @@ final class ConversationFlowCoordinator: ObservableObject {
                         }
                     case .raw:
                         let rawType = event.rawType ?? "provider_raw"
+                        if rawType == "reasoning" {
+                            print("[RUNSTREAM_DEBUG] .raw reasoning event in runStream! keys=\(event.payload.keys.sorted()) hasSeenNarrative=\(hasSeenNarrativeEvent)")
+                        }
                         if rawType == "assistant_update" || rawType == "reasoning" {
                             hasSeenNarrativeEvent = true
                             if !pendingReasoningSnapshot.isEmpty {
@@ -323,6 +326,9 @@ final class ConversationFlowCoordinator: ObservableObject {
                         {
                             bufferedRawEvents.append((rawType, event.payload))
                         } else {
+                            if rawType == "reasoning" {
+                                print("[RUNSTREAM_DEBUG] FORWARDING reasoning to onRaw callback")
+                            }
                             await MainActor.run { onRaw(rawType, event.payload, provider.id) }
                             if hasSeenNarrativeEvent, !bufferedRawEvents.isEmpty {
                                 let pending = bufferedRawEvents

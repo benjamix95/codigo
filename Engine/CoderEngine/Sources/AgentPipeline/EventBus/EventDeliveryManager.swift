@@ -207,11 +207,11 @@ public actor EventDeliveryManager {
 
     // MARK: - Backoff
 
-    /// Exponential backoff con jitter deterministico (§5.11).
+    /// Exponential backoff con jitter randomizzato (§5.11).
     /// `delay = min(base * 2^attempt + jitter, maxDelay)`
     func calculateBackoff(attempt: Int) -> UInt64 {
         let exponential = baseDelayMs * (1 << UInt64(attempt - 1))
-        let jitter = UInt64(attempt * 17 % 50)
+        let jitter = UInt64.random(in: 0...min(exponential, 500))
         return min(exponential + jitter, maxDelayMs)
     }
 

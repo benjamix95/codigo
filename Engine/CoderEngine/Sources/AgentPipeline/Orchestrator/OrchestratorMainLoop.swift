@@ -93,7 +93,11 @@ public actor OrchestratorMainLoop {
             return false
         }
         if Task.isCancelled {
-            try? await stateMachine.abort(reason: "Pipeline task cancelled")
+            do {
+                try await stateMachine.abort(reason: "Pipeline task cancelled")
+            } catch {
+                NSLog("[OrchestratorMainLoop] abort after cancellation failed: %@", "\(error)")
+            }
             return false
         }
 
@@ -107,7 +111,11 @@ public actor OrchestratorMainLoop {
                 jobId: job.jobId,
                 payload: ["elapsed_ms": "\(Int(elapsed))"]
             )
-            try? await stateMachine.abort(reason: "Job timeout exceeded")
+            do {
+                try await stateMachine.abort(reason: "Job timeout exceeded")
+            } catch {
+                NSLog("[OrchestratorMainLoop] abort after timeout failed: %@", "\(error)")
+            }
             return false
         }
 
@@ -137,8 +145,16 @@ public actor OrchestratorMainLoop {
                 } else {
                     reason = "\(failedCount) tasks failed"
                 }
-                _ = try? await stateMachine.transition(to: .failed, reason: reason)
-                _ = try? await stateMachine.transition(to: .aborted, reason: "Job failed with errors")
+                do {
+                    try await stateMachine.transition(to: .failed, reason: reason)
+                } catch {
+                    NSLog("[OrchestratorMainLoop] transition to .failed failed: %@", "\(error)")
+                }
+                do {
+                    try await stateMachine.transition(to: .aborted, reason: "Job failed with errors")
+                } catch {
+                    NSLog("[OrchestratorMainLoop] transition to .aborted failed: %@", "\(error)")
+                }
             }
             return false
         }
@@ -154,7 +170,11 @@ public actor OrchestratorMainLoop {
 
         while isRunning {
             if Task.isCancelled {
-                try? await stateMachine.abort(reason: "Pipeline task cancelled")
+                do {
+                    try await stateMachine.abort(reason: "Pipeline task cancelled")
+                } catch {
+                    NSLog("[OrchestratorMainLoop] abort in run loop failed: %@", "\(error)")
+                }
                 break
             }
             let shouldContinue = await tick()
@@ -175,10 +195,15 @@ public actor OrchestratorMainLoop {
         for target in targets {
             let current = await stateMachine.currentState
             guard !current.isTerminal, current.canTransition(to: target) else { break }
-            _ = try? await stateMachine.transition(
-                to: target,
-                reason: "Pipeline bootstrap"
-            )
+            do {
+                try await stateMachine.transition(
+                    to: target,
+                    reason: "Pipeline bootstrap"
+                )
+            } catch {
+                NSLog("[OrchestratorMainLoop] advanceToExecution transition to %@ failed: %@", "\(target)", "\(error)")
+                break
+            }
         }
     }
 
@@ -190,10 +215,15 @@ public actor OrchestratorMainLoop {
         for target in targets {
             let current = await stateMachine.currentState
             guard !current.isTerminal, current.canTransition(to: target) else { break }
-            _ = try? await stateMachine.transition(
-                to: target,
-                reason: "All tasks completed"
-            )
+            do {
+                try await stateMachine.transition(
+                    to: target,
+                    reason: "All tasks completed"
+                )
+            } catch {
+                NSLog("[OrchestratorMainLoop] advanceToFinalized transition to %@ failed: %@", "\(target)", "\(error)")
+                break
+            }
         }
     }
 

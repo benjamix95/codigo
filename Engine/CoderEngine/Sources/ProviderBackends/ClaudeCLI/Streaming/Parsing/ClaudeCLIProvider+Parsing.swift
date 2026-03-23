@@ -30,13 +30,9 @@ extension ClaudeCLIProvider {
             return ProviderToolEventMapper.map(toolName: "search", payload: input)
         }
 
-        // True fallback for genuinely unknown tools
-        let fallbackTool = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return ("command_execution", [
-            "title": fallbackTool.isEmpty ? "Tool execution" : fallbackTool,
-            "detail": firstString(in: input, keys: ["detail", "query", "command", "path", "file"]) ?? "",
-            "tool": normalizedTool,
-        ])
+        // True fallback: delegate to the shared mapper so all standard
+        // fields (command, output, path, etc.) are extracted consistently.
+        return ProviderToolEventMapper.mapFallback(tool: name, payload: input)
     }
 
     static func extractUsagePayload(

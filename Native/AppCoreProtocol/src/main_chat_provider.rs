@@ -108,6 +108,7 @@ pub struct MainChatProviderSessionConfig {
     pub claude_model: Option<String>,
     #[serde(default)]
     pub claude_allowed_tools: Vec<String>,
+    pub claude_mcp_server_path: Option<String>,
     pub gemini_cli_path: Option<String>,
     pub gemini_model_override: Option<String>,
     #[serde(default)]

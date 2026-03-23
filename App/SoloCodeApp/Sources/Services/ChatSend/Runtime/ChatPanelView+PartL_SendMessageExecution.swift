@@ -11,9 +11,14 @@ enum MainChatSendExecutionRoute {
 
 func shouldRouteStreamingTextToReasoning(
     coderMode: CoderMode,
-    hasOperationalActivityInTurn: Bool
+    hasOperationalActivityInTurn: Bool,
+    providerId: String = ""
 ) -> Bool {
-    coderMode == .agent
+    // Claude CLI already emits reasoning via separate `thinking` blocks.
+    // Its text_delta IS the real response — never route it to reasoning.
+    // Only Codex CLI needs this routing because it doesn't separate them.
+    if providerId == "claude-cli" { return false }
+    return coderMode == .agent
 }
 
 func resolveMainChatSendExecutionRoute(
@@ -171,12 +176,15 @@ extension ChatPanelView {
                         attachments: attachmentsToSend,
                         onText: { content in
                             let cleaned = ChatStore.stripCoderideMarkers(content, aggressive: true)
-                            if shouldRouteStreamingTextToReasoning(
+                            let shouldRouteToReasoning = shouldRouteStreamingTextToReasoning(
                                 coderMode: coderMode,
                                 hasOperationalActivityInTurn: hasOperationalActivityInCurrentTurn(
                                     conversationId: targetConversationId
-                                )
-                            ) {
+                                ),
+                                providerId: effectiveRuntimeProvider.id
+                            )
+                            print("[STREAM_DEBUG] onText len=\(cleaned.count) routeToReasoning=\(shouldRouteToReasoning) coderMode=\(coderMode) preview=\(String(cleaned.prefix(80)))")
+                            if shouldRouteToReasoning {
                                 applyStreamingReasoningSnapshot(
                                     cleaned,
                                     conversationId: targetConversationId

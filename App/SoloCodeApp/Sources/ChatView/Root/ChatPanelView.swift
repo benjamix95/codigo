@@ -76,7 +76,7 @@ struct ChatPanelView: View {
     @AppStorage("plan_mode_backend")  var planModeBackend = "codex"
     @AppStorage("claude_path")  var claudePath = ""
     @AppStorage("claude_model")  var claudeModel = "claude-sonnet-4-6"
-    @AppStorage("claude_allowed_tools")  var claudeAllowedTools = "Read,Edit,Bash,Write,Search,Task"
+    @AppStorage("claude_allowed_tools")  var claudeAllowedTools = "Read,Edit,Bash,Write,Search,Task,TodoWrite,WebSearch,WebFetch"
     @AppStorage("gemini_cli_path")  var geminiCliPath = ""
     @AppStorage("gemini_model_override")  var geminiModelOverride = ""
     @AppStorage("kilo_path")  var kiloPath = ""
