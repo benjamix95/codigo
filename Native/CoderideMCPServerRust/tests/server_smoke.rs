@@ -395,6 +395,63 @@ fn plan_tools_and_ide_acks_work() {
 }
 
 #[test]
+fn plan_create_without_conversation_id_bootstraps_new_plan_context() {
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let mut child = spawn_server(&home, &workspace);
+    initialize(&mut child);
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 210,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_create",
+                "arguments": {
+                    "goal": "Bootstrap plan context",
+                    "steps": [
+                        { "id": "1", "title": "Analisi", "status": "pending" }
+                    ]
+                }
+            }
+        }),
+    );
+    let create = read_message(&mut child);
+    assert_eq!(
+        create["result"]["content"][0]["text"].as_str(),
+        Some("OK — plan snapshot created")
+    );
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 211,
+            "method": "tools/call",
+            "params": {
+                "name": "coderide_plan_read",
+                "arguments": {
+                    "include_history": true,
+                    "history_limit": 5
+                }
+            }
+        }),
+    );
+    let read = read_message(&mut child);
+    let read_text = read["result"]["content"][0]["text"].as_str().expect("plan read text");
+    let read_json: Value = serde_json::from_str(read_text).expect("plan read json");
+    let conversation_id = read_json["conversation_id"].as_str().expect("conversation id");
+    assert_eq!(read_json["snapshot"]["goal"], "Bootstrap plan context");
+    assert_eq!(read_json["snapshot"]["conversationId"], conversation_id);
+    assert_eq!(conversation_id.len(), 36);
+    assert!(conversation_id.chars().all(|ch| ch.is_ascii_hexdigit() || ch == '-'));
+
+    terminate(child);
+}
+
+#[test]
 fn search_tools_work() {
     let home = make_temp_dir("rust-mcp-home");
     let workspace = make_temp_dir("rust-mcp-workspace");

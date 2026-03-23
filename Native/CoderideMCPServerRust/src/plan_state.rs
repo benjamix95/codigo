@@ -47,11 +47,11 @@ pub fn create_snapshot(arguments: &BTreeMap<String, Value>) -> Result<String, St
     if goal.is_empty() {
         return Err("Error: 'goal' parameter is required".to_string());
     }
-    let conversation_id = required_conversation_id(arguments)?;
+    let mut document = read_document();
+    let conversation_id = resolve_or_create_snapshot_conversation_id(arguments, &document)?;
     let steps = parse_steps(arguments.get("steps"))?;
     let chosen_path = non_empty(string_arg(arguments, "chosen_path"))
         .or_else(|| non_empty(string_arg(arguments, "chosenPath")));
-    let mut document = read_document();
     let now = iso_now();
     let snapshot = PlanSnapshot {
         snapshot_id: next_id("snapshot"),
@@ -587,6 +587,30 @@ fn required_conversation_id(arguments: &BTreeMap<String, Value>) -> Result<Strin
         .or_else(|_| required_string(arguments, "conversationId"))
 }
 
+fn resolve_or_create_snapshot_conversation_id(
+    arguments: &BTreeMap<String, Value>,
+    document: &PlanDocument,
+) -> Result<String, String> {
+    if let Some(explicit) = non_empty(string_arg(arguments, "conversation_id"))
+        .or_else(|| non_empty(string_arg(arguments, "conversationId")))
+    {
+        return Ok(explicit);
+    }
+
+    let available = document
+        .snapshots_by_conversation
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    if available.len() == 1 {
+        return Ok(available[0].clone());
+    }
+    if available.is_empty() {
+        return Ok(generated_conversation_id());
+    }
+    Err("Error: unable to resolve target plan snapshot".to_string())
+}
+
 fn required_string(arguments: &BTreeMap<String, Value>, key: &str) -> Result<String, String> {
     non_empty(string_arg(arguments, key))
         .ok_or_else(|| format!("Error: '{key}' is required"))
@@ -645,6 +669,24 @@ fn next_id(prefix: &str) -> String {
         .unwrap_or_default()
         .as_nanos();
     format!("{prefix}-{nanos}")
+}
+
+fn generated_conversation_id() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let mut bytes = nanos.to_be_bytes();
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes[0], bytes[1], bytes[2], bytes[3],
+        bytes[4], bytes[5],
+        bytes[6], bytes[7],
+        bytes[8], bytes[9],
+        bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+    )
 }
 
 fn pretty_json(value: Value) -> String {
