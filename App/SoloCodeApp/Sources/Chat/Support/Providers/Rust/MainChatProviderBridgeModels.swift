@@ -74,6 +74,11 @@ struct MainChatCLIAccountSnapshotBridge: Codable, Equatable {
     let updatedAt: Date?
 }
 
+struct MainChatRuntimeProviderRegistryEntryBridge: Codable, Equatable {
+    let id: String
+    let isAuthenticated: Bool
+}
+
 struct MainChatProviderSessionConfigBridge: Codable, Equatable {
     let providerId: String
     let displayName: String
@@ -130,6 +135,10 @@ struct MainChatRuntimeTransportRequestBridge: Encodable {
     let claudeModel: String
     let claudeAllowedTools: [String]
     let geminiModelOverride: String
+    let registryProviders: [MainChatRuntimeProviderRegistryEntryBridge]
+    let codexCliAccounts: [MainChatCLIAccountSnapshotBridge]
+    let claudeCliAccounts: [MainChatCLIAccountSnapshotBridge]
+    let geminiCliAccounts: [MainChatCLIAccountSnapshotBridge]
 }
 
 struct MainChatRuntimeTransportResponseBridge: Decodable {
@@ -145,6 +154,10 @@ struct MainChatRuntimeTransportResponseBridge: Decodable {
     let codexSessionFullAccess: Bool
     let claudeAllowedTools: [String]
     let readOnlyPlan: Bool
+    let isAuthenticated: Bool
+    let nativeImageAttachment: Bool
+    let nativeDocumentAttachment: Bool
+    let nativeFileAttachment: Bool
 }
 
 struct MainChatProviderSessionStartRequestBridge: Encodable {

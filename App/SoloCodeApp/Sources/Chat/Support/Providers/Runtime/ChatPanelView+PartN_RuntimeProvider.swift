@@ -57,6 +57,12 @@ func shouldUseCodeReviewRuntimeProvider(
 extension ChatPanelView {
     private func resolveReadOnlyPlanRuntimeProvider() -> (any LLMProvider)? {
         let baseConfig = providerFactoryConfig()
+        let registryEntries = providerRegistry.providers.map {
+            MainChatRuntimeProviderRegistryEntryBridge(
+                id: $0.id,
+                isAuthenticated: $0.isAuthenticated()
+            )
+        }
         let resolved = MainChatRustTransportSupport.resolveTransportConfig(
             selectedProviderId: providerRegistry.selectedProviderId,
             fallbackSelectedProviderId: providerRegistry.selectedProviderId,
@@ -64,7 +70,11 @@ extension ChatPanelView {
             shouldRunPlanInline: false,
             forcePlanInline: false,
             preferCodeReviewRuntimeProvider: nil,
-            config: baseConfig
+            config: baseConfig,
+            registryProviders: registryEntries,
+            codexCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .codex) : [],
+            claudeCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .claude) : [],
+            geminiCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .gemini) : []
         )
         let resolution = readOnlyPlanProviderResolution(
             baseConfig: baseConfig,

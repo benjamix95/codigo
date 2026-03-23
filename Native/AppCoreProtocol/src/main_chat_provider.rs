@@ -68,6 +68,14 @@ pub struct MainChatCLIAccountSnapshot {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct MainChatRuntimeProviderRegistryEntry {
+    pub id: String,
+    #[serde(default)]
+    pub is_authenticated: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct MainChatProviderSessionConfig {
     pub provider_id: String,
     pub display_name: String,
@@ -136,6 +144,14 @@ pub struct MainChatRuntimeTransportRequest {
     #[serde(default)]
     pub claude_allowed_tools: Vec<String>,
     pub gemini_model_override: String,
+    #[serde(default)]
+    pub registry_providers: Vec<MainChatRuntimeProviderRegistryEntry>,
+    #[serde(default)]
+    pub codex_cli_accounts: Vec<MainChatCLIAccountSnapshot>,
+    #[serde(default)]
+    pub claude_cli_accounts: Vec<MainChatCLIAccountSnapshot>,
+    #[serde(default)]
+    pub gemini_cli_accounts: Vec<MainChatCLIAccountSnapshot>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -157,6 +173,14 @@ pub struct MainChatRuntimeTransportResponse {
     pub claude_allowed_tools: Vec<String>,
     #[serde(default)]
     pub read_only_plan: bool,
+    #[serde(default)]
+    pub is_authenticated: bool,
+    #[serde(default)]
+    pub native_image_attachment: bool,
+    #[serde(default)]
+    pub native_document_attachment: bool,
+    #[serde(default)]
+    pub native_file_attachment: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -273,6 +297,10 @@ impl MainChatRuntimeTransportResponse {
         codex_session_full_access: bool,
         claude_allowed_tools: Vec<String>,
         read_only_plan: bool,
+        is_authenticated: bool,
+        native_image_attachment: bool,
+        native_document_attachment: bool,
+        native_file_attachment: bool,
     ) -> Self {
         Self {
             schema_version: 1,
@@ -287,6 +315,10 @@ impl MainChatRuntimeTransportResponse {
             codex_session_full_access,
             claude_allowed_tools,
             read_only_plan,
+            is_authenticated,
+            native_image_attachment,
+            native_document_attachment,
+            native_file_attachment,
         }
     }
 
@@ -307,6 +339,10 @@ impl MainChatRuntimeTransportResponse {
             codex_session_full_access: false,
             claude_allowed_tools: Vec::new(),
             read_only_plan: false,
+            is_authenticated: false,
+            native_image_attachment: false,
+            native_document_attachment: false,
+            native_file_attachment: false,
         }
     }
 }

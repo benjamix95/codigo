@@ -1,0 +1,41 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: dopo la `runtime transport resolution` Rust, Swift ricomponeva ancora localmente `authenticated` e `attachmentCapabilities` del provider main chat.
+- Sintomo:
+  - `ChatPanelView+PartN_RuntimeTransportSelection.swift` combinava `providerRegistry`, snapshot CLI e `MainChatProviderBridgeSupport.attachmentCapabilities(...)` per decidere il transport finale;
+  - il response Rust non esponeva direttamente il risultato finale di auth/capability shaping.
+- Impatto: il core Rust decideva il provider e parte della policy runtime, ma Swift manteneva ancora una seconda ownership sul transport finale della main chat.
+- Gravità: media
+- Steps to reproduce:
+  1. Ispezionare `resolveMainChatTransportProvider(...)`.
+  2. Verificare che `authenticated` e `attachmentCapabilities` vengano derivati lato Swift anche dopo `resolveTransportConfig(...)`.
+  3. Eseguire i test `RustMainChatProviderFactoryTests`.
+- Risultato attuale: il transport main chat dipendeva ancora da shaping host-side locale per auth/capability.
+- Risultato atteso: il response Rust del transport deve restituire già `isAuthenticated` e `attachmentCapabilities`, con Swift limitato a usare il risultato.
+- Causa probabile: il cutover Rust del dominio provider/runtime si era fermato alla sola risoluzione `providerId/backend/model`, lasciando il post-resolution shaping nel binding Swift.
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_provider.rs`
+  - `Native/RustCore/src/main_chat/providers/runtime_transport.rs`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/MainChatProviderBridgeModels.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatProviderFactory.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/ChatPanelView+PartN_RuntimeTransportSelection.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Runtime/ChatPanelView+PartN_RuntimeProvider.swift`
+- Non-scope:
+  - `ToolEnabledLLMProvider`
+  - `UnifiedToolRuntime`
+  - keychain/env/path host-side
+  - costruzione concreta degli oggetti provider
+- Moduli confinanti da verificare:
+  - `RustMainChatProviderFactoryTests`
+  - `ThreadProviderSelectionServiceTests`
+- Test da aggiungere o aggiornare:
+  - regression sulla capability/auth shaping del response Rust
+  - regression su fallback autenticato da CLI account snapshots
+- Strategia di fix minimo:
+  - estendere request/response del transport con registry auth state e snapshot CLI minimi
+  - calcolare `isAuthenticated` e `attachmentCapabilities` nel core Rust
+  - consumare quei campi direttamente nel binding Swift
+- Verifica post-fix:
+  - `cargo build --manifest-path Native/RustCore/Cargo.toml`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests -only-testing:SoloCodeAppTests/ThreadProviderSelectionServiceTests`
+- Commit previsto: `refactor(chat): move transport auth and capabilities into rust`

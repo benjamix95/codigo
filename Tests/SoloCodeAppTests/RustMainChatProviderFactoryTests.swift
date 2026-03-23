@@ -58,7 +58,7 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(payload["input_tokens"], "12")
     }
 
-    func testCLIAccountSnapshotsCanAuthenticateRustTransportWithoutLegacyAdapter() {
+    func testRuntimeTransportResolutionCanMarkCodexAuthenticatedFromCLIAccounts() {
         let cliAccounts = [
             MainChatCLIAccountSnapshotBridge(
                 id: UUID().uuidString,
@@ -75,13 +75,27 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
                 updatedAt: nil
             )
         ]
-
-        XCTAssertTrue(
-            MainChatRustTransportSupport.isAuthenticated(
-                baseAuthenticated: false,
-                cliAccounts: cliAccounts
+        let registryProviders = [
+            MainChatRuntimeProviderRegistryEntryBridge(
+                id: "codex-cli",
+                isAuthenticated: false
             )
+        ]
+        let config = makeProviderFactoryConfig(codexPath: "")
+        let resolved = MainChatRustTransportSupport.resolveTransportConfig(
+            selectedProviderId: "codex-cli",
+            fallbackSelectedProviderId: "codex-cli",
+            coderMode: .agent,
+            shouldRunPlanInline: false,
+            forcePlanInline: false,
+            preferCodeReviewRuntimeProvider: nil,
+            config: config,
+            registryProviders: registryProviders,
+            codexCLIAccounts: cliAccounts
         )
+
+        XCTAssertTrue(resolved?.isAuthenticated ?? false)
+        XCTAssertEqual(resolved?.attachmentCapabilities, .init(nativeImage: true, nativeDocument: false, nativeFile: false))
     }
 
     func testProviderFactoryConfigResolvesDetectedCodexPathForRustTransport() {
@@ -118,7 +132,13 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             shouldRunPlanInline: false,
             forcePlanInline: false,
             preferCodeReviewRuntimeProvider: nil,
-            config: config
+            config: config,
+            registryProviders: [
+                MainChatRuntimeProviderRegistryEntryBridge(
+                    id: "codex-cli",
+                    isAuthenticated: true
+                )
+            ]
         )
 
         XCTAssertEqual(resolved?.providerId, "codex-cli")
@@ -126,6 +146,8 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(resolved?.codexSandbox, "workspace-read")
         XCTAssertFalse(resolved?.codexSessionFullAccess ?? true)
         XCTAssertEqual(resolved?.claudeAllowedTools, ["Read", "Glob", "Grep"])
+        XCTAssertTrue(resolved?.isAuthenticated ?? false)
+        XCTAssertEqual(resolved?.attachmentCapabilities, .init(nativeImage: true, nativeDocument: false, nativeFile: false))
     }
 
     func testReadOnlyPlanProviderResolutionPrefersRustResolvedBackendAndConfig() {
@@ -140,7 +162,9 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             extraHeaders: [:],
             codexSandbox: "workspace-read",
             codexSessionFullAccess: false,
-            claudeAllowedTools: ["Read", "Glob", "Grep"]
+            claudeAllowedTools: ["Read", "Glob", "Grep"],
+            isAuthenticated: true,
+            attachmentCapabilities: .init(nativeImage: true, nativeDocument: false, nativeFile: false)
         )
 
         let resolution = readOnlyPlanProviderResolution(

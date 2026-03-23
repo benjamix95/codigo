@@ -13,6 +13,12 @@ extension ChatPanelView {
         }
 
         let cfg = providerFactoryConfig()
+        let registryEntries = providerRegistry.providers.map {
+            MainChatRuntimeProviderRegistryEntryBridge(
+                id: $0.id,
+                isAuthenticated: $0.isAuthenticated()
+            )
+        }
 
         if MainChatRustTransportSupport.shouldBypassRustTransport(
             selectedProviderId: providerRegistry.selectedProviderId,
@@ -29,7 +35,11 @@ extension ChatPanelView {
             shouldRunPlanInline: shouldRunPlanInline,
             forcePlanInline: forcePlanInline,
             preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider,
-            config: cfg
+            config: cfg,
+            registryProviders: registryEntries,
+            codexCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .codex) : [],
+            claudeCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .claude) : [],
+            geminiCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .gemini) : []
         )
 
         guard let resolved else {
@@ -39,26 +49,15 @@ extension ChatPanelView {
         let runtimeProvider = providerRegistry.provider(for: resolved.providerId)
 
         let displayName = runtimeProvider?.displayName ?? selectedProvider.displayName
-        let attachmentCapabilities =
-            runtimeProvider?.attachmentCapabilities
-            ?? MainChatProviderBridgeSupport.attachmentCapabilities(for: resolved.providerId)
-
-        let baseAuthenticated = runtimeProvider?.isAuthenticated() ?? selectedProvider.isAuthenticated()
-
         let cliAccounts = multiCLIAccountEnabled
             ? CLIProviderKind.fromProviderId(resolved.providerId).map(cliAccountSnapshots(for:)) ?? []
             : []
 
-        let authenticated = MainChatRustTransportSupport.isAuthenticated(
-            baseAuthenticated: baseAuthenticated,
-            cliAccounts: cliAccounts
-        )
-
         let provider = MainChatRustTransportProvider(
             id: resolved.providerId,
             displayName: displayName,
-            attachmentCapabilities: attachmentCapabilities,
-            authenticated: authenticated,
+            attachmentCapabilities: resolved.attachmentCapabilities,
+            authenticated: resolved.isAuthenticated,
             config: MainChatProviderSessionConfigBridge(
                 providerId: resolved.providerId,
                 displayName: displayName,

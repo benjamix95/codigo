@@ -1,5 +1,6 @@
 use app_core_protocol::main_chat_provider::{
-    MainChatProviderBackend, MainChatRuntimeTransportRequest, MainChatRuntimeTransportResponse,
+    MainChatCLIAccountSnapshot, MainChatProviderBackend, MainChatRuntimeTransportRequest,
+    MainChatRuntimeTransportResponse,
 };
 use std::collections::BTreeMap;
 
@@ -84,6 +85,9 @@ pub fn resolve_runtime_transport(
             Some("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".to_string()),
         ),
     };
+    let is_authenticated = resolve_transport_authentication(&provider_id, &request);
+    let (native_image_attachment, native_document_attachment, native_file_attachment) =
+        attachment_capabilities(&provider_id);
 
     MainChatRuntimeTransportResponse::success(
         provider_id,
@@ -96,6 +100,10 @@ pub fn resolve_runtime_transport(
         codex_session_full_access,
         claude_allowed_tools,
         read_only_plan,
+        is_authenticated,
+        native_image_attachment,
+        native_document_attachment,
+        native_file_attachment,
     )
 }
 
@@ -196,12 +204,49 @@ fn normalized_mode(raw: Option<&str>) -> String {
         .to_lowercase()
 }
 
+fn resolve_transport_authentication(
+    provider_id: &str,
+    request: &MainChatRuntimeTransportRequest,
+) -> bool {
+    let base_authenticated = request
+        .registry_providers
+        .iter()
+        .find(|provider| provider.id == provider_id)
+        .map(|provider| provider.is_authenticated)
+        .unwrap_or(false);
+    if base_authenticated {
+        return true;
+    }
+    match normalized_backend_id(provider_id).as_str() {
+        "codex" | "codex-cli" => has_authenticated_cli_account(&request.codex_cli_accounts),
+        "claude" | "claude-cli" => has_authenticated_cli_account(&request.claude_cli_accounts),
+        "gemini" | "gemini-cli" => has_authenticated_cli_account(&request.gemini_cli_accounts),
+        _ => false,
+    }
+}
+
+fn has_authenticated_cli_account(accounts: &[MainChatCLIAccountSnapshot]) -> bool {
+    accounts
+        .iter()
+        .any(|account| account.is_enabled && account.is_authenticated)
+}
+
+fn attachment_capabilities(provider_id: &str) -> (bool, bool, bool) {
+    match normalized_backend_id(provider_id).as_str() {
+        "codex" | "codex-cli" | "claude" | "claude-cli" | "openai" | "openai-api"
+        | "anthropic-api" => (true, false, false),
+        _ => (false, false, false),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::resolve_runtime_transport;
     use app_core_protocol::main_chat_provider::{
-        MainChatProviderBackend, MainChatRuntimeTransportRequest,
+        MainChatCLIAccountSnapshot, MainChatProviderBackend,
+        MainChatRuntimeProviderRegistryEntry, MainChatRuntimeTransportRequest,
     };
+    use std::collections::BTreeMap;
 
     #[test]
     fn read_only_plan_uses_plan_backend_and_locked_permissions() {
@@ -218,6 +263,10 @@ mod tests {
         assert_eq!(response.codex_sandbox.as_deref(), Some("workspace-read"));
         assert!(!response.codex_session_full_access);
         assert_eq!(response.claude_allowed_tools, vec!["Read", "Glob", "Grep"]);
+        assert!(response.is_authenticated);
+        assert!(response.native_image_attachment);
+        assert!(!response.native_document_attachment);
+        assert!(!response.native_file_attachment);
     }
 
     #[test]
@@ -232,6 +281,18 @@ mod tests {
         assert_eq!(response.provider_id.as_deref(), Some("claude-cli"));
         assert_eq!(response.backend, Some(MainChatProviderBackend::ClaudeCli));
         assert_eq!(response.model.as_deref(), Some("claude-3"));
+        assert!(response.is_authenticated);
+    }
+
+    #[test]
+    fn cli_account_authentication_can_mark_transport_authenticated() {
+        let mut request = request("codex-cli", Some("codex-cli"), false, false, None);
+        request.registry_providers = vec![registry_provider("codex-cli", false)];
+        request.codex_cli_accounts = vec![cli_account(true, true)];
+
+        let response = resolve_runtime_transport(request);
+        assert_eq!(response.provider_id.as_deref(), Some("codex-cli"));
+        assert!(response.is_authenticated);
     }
 
     #[test]
@@ -277,6 +338,38 @@ mod tests {
             claude_model: "claude-3".to_string(),
             claude_allowed_tools: vec!["Read".to_string(), "Edit".to_string()],
             gemini_model_override: "gemini-2.5".to_string(),
+            registry_providers: vec![
+                registry_provider("codex-cli", true),
+                registry_provider("claude-cli", true),
+                registry_provider("openai-api", true),
+            ],
+            codex_cli_accounts: Vec::new(),
+            claude_cli_accounts: Vec::new(),
+            gemini_cli_accounts: Vec::new(),
+        }
+    }
+
+    fn registry_provider(id: &str, is_authenticated: bool) -> MainChatRuntimeProviderRegistryEntry {
+        MainChatRuntimeProviderRegistryEntry {
+            id: id.to_string(),
+            is_authenticated,
+        }
+    }
+
+    fn cli_account(is_enabled: bool, is_authenticated: bool) -> MainChatCLIAccountSnapshot {
+        MainChatCLIAccountSnapshot {
+            id: "account-1".to_string(),
+            provider: "codex".to_string(),
+            label: "Primary".to_string(),
+            is_enabled,
+            is_authenticated,
+            priority: 0,
+            profile_path: "/tmp/profile".to_string(),
+            env_overrides: BTreeMap::new(),
+            quota: Default::default(),
+            health: Default::default(),
+            created_at: None,
+            updated_at: None,
         }
     }
 }

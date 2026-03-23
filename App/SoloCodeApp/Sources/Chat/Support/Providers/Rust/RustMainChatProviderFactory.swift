@@ -134,6 +134,8 @@ struct MainChatRustResolvedProviderConfig {
     let codexSandbox: String?
     let codexSessionFullAccess: Bool
     let claudeAllowedTools: [String]
+    let isAuthenticated: Bool
+    let attachmentCapabilities: ProviderAttachmentCapabilities
 }
 
 enum MainChatRustTransportSupport {
@@ -154,7 +156,11 @@ enum MainChatRustTransportSupport {
         shouldRunPlanInline: Bool,
         forcePlanInline: Bool,
         preferCodeReviewRuntimeProvider: Bool?,
-        config: ProviderFactoryConfig
+        config: ProviderFactoryConfig,
+        registryProviders: [MainChatRuntimeProviderRegistryEntryBridge] = [],
+        codexCLIAccounts: [MainChatCLIAccountSnapshotBridge] = [],
+        claudeCLIAccounts: [MainChatCLIAccountSnapshotBridge] = [],
+        geminiCLIAccounts: [MainChatCLIAccountSnapshotBridge] = []
     ) -> MainChatRustResolvedProviderConfig? {
         let request = MainChatRuntimeTransportRequestBridge(
             schemaVersion: 1,
@@ -177,7 +183,11 @@ enum MainChatRustTransportSupport {
             codexSessionFullAccess: config.codexSessionFullAccess,
             claudeModel: config.claudeModel,
             claudeAllowedTools: config.claudeAllowedTools,
-            geminiModelOverride: config.geminiModelOverride
+            geminiModelOverride: config.geminiModelOverride,
+            registryProviders: registryProviders,
+            codexCliAccounts: codexCLIAccounts,
+            claudeCliAccounts: claudeCLIAccounts,
+            geminiCliAccounts: geminiCLIAccounts
         )
         guard let response: MainChatRuntimeTransportResponseBridge = ReviewCoreBridge.call(
             functionName: "chat_core_provider_resolve_transport",
@@ -197,7 +207,13 @@ enum MainChatRustTransportSupport {
             extraHeaders: response.extraHeaders,
             codexSandbox: response.codexSandbox,
             codexSessionFullAccess: response.codexSessionFullAccess,
-            claudeAllowedTools: response.claudeAllowedTools
+            claudeAllowedTools: response.claudeAllowedTools,
+            isAuthenticated: response.isAuthenticated,
+            attachmentCapabilities: ProviderAttachmentCapabilities(
+                nativeImage: response.nativeImageAttachment,
+                nativeDocument: response.nativeDocumentAttachment,
+                nativeFile: response.nativeFileAttachment
+            )
         )
     }
 
