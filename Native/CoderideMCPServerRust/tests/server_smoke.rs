@@ -46,6 +46,29 @@ fn initialize_and_list_tools_work() {
     let tools = listed["result"]["tools"].as_array().expect("tools array");
     assert!(tools.iter().any(|tool| tool["name"] == "coderide_read"));
     assert!(tools.iter().any(|tool| tool["name"] == "coderide_todo_read"));
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "resources/list"
+        }),
+    );
+    let resources = read_message(&mut child);
+    assert_eq!(resources["result"]["resources"], json!([]));
+
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "resources/templates/list"
+        }),
+    );
+    let templates = read_message(&mut child);
+    assert_eq!(templates["result"]["resourceTemplates"], json!([]));
+
     terminate(child);
 }
 

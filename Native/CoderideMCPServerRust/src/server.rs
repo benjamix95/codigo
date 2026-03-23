@@ -4,8 +4,8 @@ use app_core_protocol::jsonrpc::{
     JsonRpcErrorResponse, JsonRpcId, JsonRpcInbound, JsonRpcResponse,
 };
 use app_core_protocol::mcp::{
-    CallToolResult, InitializeResult, ListToolsResult, MCP_LATEST_PROTOCOL_VERSION, ServerCapabilities,
-    ServerInfo, ToolCallParams, ToolsCapability,
+    CallToolResult, InitializeResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
+    MCP_LATEST_PROTOCOL_VERSION, ServerCapabilities, ServerInfo, ToolCallParams, ToolsCapability,
 };
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
@@ -68,6 +68,20 @@ pub fn run_stdio_server(config: ServerConfig) -> Result<(), String> {
                 "tools/list" => {
                     let result = ListToolsResult {
                         tools: catalog::all_tools(),
+                        next_cursor: None,
+                    };
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
+                }
+                "resources/list" => {
+                    let result = ListResourcesResult {
+                        resources: Vec::new(),
+                        next_cursor: None,
+                    };
+                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
+                }
+                "resources/templates/list" => {
+                    let result = ListResourceTemplatesResult {
+                        resource_templates: Vec::new(),
                         next_cursor: None,
                     };
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
