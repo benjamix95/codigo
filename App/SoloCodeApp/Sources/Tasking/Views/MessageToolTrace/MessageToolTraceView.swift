@@ -176,9 +176,8 @@ struct MessageToolTraceView: View {
     }
 
     func headerTitle(derived: DerivedState) -> String {
-        let count = derived.orderedEvents.count
         if derived.hasRunningEvent {
-            return "\(count) \(pluralized("operazione", count: count, plural: "operazioni")) in corso..."
+            return derived.collapsedSummary
         }
         if !derived.orderedEvents.isEmpty {
             return derived.collapsedSummary

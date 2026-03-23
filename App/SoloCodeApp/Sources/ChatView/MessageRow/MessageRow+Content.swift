@@ -107,7 +107,7 @@ extension MessageRow {
                 let shouldRenderInlineReasoning =
                     ChatReasoningPresentationPolicy.mode(
                         providerId: providerId,
-                        separateCodexThinkingMessagesEnabled: true
+                        separateCodexThinkingMessagesEnabled: false
                     ) == .inline
                 let reasoningBlocks: [ReasoningBlock] = {
                     guard shouldRenderInlineReasoning else { return [] }

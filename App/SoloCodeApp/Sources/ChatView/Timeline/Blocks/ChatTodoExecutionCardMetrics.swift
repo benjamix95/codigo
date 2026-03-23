@@ -22,6 +22,6 @@ struct ChatTodoExecutionCardMetrics: Equatable {
     }
 
     static func shouldStartExpanded(items: [TodoItem]) -> Bool {
-        items.contains { $0.status == .inProgress || $0.status == .blocked }
+        false
     }
 }

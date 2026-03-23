@@ -12,6 +12,26 @@ final class ChatReasoningStreamReducerTests: XCTestCase {
         )
     }
 
+    func testAllProvidersUseInlineReasoningPresentationInMainChat() {
+        let providerIds = [
+            "codex-cli",
+            "claude-cli",
+            "gemini-cli",
+            "openai-api",
+        ]
+
+        for providerId in providerIds {
+            XCTAssertEqual(
+                ChatReasoningPresentationPolicy.mode(
+                    providerId: providerId,
+                    separateCodexThinkingMessagesEnabled: false
+                ),
+                .inline,
+                "Expected \(providerId) to render reasoning inline in main chat"
+            )
+        }
+    }
+
     func testReducerMergesChunksIntoSingleReasoningBlock() {
         let initial = ChatReasoningStreamReducer.State(
             blocks: [],

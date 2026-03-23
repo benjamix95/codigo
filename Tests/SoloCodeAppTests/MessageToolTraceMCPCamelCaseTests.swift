@@ -131,7 +131,7 @@ final class MessageToolTraceMCPCamelCaseTests: XCTestCase {
         XCTAssertEqual(identity.symbolName, "folder")
     }
 
-    func testHeaderTitleUsesItalianRunningCopy() {
+    func testHeaderTitleUsesCollapsedSummaryWhileRunning() {
         let event = makeEvent(
             sequence: 10,
             type: "mcp_tool_call",
@@ -146,7 +146,7 @@ final class MessageToolTraceMCPCamelCaseTests: XCTestCase {
             collapser: ToolTraceEventCollapser.collapseSupersededToolStates
         )
 
-        XCTAssertEqual(view.headerTitle(derived: derived), "1 operazione in corso...")
+        XCTAssertEqual(view.headerTitle(derived: derived), "1 file letto · read")
     }
 
     private func makeView(events: [ToolTraceEvent] = []) -> MessageToolTraceView {

@@ -76,6 +76,23 @@ final class ToolTraceVisibilityTests: XCTestCase {
         XCTAssertFalse(ToolTraceVisibility.shouldDisplay(event: event))
     }
 
+    func testNamespacedInternalMCPToolCallIsNotIncludedOrDisplayed() {
+        let activity = TaskActivity(
+            type: "mcp_tool_call",
+            title: "MCP debug activation",
+            payload: [
+                "mcp_tool": "functions.coderide_activate_debug_mode",
+                "is_mcp": "true",
+            ],
+            phase: .executing,
+            isRunning: true
+        )
+        XCTAssertFalse(ToolTraceVisibility.shouldInclude(activity: activity))
+
+        let event = makeEvent(type: "mcp_tool_call", payload: activity.payload)
+        XCTAssertFalse(ToolTraceVisibility.shouldDisplay(event: event))
+    }
+
     func testRequiresPolicyAckForOperationalEvents() {
         XCTAssertTrue(
             ToolTraceVisibility.requiresPolicyAck(

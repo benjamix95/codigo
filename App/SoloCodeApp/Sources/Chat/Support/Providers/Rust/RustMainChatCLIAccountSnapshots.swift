@@ -107,29 +107,11 @@ enum ChatReasoningPresentationPolicy {
         providerId: String,
         separateCodexThinkingMessagesEnabled: Bool
     ) -> ChatReasoningPresentationMode {
-        let response: MainChatReasoningResponseBridge? = ReviewCoreBridge.call(
-            functionName: "chat_core_reasoning_handle",
-            request: MainChatReasoningRequestBridge(
-                schemaVersion: 1,
-                operation: "presentation_mode",
-                providerId: providerId,
-                separateCodexThinkingMessagesEnabled: separateCodexThinkingMessagesEnabled,
-                eventConversationId: nil,
-                selectedConversationId: nil,
-                output: nil,
-                groupId: nil,
-                state: nil,
-                sequentialStreamingLayoutEnabled: nil,
-                streamingSegmentTurnIndex: nil
-            )
-        )
-        if let mode = response?.presentationMode.flatMap(ChatReasoningPresentationMode.init(rawValue:)) {
-            return mode
-        }
-        guard shouldAllowSwiftReasoningFallback(environment: ProcessInfo.processInfo.environment) else {
-            return providerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .inline : .separateMessages
-        }
-        return providerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .inline : .separateMessages
+        _ = providerId
+        _ = separateCodexThinkingMessagesEnabled
+        // Main chat reasoning must remain provider-agnostic so Codex uses the
+        // same inline presentation grammar as the other providers.
+        return .inline
     }
 }
 

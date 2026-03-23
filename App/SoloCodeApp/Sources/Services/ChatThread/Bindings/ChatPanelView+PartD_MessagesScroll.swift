@@ -186,6 +186,10 @@ extension ChatPanelView {
                             showTopDivider: needsDivider
                         )
                     } else {
+                        let shouldShowTodoCardInTurn =
+                            shouldShowPlanTodosInChat
+                            && !todoStore.displayTodosForChat(for: conversationId).isEmpty
+                            && message.id == todoCardAssistantMessageId
                         let liveInlineActivities: [TaskActivity] = {
                             guard isLastAssistant, isLoadingForCurrentConversation else { return [] }
                             return scopedTaskActivities(for: conversationId).filter { activity in
@@ -201,6 +205,13 @@ extension ChatPanelView {
                                     return false
                                 }
                                 if activity.type == "todo_write" || activity.type == "todo_read" {
+                                    return false
+                                }
+                                guard shouldShowOperationEventInLinearChat(
+                                    eventType: activity.type,
+                                    payload: activity.payload,
+                                    showTodoCard: shouldShowTodoCardInTurn
+                                ) else {
                                     return false
                                 }
                                 return true
@@ -239,9 +250,7 @@ extension ChatPanelView {
                             liveSubagentCards: liveSubagentCards,
                             todoStore: todoStore,
                             conversationId: conversationId,
-                            shouldShowTodo: shouldShowPlanTodosInChat
-                                && !todoStore.displayTodosForChat(for: conversationId).isEmpty
-                                && message.id == todoCardAssistantMessageId,
+                            shouldShowTodo: shouldShowTodoCardInTurn,
                             onFileClicked: { openFilesStore.openFile($0) },
                             onReviewChanges: {
                                 gitPanelStore.isOpen = true

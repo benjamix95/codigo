@@ -316,4 +316,31 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
     }
 
+    func testLinearChatHidesNamespacedInternalMCPCalls() {
+        XCTAssertFalse(
+            shouldShowOperationEventInLinearChat(
+                eventType: "mcp_tool_call",
+                payload: ["mcp_tool": "functions.coderide_policy_ack", "is_mcp": "true"],
+                showTodoCard: false
+            )
+        )
+        XCTAssertFalse(
+            shouldShowOperationEventInLinearChat(
+                eventType: "mcp_tool_call",
+                payload: ["mcp_tool": "functions.coderide_activate_debug_mode", "is_mcp": "true"],
+                showTodoCard: false
+            )
+        )
+    }
+
+    func testLinearChatKeepsRealMCPCallsVisibleInCompactTrace() {
+        XCTAssertTrue(
+            shouldShowOperationEventInLinearChat(
+                eventType: "mcp_tool_call",
+                payload: ["mcp_tool": "coderide_read", "path": "README.md", "is_mcp": "true"],
+                showTodoCard: false
+            )
+        )
+    }
+
 }

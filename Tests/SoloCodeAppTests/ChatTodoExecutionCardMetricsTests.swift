@@ -48,15 +48,29 @@ final class ChatTodoExecutionCardMetricsTests: XCTestCase {
         XCTAssertEqual(metrics.linesRemoved, 10)
     }
 
-    func testShouldStartExpandedWhenActiveTodoExists() {
-        XCTAssertTrue(
+    func testShouldStartExpandedAlwaysStartsCollapsed() {
+        XCTAssertFalse(
             ChatTodoExecutionCardMetrics.shouldStartExpanded(
                 items: [TodoItem(title: "In corso", status: .inProgress)]
             )
         )
         XCTAssertFalse(
             ChatTodoExecutionCardMetrics.shouldStartExpanded(
+                items: [TodoItem(title: "Bloccato", status: .blocked)]
+            )
+        )
+        XCTAssertFalse(
+            ChatTodoExecutionCardMetrics.shouldStartExpanded(
                 items: [TodoItem(title: "Fatto", status: .done)]
+            )
+        )
+        XCTAssertFalse(
+            ChatTodoExecutionCardMetrics.shouldStartExpanded(
+                items: [
+                    TodoItem(title: "Analizza", status: .inProgress),
+                    TodoItem(title: "Blocco", status: .blocked),
+                    TodoItem(title: "Chiudi", status: .done),
+                ]
             )
         )
     }

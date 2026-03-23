@@ -64,7 +64,7 @@ final class MessageToolTraceToolIdentityTests: XCTestCase {
         XCTAssertEqual(identity.symbolName, "folder")
     }
 
-    func testHeaderTitleUsesItalianRunningCopy() {
+    func testHeaderTitleUsesCollapsedSummaryWhileRunning() {
         let event = makeEvent(
             sequence: 1,
             type: "mcp_tool_call",
@@ -79,7 +79,7 @@ final class MessageToolTraceToolIdentityTests: XCTestCase {
             collapser: ToolTraceEventCollapser.collapseSupersededToolStates
         )
 
-        XCTAssertEqual(view.headerTitle(derived: derived), "1 operazione in corso...")
+        XCTAssertEqual(view.headerTitle(derived: derived), "1 file letto · read")
     }
 
     private func makeEvent(

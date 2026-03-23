@@ -194,12 +194,22 @@ enum ToolTraceVisibility {
     }
 
     private static func isSuppressedMCPTool(payload: [String: String]) -> Bool {
-        let tool = normalizedType(
+        let rawTool = normalizedType(
             payload["mcp_tool"]
                 ?? payload["mcpTool"]
                 ?? payload["tool"]
                 ?? ""
         )
+        let namespacedPrefixes = [
+            "functions.",
+            "function.",
+            "web.",
+            "commentary.",
+            "analysis.",
+        ]
+        let tool = namespacedPrefixes.first(where: { rawTool.hasPrefix($0) })
+            .map { prefix in String(rawTool.dropFirst(prefix.count)) }
+            ?? rawTool
         return tool == "coderide_policy_ack"
             || tool == "policy_ack"
             || tool == "coderide_activate_plan_mode"

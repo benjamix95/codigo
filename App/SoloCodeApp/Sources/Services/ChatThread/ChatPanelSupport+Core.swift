@@ -432,9 +432,7 @@ func shouldShowOperationEventInLinearChat(
         return false
     }
     if type == "mcp_tool_call" {
-        let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+        let tool = normalizedTodoPolicyToolName(type: type, payload: payload)
         if tool == "coderide_policy_ack" || tool == "policy_ack" {
             return false
         }

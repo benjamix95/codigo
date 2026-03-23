@@ -42,15 +42,14 @@ fn response_codex(provider_id: &str) -> MainChatReasoningResponse {
 }
 
 fn response_mode(
-    provider_id: &str,
-    _separate_codex_thinking_messages_enabled: bool,
+    _provider_id: &str,
+    separate_codex_thinking_messages_enabled: bool,
 ) -> MainChatReasoningResponse {
-    let normalized_provider = provider_id.trim();
     MainChatReasoningResponse {
         schema_version: 1,
         error: None,
         presentation_mode: Some(
-            if !normalized_provider.is_empty() {
+            if separate_codex_thinking_messages_enabled {
                 "separateMessages"
             } else {
                 "inline"
@@ -191,8 +190,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn providers_default_to_separate_messages_mode_when_reasoning_exists() {
+    fn providers_default_to_inline_mode_when_separate_messages_are_disabled() {
         let response = response_mode("codex-cli", false);
+        assert_eq!(response.presentation_mode.as_deref(), Some("inline"));
+    }
+
+    #[test]
+    fn providers_can_still_opt_into_separate_messages_mode() {
+        let response = response_mode("codex-cli", true);
         assert_eq!(response.presentation_mode.as_deref(), Some("separateMessages"));
     }
 

@@ -1,0 +1,66 @@
+# P2 - Il main chat mostrava ancora layout Codex espanso e dettagli tecnici rumorosi durante l'esecuzione
+
+## Bug Fix Record
+- Categoria: B - Importante ma non bloccante
+- Bug: durante i task `running` il main chat continuava a mostrare la checklist todo in forma espansa, piu' eventi MCP interni rumorosi per Codex rispetto agli altri provider.
+- Sintomo:
+  - la card `X su Y attivita' completate` partiva grande fin dal primo `todo_write` con item `inProgress` o `blocked`
+  - nel feed live del main chat comparivano ancora tool interni namespaced come `functions.coderide_policy_ack` o `functions.coderide_activate_debug_mode`
+  - il reasoning del main chat restava dipendente dal provider e poteva divergere tra Codex e gli altri backend
+  - la testata della trace durante `running` mostrava copy diverso rispetto al riepilogo compatto finale
+- Impatto: UX incoerente tra stato `running` e stato finale; Codex appariva piu' rumoroso e con layout differente nel main chat rispetto agli altri provider.
+- Gravita': P2
+- Steps to reproduce:
+  1. Avviare un task agent multi-step con Codex e almeno un `todo_write` che porti un item in `inProgress`.
+  2. Far emettere tool call MCP interni o namespaced prima della conclusione del turn.
+  3. Osservare la card TODO espansa e il feed live con dettagli tecnici non uniformi.
+- Risultato attuale:
+  - la card TODO veniva auto-espansa per stati attivi
+  - il feed live del main chat non riusava la stessa regola di visibilita' del trace finale
+  - la presentation policy del reasoning restava ancora provider-specifica nel main chat
+- Risultato atteso:
+  - la card TODO deve restare compatta sia durante `running` sia a task concluso
+  - il main chat deve nascondere i tool MCP interni anche durante `running`, come gia' avviene nel trace finale
+  - il reasoning del main chat deve restare inline e uniforme per tutti i provider
+  - il riepilogo trace durante `running` deve usare lo stesso summary compatto del post-task
+- Causa probabile:
+  - `ChatTodoExecutionCardMetrics.shouldStartExpanded(...)` apriva automaticamente la checklist per item attivi
+  - il feed live del main chat filtrava le activity con `TaskActivityStore.isConcreteVisibleEvent(...)`, ma non riusava `shouldShowOperationEventInLinearChat(...)`
+  - il filtro dei tool MCP interni non normalizzava i prefissi namespaced (`functions.` ecc.)
+  - la policy Rust/Swift del reasoning nel main chat non era davvero provider-agnostic
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/ChatView/Timeline/Blocks/ChatTodoExecutionCardMetrics.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/ChatPanelView+PartD_MessagesScroll.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift`
+  - `App/SoloCodeApp/Sources/Tasking/ToolTraceVisibility.swift`
+  - `App/SoloCodeApp/Sources/Tasking/Views/MessageToolTrace/MessageToolTraceView.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatCLIAccountSnapshots.swift`
+  - `Native/RustCore/src/main_chat/reasoning_stream.rs`
+  - test e documentazione collegati
+- Non-scope:
+  - swarm panel
+  - review panel
+  - debug panel
+  - semantica backend degli eventi oltre alla policy di presentation del main chat
+- Moduli confinanti da verificare:
+  - `MessageRow+Content`
+  - `ChatTodoVisibilityTests`
+  - `ToolTraceVisibilityTests`
+  - `MessageToolTrace*Tests`
+- Test da aggiungere o aggiornare:
+  - `ChatTodoExecutionCardMetricsTests`
+  - `ChatReasoningStreamReducerTests`
+  - `ChatTodoVisibilityTests`
+  - `ToolTraceVisibilityTests`
+  - `MessageToolTraceToolIdentityTests`
+  - `MessageToolTraceMCPCamelCaseTests`
+- Strategia di fix minimo:
+  - disattivare l'auto-expand iniziale della card TODO
+  - riusare nel feed live del main chat la stessa policy di visibilita' del trace lineare
+  - normalizzare i nomi tool namespaced prima di filtrare `policy_ack` e activation tool interni
+  - rendere inline la presentation policy del reasoning nel main chat quando `separateCodexThinkingMessagesEnabled` e' disabilitato
+  - usare il riepilogo compatto anche nel titolo della trace durante `running`
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatTodoExecutionCardMetricsTests -only-testing:SoloCodeAppTests/ChatReasoningStreamReducerTests -only-testing:SoloCodeAppTests/ChatTodoVisibilityTests -only-testing:SoloCodeAppTests/ToolTraceVisibilityTests -only-testing:SoloCodeAppTests/MessageToolTraceToolIdentityTests -only-testing:SoloCodeAppTests/MessageToolTraceMCPCamelCaseTests CODE_SIGNING_ALLOWED=NO` -> OK
+- Commit previsto:
+  - `fix(chat): keep running task cards compact and provider-neutral`
