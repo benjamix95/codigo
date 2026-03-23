@@ -5,8 +5,10 @@ func shouldShowLiveTodoCardInChat(
     hasLiveSwarmCards: Bool,
     hasPipelineProgress: Bool
 ) -> Bool {
+    _ = hasSwarmSteps
+    _ = hasLiveSwarmCards
     _ = hasPipelineProgress
-    return !(hasSwarmSteps || hasLiveSwarmCards)
+    return true
 }
 
 func resolveTodoCardAssistantMessageId(

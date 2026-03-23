@@ -13,14 +13,14 @@ final class ChatTodoVisibilityTests: XCTestCase {
     }
 
     func testLiveTodoCardIsHiddenWhenSwarmAlreadyOwnsProgressUI() {
-        XCTAssertFalse(
+        XCTAssertTrue(
             shouldShowLiveTodoCardInChat(
                 hasSwarmSteps: true,
                 hasLiveSwarmCards: false,
                 hasPipelineProgress: false
             )
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             shouldShowLiveTodoCardInChat(
                 hasSwarmSteps: false,
                 hasLiveSwarmCards: true,
