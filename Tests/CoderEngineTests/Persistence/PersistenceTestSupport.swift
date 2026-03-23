@@ -27,6 +27,8 @@ enum PersistenceTestSupport {
 
     static func resetPersistenceEnvironment() {
         let temporaryRoot = temporaryRootDirectory()
+        PersistenceBootstrapService.shared.resetCachedStateForTests()
+        PostgresPersistenceStore.shared.resetCachedStateForTests()
         try? ManagedPostgresService.shared.shutdownIfRunning()
         try? FileManager.default.removeItem(at: temporaryRoot)
         unsetenv("SOLOCODE_POSTGRES_ROOT_DIRECTORY")

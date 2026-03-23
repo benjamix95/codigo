@@ -93,4 +93,29 @@ final class PersistenceSchemaTests: XCTestCase {
             configuration.rootDirectory.path.contains("Library/Application Support/CoderIDE/postgres")
         )
     }
+
+    func testReadyStateReuseWindowOnlySkipsImmediateRepeatedBootstrap() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let recent = now.addingTimeInterval(-0.5)
+        let stale = now.addingTimeInterval(-3.0)
+
+        XCTAssertTrue(
+            PostgresPersistenceStore.shouldReuseReadyState(
+                lastReadyAt: recent,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            PostgresPersistenceStore.shouldReuseReadyState(
+                lastReadyAt: stale,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            PostgresPersistenceStore.shouldReuseReadyState(
+                lastReadyAt: nil,
+                now: now
+            )
+        )
+    }
 }

@@ -2,16 +2,28 @@ import Foundation
 
 public final class PostgresPersistenceStore {
     public static let shared = PostgresPersistenceStore()
+    static let readyReuseWindow: TimeInterval = 2.0
 
     private let queue = DispatchQueue(label: "CoderEngine.Persistence.Store")
     private let postgresService: ManagedPostgresService
+    private var lastReadyAt: Date?
 
     public init(postgresService: ManagedPostgresService = .shared) {
         self.postgresService = postgresService
     }
 
+    func resetCachedStateForTests() {
+        queue.sync {
+            lastReadyAt = nil
+        }
+    }
+
     public func ensureReady() throws {
         try queue.sync {
+            let now = Date()
+            if Self.shouldReuseReadyState(lastReadyAt: lastReadyAt, now: now) {
+                return
+            }
             _ = try postgresService.bootstrapIfNeeded()
             let currentVersion = try schemaVersion()
             if currentVersion < PersistenceSchema.version {
@@ -29,7 +41,17 @@ public final class PostgresPersistenceStore {
                     sql: insertSQL
                 )
             }
+            lastReadyAt = now
         }
+    }
+
+    static func shouldReuseReadyState(
+        lastReadyAt: Date?,
+        now: Date,
+        reuseWindow: TimeInterval = PostgresPersistenceStore.readyReuseWindow
+    ) -> Bool {
+        guard let lastReadyAt else { return false }
+        return now.timeIntervalSince(lastReadyAt) < reuseWindow
     }
 
     public func schemaVersion() throws -> Int {

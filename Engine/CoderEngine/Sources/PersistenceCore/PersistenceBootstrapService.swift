@@ -21,6 +21,15 @@ public final class PersistenceBootstrapService {
         self.store = store
     }
 
+    func resetCachedStateForTests() {
+        queue.sync {
+            cachedReport = nil
+            cachedHealth = nil
+            status = .idle
+            lastErrorMessage = nil
+        }
+    }
+
     public func bootstrapIfNeeded() throws -> PersistenceMigrationReport {
         try queue.sync {
             if let cachedReport {
