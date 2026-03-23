@@ -17,13 +17,10 @@ extension CoderIDEMCPServerApp {
         guard let sessionId = resolved.sessionId else {
             return reviewOK("No active review session.")
         }
-        if let bridged = rustReviewToolResult(name: "review_status", args: args) {
-            return bridged
+        guard let bridged = rustReviewToolResult(name: "review_status", args: args) else {
+            return reviewError("Error: Rust review core unavailable for review_status")
         }
-        guard let payload = MCPSharedState.readCodeReviewStatus(sessionId: sessionId) else {
-            return reviewOK("No active review session.")
-        }
-        return reviewOK(renderReviewStatusPayload(payload))
+        return bridged
     }
 
     static func handleReviewFindings(args: [String: String]) -> CallTool.Result {
@@ -75,25 +72,11 @@ extension CoderIDEMCPServerApp {
         guard let sessionId = resolved.sessionId else {
             return reviewOK("No active review session.")
         }
-        if let bridged = rustReviewToolResult(name: "review_findings", args: args) {
-            return bridged
+        _ = sessionId
+        guard let bridged = rustReviewToolResult(name: "review_findings", args: args) else {
+            return reviewError("Error: Rust review core unavailable for review_findings")
         }
-        let kind = sanitizedReviewArg(args, key: "kind").lowercased()
-        let payload = MCPSharedState.readCodeReviewFindings(
-            sessionId: sessionId,
-            kind: kind.isEmpty ? "verified" : kind,
-            severity: optionalReviewArg(args, key: "severity"),
-            status: optionalReviewArg(args, key: "status"),
-            origin: optionalReviewArg(args, key: "origin"),
-            category: optionalReviewArg(args, key: "category"),
-            file: optionalReviewArg(args, key: "file"),
-            limit: Int(args["limit"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 50,
-            includeSensitiveDetails: false
-        )
-        if payload.isEmpty {
-            return reviewOK("No findings match the current query.")
-        }
-        return reviewOK(renderReviewFindingsPayload(payload))
+        return bridged
     }
 
     static func handleReviewDiffSummary(args: [String: String]) -> CallTool.Result {

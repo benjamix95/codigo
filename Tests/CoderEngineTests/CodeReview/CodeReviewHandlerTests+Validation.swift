@@ -112,7 +112,7 @@ extension CodeReviewHandlerTests {
         XCTAssertTrue(textContent(result).contains("queued"))
     }
 
-    func testReviewStatusFallsBackWhenRustCoreIsForcedOff() {
+    func testReviewStatusFailsClosedWhenRustCoreIsForcedOff() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()
         defer {
@@ -126,11 +126,11 @@ extension CodeReviewHandlerTests {
             args: reviewSessionArgs(snapshot)
         )
 
-        XCTAssertNil(result?.isError)
-        XCTAssertTrue(textContent(result).contains("session_id: \(snapshot.sessionId)"))
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("Rust review core unavailable for review_status"))
     }
 
-    func testReviewFindingsFallsBackWhenRustCoreIsForcedOff() {
+    func testReviewFindingsFailsClosedWhenRustCoreIsForcedOff() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()
         defer {
@@ -144,9 +144,8 @@ extension CodeReviewHandlerTests {
             args: reviewSessionArgs(snapshot)
         )
 
-        XCTAssertNil(result?.isError)
-        XCTAssertTrue(textContent(result).contains("Findings"))
-        XCTAssertTrue(textContent(result).contains("redacted-swift-file-"))
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("Rust review core unavailable for review_findings"))
     }
 
     func testReviewRevalidateFindingFailsClosedWhenRustCoreIsForcedOff() {

@@ -297,12 +297,42 @@ final class CodeReviewAuditAdvancedTests: XCTestCase {
         XCTAssertTrue(result.summary.contains("Rust audit runtime required but unavailable"))
     }
 
+    func testSecuritySupplyChainAuditFailsClosedWhenRustRuntimeUnavailable() throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let result = CodeReviewAuditService.runTool(
+            named: ReviewAuditToolName.securitySupplyChain,
+            scopeFiles: ["Package.resolved"],
+            workspacePath: tempDir
+        )
+
+        XCTAssertTrue(result.findings.isEmpty)
+        XCTAssertFalse(result.coverageAvailable)
+        XCTAssertTrue(result.summary.contains("Rust audit runtime required but unavailable"))
+    }
+
     func testRustBackedBugAuditFailsClosedWhenRustRuntimeUnavailable() throws {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()
 
         let result = CodeReviewAuditService.runTool(
             named: ReviewAuditToolName.bugNilCrashPaths,
+            scopeFiles: ["Logic.swift"],
+            workspacePath: tempDir
+        )
+
+        XCTAssertTrue(result.findings.isEmpty)
+        XCTAssertFalse(result.coverageAvailable)
+        XCTAssertTrue(result.summary.contains("Rust audit runtime required but unavailable"))
+    }
+
+    func testBugDiffRisksAuditFailsClosedWhenRustRuntimeUnavailable() throws {
+        setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
+        ReviewCoreBridge.resetForTests()
+
+        let result = CodeReviewAuditService.runTool(
+            named: ReviewAuditToolName.bugDiffRisks,
             scopeFiles: ["Logic.swift"],
             workspacePath: tempDir
         )
