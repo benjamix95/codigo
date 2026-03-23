@@ -70,13 +70,13 @@ final class PlanPanelPreviewContentTests: XCTestCase {
             goal: "Verifica tool Codex",
             chosenPath: nil,
             steps: [
-                PlanStep(id: "1", title: "Create todo", description: nil, targetFile: nil, status: .pending),
-                PlanStep(id: "2", title: "Read README", description: nil, targetFile: nil, status: .pending),
+                PlanStep(id: "1", title: "Create todo", description: "Create todo", targetFile: nil, status: .pending),
+                PlanStep(id: "2", title: "Read README", description: "Read README", targetFile: nil, status: .pending),
             ]
         )
 
         XCTAssertEqual(
-            content,
+            buildContent,
             """
             # Verifica tool Codex
 

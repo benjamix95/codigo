@@ -75,6 +75,10 @@ public struct IndexStatusInfo: Sendable {
 public struct IndexingProgress: Sendable {
     public let current: Int
     public let total: Int
+    public init(current: Int, total: Int) {
+        self.current = current
+        self.total = total
+    }
     public var fraction: Double {
         guard total > 0 else { return 0 }
         return Double(current) / Double(total)

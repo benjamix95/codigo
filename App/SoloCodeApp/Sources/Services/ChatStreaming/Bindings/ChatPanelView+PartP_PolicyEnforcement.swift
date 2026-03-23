@@ -296,6 +296,78 @@ extension ChatPanelView {
         stopTaskForPolicyViolation(conversationId: conversationId)
     }
 
+    @MainActor
+    internal func updateToolStartRequirementsStateIfNeeded(
+        type: String,
+        payload: [String: String],
+        providerId: String,
+        conversationId: UUID?
+    ) {
+        guard requiresTodoPlanStartPolicy(providerId: providerId, coderMode: coderMode) else {
+            return
+        }
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return
+        }
+        var state = toolStartRequirementsStateByMessage[turn.assistantMessageId] ?? ToolStartRequirementsState()
+        if isTodoLifecycleEvent(type: type, payload: payload) {
+            state.didSeeTodoWrite = true
+            state.violationEmitted = false
+        }
+        if isPlanLifecycleEvent(type: type, payload: payload) {
+            state.didSeePlanLifecycle = true
+            state.violationEmitted = false
+        }
+        toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
+    }
+
+    @MainActor
+    internal func shouldHardBlockForMissingTodoOrPlan(
+        type: String,
+        payload: [String: String],
+        providerId: String,
+        conversationId: UUID?
+    ) -> Bool {
+        guard agentsHardBlockEnabled else { return false }
+        guard requiresTodoPlanStartPolicy(providerId: providerId, coderMode: coderMode) else {
+            return false
+        }
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return false
+        }
+        var state = toolStartRequirementsStateByMessage[turn.assistantMessageId] ?? ToolStartRequirementsState()
+        if let violation = todoPlanStartPolicyViolation(
+            state: state,
+            type: type,
+            payload: payload
+        ) {
+            if !state.violationEmitted {
+                state.violationEmitted = true
+                toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
+                recordTaskActivity(
+                    type: "tool_validation_error",
+                    payload: [
+                        "title": violation.title,
+                        "detail": violation.detail,
+                        "status": "failed",
+                        "error_code": violation.errorCode,
+                        "tool": payload["mcp_tool"] ?? payload["tool"] ?? type,
+                    ],
+                    providerId: providerId,
+                    conversationId: conversationId
+                )
+                appendTechnicalErrorMessage(
+                    "[Policy error] \(violation.detail)",
+                    in: conversationId
+                )
+                stopTaskForPolicyViolation(conversationId: conversationId)
+            }
+            return true
+        }
+        toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
+        return false
+    }
+
     /// Flush events that were queued while waiting for policy_ack.
     @MainActor
     internal func flushPolicyAckBlockedQueue(providerId: String, conversationId: UUID?) {

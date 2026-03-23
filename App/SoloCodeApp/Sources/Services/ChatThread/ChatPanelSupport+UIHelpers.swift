@@ -244,3 +244,9 @@ struct PolicyAckState: Equatable {
         acknowledgedHash == expectedHash
     }
 }
+
+struct ToolStartRequirementsState: Equatable {
+    var didSeeTodoWrite: Bool = false
+    var didSeePlanLifecycle: Bool = false
+    var violationEmitted: Bool = false
+}

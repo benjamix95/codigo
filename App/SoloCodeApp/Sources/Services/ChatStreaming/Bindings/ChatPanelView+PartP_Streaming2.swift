@@ -48,6 +48,20 @@ extension ChatPanelView {
             }
             return
         }
+        updateToolStartRequirementsStateIfNeeded(
+            type: t,
+            payload: p,
+            providerId: pid,
+            conversationId: convId
+        )
+        if shouldHardBlockForMissingTodoOrPlan(
+            type: t,
+            payload: p,
+            providerId: pid,
+            conversationId: convId
+        ) {
+            return
+        }
         if t == "tool_validation_error",
            isMCPEditRequiredViolation(payload: p) {
             var enriched = p

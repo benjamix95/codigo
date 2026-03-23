@@ -82,4 +82,46 @@ final class ChatTodoVisibilityTests: XCTestCase {
 
         XCTAssertEqual(resolved, latestAssistantId)
     }
+
+    func testChatTimelineInvalidatesImmediatelyForTodoAndPlanMutations() {
+        XCTAssertTrue(shouldInvalidateChatTimelineForLiveMutation(eventType: "todo_write"))
+        XCTAssertTrue(shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_create"))
+        XCTAssertTrue(shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_upsert"))
+    }
+
+    func testChatTimelineDoesNotInvalidateForUnrelatedEvents() {
+        XCTAssertFalse(shouldInvalidateChatTimelineForLiveMutation(eventType: "policy_ack"))
+        XCTAssertFalse(shouldInvalidateChatTimelineForLiveMutation(eventType: "usage"))
+        XCTAssertFalse(shouldInvalidateChatTimelineForLiveMutation(eventType: "command_execution"))
+    }
+
+    func testTodoPlanStartPolicyRequiresTodoBeforeOtherOperationalEvents() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(),
+            type: "mcp_tool_call",
+            payload: ["mcp_tool": "coderide_read"]
+        )
+
+        XCTAssertEqual(violation?.errorCode, "todo_first_required")
+    }
+
+    func testTodoPlanStartPolicyRequiresPlanAfterTodo() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(didSeeTodoWrite: true, didSeePlanLifecycle: false),
+            type: "command_execution",
+            payload: ["command": "rg TODO ."]
+        )
+
+        XCTAssertEqual(violation?.errorCode, "plan_after_todo_required")
+    }
+
+    func testTodoPlanStartPolicyAllowsPlanLifecycleAfterTodo() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(didSeeTodoWrite: true, didSeePlanLifecycle: false),
+            type: "plan_create",
+            payload: [:]
+        )
+
+        XCTAssertNil(violation)
+    }
 }

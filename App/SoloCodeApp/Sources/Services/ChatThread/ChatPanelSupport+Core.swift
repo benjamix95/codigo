@@ -195,6 +195,146 @@ func canScrollToTarget(
     return false
 }
 
+func shouldInvalidateChatTimelineForLiveMutation(eventType: String) -> Bool {
+    switch eventType {
+    case "todo_write", "todo_read", "plan_create", "plan_step_upsert", "plan_step_batch_update",
+        "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
+        "plan_request_user_input":
+        return true
+    default:
+        return false
+    }
+}
+
+func requiresTodoPlanStartPolicy(providerId: String, coderMode: CoderMode) -> Bool {
+    let normalized = providerId
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    guard coderMode == .agent else { return false }
+    return normalized == "codex-cli" || normalized.hasPrefix("codex")
+}
+
+func isTodoLifecycleEvent(type: String, payload: [String: String]) -> Bool {
+    let normalizedType = type
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if normalizedType == "todo_write" || normalizedType == "todo_read" {
+        return true
+    }
+    guard normalizedType == "mcp_tool_call" else { return false }
+    let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    return tool == "coderide_todo_write" || tool == "todo_write"
+        || tool == "coderide_todo_read" || tool == "todo_read"
+}
+
+func isPlanLifecycleEvent(type: String, payload: [String: String]) -> Bool {
+    let normalizedType = type
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if normalizedType == "plan_create"
+        || normalizedType == "plan_request_user_input"
+        || normalizedType == "plan_step_upsert"
+        || normalizedType == "plan_step_batch_update"
+        || normalizedType == "plan_step_reorder"
+        || normalizedType == "plan_step_dependency_set"
+        || normalizedType == "plan_set_walkthrough"
+    {
+        return true
+    }
+    guard normalizedType == "mcp_tool_call" else { return false }
+    let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    return tool == "coderide_plan_create" || tool == "plan_create"
+        || tool == "coderide_plan_request_user_input" || tool == "plan_request_user_input"
+        || tool == "coderide_plan_step_upsert" || tool == "plan_step_upsert"
+        || tool == "coderide_plan_step_batch_update" || tool == "plan_step_batch_update"
+        || tool == "coderide_plan_step_reorder" || tool == "plan_step_reorder"
+        || tool == "coderide_plan_step_dependency_set" || tool == "plan_step_dependency_set"
+        || tool == "coderide_plan_set_walkthrough" || tool == "plan_set_walkthrough"
+}
+
+func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [String: String]) -> Bool {
+    let normalizedType = type
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if normalizedType == "policy_ack"
+        || normalizedType == "turn_started"
+        || normalizedType == "turn_completed"
+        || normalizedType == "reasoning"
+        || normalizedType == "usage"
+        || normalizedType == "assistant_update"
+        || normalizedType == "tool_validation_error"
+        || normalizedType == "tool_execution_error"
+        || normalizedType == "error"
+    {
+        return false
+    }
+    if isTodoLifecycleEvent(type: normalizedType, payload: payload)
+        || isPlanLifecycleEvent(type: normalizedType, payload: payload)
+    {
+        return true
+    }
+    if normalizedType == "mcp_tool_call" {
+        let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return tool != "coderide_policy_ack" && tool != "policy_ack"
+    }
+    if normalizedType == "command_execution"
+        || normalizedType == "bash"
+        || normalizedType == "agent"
+        || normalizedType == "subagent_text"
+        || normalizedType == "subagent_batch_done"
+    {
+        return true
+    }
+    if normalizedType.hasPrefix("web_search") || normalizedType.hasPrefix("web_fetch") {
+        return true
+    }
+    return false
+}
+
+func todoPlanStartPolicyViolation(
+    state: ToolStartRequirementsState,
+    type: String,
+    payload: [String: String]
+) -> (errorCode: String, title: String, detail: String)? {
+    guard isOperationalEventRequiringTodoPlanStartPolicy(type: type, payload: payload) else {
+        return nil
+    }
+
+    let normalizedType = type
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    let toolName = (payload["mcp_tool"] ?? payload["tool"] ?? normalizedType)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if !state.didSeeTodoWrite, !isTodoLifecycleEvent(type: normalizedType, payload: payload) {
+        return (
+            "todo_first_required",
+            "Todo required before execution",
+            "Emit coderide_todo_write before using '\(toolName.isEmpty ? normalizedType : toolName)'."
+        )
+    }
+
+    if state.didSeeTodoWrite,
+       !state.didSeePlanLifecycle,
+       !isTodoLifecycleEvent(type: normalizedType, payload: payload),
+       !isPlanLifecycleEvent(type: normalizedType, payload: payload)
+    {
+        return (
+            "plan_after_todo_required",
+            "Plan required after todo",
+            "Emit coderide_plan_create (or another plan lifecycle tool) before using '\(toolName.isEmpty ? normalizedType : toolName)'."
+        )
+    }
+
+    return nil
+}
+
 func traceEventsContainSuccessfulCodeEdits(_ traceEvents: [ToolTraceEvent]) -> Bool {
     traceEvents.contains(where: isSuccessfulFileMutationEvent(_:))
 }

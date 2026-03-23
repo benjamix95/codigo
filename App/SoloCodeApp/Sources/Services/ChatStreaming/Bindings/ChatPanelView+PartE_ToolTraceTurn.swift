@@ -91,6 +91,7 @@ extension ChatPanelView {
             toolTraceOperationalSeenByMessage.removeValue(forKey: previous.assistantMessageId)
             toolTraceOperationalCountByMessage.removeValue(forKey: previous.assistantMessageId)
             policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
+            toolStartRequirementsStateByMessage.removeValue(forKey: previous.assistantMessageId)
             // Flush any remaining blocked events before discarding the queue
             if let remainingQueued = policyAckBlockedQueue.removeValue(forKey: previous.assistantMessageId), !remainingQueued.isEmpty {
                 if previousPolicySatisfied {
@@ -125,6 +126,7 @@ extension ChatPanelView {
         toolTraceNextSequenceByMessage[assistantMessageId] = 1
         toolTraceOperationalSeenByMessage[assistantMessageId] = false
         toolTraceOperationalCountByMessage[assistantMessageId] = 0
+        toolStartRequirementsStateByMessage[assistantMessageId] = ToolStartRequirementsState()
         autoTodoRuntimeStateByMessage.removeValue(forKey: assistantMessageId.uuidString.lowercased())
         didReceiveExplicitTodoByMessage.remove(assistantMessageId)
         if isSwarmPolicyAckExemptProvider(providerId) {

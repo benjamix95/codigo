@@ -1,4 +1,14 @@
+import CoderEngine
 import SwiftUI
+
+func shouldShowFooterUsageDivider(
+    showProviderUsage: Bool,
+    showContext: Bool,
+    showTotal: Bool,
+    indexProgress: IndexingProgress?
+) -> Bool {
+    showProviderUsage || showContext || showTotal || indexProgress != nil
+}
 
 extension UsageFooterView {
     func footerTier(
@@ -11,7 +21,12 @@ extension UsageFooterView {
         HStack(spacing: 6) {
             worktreeToggleButton
             gitButton(showBranch: showBranch)
-            if showProviderUsage || showContext || showTotal {
+            if shouldShowFooterUsageDivider(
+                showProviderUsage: showProviderUsage,
+                showContext: showContext,
+                showTotal: showTotal,
+                indexProgress: workspaceStore.indexProgress
+            ) {
                 Divider().frame(height: 12)
             }
             if showProviderUsage {
@@ -23,6 +38,7 @@ extension UsageFooterView {
             if showTotal {
                 totalUsageLabel.fixedSize()
             }
+            indexProgressLabel.fixedSize()
             Spacer(minLength: 0)
             if showMessages {
                 footerMessages

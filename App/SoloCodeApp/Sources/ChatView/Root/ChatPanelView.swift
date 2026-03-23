@@ -207,6 +207,7 @@ struct ChatPanelView: View {
     @State  var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
     @State  var toolTraceOperationalCountByMessage: [UUID: Int] = [:]
     @State  var policyAckStateByMessage: [UUID: PolicyAckState] = [:]
+    @State  var toolStartRequirementsStateByMessage: [UUID: ToolStartRequirementsState] = [:]
     /// Assistant message ids that already triggered a policy-ack violation.
     @State  var policyAckFailedMessages: Set<UUID> = []
     /// Events queued while waiting for policy_ack, keyed by assistant message id.

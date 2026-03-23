@@ -39,6 +39,7 @@ extension ChatPanelView {
         toolTraceOperationalSeenByMessage.removeValue(forKey: active.assistantMessageId)
         toolTraceOperationalCountByMessage.removeValue(forKey: active.assistantMessageId)
         policyAckStateByMessage.removeValue(forKey: active.assistantMessageId)
+        toolStartRequirementsStateByMessage.removeValue(forKey: active.assistantMessageId)
         policyAckBlockedQueue.removeValue(forKey: active.assistantMessageId)
         autoTodoRuntimeStateByMessage.removeValue(
             forKey: active.assistantMessageId.uuidString.lowercased()

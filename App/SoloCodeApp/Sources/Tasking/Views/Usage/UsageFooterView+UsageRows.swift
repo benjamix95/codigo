@@ -1,4 +1,10 @@
+import CoderEngine
 import SwiftUI
+
+func codebaseIndexProgressText(_ progress: IndexingProgress?) -> String? {
+    guard let progress else { return nil }
+    return progress.percentText
+}
 
 extension UsageFooterView {
     @ViewBuilder
@@ -36,6 +42,20 @@ extension UsageFooterView {
             return String(format: "Total $%.3f", providerUsageStore.apiEstimatedCost)
         }
         return "Total —"
+    }
+
+    @ViewBuilder
+    var indexProgressLabel: some View {
+        if let label = codebaseIndexProgressText(workspaceStore.indexProgress) {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 10, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            }
+            .foregroundStyle(.secondary)
+            .help("Codebase index progress")
+        }
     }
 
     var codexUsageRow: some View {
