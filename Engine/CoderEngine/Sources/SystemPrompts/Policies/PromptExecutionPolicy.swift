@@ -37,7 +37,7 @@ enum PromptExecutionPolicy {
     For ANY task that involves 2 or more independent work streams, you MUST decompose it into parallel subagent calls. Call 2–5 subagents in the SAME tool round. They execute concurrently on different backends.
     - You MUST NOT do work sequentially that can be done in parallel via subagents.
     - You MUST NOT manually grep/read/edit when you can delegate to subagent_explorer or subagent_coder.
-    - You MUST spawn subagents in your FIRST tool round — do not waste rounds doing manual work first.
+    - Before the first operational tool round, you MUST send one short user-facing update describing the immediate plan.
 
     RULE 2 — MANDATORY SUBAGENT SCENARIOS (you MUST use subagents in ALL of these):
     a) Investigation: Spawn 2–3 subagent_explorer in parallel to investigate different areas of the codebase simultaneously.
@@ -62,6 +62,7 @@ enum PromptExecutionPolicy {
     - Investigation tasks: minimum 2 subagent_explorer in parallel exploring different areas
 
     RULE 5 — CORRECT ORCHESTRATION PATTERN:
+    Round 0: Send a short user-facing update.
     Round 1: Spawn subagent_explorer(s) to investigate (2–3 in parallel)
     Round 2: After explorer results → create TodoWrite → spawn subagent_coder(s) for implementation (2–4 in parallel)
     Round 3: After coder results → spawn subagent_reviewer + subagent_testWriter (in parallel)

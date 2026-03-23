@@ -184,10 +184,10 @@ extension ToolEnabledLLMProvider {
                    !Self.isSubagentFirstRoundExemptTool(name)
                 {
                     continuation.yield(.raw(type: "tool_validation_error", payload: [
-                        "title": "Subagent-first policy",
-                        "detail": "First operational tool round must start with subagent_* delegation before direct tool execution.",
+                        "title": "Immediate user response required",
+                        "detail": "Start with a short user-facing response before the first operational tool round.",
                         "status": "failed",
-                        "error_code": "subagent_first_required",
+                        "error_code": "assistant_response_first_required",
                         "tool": name,
                     ]))
                     continue

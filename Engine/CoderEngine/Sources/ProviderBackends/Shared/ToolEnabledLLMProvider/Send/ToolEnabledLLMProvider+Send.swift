@@ -57,7 +57,7 @@ extension ToolEnabledLLMProvider {
         var hasAnyMeaningfulAssistantText = false
         let requiredPolicyHash = Self.requiredPolicyHash(from: context)
         var didEmitPolicyAck = false
-        let enforceSubagentFirstRound = executionScope == .agent && subagentProviderFactory != nil
+        let enforceSubagentFirstRound = false
         var acceptedSubagentInFirstRound = false
         var sawCodeMutationDuringTask = false
         var reviewerCompletedAfterLatestMutation = false
