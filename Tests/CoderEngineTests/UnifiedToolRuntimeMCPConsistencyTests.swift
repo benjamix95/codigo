@@ -85,6 +85,23 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["mcp_tool"], expectedMCPTool, line: line)
     }
 
+    private func assertCanonicalIDEStateToolPreservesMCPMarkers(
+        canonicalName: String,
+        args: [String: String] = [:],
+        expectedMCPTool: String,
+        workspace: URL,
+        line: UInt = #line
+    ) async {
+        let runtime = UnifiedToolRuntime()
+        let (call, ctx) = makeCall(name: canonicalName, args: args, workspace: workspace)
+        let events = await runtime.execute(call, context: ctx)
+        let payload = extractPayload(events, matchingTool: canonicalName)
+
+        XCTAssertEqual(payload?["tool"], canonicalName, line: line)
+        XCTAssertEqual(payload?["is_mcp"], "true", line: line)
+        XCTAssertEqual(payload?["mcp_tool"], expectedMCPTool, line: line)
+    }
+
     func testGrepValidationMentionsPatternOrQueryAlias() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()
@@ -435,6 +452,78 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
             canonicalName: "debug_session",
             args: ["action": "start"],
             expectedMCPTool: "coderide_debug_session",
+            workspace: tmp
+        )
+    }
+
+    func testCanonicalReviewSecurityBugHunterReadOnlyToolsPreserveMCPMarkers() async throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        for alias in [
+            "review_status",
+            "review_findings",
+            "review_get_outcome",
+            "security_status",
+            "security_findings",
+            "bughunter_status",
+            "bughunter_findings",
+            "bughunter_run_history",
+            "bughunter_explain_cluster",
+        ] {
+            registerCoderideAlias(alias)
+        }
+
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "review_status",
+            expectedMCPTool: "coderide_review_status",
+            workspace: tmp
+        )
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "review_findings",
+            args: ["limit": "10"],
+            expectedMCPTool: "coderide_review_findings",
+            workspace: tmp
+        )
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "review_get_outcome",
+            expectedMCPTool: "coderide_review_get_outcome",
+            workspace: tmp
+        )
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "security_status",
+            expectedMCPTool: "coderide_security_status",
+            workspace: tmp
+        )
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "security_findings",
+            args: ["limit": "10"],
+            expectedMCPTool: "coderide_security_findings",
+            workspace: tmp
+        )
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "bughunter_status",
+            expectedMCPTool: "coderide_bughunter_status",
+            workspace: tmp
+        )
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "bughunter_findings",
+            args: ["limit": "10"],
+            expectedMCPTool: "coderide_bughunter_findings",
+            workspace: tmp
+        )
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "bughunter_run_history",
+            expectedMCPTool: "coderide_bughunter_run_history",
+            workspace: tmp
+        )
+        await assertCanonicalIDEStateToolPreservesMCPMarkers(
+            canonicalName: "bughunter_explain_cluster",
+            expectedMCPTool: "coderide_bughunter_explain_cluster",
             workspace: tmp
         )
     }

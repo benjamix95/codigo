@@ -23,6 +23,10 @@ enum IDEStateSyntheticEventFactory {
         "review_start", "review_list_sessions", "review_status",
         "review_findings", "review_apply_fix", "review_dismiss",
         "review_configure", "review_diff_summary", "review_comment",
+        "review_get_outcome",
+        "security_status", "security_findings",
+        "bughunter_status", "bughunter_findings",
+        "bughunter_run_history", "bughunter_explain_cluster",
     ]
 
     static let legacyRemovedTools: Set<String> = [

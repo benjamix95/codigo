@@ -183,6 +183,21 @@ extension IDEStateSyntheticEventFactory {
             }
             return [wrapped("review_start", payload)]
 
+        case "review_list_sessions", "review_status", "review_findings",
+             "review_get_outcome", "security_status", "security_findings",
+             "bughunter_status", "bughunter_findings",
+             "bughunter_run_history", "bughunter_explain_cluster":
+            var payload: [String: String] = [:]
+            for key in [
+                "session_id", "conversation_id", "kind", "severity",
+                "origin", "category", "file", "status", "limit",
+            ] {
+                if let value = firstNonEmptyString(in: arguments, keys: [key]) {
+                    payload[key] = value
+                }
+            }
+            return [wrapped(normalizedTool, payload)]
+
         case "review_apply_fix":
             var payload: [String: String] = [:]
             if let findingId = firstNonEmptyString(in: arguments, keys: ["finding_id"]) {

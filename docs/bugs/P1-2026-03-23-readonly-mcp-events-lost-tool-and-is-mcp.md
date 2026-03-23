@@ -1,0 +1,43 @@
+## Bug Fix Record
+- Categoria: A - Critico
+- Bug: i tool canonici read-only `review_*`, `security_*` e `bughunter_*` potevano passare da MCP Rust ma perdere `tool` canonico e `is_mcp` nel payload sintetico IDE-state.
+- Sintomo:
+  - la UI e i test vedevano eventi incompleti o non riconducibili al tool standard;
+  - il path Rust-first risultava corretto a livello di call, ma opaco a livello di event mapping.
+- Impatto: ownership Rust mascherata nel layer di presentazione, regressioni silenziose sui tool read-only review/security/bughunter.
+- Gravita': P1
+- Steps to reproduce:
+  1. Registrare alias `coderide_review_status`, `coderide_security_status`, `coderide_bughunter_status` nel registry MCP nativo.
+  2. Eseguire i nomi canonici `review_status`, `security_status`, `bughunter_status`.
+  3. Osservare che i payload sintetici non propagano in modo stabile `tool` e `is_mcp`.
+- Risultato attuale:
+  - i synthetic events supportavano solo parte dei tool read-only;
+  - il metadata sintetico MCP non garantiva `tool` canonico e `is_mcp` in tutti i payload derivati.
+- Risultato atteso:
+  - i tool read-only review/security/bughunter Rust-owned devono restare riconoscibili come MCP-backed fino alla UI e ai test.
+- Causa probabile:
+  - support set IDE-state incompleto;
+  - metadata sintetico MCP troppo povero per i tool read-only.
+- Scope consentito:
+  - `Engine/CoderEngine/Sources/AgentPipeline/Debug/Events/*`
+  - `Tests/CoderEngineTests/UnifiedToolRuntimeMCPConsistencyTests.swift`
+  - doc bug/changelog
+- Non-scope:
+  - refactor completo del panel review chat
+  - rimozione dei fallback Swift app-side non ancora coperti dal bridge Rust
+- Moduli confinanti da verificare:
+  - `IDEStateSyntheticEventFactory`
+  - `UnifiedToolRuntime` MCP event helpers
+  - `UnifiedToolRuntimeMCPConsistencyTests`
+- Test da aggiungere o aggiornare:
+  - regressione su `review_status`, `review_findings`, `review_get_outcome`
+  - regressione su `security_status`, `security_findings`
+  - regressione su `bughunter_status`, `bughunter_findings`, `bughunter_run_history`, `bughunter_explain_cluster`
+- Strategia di fix minimo:
+  - aggiungere i tool read-only mancanti al support set IDE-state;
+  - propagare `tool` canonico e `is_mcp` nel metadata sintetico;
+  - verificare il comportamento con alias `coderide_*` nel runtime consistency test.
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/UnifiedToolRuntimeMCPConsistencyTests`
+- Commit previsto:
+  - `fix(runtime): preserve mcp markers for readonly review security bughunter events`
