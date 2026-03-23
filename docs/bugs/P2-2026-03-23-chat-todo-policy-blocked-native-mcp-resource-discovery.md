@@ -15,6 +15,7 @@
 - Risultato attuale: la funzione `isTodoGatedOperationalTool` non classificava i tool di resource listing come discovery non mutativa.
 - Risultato atteso: sia gli alias nativi (`list_mcp_resources`, `list_mcp_resource_templates`) sia i nomi canonicali interni (`mcp_list_resources`, `mcp_list_prompts`) devono essere permessi senza todo iniziale, come gli altri tool di discovery.
 - Causa probabile: whitelist incompleta dei tool non mutativi nella policy UI chat.
+- Nota 2026-03-23: oltre alla whitelist, il gate era fragile rispetto a varianti del nome tool emesse dal runtime, incluse forme namespaced (`functions.*`), payload camelCase (`mcpTool`) e tipi evento diretti.
 - Scope consentito:
   - `App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift`
   - `Tests/SoloCodeAppTests/ChatTodoVisibilityTests.swift`
@@ -29,6 +30,7 @@
   - `ChatTodoVisibilityTests`
 - Strategia di fix minimo:
   - aggiungere `list_mcp_resources`, `list_mcp_resource_templates`, `mcp_list_resources` e `mcp_list_prompts` alla whitelist dei discovery tool che non richiedono todo.
+  - normalizzare anche forme namespaced e chiavi payload alternative usate dal tracciamento UI/runtime.
 - Verifica post-fix:
   - regression test dedicato in `ChatTodoVisibilityTests`
 - Commit previsto:

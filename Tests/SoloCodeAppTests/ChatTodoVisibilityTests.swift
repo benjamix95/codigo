@@ -156,6 +156,64 @@ final class ChatTodoVisibilityTests: XCTestCase {
         }
     }
 
+    func testTodoPlanStartPolicyAllowsNamespacedMCPResourceListingWithoutTodo() {
+        let tools = [
+            "functions.list_mcp_resources",
+            "functions.list_mcp_resource_templates",
+            "functions.mcp_list_resources",
+            "functions.mcp_list_prompts",
+        ]
+
+        for tool in tools {
+            let violation = todoPlanStartPolicyViolation(
+                state: ToolStartRequirementsState(),
+                type: "mcp_tool_call",
+                payload: ["mcp_tool": tool]
+            )
+
+            XCTAssertNil(violation, "Expected namespaced discovery tool \(tool) to bypass todo-first gating")
+        }
+    }
+
+    func testTodoPlanStartPolicyAllowsMCPResourceListingFromCamelCasePayloadWithoutTodo() {
+        let tools = [
+            "list_mcp_resources",
+            "functions.list_mcp_resource_templates",
+            "mcp_list_resources",
+            "functions.mcp_list_prompts",
+        ]
+
+        for tool in tools {
+            let violation = todoPlanStartPolicyViolation(
+                state: ToolStartRequirementsState(),
+                type: "mcp_tool_call",
+                payload: ["mcpTool": tool]
+            )
+
+            XCTAssertNil(violation, "Expected camelCase payload discovery tool \(tool) to bypass todo-first gating")
+        }
+    }
+
+    func testTodoPlanStartPolicyAllowsDirectDiscoveryEventTypesWithoutTodo() {
+        let eventTypes = [
+            "list_mcp_resources",
+            "list_mcp_resource_templates",
+            "mcp_list_resources",
+            "mcp_list_prompts",
+            "functions.list_mcp_resources",
+        ]
+
+        for eventType in eventTypes {
+            let violation = todoPlanStartPolicyViolation(
+                state: ToolStartRequirementsState(),
+                type: eventType,
+                payload: [:]
+            )
+
+            XCTAssertNil(violation, "Expected direct discovery event \(eventType) to bypass todo-first gating")
+        }
+    }
+
     func testTodoPlanStartPolicyAllowsSkillDiscoveryWithoutTodo() {
         let violation = todoPlanStartPolicyViolation(
             state: ToolStartRequirementsState(),

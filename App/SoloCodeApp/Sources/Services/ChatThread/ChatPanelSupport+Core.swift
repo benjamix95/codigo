@@ -285,10 +285,11 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
         return false
     }
     if normalizedType == "mcp_tool_call" {
-        let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+        let tool = normalizedTodoPolicyToolName(type: normalizedType, payload: payload)
         return isTodoGatedOperationalTool(tool)
+    }
+    if isTodoDiscoveryToolEvent(type: normalizedType) {
+        return false
     }
     if normalizedType == "command_execution"
         || normalizedType == "bash"
@@ -301,10 +302,53 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
     return false
 }
 
-private func isTodoGatedOperationalTool(_ rawToolName: String) -> Bool {
-    let tool = rawToolName
+private func normalizedTodoPolicyToolName(type: String, payload: [String: String]) -> String {
+    let rawToolName = (
+        payload["mcp_tool"]
+            ?? payload["mcpTool"]
+            ?? payload["tool"]
+            ?? payload["toolName"]
+            ?? type
+    )
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+    .lowercased()
+
+    guard !rawToolName.isEmpty else { return "" }
+
+    let namespacedPrefixes = [
+        "functions.",
+        "function.",
+        "web.",
+        "commentary.",
+        "analysis.",
+    ]
+    for prefix in namespacedPrefixes where rawToolName.hasPrefix(prefix) {
+        return String(rawToolName.dropFirst(prefix.count))
+    }
+
+    return rawToolName
+}
+
+private func isTodoDiscoveryToolEvent(type: String) -> Bool {
+    let normalizedType = type
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
+
+    let directDiscoveryEventTypes: Set<String> = [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "mcp_list_resources",
+        "mcp_list_prompts",
+    ]
+    if directDiscoveryEventTypes.contains(normalizedType) {
+        return true
+    }
+    return normalizedType.hasPrefix("functions.")
+        && directDiscoveryEventTypes.contains(String(normalizedType.dropFirst("functions.".count)))
+}
+
+private func isTodoGatedOperationalTool(_ rawToolName: String) -> Bool {
+    let tool = normalizedTodoPolicyToolName(type: rawToolName, payload: [:])
     guard !tool.isEmpty else { return false }
 
     if tool == "coderide_policy_ack" || tool == "policy_ack"
@@ -357,8 +401,7 @@ func todoPlanStartPolicyViolation(
     let normalizedType = type
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
-    let toolName = (payload["mcp_tool"] ?? payload["tool"] ?? normalizedType)
-        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let toolName = normalizedTodoPolicyToolName(type: normalizedType, payload: payload)
 
     if !state.didSeeTodoWrite, !isTodoLifecycleEvent(type: normalizedType, payload: payload) {
         return (
