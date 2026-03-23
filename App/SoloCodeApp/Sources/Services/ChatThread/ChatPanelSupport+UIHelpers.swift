@@ -201,6 +201,7 @@ enum PlanPanelAutoOpenTrigger: Equatable {
     case planStepUpdate
     case awaitingClarification
     case awaitingChoice
+    case proposalReady
 }
 
 func shouldAutoOpenPlanPanel(trigger: PlanPanelAutoOpenTrigger) -> Bool {
@@ -210,6 +211,8 @@ func shouldAutoOpenPlanPanel(trigger: PlanPanelAutoOpenTrigger) -> Bool {
     case .awaitingClarification:
         return true
     case .awaitingChoice:
+        return true
+    case .proposalReady:
         return true
     case .planStepUpdate:
         return false
@@ -247,6 +250,5 @@ struct PolicyAckState: Equatable {
 
 struct ToolStartRequirementsState: Equatable {
     var didSeeTodoWrite: Bool = false
-    var didSeePlanLifecycle: Bool = false
     var violationEmitted: Bool = false
 }

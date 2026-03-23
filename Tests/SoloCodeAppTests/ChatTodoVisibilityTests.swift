@@ -116,28 +116,28 @@ final class ChatTodoVisibilityTests: XCTestCase {
     func testTodoPlanStartPolicyRequiresTodoBeforeOtherOperationalEvents() {
         let violation = todoPlanStartPolicyViolation(
             state: ToolStartRequirementsState(),
-            type: "mcp_tool_call",
-            payload: ["mcp_tool": "coderide_read"]
+            type: "command_execution",
+            payload: ["command": "swift test"]
         )
 
         XCTAssertEqual(violation?.errorCode, "todo_first_required")
     }
 
-    func testTodoPlanStartPolicyRequiresPlanAfterTodo() {
+    func testTodoPlanStartPolicyAllowsDiscoveryWithoutTodo() {
         let violation = todoPlanStartPolicyViolation(
-            state: ToolStartRequirementsState(didSeeTodoWrite: true, didSeePlanLifecycle: false),
-            type: "command_execution",
-            payload: ["command": "rg TODO ."]
+            state: ToolStartRequirementsState(),
+            type: "mcp_tool_call",
+            payload: ["mcp_tool": "coderide_read"]
         )
 
-        XCTAssertEqual(violation?.errorCode, "plan_after_todo_required")
+        XCTAssertNil(violation)
     }
 
-    func testTodoPlanStartPolicyAllowsPlanLifecycleAfterTodo() {
+    func testTodoPlanStartPolicyAllowsSkillDiscoveryWithoutTodo() {
         let violation = todoPlanStartPolicyViolation(
-            state: ToolStartRequirementsState(didSeeTodoWrite: true, didSeePlanLifecycle: false),
-            type: "plan_create",
-            payload: [:]
+            state: ToolStartRequirementsState(),
+            type: "mcp_tool_call",
+            payload: ["mcp_tool": "coderide_skill"]
         )
 
         XCTAssertNil(violation)
@@ -161,6 +161,24 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
 
         XCTAssertNil(violation)
+    }
+
+    func testTodoCardDoesNotBindToInvisiblePipelineAssistantStub() {
+        let visibleAssistantId = UUID()
+        let pipelineAssistantId = UUID()
+
+        let resolved = resolveTodoCardAssistantMessageId(
+            messages: [
+                ChatMessage(id: visibleAssistantId, role: .assistant, content: "Analisi completata"),
+                ChatMessage(id: pipelineAssistantId, role: .assistant, content: "")
+            ],
+            activeAssistantMessageId: nil,
+            latestAssistantMessageIdWithTrace: nil,
+            pipelineAssistantMessageId: pipelineAssistantId,
+            latestVisibleAssistantMessageId: visibleAssistantId
+        )
+
+        XCTAssertEqual(resolved, visibleAssistantId)
     }
 
     func testLinearChatHidesTodoEventsWhenTodoCardIsVisible() {

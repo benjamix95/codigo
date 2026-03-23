@@ -352,4 +352,43 @@ final class SwarmLiveReducerTests: XCTestCase {
             "reading App/SoloCodeApp/Sources/Swarm/SwarmLiveReducer.swift"
         )
     }
+
+    func testReducerBuildsOrderedTranscriptForSubagentCards() {
+        let started = TaskActivity(
+            type: "agent",
+            title: "Explorer",
+            detail: "started",
+            payload: [
+                "swarm_id": "Explorer-Live",
+                "group_id": "swarm-Explorer-Live",
+                "status": "started",
+            ],
+            timestamp: Date(timeIntervalSince1970: 600),
+            phase: .planning,
+            isRunning: true,
+            groupId: "swarm-Explorer-Live"
+        )
+        let text = TaskActivity(
+            type: "subagent_text",
+            title: "Live output",
+            detail: "opened ChatTurnView.swift",
+            payload: [
+                "swarm_id": "Explorer-Live",
+                "group_id": "swarm-Explorer-Live",
+                "status": "running",
+                "text": "opened ChatTurnView.swift",
+            ],
+            timestamp: Date(timeIntervalSince1970: 601),
+            phase: .executing,
+            isRunning: true,
+            groupId: "swarm-Explorer-Live"
+        )
+
+        let cards = SwarmLiveReducer.reduce(activities: [started, text], limitRecentEvents: 80)
+        let transcript = cards["Explorer-Live"]?.transcript ?? []
+        XCTAssertEqual(transcript.count, 2)
+        XCTAssertEqual(transcript.first?.kind, .activity)
+        XCTAssertEqual(transcript.last?.kind, .assistantText)
+        XCTAssertEqual(transcript.last?.detail, "opened ChatTurnView.swift")
+    }
 }

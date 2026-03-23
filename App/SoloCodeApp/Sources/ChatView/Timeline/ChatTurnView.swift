@@ -9,11 +9,15 @@ struct ChatTurnView: View {
     let streamingStatusText: String
     let streamingDetailText: String?
     let traceEvents: [ToolTraceEvent]
+    let inlineActivities: [TaskActivity]
+    let liveSubagentCards: [SwarmLiveCardState]
     @ObservedObject var todoStore: TodoStore
     let conversationId: UUID
     let shouldShowTodo: Bool
     let onFileClicked: (String) -> Void
     let onReviewChanges: () -> Void
+    let onOpenSubagentPanel: (String) -> Void
+    let onStopSubagent: () -> Void
     let onReply: (() -> Void)?
     let onDelete: (() -> Void)?
     let showTopDivider: Bool
@@ -43,6 +47,9 @@ struct ChatTurnView: View {
     private var traceWorkspaceHints: [String] {
         context?.folderPaths.filter { !$0.isEmpty } ?? []
     }
+    private var shouldRenderInlineActivityFeed: Bool {
+        message.isStreaming && isActuallyLoading && !inlineActivities.isEmpty
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -66,13 +73,41 @@ struct ChatTurnView: View {
                     .padding(.vertical, 4)
                 }
             }
-            if !inlineTraceEvents.isEmpty {
+            if shouldRenderInlineActivityFeed {
+                InlineActivityFeedView(
+                    activities: inlineActivities,
+                    modeColor: modeColor,
+                    statusFromLLMOrActivity: streamingDetailText,
+                    maxVisible: 24
+                )
+                .frame(maxWidth: 800, alignment: .leading)
+            }
+            if !shouldRenderInlineActivityFeed, !inlineTraceEvents.isEmpty {
                 MessageToolTraceView(
                     events: inlineTraceEvents,
                     workspaceHints: traceWorkspaceHints,
                     onOpenFile: onFileClicked
                 )
                 .frame(maxWidth: 800, alignment: .leading)
+            }
+            if !liveSubagentCards.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(liveSubagentCards) { card in
+                        SubagentChatCardView(
+                            card: card,
+                            onOpenInPanel: { onOpenSubagentPanel(card.swarmId) },
+                            onStop: onStopSubagent
+                        )
+                    }
+                }
+                .padding(.horizontal, 2)
+            } else if let snapshots = message.subagentCards, !snapshots.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(snapshots) { snapshot in
+                        SubagentSnapshotCardView(snapshot: snapshot)
+                    }
+                }
+                .padding(.horizontal, 2)
             }
             if shouldShowTodo, !todoItems.isEmpty {
                 TodoCenterCardView(

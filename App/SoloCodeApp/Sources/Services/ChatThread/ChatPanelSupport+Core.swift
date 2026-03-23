@@ -282,19 +282,13 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
     if isTodoLifecycleEvent(type: normalizedType, payload: payload)
         || isPlanLifecycleEvent(type: normalizedType, payload: payload)
     {
-        return true
+        return false
     }
     if normalizedType == "mcp_tool_call" {
         let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        return tool != "coderide_policy_ack"
-            && tool != "policy_ack"
-            && tool != "coderide_activate_plan_mode"
-            && tool != "activate_plan_mode"
-            && tool != "coderide_activate_debug_mode"
-            && tool != "activate_debug_mode"
-            && !tool.contains("subagent_")
+        return isTodoGatedOperationalTool(tool)
     }
     if normalizedType == "command_execution"
         || normalizedType == "bash"
@@ -302,9 +296,48 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
         return true
     }
     if normalizedType.hasPrefix("web_search") || normalizedType.hasPrefix("web_fetch") {
-        return true
+        return false
     }
     return false
+}
+
+private func isTodoGatedOperationalTool(_ rawToolName: String) -> Bool {
+    let tool = rawToolName
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    guard !tool.isEmpty else { return false }
+
+    if tool == "coderide_policy_ack" || tool == "policy_ack"
+        || tool == "coderide_activate_plan_mode" || tool == "activate_plan_mode"
+        || tool == "coderide_activate_debug_mode" || tool == "activate_debug_mode"
+        || tool == "coderide_skill" || tool == "skill"
+        || tool.contains("subagent_")
+    {
+        return false
+    }
+
+    let nonMutatingDiscoveryTools: Set<String> = [
+        "coderide_read", "read",
+        "coderide_read_range", "read_range",
+        "coderide_list_dir", "list_dir",
+        "coderide_find_files", "find_files",
+        "coderide_glob", "glob",
+        "coderide_grep", "grep",
+        "coderide_codebase_search", "codebase_search",
+        "coderide_semantic_search", "semantic_search",
+        "coderide_find_symbol", "find_symbol",
+        "coderide_find_references", "find_references",
+        "coderide_file_outline", "file_outline",
+        "coderide_git_diff", "git_diff",
+        "coderide_web_search", "web_search",
+        "coderide_web_fetch", "web_fetch",
+        "read_thread_terminal",
+    ]
+    if nonMutatingDiscoveryTools.contains(tool) {
+        return false
+    }
+
+    return true
 }
 
 func todoPlanStartPolicyViolation(
@@ -326,19 +359,7 @@ func todoPlanStartPolicyViolation(
         return (
             "todo_first_required",
             "Todo required before execution",
-            "Emit coderide_todo_write before using '\(toolName.isEmpty ? normalizedType : toolName)'."
-        )
-    }
-
-    if state.didSeeTodoWrite,
-       !state.didSeePlanLifecycle,
-       !isTodoLifecycleEvent(type: normalizedType, payload: payload),
-       !isPlanLifecycleEvent(type: normalizedType, payload: payload)
-    {
-        return (
-            "plan_after_todo_required",
-            "Plan required after todo",
-            "Emit coderide_plan_create (or another plan lifecycle tool) before using '\(toolName.isEmpty ? normalizedType : toolName)'."
+            "Emit coderide_todo_write before starting real execution with '\(toolName.isEmpty ? normalizedType : toolName)'."
         )
     }
 

@@ -27,6 +27,16 @@ struct MainChatStoreSubagentCardSnapshotBridge: Codable, Equatable {
     let errorCount: Int
     let warningCount: Int?
     let resultPreview: String?
+    let transcript: [MainChatStoreSubagentTranscriptEntryBridge]?
+}
+
+struct MainChatStoreSubagentTranscriptEntryBridge: Codable, Equatable {
+    let id: String
+    let kind: String
+    let title: String
+    let detail: String
+    let timestamp: Date?
+    let isRunning: Bool
 }
 
 struct MainChatStoreTimelineBlockSnapshotBridge: Codable, Equatable {

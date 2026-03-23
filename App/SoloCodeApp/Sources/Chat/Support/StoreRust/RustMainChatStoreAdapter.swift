@@ -302,11 +302,55 @@ enum RustMainChatStoreAdapter {
         return PlanAttachment(historyEntryId: id, layoutVersion: snapshot.layoutVersion, showExpand: snapshot.showExpand, snapshotTitle: snapshot.snapshotTitle)
     }
     static func subagentCardSnapshot(_ card: SubagentCardSnapshot) -> MainChatStoreSubagentCardSnapshotBridge {
-        MainChatStoreSubagentCardSnapshotBridge(swarmId: card.swarmId, status: card.status.rawValue, title: card.title, detail: card.detail, summary: card.summary, errorCount: card.errorCount, warningCount: card.warningCount, resultPreview: card.resultPreview)
+        MainChatStoreSubagentCardSnapshotBridge(
+            swarmId: card.swarmId,
+            status: card.status.rawValue,
+            title: card.title,
+            detail: card.detail,
+            summary: card.summary,
+            errorCount: card.errorCount,
+            warningCount: card.warningCount,
+            resultPreview: card.resultPreview,
+            transcript: card.transcript?.map(subagentTranscriptEntrySnapshot)
+        )
     }
     private static func subagentCard(_ snapshot: MainChatStoreSubagentCardSnapshotBridge) -> SubagentCardSnapshot? {
         guard let status = SwarmCardStatus(rawValue: snapshot.status) else { return nil }
-        return SubagentCardSnapshot(swarmId: snapshot.swarmId, status: status, title: snapshot.title, detail: snapshot.detail, summary: snapshot.summary, errorCount: snapshot.errorCount, warningCount: snapshot.warningCount, resultPreview: snapshot.resultPreview)
+        return SubagentCardSnapshot(
+            swarmId: snapshot.swarmId,
+            status: status,
+            title: snapshot.title,
+            detail: snapshot.detail,
+            summary: snapshot.summary,
+            errorCount: snapshot.errorCount,
+            warningCount: snapshot.warningCount,
+            resultPreview: snapshot.resultPreview,
+            transcript: snapshot.transcript?.map(subagentTranscriptEntry)
+        )
+    }
+    private static func subagentTranscriptEntrySnapshot(
+        _ entry: SubagentTranscriptEntry
+    ) -> MainChatStoreSubagentTranscriptEntryBridge {
+        MainChatStoreSubagentTranscriptEntryBridge(
+            id: entry.id,
+            kind: entry.kind.rawValue,
+            title: entry.title,
+            detail: entry.detail,
+            timestamp: entry.timestamp,
+            isRunning: entry.isRunning
+        )
+    }
+    private static func subagentTranscriptEntry(
+        _ snapshot: MainChatStoreSubagentTranscriptEntryBridge
+    ) -> SubagentTranscriptEntry {
+        SubagentTranscriptEntry(
+            id: snapshot.id,
+            kind: SubagentTranscriptEntryKind(rawValue: snapshot.kind) ?? .activity,
+            title: snapshot.title,
+            detail: snapshot.detail,
+            timestamp: snapshot.timestamp,
+            isRunning: snapshot.isRunning
+        )
     }
     static func checkpointSnapshot(_ checkpoint: ConversationCheckpoint) -> MainChatStoreCheckpointSnapshotBridge {
         MainChatStoreCheckpointSnapshotBridge(id: checkpoint.id.uuidString.lowercased(), createdAt: checkpoint.createdAt, messageCount: checkpoint.messageCount, planBoardSnapshot: checkpoint.planBoardSnapshot.map(planBoardSnapshot), linkedPlanConversationId: checkpoint.linkedPlanConversationId?.uuidString.lowercased(), linkedPlanBoardSnapshot: checkpoint.linkedPlanBoardSnapshot.map(planBoardSnapshot), gitStates: checkpoint.gitStates.map(gitStateSnapshot))

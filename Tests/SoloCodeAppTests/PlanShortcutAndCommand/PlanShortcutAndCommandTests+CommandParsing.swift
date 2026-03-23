@@ -234,6 +234,7 @@ extension PlanShortcutAndCommandTests {
         XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .flowStarted))
         XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingClarification))
         XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingChoice))
+        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .proposalReady))
     }
 
     func testShouldAllowStartingPlanBuildBlocksWhenAnotherBuildTaskIsActive() {

@@ -159,11 +159,7 @@ extension ChatPanelView {
             }
             .onChange(of: planToggleEnabled) { isEnabled in
                 guard !isRestoringThreadUIState else { return }
-                if isEnabled {
-                    if !showPlanPanel && !isPlanShortcutCycling {
-                        openPlanPanelForCurrentContext(source: .manualShortcut)
-                    }
-                } else if showPlanPanel && shouldAllowPlanToggleDeactivation(phase: planFlowPhase) {
+                if !isEnabled, showPlanPanel, shouldAllowPlanToggleDeactivation(phase: planFlowPhase) {
                     showPlanPanel = false
                     planningState = .idle
                     planFlowPhase = .idle

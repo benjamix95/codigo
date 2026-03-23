@@ -186,6 +186,29 @@ extension ChatPanelView {
                             showTopDivider: needsDivider
                         )
                     } else {
+                        let liveInlineActivities: [TaskActivity] = {
+                            guard isLastAssistant, isLoadingForCurrentConversation else { return [] }
+                            return scopedTaskActivities(for: conversationId).filter { activity in
+                                guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }
+                                if SwarmMetadata.isSwarmEvent(activity.payload)
+                                    || activity.type == "agent"
+                                    || activity.type == "subagent_text"
+                                    || activity.type == "subagent_batch_done"
+                                {
+                                    return false
+                                }
+                                if activity.type == "todo_write" || activity.type == "todo_read" {
+                                    return false
+                                }
+                                return true
+                            }
+                        }()
+                        let liveSubagentCards: [SwarmLiveCardState] = {
+                            guard isLastAssistant, isLoadingForCurrentConversation else { return [] }
+                            return visibleSwarmCardsForChat(
+                                from: taskActivityStore.swarmCardStates(for: conversationId)
+                            )
+                        }()
                         ChatTurnView(
                             message: displayMessage,
                             context: effectiveContext.context,
@@ -194,6 +217,8 @@ extension ChatPanelView {
                             streamingStatusText: shouldHideStreamingBarOnPreviousAssistant ? "" : streamingStatusText(for: displayMessage),
                             streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
                             traceEvents: traceEvents,
+                            inlineActivities: liveInlineActivities,
+                            liveSubagentCards: liveSubagentCards,
                             todoStore: todoStore,
                             conversationId: conversationId,
                             shouldShowTodo: shouldShowPlanTodosInChat
@@ -203,6 +228,14 @@ extension ChatPanelView {
                             onReviewChanges: {
                                 gitPanelStore.isOpen = true
                                 gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                            },
+                            onOpenSubagentPanel: { swarmId in
+                                selectedSwarmId = swarmId
+                                showSwarmPanel = true
+                            },
+                            onStopSubagent: {
+                                lastTaskEndedByManualStop = true
+                                interruptTask()
                             },
                             onReply: replyAction,
                             onDelete: deleteAction,

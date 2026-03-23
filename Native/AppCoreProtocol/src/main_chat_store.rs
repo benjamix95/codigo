@@ -33,6 +33,19 @@ pub struct MainChatStoreSubagentCardSnapshot {
     pub error_count: i32,
     pub warning_count: Option<i32>,
     pub result_preview: Option<String>,
+    pub transcript: Option<Vec<MainChatStoreSubagentTranscriptEntry>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MainChatStoreSubagentTranscriptEntry {
+    pub id: String,
+    pub kind: String,
+    pub title: String,
+    pub detail: String,
+    pub timestamp: Option<f64>,
+    #[serde(default)]
+    pub is_running: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

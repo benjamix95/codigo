@@ -51,6 +51,7 @@ struct SubagentSnapshotCardView: View {
     }
 
     var body: some View {
+        let previewText = snapshotPreviewText
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: statusIcon)
@@ -74,7 +75,7 @@ struct SubagentSnapshotCardView: View {
 
                 Spacer(minLength: 0)
 
-                if isHovered || isExpanded, snapshot.resultPreview != nil {
+                if isHovered || isExpanded, previewText != nil {
                     Button {
                         withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
                     } label: {
@@ -90,7 +91,7 @@ struct SubagentSnapshotCardView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
 
-            if let preview = snapshot.resultPreview, !preview.isEmpty {
+            if let preview = previewText, !preview.isEmpty {
                 if !isExpanded {
                     Divider().opacity(0.1).padding(.horizontal, 12)
                     Text(preview)
@@ -133,8 +134,21 @@ struct SubagentSnapshotCardView: View {
             withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
         }
         .onTapGesture {
-            guard snapshot.resultPreview != nil else { return }
+            guard previewText != nil else { return }
             withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
         }
+    }
+
+    private var snapshotPreviewText: String? {
+        let transcriptPreview = snapshot.transcript?
+            .suffix(isExpanded ? 20 : 6)
+            .map(\.detail)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        if let transcriptPreview, !transcriptPreview.isEmpty {
+            return transcriptPreview
+        }
+        return snapshot.resultPreview
     }
 }

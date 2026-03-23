@@ -45,8 +45,8 @@ func resolveTodoCardAssistantMessageId(
         return candidate
     }
 
-    return firstValid(activeAssistantMessageId, requireVisibleContent: true)
-        ?? firstValid(latestAssistantMessageIdWithTrace)
-        ?? firstValid(pipelineAssistantMessageId)
-        ?? firstValid(latestVisibleAssistantMessageId)
-}
+        return firstValid(activeAssistantMessageId, requireVisibleContent: true)
+        ?? firstValid(latestAssistantMessageIdWithTrace, requireVisibleContent: true)
+        ?? firstValid(pipelineAssistantMessageId, requireVisibleContent: true)
+        ?? firstValid(latestVisibleAssistantMessageId, requireVisibleContent: true)
+    }

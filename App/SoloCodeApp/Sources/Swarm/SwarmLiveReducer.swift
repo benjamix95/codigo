@@ -55,6 +55,12 @@ enum SwarmLiveReducer {
             if card.recentEvents.count > limitRecentEvents {
                 card.recentEvents = Array(card.recentEvents.suffix(limitRecentEvents))
             }
+            if let entry = transcriptEntry(for: activity) {
+                card.transcript.append(entry)
+                if card.transcript.count > SwarmLiveCardState.transcriptMaxEntries {
+                    card.transcript = Array(card.transcript.suffix(SwarmLiveCardState.transcriptMaxEntries))
+                }
+            }
         }
 
         card.startedAt = card.startedAt ?? activity.timestamp
@@ -226,6 +232,14 @@ enum SwarmLiveReducer {
             if compact.count == 3 { break }
         }
         return "Completed • " + compact.joined(separator: " → ")
+    }
+
+    private static func transcriptEntry(for activity: TaskActivity) -> SubagentTranscriptEntry? {
+        if activity.type == "subagent_text",
+           let text = activity.payload["text"] {
+            return SubagentTranscriptEntry.assistantText(text, timestamp: activity.timestamp)
+        }
+        return SubagentTranscriptEntry.activity(activity)
     }
 
     private static func bestDetail(

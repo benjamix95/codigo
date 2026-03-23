@@ -314,10 +314,6 @@ extension ChatPanelView {
             state.didSeeTodoWrite = true
             state.violationEmitted = false
         }
-        if isPlanLifecycleEvent(type: type, payload: payload) {
-            state.didSeePlanLifecycle = true
-            state.violationEmitted = false
-        }
         toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
     }
 

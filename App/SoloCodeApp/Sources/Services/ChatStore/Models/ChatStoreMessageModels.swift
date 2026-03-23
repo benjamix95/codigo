@@ -19,6 +19,7 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
     let errorCount: Int
     let warningCount: Int?
     let resultPreview: String?
+    let transcript: [SubagentTranscriptEntry]?
 
     init(
         swarmId: String,
@@ -28,7 +29,8 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
         summary: String?,
         errorCount: Int,
         warningCount: Int?,
-        resultPreview: String?
+        resultPreview: String?,
+        transcript: [SubagentTranscriptEntry]?
     ) {
         self.swarmId = swarmId
         self.status = status
@@ -38,6 +40,7 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
         self.errorCount = errorCount
         self.warningCount = warningCount
         self.resultPreview = resultPreview
+        self.transcript = transcript
     }
 
     init(from card: SwarmLiveCardState) {
@@ -49,11 +52,25 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
             summary: card.summary,
             errorCount: card.errorCount,
             warningCount: card.warningCount,
-            resultPreview: Self.extractPreview(from: card.liveText)
+            resultPreview: Self.extractPreview(transcript: card.transcript, liveText: card.liveText),
+            transcript: card.transcript.isEmpty ? nil : card.transcript
         )
     }
 
-    private static func extractPreview(from text: String) -> String? {
+    private static func extractPreview(
+        transcript: [SubagentTranscriptEntry],
+        liveText: String
+    ) -> String? {
+        let transcriptText = transcript
+            .suffix(8)
+            .map(\.detail)
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !transcriptText.isEmpty {
+            return String(transcriptText.suffix(500))
+        }
+
+        let text = liveText
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let lines = trimmed.components(separatedBy: .newlines)
