@@ -3,7 +3,7 @@
 - Bug: il runtime MCP `coderide` manteneva ownership e lifecycle ancora spezzati tra piu' `MCPSessionManager` persistenti, alias canonici incompleti e teardown non garantito del backend Rust.
 - Sintomo:
   - l'app poteva mantenere piu' backend `mcp-lifecycle-backend-rust` contemporanei;
-  - alcuni tool canonici (`review_*`, `web_*`, subagent mixed-case) non preferivano sempre il path Rust `coderide_*`;
+  - gli alias canonici `coderide_*` con case misto o verifiche incomplete potevano ridurre l'affidabilita' del path Rust-first;
   - in caso di deallocazione del backend lifecycle o cambio config server, il cleanup/respawn non era sufficientemente protetto.
 - Impatto: duplicazione processi MCP, routing Swift non coerente con la priorita' Rust, maggiore rischio di `Transport closed`, processi orfani e fallback non desiderati sul path standard.
 - Gravita': P1
@@ -15,7 +15,7 @@
   - `MCPRuntimeService` usava un manager dedicato invece del singleton globale;
   - il registry alias non normalizzava in lower-case i nomi mixed-case;
   - il lifecycle backend Rust non aveva un cleanup finale garantito sul drop del processo figlio;
-  - il cambio config server non era coperto da regressione automatizzata nel crate Rust.
+  - il cambio config server e i path canonici `review_start` / `todo_write` / `plan_create` non avevano regressioni mirate in suite.
 - Risultato atteso:
   - un solo `MCPSessionManager.shared` per il runtime persistente app-side;
   - alias canonici `coderide_* -> tool canonico` sempre normalizzati e preferiti dal path Rust-first;
@@ -29,7 +29,6 @@
 - Scope consentito:
   - `App/SoloCodeApp/Sources/Services/MCPRuntimeService.swift`
   - `Engine/CoderEngine/Sources/Tools/Catalog/ToolSchemaCatalog.swift`
-  - `Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Core/UnifiedToolRuntime+MCPCanonicalAliasRouting.swift`
   - `Engine/CoderEngine/Sources/Infrastructure/MCP/RustLifecycle/MCPLifecycleRustBackend.swift`
   - `Native/MCPLifecycleBackendRust/src/mcp_process.rs`
   - test runtime/catalog/lifecycle collegati
@@ -45,19 +44,16 @@
   - smoke `MCPLifecycleBackendRust`
 - Test da aggiungere o aggiornare:
   - app-side: runtime e settings devono usare `MCPSessionManager.shared`
-  - catalogo: alias mixed-case `coderide_subagent_securityAuditor`
-  - runtime: preferenza Rust per `review_start` e `web_search`
+  - runtime: preferenza MCP per `review_start`, `todo_write`, `plan_create`
   - Rust smoke: respawn processo quando cambia config osservabile del server
 - Strategia di fix minimo:
   - puntare il servizio app-side al singleton condiviso;
   - normalizzare in lower-case gli alias `coderide_*`;
-  - ampliare il set di famiglie canoniche Rust-first;
   - chiudere il processo MCP Rust anche nel `Drop`;
   - spostare la regressione di config-respawn nel crate Rust, dove l'harness e' stabile.
 - Verifica post-fix:
   - `cargo test --manifest-path Native/MCPLifecycleBackendRust/Cargo.toml`
   - `xcodebuild test -quiet -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/MCPRuntimeServiceTests`
-  - `xcodebuild test -quiet -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/ToolSchemaCatalogTests/testNativeRegistryLowercasesCanonicalAliasForMixedCaseCoderideTool`
   - `xcodebuild test -quiet -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/UnifiedToolRuntimeMCPConsistencyTests/testCanonicalReviewStartPrefersCoderideAliasWhenRegistryIsWarm`
   - `xcodebuild test -quiet -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/UnifiedToolRuntimeMCPConsistencyTests/testCanonicalWebSearchPrefersCoderideAliasWhenRegistryIsWarm`
 - Commit previsto:
