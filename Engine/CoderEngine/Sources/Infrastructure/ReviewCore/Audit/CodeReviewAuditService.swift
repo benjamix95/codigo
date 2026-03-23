@@ -1,8 +1,18 @@
 import Foundation
 
 public enum CodeReviewAuditService {
-    private static let rustBackedSecurityTools = Set(ReviewAuditToolName.securityTools)
-    private static let rustBackedBugTools = Set(ReviewAuditToolName.bugTools)
+    private static let rustBackedSecurityTools: Set<String> = [
+        ReviewAuditToolName.securityDataflow,
+        ReviewAuditToolName.securityAuthz,
+        ReviewAuditToolName.securityCrypto,
+        ReviewAuditToolName.securityDeserialization,
+        ReviewAuditToolName.securitySurface,
+    ]
+    private static let rustBackedBugTools: Set<String> = [
+        ReviewAuditToolName.bugNilCrashPaths,
+        ReviewAuditToolName.bugTestImpact,
+        ReviewAuditToolName.bugConcurrency,
+    ]
 
     struct ReviewAuditAdapterReport {
         let name: String
@@ -64,6 +74,8 @@ public enum CodeReviewAuditService {
                 scopeFiles: scopeFiles,
                 workspacePath: workspacePath
             )
+        case ReviewAuditToolName.securitySupplyChain:
+            result = localSecurityAuditResult(toolName: toolName, audit: runSecuritySupplyChainAudit(scopeFiles: scopedFiles, workspacePath: workspacePath))
         default:
             if let bridged = bridgeAuditToolResult(
                 named: toolName,
