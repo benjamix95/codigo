@@ -1,0 +1,42 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: nel dominio main chat la decisione `CLI multi-account exhausted -> fallback al provider singolo / hard fail` era ancora posseduta dal binding Swift.
+- Sintomo: `ChatPanelView+PartN_RuntimeProvider.swift` decideva localmente quando:
+  - mostrare l’hint all’utente
+  - degradare al provider singolo già configurato
+  - fallire chiuso restituendo `nil`
+- Impatto: altra ownership ibrida nel dominio `RuntimeProvider` della main chat, con il core Rust che risolveva il transport ma Swift che decideva ancora il comportamento finale del fallback multi-account.
+- Gravità: media
+- Steps to reproduce:
+  1. Attivare `multiCLIAccountEnabled`.
+  2. Forzare `CLIAccountRouter.currentAvailability(provider:)` a `.allExhausted(...)`.
+  3. Osservare che il ramo Swift decide fallback o hard fail in `resolveRuntimeProvider(...)`.
+- Risultato attuale: il binding Swift decideva la degradazione runtime della main chat quando i provider CLI multi-account erano esauriti.
+- Risultato atteso: il core Rust del transport deve restituire un esito esplicito (`fallbackAllowed`, `useSingleConfiguredProvider`, `failureReason`, `userFacingHint`) e Swift deve solo applicarlo.
+- Causa probabile: il cutover Rust del dominio provider/runtime si era fermato al transport shaping, lasciando il caso `allExhausted` nel binding host-side.
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_provider.rs`
+  - `Native/RustCore/src/main_chat/providers/runtime_transport.rs`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/MainChatProviderBridgeModels.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatProviderFactory.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Runtime/ChatPanelView+PartN_RuntimeProvider.swift`
+  - `Tests/SoloCodeAppTests/RustMainChatProviderFactoryTests.swift`
+- Non-scope:
+  - router/account store host-side
+  - provider object construction concreta
+  - `ToolEnabledLLMProvider`
+  - provider stack generico condiviso
+- Moduli confinanti da verificare:
+  - `RustMainChatProviderFactoryTests`
+  - `CLIMultiAccountProviderAdapterTests`
+- Test da aggiungere o aggiornare:
+  - regression su fallback consentito quando `baseAuthenticated == true`
+  - regression su hard fail quando `baseAuthenticated == false`
+- Strategia di fix minimo:
+  - estendere il contract del transport con `multiCliAccountEnabled`, `providerAvailabilityStatus`, `providerAvailabilityReason`, `baseAuthenticated`
+  - far restituire al core Rust `fallbackAllowed`, `useSingleConfiguredProvider`, `failureReason`, `userFacingHint`
+  - usare quell’esito nel binding Swift senza reintrodurre policy locale
+- Verifica post-fix:
+  - `cargo build --manifest-path Native/RustCore/Cargo.toml`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests -only-testing:SoloCodeAppTests/CLIMultiAccountProviderAdapterTests`
+- Commit previsto: `refactor(chat): move multi-account exhausted policy into rust`

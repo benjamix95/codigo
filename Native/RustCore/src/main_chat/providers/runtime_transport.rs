@@ -88,6 +88,7 @@ pub fn resolve_runtime_transport(
     let is_authenticated = resolve_transport_authentication(&provider_id, &request);
     let (native_image_attachment, native_document_attachment, native_file_attachment) =
         attachment_capabilities(&provider_id);
+    let multi_account_policy = resolve_multi_account_policy(&provider_id, &request);
 
     MainChatRuntimeTransportResponse::success(
         provider_id,
@@ -104,6 +105,10 @@ pub fn resolve_runtime_transport(
         native_image_attachment,
         native_document_attachment,
         native_file_attachment,
+        multi_account_policy.fallback_allowed,
+        multi_account_policy.use_single_configured_provider,
+        multi_account_policy.failure_reason,
+        multi_account_policy.user_facing_hint,
     )
 }
 
@@ -239,6 +244,101 @@ fn attachment_capabilities(provider_id: &str) -> (bool, bool, bool) {
     }
 }
 
+struct MultiAccountPolicy {
+    fallback_allowed: bool,
+    use_single_configured_provider: bool,
+    failure_reason: Option<String>,
+    user_facing_hint: Option<String>,
+}
+
+fn resolve_multi_account_policy(
+    provider_id: &str,
+    request: &MainChatRuntimeTransportRequest,
+) -> MultiAccountPolicy {
+    if !request.multi_cli_account_enabled {
+        return MultiAccountPolicy {
+            fallback_allowed: false,
+            use_single_configured_provider: false,
+            failure_reason: None,
+            user_facing_hint: None,
+        };
+    }
+    let is_cli_provider = matches!(
+        normalized_backend_id(provider_id).as_str(),
+        "codex" | "codex-cli" | "claude" | "claude-cli" | "gemini" | "gemini-cli"
+    );
+    if !is_cli_provider {
+        return MultiAccountPolicy {
+            fallback_allowed: false,
+            use_single_configured_provider: false,
+            failure_reason: None,
+            user_facing_hint: None,
+        };
+    }
+
+    let availability_status = normalized_string(
+        request
+            .provider_availability_status
+            .as_deref()
+            .unwrap_or_default(),
+    )
+    .unwrap_or_default()
+    .to_lowercase();
+
+    if availability_status != "all_exhausted" {
+        return MultiAccountPolicy {
+            fallback_allowed: false,
+            use_single_configured_provider: false,
+            failure_reason: None,
+            user_facing_hint: None,
+        };
+    }
+
+    let failure_reason = normalized_string(
+        request
+            .provider_availability_reason
+            .as_deref()
+            .unwrap_or_default(),
+    );
+    let provider_label = provider_display_name(provider_id);
+    if request.base_authenticated {
+        let reason = failure_reason
+            .clone()
+            .unwrap_or_else(|| "No available account".to_string());
+        return MultiAccountPolicy {
+            fallback_allowed: true,
+            use_single_configured_provider: true,
+            failure_reason: Some(reason.clone()),
+            user_facing_hint: Some(format!(
+                "[Multi-account {}: {}. Falling back to the single configured CLI provider for this turn.]",
+                provider_label, reason
+            )),
+        };
+    }
+
+    let reason = failure_reason
+        .clone()
+        .unwrap_or_else(|| "No available account".to_string());
+    MultiAccountPolicy {
+        fallback_allowed: false,
+        use_single_configured_provider: false,
+        failure_reason: Some(reason.clone()),
+        user_facing_hint: Some(format!(
+            "[Multi-account {}: {}. Configure accounts or reset limits in Settings.]",
+            provider_label, reason
+        )),
+    }
+}
+
+fn provider_display_name(provider_id: &str) -> &'static str {
+    match normalized_backend_id(provider_id).as_str() {
+        "codex" | "codex-cli" => "Codex CLI",
+        "claude" | "claude-cli" => "Claude CLI",
+        "gemini" | "gemini-cli" => "Gemini CLI",
+        _ => "CLI",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::resolve_runtime_transport;
@@ -267,6 +367,8 @@ mod tests {
         assert!(response.native_image_attachment);
         assert!(!response.native_document_attachment);
         assert!(!response.native_file_attachment);
+        assert!(!response.fallback_allowed);
+        assert!(!response.use_single_configured_provider);
     }
 
     #[test]
@@ -293,6 +395,44 @@ mod tests {
         let response = resolve_runtime_transport(request);
         assert_eq!(response.provider_id.as_deref(), Some("codex-cli"));
         assert!(response.is_authenticated);
+    }
+
+    #[test]
+    fn exhausted_multi_account_can_fallback_to_single_configured_provider() {
+        let mut request = request("codex-cli", Some("codex-cli"), false, false, None);
+        request.multi_cli_account_enabled = true;
+        request.provider_availability_status = Some("all_exhausted".to_string());
+        request.provider_availability_reason = Some("Daily limit reached".to_string());
+        request.base_authenticated = true;
+
+        let response = resolve_runtime_transport(request);
+        assert!(response.fallback_allowed);
+        assert!(response.use_single_configured_provider);
+        assert_eq!(response.failure_reason.as_deref(), Some("Daily limit reached"));
+        assert!(response
+            .user_facing_hint
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Falling back"));
+    }
+
+    #[test]
+    fn exhausted_multi_account_without_base_auth_fails_closed() {
+        let mut request = request("codex-cli", Some("codex-cli"), false, false, None);
+        request.multi_cli_account_enabled = true;
+        request.provider_availability_status = Some("all_exhausted".to_string());
+        request.provider_availability_reason = Some("Daily limit reached".to_string());
+        request.base_authenticated = false;
+
+        let response = resolve_runtime_transport(request);
+        assert!(!response.fallback_allowed);
+        assert!(!response.use_single_configured_provider);
+        assert_eq!(response.failure_reason.as_deref(), Some("Daily limit reached"));
+        assert!(response
+            .user_facing_hint
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Configure accounts"));
     }
 
     #[test]
@@ -346,6 +486,10 @@ mod tests {
             codex_cli_accounts: Vec::new(),
             claude_cli_accounts: Vec::new(),
             gemini_cli_accounts: Vec::new(),
+            multi_cli_account_enabled: false,
+            provider_availability_status: None,
+            provider_availability_reason: None,
+            base_authenticated: false,
         }
     }
 

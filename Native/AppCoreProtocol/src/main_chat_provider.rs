@@ -152,6 +152,12 @@ pub struct MainChatRuntimeTransportRequest {
     pub claude_cli_accounts: Vec<MainChatCLIAccountSnapshot>,
     #[serde(default)]
     pub gemini_cli_accounts: Vec<MainChatCLIAccountSnapshot>,
+    #[serde(default)]
+    pub multi_cli_account_enabled: bool,
+    pub provider_availability_status: Option<String>,
+    pub provider_availability_reason: Option<String>,
+    #[serde(default)]
+    pub base_authenticated: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -181,6 +187,12 @@ pub struct MainChatRuntimeTransportResponse {
     pub native_document_attachment: bool,
     #[serde(default)]
     pub native_file_attachment: bool,
+    #[serde(default)]
+    pub fallback_allowed: bool,
+    #[serde(default)]
+    pub use_single_configured_provider: bool,
+    pub failure_reason: Option<String>,
+    pub user_facing_hint: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -301,6 +313,10 @@ impl MainChatRuntimeTransportResponse {
         native_image_attachment: bool,
         native_document_attachment: bool,
         native_file_attachment: bool,
+        fallback_allowed: bool,
+        use_single_configured_provider: bool,
+        failure_reason: Option<String>,
+        user_facing_hint: Option<String>,
     ) -> Self {
         Self {
             schema_version: 1,
@@ -319,6 +335,10 @@ impl MainChatRuntimeTransportResponse {
             native_image_attachment,
             native_document_attachment,
             native_file_attachment,
+            fallback_allowed,
+            use_single_configured_provider,
+            failure_reason,
+            user_facing_hint,
         }
     }
 
@@ -343,6 +363,10 @@ impl MainChatRuntimeTransportResponse {
             native_image_attachment: false,
             native_document_attachment: false,
             native_file_attachment: false,
+            fallback_allowed: false,
+            use_single_configured_provider: false,
+            failure_reason: None,
+            user_facing_hint: None,
         }
     }
 }

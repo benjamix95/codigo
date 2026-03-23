@@ -177,20 +177,49 @@ extension ChatPanelView {
             let selectedProviderId = providerRegistry.selectedProviderId,
             let kind = CLIProviderKind.fromProviderId(selectedProviderId)
         {
-            // Check if all accounts are exhausted
-            if case .allExhausted(let reason) = cliAccountRouter.currentAvailability(
-                provider: kind)
-            {
-                if selectedProvider.isAuthenticated() {
-                    appendTechnicalErrorMessage(
-                        "[Multi-account \(kind.displayName): \(reason). Falling back to the single configured CLI provider for this turn.]",
-                        in: conversationId)
+            let availability = cliAccountRouter.currentAvailability(provider: kind)
+            let availabilityStatus: String?
+            let availabilityReason: String?
+            switch availability {
+            case .available:
+                availabilityStatus = "available"
+                availabilityReason = nil
+            case .allExhausted(let reason):
+                availabilityStatus = "all_exhausted"
+                availabilityReason = reason
+            }
+            let cfg = providerFactoryConfig()
+            let registryEntries = providerRegistry.providers.map {
+                MainChatRuntimeProviderRegistryEntryBridge(
+                    id: $0.id,
+                    isAuthenticated: $0.isAuthenticated()
+                )
+            }
+            let policy = MainChatRustTransportSupport.resolveTransportConfig(
+                selectedProviderId: selectedProviderId,
+                fallbackSelectedProviderId: selectedProvider.id,
+                coderMode: coderMode,
+                shouldRunPlanInline: shouldRunPlanInline,
+                forcePlanInline: forcePlanInline,
+                preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider,
+                config: cfg,
+                registryProviders: registryEntries,
+                codexCLIAccounts: kind == .codex ? cliAccountSnapshots(for: .codex) : [],
+                claudeCLIAccounts: kind == .claude ? cliAccountSnapshots(for: .claude) : [],
+                geminiCLIAccounts: kind == .gemini ? cliAccountSnapshots(for: .gemini) : [],
+                multiCLIAccountEnabled: true,
+                providerAvailabilityStatus: availabilityStatus,
+                providerAvailabilityReason: availabilityReason,
+                baseAuthenticated: selectedProvider.isAuthenticated()
+            )
+            if let policy, let hint = policy.userFacingHint {
+                appendTechnicalErrorMessage(hint, in: conversationId)
+                if policy.useSingleConfiguredProvider {
                     return selectedProvider
                 }
-                appendTechnicalErrorMessage(
-                    "[Multi-account \(kind.displayName): \(reason). Configure accounts or reset limits in Settings.]",
-                    in: conversationId)
-                return nil
+                if let failureReason = policy.failureReason, !failureReason.isEmpty {
+                    return nil
+                }
             }
             return CLIMultiAccountProviderAdapter(
                 providerKind: kind,
@@ -199,7 +228,6 @@ extension ChatPanelView {
                 router: cliAccountRouter,
                 accountsStore: cliAccountsStore,
                 makeProvider: { _, env in
-                    let cfg = providerFactoryConfig()
                     let subagentFactory = ProviderFactory.subagentProviderFactory(
                         config: cfg,
                         executionController: executionController,

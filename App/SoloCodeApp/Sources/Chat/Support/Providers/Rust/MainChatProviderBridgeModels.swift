@@ -139,6 +139,10 @@ struct MainChatRuntimeTransportRequestBridge: Encodable {
     let codexCliAccounts: [MainChatCLIAccountSnapshotBridge]
     let claudeCliAccounts: [MainChatCLIAccountSnapshotBridge]
     let geminiCliAccounts: [MainChatCLIAccountSnapshotBridge]
+    let multiCliAccountEnabled: Bool
+    let providerAvailabilityStatus: String?
+    let providerAvailabilityReason: String?
+    let baseAuthenticated: Bool
 }
 
 struct MainChatRuntimeTransportResponseBridge: Decodable {
@@ -158,6 +162,10 @@ struct MainChatRuntimeTransportResponseBridge: Decodable {
     let nativeImageAttachment: Bool
     let nativeDocumentAttachment: Bool
     let nativeFileAttachment: Bool
+    let fallbackAllowed: Bool
+    let useSingleConfiguredProvider: Bool
+    let failureReason: String?
+    let userFacingHint: String?
 }
 
 struct MainChatProviderSessionStartRequestBridge: Encodable {

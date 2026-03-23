@@ -98,6 +98,54 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(resolved?.attachmentCapabilities, .init(nativeImage: true, nativeDocument: false, nativeFile: false))
     }
 
+    func testRuntimeTransportResolutionAllowsFallbackToSingleConfiguredProviderWhenMultiAccountIsExhausted() {
+        let config = makeProviderFactoryConfig(codexPath: "")
+        let resolved = MainChatRustTransportSupport.resolveTransportConfig(
+            selectedProviderId: "codex-cli",
+            fallbackSelectedProviderId: "codex-cli",
+            coderMode: .agent,
+            shouldRunPlanInline: false,
+            forcePlanInline: false,
+            preferCodeReviewRuntimeProvider: nil,
+            config: config,
+            registryProviders: [],
+            codexCLIAccounts: [],
+            multiCLIAccountEnabled: true,
+            providerAvailabilityStatus: "all_exhausted",
+            providerAvailabilityReason: "Daily limit reached",
+            baseAuthenticated: true
+        )
+
+        XCTAssertTrue(resolved?.fallbackAllowed ?? false)
+        XCTAssertTrue(resolved?.useSingleConfiguredProvider ?? false)
+        XCTAssertEqual(resolved?.failureReason, "Daily limit reached")
+        XCTAssertTrue(resolved?.userFacingHint?.contains("Falling back") ?? false)
+    }
+
+    func testRuntimeTransportResolutionFailsClosedWhenMultiAccountIsExhaustedAndBaseProviderIsLoggedOut() {
+        let config = makeProviderFactoryConfig(codexPath: "")
+        let resolved = MainChatRustTransportSupport.resolveTransportConfig(
+            selectedProviderId: "codex-cli",
+            fallbackSelectedProviderId: "codex-cli",
+            coderMode: .agent,
+            shouldRunPlanInline: false,
+            forcePlanInline: false,
+            preferCodeReviewRuntimeProvider: nil,
+            config: config,
+            registryProviders: [],
+            codexCLIAccounts: [],
+            multiCLIAccountEnabled: true,
+            providerAvailabilityStatus: "all_exhausted",
+            providerAvailabilityReason: "Daily limit reached",
+            baseAuthenticated: false
+        )
+
+        XCTAssertFalse(resolved?.fallbackAllowed ?? true)
+        XCTAssertFalse(resolved?.useSingleConfiguredProvider ?? true)
+        XCTAssertEqual(resolved?.failureReason, "Daily limit reached")
+        XCTAssertTrue(resolved?.userFacingHint?.contains("Configure accounts") ?? false)
+    }
+
     func testProviderFactoryConfigResolvesDetectedCodexPathForRustTransport() {
         let config = makeProviderFactoryConfig(codexPath: "")
 
@@ -164,7 +212,11 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             codexSessionFullAccess: false,
             claudeAllowedTools: ["Read", "Glob", "Grep"],
             isAuthenticated: true,
-            attachmentCapabilities: .init(nativeImage: true, nativeDocument: false, nativeFile: false)
+            attachmentCapabilities: .init(nativeImage: true, nativeDocument: false, nativeFile: false),
+            fallbackAllowed: false,
+            useSingleConfiguredProvider: false,
+            failureReason: nil,
+            userFacingHint: nil
         )
 
         let resolution = readOnlyPlanProviderResolution(

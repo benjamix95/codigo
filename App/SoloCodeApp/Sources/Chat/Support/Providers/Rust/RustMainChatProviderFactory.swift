@@ -136,6 +136,10 @@ struct MainChatRustResolvedProviderConfig {
     let claudeAllowedTools: [String]
     let isAuthenticated: Bool
     let attachmentCapabilities: ProviderAttachmentCapabilities
+    let fallbackAllowed: Bool
+    let useSingleConfiguredProvider: Bool
+    let failureReason: String?
+    let userFacingHint: String?
 }
 
 enum MainChatRustTransportSupport {
@@ -160,7 +164,11 @@ enum MainChatRustTransportSupport {
         registryProviders: [MainChatRuntimeProviderRegistryEntryBridge] = [],
         codexCLIAccounts: [MainChatCLIAccountSnapshotBridge] = [],
         claudeCLIAccounts: [MainChatCLIAccountSnapshotBridge] = [],
-        geminiCLIAccounts: [MainChatCLIAccountSnapshotBridge] = []
+        geminiCLIAccounts: [MainChatCLIAccountSnapshotBridge] = [],
+        multiCLIAccountEnabled: Bool = false,
+        providerAvailabilityStatus: String? = nil,
+        providerAvailabilityReason: String? = nil,
+        baseAuthenticated: Bool = false
     ) -> MainChatRustResolvedProviderConfig? {
         let request = MainChatRuntimeTransportRequestBridge(
             schemaVersion: 1,
@@ -187,7 +195,11 @@ enum MainChatRustTransportSupport {
             registryProviders: registryProviders,
             codexCliAccounts: codexCLIAccounts,
             claudeCliAccounts: claudeCLIAccounts,
-            geminiCliAccounts: geminiCLIAccounts
+            geminiCliAccounts: geminiCLIAccounts,
+            multiCliAccountEnabled: multiCLIAccountEnabled,
+            providerAvailabilityStatus: providerAvailabilityStatus,
+            providerAvailabilityReason: providerAvailabilityReason,
+            baseAuthenticated: baseAuthenticated
         )
         guard let response: MainChatRuntimeTransportResponseBridge = ReviewCoreBridge.call(
             functionName: "chat_core_provider_resolve_transport",
@@ -213,7 +225,11 @@ enum MainChatRustTransportSupport {
                 nativeImage: response.nativeImageAttachment,
                 nativeDocument: response.nativeDocumentAttachment,
                 nativeFile: response.nativeFileAttachment
-            )
+            ),
+            fallbackAllowed: response.fallbackAllowed,
+            useSingleConfiguredProvider: response.useSingleConfiguredProvider,
+            failureReason: response.failureReason,
+            userFacingHint: response.userFacingHint
         )
     }
 
