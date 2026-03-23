@@ -24,6 +24,10 @@ public actor MCPLifecycleRustBackend {
         self.binaryOverrideURL = binaryURL
     }
 
+    deinit {
+        terminateBackendProcess()
+    }
+
     func health(servers: [MCPConfigLoader.DetectedServer]) async throws -> [String: String] {
         let payload = try await request(
             op: "health",

@@ -214,6 +214,72 @@ fn lifecycle_backend_reuses_process_for_duplicate_server_configs() {
     child.close();
 }
 
+#[test]
+fn lifecycle_backend_respawns_when_server_config_changes() {
+    let temp_root = make_temp_dir("mcp-lifecycle-config-change");
+    let cwd = temp_root.join("workspace");
+    fs::create_dir_all(&cwd).expect("create workspace");
+    let boot_file = temp_root.join("boot-count.txt");
+    let fake_binary = env!("CARGO_BIN_EXE_fake-mcp-server").to_string();
+
+    let initial = json!({
+        "id": "fake-config",
+        "name": "Fake Server",
+        "command": fake_binary,
+        "args": [boot_file.display().to_string()],
+        "cwd": cwd.display().to_string(),
+        "env": { "MCP_FAKE_VALUE": "alpha" }
+    });
+    let updated = json!({
+        "id": "fake-config",
+        "name": "Fake Server",
+        "command": fake_binary,
+        "args": [boot_file.display().to_string()],
+        "cwd": cwd.display().to_string(),
+        "env": { "MCP_FAKE_VALUE": "beta" }
+    });
+
+    let mut child = BackendHarness::spawn();
+    let list = child.request("1", "list_servers", json!({ "servers": [initial.clone()] }));
+    assert!(list["ok"].as_bool().unwrap_or(false));
+
+    let reconnect = child.request("2", "reconnect", json!({ "server": initial }));
+    assert!(reconnect["ok"].as_bool().unwrap_or(false));
+
+    let first_env = child.request(
+        "3",
+        "call_tool",
+        json!({ "serverId": "fake-config", "toolName": "env_value", "arguments": {} }),
+    );
+    assert_eq!(first_env["payload"]["content"], "alpha");
+
+    let first_boot = child.request(
+        "4",
+        "call_tool",
+        json!({ "serverId": "fake-config", "toolName": "boot_count", "arguments": {} }),
+    );
+    assert_eq!(first_boot["payload"]["content"], "1");
+
+    let refresh = child.request("5", "list_servers", json!({ "servers": [updated] }));
+    assert!(refresh["ok"].as_bool().unwrap_or(false));
+
+    let second_env = child.request(
+        "6",
+        "call_tool",
+        json!({ "serverId": "fake-config", "toolName": "env_value", "arguments": {} }),
+    );
+    assert_eq!(second_env["payload"]["content"], "beta");
+
+    let second_boot = child.request(
+        "7",
+        "call_tool",
+        json!({ "serverId": "fake-config", "toolName": "boot_count", "arguments": {} }),
+    );
+    assert_eq!(second_boot["payload"]["content"], "2");
+
+    child.close();
+}
+
 struct BackendHarness {
     child: Child,
     stdin: ChildStdin,

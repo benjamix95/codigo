@@ -1,0 +1,64 @@
+## Bug Fix Record
+- Categoria: A - Critico
+- Bug: il runtime MCP `coderide` manteneva ownership e lifecycle ancora spezzati tra piu' `MCPSessionManager` persistenti, alias canonici incompleti e teardown non garantito del backend Rust.
+- Sintomo:
+  - l'app poteva mantenere piu' backend `mcp-lifecycle-backend-rust` contemporanei;
+  - alcuni tool canonici (`review_*`, `web_*`, subagent mixed-case) non preferivano sempre il path Rust `coderide_*`;
+  - in caso di deallocazione del backend lifecycle o cambio config server, il cleanup/respawn non era sufficientemente protetto.
+- Impatto: duplicazione processi MCP, routing Swift non coerente con la priorita' Rust, maggiore rischio di `Transport closed`, processi orfani e fallback non desiderati sul path standard.
+- Gravita': P1
+- Steps to reproduce:
+  1. Costruire un runtime app-side tramite `ProviderFactory.buildRuntime(...)` e confrontarlo con `UnifiedToolRuntime()` di default.
+  2. Registrare un tool MCP `coderide_review_start` o `coderide_subagent_securityAuditor` nel registry nativo.
+  3. Eseguire i tool canonici corrispondenti o aggiornare la config di un fake MCP server mantenendo la stessa identity.
+- Risultato attuale:
+  - `MCPRuntimeService` usava un manager dedicato invece del singleton globale;
+  - il registry alias non normalizzava in lower-case i nomi mixed-case;
+  - il lifecycle backend Rust non aveva un cleanup finale garantito sul drop del processo figlio;
+  - il cambio config server non era coperto da regressione automatizzata nel crate Rust.
+- Risultato atteso:
+  - un solo `MCPSessionManager.shared` per il runtime persistente app-side;
+  - alias canonici `coderide_* -> tool canonico` sempre normalizzati e preferiti dal path Rust-first;
+  - chiusura forte dei child process MCP quando il lifecycle backend viene dismesso;
+  - regressione stabile che verifichi il respawn del processo quando cambia la config osservabile del server.
+- Causa probabile:
+  - servizio app-side separato dal singleton engine-level;
+  - alias routing case-sensitive rispetto ai nomi canonici normalizzati;
+  - cleanup finale affidato solo ai path espliciti di shutdown invece che anche al drop;
+  - assenza di smoke test Rust sul cambio config a parita' di server id.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Services/MCPRuntimeService.swift`
+  - `Engine/CoderEngine/Sources/Tools/Catalog/ToolSchemaCatalog.swift`
+  - `Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/MCP/Core/UnifiedToolRuntime+MCPCanonicalAliasRouting.swift`
+  - `Engine/CoderEngine/Sources/Infrastructure/MCP/RustLifecycle/MCPLifecycleRustBackend.swift`
+  - `Native/MCPLifecycleBackendRust/src/mcp_process.rs`
+  - test runtime/catalog/lifecycle collegati
+- Non-scope:
+  - merge tra `mcp-lifecycle-backend-rust` e `coderide-mcp-server-rust`
+  - rimozione completa di tutti i path Swift del runtime
+  - modifiche UI/chat non strettamente necessarie al boundary MCP
+- Moduli confinanti da verificare:
+  - `ProviderFactory.buildRuntime`
+  - `MCPServerControlService`
+  - `MCPNativeToolRegistry`
+  - `UnifiedToolRuntime` alias routing
+  - smoke `MCPLifecycleBackendRust`
+- Test da aggiungere o aggiornare:
+  - app-side: runtime e settings devono usare `MCPSessionManager.shared`
+  - catalogo: alias mixed-case `coderide_subagent_securityAuditor`
+  - runtime: preferenza Rust per `review_start` e `web_search`
+  - Rust smoke: respawn processo quando cambia config osservabile del server
+- Strategia di fix minimo:
+  - puntare il servizio app-side al singleton condiviso;
+  - normalizzare in lower-case gli alias `coderide_*`;
+  - ampliare il set di famiglie canoniche Rust-first;
+  - chiudere il processo MCP Rust anche nel `Drop`;
+  - spostare la regressione di config-respawn nel crate Rust, dove l'harness e' stabile.
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/MCPLifecycleBackendRust/Cargo.toml`
+  - `xcodebuild test -quiet -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/MCPRuntimeServiceTests`
+  - `xcodebuild test -quiet -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/ToolSchemaCatalogTests/testNativeRegistryLowercasesCanonicalAliasForMixedCaseCoderideTool`
+  - `xcodebuild test -quiet -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/UnifiedToolRuntimeMCPConsistencyTests/testCanonicalReviewStartPrefersCoderideAliasWhenRegistryIsWarm`
+  - `xcodebuild test -quiet -workspace 'Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/UnifiedToolRuntimeMCPConsistencyTests/testCanonicalWebSearchPrefersCoderideAliasWhenRegistryIsWarm`
+- Commit previsto:
+  - `fix(mcp): share runtime session manager and harden rust alias lifecycle`

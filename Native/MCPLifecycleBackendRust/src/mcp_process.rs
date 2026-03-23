@@ -273,6 +273,12 @@ impl McpProcess {
     }
 }
 
+impl Drop for McpProcess {
+    fn drop(&mut self) {
+        let _ = self.shutdown();
+    }
+}
+
 pub fn flatten_tool_content(result: &CallToolResult) -> String {
     result
         .content

@@ -340,6 +340,27 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["mcp_tool"], "coderide_read")
     }
 
+    func testCanonicalReviewStartPrefersCoderideAliasWhenRegistryIsWarm() async throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        registerCoderideAlias("review_start")
+
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(name: "review_start", workspace: tmp)
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractPayload(events, matchingTool: "review_start")
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["tool"], "review_start")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+        XCTAssertEqual(completed?["mcp_tool"], "coderide_review_start")
+    }
+
     func testCanonicalWebSearchPrefersCoderideAliasWhenRegistryIsWarm() async throws {
         let registry = MCPNativeToolRegistry.shared
         registry.clear()
@@ -380,7 +401,7 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         let tmp = try makeTmpWorkspace()
         defer { try? FileManager.default.removeItem(at: tmp) }
 
-        for alias in ["write", "grep", "debug_session"] {
+        for alias in ["write", "grep", "todo_write", "plan_create", "debug_session"] {
             registerCoderideAlias(alias)
         }
 
@@ -396,6 +417,20 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
             expectedMCPTool: "coderide_grep",
             workspace: tmp
         )
+        let todoRuntime = UnifiedToolRuntime()
+        let (todoCall, todoContext) = makeCall(name: "todo_write", args: ["todos": "[]"], workspace: tmp)
+        let todoEvents = await todoRuntime.execute(todoCall, context: todoContext)
+        let todoPayload = extractPayload(todoEvents, matchingTool: "todo_write")
+        XCTAssertEqual(todoPayload?["is_mcp"], "true")
+        XCTAssertEqual(todoPayload?["mcp_tool"], "coderide_todo_write")
+
+        let planRuntime = UnifiedToolRuntime()
+        let (planCall, planContext) = makeCall(name: "plan_create", args: ["goal": "stabilizzare coderide"], workspace: tmp)
+        let planEvents = await planRuntime.execute(planCall, context: planContext)
+        let planPayload = extractPayload(planEvents, matchingTool: "plan_create")
+        XCTAssertEqual(planPayload?["is_mcp"], "true")
+        XCTAssertEqual(planPayload?["mcp_tool"], "coderide_plan_create")
+
         await assertCanonicalToolPrefersCoderideAlias(
             canonicalName: "debug_session",
             args: ["action": "start"],

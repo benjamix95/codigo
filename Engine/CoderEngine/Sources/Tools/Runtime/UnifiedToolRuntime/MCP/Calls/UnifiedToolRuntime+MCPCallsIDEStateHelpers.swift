@@ -72,6 +72,13 @@ extension UnifiedToolRuntime {
                 metadata[key] = value
             }
         }
+        if let isMCP = completedPayload["is_mcp"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !isMCP.isEmpty {
+            metadata["is_mcp"] = isMCP
+        }
+        if metadata["tool"] == nil && !normalizedTool.isEmpty {
+            metadata["tool"] = normalizedTool
+        }
         if metadata["mcp_tool"] == nil && !normalizedTool.isEmpty {
             metadata["mcp_tool"] = normalizedTool
         }

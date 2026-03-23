@@ -3,6 +3,13 @@ import XCTest
 @testable import CoderIDE
 
 final class MCPRuntimeServiceTests: XCTestCase {
+    func testRuntimeServiceUsesGlobalSharedMCPSessionManager() {
+        XCTAssertEqual(
+            ObjectIdentifier(MCPRuntimeService.sharedSessionManager),
+            ObjectIdentifier(MCPSessionManager.shared)
+        )
+    }
+
     func testBuildRuntimeUsesSharedMCPSessionManager() async {
         let runtime = ProviderFactory.buildRuntime(
             executionController: nil,
@@ -12,14 +19,14 @@ final class MCPRuntimeServiceTests: XCTestCase {
 
         XCTAssertEqual(
             ObjectIdentifier(runtimeManager),
-            ObjectIdentifier(MCPRuntimeService.sharedSessionManager)
+            ObjectIdentifier(MCPSessionManager.shared)
         )
     }
 
     func testSettingsRestartUsesSharedMCPSessionManager() {
         XCTAssertEqual(
             ObjectIdentifier(MCPServerControlService.sessionManager),
-            ObjectIdentifier(MCPRuntimeService.sharedSessionManager)
+            ObjectIdentifier(MCPSessionManager.shared)
         )
     }
 }

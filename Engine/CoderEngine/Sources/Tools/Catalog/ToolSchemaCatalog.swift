@@ -163,7 +163,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
         let alias = String(toolName.dropFirst("coderide_".count))
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !alias.isEmpty else { return nil }
-        return alias
+        return alias.lowercased()
     }
 
     /// MCP tool metadata comes from external servers and must not be injected
