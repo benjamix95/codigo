@@ -1,0 +1,31 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il ramo `standardStream` del send runtime costruiva ancora localmente `MainChatUIStateBridge` solo per fare prewarm/projection del boundary Rust.
+- Sintomo: `ChatPanelView+PartL_SendMessageExecution.swift` duplicava la composizione di `runtimeSnapshot`, `selectedConversationId`, `draftText`, `planPanelVisible`, `followLive` e `collapsedArtifactsByTurn` invece di passare dal helper condiviso già usato dagli altri binding.
+- Impatto: ultimo call-site di shell-state duplicata nel path principale di invio main chat, con rischio di drift rispetto a stream/plan/auto-todo.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Cercare `RustMainChatStoreAdapter.uiState(` in `ChatPanelView+PartL_SendMessageExecution.swift`.
+  2. Verificare che il valore venga creato localmente e usato solo per `_ = RustMainChatStoreAdapter.projectUI(uiState)`.
+- Risultato attuale: il send runtime manteneva un call-site locale di composizione boundary state.
+- Risultato atteso: anche il send runtime deve usare il boundary helper condiviso della main chat.
+- Causa probabile: centralizzazione incompleta della tranche 3, con ultimo call-site rimasto nel ramo `standardStream`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Services/ChatSend/Runtime/ChatPanelView+PartL_SendMessageExecution.swift`
+- Non-scope:
+  - reducer/store/runtime Rust
+  - policy del provider send path
+  - altri file già sporchi nel worktree
+- Moduli confinanti da verificare:
+  - `ConversationFlowCoordinatorTests`
+  - `RustMainChatUIBoundaryTests`
+  - `RustMainChatUIBoundaryPlanTests`
+  - `RustMainChatAutoTodoBoundaryTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico: la suite boundary/flow esistente copre già il ramo dopo la centralizzazione
+- Strategia di fix minimo:
+  - sostituire la costruzione manuale di `uiState` con `projectMainChatUISnapshot(conversationId:)`
+  - non toccare altre modifiche locali presenti nel file
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatUIBoundaryTests -only-testing:SoloCodeAppTests/RustMainChatUIBoundaryPlanTests -only-testing:SoloCodeAppTests/RustMainChatAutoTodoBoundaryTests -only-testing:SoloCodeAppTests/ConversationFlowCoordinatorTests`
+- Commit previsto: `refactor(chat): remove final local send-runtime ui boundary build`

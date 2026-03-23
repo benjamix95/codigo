@@ -152,21 +152,11 @@ extension ChatPanelView {
                     if !rustAvailable {
                         print("[ChatDebug] Rust bridge unavailable — using Swift pipeline fallback for raw events")
                     }
-                    let uiState = await MainActor.run {
-                        RustMainChatStoreAdapter.uiState(
-                            from: chatStore,
-                            runtimeSnapshot: flowCoordinator.directRuntimeSnapshotState()
-                                ?? flowCoordinator.planRuntimeSnapshotState(),
-                            selectedConversationId: targetConversationId,
-                            draftText: inputText,
-                            planPanelVisible: showPlanPanel,
-                            followLive: isFollowingLive,
-                            collapsedArtifactsByTurn: collapsedArtifactsByTurn
-                        )
-                    }
                     // Rust UI projection is optional — the stream still works
                     // with the Swift fallback path in applyMainChatUIStreamIntent.
-                    _ = RustMainChatStoreAdapter.projectUI(uiState)
+                    _ = await MainActor.run {
+                        projectMainChatUISnapshot(conversationId: targetConversationId)
+                    }
                     let streamResult = try await flowCoordinator.runStream(
                         provider: effectiveRuntimeProvider,
                         prompt: prompt,
@@ -178,11 +168,12 @@ extension ChatPanelView {
                                 providerId: effectiveRuntimeProvider.id,
                                 conversationId: targetConversationId
                             )
+                            let cleaned = ChatStore.stripCoderideMarkers(content, aggressive: true)
                             applyMainChatUIStreamIntent(
                                 "stream_replace_text",
                                 conversationId: targetConversationId,
                                 providerId: effectiveRuntimeProvider.id,
-                                text: content
+                                text: cleaned
                             )
                         },
                         onRaw: { t, p, pid in
@@ -191,8 +182,8 @@ extension ChatPanelView {
                                 payload: p,
                                 providerId: pid,
                                 conversationId: targetConversationId,
-                                shouldApplyPipelineArtifacts: !rustAvailable,
-                                shouldUpdateInlineReasoningVisuals: !rustAvailable
+                                shouldApplyPipelineArtifacts: true,
+                                shouldUpdateInlineReasoningVisuals: true
                             )
                             if rustAvailable {
                                 applyMainChatUIStreamIntent(
