@@ -1,0 +1,45 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: nel dominio main chat la strategia finale del runtime provider era ancora inferita nel binding Swift a partire da flag Rust parziali.
+- Sintomo: `ChatPanelView+PartN_RuntimeProvider.swift` decideva ancora localmente se usare:
+  - `CLIMultiAccountProviderAdapter`
+  - il provider singolo già configurato
+  - un fail closed con `nil`
+- Impatto: ownership ibrida nel dominio `RuntimeProvider`, con il core Rust che risolveva il transport ma Swift che traduceva ancora i flag in comportamento esecutivo finale.
+- Gravità: media
+- Steps to reproduce:
+  1. Attivare `multiCLIAccountEnabled`.
+  2. Risolvere il transport Rust in uno dei casi `available`, `allExhausted + baseAuthenticated`, `allExhausted + baseAuthenticated == false`.
+  3. Osservare che il binding Swift deduce il comportamento finale da `fallbackAllowed/useSingleConfiguredProvider`.
+- Risultato attuale: Swift possedeva ancora la semantica esecutiva finale del ramo multi-account.
+- Risultato atteso: il core Rust deve restituire una strategia dichiarativa unica e Swift deve solo applicarla.
+- Causa probabile: il cutover del domain provider/runtime si era fermato ai dati di policy, senza chiudere l’ultimo mapping `policy flags -> execution path`.
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_provider.rs`
+  - `Native/RustCore/src/main_chat/providers/runtime_transport.rs`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/MainChatProviderBridgeModels.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatProviderFactory.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Runtime/ChatPanelView+PartN_RuntimeProvider.swift`
+  - `Tests/SoloCodeAppTests/RustMainChatProviderFactoryTests.swift`
+- Non-scope:
+  - `ConversationFlowCoordinator`
+  - router/account store host-side
+  - provider object construction concreta
+  - provider stack generico condiviso
+- Moduli confinanti da verificare:
+  - `runtime_transport` Rust tests
+  - `RustMainChatProviderFactoryTests`
+  - `CLIMultiAccountProviderAdapterTests`
+- Test da aggiungere o aggiornare:
+  - regression sulla strategia `multi_account_router`
+  - regression sulla strategia `single_configured_provider`
+  - regression sulla strategia `fail_closed`
+- Strategia di fix minimo:
+  - aggiungere `executionStrategy` al contract del transport
+  - far decidere il core Rust la strategia finale
+  - ridurre `resolveRuntimeProvider(...)` ad adapter che esegue la strategia restituita
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml runtime_transport -- --nocapture`
+  - `cargo test --manifest-path Native/AppCoreProtocol/Cargo.toml --quiet`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests -only-testing:SoloCodeAppTests/CLIMultiAccountProviderAdapterTests`
+- Commit previsto: `refactor(chat): move provider execution strategy into rust`

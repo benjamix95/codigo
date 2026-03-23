@@ -96,6 +96,28 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
 
         XCTAssertTrue(resolved?.isAuthenticated ?? false)
         XCTAssertEqual(resolved?.attachmentCapabilities, .init(nativeImage: true, nativeDocument: false, nativeFile: false))
+        XCTAssertEqual(resolved?.executionStrategy, .selectedProvider)
+    }
+
+    func testRuntimeTransportResolutionUsesMultiAccountRouterStrategyWhenAccountsAreAvailable() {
+        let config = makeProviderFactoryConfig(codexPath: "")
+        let resolved = MainChatRustTransportSupport.resolveTransportConfig(
+            selectedProviderId: "codex-cli",
+            fallbackSelectedProviderId: "codex-cli",
+            coderMode: .agent,
+            shouldRunPlanInline: false,
+            forcePlanInline: false,
+            preferCodeReviewRuntimeProvider: nil,
+            config: config,
+            registryProviders: [],
+            codexCLIAccounts: [],
+            multiCLIAccountEnabled: true,
+            providerAvailabilityStatus: "available",
+            providerAvailabilityReason: nil,
+            baseAuthenticated: true
+        )
+
+        XCTAssertEqual(resolved?.executionStrategy, .multiAccountRouter)
     }
 
     func testRuntimeTransportResolutionAllowsFallbackToSingleConfiguredProviderWhenMultiAccountIsExhausted() {
@@ -118,6 +140,7 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
 
         XCTAssertTrue(resolved?.fallbackAllowed ?? false)
         XCTAssertTrue(resolved?.useSingleConfiguredProvider ?? false)
+        XCTAssertEqual(resolved?.executionStrategy, .singleConfiguredProvider)
         XCTAssertEqual(resolved?.failureReason, "Daily limit reached")
         XCTAssertTrue(resolved?.userFacingHint?.contains("Falling back") ?? false)
     }
@@ -142,6 +165,7 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
 
         XCTAssertFalse(resolved?.fallbackAllowed ?? true)
         XCTAssertFalse(resolved?.useSingleConfiguredProvider ?? true)
+        XCTAssertEqual(resolved?.executionStrategy, .failClosed)
         XCTAssertEqual(resolved?.failureReason, "Daily limit reached")
         XCTAssertTrue(resolved?.userFacingHint?.contains("Configure accounts") ?? false)
     }
@@ -196,6 +220,7 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(resolved?.claudeAllowedTools, ["Read", "Glob", "Grep"])
         XCTAssertTrue(resolved?.isAuthenticated ?? false)
         XCTAssertEqual(resolved?.attachmentCapabilities, .init(nativeImage: true, nativeDocument: false, nativeFile: false))
+        XCTAssertEqual(resolved?.executionStrategy, .selectedProvider)
     }
 
     func testReadOnlyPlanProviderResolutionPrefersRustResolvedBackendAndConfig() {
@@ -215,6 +240,7 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             attachmentCapabilities: .init(nativeImage: true, nativeDocument: false, nativeFile: false),
             fallbackAllowed: false,
             useSingleConfiguredProvider: false,
+            executionStrategy: .selectedProvider,
             failureReason: nil,
             userFacingHint: nil
         )

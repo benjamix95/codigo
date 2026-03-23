@@ -138,6 +138,7 @@ struct MainChatRustResolvedProviderConfig {
     let attachmentCapabilities: ProviderAttachmentCapabilities
     let fallbackAllowed: Bool
     let useSingleConfiguredProvider: Bool
+    let executionStrategy: MainChatRuntimeExecutionStrategyBridge
     let failureReason: String?
     let userFacingHint: String?
 }
@@ -228,6 +229,7 @@ enum MainChatRustTransportSupport {
             ),
             fallbackAllowed: response.fallbackAllowed,
             useSingleConfiguredProvider: response.useSingleConfiguredProvider,
+            executionStrategy: response.executionStrategy,
             failureReason: response.failureReason,
             userFacingHint: response.userFacingHint
         )

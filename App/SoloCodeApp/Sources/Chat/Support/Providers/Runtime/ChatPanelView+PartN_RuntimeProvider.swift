@@ -212,14 +212,18 @@ extension ChatPanelView {
                 providerAvailabilityReason: availabilityReason,
                 baseAuthenticated: selectedProvider.isAuthenticated()
             )
-            if let policy, let hint = policy.userFacingHint {
+            if let hint = policy?.userFacingHint {
                 appendTechnicalErrorMessage(hint, in: conversationId)
-                if policy.useSingleConfiguredProvider {
-                    return selectedProvider
-                }
-                if let failureReason = policy.failureReason, !failureReason.isEmpty {
-                    return nil
-                }
+            }
+            switch policy?.executionStrategy {
+            case .singleConfiguredProvider:
+                return selectedProvider
+            case .failClosed:
+                return nil
+            case .multiAccountRouter, nil:
+                break
+            case .selectedProvider:
+                return selectedProvider
             }
             return CLIMultiAccountProviderAdapter(
                 providerKind: kind,

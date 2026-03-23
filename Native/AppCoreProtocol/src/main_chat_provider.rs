@@ -191,8 +191,20 @@ pub struct MainChatRuntimeTransportResponse {
     pub fallback_allowed: bool,
     #[serde(default)]
     pub use_single_configured_provider: bool,
+    #[serde(default)]
+    pub execution_strategy: MainChatRuntimeExecutionStrategy,
     pub failure_reason: Option<String>,
     pub user_facing_hint: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MainChatRuntimeExecutionStrategy {
+    #[default]
+    SelectedProvider,
+    MultiAccountRouter,
+    SingleConfiguredProvider,
+    FailClosed,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -315,6 +327,7 @@ impl MainChatRuntimeTransportResponse {
         native_file_attachment: bool,
         fallback_allowed: bool,
         use_single_configured_provider: bool,
+        execution_strategy: MainChatRuntimeExecutionStrategy,
         failure_reason: Option<String>,
         user_facing_hint: Option<String>,
     ) -> Self {
@@ -337,6 +350,7 @@ impl MainChatRuntimeTransportResponse {
             native_file_attachment,
             fallback_allowed,
             use_single_configured_provider,
+            execution_strategy,
             failure_reason,
             user_facing_hint,
         }
@@ -365,6 +379,7 @@ impl MainChatRuntimeTransportResponse {
             native_file_attachment: false,
             fallback_allowed: false,
             use_single_configured_provider: false,
+            execution_strategy: MainChatRuntimeExecutionStrategy::SelectedProvider,
             failure_reason: None,
             user_facing_hint: None,
         }

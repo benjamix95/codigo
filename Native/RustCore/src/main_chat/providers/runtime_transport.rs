@@ -1,6 +1,6 @@
 use app_core_protocol::main_chat_provider::{
-    MainChatCLIAccountSnapshot, MainChatProviderBackend, MainChatRuntimeTransportRequest,
-    MainChatRuntimeTransportResponse,
+    MainChatCLIAccountSnapshot, MainChatProviderBackend, MainChatRuntimeExecutionStrategy,
+    MainChatRuntimeTransportRequest, MainChatRuntimeTransportResponse,
 };
 use std::collections::BTreeMap;
 
@@ -107,6 +107,7 @@ pub fn resolve_runtime_transport(
         native_file_attachment,
         multi_account_policy.fallback_allowed,
         multi_account_policy.use_single_configured_provider,
+        multi_account_policy.execution_strategy,
         multi_account_policy.failure_reason,
         multi_account_policy.user_facing_hint,
     )
@@ -247,6 +248,7 @@ fn attachment_capabilities(provider_id: &str) -> (bool, bool, bool) {
 struct MultiAccountPolicy {
     fallback_allowed: bool,
     use_single_configured_provider: bool,
+    execution_strategy: MainChatRuntimeExecutionStrategy,
     failure_reason: Option<String>,
     user_facing_hint: Option<String>,
 }
@@ -259,6 +261,7 @@ fn resolve_multi_account_policy(
         return MultiAccountPolicy {
             fallback_allowed: false,
             use_single_configured_provider: false,
+            execution_strategy: MainChatRuntimeExecutionStrategy::SelectedProvider,
             failure_reason: None,
             user_facing_hint: None,
         };
@@ -271,6 +274,7 @@ fn resolve_multi_account_policy(
         return MultiAccountPolicy {
             fallback_allowed: false,
             use_single_configured_provider: false,
+            execution_strategy: MainChatRuntimeExecutionStrategy::SelectedProvider,
             failure_reason: None,
             user_facing_hint: None,
         };
@@ -289,6 +293,7 @@ fn resolve_multi_account_policy(
         return MultiAccountPolicy {
             fallback_allowed: false,
             use_single_configured_provider: false,
+            execution_strategy: MainChatRuntimeExecutionStrategy::MultiAccountRouter,
             failure_reason: None,
             user_facing_hint: None,
         };
@@ -308,6 +313,7 @@ fn resolve_multi_account_policy(
         return MultiAccountPolicy {
             fallback_allowed: true,
             use_single_configured_provider: true,
+            execution_strategy: MainChatRuntimeExecutionStrategy::SingleConfiguredProvider,
             failure_reason: Some(reason.clone()),
             user_facing_hint: Some(format!(
                 "[Multi-account {}: {}. Falling back to the single configured CLI provider for this turn.]",
@@ -322,6 +328,7 @@ fn resolve_multi_account_policy(
     MultiAccountPolicy {
         fallback_allowed: false,
         use_single_configured_provider: false,
+        execution_strategy: MainChatRuntimeExecutionStrategy::FailClosed,
         failure_reason: Some(reason.clone()),
         user_facing_hint: Some(format!(
             "[Multi-account {}: {}. Configure accounts or reset limits in Settings.]",
@@ -343,7 +350,7 @@ fn provider_display_name(provider_id: &str) -> &'static str {
 mod tests {
     use super::resolve_runtime_transport;
     use app_core_protocol::main_chat_provider::{
-        MainChatCLIAccountSnapshot, MainChatProviderBackend,
+        MainChatCLIAccountSnapshot, MainChatProviderBackend, MainChatRuntimeExecutionStrategy,
         MainChatRuntimeProviderRegistryEntry, MainChatRuntimeTransportRequest,
     };
     use std::collections::BTreeMap;
@@ -369,6 +376,10 @@ mod tests {
         assert!(!response.native_file_attachment);
         assert!(!response.fallback_allowed);
         assert!(!response.use_single_configured_provider);
+        assert_eq!(
+            response.execution_strategy,
+            MainChatRuntimeExecutionStrategy::SelectedProvider
+        );
     }
 
     #[test]
@@ -384,6 +395,10 @@ mod tests {
         assert_eq!(response.backend, Some(MainChatProviderBackend::ClaudeCli));
         assert_eq!(response.model.as_deref(), Some("claude-3"));
         assert!(response.is_authenticated);
+        assert_eq!(
+            response.execution_strategy,
+            MainChatRuntimeExecutionStrategy::SelectedProvider
+        );
     }
 
     #[test]
@@ -395,6 +410,25 @@ mod tests {
         let response = resolve_runtime_transport(request);
         assert_eq!(response.provider_id.as_deref(), Some("codex-cli"));
         assert!(response.is_authenticated);
+        assert_eq!(
+            response.execution_strategy,
+            MainChatRuntimeExecutionStrategy::SelectedProvider
+        );
+    }
+
+    #[test]
+    fn available_multi_account_uses_router_strategy() {
+        let mut request = request("codex-cli", Some("codex-cli"), false, false, None);
+        request.multi_cli_account_enabled = true;
+        request.provider_availability_status = Some("available".to_string());
+
+        let response = resolve_runtime_transport(request);
+        assert!(!response.fallback_allowed);
+        assert!(!response.use_single_configured_provider);
+        assert_eq!(
+            response.execution_strategy,
+            MainChatRuntimeExecutionStrategy::MultiAccountRouter
+        );
     }
 
     #[test]
@@ -408,6 +442,10 @@ mod tests {
         let response = resolve_runtime_transport(request);
         assert!(response.fallback_allowed);
         assert!(response.use_single_configured_provider);
+        assert_eq!(
+            response.execution_strategy,
+            MainChatRuntimeExecutionStrategy::SingleConfiguredProvider
+        );
         assert_eq!(response.failure_reason.as_deref(), Some("Daily limit reached"));
         assert!(response
             .user_facing_hint
@@ -427,6 +465,10 @@ mod tests {
         let response = resolve_runtime_transport(request);
         assert!(!response.fallback_allowed);
         assert!(!response.use_single_configured_provider);
+        assert_eq!(
+            response.execution_strategy,
+            MainChatRuntimeExecutionStrategy::FailClosed
+        );
         assert_eq!(response.failure_reason.as_deref(), Some("Daily limit reached"));
         assert!(response
             .user_facing_hint
@@ -447,6 +489,10 @@ mod tests {
         assert_eq!(response.provider_id.as_deref(), Some("codex-cli"));
         assert_eq!(response.backend, Some(MainChatProviderBackend::CodexCli));
         assert_eq!(response.model.as_deref(), Some("o3"));
+        assert_eq!(
+            response.execution_strategy,
+            MainChatRuntimeExecutionStrategy::SelectedProvider
+        );
     }
 
     fn request(

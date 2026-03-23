@@ -11,6 +11,13 @@ enum MainChatProviderBackendBridge: String, Codable {
     case googleApi = "google_api"
 }
 
+enum MainChatRuntimeExecutionStrategyBridge: String, Codable {
+    case selectedProvider = "selected_provider"
+    case multiAccountRouter = "multi_account_router"
+    case singleConfiguredProvider = "single_configured_provider"
+    case failClosed = "fail_closed"
+}
+
 struct MainChatProviderAttachmentBridge: Codable, Equatable {
     let kind: String
     let filePath: String
@@ -164,6 +171,7 @@ struct MainChatRuntimeTransportResponseBridge: Decodable {
     let nativeFileAttachment: Bool
     let fallbackAllowed: Bool
     let useSingleConfiguredProvider: Bool
+    let executionStrategy: MainChatRuntimeExecutionStrategyBridge
     let failureReason: String?
     let userFacingHint: String?
 }
