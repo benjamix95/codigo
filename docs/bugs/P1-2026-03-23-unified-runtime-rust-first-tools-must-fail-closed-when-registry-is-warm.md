@@ -41,3 +41,6 @@
   - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/UnifiedToolRuntimeMCPConsistencyTests`
 - Commit previsto:
   - `fix(runtime): fail closed rust-first tools when alias route is missing`
+
+## Stato
+- corretto il 2026-03-23
