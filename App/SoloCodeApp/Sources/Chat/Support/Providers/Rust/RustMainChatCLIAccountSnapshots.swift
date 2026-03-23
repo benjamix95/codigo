@@ -46,6 +46,10 @@ enum ChatReasoningPresentationMode: String {
     case separateMessages
 }
 
+private func shouldAllowSwiftReasoningFallback(environment: [String: String]) -> Bool {
+    shouldDeferRustReviewCoreBootstrap(environment: environment)
+}
+
 func shouldUpdateInlineReasoningState(
     eventConversationId: UUID?,
     selectedConversationId: UUID?
@@ -69,7 +73,9 @@ func shouldUpdateInlineReasoningState(
     if let result = response?.shouldUpdateInlineReasoningState {
         return result
     }
-    // Swift fallback when Rust bridge is unavailable (e.g. unit tests).
+    guard shouldAllowSwiftReasoningFallback(environment: ProcessInfo.processInfo.environment) else {
+        return false
+    }
     guard let eventId = eventConversationId, let selectedId = selectedConversationId else {
         return false
     }
@@ -117,8 +123,13 @@ enum ChatReasoningPresentationPolicy {
                 streamingSegmentTurnIndex: nil
             )
         )
-        return response?.presentationMode.flatMap(ChatReasoningPresentationMode.init(rawValue:))
-            ?? .inline
+        if let mode = response?.presentationMode.flatMap(ChatReasoningPresentationMode.init(rawValue:)) {
+            return mode
+        }
+        guard shouldAllowSwiftReasoningFallback(environment: ProcessInfo.processInfo.environment) else {
+            return .inline
+        }
+        return .inline
     }
 }
 
@@ -183,7 +194,9 @@ struct ChatReasoningStreamReducer {
                 }
             )
         }
-        // Swift fallback when Rust bridge is unavailable (e.g. unit tests).
+        guard shouldAllowSwiftReasoningFallback(environment: ProcessInfo.processInfo.environment) else {
+            return state
+        }
         var blocks = state.blocks
         if let idx = blocks.firstIndex(where: { $0.id == groupId }) {
             blocks[idx] = ReasoningBlock(id: groupId, text: output)

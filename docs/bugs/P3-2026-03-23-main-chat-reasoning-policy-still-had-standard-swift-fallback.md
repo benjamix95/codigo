@@ -1,0 +1,32 @@
+# Bug Fix Record
+- Categoria: C
+- Bug: il dominio reasoning della main chat manteneva ancora un fallback Swift implicito nel path standard, non limitato ai soli contesti di test.
+- Sintomo:
+  - `shouldUpdateInlineReasoningState(...)` ricadeva localmente sul confronto conversationId;
+  - `ChatReasoningPresentationPolicy.mode(...)` tornava sempre `.inline` lato Swift quando il bridge non rispondeva;
+  - `ChatReasoningStreamReducer.apply(...)` ricostruiva localmente blocchi reasoning anche fuori da un contesto XCTest esplicito.
+- Impatto: ownership ibrida della reasoning policy nel boundary host-side, con rischio di drift silenzioso rispetto al core Rust.
+- Gravità: bassa
+- Steps to reproduce:
+  1. Ispezionare `RustMainChatCLIAccountSnapshots.swift`.
+  2. Verificare che le tre API reasoning abbiano un fallback Swift sempre attivo dopo un `ReviewCoreBridge.call(...) == nil`.
+- Risultato attuale: il fallback locale non era limitato al perimetro test-only.
+- Risultato atteso: fuori dal bootstrap deferito in XCTest, il core Rust deve restare l’unico owner della reasoning policy; il fallback locale deve esistere solo nei test.
+- Causa probabile: il cutover Rust del reasoning stream/presentation era stato introdotto con fallback host-side conservativo mai più ristretto.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/RustMainChatCLIAccountSnapshots.swift`
+  - test `ChatReasoningStreamReducerTests`
+- Non-scope:
+  - transport/runtime provider selection
+  - pipeline chat live
+  - provider stack generico
+- Moduli confinanti da verificare:
+  - `ChatReasoningStreamReducerTests`
+- Test da aggiungere o aggiornare:
+  - nessun nuovo test logico necessario: la suite esistente copre il fallback in ambiente XCTest
+- Strategia di fix minimo:
+  - consentire il fallback Swift solo quando `shouldDeferRustReviewCoreBootstrap(...)` è vero
+  - usare default conservativi o fail-closed nel path standard
+- Verifica post-fix:
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatReasoningStreamReducerTests`
+- Commit previsto: `refactor(chat): limit reasoning fallback to rust defer policy`
