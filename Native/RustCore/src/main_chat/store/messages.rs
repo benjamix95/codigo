@@ -10,3 +10,4 @@ pub use assistant::{
     sync_assistant_pipeline_state,
 };
 pub use cleanup::{remove_message, remove_trailing_empty_assistant_messages};
+pub use helpers::normalize_message;

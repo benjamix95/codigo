@@ -1,5 +1,5 @@
 use app_core_protocol::main_chat_store::{
-    MainChatStoreConversationSnapshot, MainChatStoreMessageSnapshot,
+    MainChatStoreConversationSnapshot, MainChatStoreMessageSnapshot, MainChatStoreTimelineBlockSnapshot,
 };
 
 pub fn assistant_target_index(
@@ -70,5 +70,54 @@ pub fn sync_primary_text_block(message: &mut MainChatStoreMessageSnapshot, conte
                 is_collapsed_by_default: false,
             },
         );
+    }
+}
+
+pub fn resolved_primary_text(message: &MainChatStoreMessageSnapshot) -> String {
+    let primary = message
+        .primary_text_snapshot
+        .as_deref()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if !primary.is_empty() {
+        return primary;
+    }
+    message.content.trim().to_string()
+}
+
+pub fn sync_reasoning_block(message: &mut MainChatStoreMessageSnapshot, reasoning: &str) {
+    let trimmed = reasoning.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+
+    let blocks = message.blocks.get_or_insert_with(Vec::new);
+    if let Some(index) = blocks.iter().position(|block| block.kind == "reasoning") {
+        blocks[index].text = trimmed.to_string();
+        blocks[index].title = Some("Thinking".to_string());
+        blocks[index].is_collapsible = true;
+        blocks[index].is_collapsed_by_default = true;
+    } else {
+        blocks.push(MainChatStoreTimelineBlockSnapshot {
+            id: "reasoning".to_string(),
+            kind: "reasoning".to_string(),
+            title: Some("Thinking".to_string()),
+            text: trimmed.to_string(),
+            items: Vec::new(),
+            metadata: Default::default(),
+            is_collapsible: true,
+            is_collapsed_by_default: true,
+        });
+    }
+}
+
+pub fn normalize_message(message: &mut MainChatStoreMessageSnapshot) {
+    let primary = resolved_primary_text(message);
+    if !primary.is_empty() {
+        sync_primary_text_block(message, &primary);
+    }
+    if let Some(reasoning) = message.reasoning_text.clone() {
+        sync_reasoning_block(message, &reasoning);
     }
 }

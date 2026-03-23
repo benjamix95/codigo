@@ -45,47 +45,8 @@ enum RustMainChatStoreAdapter {
         to store: ChatStore,
         preserveLocalMessages: Bool = false
     ) {
-        if preserveLocalMessages {
-            let previousById = Dictionary(
-                uniqueKeysWithValues: store.conversations.map { ($0.id, $0) }
-            )
-            var incoming = snapshot.conversations.compactMap(conversation)
-            for i in incoming.indices {
-                guard let previous = previousById[incoming[i].id] else { continue }
-                let previousMsgById = Dictionary(
-                    uniqueKeysWithValues: previous.messages.map { ($0.id, $0) }
-                )
-                // For messages in both: if Rust has empty content/blocks but
-                // local has richer content, prefer the local version.
-                for j in incoming[i].messages.indices {
-                    guard let localMsg = previousMsgById[incoming[i].messages[j].id] else { continue }
-                    let rustContent = incoming[i].messages[j].content
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    let localContent = localMsg.content
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    let rustHasBlocks = incoming[i].messages[j].blocks?.isEmpty == false
-                    let localHasBlocks = localMsg.blocks?.isEmpty == false
-                    if rustContent.isEmpty && (!localContent.isEmpty || localHasBlocks) {
-                        incoming[i].messages[j] = localMsg
-                    } else if !rustHasBlocks && localHasBlocks && rustContent == localContent {
-                        incoming[i].messages[j] = localMsg
-                    }
-                }
-                // Add messages missing from Rust snapshot
-                let incomingIds = Set(incoming[i].messages.map(\.id))
-                let missing = previous.messages.filter { !incomingIds.contains($0.id) }
-                if !missing.isEmpty {
-                    incoming[i].messages.append(contentsOf: missing)
-                }
-            }
-            let incomingIds = Set(incoming.map(\.id))
-            for prev in store.conversations where !incomingIds.contains(prev.id) {
-                incoming.append(prev)
-            }
-            store.conversations = incoming
-        } else {
-            store.conversations = snapshot.conversations.compactMap(conversation)
-        }
+        _ = preserveLocalMessages
+        store.conversations = snapshot.conversations.compactMap(conversation)
         store.planBoards = Dictionary(uniqueKeysWithValues: snapshot.planBoards.compactMap { key, value in
             guard let uuid = UUID(uuidString: key) else { return nil }
             return (uuid, planBoard(value))

@@ -146,26 +146,7 @@ extension ChatStore {
         if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
             return local
         }
-        guard let normalized = RustMainChatStoreAdapter.loadNormalizedSnapshot(local) else {
-            return local
-        }
-        // Guard: normalization must not drop messages or strip content.
-        // If it does, the Rust core returned a broken snapshot — fall back to local.
-        let localMessageCount = local.conversations.reduce(0) { $0 + $1.messages.count }
-        let normalizedMessageCount = normalized.conversations.reduce(0) { $0 + $1.messages.count }
-        if localMessageCount > 0 && normalizedMessageCount < localMessageCount {
-            return local
-        }
-        let localContentSize = local.conversations.reduce(0) { total, conv in
-            total + conv.messages.reduce(0) { $0 + $1.content.count }
-        }
-        let normalizedContentSize = normalized.conversations.reduce(0) { total, conv in
-            total + conv.messages.reduce(0) { $0 + $1.content.count }
-        }
-        if localContentSize > 0 && normalizedContentSize == 0 {
-            return local
-        }
-        return normalized
+        return RustMainChatStoreAdapter.loadNormalizedSnapshot(local) ?? local
     }
 
     @MainActor
@@ -175,7 +156,11 @@ extension ChatStore {
             return
         }
         if let normalized = RustMainChatStoreAdapter.loadNormalizedSnapshot(local) {
-            RustMainChatStoreAdapter.apply(snapshot: normalized, to: self)
+            RustMainChatStoreAdapter.apply(
+                snapshot: normalized,
+                to: self,
+                preserveLocalMessages: false
+            )
         }
     }
 
@@ -213,11 +198,10 @@ extension ChatStore {
         guard let snapshot = RustMainChatStoreAdapter.handle(request) else {
             return false
         }
-        let isRemoveAction = action.hasPrefix("remove_")
         RustMainChatStoreAdapter.apply(
             snapshot: snapshot,
             to: self,
-            preserveLocalMessages: !isRemoveAction
+            preserveLocalMessages: false
         )
         return true
     }
@@ -241,6 +225,9 @@ extension ChatStore {
             RustMainChatStoreAdapter.apply(taskRuntimeState: state, to: self)
             return true
         }
+        guard shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) else {
+            return false
+        }
         guard let fallbackState = Self.fallbackTaskRuntimeState(from: request) else {
             return false
         }
@@ -262,17 +249,14 @@ extension ChatStore {
     @MainActor
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
         guard let conversationId else { return }
-        let shouldUseLocalFallback =
-            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-            || !applyRustStoreAction("set_streaming_state") { request in
-               request.conversationId = conversationId.uuidString.lowercased()
-               request.boolValue = streaming
-           }
-        if shouldUseLocalFallback
-            || !(conversation(for: conversationId)?.messages.last(where: {
-                $0.role == .assistant && $0.isStreaming == streaming
-            }) != nil)
-        {
+        let allowLocalFallback = shouldSkipRustStoreBootstrapForTests(
+            environment: ProcessInfo.processInfo.environment
+        )
+        let applied = applyRustStoreAction("set_streaming_state") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.boolValue = streaming
+        }
+        if !applied, allowLocalFallback {
             fallbackSetAssistantStreaming(conversationId: conversationId, streaming: streaming)
         }
         if !streaming {
@@ -285,15 +269,14 @@ extension ChatStore {
     @MainActor
     func addMessage(_ message: ChatMessage, to conversationId: UUID?) {
         guard let conversationId else { return }
-        let shouldUseLocalFallback =
-            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-            || !applyRustStoreAction("append_message") { request in
-               request.conversationId = conversationId.uuidString.lowercased()
-               request.message = RustMainChatStoreAdapter.messageSnapshot(message)
-           }
-        if shouldUseLocalFallback
-            || !(conversation(for: conversationId)?.messages.contains(where: { $0.id == message.id }) == true)
-        {
+        let allowLocalFallback = shouldSkipRustStoreBootstrapForTests(
+            environment: ProcessInfo.processInfo.environment
+        )
+        let applied = applyRustStoreAction("append_message") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+        }
+        if !applied, allowLocalFallback {
             fallbackAppendMessage(message, in: conversationId)
         }
         saveConversations()
@@ -303,15 +286,14 @@ extension ChatStore {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        let shouldUseLocalFallback =
-            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-            || !applyRustStoreAction("sync_assistant_content") { request in
-               request.conversationId = conversationId.uuidString.lowercased()
-               request.text = resolvedContent
-           }
-        let didApplyObservedMutation =
-            conversation(for: conversationId)?.messages.last(where: { $0.role == .assistant })?.content == resolvedContent
-        if shouldUseLocalFallback || !didApplyObservedMutation {
+        let allowLocalFallback = shouldSkipRustStoreBootstrapForTests(
+            environment: ProcessInfo.processInfo.environment
+        )
+        let applied = applyRustStoreAction("sync_assistant_content") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.text = resolvedContent
+        }
+        if !applied, allowLocalFallback {
             fallbackUpdateAssistantContent(conversationId: conversationId, content: resolvedContent)
         }
         persistAssistantMutation(immediately: persistImmediately)
@@ -326,16 +308,15 @@ extension ChatStore {
     ) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        let shouldUseLocalFallback =
-            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-            || !applyRustStoreAction("sync_assistant_content") { request in
-               request.conversationId = conversationId.uuidString.lowercased()
-               request.messageId = messageId.uuidString.lowercased()
-               request.text = resolvedContent
-           }
-        let didApplyObservedMutation =
-            conversation(for: conversationId)?.messages.first(where: { $0.id == messageId })?.content == resolvedContent
-        if shouldUseLocalFallback || !didApplyObservedMutation {
+        let allowLocalFallback = shouldSkipRustStoreBootstrapForTests(
+            environment: ProcessInfo.processInfo.environment
+        )
+        let applied = applyRustStoreAction("sync_assistant_content") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.messageId = messageId.uuidString.lowercased()
+            request.text = resolvedContent
+        }
+        if !applied, allowLocalFallback {
             fallbackUpdateAssistantContent(
                 conversationId: conversationId,
                 messageId: messageId,
@@ -348,16 +329,15 @@ extension ChatStore {
     @MainActor
     func insertMessage(_ message: ChatMessage, before messageId: UUID, in conversationId: UUID?) {
         guard let conversationId else { return }
-        let shouldUseLocalFallback =
-            shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment)
-            || !applyRustStoreAction("insert_message_before") { request in
-               request.conversationId = conversationId.uuidString.lowercased()
-               request.messageId = messageId.uuidString.lowercased()
-               request.message = RustMainChatStoreAdapter.messageSnapshot(message)
-           }
-        if shouldUseLocalFallback
-            || !(conversation(for: conversationId)?.messages.contains(where: { $0.id == message.id }) == true)
-        {
+        let allowLocalFallback = shouldSkipRustStoreBootstrapForTests(
+            environment: ProcessInfo.processInfo.environment
+        )
+        let applied = applyRustStoreAction("insert_message_before") { request in
+            request.conversationId = conversationId.uuidString.lowercased()
+            request.messageId = messageId.uuidString.lowercased()
+            request.message = RustMainChatStoreAdapter.messageSnapshot(message)
+        }
+        if !applied, allowLocalFallback {
             fallbackInsertMessage(message, before: messageId, in: conversationId)
         }
         saveConversations()
@@ -486,37 +466,17 @@ extension ChatStore {
             isStreaming: state.isStreaming
         )
         pipelineMessage.reasoningText = state.reasoningTextSnapshot
-        _ = applyRustStoreAction("sync_assistant_pipeline_state") { request in
+        let allowLocalFallback = shouldSkipRustStoreBootstrapForTests(
+            environment: ProcessInfo.processInfo.environment
+        )
+        let applied = applyRustStoreAction("sync_assistant_pipeline_state") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.messageId = messageId.uuidString.lowercased()
             request.message = RustMainChatStoreAdapter.messageSnapshot(pipelineMessage)
         }
-        // Fallback: ensure local message is always up-to-date with pipeline state,
-        // even when the Rust store didn't propagate the content update.
-        // Preserve existing non-empty content when the pipeline state has empty
-        // primary text — this prevents artifact-only commits from wiping text
-        // written by the assistant_update fallback path.
-        if let convIdx = conversations.firstIndex(where: { $0.id == conversationId }),
+        if !applied, allowLocalFallback,
+           let convIdx = conversations.firstIndex(where: { $0.id == conversationId }),
            let msgIdx = conversations[convIdx].messages.firstIndex(where: { $0.id == messageId }) {
-            let existingContent = conversations[convIdx].messages[msgIdx].content
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if pipelineMessage.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                && !existingContent.isEmpty {
-                let preserved = conversations[convIdx].messages[msgIdx].content
-                pipelineMessage.content = preserved
-                pipelineMessage.primaryTextSnapshot = preserved
-                // Also fix the primary text block inside blocks so that
-                // resolvedTimelineBlocks renders the preserved content.
-                if var blocks = pipelineMessage.blocks,
-                   let idx = blocks.firstIndex(where: { $0.kind == .primaryText }) {
-                    blocks[idx] = PersistedChatTimelineBlock(
-                        id: blocks[idx].id,
-                        kind: .primaryText,
-                        text: preserved
-                    )
-                    pipelineMessage.blocks = blocks
-                }
-            }
             conversations[convIdx].messages[msgIdx] = pipelineMessage
         }
         persistAssistantMutation(immediately: persistImmediately)

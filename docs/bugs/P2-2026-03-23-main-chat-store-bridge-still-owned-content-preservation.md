@@ -1,0 +1,44 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: il bridge Swift dello store main chat possedeva ancora regole di preservazione contenuto e merge snapshot nel path standard.
+- Sintomo: `ChatStore+RustBridge.swift` e `RustMainChatStoreAdapter.swift` preservavano testo locale non vuoto, blocchi e messaggi mancanti tramite euristiche host-side, anche quando il core Rust era disponibile.
+- Impatto: ownership ibrida del dominio store chat, rischio di drift silenzioso fra snapshot Rust e stato applicato nel `ChatStore`, difficoltà a capire se una mutazione fosse realmente owned dal core Rust o “salvata” dal bridge Swift.
+- Gravità: media
+- Steps to reproduce:
+  1. Ispezionare `normalizedRustStoreSnapshot()`, `updateAssistantMessagePipelineState(...)` e `RustMainChatStoreAdapter.apply(... preserveLocalMessages: true)`.
+  2. Verificare che il bridge Swift confronti snapshot Rust vs stato locale e riapplichi contenuto/blocchi localmente.
+  3. Eseguire un commit pipeline artifact-only con testo assistant già presente e osservare che la preservazione avviene nel bridge Swift.
+- Risultato attuale: il bridge store decideva ancora come compensare snapshot/pipeline message più poveri.
+- Risultato atteso: il core store Rust deve restituire uno snapshot già canonico; il bridge Swift deve limitarsi ad applicarlo, salvo fallback espliciti in XCTest.
+- Causa probabile: il cutover del reducer/store era rimasto incompleto e il bridge Swift aveva conservato euristiche di sicurezza nate per compensare snapshot/parità ancora parziali.
+- Scope consentito:
+  - `Native/RustCore/src/main_chat/store/messages/*`
+  - `Native/RustCore/src/main_chat/store/queries.rs`
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/RustMainChatStoreAdapter.swift`
+  - test Rust/app-side dello store bridge
+- Non-scope:
+  - `ToolEnabledLLMProvider`
+  - pipeline engine generica
+  - store host non-chat
+  - shell state UI della chat
+- Moduli confinanti da verificare:
+  - `ChatStoreStreamingTargetTests`
+  - `ChatStoreTaskOwnershipTests`
+  - `ChatPipelineReducerTests`
+  - `PipelineIntegrationServiceTests`
+  - test Rust `main_chat::store::tests::messages`
+- Test da aggiungere o aggiornare:
+  - regressione Rust su `sync_assistant_pipeline_state` che preserva testo visibile
+  - regressione Rust su `load_snapshot` che normalizza `primaryText` e `reasoning`
+  - regressione app-side su commit pipeline artifact-only con Rust store attivo
+- Strategia di fix minimo:
+  - portare nel core store Rust la preservazione del testo assistant già visibile
+  - normalizzare gli snapshot store nel path `load/replace`
+  - limitare i fallback locali del bridge Swift ai soli contesti XCTest con bootstrap Rust deferito
+  - rimuovere il merge euristico `preserveLocalMessages` dal path standard
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml sync_assistant_pipeline_state_preserves_existing_visible_text_when_incoming_is_empty -- --nocapture`
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml load_snapshot_normalizes_primary_text_and_reasoning_blocks -- --nocapture`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/ChatStoreStreamingTargetTests -only-testing:SoloCodeAppTests/ChatStoreTaskOwnershipTests -only-testing:SoloCodeAppTests/ChatPipelineReducerTests -only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests`
+- Commit previsto: `refactor(chat): move standard store-bridge preservation into rust`

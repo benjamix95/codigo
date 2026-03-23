@@ -1,4 +1,7 @@
-use super::helpers::{assistant_target_index, last_assistant_index, sync_primary_text_block};
+use super::helpers::{
+    assistant_target_index, last_assistant_index, normalize_message, resolved_primary_text,
+    sync_primary_text_block,
+};
 use crate::main_chat::store::models::{conversation_index, replace_message};
 use app_core_protocol::main_chat_store::{
     MainChatStoreActionRequest, MainChatStoreMessageSnapshot, MainChatStoreResponse,
@@ -87,13 +90,18 @@ pub fn sync_assistant_pipeline_state(
         return MainChatStoreResponse::error("missing_message", "assistant message not found");
     };
 
-    let message = &mut conversation.messages[message_index];
-    message.content = pipeline_message.content.clone();
-    message.primary_text_snapshot = pipeline_message.primary_text_snapshot.clone();
-    message.blocks = pipeline_message.blocks.clone();
-    message.turn_metadata = pipeline_message.turn_metadata.clone();
-    message.reasoning_text = pipeline_message.reasoning_text.clone();
-    message.is_streaming = pipeline_message.is_streaming;
+    let existing = conversation.messages[message_index].clone();
+    let mut merged = pipeline_message.clone();
+    let existing_primary = resolved_primary_text(&existing);
+    let incoming_primary = resolved_primary_text(&merged);
+    if incoming_primary.is_empty() && !existing_primary.is_empty() {
+        sync_primary_text_block(&mut merged, &existing_primary);
+    }
+    normalize_message(&mut merged);
+    merged.turn_metadata = pipeline_message.turn_metadata.clone();
+    merged.reasoning_text = pipeline_message.reasoning_text.clone();
+    merged.is_streaming = pipeline_message.is_streaming;
+    conversation.messages[message_index] = merged;
     MainChatStoreResponse::success(snapshot)
 }
 
