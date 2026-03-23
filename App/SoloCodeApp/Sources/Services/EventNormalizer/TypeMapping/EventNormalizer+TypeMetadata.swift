@@ -1,5 +1,43 @@
 import Foundation
 
+func userFacingToolName(
+    from payload: [String: String],
+    fallback: String = "tool"
+) -> String {
+    let rawCandidates = [
+        payload["mcp_tool"],
+        payload["mcpTool"],
+        payload["tool"],
+        payload["name"],
+    ]
+    for candidate in rawCandidates {
+        let trimmed = candidate?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { continue }
+
+        let suffix = trimmed.components(separatedBy: "/").last ?? trimmed
+        var normalized = suffix
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let prefixes = [
+            "functions.mcp__coderide__coderide_",
+            "mcp__coderide__coderide_",
+            "coderide_",
+            "mcp_",
+        ]
+        for prefix in prefixes where normalized.hasPrefix(prefix) {
+            normalized = String(normalized.dropFirst(prefix.count))
+            break
+        }
+
+        if !normalized.isEmpty {
+            return normalized
+        }
+    }
+    return fallback
+}
+
 extension EventNormalizer {
     static func defaultTitle(for type: String) -> String {
         switch type {
@@ -122,43 +160,8 @@ extension EventNormalizer {
         guard isTrustedMCPPayload(payload) else {
             return (payload["title"] ?? "MCP operation", payload["detail"])
         }
-        let rawTool = (payload["tool"] ?? payload["name"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let tool = rawTool.lowercased()
-        let server = (payload["mcp_server"] ?? payload["server_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let mcpTool = (payload["mcp_tool"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
         let detail = payload["detail"]
-
-        switch tool {
-        case "mcp_list_servers":
-            return ("MCP discovery • servers", detail ?? "Checking available MCP servers")
-        case "mcp_list_tools":
-            if !server.isEmpty {
-                return ("MCP discovery • tools", detail ?? "Listing tools on \(server)")
-            }
-            return ("MCP discovery • tools", detail ?? "Listing tools on all MCP servers")
-        case "mcp_describe_tool":
-            let target = !mcpTool.isEmpty ? mcpTool : "tool"
-            return ("MCP inspect • \(target)", detail ?? "Inspecting tool schema")
-        case "mcp_health":
-            return ("MCP health check", detail ?? "Checking server health")
-        case "mcp_reconnect":
-            let target = server.isEmpty ? "server" : server
-            return ("MCP reconnect • \(target)", detail ?? "Reconnecting MCP server")
-        default:
-            let isMCPLikeTool = !mcpTool.isEmpty || !server.isEmpty || isTrustedMCPPayload(payload)
-            if isMCPLikeTool {
-                var target = !mcpTool.isEmpty ? mcpTool : rawTool
-                if target.isEmpty { target = "tool" }
-                if !server.isEmpty {
-                    return ("MCP call • \(server)/\(target)", detail)
-                }
-                return ("MCP call • \(target)", detail)
-            }
-            return (payload["title"] ?? "MCP operation", detail)
-        }
+        return (userFacingToolName(from: payload), detail)
     }
 
     static func isTrustedMCPPayload(_ payload: [String: String]) -> Bool {

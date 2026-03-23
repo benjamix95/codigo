@@ -85,7 +85,7 @@ private extension PlanTraceItem {
         switch activity.type {
         case "command_execution", "bash": return "Running command"
         case "read_batch_started", "read_batch_completed": return "Reading files (batch)"
-        case "mcp_tool_call": return "Invoking MCP tool"
+        case "mcp_tool_call": return userFacingToolName(from: activity.payload)
         case "web_search", "web_search_started", "web_search_completed", "web_search_failed": return "Web search"
         case "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": return "Fetching page"
         case "process_paused": return "Process paused"

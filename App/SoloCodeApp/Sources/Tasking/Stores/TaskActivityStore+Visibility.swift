@@ -183,19 +183,7 @@ extension TaskActivityStore {
             return "Running command"
         }
         if normalizedType.contains("mcp") {
-            let tool = (last.payload["tool"] ?? last.payload["mcp_tool"] ?? "").lowercased()
-            switch tool {
-            case "mcp_batch": return "Running MCP batch"
-            case "mcp_list_resources": return "Listing MCP resources"
-            case "mcp_read_resource": return "Reading MCP resource"
-            case "mcp_subscribe": return "Subscribing to resource"
-            case "mcp_list_prompts": return "Listing MCP prompts"
-            case "mcp_get_prompt": return "Resolving MCP prompt"
-            case "mcp_logs": return "Reading MCP logs"
-            case "mcp_restart_server": return "Restarting MCP server"
-            case "mcp_health": return "Checking MCP health"
-            default: return "Calling MCP tool"
-            }
+            return userFacingToolName(from: last.payload)
         }
         if SwarmMetadata.isSupervisorEvent(last.payload) {
             return "Orchestrator"

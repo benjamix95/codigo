@@ -64,9 +64,7 @@ extension MessageToolTraceView {
             var commandCount = 0
             var editCount = 0
             var mcpCount = 0
-            var mcpBatchCount = 0
-            var mcpResourceCount = 0
-            var mcpPromptCount = 0
+            var mcpToolNames = Set<String>()
             var browserCount = 0
             var skillNames = Set<String>()
 
@@ -100,10 +98,7 @@ extension MessageToolTraceView {
                 if ToolTraceFileChangeMapper.isFileChangeEvent(event) { editCount += 1 }
                 if ToolTraceVisibility.isMCPEvent(event: event) {
                     mcpCount += 1
-                    let mcpTool = tool
-                    if mcpTool == "mcp_batch" { mcpBatchCount += 1 }
-                    if mcpTool == "mcp_list_resources" || mcpTool == "mcp_read_resource" { mcpResourceCount += 1 }
-                    if mcpTool == "mcp_list_prompts" || mcpTool == "mcp_get_prompt" { mcpPromptCount += 1 }
+                    mcpToolNames.insert(userFacingToolName(from: event.payload))
                 }
                 if type.contains("browser_action") || (event.payload["tool"] ?? "").hasPrefix("browser_") { browserCount += 1 }
                 if event.type == "skill_invocation" || event.payload["tool"] == "skill",
@@ -128,13 +123,12 @@ extension MessageToolTraceView {
             if listCount > 0 { parts.append("\(listCount) \(pluralized("elenco", count: listCount, plural: "elenchi"))") }
             if commandCount > 0 { parts.append("\(commandCount) \(pluralized("comando", count: commandCount, plural: "comandi"))") }
             if mcpCount > 0 {
-                var mcpDetail = "MCP \(mcpCount) \(pluralized("chiamata", count: mcpCount, plural: "chiamate"))"
-                var extras: [String] = []
-                if mcpBatchCount > 0 { extras.append("\(mcpBatchCount) batch") }
-                if mcpResourceCount > 0 { extras.append("\(mcpResourceCount) \(pluralized("risorsa", count: mcpResourceCount, plural: "risorse"))") }
-                if mcpPromptCount > 0 { extras.append("\(mcpPromptCount) prompt") }
-                if !extras.isEmpty { mcpDetail += " (\(extras.joined(separator: ", ")))" }
-                parts.append(mcpDetail)
+                let tools = mcpToolNames.sorted()
+                if tools.count <= 2 {
+                    parts.append(tools.joined(separator: ", "))
+                } else {
+                    parts.append("\(tools.prefix(2).joined(separator: ", ")) +\(tools.count - 2)")
+                }
             }
             if browserCount > 0 {
                 parts.append("\(browserCount) \(pluralized("azione browser", count: browserCount, plural: "azioni browser"))")

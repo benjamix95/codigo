@@ -11,7 +11,7 @@ extension ChatPanelView {
             if t.contains("grep") || t.contains("search") { return "Searching codebase" }
             if t.contains("edit") || t.contains("write") || t.contains("file_change") { return "Editing code" }
             if t.contains("bash") || t.contains("command") { return "Running command" }
-            if t.contains("mcp") { return "Calling MCP tool" }
+            if t.contains("mcp") { return userFacingToolName(from: activity.payload) }
             if t.contains("web_search") { return "Searching web" }
             if t.contains("web_fetch") { return "Fetching page" }
             if t.contains("agent") || t.contains("subagent") { return "Running subagent" }

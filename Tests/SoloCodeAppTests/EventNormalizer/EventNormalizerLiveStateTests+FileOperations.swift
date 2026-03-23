@@ -43,6 +43,22 @@ extension EventNormalizerLiveStateTests {
         XCTAssertEqual(activity.title, "command_execution")
     }
 
+    func testTrustedMCPEventUsesOnlyNormalizedToolNameAsTitle() {
+        let events = EventNormalizer.normalize(
+            type: "mcp_tool_call",
+            payload: [
+                "is_mcp": "true",
+                "mcp_tool": "coderide_file_outline",
+                "mcp_server": "coderide",
+            ]
+        )
+        guard case .taskActivity(let activity)? = events.first else {
+            XCTFail("Missing taskActivity event")
+            return
+        }
+        XCTAssertEqual(activity.title, "file_outline")
+    }
+
     func testApplyPatchEnvelopeKindIsFileUpdate() {
         let envelope = EventNormalizer.normalizeEnvelope(
             sourceProvider: "codex-cli",

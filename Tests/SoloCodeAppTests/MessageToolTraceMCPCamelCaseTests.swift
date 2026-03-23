@@ -43,7 +43,7 @@ final class MessageToolTraceMCPCamelCaseTests: XCTestCase {
 
         let summary = MessageToolTraceView.DerivedState.computeCollapsedSummary(orderedEvents: events)
 
-        XCTAssertEqual(summary, "MCP 3 chiamate (1 batch, 1 risorsa, 1 prompt)")
+        XCTAssertEqual(summary, "batch, list_prompts +1")
     }
 
     func testSemanticSearchStartedUsesDedicatedSemanticIcon() {
