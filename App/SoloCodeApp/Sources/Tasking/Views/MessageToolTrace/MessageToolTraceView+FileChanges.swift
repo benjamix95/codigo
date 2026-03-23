@@ -10,7 +10,7 @@ extension MessageToolTraceView {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
-                Text("\(derived.fileChanges.count) \(pluralized("file", count: derived.fileChanges.count)) changed")
+                Text("\(derived.fileChanges.count) \(pluralized("file", count: derived.fileChanges.count)) modificati")
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 Text("+\(derived.fileAddedTotal)")
@@ -87,7 +87,7 @@ extension MessageToolTraceView {
                 if loadingPreviewIds.contains(change.id) {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.mini)
-                        Text("Loading diff...")
+                        Text("Carico il diff...")
                             .font(.system(size: 10))
                             .foregroundStyle(DesignSystem.Colors.textTertiary)
                     }
@@ -124,7 +124,7 @@ extension MessageToolTraceView {
                     Image(systemName: "text.alignleft")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    Text("Unified diff")
+                    Text("Diff unificato")
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                     Spacer(minLength: 0)
@@ -160,7 +160,7 @@ extension MessageToolTraceView {
                     Image(systemName: "text.alignleft")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    Text("Build unified diff")
+                    Text("Genera diff unificato")
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                 }
@@ -171,7 +171,7 @@ extension MessageToolTraceView {
         } else {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
-                Text("Building diff...")
+                Text("Genero il diff...")
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
             }

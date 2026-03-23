@@ -52,35 +52,8 @@ struct MessageToolTraceToolIdentity {
         if MessageToolTraceView.isWarningType(event) {
             return .init(symbolName: "exclamationmark.triangle", tint: DesignSystem.Colors.warning)
         }
-        if type.contains("read") || type == "read_batch_started" || type == "read_batch_completed"
-            || tool == "read" || tool == "read_range"
-        {
-            return .init(symbolName: "doc.text", tint: DesignSystem.Colors.info)
-        }
-        if type == "semantic_search" || tool == "semantic_search" {
-            return .init(symbolName: "brain", tint: DesignSystem.Colors.ideColor)
-        }
-        if type.contains("grep") || type.contains("search") || type == "instant_grep"
-            || tool == "grep" || tool == "search" || tool == "codebase_search"
-            || tool == "find_symbol" || tool == "find_references"
-        {
-            return .init(symbolName: "magnifyingglass", tint: DesignSystem.Colors.ideColor)
-        }
-        if type == "edit" || type == "file_change"
-            || tool == "str_replace" || tool == "write" || tool == "edit"
-            || tool == "create_file" || tool == "delete_file" || tool == "regex_replace"
-            || tool == "parallel_apply"
-        {
-            return .init(symbolName: "pencil", tint: DesignSystem.Colors.success)
-        }
-        if type == "bash" || type == "command_execution" || tool == "bash" {
-            return .init(symbolName: "terminal", tint: DesignSystem.Colors.warning)
-        }
-        if type.contains("web_search") || tool == "web_search" {
-            return .init(symbolName: "globe", tint: DesignSystem.Colors.info)
-        }
-        if type.contains("web_fetch") || tool == "web_fetch" {
-            return .init(symbolName: "arrow.down.doc", tint: DesignSystem.Colors.info)
+        if let exactIdentity = exactToolIdentity(for: tool) {
+            return exactIdentity
         }
         if type.contains("browser_action") || tool.hasPrefix("browser_") {
             let symbolName: String = switch tool {
@@ -115,9 +88,6 @@ struct MessageToolTraceToolIdentity {
         if type == "skill_invocation" || tool == "skill" {
             return .init(symbolName: "sparkles", tint: DesignSystem.Colors.reviewColor)
         }
-        if type.contains("glob") || tool == "glob" || tool == "list_dir" || tool == "find_files" {
-            return .init(symbolName: "folder", tint: DesignSystem.Colors.textTertiary)
-        }
         if type == "read_lints" || tool == "diagnostics" {
             return .init(symbolName: "exclamationmark.triangle", tint: DesignSystem.Colors.warning)
         }
@@ -144,6 +114,27 @@ struct MessageToolTraceToolIdentity {
         if tool == "git_diff" {
             return .init(symbolName: "arrow.triangle.branch", tint: DesignSystem.Colors.textSecondary)
         }
+        if type == "semantic_search" {
+            return .init(symbolName: "brain", tint: DesignSystem.Colors.ideColor)
+        }
+        if type.contains("read") || type == "read_batch_started" || type == "read_batch_completed" {
+            return .init(symbolName: "doc.text", tint: DesignSystem.Colors.info)
+        }
+        if type.contains("grep") || type.contains("search") || type == "instant_grep" {
+            return .init(symbolName: "magnifyingglass", tint: DesignSystem.Colors.ideColor)
+        }
+        if type == "edit" || type == "file_change" {
+            return .init(symbolName: "square.and.pencil", tint: DesignSystem.Colors.success)
+        }
+        if type == "bash" || type == "command_execution" {
+            return .init(symbolName: "terminal", tint: DesignSystem.Colors.warning)
+        }
+        if type.contains("web_search") {
+            return .init(symbolName: "globe", tint: DesignSystem.Colors.info)
+        }
+        if type.contains("web_fetch") {
+            return .init(symbolName: "arrow.down.doc", tint: DesignSystem.Colors.info)
+        }
         return .init(symbolName: "gearshape", tint: DesignSystem.Colors.textQuaternary)
     }
 
@@ -156,11 +147,59 @@ struct MessageToolTraceToolIdentity {
         return cleaned(event.payload["tool"] ?? event.payload["name"] ?? "")
     }
 
+    private static func exactToolIdentity(for tool: String) -> MessageToolTraceToolIdentity? {
+        switch tool {
+        case "semantic_search":
+            return .init(symbolName: "brain", tint: DesignSystem.Colors.ideColor)
+        case "codebase_search":
+            return .init(symbolName: "square.text.square", tint: DesignSystem.Colors.ideColor)
+        case "find_symbol":
+            return .init(symbolName: "text.magnifyingglass", tint: DesignSystem.Colors.ideColor)
+        case "find_references":
+            return .init(symbolName: "arrow.triangle.branch", tint: DesignSystem.Colors.ideColor)
+        case "grep", "search", "search_symbols":
+            return .init(symbolName: "magnifyingglass", tint: DesignSystem.Colors.ideColor)
+        case "find_files", "glob", "list_dir":
+            return .init(symbolName: "folder", tint: DesignSystem.Colors.textTertiary)
+        case "read":
+            return .init(symbolName: "doc.text", tint: DesignSystem.Colors.info)
+        case "read_range", "batch_read":
+            return .init(symbolName: "doc.text.magnifyingglass", tint: DesignSystem.Colors.info)
+        case "write", "edit":
+            return .init(symbolName: "square.and.pencil", tint: DesignSystem.Colors.success)
+        case "str_replace":
+            return .init(symbolName: "text.cursor", tint: DesignSystem.Colors.success)
+        case "regex_replace":
+            return .init(symbolName: "character.cursor.ibeam", tint: DesignSystem.Colors.success)
+        case "create_file":
+            return .init(symbolName: "doc.badge.plus", tint: DesignSystem.Colors.success)
+        case "delete_file":
+            return .init(symbolName: "trash", tint: DesignSystem.Colors.success)
+        case "parallel_apply":
+            return .init(symbolName: "square.grid.2x2", tint: DesignSystem.Colors.success)
+        case "bash":
+            return .init(symbolName: "terminal", tint: DesignSystem.Colors.warning)
+        case "web_search":
+            return .init(symbolName: "globe", tint: DesignSystem.Colors.info)
+        case "web_fetch":
+            return .init(symbolName: "arrow.down.doc", tint: DesignSystem.Colors.info)
+        case "skill":
+            return .init(symbolName: "sparkles", tint: DesignSystem.Colors.reviewColor)
+        default:
+            return nil
+        }
+    }
+
     private static func cleaned(_ value: String) -> String {
-        value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: "functions.", with: "")
-            .replacingOccurrences(of: "coderide_", with: "")
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return "" }
+        let parts = trimmed
+            .split(whereSeparator: { ch in
+                ch == "." || ch == ":" || ch == "/" || ch == "\\"
+            })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        guard let last = parts.last else { return trimmed }
+        return last.replacingOccurrences(of: "coderide_", with: "")
     }
 }

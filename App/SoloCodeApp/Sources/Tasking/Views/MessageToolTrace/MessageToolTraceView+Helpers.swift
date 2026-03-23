@@ -262,7 +262,7 @@ extension MessageToolTraceView {
         guard text.count > limit else { return text }
         let end = text.index(text.startIndex, offsetBy: limit)
         return String(text[..<end])
-            + "\n\n... diff truncated (\(text.count - limit) characters hidden)"
+            + "\n\n... diff troncato (\(text.count - limit) caratteri nascosti)"
     }
 
     func pluralized(_ noun: String, count: Int, plural: String? = nil) -> String {
