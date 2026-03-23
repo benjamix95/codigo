@@ -43,13 +43,14 @@ extension ChatPanelView {
             timestamp: Date(),
             payload: requestPayload
         )
-        let applied = RustMainChatStoreAdapter.applyUIIntent(request, to: chatStore) != nil
+        let applied = RustMainChatStoreAdapter.applyUIIntent(
+            request,
+            to: chatStore,
+            preserveLocalMessages: false
+        ) != nil
         if applied {
             streamContentVersion &+= 1
         }
-        // Fallback: if the Rust UI intent didn't apply, or applied but the
-        // message content is still empty, update content directly so that
-        // message text always appears inline in the chat.
         if intent == "stream_replace_text",
            let text,
            !text.isEmpty,
@@ -59,7 +60,9 @@ extension ChatPanelView {
             let currentContent = chatStore.conversation(for: targetConversationId)?
                 .messages.first(where: { $0.id == targetMessageId })?
                 .content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !applied || currentContent.isEmpty {
+            let significantGrowth = text.count >= currentContent.count + 80
+            let shouldWrite = currentContent.isEmpty || significantGrowth || !applied
+            if shouldWrite {
                 chatStore.updateAssistantMessage(
                     messageId: targetMessageId,
                     content: text,
@@ -302,4 +305,3 @@ extension ChatPanelView {
     // MARK: - Handle Stream Result (plan options + swarm delegation)
 
 }
-

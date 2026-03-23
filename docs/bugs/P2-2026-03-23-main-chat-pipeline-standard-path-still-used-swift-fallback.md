@@ -1,0 +1,46 @@
+# Bug Fix Record
+- Categoria: B
+- Bug: il path standard della main chat pipeline usava ancora un fallback Swift implicito per ridurre gli eventi live e sincronizzare il testo assistant quando il boundary Rust non aggiornava lo stato visibile.
+- Sintomo: `PipelineIntegrationService` e `PipelineLegacyChatAdapter` applicavano `MainChatRustBridge.reduce(...) ?? ChatPipelineReducer.apply(...)`, mantenendo nel path normale una seconda ownership Swift del reducer live.
+- Impatto: ownership ibrida del dominio chat live, maggiore rischio di drift tra reducer Rust e projection Swift, regressioni difficili da isolare sui flussi `textDelta/textReplace`, artifact e reasoning.
+- Gravità: media
+- Steps to reproduce:
+  1. Ispezionare `PipelineIntegrationService+ChatPipeline.swift` e `PipelineLegacyChatAdapter.swift`.
+  2. Verificare la presenza del fallback `ChatPipelineReducer.apply(...)` come continuation del path standard.
+  3. Osservare che il `ChatStore` riceveva ancora commit host-side derivati dal reducer Swift.
+- Risultato attuale: il reducer standard della pipeline live della chat dipendeva ancora da un fallback Swift nascosto.
+- Risultato atteso: il path standard deve ridurre e sincronizzare lo stato via boundary Rust; l’eventuale fallback Swift deve esistere solo come path esplicito di test quando il bootstrap Rust è deferito.
+- Causa probabile: il cutover Rust del reducer live era incompleto e il fallback host-side era rimasto come safety net permanente invece che test-only.
+- Scope consentito:
+  - `Native/AppCoreProtocol/src/main_chat_ui.rs`
+  - `Native/RustCore/src/main_chat/ui_intents.rs`
+  - `Native/RustCore/src/main_chat/ui_state_sync.rs`
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/MainChatStoreBridgeModels.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/RustMainChatStoreAdapter.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatPipeline/Runtime/PipelineIntegrationService+ChatPipeline.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatPipeline/Projection/Adapters/PipelineLegacyChatAdapter.swift`
+- Non-scope:
+  - `ToolEnabledLLMProvider`
+  - `UnifiedToolRuntime`
+  - pipeline engine generica
+  - store host non-chat (`TaskActivityStore`, `SwarmProgressStore`, `DebugStore`)
+- Moduli confinanti da verificare:
+  - `RustMainChatUIBoundaryTests`
+  - `ChatPipelineReducerTests`
+  - `PipelineIntegrationServiceTests`
+  - test FFI `main_chat_ui`
+- Test da aggiungere o aggiornare:
+  - regression Rust su `pipeline_apply_event`
+  - regression FFI su `pipeline_apply_event`
+  - regression app-side sul boundary `pipeline_apply_event`
+- Strategia di fix minimo:
+  - estendere il boundary `main_chat_ui` con `pipelineEvent`
+  - applicare l’evento pipeline nel core Rust e sincronizzare il `storeSnapshot` dal runtime
+  - usare il boundary Rust come path standard in `PipelineIntegrationService` e `PipelineLegacyChatAdapter`
+  - limitare il fallback Swift ai soli contesti XCTest con bootstrap Rust deferito
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml pipeline_apply_event -- --nocapture`
+  - `cargo build --manifest-path Native/RustCore/Cargo.toml`
+  - `cargo test --manifest-path Native/AppCoreRust/Cargo.toml ffi_ui_handle_intent_pipeline_apply_event_updates_store_snapshot -- --exact`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatUIBoundaryTests -only-testing:SoloCodeAppTests/ChatPipelineReducerTests -only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests`
+- Commit previsto: `refactor(chat): route standard pipeline reduction through rust ui intent`

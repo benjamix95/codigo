@@ -171,14 +171,60 @@ enum RustMainChatStoreAdapter {
     @MainActor
     static func applyUIIntent(
         _ request: MainChatUIIntentRequestBridge,
-        to store: ChatStore
+        to store: ChatStore,
+        preserveLocalMessages: Bool = true
     ) -> MainChatUIIntentResponseBridge? {
         guard let response = handleUIIntent(request) else { return nil }
         if let state = response.state {
-            apply(snapshot: state.storeSnapshot, to: store, preserveLocalMessages: true)
+            apply(
+                snapshot: state.storeSnapshot,
+                to: store,
+                preserveLocalMessages: preserveLocalMessages
+            )
             apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
         }
         return response
+    }
+
+    @MainActor
+    static func applyPipelineEvent(
+        _ event: ChatPipelineEvent,
+        to store: ChatStore,
+        runtimeSnapshot: MainChatRuntimeSnapshotBridge,
+        selectedConversationId: UUID?,
+        draftText: String,
+        planPanelVisible: Bool,
+        followLive: Bool,
+        collapsedArtifactsByTurn: [String: Set<String>],
+        autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge] = [:],
+        preserveLocalMessages: Bool = false
+    ) -> MainChatUIIntentResponseBridge? {
+        let request = MainChatUIIntentRequestBridge(
+            schemaVersion: 1,
+            intent: "pipeline_apply_event",
+            state: uiState(
+                from: store,
+                runtimeSnapshot: runtimeSnapshot,
+                selectedConversationId: selectedConversationId,
+                draftText: draftText,
+                planPanelVisible: planPanelVisible,
+                followLive: followLive,
+                collapsedArtifactsByTurn: collapsedArtifactsByTurn,
+                autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage
+            ),
+            conversationId: event.conversationId.uuidString.lowercased(),
+            turnId: event.turnId,
+            artifactId: nil,
+            text: nil,
+            timestamp: event.timestamp,
+            pipelineEvent: event,
+            payload: [:]
+        )
+        return applyUIIntent(
+            request,
+            to: store,
+            preserveLocalMessages: preserveLocalMessages
+        )
     }
 
     static func conversationSnapshot(_ conversation: Conversation) -> MainChatStoreConversationSnapshotBridge {

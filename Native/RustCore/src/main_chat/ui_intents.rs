@@ -3,6 +3,7 @@ use crate::main_chat::auto_todo::{
     finalize_runtime as finalize_auto_todo_runtime,
     record_operation as record_auto_todo_operation,
 };
+use crate::main_chat::apply_event;
 use crate::main_chat::plan_ui_flow::{
     apply_plan_runtime_action, receive_clarification_questions, set_plan_panel_visible,
 };
@@ -76,6 +77,12 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
             };
             state.runtime_snapshot = Some(runtime_snapshot);
             sync_store_from_runtime(&mut state);
+        }
+        "pipeline_apply_event" => {
+            state = match apply_pipeline_event(state, &request) {
+                Ok(state) => state,
+                Err(error) => return error,
+            };
         }
         "stream_finish_success" | "stream_finish_failure" | "stream_interrupt" => {
             sync_store_from_runtime(&mut state);
@@ -312,6 +319,28 @@ fn apply_runtime_action(
         return Err(MainChatUiIntentResponse::error("runtime_action_failed", "Runtime action did not return a snapshot"));
     };
     state.runtime_snapshot = Some(runtime_snapshot);
+    Ok(state)
+}
+
+fn apply_pipeline_event(
+    mut state: app_core_protocol::main_chat_ui::MainChatUiState,
+    request: &MainChatUiIntentRequest,
+) -> Result<app_core_protocol::main_chat_ui::MainChatUiState, MainChatUiIntentResponse> {
+    let Some(mut snapshot) = state.runtime_snapshot.clone() else {
+        return Err(MainChatUiIntentResponse::error(
+            "missing_runtime_snapshot",
+            "runtimeSnapshot is required",
+        ));
+    };
+    let Some(event) = request.pipeline_event.clone() else {
+        return Err(MainChatUiIntentResponse::error(
+            "missing_pipeline_event",
+            "pipelineEvent is required",
+        ));
+    };
+    snapshot.turn_state = apply_event(snapshot.turn_state, &event);
+    state.runtime_snapshot = Some(snapshot);
+    sync_store_from_runtime(&mut state);
     Ok(state)
 }
 

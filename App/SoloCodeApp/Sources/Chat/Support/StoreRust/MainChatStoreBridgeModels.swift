@@ -295,5 +295,40 @@ struct MainChatUISnapshotBridge: Decodable {
 
 struct MainChatUIProjectRequestBridge: Encodable { let schemaVersion: Int; let state: MainChatUIStateBridge }
 struct MainChatUIProjectResponseBridge: Decodable { let schemaVersion: Int; let error: MainChatStoreBridgeErrorBridge?; let snapshot: MainChatUISnapshotBridge? }
-struct MainChatUIIntentRequestBridge: Encodable { let schemaVersion: Int; let intent: String; let state: MainChatUIStateBridge; let conversationId: String?; let turnId: String?; let artifactId: String?; let text: String?; let timestamp: Date?; let payload: [String: String] }
+struct MainChatUIIntentRequestBridge: Encodable {
+    let schemaVersion: Int
+    let intent: String
+    let state: MainChatUIStateBridge
+    let conversationId: String?
+    let turnId: String?
+    let artifactId: String?
+    let text: String?
+    let timestamp: Date?
+    let pipelineEvent: ChatPipelineEvent?
+    let payload: [String: String]
+
+    init(
+        schemaVersion: Int,
+        intent: String,
+        state: MainChatUIStateBridge,
+        conversationId: String?,
+        turnId: String?,
+        artifactId: String?,
+        text: String?,
+        timestamp: Date?,
+        pipelineEvent: ChatPipelineEvent? = nil,
+        payload: [String: String]
+    ) {
+        self.schemaVersion = schemaVersion
+        self.intent = intent
+        self.state = state
+        self.conversationId = conversationId
+        self.turnId = turnId
+        self.artifactId = artifactId
+        self.text = text
+        self.timestamp = timestamp
+        self.pipelineEvent = pipelineEvent
+        self.payload = payload
+    }
+}
 struct MainChatUIIntentResponseBridge: Decodable { let schemaVersion: Int; let error: MainChatStoreBridgeErrorBridge?; let state: MainChatUIStateBridge?; let snapshot: MainChatUISnapshotBridge?; let todoPatches: [MainChatUITodoPatchBridge] }

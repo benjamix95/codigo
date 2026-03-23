@@ -1,4 +1,6 @@
-use app_core_protocol::main_chat::{MainChatArtifact, MainChatArtifactKind, MainChatTurnState};
+use app_core_protocol::main_chat::{
+    MainChatArtifact, MainChatArtifactKind, MainChatEvent, MainChatEventKind, MainChatTurnState,
+};
 use app_core_protocol::main_chat_runtime::{
     MainChatPlanPhase, MainChatPlanSnapshot, MainChatRuntimeOutput, MainChatRuntimeSnapshot,
 };
@@ -68,6 +70,7 @@ fn ffi_ui_handle_intent_can_toggle_collapsed_artifact() {
         artifact_id: Some("artifact-1".to_string()),
         text: None,
         timestamp: None,
+        pipeline_event: None,
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -89,6 +92,7 @@ fn ffi_ui_handle_intent_stream_finish_marks_message_not_streaming() {
         artifact_id: None,
         text: Some("Final answer".to_string()),
         timestamp: Some(2.0),
+        pipeline_event: None,
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -111,6 +115,7 @@ fn ffi_ui_handle_intent_plan_questions_raise_epoch_and_open_panel() {
         artifact_id: None,
         text: Some("## Questions\n- Which phase should move first?".to_string()),
         timestamp: Some(2.0),
+        pipeline_event: None,
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -120,6 +125,42 @@ fn ffi_ui_handle_intent_plan_questions_raise_epoch_and_open_panel() {
     assert_eq!(
         snapshot.plan.clarification_questions.as_deref(),
         Some("## Questions\n- Which phase should move first?")
+    );
+}
+
+#[test]
+fn ffi_ui_handle_intent_pipeline_apply_event_updates_store_snapshot() {
+    let runtime = load_runtime();
+    let response = call_intent(&runtime, MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "pipeline_apply_event".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(2.0),
+        pipeline_event: Some(MainChatEvent {
+            id: "pipeline-1".to_string(),
+            conversation_id: "conv-1".to_string(),
+            assistant_message_id: "msg-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 2,
+            source: "pipeline".to_string(),
+            kind: MainChatEventKind::TextReplace,
+            payload: [("replacement".to_string(), "Pipeline text".to_string())]
+                .into_iter()
+                .collect(),
+            timestamp: 2.0,
+        }),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    assert_eq!(
+        state.store_snapshot.conversations[0].messages[0]
+            .primary_text_snapshot
+            .as_deref(),
+        Some("Pipeline text")
     );
 }
 
@@ -135,6 +176,7 @@ fn ffi_ui_handle_intent_auto_todo_begin_and_discard_emit_patches() {
         artifact_id: None,
         text: None,
         timestamp: Some(2.0),
+        pipeline_event: None,
         payload: [
             ("assistant_message_id".to_string(), "00000000-0000-0000-0000-000000000002".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),
@@ -155,6 +197,7 @@ fn ffi_ui_handle_intent_auto_todo_begin_and_discard_emit_patches() {
         artifact_id: None,
         text: None,
         timestamp: Some(3.0),
+        pipeline_event: None,
         payload: [
             ("assistant_message_id".to_string(), "00000000-0000-0000-0000-000000000002".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),

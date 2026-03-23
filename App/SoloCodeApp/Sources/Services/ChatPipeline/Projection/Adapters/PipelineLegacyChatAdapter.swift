@@ -48,7 +48,7 @@ extension ChatPanelView {
         _ event: ChatPipelineEvent,
         persistImmediately: Bool = false
     ) {
-        var state = activeTurnStateByConversation[event.conversationId]
+        let currentState = activeTurnStateByConversation[event.conversationId]
             ?? restoreChatTurnState(for: event)
         let nextSequence = max(
             pipelineEventSequenceByConversation[event.conversationId, default: 0] + 1,
@@ -66,16 +66,34 @@ extension ChatPanelView {
             payload: event.payload,
             timestamp: event.timestamp
         )
-        state = MainChatRustBridge.reduce(
-            state: state,
-            event: sequenced
-        ) ?? ChatPipelineReducer.apply(
-            state: state,
-            event: sequenced
-        )
-        activeTurnStateByConversation[event.conversationId] = state
-        renderSnapshotByConversation[event.conversationId] = state
-        ChatPipelineCommitter.commit(state, chatStore: chatStore, persistImmediately: persistImmediately)
+        if let nextState = applyPipelineEventThroughRustBoundary(
+            sequenced,
+            currentState: currentState,
+            persistImmediately: persistImmediately
+        ) {
+            activeTurnStateByConversation[event.conversationId] = nextState
+            renderSnapshotByConversation[event.conversationId] = nextState
+        } else if shouldSkipRustStoreBootstrapForTests(
+            environment: ProcessInfo.processInfo.environment
+        ) {
+            let state = ChatPipelineReducer.apply(
+                state: currentState,
+                event: sequenced
+            )
+            activeTurnStateByConversation[event.conversationId] = state
+            renderSnapshotByConversation[event.conversationId] = state
+            ChatPipelineCommitter.commit(
+                state,
+                chatStore: chatStore,
+                persistImmediately: persistImmediately
+            )
+        } else {
+            NSLog(
+                "[ChatPipeline] Rust pipeline boundary unavailable for %@",
+                sequenced.kind.rawValue
+            )
+            return
+        }
         streamContentVersion &+= 1
     }
 
@@ -179,5 +197,40 @@ extension ChatPanelView {
             }
         }
         return state
+    }
+
+    @MainActor
+    private func applyPipelineEventThroughRustBoundary(
+        _ event: ChatPipelineEvent,
+        currentState: ChatTurnState,
+        persistImmediately: Bool
+    ) -> ChatTurnState? {
+        let runtimeSnapshot = MainChatRuntimeSnapshotBridge(
+            turnState: MainChatBridgeState(currentState),
+            mode: .agent,
+            directStream: nil,
+            plan: nil,
+            output: nil
+        )
+        guard let response = RustMainChatStoreAdapter.applyPipelineEvent(
+            event,
+            to: chatStore,
+            runtimeSnapshot: runtimeSnapshot,
+            selectedConversationId: event.conversationId,
+            draftText: inputText,
+            planPanelVisible: showPlanPanel,
+            followLive: isFollowingLive,
+            collapsedArtifactsByTurn: collapsedArtifactsByTurn,
+            autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage,
+            preserveLocalMessages: false
+        ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
+            return nil
+        }
+        if persistImmediately {
+            chatStore.saveConversationsImmediately()
+        } else {
+            chatStore.saveConversations()
+        }
+        return nextState
     }
 }

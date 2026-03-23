@@ -160,6 +160,55 @@ final class RustMainChatUIBoundaryTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testApplyUIIntentPipelineApplyEventSyncsStoreSnapshot() throws {
+        guard ReviewCoreBridge.isEnabled else {
+            throw XCTSkip("Bridge Rust non disponibile nei test app-side")
+        }
+        let suiteName = "RustMainChatUIBoundaryTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let store = ChatStore(userDefaults: defaults)
+        let state = makeUIState()
+        RustMainChatStoreAdapter.apply(snapshot: state.storeSnapshot, to: store)
+
+        let response = try XCTUnwrap(
+            RustMainChatStoreAdapter.applyUIIntent(
+                MainChatUIIntentRequestBridge(
+                    schemaVersion: 1,
+                    intent: "pipeline_apply_event",
+                    state: state,
+                    conversationId: state.selectedConversationId,
+                    turnId: "turn-1",
+                    artifactId: nil,
+                    text: nil,
+                    timestamp: Date(),
+                    pipelineEvent: ChatPipelineEvent(
+                        conversationId: UUID(uuidString: state.selectedConversationId!)!,
+                        assistantMessageId: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+                        turnId: "turn-1",
+                        sequence: 2,
+                        source: "pipeline",
+                        kind: .textReplace,
+                        payload: ["replacement": "Pipeline text from Rust"]
+                    ),
+                    payload: [:]
+                ),
+                to: store,
+                preserveLocalMessages: false
+            )
+        )
+
+        XCTAssertEqual(
+            response.state?.runtimeSnapshot?.turnState.chatTurnState.primaryTextSnapshot,
+            "Pipeline text from Rust"
+        )
+        XCTAssertEqual(
+            store.conversations.first?.messages.first?.primaryTextSnapshot,
+            "Pipeline text from Rust"
+        )
+    }
+
     private func makeUIState() -> MainChatUIStateBridge {
         MainChatUIStateBridge(
             storeSnapshot: MainChatStoreSnapshotBridge(

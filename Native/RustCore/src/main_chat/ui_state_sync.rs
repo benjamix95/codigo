@@ -145,6 +145,18 @@ fn runtime_blocks(turn_state: &MainChatTurnState) -> Vec<MainChatStoreTimelineBl
             is_collapsed_by_default: false,
         });
     }
+    if let Some(reasoning) = reasoning_text(turn_state) {
+        blocks.push(MainChatStoreTimelineBlockSnapshot {
+            id: "reasoning".to_string(),
+            kind: "reasoning".to_string(),
+            title: Some("Thinking".to_string()),
+            text: reasoning,
+            items: Vec::new(),
+            metadata: Default::default(),
+            is_collapsible: true,
+            is_collapsed_by_default: true,
+        });
+    }
     blocks.extend(turn_state.artifacts.iter().map(artifact_block));
     blocks
 }

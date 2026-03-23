@@ -57,25 +57,30 @@ extension PipelineIntegrationService {
                     "[ChatDebug] pipeline \(sequenced.kind.rawValue): delta=\(delta.count) payload=\(sequenced.payload.keys.sorted().joined(separator: ","))"
                 )
             }
-            let previousTextByStreamId = runtime.chatTurnState.textByStreamId
-            runtime.chatTurnState = MainChatRustBridge.reduce(
-                state: runtime.chatTurnState,
-                event: sequenced
-            ) ?? ChatPipelineReducer.apply(
-                state: runtime.chatTurnState,
-                event: sequenced
-            )
-            // Guard: if the Rust reducer handled a text event but did not
-            // update textByStreamId, re-apply the Swift reducer's text
-            // logic so that primary content always appears inline.
-            if (sequenced.kind == .textDelta || sequenced.kind == .textReplace),
-               runtime.chatTurnState.textByStreamId == previousTextByStreamId {
-                let swiftReduced = ChatPipelineReducer.apply(
-                    state: runtime.chatTurnState,
-                    event: sequenced
-                )
-                runtime.chatTurnState.textByStreamId = swiftReduced.textByStreamId
-                runtime.chatTurnState.orderedTextStreamIds = swiftReduced.orderedTextStreamIds
+            if !applyPipelineEventThroughRustBoundary(
+                sequenced,
+                runtime: runtime,
+                chatStore: chatStore
+            ) {
+                if shouldSkipRustStoreBootstrapForTests(
+                    environment: ProcessInfo.processInfo.environment
+                ) {
+                    runtime.chatTurnState = ChatPipelineReducer.apply(
+                        state: runtime.chatTurnState,
+                        event: sequenced
+                    )
+                    ChatPipelineCommitter.commit(
+                        runtime.chatTurnState,
+                        chatStore: chatStore,
+                        persistImmediately: false
+                    )
+                } else {
+                    NSLog(
+                        "[PipelineIntegrationService] Rust pipeline boundary unavailable for %@",
+                        sequenced.kind.rawValue
+                    )
+                    continue
+                }
             }
             if sequenced.kind == .turnCompleted || sequenced.kind == .turnFailed {
                 shouldPersistImmediately = true
@@ -89,10 +94,39 @@ extension PipelineIntegrationService {
                 "[ChatDebug] commit: primaryText=\(primaryText.count) textKeys=\(textKeys.joined(separator: ",")) streamIds=\(streamIds.joined(separator: ",")) blocks=\(runtime.chatTurnState.blocks.count)"
             )
         }
-        ChatPipelineCommitter.commit(
-            runtime.chatTurnState,
-            chatStore: chatStore,
-            persistImmediately: shouldPersistImmediately
+        if shouldPersistImmediately {
+            chatStore.saveConversationsImmediately()
+        } else {
+            chatStore.saveConversations()
+        }
+    }
+
+    private func applyPipelineEventThroughRustBoundary(
+        _ event: ChatPipelineEvent,
+        runtime: PipelineConversationRuntime,
+        chatStore: ChatStore
+    ) -> Bool {
+        let runtimeSnapshot = MainChatRuntimeSnapshotBridge(
+            turnState: MainChatBridgeState(runtime.chatTurnState),
+            mode: .agent,
+            directStream: nil,
+            plan: nil,
+            output: nil
         )
+        guard let response = RustMainChatStoreAdapter.applyPipelineEvent(
+            event,
+            to: chatStore,
+            runtimeSnapshot: runtimeSnapshot,
+            selectedConversationId: runtime.conversationId,
+            draftText: "",
+            planPanelVisible: false,
+            followLive: true,
+            collapsedArtifactsByTurn: [:],
+            preserveLocalMessages: false
+        ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
+            return false
+        }
+        runtime.chatTurnState = nextState
+        return true
     }
 }

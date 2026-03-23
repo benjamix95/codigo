@@ -1,3 +1,4 @@
+use crate::main_chat::MainChatEvent;
 use crate::main_chat_runtime::{
     MainChatPlanPhase, MainChatPlanningStateKind, MainChatPlanQuestionnaire, MainChatRuntimeSnapshot,
 };
@@ -236,6 +237,8 @@ pub struct MainChatUiIntentRequest {
     pub artifact_id: Option<String>,
     pub text: Option<String>,
     pub timestamp: Option<f64>,
+    #[serde(default)]
+    pub pipeline_event: Option<MainChatEvent>,
     #[serde(default)]
     pub payload: BTreeMap<String, String>,
 }

@@ -1,5 +1,7 @@
 use super::{handle_ui_intent, project_ui};
-use app_core_protocol::main_chat::{MainChatArtifact, MainChatArtifactKind, MainChatTurnState};
+use app_core_protocol::main_chat::{
+    MainChatArtifact, MainChatArtifactKind, MainChatEvent, MainChatEventKind, MainChatTurnState,
+};
 use app_core_protocol::main_chat_runtime::{
     MainChatPlanPhase, MainChatPlanSnapshot, MainChatRuntimeOutput, MainChatRuntimeSnapshot,
 };
@@ -45,6 +47,7 @@ fn ui_intent_choose_plan_option_updates_store_and_runtime_phase() {
         artifact_id: None,
         text: Some(choice.clone()),
         timestamp: Some(42.0),
+        pipeline_event: None,
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -79,6 +82,7 @@ fn ui_intent_stream_replace_text_syncs_runtime_text_into_store_snapshot() {
         artifact_id: None,
         text: Some("ignored because runtime owns the latest text".to_string()),
         timestamp: Some(42.0),
+        pipeline_event: None,
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -100,6 +104,7 @@ fn ui_intent_stream_replace_text_does_not_overwrite_previous_assistant_when_runt
         artifact_id: None,
         text: Some("ignored because runtime target is stale".to_string()),
         timestamp: Some(42.0),
+        pipeline_event: None,
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -120,6 +125,7 @@ fn ui_intent_stream_finish_marks_store_message_not_streaming() {
         artifact_id: None,
         text: Some("Final answer".to_string()),
         timestamp: Some(42.0),
+        pipeline_event: None,
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -141,6 +147,7 @@ fn ui_intent_plan_receive_clarification_questions_updates_epoch_and_visibility()
         artifact_id: None,
         text: Some("## Questions\n- What should we cut over first?".to_string()),
         timestamp: Some(42.0),
+        pipeline_event: None,
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -173,6 +180,7 @@ fn ui_intent_apply_plan_runtime_action_projects_prompt_and_panel_state() {
         artifact_id: None,
         text: Some("Ship Rust planning boundary".to_string()),
         timestamp: Some(42.0),
+        pipeline_event: None,
         payload: [("action".to_string(), "plan_prepare_phase1_analysis_prompt".to_string())]
             .into_iter()
             .collect(),
@@ -193,6 +201,50 @@ fn ui_intent_apply_plan_runtime_action_projects_prompt_and_panel_state() {
 }
 
 #[test]
+fn ui_intent_pipeline_apply_event_syncs_runtime_and_store_snapshot() {
+    let response = handle_ui_intent(MainChatUiIntentRequest {
+        schema_version: 1,
+        intent: "pipeline_apply_event".to_string(),
+        state: base_ui_state(),
+        conversation_id: Some("conv-1".to_string()),
+        turn_id: None,
+        artifact_id: None,
+        text: None,
+        timestamp: Some(42.0),
+        pipeline_event: Some(MainChatEvent {
+            id: "pipeline-1".to_string(),
+            conversation_id: "conv-1".to_string(),
+            assistant_message_id: "msg-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 2,
+            source: "pipeline".to_string(),
+            kind: MainChatEventKind::TextReplace,
+            payload: [("replacement".to_string(), "Pipeline text".to_string())]
+                .into_iter()
+                .collect(),
+            timestamp: 42.0,
+        }),
+        payload: Default::default(),
+    });
+    let state = response.state.expect("state");
+    let runtime_snapshot = state.runtime_snapshot.expect("runtime snapshot");
+    assert_eq!(
+        runtime_snapshot
+            .turn_state
+            .text_by_stream_id
+            .get("main")
+            .map(String::as_str),
+        Some("Pipeline text")
+    );
+    assert_eq!(
+        state.store_snapshot.conversations[0].messages[0]
+            .primary_text_snapshot
+            .as_deref(),
+        Some("Pipeline text")
+    );
+}
+
+#[test]
 fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
     let begin = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,
@@ -203,6 +255,7 @@ fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
         artifact_id: None,
         text: None,
         timestamp: Some(42.0),
+        pipeline_event: None,
         payload: [
             ("assistant_message_id".to_string(), "msg-1".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),
@@ -224,6 +277,7 @@ fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
         artifact_id: None,
         text: None,
         timestamp: Some(43.0),
+        pipeline_event: None,
         payload: [
             ("assistant_message_id".to_string(), "msg-1".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),
@@ -255,6 +309,7 @@ fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
         artifact_id: None,
         text: None,
         timestamp: Some(44.0),
+        pipeline_event: None,
         payload: [
             ("assistant_message_id".to_string(), "msg-1".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),
@@ -283,6 +338,7 @@ fn ui_intent_auto_todo_discard_clears_runtime_state() {
         artifact_id: None,
         text: None,
         timestamp: Some(42.0),
+        pipeline_event: None,
         payload: [
             ("assistant_message_id".to_string(), "msg-1".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),
@@ -300,6 +356,7 @@ fn ui_intent_auto_todo_discard_clears_runtime_state() {
         artifact_id: None,
         text: None,
         timestamp: Some(43.0),
+        pipeline_event: None,
         payload: [
             ("assistant_message_id".to_string(), "msg-1".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),
