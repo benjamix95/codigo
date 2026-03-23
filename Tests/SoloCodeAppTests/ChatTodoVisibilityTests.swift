@@ -133,6 +133,25 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertNil(violation)
     }
 
+    func testTodoPlanStartPolicyAllowsMCPResourceListingWithoutTodo() {
+        let tools = [
+            "list_mcp_resources",
+            "list_mcp_resource_templates",
+            "mcp_list_resources",
+            "mcp_list_prompts",
+        ]
+
+        for tool in tools {
+            let violation = todoPlanStartPolicyViolation(
+                state: ToolStartRequirementsState(),
+                type: "mcp_tool_call",
+                payload: ["mcp_tool": tool]
+            )
+
+            XCTAssertNil(violation, "Expected discovery tool \(tool) to bypass todo-first gating")
+        }
+    }
+
     func testTodoPlanStartPolicyAllowsSkillDiscoveryWithoutTodo() {
         let violation = todoPlanStartPolicyViolation(
             state: ToolStartRequirementsState(),
