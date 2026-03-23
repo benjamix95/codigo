@@ -173,6 +173,8 @@ extension EventNormalizer {
             return true
         case "web_search_completed", "web_search_failed", "web_fetch_completed", "web_fetch_failed", "read_batch_completed", "process_paused":
             return false
+        case "search", "instant_grep", "semantic_search", "read_lints", "debug_context":
+            return status == "started" || status == "running" || status == "in_progress"
         case "debug_log", "debug_query", "debug_session", "debug_native_session", "debug_hypothesize", "debug_mark",
              "debug_clean", "debug_trace_analyze", "debug_instrument", "debug_timeline",
              "debug_snapshot", "debug_test_check":

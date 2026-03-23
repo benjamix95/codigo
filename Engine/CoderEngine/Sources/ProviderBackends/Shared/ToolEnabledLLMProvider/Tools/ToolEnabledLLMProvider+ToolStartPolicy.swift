@@ -31,6 +31,15 @@ extension ToolEnabledLLMProvider {
         switch toolName {
         case "bash":
             return "command_execution"
+        case "semantic_search":
+            return "semantic_search"
+        case "grep", "glob", "codebase_search", "find_symbol", "find_references",
+             "find_files", "search_symbols", "search_health_check":
+            return "search"
+        case "read", "read_range", "batch_read":
+            return "read_batch_started"
+        case "read_lints":
+            return "read_lints"
         case "edit", "write", "str_replace", "create_file", "delete_file", "parallel_apply", "regex_replace",
              "apply_patch", "multi_edit", "multiedit",
              "rename_symbol", "find_and_replace_all", "undo_edit":

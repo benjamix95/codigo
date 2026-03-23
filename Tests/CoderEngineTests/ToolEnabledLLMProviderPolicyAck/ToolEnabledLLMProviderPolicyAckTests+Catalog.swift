@@ -3,6 +3,24 @@ import XCTest
 @testable import CoderEngine
 
 extension ToolEnabledLLMProviderPolicyAckTests {
+    func testSemanticSearchUsesDedicatedSemanticStartType() {
+        XCTAssertEqual(
+            ToolEnabledLLMProvider.toolStartEventType(for: "semantic_search"),
+            "semantic_search"
+        )
+    }
+
+    func testIndexedDiscoveryUsesSearchStartType() {
+        XCTAssertEqual(
+            ToolEnabledLLMProvider.toolStartEventType(for: "find_symbol"),
+            "search"
+        )
+        XCTAssertEqual(
+            ToolEnabledLLMProvider.toolStartEventType(for: "codebase_search"),
+            "search"
+        )
+    }
+
     func testExplicitUnknownToolDoesNotFallbackToReadHeuristic() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("explicit-unknown-no-fallback-\(UUID().uuidString)", isDirectory: true)
