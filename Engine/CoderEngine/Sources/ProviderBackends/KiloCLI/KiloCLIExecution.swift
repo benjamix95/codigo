@@ -44,7 +44,8 @@ enum KiloCLIExecution {
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 continue
             }
-            for event in KiloEventParser.parse(json: json, fullContent: &fullContent, defaultModel: model) {
+            let events = KiloEventParser.parse(json: json, fullContent: &fullContent, defaultModel: model)
+            for event in events {
                 continuation.yield(event)
             }
         }

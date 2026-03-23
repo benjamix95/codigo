@@ -62,6 +62,15 @@ extension PipelineIntegrationService {
         let cleaned = ChatStore.stripCoderideMarkers(rawText, aggressive: true)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
+        if mainChatTraceLoggingEnabled() {
+            NSLog(
+                "[MainChatTrace] pipeline assistant_update project conv=%@ msg=%@ chars=%ld status=%@",
+                conversationId.uuidString.lowercased(),
+                runtime.assistantMessageId.uuidString.lowercased(),
+                cleaned.count,
+                status
+            )
+        }
 
         let streamId = rawEvent.taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")

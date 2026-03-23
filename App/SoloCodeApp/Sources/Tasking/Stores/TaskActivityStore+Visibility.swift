@@ -22,6 +22,7 @@ extension TaskActivityStore {
     ]
 
     static let concreteTypes: Set<String> = [
+        "assistant_update",
         "agent",
         "bash",
         "command_execution",
@@ -184,6 +185,9 @@ extension TaskActivityStore {
         }
         if normalizedType.contains("mcp") {
             return userFacingToolName(from: last.payload)
+        }
+        if normalizedType == "assistant_update" {
+            return "Responding"
         }
         if SwarmMetadata.isSupervisorEvent(last.payload) {
             return "Orchestrator"

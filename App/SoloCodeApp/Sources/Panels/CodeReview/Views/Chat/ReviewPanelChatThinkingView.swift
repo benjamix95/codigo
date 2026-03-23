@@ -69,6 +69,12 @@ struct ReviewPanelChatThinkingView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(DesignSystem.Colors.thinkingBackground)
+        )
         .onChange(of: isStreaming) { streaming in
             if streaming { isExpanded = true }
         }

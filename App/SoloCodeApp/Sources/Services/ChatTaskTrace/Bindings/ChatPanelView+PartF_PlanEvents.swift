@@ -66,6 +66,9 @@ extension ChatPanelView {
                 source: .automaticFlow
             )
         }
+        if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_create") {
+            streamContentVersion &+= 1
+        }
     }
 
     @MainActor
@@ -84,6 +87,9 @@ extension ChatPanelView {
             status: payload.status,
             targetConversationId: targetId
         )
+        if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_upsert") {
+            streamContentVersion &+= 1
+        }
     }
     @MainActor
     internal func handlePlanStepBatchUpdateEvent(
@@ -113,6 +119,9 @@ extension ChatPanelView {
                 targetConversationId: targetId
             )
         }
+        if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_batch_update") {
+            streamContentVersion &+= 1
+        }
     }
     @MainActor
     internal func handlePlanStepReorderEvent(
@@ -126,6 +135,9 @@ extension ChatPanelView {
             conversationId: rawConversationId,
             fallbackConversationId: fallbackConversationId
         )
+        if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_reorder") {
+            streamContentVersion &+= 1
+        }
     }
 
     @MainActor
@@ -142,6 +154,9 @@ extension ChatPanelView {
             conversationId: rawConversationId,
             fallbackConversationId: fallbackConversationId
         )
+        if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_dependency_set") {
+            streamContentVersion &+= 1
+        }
     }
 
     @MainActor
@@ -160,6 +175,9 @@ extension ChatPanelView {
             conversationId: rawConversationId,
             fallbackConversationId: fallbackConversationId
         )
+        if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_set_walkthrough") {
+            streamContentVersion &+= 1
+        }
     }
 
     @MainActor
@@ -207,6 +225,9 @@ extension ChatPanelView {
                 preserveHistorySelection: false,
                 source: .automaticFlow
             )
+        }
+        if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_request_user_input") {
+            streamContentVersion &+= 1
         }
     }
 }

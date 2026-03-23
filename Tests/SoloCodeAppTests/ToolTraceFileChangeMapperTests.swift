@@ -169,6 +169,50 @@ final class ToolTraceFileChangeMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.removed, 1)
     }
 
+    func testStrReplacePayloadWithExplicitLineCountsUsesPayloadValues() {
+        let event = makeEvent(
+            type: "str_replace",
+            title: "str_replace DesignSystem+Tokens.swift:42",
+            payload: [
+                "path": "App/SoloCodeApp/Sources/App/DesignSystem/DesignSystem+Tokens.swift",
+                "tool": "str_replace",
+                "linesAdded": "5",
+                "linesRemoved": "3",
+                "detail": "Replaced at line 42 (3 lines → 5 lines)",
+                "diffPreview": "- let old1 = 1\n- let old2 = 2\n- let old3 = 3\n+ let new1 = 1\n+ let new2 = 2\n+ let new3 = 3\n+ let new4 = 4\n+ let new5 = 5",
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertNotNil(mapped)
+        XCTAssertEqual(mapped?.added, 5, "str_replace deve usare linesAdded esplicito dal payload")
+        XCTAssertEqual(mapped?.removed, 3, "str_replace deve usare linesRemoved esplicito dal payload")
+        XCTAssertEqual(mapped?.diffSource, .payload)
+    }
+
+    func testCreateFilePayloadIncludesZeroLinesRemoved() {
+        let event = makeEvent(
+            type: "create_file",
+            title: "Created NewFile.swift",
+            payload: [
+                "path": "App/SoloCodeApp/Sources/NewFile.swift",
+                "tool": "create_file",
+                "linesAdded": "25",
+                "linesRemoved": "0",
+                "detail": "Created 25 lines",
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertNotNil(mapped)
+        XCTAssertEqual(mapped?.kind, .created)
+        XCTAssertEqual(mapped?.added, 25)
+        XCTAssertEqual(mapped?.removed, 0)
+        XCTAssertEqual(mapped?.diffSource, .payload)
+    }
+
     func testMapperUsesPathAndDiffHeuristicForUntypedFileChanges() {
         let event = makeEvent(
             type: "command_execution",

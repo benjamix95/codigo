@@ -11,6 +11,23 @@ extension ChatPanelView {
         providerId: String,
         conversationId: UUID?
     ) {
+        if mainChatTraceLoggingEnabled(),
+           type == "assistant_update"
+            || type == "command_execution"
+            || type == "mcp_tool_call"
+            || type == "turn_started"
+            || type == "turn_completed"
+        {
+            NSLog(
+                "[MainChatTrace] recordTaskActivity type=%@ provider=%@ conv=%@ title=%@ detail=%@ status=%@",
+                type,
+                providerId,
+                conversationId?.uuidString.lowercased() ?? "-",
+                payload["title"] ?? "-",
+                payload["detail"] ?? "-",
+                payload["status"] ?? "-"
+            )
+        }
         if SwarmMetadata.isSwarmEvent(payload)
             || type == "subagent_text"
             || type == "agent"

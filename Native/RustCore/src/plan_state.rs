@@ -64,7 +64,6 @@ pub fn handle_action(
 
 pub fn create_snapshot(arguments: &BTreeMap<String, String>) -> Result<String, String> {
     let goal = required_string(arguments, "goal")?;
-    let conversation_id = required_conversation_id(arguments)?;
     let chosen_path = non_empty(string_arg(arguments, "chosen_path"))
         .or_else(|| non_empty(string_arg(arguments, "chosenPath")));
     let steps = parse_steps(string_arg(arguments, "steps").as_str())?;
@@ -73,6 +72,8 @@ pub fn create_snapshot(arguments: &BTreeMap<String, String>) -> Result<String, S
         .unwrap_or(true);
 
     let mut document = read_document();
+    let conversation_id = resolve_mutation_conversation_id(arguments, &document, true)
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
     let history = document
         .snapshots_by_conversation
         .entry(conversation_id.clone())
@@ -203,7 +204,9 @@ pub fn step_update(arguments: &BTreeMap<String, String>) -> Result<String, Strin
     let step_id = required_string(arguments, "step_id")
         .or_else(|_| required_string(arguments, "stepId"))?;
     let status = required_string(arguments, "status")?;
-    let conversation_id = required_conversation_id(arguments)?;
+    let document = read_document();
+    let conversation_id = resolve_mutation_conversation_id(arguments, &document, true)
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
     let title = non_empty(string_arg(arguments, "title"));
     mutate_latest_snapshot(&conversation_id, true, |snapshot| {
         upsert_step(snapshot, &step_id, &status, title, None, None, None, None, None);
@@ -215,7 +218,9 @@ pub fn step_upsert(arguments: &BTreeMap<String, String>) -> Result<String, Strin
     let step_id = required_string(arguments, "step_id")
         .or_else(|_| required_string(arguments, "stepId"))?;
     let status = required_string(arguments, "status")?;
-    let conversation_id = required_conversation_id(arguments)?;
+    let document = read_document();
+    let conversation_id = resolve_mutation_conversation_id(arguments, &document, true)
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
     mutate_latest_snapshot(&conversation_id, true, |snapshot| {
         upsert_step(
             snapshot,
@@ -246,7 +251,9 @@ pub fn step_batch_update(arguments: &BTreeMap<String, String>) -> Result<String,
     if updates.is_empty() {
         return Err("Error: 'updates' must be a non-empty JSON array".to_string());
     }
-    let conversation_id = required_conversation_id(arguments)?;
+    let document = read_document();
+    let conversation_id = resolve_mutation_conversation_id(arguments, &document, true)
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
     mutate_latest_snapshot(&conversation_id, true, |snapshot| {
         for update in &updates {
             let step_id = string_value(update, "stepId")
@@ -285,7 +292,9 @@ pub fn step_reorder(arguments: &BTreeMap<String, String>) -> Result<String, Stri
     if ordered.is_empty() {
         return Err("Error: 'ordered_step_ids' must contain at least one id".to_string());
     }
-    let conversation_id = required_conversation_id(arguments)?;
+    let document = read_document();
+    let conversation_id = resolve_mutation_conversation_id(arguments, &document, false)
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
     mutate_latest_snapshot(&conversation_id, false, |snapshot| {
         let mut reordered = Vec::new();
         let mut used = BTreeSet::new();
@@ -328,7 +337,9 @@ pub fn step_dependency_set(arguments: &BTreeMap<String, String>) -> Result<Strin
             .as_deref(),
     )
     .ok_or_else(|| "Error: 'depends_on' must be a valid JSON string array".to_string())?;
-    let conversation_id = required_conversation_id(arguments)?;
+    let document = read_document();
+    let conversation_id = resolve_mutation_conversation_id(arguments, &document, true)
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
     mutate_latest_snapshot(&conversation_id, true, |snapshot| {
         let existing_status = snapshot
             .steps
@@ -353,7 +364,9 @@ pub fn step_dependency_set(arguments: &BTreeMap<String, String>) -> Result<Strin
 
 pub fn set_walkthrough(arguments: &BTreeMap<String, String>) -> Result<String, String> {
     let markdown = required_string(arguments, "markdown")?;
-    let conversation_id = required_conversation_id(arguments)?;
+    let document = read_document();
+    let conversation_id = resolve_mutation_conversation_id(arguments, &document, true)
+        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
     mutate_latest_snapshot(&conversation_id, true, |snapshot| {
         snapshot.walkthrough_markdown = Some(markdown);
         snapshot.summary = non_empty(string_arg(arguments, "summary"));
@@ -704,6 +717,28 @@ fn required_conversation_id(arguments: &BTreeMap<String, String>) -> Result<Stri
         .or_else(|_| required_string(arguments, "conversationId"))
 }
 
+fn resolve_mutation_conversation_id(
+    arguments: &BTreeMap<String, String>,
+    document: &PlanDocument,
+    create_if_missing: bool,
+) -> Option<String> {
+    if let Some(explicit) = non_empty(string_arg(arguments, "conversation_id"))
+        .or_else(|| non_empty(string_arg(arguments, "conversationId")))
+    {
+        return Some(explicit);
+    }
+
+    if document.snapshots_by_conversation.len() == 1 {
+        return document.snapshots_by_conversation.keys().next().cloned();
+    }
+
+    if document.snapshots_by_conversation.is_empty() && create_if_missing {
+        return Some(generate_conversation_id());
+    }
+
+    None
+}
+
 fn required_string(arguments: &BTreeMap<String, String>, key: &str) -> Result<String, String> {
     non_empty(string_arg(arguments, key))
         .ok_or_else(|| format!("Error: '{key}' is required"))
@@ -754,6 +789,22 @@ fn plan_state_file_path() -> PathBuf {
 
 fn iso_now() -> String {
     next_id("ts")
+}
+
+fn generate_conversation_id() -> String {
+    static UUID_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let sequence = UUID_SEQUENCE.fetch_add(1, Ordering::Relaxed) as u128;
+    let mixed = nanos ^ sequence.rotate_left(17);
+    let part1 = ((mixed >> 96) & 0xffff_ffff) as u32;
+    let part2 = ((mixed >> 80) & 0xffff) as u16;
+    let part3 = (((mixed >> 64) & 0x0fff) as u16) | 0x4000;
+    let part4 = (((mixed >> 48) & 0x3fff) as u16) | 0x8000;
+    let part5 = (mixed & 0x0000_ffff_ffff_ffff) as u64;
+    format!("{part1:08x}-{part2:04x}-{part3:04x}-{part4:04x}-{part5:012x}")
 }
 
 fn next_id(prefix: &str) -> String {
@@ -887,6 +938,83 @@ mod tests {
             assert_eq!(latest.goal, "Operational plan in progress");
             assert_eq!(latest.steps.first().map(|step| step.id.as_str()), Some("7"));
             assert_eq!(latest.steps.first().map(|step| step.status.as_str()), Some("running"));
+        });
+    }
+
+    #[test]
+    fn create_snapshot_without_conversation_id_generates_new_conversation_when_empty() {
+        with_temp_home(|| {
+            let mut args = BTreeMap::new();
+            args.insert("goal".to_string(), "Goal".to_string());
+            args.insert(
+                "steps".to_string(),
+                r#"[{"step_id":"1","title":"Audit","status":"pending"}]"#.to_string(),
+            );
+
+            let message = create_snapshot(&args).unwrap();
+            assert_eq!(message, "OK — plan snapshot created");
+
+            let document = read_document();
+            assert_eq!(document.snapshots_by_conversation.len(), 1);
+            let generated_id = document
+                .snapshots_by_conversation
+                .keys()
+                .next()
+                .cloned()
+                .unwrap();
+            assert_eq!(document.latest_conversation_id.as_deref(), Some(generated_id.as_str()));
+            assert_eq!(generated_id.len(), 36);
+            assert_eq!(generated_id.matches('-').count(), 4);
+        });
+    }
+
+    #[test]
+    fn step_upsert_without_conversation_id_uses_unique_existing_snapshot() {
+        with_temp_home(|| {
+            let mut create_args = BTreeMap::new();
+            create_args.insert("conversation_id".to_string(), "conv-unique".to_string());
+            create_args.insert("goal".to_string(), "Goal".to_string());
+            create_args.insert("steps".to_string(), "[]".to_string());
+            create_snapshot(&create_args).unwrap();
+
+            let mut args = BTreeMap::new();
+            args.insert("step_id".to_string(), "7".to_string());
+            args.insert("status".to_string(), "running".to_string());
+            args.insert("title".to_string(), "Plan".to_string());
+            let message = step_upsert(&args).unwrap();
+            assert_eq!(message, "OK — plan step 7 upserted");
+
+            let latest = read_document()
+                .snapshots_by_conversation
+                .get("conv-unique")
+                .and_then(|items| items.last())
+                .cloned()
+                .unwrap();
+            assert_eq!(latest.steps.first().map(|step| step.id.as_str()), Some("7"));
+        });
+    }
+
+    #[test]
+    fn create_snapshot_without_conversation_id_fails_when_multiple_snapshots_exist() {
+        with_temp_home(|| {
+            let mut create_a = BTreeMap::new();
+            create_a.insert("conversation_id".to_string(), "conv-a".to_string());
+            create_a.insert("goal".to_string(), "Plan A".to_string());
+            create_a.insert("steps".to_string(), "[]".to_string());
+            create_snapshot(&create_a).unwrap();
+
+            let mut create_b = BTreeMap::new();
+            create_b.insert("conversation_id".to_string(), "conv-b".to_string());
+            create_b.insert("goal".to_string(), "Plan B".to_string());
+            create_b.insert("steps".to_string(), "[]".to_string());
+            create_snapshot(&create_b).unwrap();
+
+            let mut ambiguous = BTreeMap::new();
+            ambiguous.insert("goal".to_string(), "Ambiguous".to_string());
+            ambiguous.insert("steps".to_string(), "[]".to_string());
+
+            let error = create_snapshot(&ambiguous).unwrap_err();
+            assert!(error.contains("unable to resolve target plan snapshot"));
         });
     }
 

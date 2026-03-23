@@ -111,6 +111,26 @@ final class TaskActivityVisibilityTests: XCTestCase {
         XCTAssertNil(TaskActivityStore.assistantUpdateText(in: activities))
     }
 
+    func testStreamingStatusPrefersRespondingForAssistantUpdates() {
+        let activities = [
+            TaskActivity(
+                type: "assistant_update",
+                title: "Sto rispondendo",
+                detail: "Analizzo la timeline",
+                phase: .executing,
+                isRunning: true
+            ),
+        ]
+
+        XCTAssertEqual(
+            TaskActivityStore.streamingStatusText(
+                isPaused: false,
+                activities: activities
+            ),
+            "Responding"
+        )
+    }
+
     func testHiddenGenericEventRemainsInvisibleEvenWithOperationalPayload() {
         let hidden = TaskActivity(
             type: "thinking",

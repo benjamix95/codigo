@@ -6,6 +6,7 @@ extension CodexCLIProvider {
             var lastObservedAgentText = ""
             var lastValidAgentMessage = ""
             var emittedAnyAssistantDelta = false
+            var lastEmittedVisibleText = ""
         }
 
         var workspacePath: String?
@@ -31,6 +32,16 @@ extension CodexCLIProvider {
             scrubCarry = ""
             emittedRawKeys.removeAll(keepingCapacity: true)
         }
+    }
+
+    static var codexTraceLoggingEnabled: Bool {
+        let env = ProcessInfo.processInfo.environment["SOLOCODE_STREAM_TRACE"] ?? ""
+        return env == "1" || env.lowercased() == "true"
+    }
+
+    static func codexTraceLog(_ message: @autoclosure () -> String) {
+        guard codexTraceLoggingEnabled else { return }
+        NSLog("[CodexTrace] %@", message())
     }
 
     static func parseStreamJSONPayloads(from rawLine: String) -> [[String: Any]] {

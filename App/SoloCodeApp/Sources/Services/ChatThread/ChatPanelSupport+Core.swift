@@ -294,7 +294,7 @@ func isOperationalEventRequiringTodoPlanStartPolicy(type: String, payload: [Stri
     if normalizedType == "command_execution"
         || normalizedType == "bash"
     {
-        return true
+        return isTodoGatedCommandExecution(payload: payload)
     }
     if normalizedType.hasPrefix("web_search") || normalizedType.hasPrefix("web_fetch") {
         return false
@@ -345,6 +345,30 @@ private func isTodoDiscoveryToolEvent(type: String) -> Bool {
     }
     return normalizedType.hasPrefix("functions.")
         && directDiscoveryEventTypes.contains(String(normalizedType.dropFirst("functions.".count)))
+}
+
+private func isTodoGatedCommandExecution(payload: [String: String]) -> Bool {
+    let command = (payload["command"] ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !command.isEmpty else { return true }
+
+    if EventNormalizer.parseSearchQueryFromCommand(command) != nil {
+        return false
+    }
+
+    let lower = command.lowercased()
+    if lower.contains("cat ")
+        || lower.contains("sed -n")
+        || lower.contains("head ")
+        || lower.contains("tail ")
+        || lower.contains("less ")
+        || lower.contains("more ")
+        || lower.contains("awk ")
+    {
+        return false
+    }
+
+    return true
 }
 
 private func isTodoGatedOperationalTool(_ rawToolName: String) -> Bool {

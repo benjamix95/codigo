@@ -30,11 +30,13 @@
 - Test da aggiungere o aggiornare:
   - parsing marker inline `todo_write`
   - metadata swarm stabili per i task pipeline
+  - gate finale `Code Review & Test` creato come todo canonico ad alta priorità al termine del plan build
 - Strategia di fix minimo:
   - propagare `swarm_id/group_id/agent_name` negli eventi task pipeline
   - registrare anche `subagent_text` per il testo dei worker
   - espandere i `todo_write` batch via `EventNormalizer.normalizeTodoWrite`
   - convertire i marker inline `todo_write` del testo pipeline in raw events
+  - emettere il todo canonico `Code Review & Test` in chiusura del plan build e mantenerne la proiezione coerente nel `TodoStore`
 - Verifica post-fix:
   - `xcodebuild test` mirato su `ChatStreamFailureHandlingTests` e `SwarmLiveReducerTests`
 - Commit previsto: `fix(chat): restore pipeline subagent visibility and todo projection`

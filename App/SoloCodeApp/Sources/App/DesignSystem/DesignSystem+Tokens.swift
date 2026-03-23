@@ -116,6 +116,16 @@ struct DesignSystem {
             NSColor(red: 0.965, green: 0.965, blue: 0.972, alpha: 1.0),
             NSColor(red: 0.098, green: 0.098, blue: 0.106, alpha: 1.0)
         )
+        /// Thinking block background — darker gray to distinguish from assistant response text.
+        static let thinkingBackground = soloCodeAdaptive(
+            NSColor(red: 0.948, green: 0.934, blue: 0.902, alpha: 0.72),
+            NSColor(red: 0.150, green: 0.132, blue: 0.108, alpha: 0.82)
+        )
+        /// Tool trace row background — subtle fill so each row is visually distinct.
+        static let toolTraceRowBackground = soloCodeAdaptive(
+            NSColor(red: 0.935, green: 0.935, blue: 0.945, alpha: 0.5),
+            NSColor(red: 0.120, green: 0.120, blue: 0.135, alpha: 0.6)
+        )
 
         // Borders — neutral greys (Cursor style)
         static let divider = soloCodeAdaptive(

@@ -224,6 +224,7 @@ extension InlineActivityFeedView {
 
     func icon(for activity: TaskActivity) -> String {
         switch activity.type {
+        case "assistant_update": return "text.bubble.fill"
         case "turn_started": return "play.circle.fill"
         case "turn_completed": return "checkmark.circle.fill"
         case "command_execution", "bash": return "terminal.fill"

@@ -226,10 +226,16 @@ extension ChatPanelView {
     // MARK: - Messages Area
     internal var messagesArea: some View {
         ScrollViewReader { proxy in
-            ZStack {
-                messagesAreaScrollView(using: proxy)
-                if shouldShowMessagesAreaEmptyState {
-                    messagesAreaEmptyStateOverlay
+            VStack(spacing: 0) {
+                if shouldShowStickyTodoCard {
+                    stickyTodoCard
+                    Divider().opacity(0.12)
+                }
+                ZStack {
+                    messagesAreaScrollView(using: proxy)
+                    if shouldShowMessagesAreaEmptyState {
+                        messagesAreaEmptyStateOverlay
+                    }
                 }
             }
         }
@@ -271,6 +277,47 @@ extension ChatPanelView {
         .onDisappear {
             autoScrollWorkItem?.cancel()
             autoScrollWorkItem = nil
+        }
+    }
+
+    internal var stickyTodoItems: [TodoItem] {
+        todoStore.displayTodosForChat(for: conversationId)
+    }
+
+    internal var shouldShowStickyTodoCard: Bool {
+        coderMode == .agent && !stickyTodoItems.isEmpty
+    }
+
+    @ViewBuilder
+    internal var stickyTodoCard: some View {
+        if let currentConversationId = conversationId {
+            let latestAssistant = chatStore.conversation(for: currentConversationId)?
+                .messages
+                .last(where: { $0.role == .assistant })
+            let traceEvents = latestAssistant.map {
+                toolTraceStore.events(
+                    conversationId: currentConversationId,
+                    assistantMessageId: $0.id
+                )
+            } ?? []
+            TodoCenterCardView(
+                store: todoStore,
+                conversationId: currentConversationId,
+                traceEvents: traceEvents,
+                microStatusText: latestAssistant.flatMap {
+                    streamingDetailText(for: $0, conversationId: currentConversationId)
+                },
+                isStreaming: (latestAssistant?.isStreaming ?? false) && isLoadingForCurrentConversation,
+                onReviewChanges: {
+                    gitPanelStore.isOpen = true
+                    gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                }
+            )
+            .padding(.horizontal, 24)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+            .background(DesignSystem.Colors.chatPanelSolidBackground)
+            .zIndex(1)
         }
     }
 }

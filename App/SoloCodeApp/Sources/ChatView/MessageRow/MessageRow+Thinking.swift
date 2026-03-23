@@ -38,11 +38,11 @@ struct ThinkingBlockView: View {
 
     private var accentBarColor: Color {
         colorScheme == .dark
-            ? Color(red: 0.55, green: 0.63, blue: 0.95).opacity(0.25)
-            : Color(red: 0.30, green: 0.38, blue: 0.75).opacity(0.20)
+            ? Color(red: 0.82, green: 0.63, blue: 0.28).opacity(0.34)
+            : Color(red: 0.66, green: 0.46, blue: 0.12).opacity(0.28)
     }
-    private var thinkingTextColor: Color { .primary.opacity(0.35) }
-    private var headerTextColor: Color { .primary.opacity(0.30) }
+    private var thinkingTextColor: Color { .secondary.opacity(0.9) }
+    private var headerTextColor: Color { accentBarColor.opacity(0.9) }
 
     private var isShowingContent: Bool { isExpanded }
 
@@ -101,6 +101,12 @@ struct ThinkingBlockView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(DesignSystem.Colors.thinkingBackground)
+        )
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .onChange(of: isLiveStreaming) { streaming in
             if streaming { DispatchQueue.main.async { isExpanded = true } }
@@ -119,11 +125,11 @@ struct ThinkingBlocksView: View {
 
     private var accentBarColor: Color {
         colorScheme == .dark
-            ? Color(red: 0.55, green: 0.63, blue: 0.95).opacity(0.25)
-            : Color(red: 0.30, green: 0.38, blue: 0.75).opacity(0.20)
+            ? Color(red: 0.82, green: 0.63, blue: 0.28).opacity(0.34)
+            : Color(red: 0.66, green: 0.46, blue: 0.12).opacity(0.28)
     }
-    private var thinkingTextColor: Color { .primary.opacity(0.35) }
-    private var headerTextColor: Color { .primary.opacity(0.30) }
+    private var thinkingTextColor: Color { .secondary.opacity(0.9) }
+    private var headerTextColor: Color { accentBarColor.opacity(0.9) }
     private var separatorColor: Color { .primary.opacity(0.06) }
     private var isShowingContent: Bool { isExpanded }
 
@@ -199,6 +205,12 @@ struct ThinkingBlocksView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(DesignSystem.Colors.thinkingBackground)
+        )
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .onChange(of: isLiveStreaming) { streaming in
             if streaming { DispatchQueue.main.async { isExpanded = true } }

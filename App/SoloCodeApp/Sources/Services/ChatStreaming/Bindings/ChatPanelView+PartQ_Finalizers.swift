@@ -13,6 +13,30 @@ func shouldDiscardPendingStreamSnapshot(
 
 extension ChatPanelView {
     @MainActor
+    internal func applyStreamingReasoningSnapshot(
+        _ content: String,
+        conversationId targetConversationId: UUID?
+    ) {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard shouldUpdateInlineReasoningState(
+            eventConversationId: targetConversationId,
+            selectedConversationId: conversationId
+        ) else { return }
+
+        let groupId = "reasoning-stream"
+        if streamingReasoningConversationId != targetConversationId {
+            streamingReasoningBlocks = []
+            streamingSegments = []
+            streamingSegmentTurnIndex = 0
+        }
+        streamingReasoningConversationId = targetConversationId
+        streamingReasoningText = trimmed
+        streamingReasoningBlocks = [ReasoningBlock(id: groupId, text: trimmed)]
+        streamContentVersion &+= 1
+    }
+
+    @MainActor
     internal func applyMainChatUIStreamIntent(
         _ intent: String,
         conversationId targetConversationId: UUID?,

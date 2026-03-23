@@ -12,12 +12,17 @@ extension CodexCLIProvider {
         let cleaned = scrubTechnicalTextChunk(state.turn.lastValidAgentMessage, carry: &cleanupCarry)
         let trimmedCleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedCleaned.isEmpty {
-            let previouslyVisibleText = state.cumulativeVisibleText
+            let previouslyVisibleText = state.turn.lastEmittedVisibleText.trimmingCharacters(in: .whitespacesAndNewlines)
             state.turn.emittedAnyAssistantDelta = true
+            state.turn.lastEmittedVisibleText = trimmedCleaned
             state.cumulativeVisibleText = trimmedCleaned
-            if state.turn.emittedAnyAssistantDelta && !previouslyVisibleText.isEmpty && previouslyVisibleText != trimmedCleaned {
+            if previouslyVisibleText == trimmedCleaned {
+                codexTraceLog("finalize skip_duplicate chars=\(trimmedCleaned.count)")
+            } else if !previouslyVisibleText.isEmpty {
+                codexTraceLog("finalize emit textReplace old=\(previouslyVisibleText.count) new=\(trimmedCleaned.count)")
                 events.append(.textReplace(trimmedCleaned))
             } else {
+                codexTraceLog("finalize emit textDelta chars=\(trimmedCleaned.count)")
                 events.append(.textDelta(trimmedCleaned))
             }
         }

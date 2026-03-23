@@ -1,6 +1,77 @@
 import Foundation
 import CoderEngine
 
+func shouldBufferOperationalRawEventUntilNarrative(
+    rawType: String,
+    payload: [String: String]
+) -> Bool {
+    let type = rawType
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if type.isEmpty { return false }
+
+    let nonBufferedTypes: Set<String> = [
+        "started",
+        "turn_started",
+        "turn_completed",
+        "policy_ack",
+        "assistant_update",
+        "reasoning",
+        "error",
+        "tool_validation_error",
+        "tool_execution_error",
+        "tool_timeout",
+        "permission_denied",
+        "usage",
+    ]
+    if nonBufferedTypes.contains(type) { return false }
+    if type.hasPrefix("reasoning") || type.hasPrefix("thinking") { return false }
+
+    if type == "mcp_tool_call" {
+        let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedTool = tool
+            .replacingOccurrences(of: "functions.", with: "")
+            .replacingOccurrences(of: "function.", with: "")
+        if normalizedTool == "coderide_policy_ack" || normalizedTool == "policy_ack" {
+            return false
+        }
+    }
+
+    if type == "mcp_tool_call" || type == "command_execution" || type == "bash" {
+        return true
+    }
+    if type == "agent"
+        || type == "read"
+        || type == "read_range"
+        || type == "grep"
+        || type == "glob"
+        || type == "codebase_search"
+        || type == "find_symbol"
+        || type == "find_references"
+        || type == "file_outline"
+        || type == "list_dir"
+    {
+        return true
+    }
+    if type.hasPrefix("web_search")
+        || type.hasPrefix("web_fetch")
+        || type.hasPrefix("todo_")
+        || type.hasPrefix("plan_")
+        || type == "search"
+        || type == "semantic_search"
+        || type == "instant_grep"
+        || type == "file_change"
+        || type == "edit"
+        || type == "skill_invocation"
+    {
+        return true
+    }
+
+    return ToolTraceVisibility.requiresPolicyAck(type: type, payload: payload)
+}
+
 /// Legacy flow coordinator retained as a Swift adapter around the Rust-backed
 /// direct stream runtime while provider transport remains in Swift.
 final class ConversationFlowCoordinator: ObservableObject {
@@ -154,61 +225,145 @@ final class ConversationFlowCoordinator: ObservableObject {
             context: context,
             attachments: attachments
         )
+        return try await withTaskCancellationHandler {
+            var hasSeenNarrativeEvent = false
+            var bufferedRawEvents: [(String, [String: String])] = []
+            var renderedTextSnapshot = turnState.primaryTextSnapshot
+            var pendingReasoningSnapshot = ""
+            while true {
+                try Task.checkCancellation()
+                let timeoutMs = max(1, (runtimeSnapshot.currentPollTimeoutSeconds ?? 90) * 1000)
+                guard let response = provider.pollRuntime(
+                    sessionId: sessionId,
+                    providerId: provider.id,
+                    snapshot: runtimeSnapshot,
+                    timeoutMs: timeoutMs
+                ), let nextSnapshot = response.runtimeSnapshot else {
+                    await setState(.error)
+                    throw StreamExecutionError.providerError("Rust main chat provider runtime poll unavailable.")
+                }
 
-        while true {
-            let timeoutMs = max(1, (runtimeSnapshot.currentPollTimeoutSeconds ?? 90) * 1000)
-            guard let response = provider.pollRuntime(
-                sessionId: sessionId,
-                providerId: provider.id,
-                snapshot: runtimeSnapshot,
-                timeoutMs: timeoutMs
-            ), let nextSnapshot = response.runtimeSnapshot else {
-                await setState(.error)
-                throw StreamExecutionError.providerError("Rust main chat provider runtime poll unavailable.")
-            }
+                try Task.checkCancellation()
+                runtimeSnapshot = nextSnapshot
+                setDirectRuntimeSnapshot(nextSnapshot)
+                turnState = nextSnapshot.turnState.chatTurnState
+                let eventTimestamp = Date()
 
-            runtimeSnapshot = nextSnapshot
-            setDirectRuntimeSnapshot(nextSnapshot)
-            turnState = nextSnapshot.turnState.chatTurnState
-            let eventTimestamp = Date()
-
-            for signal in response.signals {
-                await MainActor.run {
-                    switch signal {
-                    case .firstEvent:
-                        onSignal?(.firstEvent(eventTimestamp))
-                    case .firstTextDelta:
-                        onSignal?(.firstTextDelta(eventTimestamp))
-                    case .streamCompleted:
-                        onSignal?(.streamCompleted(eventTimestamp))
+                for signal in response.signals {
+                    await MainActor.run {
+                        switch signal {
+                        case .firstEvent:
+                            onSignal?(.firstEvent(eventTimestamp))
+                        case .firstTextDelta:
+                            onSignal?(.firstTextDelta(eventTimestamp))
+                        case .streamCompleted:
+                            onSignal?(.streamCompleted(eventTimestamp))
+                        }
                     }
                 }
-            }
 
-            for event in response.uiEvents {
-                switch event.kind {
-                case .started:
-                    break
-                case .textDelta, .textReplace:
-                    let textSnapshot = turnState.primaryTextSnapshot
-                    await MainActor.run { onText(textSnapshot) }
-                case .raw:
-                    await MainActor.run { onRaw(event.rawType ?? "provider_raw", event.payload, provider.id) }
-                case .error:
-                    let message = event.text.isEmpty
-                        ? (runtimeSnapshot.output?.terminalError ?? "Provider stream failed")
-                        : event.text
-                    let textSnapshot = turnState.primaryTextSnapshot
-                    await MainActor.run { onError(textSnapshot + "\n\n[Error: \(message)]") }
-                    await setState(.error)
-                    throw StreamExecutionError.providerError(message)
-                case .completed:
-                    await setState(.completed)
-                    return turnState.primaryTextSnapshot
+                for event in response.uiEvents {
+                    try Task.checkCancellation()
+                    switch event.kind {
+                    case .started:
+                        break
+                    case .textDelta:
+                        if !hasSeenNarrativeEvent {
+                            pendingReasoningSnapshot += event.text
+                            await MainActor.run {
+                                onRaw(
+                                    "reasoning",
+                                    [
+                                        "output": pendingReasoningSnapshot,
+                                        "title": "Thinking",
+                                        "group_id": "reasoning-stream",
+                                    ],
+                                    provider.id
+                                )
+                            }
+                        } else {
+                            renderedTextSnapshot += event.text
+                            await MainActor.run { onText(renderedTextSnapshot) }
+                        }
+                    case .textReplace:
+                        if !hasSeenNarrativeEvent {
+                            pendingReasoningSnapshot = event.text
+                            await MainActor.run {
+                                onRaw(
+                                    "reasoning",
+                                    [
+                                        "output": pendingReasoningSnapshot,
+                                        "title": "Thinking",
+                                        "group_id": "reasoning-stream",
+                                    ],
+                                    provider.id
+                                )
+                            }
+                        } else {
+                            renderedTextSnapshot = event.text
+                            await MainActor.run { onText(renderedTextSnapshot) }
+                        }
+                        if !bufferedRawEvents.isEmpty {
+                            let pending = bufferedRawEvents
+                            bufferedRawEvents.removeAll(keepingCapacity: true)
+                            for (rawType, rawPayload) in pending {
+                                await MainActor.run { onRaw(rawType, rawPayload, provider.id) }
+                            }
+                        }
+                    case .raw:
+                        let rawType = event.rawType ?? "provider_raw"
+                        if rawType == "assistant_update" || rawType == "reasoning" {
+                            hasSeenNarrativeEvent = true
+                            if !pendingReasoningSnapshot.isEmpty {
+                                pendingReasoningSnapshot = ""
+                            }
+                        }
+                        if !hasSeenNarrativeEvent
+                            && shouldBufferOperationalRawEventUntilNarrative(rawType: rawType, payload: event.payload)
+                        {
+                            bufferedRawEvents.append((rawType, event.payload))
+                        } else {
+                            await MainActor.run { onRaw(rawType, event.payload, provider.id) }
+                            if hasSeenNarrativeEvent, !bufferedRawEvents.isEmpty {
+                                let pending = bufferedRawEvents
+                                bufferedRawEvents.removeAll(keepingCapacity: true)
+                                for (pendingType, pendingPayload) in pending {
+                                    await MainActor.run { onRaw(pendingType, pendingPayload, provider.id) }
+                                }
+                            }
+                        }
+                    case .error:
+                        let message = event.text.isEmpty
+                            ? (runtimeSnapshot.output?.terminalError ?? "Provider stream failed")
+                            : event.text
+                        let textSnapshot = renderedTextSnapshot.isEmpty ? turnState.primaryTextSnapshot : renderedTextSnapshot
+                        if !bufferedRawEvents.isEmpty {
+                            let pending = bufferedRawEvents
+                            bufferedRawEvents.removeAll(keepingCapacity: true)
+                            for (rawType, rawPayload) in pending {
+                                await MainActor.run { onRaw(rawType, rawPayload, provider.id) }
+                            }
+                        }
+                        await MainActor.run { onError(textSnapshot + "\n\n[Error: \(message)]") }
+                        await setState(.error)
+                        throw StreamExecutionError.providerError(message)
+                    case .completed:
+                        if !bufferedRawEvents.isEmpty {
+                            let pending = bufferedRawEvents
+                            bufferedRawEvents.removeAll(keepingCapacity: true)
+                            for (rawType, rawPayload) in pending {
+                                await MainActor.run { onRaw(rawType, rawPayload, provider.id) }
+                            }
+                        }
+                        await setState(.completed)
+                        return renderedTextSnapshot.isEmpty ? turnState.primaryTextSnapshot : renderedTextSnapshot
+                    }
                 }
-            }
 
-            await Task.yield()
+                await Task.yield()
+            }
+        } onCancel: {
+            provider.cancelRuntimeSession(sessionId: sessionId)
         }
     }
 

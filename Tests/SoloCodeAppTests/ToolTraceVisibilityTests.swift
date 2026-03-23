@@ -220,6 +220,29 @@ final class ToolTraceVisibilityTests: XCTestCase {
         XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
     }
 
+    func testAssistantUpdateIsIncludedAndDisplayedInTrace() {
+        let activity = TaskActivity(
+            type: "assistant_update",
+            title: "Sto rispondendo",
+            payload: [
+                "detail": "Analizzo il flusso eventi",
+                "output": "Analizzo il flusso eventi"
+            ],
+            phase: .executing,
+            isRunning: true
+        )
+
+        XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: activity))
+        let event = makeEvent(
+            type: "assistant_update",
+            payload: [
+                "detail": "Analizzo il flusso eventi",
+                "output": "Analizzo il flusso eventi"
+            ]
+        )
+        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
+    }
+
     func testSkillInvocationActivityIsIncluded() {
         let activity = TaskActivity(
             type: "skill_invocation",

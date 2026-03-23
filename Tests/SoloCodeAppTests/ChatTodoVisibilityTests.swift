@@ -127,6 +127,26 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
     }
 
+    func testTodoPlanStartPolicyAllowsReadOnlySearchCommandWithoutTodo() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(),
+            type: "command_execution",
+            payload: ["command": "grep -R \"@State\" App/SoloCodeApp"]
+        )
+
+        XCTAssertNil(violation)
+    }
+
+    func testTodoPlanStartPolicyAllowsReadOnlyFileReadCommandWithoutTodo() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(),
+            type: "command_execution",
+            payload: ["command": "sed -n '1,40p' App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift"]
+        )
+
+        XCTAssertNil(violation)
+    }
+
     func testTodoPlanStartPolicyAllowsDiscoveryWithoutTodo() {
         let violation = todoPlanStartPolicyViolation(
             state: ToolStartRequirementsState(),

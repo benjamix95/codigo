@@ -84,7 +84,9 @@ extension MessageToolTraceView {
                     .fill(
                         isError
                             ? DesignSystem.Colors.error.opacity(0.06)
-                            : (isWarning ? DesignSystem.Colors.warning.opacity(0.06) : Color.clear)
+                            : (isWarning
+                                ? DesignSystem.Colors.warning.opacity(0.06)
+                                : DesignSystem.Colors.toolTraceRowBackground)
                     )
             )
 

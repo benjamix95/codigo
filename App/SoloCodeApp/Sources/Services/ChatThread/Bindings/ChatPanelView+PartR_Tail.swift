@@ -3,6 +3,29 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func finalAssistantContentExcludingReasoning(
+    fullText: String,
+    reasoningText: String?
+) -> String {
+    let fullTrimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !fullTrimmed.isEmpty else { return "" }
+    let reasoningTrimmed = (reasoningText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !reasoningTrimmed.isEmpty else { return fullTrimmed }
+
+    if fullTrimmed == reasoningTrimmed {
+        return ""
+    }
+    if fullTrimmed.hasPrefix(reasoningTrimmed) {
+        let tail = String(fullTrimmed.dropFirst(reasoningTrimmed.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return tail
+    }
+    if reasoningTrimmed.contains(fullTrimmed) {
+        return ""
+    }
+    return fullTrimmed
+}
+
 extension ChatPanelView {
     internal func handleStreamResult(
         conversationId streamConversationId: UUID,
@@ -26,6 +49,12 @@ extension ChatPanelView {
         let shouldHidePlanMarkdownForBuild =
             isBuildContext && shouldRoutePlanStreamToPanel
         let hasPlanContextForStreamConversation = hasActivePlanContext(for: streamConversationId)
+        let activeReasoningText = streamingReasoningConversationId == streamConversationId
+            ? streamingReasoningText
+            : chatStore.conversation(for: streamConversationId)?
+                .messages
+                .last(where: { $0.role == .assistant })?
+                .reasoningText
         let shouldHidePlanMarkdown = shouldHidePlanMarkdownInChat(
             shouldRoutePlanStreamToPanel: shouldRoutePlanStreamToPanel,
             coderMode: coderMode,
@@ -43,9 +72,13 @@ extension ChatPanelView {
                 source: .automaticFlow
             )
         }
+        let finalVisibleChatContent = finalAssistantContentExcludingReasoning(
+            fullText: full,
+            reasoningText: activeReasoningText
+        )
         let initialChatContent = shouldHidePlanMarkdown
             ? "Processing plan output in Plan Panel..."
-            : full
+            : finalVisibleChatContent
         await MainActor.run {
             applyMainChatUIStreamIntent(
                 "stream_finish_success",

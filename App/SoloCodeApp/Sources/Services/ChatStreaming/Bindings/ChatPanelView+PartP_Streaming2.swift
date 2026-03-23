@@ -3,6 +3,91 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func mainChatTraceLoggingEnabled() -> Bool {
+    let env = ProcessInfo.processInfo.environment["SOLOCODE_STREAM_TRACE"] ?? ""
+    return env == "1" || env.lowercased() == "true"
+}
+
+func mainChatTraceLog(_ message: @autoclosure () -> String) {
+    guard mainChatTraceLoggingEnabled() else { return }
+    NSLog("[MainChatTrace] %@", message())
+}
+
+func policyAckPayloadFromEvent(
+    type: String,
+    payload: [String: String]
+) -> [String: String]? {
+    let normalizedType = type
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if normalizedType == "policy_ack" {
+        return payload
+    }
+    guard normalizedType == "mcp_tool_call" else { return nil }
+    let tool = (payload["mcp_tool"] ?? payload["tool"] ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    let normalizedTool = tool
+        .replacingOccurrences(of: "functions.", with: "")
+        .replacingOccurrences(of: "function.", with: "")
+    guard normalizedTool == "coderide_policy_ack" || normalizedTool == "policy_ack" else {
+        return nil
+    }
+    let hash = (payload["hash"] ?? payload["policy_hash"] ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !hash.isEmpty else { return nil }
+    return [
+        "hash": hash,
+        "title": payload["title"] ?? "Policy acknowledged",
+        "detail": payload["detail"] ?? "Policy hash accepted via MCP tool call",
+    ]
+}
+
+func mainChatInlineReasoningGroupId(
+    providerId: String,
+    payload: [String: String]
+) -> String {
+    if let explicit = payload["group_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !explicit.isEmpty,
+       explicit == "codex-intermediate-turns" {
+        return explicit
+    }
+    let normalizedProvider = providerId
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if normalizedProvider.isEmpty {
+        return "reasoning-stream"
+    }
+    return "reasoning-stream"
+}
+
+@MainActor
+func promotedAssistantUpdateContent(
+    currentVisibleText: String,
+    incomingRawOutput: String
+) -> String? {
+    let looseBoundary = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+    let cleaned = ChatStore.stripCoderideMarkers(incomingRawOutput, aggressive: true)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty else { return nil }
+
+    let current = currentVisibleText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !current.isEmpty else { return cleaned }
+    let looseCurrent = current.trimmingCharacters(in: looseBoundary)
+    let looseCleaned = cleaned.trimmingCharacters(in: looseBoundary)
+
+    if current == cleaned
+        || current.contains(cleaned)
+        || (!looseCleaned.isEmpty && (looseCurrent == looseCleaned || looseCurrent.hasPrefix(looseCleaned)))
+    {
+        return nil
+    }
+    if cleaned.hasPrefix(current) || cleaned.contains(current) {
+        return cleaned
+    }
+    return cleaned
+}
+
 extension ChatPanelView {
     internal func handleRawStreamEvent(
         type t: String, payload p: [String: String], providerId pid: String,
@@ -10,6 +95,23 @@ extension ChatPanelView {
         shouldApplyPipelineArtifacts: Bool = true,
         shouldUpdateInlineReasoningVisuals: Bool = true
     ) {
+        if t == "assistant_update"
+            || t == "turn_started"
+            || t == "turn_completed"
+            || t == "command_execution"
+            || t == "mcp_tool_call"
+        {
+            mainChatTraceLog(
+                "raw type=\(t) provider=\(pid) conv=\(convId?.uuidString.lowercased() ?? "-") title=\(p["title"] ?? "-") detail=\(p["detail"] ?? "-") status=\(p["status"] ?? "-")"
+            )
+        }
+        if let ackPayload = policyAckPayloadFromEvent(type: t, payload: p) {
+            let enriched = processPolicyAckEvent(payload: ackPayload, providerId: pid, conversationId: convId)
+            recordTaskActivity(type: "policy_ack", payload: enriched, providerId: pid, conversationId: convId)
+            if policyAckDisposition(status: enriched["status"]) == .acknowledged {
+                flushPolicyAckBlockedQueue(providerId: pid, conversationId: convId)
+            }
+        }
         if t == "policy_ack" {
             let enriched = processPolicyAckEvent(payload: p, providerId: pid, conversationId: convId)
             recordTaskActivity(type: t, payload: enriched, providerId: pid, conversationId: convId)
@@ -82,6 +184,10 @@ extension ChatPanelView {
             conversationId: convId
         )
         if t == "turn_started" {
+            startAutoTodoPlaceholderIfNeeded(
+                providerId: pid,
+                conversationId: convId
+            )
             streamingSegmentTurnIndex += 1
             resetReasoningMessageState(for: convId)
             if shouldUseLinearChat(providerId: pid) {
@@ -156,7 +262,10 @@ extension ChatPanelView {
                     recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
                     return
                 }
-                let groupId = p["group_id"] ?? "reasoning-stream"
+                let groupId = mainChatInlineReasoningGroupId(
+                    providerId: pid,
+                    payload: p
+                )
                 if streamingReasoningConversationId != convId {
                     streamingReasoningBlocks = []
                     streamingSegments = []
@@ -247,40 +356,14 @@ extension ChatPanelView {
             )
             return // Don't record this synthetic event as a visible activity
         }
-        // Direct fallback: when the pipeline's textDelta path fails to
-        // populate the assistant message content, use the raw
-        // assistant_update output to write content directly to the store.
+        // assistant_update remains an internal progress signal.
+        // Visible assistant content must come from textDelta/textReplace,
+        // otherwise reasoning/progress text leaks into the normal chat body.
         if t == "assistant_update",
            let output = p["output"],
-           !output.isEmpty,
-           let convId,
-           let targetMessageId = currentAssistantPipelineTarget(for: convId)?.messageId
+           !output.isEmpty
         {
-            let cleaned = ChatStore.stripCoderideMarkers(output, aggressive: true)
-            print(
-                "[ChatDebug] assistant_update output=\(output.count) cleaned=\(cleaned.count) cleanedPreview='\(String(cleaned.prefix(120)))'"
-            )
-            if !cleaned.isEmpty {
-                let currentMsg = chatStore.conversation(for: convId)?
-                    .messages.first(where: { $0.id == targetMessageId })
-                let current = currentMsg?.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let hasBlocks = currentMsg?.blocks?.isEmpty == false
-                print(
-                    "[ChatDebug] currentContent=\(current.count) hasBlocks=\(hasBlocks ? 1 : 0) msgId=\(currentMsg?.id.uuidString ?? "nil")"
-                )
-                if current.isEmpty {
-                    chatStore.updateAssistantMessage(
-                        messageId: targetMessageId,
-                        content: cleaned,
-                        in: convId,
-                        persistImmediately: false
-                    )
-                    let after = chatStore.conversation(for: convId)?
-                        .messages.first(where: { $0.id == targetMessageId })?
-                        .content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    print("[ChatDebug] WROTE content=\(cleaned.count) afterVerify=\(after.count)")
-                }
-            }
+            mainChatTraceLog("assistant_update kept_internal chars=\(output.count)")
         }
         // Log ALL raw event types to see what the pipeline receives
         if t != "reasoning" && t != "usage" {

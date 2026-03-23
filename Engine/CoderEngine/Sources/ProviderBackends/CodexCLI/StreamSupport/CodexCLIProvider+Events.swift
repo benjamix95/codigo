@@ -49,10 +49,12 @@ extension CodexCLIProvider {
     ) -> [StreamEvent] {
         var events: [StreamEvent] = []
         let eventType = normalizedEventType((json["type"] as? String) ?? "")
+        codexTraceLog("parse eventType=\(eventType) turnCount=\(state.turnCount) cumulativeVisible=\(state.cumulativeVisibleText.count)")
 
         if eventType == "turn.started" {
             events.append(contentsOf: finalizeAssistantTurnIfNeeded(state: &state))
             if !state.cumulativeVisibleText.isEmpty && state.turnCount > 0 {
+                codexTraceLog("turn.started move_previous_visible_to_reasoning chars=\(state.cumulativeVisibleText.count)")
                 events.append(.raw(type: "reasoning", payload: [
                     "output": String(state.cumulativeVisibleText.prefix(6_000)),
                     "title": "Reasoning",
@@ -114,6 +116,7 @@ extension CodexCLIProvider {
         }
 
         if let rawEvent = parseRawEvent(from: json, workspacePath: state.workspacePath) {
+            codexTraceLog("raw event type=\(rawEvent.type) status=\(rawEvent.payload["status"] ?? "-") title=\(rawEvent.payload["title"] ?? "-")")
             appendRawEvent(
                 type: rawEvent.type,
                 payload: rawEvent.payload,
@@ -159,6 +162,7 @@ extension CodexCLIProvider {
 
         captureAssistantUpdateState(from: json, state: &state)
         if let assistantUpdatePayload = extractAssistantUpdatePayload(from: json) {
+            codexTraceLog("assistant_update chars=\((assistantUpdatePayload["output"] ?? "").count) detail=\(assistantUpdatePayload["detail"] ?? "-")")
             appendRawEvent(
                 type: "assistant_update",
                 payload: assistantUpdatePayload,
@@ -233,11 +237,33 @@ extension CodexCLIProvider {
 
         if !rawDelta.isEmpty {
             emitMarkerEvents(from: rawDelta, state: &state, events: &events)
+        }
+
+        if isDelta {
             let cleaned = scrubTechnicalTextChunk(rawDelta, carry: &state.scrubCarry)
-            if !cleaned.isEmpty && isDelta {
-                state.turn.emittedAnyAssistantDelta = true
-                state.cumulativeVisibleText += cleaned
-                events.append(.textDelta(cleaned))
+            guard !cleaned.isEmpty else { return events }
+            state.turn.emittedAnyAssistantDelta = true
+            state.turn.lastEmittedVisibleText += cleaned
+            state.cumulativeVisibleText = state.turn.lastEmittedVisibleText
+            codexTraceLog("emit textDelta source=delta chars=\(cleaned.count) visibleNow=\(state.turn.lastEmittedVisibleText.count)")
+            events.append(.textDelta(cleaned))
+        } else {
+            var fullSnapshotCarry = ""
+            let fullSnapshot = scrubTechnicalTextChunk(text, carry: &fullSnapshotCarry)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !fullSnapshot.isEmpty else { return events }
+            let currentVisible = state.turn.lastEmittedVisibleText.trimmingCharacters(in: .whitespacesAndNewlines)
+            state.turn.emittedAnyAssistantDelta = true
+            state.turn.lastEmittedVisibleText = fullSnapshot
+            state.cumulativeVisibleText = fullSnapshot
+            if currentVisible.isEmpty {
+                codexTraceLog("emit textDelta source=full_snapshot chars=\(fullSnapshot.count)")
+                events.append(.textDelta(fullSnapshot))
+            } else if currentVisible != fullSnapshot {
+                codexTraceLog("emit textReplace source=full_snapshot old=\(currentVisible.count) new=\(fullSnapshot.count)")
+                events.append(.textReplace(fullSnapshot))
+            } else {
+                codexTraceLog("skip full_snapshot_duplicate chars=\(fullSnapshot.count)")
             }
         }
 

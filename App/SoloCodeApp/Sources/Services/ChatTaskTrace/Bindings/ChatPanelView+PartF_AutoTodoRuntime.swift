@@ -121,6 +121,34 @@ extension ChatPanelView {
     }
 
     @MainActor
+    internal func startAutoTodoPlaceholderIfNeeded(
+        providerId: String,
+        conversationId: UUID?
+    ) {
+        guard !isPlanBuildContext(
+            conversationId: conversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        ) else {
+            return
+        }
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return
+        }
+        guard autoTodoRuntimeStateByMessage[turn.assistantMessageId.uuidString.lowercased()] == nil else {
+            return
+        }
+        guard !didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
+        applyAutoTodoRuntimeIntent(
+            "auto_todo_begin_runtime",
+            assistantMessageId: turn.assistantMessageId,
+            providerId: providerId,
+            conversationId: turn.conversationId
+        )
+    }
+
+    @MainActor
     internal func refreshAutoTodoIfNeeded(
         activity: TaskActivity,
         providerId: String,

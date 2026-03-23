@@ -82,4 +82,31 @@ final class ChatReasoningStreamReducerTests: XCTestCase {
             )
         )
     }
+
+    func testMainChatInlineReasoningGroupIdCollapsesProviderSpecificGroups() {
+        XCTAssertEqual(
+            mainChatInlineReasoningGroupId(
+                providerId: "claude-cli",
+                payload: ["group_id": "thinking-1"]
+            ),
+            "reasoning-stream"
+        )
+        XCTAssertEqual(
+            mainChatInlineReasoningGroupId(
+                providerId: "openai-api",
+                payload: ["group_id": "reasoning-42"]
+            ),
+            "reasoning-stream"
+        )
+    }
+
+    func testMainChatInlineReasoningGroupIdPreservesCodexIntermediateTurnsBucket() {
+        XCTAssertEqual(
+            mainChatInlineReasoningGroupId(
+                providerId: "codex-cli",
+                payload: ["group_id": "codex-intermediate-turns"]
+            ),
+            "codex-intermediate-turns"
+        )
+    }
 }

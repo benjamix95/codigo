@@ -187,7 +187,8 @@ extension ChatPanelView {
                         )
                     } else {
                         let shouldShowTodoCardInTurn =
-                            shouldShowPlanTodosInChat
+                            false
+                            && shouldShowPlanTodosInChat
                             && !todoStore.displayTodosForChat(for: conversationId).isEmpty
                             && message.id == todoCardAssistantMessageId
                         let liveInlineActivities: [TaskActivity] = {

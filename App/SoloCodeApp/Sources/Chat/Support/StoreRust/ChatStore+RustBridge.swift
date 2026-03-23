@@ -456,6 +456,16 @@ extension ChatStore {
         in conversationId: UUID,
         persistImmediately: Bool
     ) {
+        if mainChatTraceLoggingEnabled() {
+            NSLog(
+                "[MainChatTrace] store sync_assistant_pipeline_state conv=%@ msg=%@ primary=%ld blocks=%ld streaming=%@",
+                conversationId.uuidString.lowercased(),
+                messageId.uuidString.lowercased(),
+                state.primaryTextSnapshot.count,
+                state.blocks.count,
+                state.isStreaming ? "true" : "false"
+            )
+        }
         var pipelineMessage = ChatMessage(
             id: messageId,
             role: .assistant,
@@ -473,6 +483,14 @@ extension ChatStore {
             request.conversationId = conversationId.uuidString.lowercased()
             request.messageId = messageId.uuidString.lowercased()
             request.message = RustMainChatStoreAdapter.messageSnapshot(pipelineMessage)
+        }
+        if mainChatTraceLoggingEnabled() {
+            NSLog(
+                "[MainChatTrace] store sync_assistant_pipeline_state applied=%@ conv=%@ msg=%@",
+                applied ? "true" : "false",
+                conversationId.uuidString.lowercased(),
+                messageId.uuidString.lowercased()
+            )
         }
         if !applied, allowLocalFallback,
            let convIdx = conversations.firstIndex(where: { $0.id == conversationId }),

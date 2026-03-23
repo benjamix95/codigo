@@ -93,25 +93,28 @@ enum AttachmentIntakeService {
         return nil
     }
 
-    /// Reads pasteboard metadata on the main thread (lightweight string
-    /// reads only), then moves **all** data reads, image decoding,
-    /// conversion and file I/O to a `.userInitiated` background queue so
-    /// the user-interactive main thread never waits on lower-QoS work.
+    /// Reads pasteboard data on the main thread (where `NSPasteboard`
+    /// lives) to avoid priority inversion, then moves heavy work –
+    /// image decoding, conversion and file I/O – to a background queue.
     static func attachmentsFromPasteboard(completion: @escaping ([ComposerAttachment]) -> Void) {
         let pasteboard = NSPasteboard.general
 
-        // 1. Read file URLs via lightweight string property-lists (no
-        //    cross-QoS deserialization).
+        // 1. Read file URLs via lightweight string property-lists.
         let fileURLs: [URL] = fileURLsFromPasteboard(pasteboard)
 
-        // 2. Determine which image type is available (string comparison
-        //    only – no data copying yet) so we can read the bytes off the
-        //    main thread.
-        let availableImageType: NSPasteboard.PasteboardType? =
-            fileURLs.isEmpty ? firstAvailableImageType(on: pasteboard) : nil
+        // 2. Read image *data* on the main thread so the pasteboard
+        //    access doesn't cross QoS boundaries.  This is a single
+        //    memcpy – fast enough for the main thread.
+        let imageData: Data? = {
+            guard fileURLs.isEmpty,
+                  let imageType = firstAvailableImageType(on: pasteboard) else {
+                return nil
+            }
+            return pasteboard.data(forType: imageType)
+        }()
 
-        // 3. Move **everything** heavy – including `data(forType:)` – to
-        //    `.userInitiated` QoS to avoid priority inversion.
+        // 3. Move heavy work (file I/O, image decoding, PNG conversion)
+        //    off the main thread.
         DispatchQueue.global(qos: .userInitiated).async {
             var attachments: [ComposerAttachment] = []
 
@@ -124,9 +127,8 @@ enum AttachmentIntakeService {
             }
 
             if attachments.isEmpty,
-               let imageType = availableImageType,
-               let imageData = pasteboard.data(forType: imageType),
-               let image = NSImage(data: imageData),
+               let data = imageData,
+               let image = NSImage(data: data),
                let url = saveImageToAttachmentStore(image),
                let attachment = importSingleURL(url) {
                 attachments.append(attachment)

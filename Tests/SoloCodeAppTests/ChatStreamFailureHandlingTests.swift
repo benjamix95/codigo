@@ -106,4 +106,91 @@ final class ChatStreamFailureHandlingTests: XCTestCase {
             )
         )
     }
+
+    @MainActor
+    func testPromotedAssistantUpdateContentUsesIncomingWhenCurrentIsEmpty() {
+        XCTAssertEqual(
+            promotedAssistantUpdateContent(
+                currentVisibleText: "",
+                incomingRawOutput: "Sto leggendo i file rilevanti."
+            ),
+            "Sto leggendo i file rilevanti."
+        )
+    }
+
+    @MainActor
+    func testPromotedAssistantUpdateContentIgnoresStaleSubset() {
+        XCTAssertNil(
+            promotedAssistantUpdateContent(
+                currentVisibleText: "Sto leggendo i file rilevanti e preparo la risposta.",
+                incomingRawOutput: "Sto leggendo i file rilevanti."
+            )
+        )
+    }
+
+    @MainActor
+    func testPromotedAssistantUpdateContentPromotesExtendedUpdate() {
+        XCTAssertEqual(
+            promotedAssistantUpdateContent(
+                currentVisibleText: "Sto leggendo i file rilevanti.",
+                incomingRawOutput: "Sto leggendo i file rilevanti e preparo la risposta."
+            ),
+            "Sto leggendo i file rilevanti e preparo la risposta."
+        )
+    }
+
+    func testPolicyAckPayloadFromDirectPolicyAckEventPassesThrough() {
+        let payload = policyAckPayloadFromEvent(
+            type: "policy_ack",
+            payload: ["hash": "abc123", "detail": "ok"]
+        )
+
+        XCTAssertEqual(payload?["hash"], "abc123")
+        XCTAssertEqual(payload?["detail"], "ok")
+    }
+
+    func testPolicyAckPayloadFromMCPPolicyAckToolCallExtractsHash() {
+        let payload = policyAckPayloadFromEvent(
+            type: "mcp_tool_call",
+            payload: [
+                "mcp_tool": "coderide_policy_ack",
+                "hash": "abc123",
+            ]
+        )
+
+        XCTAssertEqual(payload?["hash"], "abc123")
+    }
+
+    func testPolicyAckPayloadFromNonPolicyMCPToolCallReturnsNil() {
+        XCTAssertNil(
+            policyAckPayloadFromEvent(
+                type: "mcp_tool_call",
+                payload: [
+                    "mcp_tool": "coderide_read",
+                    "hash": "abc123",
+                ]
+            )
+        )
+    }
+
+    func testShouldRouteStreamingTextToReasoningBeforeOperationalActivity() {
+        XCTAssertTrue(
+            shouldRouteStreamingTextToReasoning(
+                coderMode: .agent,
+                hasOperationalActivityInTurn: false
+            )
+        )
+        XCTAssertFalse(
+            shouldRouteStreamingTextToReasoning(
+                coderMode: .agent,
+                hasOperationalActivityInTurn: true
+            )
+        )
+        XCTAssertFalse(
+            shouldRouteStreamingTextToReasoning(
+                coderMode: .ide,
+                hasOperationalActivityInTurn: false
+            )
+        )
+    }
 }

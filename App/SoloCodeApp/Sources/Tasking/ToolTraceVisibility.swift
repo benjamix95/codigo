@@ -20,6 +20,7 @@ enum ToolTraceVisibility {
     ])
 
     private static let operationalTypes: Set<String> = [
+        "assistant_update",
         "bash",
         "command_execution",
         "debug_context",

@@ -3,6 +3,8 @@ import CoderEngine
 
 extension ChatPanelView {
     internal func interruptTask(for targetConversationId: UUID?) {
+        let scope = executionScopeForActiveTask()
+        executionController.terminate(scope: scope)
         let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: targetConversationId)
         var didCancelTask = didCancelPipeline || cancelRunTask(for: targetConversationId)
         if !didCancelTask, let target = targetConversationId,
@@ -11,10 +13,6 @@ extension ChatPanelView {
             didCancelTask =
                 pipelineIntegrationService.cancelCurrentJob(for: agentId)
                 || cancelRunTask(for: agentId)
-        }
-        if !didCancelTask {
-            let scope = executionScopeForActiveTask()
-            executionController.terminate(scope: scope)
         }
         applyFlowCoordinatorState(for: targetConversationId) { $0.interrupt() }
         taskFlushTask?.cancel()

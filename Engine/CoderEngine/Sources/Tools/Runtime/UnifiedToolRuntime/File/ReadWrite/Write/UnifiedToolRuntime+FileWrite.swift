@@ -107,6 +107,8 @@ extension UnifiedToolRuntime {
             "path": path,
             "file": path,
             "detail": "Replaced at line \(lineNumber) (\(oldLines.count) lines → \(newLines.count) lines)",
+            "linesAdded": "\(newLines.count)",
+            "linesRemoved": "\(oldLines.count)",
             "diffPreview": diffPreview.trimmingCharacters(in: .whitespacesAndNewlines)
         ], startDate: startDate)
     }
@@ -135,7 +137,8 @@ extension UnifiedToolRuntime {
             "path": path,
             "file": path,
             "detail": "Created \(lineCount) lines",
-            "linesAdded": "\(lineCount)"
+            "linesAdded": "\(lineCount)",
+            "linesRemoved": "0"
         ], startDate: startDate)
     }
 }

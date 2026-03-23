@@ -29,9 +29,9 @@ extension CodexCLIProviderStreamParsingTests {
         }
 
         XCTAssertTrue(rawTypes.contains("assistant_update"))
-        XCTAssertTrue(
-            visibleText.isEmpty,
-            "Gli update intermedi non devono sporcare subito il body assistant"
+        XCTAssertEqual(
+            visibleText.joined(),
+            "Sto raccogliendo altri dettagli prima della risposta finale."
         )
 
         let completionEvents = CodexCLIProvider.parseStreamJSONEvent(
@@ -42,9 +42,49 @@ extension CodexCLIProviderStreamParsingTests {
             if case .textDelta(let text) = event { return text }
             return nil
         }
-        XCTAssertEqual(
-            completionText.joined(),
-            "Sto raccogliendo altri dettagli prima della risposta finale."
+        XCTAssertTrue(
+            completionText.isEmpty,
+            "Il completamento non deve duplicare testo gia' reso visibile durante il turno"
         )
+    }
+
+    func testAgentMessageFullSnapshotUpdateExtendsVisibleTextImmediately() {
+        var state = CodexCLIProvider.CodexStreamParserState()
+
+        _ = CodexCLIProvider.parseStreamJSONEvent(["type": "turn.started"], state: &state)
+        let firstEvents = CodexCLIProvider.parseStreamJSONEvent(
+            [
+                "type": "item.updated",
+                "item": [
+                    "id": "message-2",
+                    "type": "agent_message",
+                    "text": "Sto analizzando"
+                ],
+            ],
+            state: &state
+        )
+        let secondEvents = CodexCLIProvider.parseStreamJSONEvent(
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "message-2",
+                    "type": "agent_message",
+                    "text": "Sto analizzando il flusso completo"
+                ],
+            ],
+            state: &state
+        )
+
+        let firstDeltas = firstEvents.compactMap { event -> String? in
+            if case .textDelta(let text) = event { return text }
+            return nil
+        }
+        let secondReplaces = secondEvents.compactMap { event -> String? in
+            if case .textReplace(let text) = event { return text }
+            return nil
+        }
+
+        XCTAssertEqual(firstDeltas, ["Sto analizzando"])
+        XCTAssertEqual(secondReplaces, ["Sto analizzando il flusso completo"])
     }
 }

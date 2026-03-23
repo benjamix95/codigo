@@ -145,8 +145,13 @@ fn consume_line(session_id: &str, line: &str) -> Result<(), String> {
         }
         if let Some(error) = json
             .get("error")
-            .and_then(string_value)
-            .or_else(|| json.get("message").and_then(string_value))
+            .and_then(|v| v.as_str())
+            .or_else(|| {
+                json.get("message")
+                    .and_then(|v| v.as_str())
+            })
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
         {
             if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota") {
                 if failover_to_next_cli_account(session_id, "claude", &error)? {

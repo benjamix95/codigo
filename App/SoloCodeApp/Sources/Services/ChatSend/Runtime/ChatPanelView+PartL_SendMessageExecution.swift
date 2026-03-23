@@ -9,6 +9,13 @@ enum MainChatSendExecutionRoute {
     case standardStream
 }
 
+func shouldRouteStreamingTextToReasoning(
+    coderMode: CoderMode,
+    hasOperationalActivityInTurn: Bool
+) -> Bool {
+    coderMode == .agent
+}
+
 func resolveMainChatSendExecutionRoute(
     coderMode: CoderMode,
     isPlanMultiTurnFlow: Bool,
@@ -163,18 +170,30 @@ extension ChatPanelView {
                         context: ctx,
                         attachments: attachmentsToSend,
                         onText: { content in
-                            processInlinePolicyAckMarkers(
-                                in: content,
-                                providerId: effectiveRuntimeProvider.id,
-                                conversationId: targetConversationId
-                            )
                             let cleaned = ChatStore.stripCoderideMarkers(content, aggressive: true)
-                            applyMainChatUIStreamIntent(
-                                "stream_replace_text",
-                                conversationId: targetConversationId,
-                                providerId: effectiveRuntimeProvider.id,
-                                text: cleaned
-                            )
+                            if shouldRouteStreamingTextToReasoning(
+                                coderMode: coderMode,
+                                hasOperationalActivityInTurn: hasOperationalActivityInCurrentTurn(
+                                    conversationId: targetConversationId
+                                )
+                            ) {
+                                applyStreamingReasoningSnapshot(
+                                    cleaned,
+                                    conversationId: targetConversationId
+                                )
+                            } else {
+                                processInlinePolicyAckMarkers(
+                                    in: content,
+                                    providerId: effectiveRuntimeProvider.id,
+                                    conversationId: targetConversationId
+                                )
+                                applyMainChatUIStreamIntent(
+                                    "stream_replace_text",
+                                    conversationId: targetConversationId,
+                                    providerId: effectiveRuntimeProvider.id,
+                                    text: cleaned
+                                )
+                            }
                         },
                         onRaw: { t, p, pid in
                             handleRawStreamEvent(

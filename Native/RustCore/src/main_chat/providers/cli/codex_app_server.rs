@@ -10,6 +10,21 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, ChildStdin, Command, Stdio};
 
+fn rust_codex_trace_enabled() -> bool {
+    matches!(
+        std::env::var("SOLOCODE_STREAM_TRACE")
+            .ok()
+            .map(|value| value.to_lowercase()),
+        Some(value) if value == "1" || value == "true"
+    )
+}
+
+fn rust_codex_trace(message: impl AsRef<str>) {
+    if rust_codex_trace_enabled() {
+        eprintln!("[RustCodexTrace] {}", message.as_ref());
+    }
+}
+
 struct ChildProcessGuard {
     child: Option<Child>,
 }
@@ -36,11 +51,18 @@ impl Drop for ChildProcessGuard {
 }
 
 #[derive(Default)]
-struct CodexAgentMessageGate;
+struct CodexAgentMessageGate {
+    cumulative_text: String,
+}
 
 impl CodexAgentMessageGate {
     fn push_delta(&mut self, delta: &str) -> Option<String> {
+        self.cumulative_text.push_str(delta);
         Some(delta.to_string())
+    }
+
+    fn cumulative_text(&self) -> String {
+        self.cumulative_text.clone()
     }
 
     fn release_after_operational_event(&mut self) -> Option<String> {
@@ -224,8 +246,12 @@ fn handle_notification(
     gate: &mut CodexAgentMessageGate,
 ) -> Result<(), String> {
     let payload = value.get("params").cloned().unwrap_or(Value::Null);
+    rust_codex_trace(format!("notification method={method} payload_keys={}", payload.as_object().map(|map| map.keys().cloned().collect::<Vec<_>>().join(",")).unwrap_or_default()));
     match method {
-        "turn/started" => emit_raw(session_id, "turn_started", BTreeMap::new()),
+        "turn/started" => {
+            rust_codex_trace("emit raw turn_started");
+            emit_raw(session_id, "turn_started", BTreeMap::new())
+        }
         "error" => {
             let message = payload
                 .get("message")
@@ -236,13 +262,34 @@ fn handle_notification(
         }
         "item/agentMessage/delta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
+                rust_codex_trace(format!("agent delta chars={}", delta.len()));
                 if let Some(visible_delta) = gate.push_delta(&delta) {
+                    rust_codex_trace(format!("emit text_delta chars={}", visible_delta.len()));
                     emit_text_delta(session_id, &visible_delta);
+                    let cumulative = gate.cumulative_text();
+                    let detail = cumulative
+                        .split('\n')
+                        .last()
+                        .unwrap_or_default()
+                        .chars()
+                        .take(240)
+                        .collect::<String>();
+                    emit_raw(
+                        session_id,
+                        "assistant_update",
+                        BTreeMap::from([
+                            ("title".to_string(), "Working".to_string()),
+                            ("detail".to_string(), detail),
+                            ("output".to_string(), cumulative),
+                            ("status".to_string(), "in_progress".to_string()),
+                        ]),
+                    );
                 }
             }
         }
         "item/reasoning/textDelta" | "item/reasoning/summaryTextDelta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
+                rust_codex_trace(format!("reasoning delta chars={}", delta.len()));
                 emit_raw(
                     session_id,
                     "reasoning",
@@ -333,6 +380,13 @@ fn emit_mcp_events(session_id: &str, method: &str, item: &Value) {
     if let Some(error_text) = item.get("error").and_then(string_value) {
         payload.insert("error".to_string(), error_text);
     }
+    rust_codex_trace(format!(
+        "emit mcp_tool_call method={} tool={} status={} keys={}",
+        method,
+        tool,
+        payload.get("status").cloned().unwrap_or_default(),
+        payload.keys().cloned().collect::<Vec<_>>().join(",")
+    ));
     emit_raw(session_id, "mcp_tool_call", payload.clone());
     if payload.get("status").map(String::as_str) != Some("completed") {
         return;
@@ -390,6 +444,12 @@ fn emit_command_execution(session_id: &str, method: &str, item: &Value) {
     if method.ends_with("completed") && !payload.contains_key("status") {
         payload.insert("status".to_string(), "completed".to_string());
     }
+    rust_codex_trace(format!(
+        "emit command_execution method={} status={} command={}",
+        method,
+        payload.get("status").cloned().unwrap_or_default(),
+        payload.get("command").cloned().unwrap_or_default()
+    ));
     emit_raw(session_id, "command_execution", payload);
 }
 
@@ -512,10 +572,18 @@ mod tests {
             gate.push_delta("Ancora testo.").as_deref(),
             Some("Ancora testo.")
         );
+        assert_eq!(
+            gate.cumulative_text(),
+            "Prima risposta. Ancora testo."
+        );
         assert_eq!(gate.release_after_operational_event(), None);
         assert_eq!(
             gate.push_delta(" Dopo il tool.").as_deref(),
             Some(" Dopo il tool.")
+        );
+        assert_eq!(
+            gate.cumulative_text(),
+            "Prima risposta. Ancora testo. Dopo il tool."
         );
     }
 

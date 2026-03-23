@@ -37,4 +37,24 @@ final class ChatPanelReasoningMergeTests: XCTestCase {
 
         XCTAssertEqual(merged, "alpha-beta-gamma")
     }
+
+    func testFinalAssistantContentExcludingReasoningRemovesDuplicateBody() {
+        XCTAssertEqual(
+            finalAssistantContentExcludingReasoning(
+                fullText: "Planning next move",
+                reasoningText: "Planning next move"
+            ),
+            ""
+        )
+    }
+
+    func testFinalAssistantContentExcludingReasoningKeepsTailAfterReasoning() {
+        XCTAssertEqual(
+            finalAssistantContentExcludingReasoning(
+                fullText: "Planning next move\n\nFinal answer",
+                reasoningText: "Planning next move"
+            ),
+            "Final answer"
+        )
+    }
 }
