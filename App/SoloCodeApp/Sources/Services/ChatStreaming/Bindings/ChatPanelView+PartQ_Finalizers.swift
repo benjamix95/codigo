@@ -20,32 +20,13 @@ extension ChatPanelView {
         text: String? = nil,
         payload: [String: String] = [:]
     ) {
-        let state = RustMainChatStoreAdapter.uiState(
-            from: chatStore,
-            runtimeSnapshot: flowCoordinator.directRuntimeSnapshotState() ?? flowCoordinator.planRuntimeSnapshotState(),
-            selectedConversationId: targetConversationId ?? conversationId,
-            draftText: inputText,
-            planPanelVisible: showPlanPanel,
-            followLive: isFollowingLive,
-            collapsedArtifactsByTurn: collapsedArtifactsByTurn
-        )
-        let requestPayload = (providerId.map { ["provider_id": $0] } ?? [:]).merging(payload) {
-            _, new in new
-        }
-        let request = MainChatUIIntentRequestBridge(
-            schemaVersion: 1,
-            intent: intent,
-            state: state,
-            conversationId: targetConversationId?.uuidString.lowercased(),
-            turnId: nil,
-            artifactId: nil,
+        let applied = applyMainChatUIIntentBridge(
+            intent,
+            conversationId: targetConversationId,
+            providerId: providerId,
             text: text,
             timestamp: Date(),
-            payload: requestPayload
-        )
-        let applied = RustMainChatStoreAdapter.applyUIIntent(
-            request,
-            to: chatStore,
+            payload: payload,
             preserveLocalMessages: false
         ) != nil
         if applied {

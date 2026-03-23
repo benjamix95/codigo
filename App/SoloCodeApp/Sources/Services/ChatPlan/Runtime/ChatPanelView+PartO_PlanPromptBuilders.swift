@@ -44,27 +44,15 @@ extension ChatPanelView {
         text: String? = nil,
         payload: [String: String] = [:]
     ) -> MainChatUIIntentResponseBridge? {
-        let request = MainChatUIIntentRequestBridge(
-            schemaVersion: 1,
-            intent: intent,
-            state: RustMainChatStoreAdapter.uiState(
-                from: chatStore,
-                runtimeSnapshot: flowCoordinator.planRuntimeSnapshotState()
-                    ?? flowCoordinator.directRuntimeSnapshotState(),
-                selectedConversationId: targetConversationId ?? conversationId,
-                draftText: inputText,
-                planPanelVisible: showPlanPanel,
-                followLive: isFollowingLive,
-                collapsedArtifactsByTurn: collapsedArtifactsByTurn
-            ),
-            conversationId: (targetConversationId ?? conversationId)?.uuidString.lowercased(),
-            turnId: nil,
-            artifactId: nil,
+        guard let response = applyMainChatUIIntentBridge(
+            intent,
+            conversationId: targetConversationId,
+            runtimeSnapshot: resolvedMainChatRuntimeSnapshot(preferPlanRuntime: true),
+            preferPlanRuntime: true,
             text: text,
             timestamp: Date(),
             payload: payload
-        )
-        guard let response = RustMainChatStoreAdapter.applyUIIntent(request, to: chatStore) else {
+        ) else {
             return nil
         }
         applyPlanStateMirror(
@@ -78,18 +66,11 @@ extension ChatPanelView {
     internal func projectPlanningSnapshot(
         conversationId targetConversationId: UUID?
     ) -> (snapshot: MainChatUISnapshotBridge, state: MainChatUIStateBridge)? {
-        let state = RustMainChatStoreAdapter.uiState(
-            from: chatStore,
-            runtimeSnapshot: flowCoordinator.planRuntimeSnapshotState()
-                ?? flowCoordinator.directRuntimeSnapshotState(),
-            selectedConversationId: targetConversationId ?? conversationId,
-            draftText: inputText,
-            planPanelVisible: showPlanPanel,
-            followLive: isFollowingLive,
-            collapsedArtifactsByTurn: collapsedArtifactsByTurn
+        projectMainChatUISnapshot(
+            conversationId: targetConversationId,
+            runtimeSnapshot: resolvedMainChatRuntimeSnapshot(preferPlanRuntime: true),
+            preferPlanRuntime: true
         )
-        guard let snapshot = RustMainChatStoreAdapter.projectUI(state) else { return nil }
-        return (snapshot, state)
     }
 
     internal func syncPlanPanelVisibilityToRust(_ isVisible: Bool) {

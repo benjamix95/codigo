@@ -5,6 +5,99 @@ import UniformTypeIdentifiers
 
 extension ChatPanelView {
     @MainActor
+    internal func resolvedMainChatRuntimeSnapshot(
+        preferPlanRuntime: Bool = false
+    ) -> MainChatRuntimeSnapshotBridge? {
+        if preferPlanRuntime {
+            return flowCoordinator.planRuntimeSnapshotState()
+                ?? flowCoordinator.directRuntimeSnapshotState()
+        }
+        return flowCoordinator.directRuntimeSnapshotState()
+            ?? flowCoordinator.planRuntimeSnapshotState()
+    }
+
+    @MainActor
+    internal func currentMainChatUIState(
+        conversationId targetConversationId: UUID?,
+        runtimeSnapshot: MainChatRuntimeSnapshotBridge? = nil,
+        preferPlanRuntime: Bool = false,
+        includeAutoTodoRuntimeState: Bool = false
+    ) -> MainChatUIStateBridge {
+        RustMainChatStoreAdapter.uiState(
+            from: chatStore,
+            runtimeSnapshot: runtimeSnapshot
+                ?? resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime),
+            selectedConversationId: targetConversationId ?? conversationId,
+            draftText: inputText,
+            planPanelVisible: showPlanPanel,
+            followLive: isFollowingLive,
+            collapsedArtifactsByTurn: collapsedArtifactsByTurn,
+            autoTodoRuntimeStateByMessage: includeAutoTodoRuntimeState
+                ? autoTodoRuntimeStateByMessage
+                : [:]
+        )
+    }
+
+    @MainActor
+    @discardableResult
+    internal func applyMainChatUIIntentBridge(
+        _ intent: String,
+        conversationId targetConversationId: UUID?,
+        providerId: String? = nil,
+        runtimeSnapshot: MainChatRuntimeSnapshotBridge? = nil,
+        preferPlanRuntime: Bool = false,
+        turnId: String? = nil,
+        artifactId: String? = nil,
+        text: String? = nil,
+        timestamp: Date? = Date(),
+        payload: [String: String] = [:],
+        includeAutoTodoRuntimeState: Bool = false,
+        preserveLocalMessages: Bool = false
+    ) -> MainChatUIIntentResponseBridge? {
+        let mergedPayload = (providerId.map { ["provider_id": $0] } ?? [:]).merging(payload) {
+            _, new in new
+        }
+        let request = MainChatUIIntentRequestBridge(
+            schemaVersion: 1,
+            intent: intent,
+            state: currentMainChatUIState(
+                conversationId: targetConversationId,
+                runtimeSnapshot: runtimeSnapshot,
+                preferPlanRuntime: preferPlanRuntime,
+                includeAutoTodoRuntimeState: includeAutoTodoRuntimeState
+            ),
+            conversationId: (targetConversationId ?? conversationId)?.uuidString.lowercased(),
+            turnId: turnId,
+            artifactId: artifactId,
+            text: text,
+            timestamp: timestamp,
+            payload: mergedPayload
+        )
+        return RustMainChatStoreAdapter.applyUIIntent(
+            request,
+            to: chatStore,
+            preserveLocalMessages: preserveLocalMessages
+        )
+    }
+
+    @MainActor
+    internal func projectMainChatUISnapshot(
+        conversationId targetConversationId: UUID?,
+        runtimeSnapshot: MainChatRuntimeSnapshotBridge? = nil,
+        preferPlanRuntime: Bool = false,
+        includeAutoTodoRuntimeState: Bool = false
+    ) -> (snapshot: MainChatUISnapshotBridge, state: MainChatUIStateBridge)? {
+        let state = currentMainChatUIState(
+            conversationId: targetConversationId,
+            runtimeSnapshot: runtimeSnapshot,
+            preferPlanRuntime: preferPlanRuntime,
+            includeAutoTodoRuntimeState: includeAutoTodoRuntimeState
+        )
+        guard let snapshot = RustMainChatStoreAdapter.projectUI(state) else { return nil }
+        return (snapshot, state)
+    }
+
+    @MainActor
     internal func startAutoTodoIfNeeded(
         activity: TaskActivity,
         providerId: String,
@@ -74,29 +167,15 @@ extension ChatPanelView {
             payload["outcome"] = autoTodoOutcomeString(outcome)
         }
 
-        let request = MainChatUIIntentRequestBridge(
-            schemaVersion: 1,
-            intent: intent,
-            state: RustMainChatStoreAdapter.uiState(
-                from: chatStore,
-                runtimeSnapshot: flowCoordinator.directRuntimeSnapshotState()
-                    ?? flowCoordinator.planRuntimeSnapshotState(),
-                selectedConversationId: conversationId,
-                draftText: inputText,
-                planPanelVisible: showPlanPanel,
-                followLive: isFollowingLive,
-                collapsedArtifactsByTurn: collapsedArtifactsByTurn,
-                autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage
-            ),
-            conversationId: conversationId.uuidString.lowercased(),
-            turnId: nil,
-            artifactId: nil,
+        guard let response = applyMainChatUIIntentBridge(
+            intent,
+            conversationId: conversationId,
+            providerId: providerId,
             text: nil,
             timestamp: activity?.timestamp ?? Date(),
-            payload: payload
-        )
-
-        guard let response = RustMainChatStoreAdapter.applyUIIntent(request, to: chatStore) else { return }
+            payload: payload,
+            includeAutoTodoRuntimeState: true
+        ) else { return }
         autoTodoRuntimeStateByMessage = response.state?.autoTodoRuntimeStateByMessage
             ?? autoTodoRuntimeStateByMessage
         MainChatTodoPatchAdapter.apply(response.todoPatches, to: todoStore) { patch, conversationId, status, linkedFiles in

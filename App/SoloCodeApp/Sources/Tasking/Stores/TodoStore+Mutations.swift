@@ -96,6 +96,7 @@ extension TodoStore {
         }
 
         let newTodo = TodoItem(
+            id: id ?? UUID(),
             title: normalizedTitle,
             status: status ?? .pending,
             priority: priority ?? .medium,
