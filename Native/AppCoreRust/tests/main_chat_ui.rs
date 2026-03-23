@@ -71,6 +71,7 @@ fn ffi_ui_handle_intent_can_toggle_collapsed_artifact() {
         text: None,
         timestamp: None,
         pipeline_event: None,
+        pipeline_events: Vec::new(),
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -93,6 +94,7 @@ fn ffi_ui_handle_intent_stream_finish_marks_message_not_streaming() {
         text: Some("Final answer".to_string()),
         timestamp: Some(2.0),
         pipeline_event: None,
+        pipeline_events: Vec::new(),
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -116,6 +118,7 @@ fn ffi_ui_handle_intent_plan_questions_raise_epoch_and_open_panel() {
         text: Some("## Questions\n- Which phase should move first?".to_string()),
         timestamp: Some(2.0),
         pipeline_event: None,
+        pipeline_events: Vec::new(),
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -153,6 +156,7 @@ fn ffi_ui_handle_intent_pipeline_apply_event_updates_store_snapshot() {
                 .collect(),
             timestamp: 2.0,
         }),
+        pipeline_events: Vec::new(),
         payload: Default::default(),
     });
     let state = response.state.expect("state");
@@ -177,6 +181,7 @@ fn ffi_ui_handle_intent_auto_todo_begin_and_discard_emit_patches() {
         text: None,
         timestamp: Some(2.0),
         pipeline_event: None,
+        pipeline_events: Vec::new(),
         payload: [
             ("assistant_message_id".to_string(), "00000000-0000-0000-0000-000000000002".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),
@@ -199,6 +204,7 @@ fn ffi_ui_handle_intent_auto_todo_begin_and_discard_emit_patches() {
         text: None,
         timestamp: Some(3.0),
         pipeline_event: None,
+        pipeline_events: Vec::new(),
         payload: [
             ("assistant_message_id".to_string(), "00000000-0000-0000-0000-000000000002".to_string()),
             ("provider_id".to_string(), "codex-cli".to_string()),

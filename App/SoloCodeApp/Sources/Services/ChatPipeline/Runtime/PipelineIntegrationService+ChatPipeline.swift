@@ -40,7 +40,7 @@ extension PipelineIntegrationService {
         else { return }
         let coalescedEvents = coalescePipelineEvents(events)
         var shouldPersistImmediately = false
-        for event in coalescedEvents {
+        let sequencedEvents = coalescedEvents.map { event -> ChatPipelineEvent in
             let sequenced = ChatPipelineEvent(
                 conversationId: event.conversationId,
                 assistantMessageId: event.assistantMessageId,
@@ -52,17 +52,22 @@ extension PipelineIntegrationService {
                 timestamp: event.timestamp
             )
             runtime.nextPipelineSequence += 1
-            if sequenced.kind == .textDelta || sequenced.kind == .textReplace {
-                let delta = sequenced.payload["delta"] ?? sequenced.payload["replacement"] ?? ""
-                print(
-                    "[ChatDebug] pipeline \(sequenced.kind.rawValue): delta=\(delta.count) payload=\(sequenced.payload.keys.sorted().joined(separator: ","))"
-                )
-            }
-            if !applyPipelineEventThroughRustBoundary(
-                sequenced,
-                runtime: runtime,
-                chatStore: chatStore
-            ) {
+            return sequenced
+        }
+
+        for sequenced in sequencedEvents where sequenced.kind == .textDelta || sequenced.kind == .textReplace {
+            let delta = sequenced.payload["delta"] ?? sequenced.payload["replacement"] ?? ""
+            print(
+                "[ChatDebug] pipeline \(sequenced.kind.rawValue): delta=\(delta.count) payload=\(sequenced.payload.keys.sorted().joined(separator: ","))"
+            )
+        }
+
+        if !applyPipelineEventsThroughRustBoundary(
+            sequencedEvents,
+            runtime: runtime,
+            chatStore: chatStore
+        ) {
+            for sequenced in sequencedEvents {
                 if shouldSkipRustStoreBootstrapForTests(
                     environment: ProcessInfo.processInfo.environment
                 ) {
@@ -83,9 +88,10 @@ extension PipelineIntegrationService {
                     continue
                 }
             }
-            if sequenced.kind == .turnCompleted || sequenced.kind == .turnFailed {
-                shouldPersistImmediately = true
-            }
+        }
+
+        if sequencedEvents.contains(where: { $0.kind == .turnCompleted || $0.kind == .turnFailed }) {
+            shouldPersistImmediately = true
         }
         let primaryText = runtime.chatTurnState.primaryTextSnapshot
         let textKeys = runtime.chatTurnState.textByStreamId.keys.sorted()
@@ -100,6 +106,43 @@ extension PipelineIntegrationService {
         } else {
             chatStore.saveConversations()
         }
+    }
+
+    private func applyPipelineEventsThroughRustBoundary(
+        _ events: [ChatPipelineEvent],
+        runtime: PipelineConversationRuntime,
+        chatStore: ChatStore
+    ) -> Bool {
+        guard !events.isEmpty else { return true }
+        let runtimeSnapshot = MainChatRuntimeSnapshotBridge(
+            turnState: MainChatBridgeState(runtime.chatTurnState),
+            mode: .agent,
+            directStream: nil,
+            plan: nil,
+            output: nil
+        )
+        guard let response = RustMainChatStoreAdapter.applyPipelineEvents(
+            events,
+            to: chatStore,
+            runtimeSnapshot: runtimeSnapshot,
+            selectedConversationId: runtime.conversationId,
+            draftText: "",
+            planPanelVisible: false,
+            followLive: true,
+            collapsedArtifactsByTurn: [:],
+            preserveLocalMessages: false
+        ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
+            if events.count == 1 {
+                return applyPipelineEventThroughRustBoundary(
+                    events[0],
+                    runtime: runtime,
+                    chatStore: chatStore
+                )
+            }
+            return false
+        }
+        runtime.chatTurnState = nextState
+        return true
     }
 
     private func applyPipelineEventThroughRustBoundary(

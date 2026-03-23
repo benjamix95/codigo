@@ -242,6 +242,8 @@ pub struct MainChatUiIntentRequest {
     #[serde(default)]
     pub pipeline_event: Option<MainChatEvent>,
     #[serde(default)]
+    pub pipeline_events: Vec<MainChatEvent>,
+    #[serde(default)]
     pub payload: BTreeMap<String, String>,
 }
 

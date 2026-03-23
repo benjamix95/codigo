@@ -39,7 +39,7 @@ Nessun bug P0 registrato in questa tranche.
   - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests -only-testing:SoloCodeAppTests/PipelineIntegrationLifecycleTests`
 
 ### P1-2026-03-23-agent-pipeline-throughput
-- Stato: `partially_fixed`
+- Stato: `fixed`
 - Area: `EventBus`, `DagScheduler`, `PipelineIntegrationService+ChatPipeline`
 - Sintomo:
   - retry inline e fan-out seriale bloccano `publish`
@@ -56,9 +56,12 @@ Nessun bug P0 registrato in questa tranche.
   - `DagScheduler` con ready set e contatori incrementali
   - coalescing dei `textDelta/textReplace` nello stesso batch Swift
   - normalizzazione raw event singola nel path `EventSupport`
+  - nuovo path batch `pipeline_apply_events` sul boundary Swift/Rust UI intent
+- Verifica:
+  - `cargo test ui_tests -- --nocapture`
+  - `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests -only-testing:SoloCodeAppTests/PipelineIntegrationLifecycleTests`
 - Residuo:
-  - manca ancora un batching nativo cross-call sul boundary Rust/UI
-  - la tranche strutturale su file oversized resta aperta
+  - la tranche strutturale sui file oversized Swift resta ancora aperta dove il progetto Xcode richiede un wiring esplicito dei nuovi file
 
 ## P2
 
@@ -74,3 +77,16 @@ Nessun bug P0 registrato in questa tranche.
   - `/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift`
   - `/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift`
   - `/Users/benjaminstoica/SoloCode/App/SoloCodeApp/Sources/Tasking/Stores/TaskActivityStore+Query.swift`
+
+### P2-2026-03-23-provider-runtime-transport-modularization
+- Stato: `fixed`
+- Area: `main_chat/providers/runtime_transport`
+- Sintomo:
+  - routing provider/backend/auth/policy multi-account compressi in un solo file
+- File principali:
+  - `/Users/benjaminstoica/SoloCode/Native/RustCore/src/main_chat/providers/runtime_transport.rs`
+  - `/Users/benjaminstoica/SoloCode/Native/RustCore/src/main_chat/providers/runtime_transport/provider_resolution.rs`
+  - `/Users/benjaminstoica/SoloCode/Native/RustCore/src/main_chat/providers/runtime_transport/transport_policy.rs`
+- Fix applicati:
+  - risoluzione provider/backend separata dalla policy multi-account
+  - test di parità mantenuti sul modulo root

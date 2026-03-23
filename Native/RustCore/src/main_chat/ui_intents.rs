@@ -84,6 +84,12 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
                 Err(error) => return error,
             };
         }
+        "pipeline_apply_events" => {
+            state = match apply_pipeline_events(state, &request) {
+                Ok(state) => state,
+                Err(error) => return error,
+            };
+        }
         "stream_finish_success" | "stream_finish_failure" | "stream_interrupt" => {
             sync_store_from_runtime(&mut state);
             if let Some(text) = request.text.as_deref() {
@@ -339,6 +345,30 @@ fn apply_pipeline_event(
         ));
     };
     snapshot.turn_state = apply_event(snapshot.turn_state, &event);
+    state.runtime_snapshot = Some(snapshot);
+    sync_store_from_runtime(&mut state);
+    Ok(state)
+}
+
+fn apply_pipeline_events(
+    mut state: app_core_protocol::main_chat_ui::MainChatUiState,
+    request: &MainChatUiIntentRequest,
+) -> Result<app_core_protocol::main_chat_ui::MainChatUiState, MainChatUiIntentResponse> {
+    let Some(mut snapshot) = state.runtime_snapshot.clone() else {
+        return Err(MainChatUiIntentResponse::error(
+            "missing_runtime_snapshot",
+            "runtimeSnapshot is required",
+        ));
+    };
+    if request.pipeline_events.is_empty() {
+        return Err(MainChatUiIntentResponse::error(
+            "missing_pipeline_events",
+            "pipelineEvents is required",
+        ));
+    }
+    for event in &request.pipeline_events {
+        snapshot.turn_state = apply_event(snapshot.turn_state, event);
+    }
     state.runtime_snapshot = Some(snapshot);
     sync_store_from_runtime(&mut state);
     Ok(state)

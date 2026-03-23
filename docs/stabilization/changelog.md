@@ -35,3 +35,21 @@
 
 ### Residuo dichiarato
 - La tranche strutturale sui file oversized e sull’estrazione dei boundary `ChatPanelView`/`ChatStore`/`TaskActivityStore` non è ancora chiusa in questo commit.
+
+### Tranche successiva implementata
+- aggiunto il path batch `pipeline_apply_events` tra `PipelineIntegrationService+ChatPipeline`, `RustMainChatStoreAdapter`, `MainChatUIIntentRequestBridge` e `main_chat/ui_intents.rs`
+- mantenuto il fallback single-event compatibile
+- aggiunti test Rust sul path batch UI e test Swift che verificano il coalescing fino allo snapshot chat finale
+- modularizzato `runtime_transport.rs` in:
+  - `runtime_transport/provider_resolution.rs`
+  - `runtime_transport/transport_policy.rs`
+- mantenuti invariati i risultati del routing provider/backend/multi-account tramite test di parità
+
+### Nota strutturale
+- i tentativi di split fisico dei grossi file Swift sono stati ricondotti a una versione compatibile con il wiring attuale del progetto Xcode: i percorsi legacy restano ancora i punti di compilazione attivi finché non viene aggiornata esplicitamente la membership dei nuovi file nel progetto.
+
+### Test eseguiti per la tranche batch/modularization
+- `cd /Users/benjaminstoica/SoloCode/Native/RustCore && cargo test ui_tests -- --nocapture`
+- `cd /Users/benjaminstoica/SoloCode/Native/RustCore && cargo test runtime_transport -- --nocapture`
+- `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'CoderEngineTests-Debug' -only-testing:CoderEngineTests/EventBusTests -only-testing:CoderEngineTests/EventDeliveryManagerTests -only-testing:CoderEngineTests/PipelineFacadeTests -only-testing:CoderEngineTests/AgentWorkerEventBridgeTests -only-testing:CoderEngineTests/DagSchedulerTests`
+- `xcodebuild test -workspace '/Users/benjaminstoica/SoloCode/Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests -only-testing:SoloCodeAppTests/PipelineIntegrationLifecycleTests -only-testing:SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests -only-testing:SoloCodeAppTests/SwarmProgressStoreTests -only-testing:SoloCodeAppTests/TaskActivityStoreSwarmCardsTests`

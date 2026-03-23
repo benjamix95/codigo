@@ -87,8 +87,6 @@ private func parseInlineCoderideKeyValueArgs(_ rawArgs: String) -> [String: Stri
     return payload
 }
 
-// MARK: - Event Mapping
-
 extension PipelineIntegrationService {
     private func processInlinePolicyAckMarkersFromPipelineText(
         existingContent: String?,
@@ -204,6 +202,36 @@ extension PipelineIntegrationService {
         )
     }
 
+    private func recordStructuredPipelineTaskActivity(
+        type: String,
+        title: String,
+        detail: String,
+        conversationId: UUID,
+        isRunning: Bool,
+        taskId: String
+    ) {
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let payload: [String: String] = [
+            "conversation_id": conversationId.uuidString.lowercased(),
+            "task_id": taskId,
+            "group_id": taskId,
+            "status": isRunning ? "running" : "completed",
+            "owner_kind": "supervisor",
+            "supervisor_kind": "orchestrator",
+        ]
+        taskActivityStore?.addActivity(
+            TaskActivity(
+                type: type,
+                title: normalizedTitle.isEmpty ? "Pipeline task" : normalizedTitle,
+                detail: detail,
+                payload: payload,
+                phase: .executing,
+                isRunning: isRunning,
+                groupId: taskId
+            )
+        )
+    }
+
     private static let canonicalTodoCompletionRoles: Set<AgentRole> = [
         .coder,
         .docWriter,
@@ -251,8 +279,6 @@ extension PipelineIntegrationService {
         }
     }
 
-    // MARK: - Job Events
-
     private func handleJobStarted(_ p: JobStartedPayload, for conversationId: UUID) {
         guard let runtime = runtime(for: conversationId) else { return }
         runtime.jobState = .intake
@@ -294,8 +320,6 @@ extension PipelineIntegrationService {
         persistSnapshot(for: conversationId)
         consumePipelineUIEvent(.jobFailed(p), for: conversationId)
     }
-
-    // MARK: - Task Events
 
     private func handleTaskStarted(_ p: TaskStartedPayload, for conversationId: UUID) {
         guard let runtime = runtime(for: conversationId) else { return }
@@ -413,8 +437,6 @@ extension PipelineIntegrationService {
     ) -> Bool {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedTitle.isEmpty else { return false }
-        // Generic agent chat jobs always use a single implicit pipeline task.
-        // Persisting that as a todo duplicates the task card and leaks it into chat.
         if runtime.planConversationId == nil && max(runtime.totalTasks, 1) <= 1 {
             return false
         }
@@ -441,8 +463,6 @@ extension PipelineIntegrationService {
             status: "failed"
         )
     }
-
-    // MARK: - Streaming Events
 
     private func handleTextDelta(_ p: TextDeltaPayload, for conversationId: UUID) {
         let existingContent = runtime(for: conversationId)?
@@ -487,35 +507,5 @@ extension PipelineIntegrationService {
             conversationId: conversationId
         )
         consumePipelineUIEvent(.textReplace(p), for: conversationId)
-    }
-
-    private func recordStructuredPipelineTaskActivity(
-        type: String,
-        title: String,
-        detail: String,
-        conversationId: UUID,
-        isRunning: Bool,
-        taskId: String
-    ) {
-        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let payload: [String: String] = [
-            "conversation_id": conversationId.uuidString.lowercased(),
-            "task_id": taskId,
-            "group_id": taskId,
-            "status": isRunning ? "running" : "completed",
-            "owner_kind": "supervisor",
-            "supervisor_kind": "orchestrator",
-        ]
-        taskActivityStore?.addActivity(
-            TaskActivity(
-                type: type,
-                title: normalizedTitle.isEmpty ? "Pipeline task" : normalizedTitle,
-                detail: detail,
-                payload: payload,
-                phase: .executing,
-                isRunning: isRunning,
-                groupId: taskId
-            )
-        )
     }
 }

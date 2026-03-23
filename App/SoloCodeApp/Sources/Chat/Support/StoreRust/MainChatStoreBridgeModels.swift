@@ -316,6 +316,7 @@ struct MainChatUIIntentRequestBridge: Encodable {
     let text: String?
     let timestamp: Date?
     let pipelineEvent: ChatPipelineEvent?
+    let pipelineEvents: [ChatPipelineEvent]
     let payload: [String: String]
 
     init(
@@ -328,6 +329,7 @@ struct MainChatUIIntentRequestBridge: Encodable {
         text: String?,
         timestamp: Date?,
         pipelineEvent: ChatPipelineEvent? = nil,
+        pipelineEvents: [ChatPipelineEvent] = [],
         payload: [String: String]
     ) {
         self.schemaVersion = schemaVersion
@@ -339,6 +341,7 @@ struct MainChatUIIntentRequestBridge: Encodable {
         self.text = text
         self.timestamp = timestamp
         self.pipelineEvent = pipelineEvent
+        self.pipelineEvents = pipelineEvents
         self.payload = payload
     }
 }
