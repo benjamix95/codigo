@@ -80,14 +80,14 @@ extension MessageToolTraceView {
         let running = derived.hasRunningEvent
         if running {
             didAutoCompactAfterCompletion = false
+            guard !isExpanded, !userDidManuallyCollapseWhileRunning else { return }
+            withAnimation(.easeOut(duration: 0.15)) {
+                isExpanded = true
+            }
             return
         }
         guard !ordered.isEmpty else { return }
         guard !didAutoCompactAfterCompletion else { return }
-        guard !userDidManuallyExpand else {
-            didAutoCompactAfterCompletion = true
-            return
-        }
         withAnimation(.easeOut(duration: 0.15)) {
             isExpanded = false
             expandedIds.removeAll()
@@ -95,6 +95,8 @@ extension MessageToolTraceView {
             isCompactDiffExpanded = false
         }
         isCompactDiffLoading = false
+        userDidManuallyExpand = false
+        userDidManuallyCollapseWhileRunning = false
         didAutoCompactAfterCompletion = true
     }
 }

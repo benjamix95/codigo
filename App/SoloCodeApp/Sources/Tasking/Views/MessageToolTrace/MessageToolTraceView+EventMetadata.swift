@@ -5,130 +5,11 @@ extension MessageToolTraceView {
 
     @ViewBuilder
     func toolIcon(for event: ToolTraceEvent) -> some View {
-        let type = event.type.lowercased()
-        let mcpTool = (payloadValue(event.payload, keys: ["mcp_tool", "mcpTool"]) ?? "").lowercased()
-        let tool = (
-            type == "mcp_tool_call" && !mcpTool.isEmpty
-                ? mcpTool
-                : (payloadValue(event.payload, keys: ["tool", "name"]) ?? "")
-        ).lowercased()
+        let identity = MessageToolTraceToolIdentity.resolve(for: event)
 
-        if Self.isErrorType(event) {
-            Image(systemName: "xmark.circle")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.error)
-        } else if Self.isWarningType(event) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.warning)
-        } else if type.contains("read") || type == "read_batch_started" || type == "read_batch_completed" || tool == "read" || tool == "read_range" {
-            Image(systemName: "doc.text")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.info)
-        } else if type.contains("grep") || type.contains("search") || type == "instant_grep" || tool == "grep" || tool == "codebase_search" || tool == "find_files" {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.ideColor)
-        } else if type == "semantic_search" || tool == "semantic_search" {
-            Image(systemName: "brain")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.ideColor)
-        } else if type == "edit" || type == "file_change" || tool == "str_replace" || tool == "write" || tool == "edit" || tool == "create_file" || tool == "regex_replace" || tool == "parallel_apply" {
-            Image(systemName: "pencil")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.success)
-        } else if type == "bash" || type == "command_execution" || tool == "bash" {
-            Image(systemName: "terminal")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.warning)
-        } else if type.contains("web_search") || tool == "web_search" {
-            Image(systemName: "globe")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.info)
-        } else if type.contains("web_fetch") || tool == "web_fetch" {
-            Image(systemName: "arrow.down.doc")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.info)
-        } else if type.contains("browser_action") || tool.hasPrefix("browser_") {
-            let icon: String = {
-                switch tool {
-                case "browser_navigate": return "safari"
-                case "browser_screenshot": return "camera.viewfinder"
-                case "browser_console_logs": return "terminal"
-                case "browser_click": return "cursorarrow.click.2"
-                case "browser_type": return "keyboard"
-                case "browser_evaluate_js": return "chevron.left.forwardslash.chevron.right"
-                case "browser_get_content": return "doc.richtext"
-                default: return "globe"
-                }
-            }()
-            Image(systemName: icon)
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.browserColor)
-        } else if type == "mcp_tool_call" || tool.hasPrefix("mcp") {
-            let mcpIcon: String = {
-                switch tool {
-                case "mcp_batch": return "square.grid.3x3.topleft.filled"
-                case "mcp_list_resources", "mcp_read_resource": return "tray.2"
-                case "mcp_subscribe": return "bell.badge"
-                case "mcp_list_prompts", "mcp_get_prompt": return "text.bubble"
-                case "mcp_logs": return "list.bullet.rectangle"
-                case "mcp_restart_server": return "arrow.clockwise.circle"
-                case "mcp_health": return "heart.text.square"
-                case "mcp_reconnect": return "arrow.triangle.2.circlepath"
-                case "mcp_list_servers": return "server.rack"
-                case "mcp_list_tools": return "wrench.and.screwdriver"
-                case "mcp_describe_tool": return "doc.text.magnifyingglass"
-                default: return "square.grid.3x3"
-                }
-            }()
-            Image(systemName: mcpIcon)
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.mcpColor)
-        } else if type == "skill_invocation" || tool == "skill" {
-            Image(systemName: "sparkles")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.reviewColor)
-        } else if type.contains("glob") || tool == "glob" || tool == "list_dir" {
-            Image(systemName: "folder")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
-        } else if type == "read_lints" || tool == "diagnostics" {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.warning)
-        } else if type.contains("debug") || tool.hasPrefix("debug_") {
-            let debugIcon: String = {
-                switch tool {
-                case "debug_trace_analyze": return "waveform.path.ecg"
-                case "debug_instrument": return "syringe"
-                case "debug_timeline": return "chart.bar.xaxis"
-                case "debug_snapshot": return "camera.circle"
-                case "debug_test_check": return "checkmark.shield"
-                case "debug_context": return "doc.text.magnifyingglass"
-                case "debug_log": return "text.badge.plus"
-                case "debug_query": return "magnifyingglass.circle"
-                case "debug_hypothesize": return "lightbulb"
-                case "debug_mark": return "pin.circle"
-                case "debug_clean": return "trash.circle"
-                case "debug_session": return "play.circle"
-                case "debug_set_phase": return "arrow.right.circle"
-                case "debug_resolve": return "checkmark.circle"
-                default: return "ladybug"
-                }
-            }()
-            Image(systemName: debugIcon)
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.debugColor)
-        } else if tool == "git_diff" {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-        } else {
-            Image(systemName: "gearshape")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.textQuaternary)
-        }
+        Image(systemName: identity.symbolName)
+            .font(.system(size: 9.5, weight: .medium))
+            .foregroundStyle(identity.tint)
     }
 
     // MARK: - Tool Title
@@ -154,5 +35,132 @@ extension MessageToolTraceView {
         } else {
             Text(event.title)
         }
+    }
+}
+
+struct MessageToolTraceToolIdentity {
+    let symbolName: String
+    let tint: Color
+
+    static func resolve(for event: ToolTraceEvent) -> MessageToolTraceToolIdentity {
+        let type = event.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let tool = normalizedToolName(for: event)
+
+        if MessageToolTraceView.isErrorType(event) {
+            return .init(symbolName: "xmark.circle", tint: DesignSystem.Colors.error)
+        }
+        if MessageToolTraceView.isWarningType(event) {
+            return .init(symbolName: "exclamationmark.triangle", tint: DesignSystem.Colors.warning)
+        }
+        if type.contains("read") || type == "read_batch_started" || type == "read_batch_completed"
+            || tool == "read" || tool == "read_range"
+        {
+            return .init(symbolName: "doc.text", tint: DesignSystem.Colors.info)
+        }
+        if type == "semantic_search" || tool == "semantic_search" {
+            return .init(symbolName: "brain", tint: DesignSystem.Colors.ideColor)
+        }
+        if type.contains("grep") || type.contains("search") || type == "instant_grep"
+            || tool == "grep" || tool == "search" || tool == "codebase_search"
+            || tool == "find_symbol" || tool == "find_references"
+        {
+            return .init(symbolName: "magnifyingglass", tint: DesignSystem.Colors.ideColor)
+        }
+        if type == "edit" || type == "file_change"
+            || tool == "str_replace" || tool == "write" || tool == "edit"
+            || tool == "create_file" || tool == "delete_file" || tool == "regex_replace"
+            || tool == "parallel_apply"
+        {
+            return .init(symbolName: "pencil", tint: DesignSystem.Colors.success)
+        }
+        if type == "bash" || type == "command_execution" || tool == "bash" {
+            return .init(symbolName: "terminal", tint: DesignSystem.Colors.warning)
+        }
+        if type.contains("web_search") || tool == "web_search" {
+            return .init(symbolName: "globe", tint: DesignSystem.Colors.info)
+        }
+        if type.contains("web_fetch") || tool == "web_fetch" {
+            return .init(symbolName: "arrow.down.doc", tint: DesignSystem.Colors.info)
+        }
+        if type.contains("browser_action") || tool.hasPrefix("browser_") {
+            let symbolName: String = switch tool {
+            case "browser_navigate": "safari"
+            case "browser_screenshot": "camera.viewfinder"
+            case "browser_console_logs": "terminal"
+            case "browser_click": "cursorarrow.click.2"
+            case "browser_type": "keyboard"
+            case "browser_evaluate_js": "chevron.left.forwardslash.chevron.right"
+            case "browser_get_content": "doc.richtext"
+            default: "globe"
+            }
+            return .init(symbolName: symbolName, tint: DesignSystem.Colors.browserColor)
+        }
+        if type == "mcp_tool_call" || tool.hasPrefix("mcp_") {
+            let symbolName: String = switch tool {
+            case "mcp_batch": "square.grid.3x3.topleft.filled"
+            case "mcp_list_resources", "mcp_read_resource": "tray.2"
+            case "mcp_subscribe": "bell.badge"
+            case "mcp_list_prompts", "mcp_get_prompt": "text.bubble"
+            case "mcp_logs": "list.bullet.rectangle"
+            case "mcp_restart_server": "arrow.clockwise.circle"
+            case "mcp_health": "heart.text.square"
+            case "mcp_reconnect": "arrow.triangle.2.circlepath"
+            case "mcp_list_servers": "server.rack"
+            case "mcp_list_tools": "wrench.and.screwdriver"
+            case "mcp_describe_tool": "doc.text.magnifyingglass"
+            default: "square.grid.3x3"
+            }
+            return .init(symbolName: symbolName, tint: DesignSystem.Colors.mcpColor)
+        }
+        if type == "skill_invocation" || tool == "skill" {
+            return .init(symbolName: "sparkles", tint: DesignSystem.Colors.reviewColor)
+        }
+        if type.contains("glob") || tool == "glob" || tool == "list_dir" || tool == "find_files" {
+            return .init(symbolName: "folder", tint: DesignSystem.Colors.textTertiary)
+        }
+        if type == "read_lints" || tool == "diagnostics" {
+            return .init(symbolName: "exclamationmark.triangle", tint: DesignSystem.Colors.warning)
+        }
+        if type.contains("debug") || tool.hasPrefix("debug_") {
+            let symbolName: String = switch tool {
+            case "debug_trace_analyze": "waveform.path.ecg"
+            case "debug_instrument": "syringe"
+            case "debug_timeline": "chart.bar.xaxis"
+            case "debug_snapshot": "camera.circle"
+            case "debug_test_check": "checkmark.shield"
+            case "debug_context": "doc.text.magnifyingglass"
+            case "debug_log": "text.badge.plus"
+            case "debug_query": "magnifyingglass.circle"
+            case "debug_hypothesize": "lightbulb"
+            case "debug_mark": "pin.circle"
+            case "debug_clean": "trash.circle"
+            case "debug_session": "play.circle"
+            case "debug_set_phase": "arrow.right.circle"
+            case "debug_resolve": "checkmark.circle"
+            default: "ladybug"
+            }
+            return .init(symbolName: symbolName, tint: DesignSystem.Colors.debugColor)
+        }
+        if tool == "git_diff" {
+            return .init(symbolName: "arrow.triangle.branch", tint: DesignSystem.Colors.textSecondary)
+        }
+        return .init(symbolName: "gearshape", tint: DesignSystem.Colors.textQuaternary)
+    }
+
+    static func normalizedToolName(for event: ToolTraceEvent) -> String {
+        let type = event.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let mcpTool = cleaned(event.payload["mcp_tool"] ?? event.payload["mcpTool"] ?? "")
+        if type == "mcp_tool_call", !mcpTool.isEmpty {
+            return mcpTool
+        }
+        return cleaned(event.payload["tool"] ?? event.payload["name"] ?? "")
+    }
+
+    private static func cleaned(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "functions.", with: "")
+            .replacingOccurrences(of: "coderide_", with: "")
     }
 }

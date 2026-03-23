@@ -60,6 +60,7 @@ extension MessageToolTraceView {
             var filePaths = Set<String>()
             var readCount = 0
             var searchCount = 0
+            var listCount = 0
             var commandCount = 0
             var editCount = 0
             var mcpCount = 0
@@ -73,13 +74,33 @@ extension MessageToolTraceView {
                 if let path = event.payload["path"], !path.isEmpty { filePaths.insert(path) }
                 if let file = event.payload["file"], !file.isEmpty { filePaths.insert(file) }
                 let type = event.type.lowercased()
-                if type == "read_batch_completed" || (event.payload["source"] ?? "") == "synthetic_command_read" { readCount += 1 }
-                if type.contains("search") || type.contains("grep") || type == "instant_grep" { searchCount += 1 }
+                let tool = (
+                    event.payload["mcp_tool"]
+                        ?? event.payload["mcpTool"]
+                        ?? event.payload["tool"]
+                        ?? event.payload["name"]
+                        ?? ""
+                ).lowercased()
+                if type == "read_batch_completed"
+                    || (event.payload["source"] ?? "") == "synthetic_command_read"
+                    || tool == "read" || tool == "read_range"
+                {
+                    readCount += 1
+                }
+                if type.contains("search") || type.contains("grep") || type == "instant_grep"
+                    || tool == "grep" || tool == "search" || tool == "codebase_search"
+                    || tool == "semantic_search" || tool == "find_symbol" || tool == "find_references"
+                {
+                    searchCount += 1
+                }
+                if type.contains("glob") || tool == "glob" || tool == "list_dir" || tool == "find_files" {
+                    listCount += 1
+                }
                 if type == "bash" || type == "command_execution" { commandCount += 1 }
                 if ToolTraceFileChangeMapper.isFileChangeEvent(event) { editCount += 1 }
                 if ToolTraceVisibility.isMCPEvent(event: event) {
                     mcpCount += 1
-                    let mcpTool = (event.payload["mcp_tool"] ?? event.payload["mcpTool"] ?? event.payload["tool"] ?? "").lowercased()
+                    let mcpTool = tool
                     if mcpTool == "mcp_batch" { mcpBatchCount += 1 }
                     if mcpTool == "mcp_list_resources" || mcpTool == "mcp_read_resource" { mcpResourceCount += 1 }
                     if mcpTool == "mcp_list_prompts" || mcpTool == "mcp_get_prompt" { mcpPromptCount += 1 }
@@ -97,28 +118,33 @@ extension MessageToolTraceView {
                 count == 1 ? noun : (plural ?? "\(noun)s")
             }
             var parts: [String] = []
-            if editCount > 0 { parts.append("\(editCount) \(pluralized("edit", count: editCount))") }
+            if editCount > 0 { parts.append("\(editCount) \(pluralized("modifica", count: editCount, plural: "modifiche"))") }
             if readCount > 0 || fileCount > 0 {
-                parts.append("\(max(fileCount, readCount)) \(pluralized("file", count: max(fileCount, readCount))) read")
+                let readFileCount = max(fileCount, readCount)
+                let readFileLabel = readFileCount == 1 ? "file letto" : "file letti"
+                parts.append("\(readFileCount) \(readFileLabel)")
             }
-            if searchCount > 0 { parts.append("\(searchCount) \(pluralized("search", count: searchCount, plural: "searches"))") }
-            if commandCount > 0 { parts.append("\(commandCount) \(pluralized("command", count: commandCount))") }
+            if searchCount > 0 { parts.append("\(searchCount) \(pluralized("ricerca", count: searchCount, plural: "ricerche"))") }
+            if listCount > 0 { parts.append("\(listCount) \(pluralized("elenco", count: listCount, plural: "elenchi"))") }
+            if commandCount > 0 { parts.append("\(commandCount) \(pluralized("comando", count: commandCount, plural: "comandi"))") }
             if mcpCount > 0 {
-                var mcpDetail = "MCP \(mcpCount) \(pluralized("call", count: mcpCount))"
+                var mcpDetail = "MCP \(mcpCount) \(pluralized("chiamata", count: mcpCount, plural: "chiamate"))"
                 var extras: [String] = []
                 if mcpBatchCount > 0 { extras.append("\(mcpBatchCount) batch") }
-                if mcpResourceCount > 0 { extras.append("\(mcpResourceCount) \(pluralized("resource", count: mcpResourceCount))") }
-                if mcpPromptCount > 0 { extras.append("\(mcpPromptCount) \(pluralized("prompt", count: mcpPromptCount))") }
+                if mcpResourceCount > 0 { extras.append("\(mcpResourceCount) \(pluralized("risorsa", count: mcpResourceCount, plural: "risorse"))") }
+                if mcpPromptCount > 0 { extras.append("\(mcpPromptCount) prompt") }
                 if !extras.isEmpty { mcpDetail += " (\(extras.joined(separator: ", ")))" }
                 parts.append(mcpDetail)
             }
-            if browserCount > 0 { parts.append("\(browserCount) browser \(pluralized("action", count: browserCount))") }
+            if browserCount > 0 {
+                parts.append("\(browserCount) \(pluralized("azione browser", count: browserCount, plural: "azioni browser"))")
+            }
             if !skillNames.isEmpty {
                 let skills = skillNames.sorted()
-                parts.append(skills.count <= 2 ? "Skills: \(skills.joined(separator: ", "))" : "Skills: \(skills.prefix(2).joined(separator: ", ")) +\(skills.count - 2)")
+                parts.append(skills.count <= 2 ? "Skill: \(skills.joined(separator: ", "))" : "Skill: \(skills.prefix(2).joined(separator: ", ")) +\(skills.count - 2)")
             }
             if !parts.isEmpty { return parts.prefix(3).joined(separator: " \u{00B7} ") }
-            return "\(orderedEvents.count) \(pluralized("operation", count: orderedEvents.count))"
+            return "\(orderedEvents.count) \(pluralized("operazione", count: orderedEvents.count, plural: "operazioni"))"
         }
 
         static func skillPathCandidates(for event: ToolTraceEvent) -> [String] {

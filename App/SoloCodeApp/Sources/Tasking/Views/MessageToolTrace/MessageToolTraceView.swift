@@ -11,6 +11,7 @@ struct MessageToolTraceView: View {
     @State var isExpanded = false
     @State var didAutoCompactAfterCompletion = false
     @State var userDidManuallyExpand = false
+    @State var userDidManuallyCollapseWhileRunning = false
     @State var expandedFileIds: Set<UUID> = []
     @State var filePreviewByEventId: [UUID: FileChangePreviewResult] = [:]
     @State var loadingPreviewIds: Set<UUID> = []
@@ -22,10 +23,11 @@ struct MessageToolTraceView: View {
 
     var body: some View {
         let derived = currentDerived()
+        let showsRows = derived.hasRunningEvent || isExpanded
         VStack(alignment: .leading, spacing: 0) {
-            headerView(derived: derived)
+            headerView(derived: derived, showsRows: showsRows)
 
-            if derived.shouldShowRows {
+            if derived.shouldShowRows && showsRows {
                 VStack(alignment: .leading, spacing: 0) {
                     if derived.hiddenEventsCount > 0 && !isExpanded {
                         hiddenEventsButton(count: derived.hiddenEventsCount)
@@ -71,14 +73,18 @@ struct MessageToolTraceView: View {
         }
     }
 
-    func headerView(derived: DerivedState) -> some View {
+    func headerView(derived: DerivedState, showsRows: Bool) -> some View {
         Button {
             onInteractionStart?()
             withAnimation(.easeOut(duration: 0.15)) {
                 isExpanded.toggle()
-                if isExpanded { userDidManuallyExpand = true }
+                if isExpanded {
+                    userDidManuallyExpand = true
+                    userDidManuallyCollapseWhileRunning = false
+                }
                 if !isExpanded {
                     userDidManuallyExpand = false
+                    userDidManuallyCollapseWhileRunning = derived.hasRunningEvent
                     expandedIds.removeAll()
                     expandedFileIds.removeAll()
                     isCompactDiffExpanded = false
@@ -86,7 +92,7 @@ struct MessageToolTraceView: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                Image(systemName: showsRows ? "chevron.down" : "chevron.right")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
                     .frame(width: 12)
@@ -149,11 +155,12 @@ struct MessageToolTraceView: View {
             Image(systemName: "arrow.up.and.line.horizontal.and.arrow.down")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.textQuaternary)
-            Button("Collapse trace") {
+            Button("Comprimi traccia") {
                 onInteractionStart?()
                 withAnimation(.easeOut(duration: 0.12)) {
                     isExpanded = false
                     userDidManuallyExpand = false
+                    userDidManuallyCollapseWhileRunning = true
                     expandedIds.removeAll()
                     expandedFileIds.removeAll()
                     isCompactDiffExpanded = false
@@ -171,25 +178,27 @@ struct MessageToolTraceView: View {
     func headerTitle(derived: DerivedState) -> String {
         let count = derived.orderedEvents.count
         if derived.hasRunningEvent {
-            return "\(count) \(pluralized("operation", count: count)) running..."
+            return "\(count) \(pluralized("operazione", count: count, plural: "operazioni")) in corso..."
         }
         if !derived.orderedEvents.isEmpty {
             return derived.collapsedSummary
         }
-        return "Tool operations"
+        return "Attività tool"
     }
 
     func hiddenEventsButton(count: Int) -> some View {
         Button {
             withAnimation(.easeOut(duration: 0.15)) {
                 isExpanded = true
+                userDidManuallyExpand = true
+                userDidManuallyCollapseWhileRunning = false
             }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                Text("\(count) more \(pluralized("operation", count: count))")
+                Text("\(count) altre \(pluralized("operazione", count: count, plural: "operazioni"))")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
             }
