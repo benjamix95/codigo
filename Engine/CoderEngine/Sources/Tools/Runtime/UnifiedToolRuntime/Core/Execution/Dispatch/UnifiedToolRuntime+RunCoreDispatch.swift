@@ -8,8 +8,6 @@ extension UnifiedToolRuntime {
         startDate: Date
     ) async -> ToolResult {
         do {
-            try validate(call: call, normalizedName: normalizedName)
-
             if context.policy.enableMCP,
                let aliasRoute = preferredRustAliasRoute(for: normalizedName) {
                 return await executeNativeMCPTool(
@@ -20,6 +18,8 @@ extension UnifiedToolRuntime {
                     startDate: startDate
                 )
             }
+
+            try validate(call: call, normalizedName: normalizedName)
 
             return try await runValidatedDispatch(
                 call,

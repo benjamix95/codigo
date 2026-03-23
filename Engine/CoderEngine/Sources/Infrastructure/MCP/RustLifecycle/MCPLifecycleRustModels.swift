@@ -10,12 +10,21 @@ struct MCPLifecycleRustServerConfig: Sendable {
     let env: [String: String]
 
     init(server: MCPConfigLoader.DetectedServer, cwd: String? = nil) {
+        let resolvedCwd: String? = {
+            if let cwd, !cwd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return URL(fileURLWithPath: cwd).standardizedFileURL.path
+            }
+            let current = FileManager.default.currentDirectoryPath
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !current.isEmpty else { return nil }
+            return URL(fileURLWithPath: current).standardizedFileURL.path
+        }()
         self.id = server.id
         self.name = server.name
         self.command = server.command
         self.source = server.source
         self.args = server.args
-        self.cwd = cwd
+        self.cwd = resolvedCwd
         self.env = server.env
     }
 

@@ -764,6 +764,7 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     let path = string_arg(arguments, "path");
     let line = string_arg(arguments, "line").parse::<usize>().unwrap_or(0);
     let comment = non_empty(string_arg(arguments, "comment")).unwrap_or_else(|| "DEBUG".to_string());
+    let marker = format!("// DEBUG[marker]: {comment}");
     if path.is_empty() || line == 0 {
         return error_result("Error: path and line are required", json!({ "error_code": "validation" }));
     }
@@ -772,7 +773,6 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
         Ok(value) => value,
         Err(error) => return error,
     };
-    let marker = format!("// 🐛 DEBUG[marker]: {comment}");
     let insert_at = line.min(lines.len());
     lines.insert(insert_at, marker.clone());
     if let Err(error) = write_lines(&file_path, &lines) {
@@ -871,14 +871,31 @@ fn debug_instrument(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     }
 
     let generated = match instrument_type.as_str() {
-        "assert" => format!("assert({expression}, \"🚨 INSTRUMENT: {label}\") // 🐛 DEBUG[instrument-assert]{}", hypothesis_tag(&hypothesis_id)),
-        "timing" => format!("let _debugTimer = CFAbsoluteTimeGetCurrent(); defer {{ print(\"⏱ INSTRUMENT: \\(CFAbsoluteTimeGetCurrent() - _debugTimer)\") }} // 🐛 DEBUG[instrument-timing]{}", hypothesis_tag(&hypothesis_id)),
-        "variable" => format!("print(\"📋 INSTRUMENT {expression} = \\({expression})\") // 🐛 DEBUG[instrument-variable]{}", hypothesis_tag(&hypothesis_id)),
+        "assert" => format!(
+            "assert({expression}, \"INSTRUMENT: {label}\") // DEBUG[instrument-assert]{}",
+            hypothesis_tag(&hypothesis_id)
+        ),
+        "timing" => format!(
+            "let _debugTimer = CFAbsoluteTimeGetCurrent(); defer {{ print(\"INSTRUMENT timing: \\(CFAbsoluteTimeGetCurrent() - _debugTimer)\") }} // DEBUG[instrument-timing]{}",
+            hypothesis_tag(&hypothesis_id)
+        ),
+        "variable" => format!(
+            "print(\"INSTRUMENT {expression} = \\({expression})\") // DEBUG[instrument-variable]{}",
+            hypothesis_tag(&hypothesis_id)
+        ),
         "conditional_break" => {
             let condition = non_empty(string_arg(arguments, "condition")).unwrap_or_else(|| "true".to_string());
-            format!("if {condition} {{ print(\"🛑 INSTRUMENT {expression} = \\({expression})\") }} // 🐛 DEBUG[instrument-conditional]{}", hypothesis_tag(&hypothesis_id))
+            format!(
+                "if {condition} {{ print(\"INSTRUMENT {expression} = \\({expression})\") }} // DEBUG[instrument-conditional]{}",
+                hypothesis_tag(&hypothesis_id)
+            )
         }
-        _ => format!("print(\"🔍 INSTRUMENT {} = \\({})\") // 🐛 DEBUG[instrument-log]{}", if label.is_empty() { expression.clone() } else { label.clone() }, expression, hypothesis_tag(&hypothesis_id)),
+        _ => format!(
+            "print(\"INSTRUMENT {} = \\({})\") // DEBUG[instrument-log]{}",
+            if label.is_empty() { expression.clone() } else { label.clone() },
+            expression,
+            hypothesis_tag(&hypothesis_id)
+        ),
     };
 
     let file_path = resolve_path(workspace, &path);

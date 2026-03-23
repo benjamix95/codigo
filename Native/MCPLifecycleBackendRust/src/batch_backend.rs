@@ -1,7 +1,6 @@
 use crate::backend::Backend;
 use crate::mcp_process::flatten_tool_content;
 use crate::protocol::{BatchCallRequest, BatchCallResultItem};
-use crate::state::ServerStatus;
 use serde_json::{json, Value};
 
 impl Backend {
@@ -33,8 +32,8 @@ impl Backend {
             }
         };
 
-        let managed = match self.ensure_connected(&server_id) {
-            Ok(managed) => managed,
+        let config = match self.managed_server(&server_id) {
+            Ok(managed) => managed.config.clone(),
             Err(error) => {
                 return BatchCallResultItem {
                     index: call.index,
@@ -47,16 +46,13 @@ impl Backend {
             }
         };
 
-        let server_name = managed.config.name.clone();
-        let call_result = managed
-            .process
-            .as_mut()
-            .ok_or_else(|| crate::error::BackendError::protocol("missing MCP process"))
-            .and_then(|process| process.call_tool(&call.tool_name, call.arguments));
+        let server_name = config.name.clone();
+        let call_result = self.with_process_for_server(&server_id, "call_tools_batch", |process, _| {
+            process.call_tool(&call.tool_name, call.arguments)
+        });
 
         match call_result {
             Ok(result) => {
-                managed.status = ServerStatus::Ready;
                 BatchCallResultItem {
                     index: call.index,
                     server_id,

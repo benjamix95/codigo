@@ -4,18 +4,20 @@ use crate::protocol::{
     CallToolRequest, HealthRequest, ListServersRequest, ListToolsRequest, ListedServer,
     ResponseEnvelope, ServerActionRequest, ServerConfig,
 };
-use crate::state::{ManagedServer, ServerStatus};
+use crate::state::{ManagedProcess, ManagedServer, ServerStatus};
 use serde_json::{json, Map, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub struct Backend {
     servers: BTreeMap<String, ManagedServer>,
+    processes: BTreeMap<String, ManagedProcess>,
 }
 
 impl Backend {
     pub fn new() -> Self {
         Self {
             servers: BTreeMap::new(),
+            processes: BTreeMap::new(),
         }
     }
 
@@ -84,16 +86,9 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let tools = {
-            let managed = self.ensure_connected(&server_id)?;
-            let descriptors = managed
-                .process
-                .as_mut()
-                .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-                .list_tools(&managed.config.id, &managed.config.name)?;
-            managed.status = ServerStatus::Ready;
-            descriptors
-        };
+        let tools = self.with_process_for_server(&server_id, "list_tools", |process, config| {
+            process.list_tools(&config.id, &config.name)
+        })?;
         Ok(json!({ "tools": tools }))
     }
 
@@ -107,16 +102,13 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let managed = self.ensure_connected(&server_id)?;
-        let result = managed
-            .process
-            .as_mut()
-            .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-            .call_tool(&request.tool_name, request.arguments)?;
-        managed.status = ServerStatus::Ready;
+        let config = self.managed_server(&server_id)?.config.clone();
+        let result = self.with_process_for_server(&server_id, "call_tool", |process, _| {
+            process.call_tool(&request.tool_name, request.arguments)
+        })?;
         Ok(json!({
-            "serverId": managed.config.id,
-            "serverName": managed.config.name,
+            "serverId": config.id,
+            "serverName": config.name,
             "content": flatten_tool_content(&result),
             "isError": result.is_error.unwrap_or(false),
         }))
@@ -129,19 +121,14 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        {
-            let managed = self.managed_server_mut(&server_id)?;
-            Self::stop_process(managed)?;
-        }
-        {
-            let managed = self.managed_server_mut(&server_id)?;
-            Self::start_process(managed)?;
-        }
-        let managed = self.managed_server_mut(&server_id)?;
+        let config = self.managed_server(&server_id)?.config.clone();
+        let process_key = self.managed_server(&server_id)?.process_key.clone();
+        self.stop_process_for_key(&process_key, "reconnect")?;
+        self.start_process_for_server(&server_id, "reconnect")?;
         Ok(json!({
-            "serverId": managed.config.id,
-            "serverName": managed.config.name,
-            "status": managed.status.as_str(),
+            "serverId": config.id,
+            "serverName": config.name,
+            "status": ServerStatus::Ready.as_str(),
         }))
     }
 
@@ -150,16 +137,15 @@ impl Backend {
     }
 
     fn shutdown_all(&mut self) -> Result<Value, BackendError> {
-        let ids = self.servers.keys().cloned().collect::<Vec<_>>();
-        let mut stopped = 0_u64;
-        for server_id in ids {
-            let managed = self.managed_server_mut(&server_id)?;
-            if managed.process.is_some() {
-                Self::stop_process(managed)?;
-                stopped += 1;
-            } else {
-                managed.status = ServerStatus::Stopped;
-            }
+        let process_keys = self.processes.keys().cloned().collect::<Vec<_>>();
+        let stopped = process_keys.len() as u64;
+        for process_key in process_keys {
+            self.stop_process_for_key(&process_key, "shutdown_all")?;
+        }
+        for managed in self.servers.values_mut() {
+            managed.status = ServerStatus::Stopped;
+            managed.last_error = None;
+            managed.touch("shutdown_all");
         }
         Ok(json!({ "stopped": stopped }))
     }
@@ -167,11 +153,17 @@ impl Backend {
     fn upsert_servers(&mut self, servers: Vec<ServerConfig>) -> Result<(), BackendError> {
         for server in servers {
             server.validate().map_err(BackendError::invalid)?;
+            let process_key = server.process_key();
             self.servers
                 .entry(server.id.clone())
-                .and_modify(|managed| managed.config = server.clone())
+                .and_modify(|managed| {
+                    managed.config = server.clone();
+                    managed.process_key = process_key.clone();
+                    managed.touch("upsert");
+                })
                 .or_insert_with(|| ManagedServer::new(server));
         }
+        self.reap_orphan_processes()?;
         Ok(())
     }
 
@@ -214,73 +206,197 @@ impl Backend {
         ))
     }
 
-    pub(crate) fn ensure_connected(&mut self, server_id: &str) -> Result<&mut ManagedServer, BackendError> {
-        let needs_restart = match self.managed_server_mut(server_id)?.process.as_mut() {
-            Some(process) => !process.is_running()?,
-            None => true,
-        };
-        if needs_restart {
-            let managed = self.managed_server_mut(server_id)?;
-            Self::start_process(managed)?;
-        }
-        self.managed_server_mut(server_id)
-    }
-
-    fn refresh_status(&mut self, server_id: &str) -> Result<String, BackendError> {
-        let managed = self.managed_server_mut(server_id)?;
-        let status = if let Some(process) = managed.process.as_mut() {
-            if process.is_running()? {
-                match process.ping() {
-                    Ok(()) => {
-                        managed.status = ServerStatus::Ready;
-                        ServerStatus::Ready
-                    }
-                    Err(error) => {
-                        managed.status = ServerStatus::Failed;
-                        managed.last_error = Some(error.to_string());
-                        ServerStatus::Failed
-                    }
+    pub(crate) fn with_process_for_server<T, F>(
+        &mut self,
+        server_id: &str,
+        reason: &str,
+        f: F,
+    ) -> Result<T, BackendError>
+    where
+        F: FnOnce(&mut McpProcess, &ServerConfig) -> Result<T, BackendError>,
+    {
+        let (config, process_key) = self.ensure_connected(server_id, reason)?;
+        let result = {
+            let managed_process = self.managed_process_mut(&process_key)?;
+            match f(&mut managed_process.process, &config) {
+                Ok(result) => {
+                    managed_process.last_error = None;
+                    managed_process.touch(reason);
+                    Ok(result)
                 }
-            } else {
-                managed.status = ServerStatus::Stopped;
-                managed.process = None;
-                ServerStatus::Stopped
+                Err(error) => {
+                    managed_process.last_error = Some(error.to_string());
+                    managed_process.touch(reason);
+                    Err(error)
+                }
             }
-        } else {
-            managed.status
         };
-        Ok(status.as_str().to_string())
-    }
 
-    fn start_process(managed: &mut ManagedServer) -> Result<(), BackendError> {
-        match McpProcess::spawn(&managed.config) {
-            Ok(process) => {
-                managed.process = Some(process);
-                managed.status = ServerStatus::Ready;
-                managed.last_error = None;
-                Ok(())
+        match result {
+            Ok(result) => {
+                self.update_servers_for_process_key(&process_key, ServerStatus::Ready, None, reason);
+                Ok(result)
             }
             Err(error) => {
-                managed.process = None;
-                managed.status = ServerStatus::Failed;
-                managed.last_error = Some(error.to_string());
+                self.update_servers_for_process_key(
+                    &process_key,
+                    ServerStatus::Failed,
+                    Some(error.to_string()),
+                    reason,
+                );
                 Err(error)
             }
         }
     }
 
-    fn stop_process(managed: &mut ManagedServer) -> Result<(), BackendError> {
-        if let Some(process) = managed.process.as_mut() {
-            process.shutdown()?;
+    pub(crate) fn managed_server(&self, server_id: &str) -> Result<&ManagedServer, BackendError> {
+        self.servers
+            .get(server_id)
+            .ok_or_else(|| BackendError::not_found(format!("unknown serverId: {server_id}")))
+    }
+
+    fn managed_process_mut(&mut self, process_key: &str) -> Result<&mut ManagedProcess, BackendError> {
+        self.processes
+            .get_mut(process_key)
+            .ok_or_else(|| BackendError::protocol(format!("missing managed process for key: {process_key}")))
+    }
+
+    fn ensure_connected(
+        &mut self,
+        server_id: &str,
+        reason: &str,
+    ) -> Result<(ServerConfig, String), BackendError> {
+        let (config, process_key) = {
+            let managed = self.managed_server(server_id)?;
+            (managed.config.clone(), managed.process_key.clone())
+        };
+
+        let needs_restart = match self.processes.get_mut(&process_key) {
+            Some(managed_process) => !managed_process.process.is_running()?,
+            None => true,
+        };
+
+        if needs_restart {
+            self.stop_process_for_key(&process_key, "restart_stale_process").ok();
+            self.start_process(&config, &process_key, reason)?;
+        } else if let Some(managed_process) = self.processes.get_mut(&process_key) {
+            managed_process.touch(reason);
         }
-        managed.process = None;
-        managed.status = ServerStatus::Stopped;
+
+        self.update_servers_for_process_key(&process_key, ServerStatus::Ready, None, reason);
+        Ok((config, process_key))
+    }
+
+    fn refresh_status(&mut self, server_id: &str) -> Result<String, BackendError> {
+        let process_key = self.managed_server(server_id)?.process_key.clone();
+        let status = if let Some(managed_process) = self.processes.get_mut(&process_key) {
+            if managed_process.process.is_running()? {
+                match managed_process.process.ping() {
+                    Ok(()) => {
+                        managed_process.last_error = None;
+                        managed_process.touch("health");
+                        ServerStatus::Ready
+                    }
+                    Err(error) => {
+                        managed_process.last_error = Some(error.to_string());
+                        managed_process.touch("health_ping_failed");
+                        ServerStatus::Failed
+                    }
+                }
+            } else {
+                self.processes.remove(&process_key);
+                ServerStatus::Stopped
+            }
+        } else {
+            self.managed_server(server_id)?.status
+        };
+
+        let error = match status {
+            ServerStatus::Failed => self
+                .processes
+                .get(&process_key)
+                .and_then(|managed_process| managed_process.last_error.clone()),
+            _ => None,
+        };
+        self.update_servers_for_process_key(&process_key, status, error, "health");
+        Ok(status.as_str().to_string())
+    }
+
+    fn start_process(
+        &mut self,
+        config: &ServerConfig,
+        process_key: &str,
+        reason: &str,
+    ) -> Result<(), BackendError> {
+        match McpProcess::spawn(config) {
+            Ok(process) => {
+                self.processes.insert(
+                    process_key.to_string(),
+                    ManagedProcess::new(process, reason),
+                );
+                self.update_servers_for_process_key(process_key, ServerStatus::Ready, None, reason);
+                Ok(())
+            }
+            Err(error) => {
+                self.update_servers_for_process_key(
+                    process_key,
+                    ServerStatus::Failed,
+                    Some(error.to_string()),
+                    reason,
+                );
+                Err(error)
+            }
+        }
+    }
+
+    fn start_process_for_server(&mut self, server_id: &str, reason: &str) -> Result<(), BackendError> {
+        let managed = self.managed_server(server_id)?;
+        let config = managed.config.clone();
+        let process_key = managed.process_key.clone();
+        self.start_process(&config, &process_key, reason)
+    }
+
+    fn stop_process_for_key(&mut self, process_key: &str, reason: &str) -> Result<(), BackendError> {
+        if let Some(mut managed_process) = self.processes.remove(process_key) {
+            managed_process.process.shutdown()?;
+        }
+        self.update_servers_for_process_key(process_key, ServerStatus::Stopped, None, reason);
         Ok(())
     }
 
-    fn managed_server_mut(&mut self, server_id: &str) -> Result<&mut ManagedServer, BackendError> {
-        self.servers
-            .get_mut(server_id)
-            .ok_or_else(|| BackendError::not_found(format!("unknown serverId: {server_id}")))
+    fn update_servers_for_process_key(
+        &mut self,
+        process_key: &str,
+        status: ServerStatus,
+        last_error: Option<String>,
+        reason: &str,
+    ) {
+        for managed in self
+            .servers
+            .values_mut()
+            .filter(|managed| managed.process_key == process_key)
+        {
+            managed.status = status;
+            managed.last_error = last_error.clone();
+            managed.touch(reason);
+        }
+    }
+
+    fn reap_orphan_processes(&mut self) -> Result<(), BackendError> {
+        let referenced = self
+            .servers
+            .values()
+            .map(|managed| managed.process_key.clone())
+            .collect::<BTreeSet<_>>();
+        let orphaned = self
+            .processes
+            .keys()
+            .filter(|process_key| !referenced.contains(*process_key))
+            .cloned()
+            .collect::<Vec<_>>();
+        for process_key in orphaned {
+            self.stop_process_for_key(&process_key, "reap_orphan")?;
+        }
+        Ok(())
     }
 }

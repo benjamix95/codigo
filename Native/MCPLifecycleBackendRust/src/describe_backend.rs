@@ -14,17 +14,12 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let tool = {
-            let managed = self.ensure_connected(&server_id)?;
-            let tools = managed
-                .process
-                .as_mut()
-                .ok_or_else(|| crate::error::BackendError::protocol("missing MCP process"))?
-                .list_tools(&managed.config.id, &managed.config.name)?;
+        let tool = self.with_process_for_server(&server_id, "describe_tool", |process, config| {
+            let tools = process.list_tools(&config.id, &config.name)?;
             tools.into_iter()
                 .find(|tool| tool.name == tool_name)
-                .ok_or_else(|| crate::error::BackendError::not_found(format!("unknown toolName: {tool_name}")))?
-        };
+                .ok_or_else(|| crate::error::BackendError::not_found(format!("unknown toolName: {tool_name}")))
+        })?;
 
         Ok(json!({ "tool": tool }))
     }

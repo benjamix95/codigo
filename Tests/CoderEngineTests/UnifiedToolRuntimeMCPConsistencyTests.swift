@@ -19,6 +19,19 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         return nil
     }
 
+    private func extractPayload(
+        _ events: [StreamEvent],
+        matchingTool toolName: String
+    ) -> [String: String]? {
+        for event in events.reversed() {
+            guard case .raw(_, let payload) = event else { continue }
+            if payload["tool"] == toolName {
+                return payload
+            }
+        }
+        return nil
+    }
+
     private func rawTypes(_ events: [StreamEvent]) -> [String] {
         events.compactMap { event in
             if case .raw(let type, _) = event { return type }
@@ -41,6 +54,35 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         )
         let ctx = ToolExecutionContext(workspaceContext: WorkspaceContext(workspacePath: workspace))
         return (call, ctx)
+    }
+
+    private func registerCoderideAlias(_ toolName: String) {
+        let descriptor = MCPToolDescriptor(
+            name: "coderide_\(toolName)",
+            description: "\(toolName) via coderide",
+            schema: #"{"type":"object","properties":{}}"#,
+            serverId: "missing-server",
+            serverName: "coderide"
+        )
+        XCTAssertTrue(MCPNativeToolRegistry.shared.mergeRegister(tools: [descriptor]))
+    }
+
+    private func assertCanonicalToolPrefersCoderideAlias(
+        canonicalName: String,
+        args: [String: String],
+        expectedMCPTool: String,
+        workspace: URL,
+        line: UInt = #line
+    ) async {
+        let runtime = UnifiedToolRuntime()
+        let (call, ctx) = makeCall(name: canonicalName, args: args, workspace: workspace)
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed", line: line)
+        XCTAssertEqual(completed?["tool"], canonicalName, line: line)
+        XCTAssertEqual(completed?["is_mcp"], "true", line: line)
+        XCTAssertEqual(completed?["mcp_tool"], expectedMCPTool, line: line)
     }
 
     func testGrepValidationMentionsPatternOrQueryAlias() async throws {
@@ -296,5 +338,69 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["tool"], "read")
         XCTAssertEqual(completed?["is_mcp"], "true")
         XCTAssertEqual(completed?["mcp_tool"], "coderide_read")
+    }
+
+    func testCanonicalWebSearchPrefersCoderideAliasWhenRegistryIsWarm() async throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let descriptor = MCPToolDescriptor(
+            name: "coderide_web_search",
+            description: "web search",
+            schema: #"{"type":"object","properties":{"query":{"type":"string"}}}"#,
+            serverId: "missing-server",
+            serverName: "coderide"
+        )
+        XCTAssertTrue(registry.register(tools: [descriptor]))
+
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "web_search",
+            args: ["query": "coderide transport closed"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["tool"], "web_search")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+        XCTAssertEqual(completed?["mcp_tool"], "coderide_web_search")
+    }
+
+    func testCanonicalToolFamiliesPreferCoderideAliasesWhenRegistryIsWarm() async throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        for alias in ["write", "grep", "debug_session"] {
+            registerCoderideAlias(alias)
+        }
+
+        await assertCanonicalToolPrefersCoderideAlias(
+            canonicalName: "write",
+            args: ["path": tmp.appendingPathComponent("Output.txt").path, "content": "ciao"],
+            expectedMCPTool: "coderide_write",
+            workspace: tmp
+        )
+        await assertCanonicalToolPrefersCoderideAlias(
+            canonicalName: "grep",
+            args: ["pattern": "needle"],
+            expectedMCPTool: "coderide_grep",
+            workspace: tmp
+        )
+        await assertCanonicalToolPrefersCoderideAlias(
+            canonicalName: "debug_session",
+            args: ["action": "start"],
+            expectedMCPTool: "coderide_debug_session",
+            workspace: tmp
+        )
     }
 }

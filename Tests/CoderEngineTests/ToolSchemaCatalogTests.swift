@@ -272,4 +272,58 @@ final class ToolSchemaCatalogTests: XCTestCase {
         XCTAssertEqual(alias.serverId, "coderide-server")
         XCTAssertEqual(alias.toolName, "coderide_read")
     }
+
+    func testNativeRegistryLowercasesCanonicalAliasForMixedCaseCoderideTool() throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let descriptor = MCPToolDescriptor(
+            name: "coderide_subagent_securityAuditor",
+            description: "security subagent",
+            schema: #"{"type":"object","properties":{"task":{"type":"string"}}}"#,
+            serverId: "coderide-server",
+            serverName: "coderide"
+        )
+
+        XCTAssertTrue(registry.register(tools: [descriptor]))
+        let alias = try XCTUnwrap(registry.aliasRoute(for: "subagent_securityauditor"))
+        XCTAssertEqual(alias.serverId, "coderide-server")
+        XCTAssertEqual(alias.toolName, "coderide_subagent_securityAuditor")
+    }
+
+    func testNativeRegistryBuildsCanonicalAliasesForRustOwnedFamilies() throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let descriptors = [
+            MCPToolDescriptor(
+                name: "coderide_write",
+                description: "write file",
+                schema: #"{"type":"object","properties":{"path":{"type":"string"}}}"#,
+                serverId: "coderide-server",
+                serverName: "coderide"
+            ),
+            MCPToolDescriptor(
+                name: "coderide_plan_create",
+                description: "plan create",
+                schema: #"{"type":"object","properties":{"goal":{"type":"string"}}}"#,
+                serverId: "coderide-server",
+                serverName: "coderide"
+            ),
+            MCPToolDescriptor(
+                name: "coderide_web_search",
+                description: "web search",
+                schema: #"{"type":"object","properties":{"query":{"type":"string"}}}"#,
+                serverId: "coderide-server",
+                serverName: "coderide"
+            ),
+        ]
+
+        XCTAssertTrue(registry.register(tools: descriptors))
+        XCTAssertEqual(try XCTUnwrap(registry.aliasRoute(for: "write")).toolName, "coderide_write")
+        XCTAssertEqual(try XCTUnwrap(registry.aliasRoute(for: "plan_create")).toolName, "coderide_plan_create")
+        XCTAssertEqual(try XCTUnwrap(registry.aliasRoute(for: "web_search")).toolName, "coderide_web_search")
+    }
 }

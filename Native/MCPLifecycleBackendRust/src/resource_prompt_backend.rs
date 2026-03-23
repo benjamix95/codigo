@@ -1,7 +1,6 @@
 use crate::backend::Backend;
 use crate::error::BackendError;
 use crate::protocol::{PromptRequest, ResourceRequest};
-use crate::state::ServerStatus;
 use serde_json::{json, Value};
 
 impl Backend {
@@ -12,16 +11,9 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let resources = {
-            let managed = self.ensure_connected(&server_id)?;
-            let descriptors = managed
-                .process
-                .as_mut()
-                .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-                .list_resources(&managed.config.id, &managed.config.name)?;
-            managed.status = ServerStatus::Ready;
-            descriptors
-        };
+        let resources = self.with_process_for_server(&server_id, "list_resources", |process, config| {
+            process.list_resources(&config.id, &config.name)
+        })?;
         Ok(json!({ "resources": resources }))
     }
 
@@ -35,16 +27,9 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let contents = {
-            let managed = self.ensure_connected(&server_id)?;
-            let result = managed
-                .process
-                .as_mut()
-                .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-                .read_resource(&request.uri)?;
-            managed.status = ServerStatus::Ready;
-            result
-        };
+        let contents = self.with_process_for_server(&server_id, "read_resource", |process, _| {
+            process.read_resource(&request.uri)
+        })?;
         Ok(json!({ "contents": contents }))
     }
 
@@ -58,13 +43,9 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let managed = self.ensure_connected(&server_id)?;
-        managed
-            .process
-            .as_mut()
-            .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-            .subscribe_resource(&request.uri)?;
-        managed.status = ServerStatus::Ready;
+        self.with_process_for_server(&server_id, "subscribe_resource", |process, _| {
+            process.subscribe_resource(&request.uri)
+        })?;
         Ok(json!({ "uri": request.uri }))
     }
 
@@ -78,13 +59,9 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let managed = self.ensure_connected(&server_id)?;
-        managed
-            .process
-            .as_mut()
-            .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-            .unsubscribe_resource(&request.uri)?;
-        managed.status = ServerStatus::Ready;
+        self.with_process_for_server(&server_id, "unsubscribe_resource", |process, _| {
+            process.unsubscribe_resource(&request.uri)
+        })?;
         Ok(json!({ "uri": request.uri }))
     }
 
@@ -95,16 +72,9 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let templates = {
-            let managed = self.ensure_connected(&server_id)?;
-            let result = managed
-                .process
-                .as_mut()
-                .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-                .list_resource_templates(&managed.config.id, &managed.config.name)?;
-            managed.status = ServerStatus::Ready;
-            result
-        };
+        let templates = self.with_process_for_server(&server_id, "list_resource_templates", |process, config| {
+            process.list_resource_templates(&config.id, &config.name)
+        })?;
         Ok(json!({ "templates": templates }))
     }
 
@@ -115,16 +85,9 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let prompts = {
-            let managed = self.ensure_connected(&server_id)?;
-            let result = managed
-                .process
-                .as_mut()
-                .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-                .list_prompts(&managed.config.id, &managed.config.name)?;
-            managed.status = ServerStatus::Ready;
-            result
-        };
+        let prompts = self.with_process_for_server(&server_id, "list_prompts", |process, config| {
+            process.list_prompts(&config.id, &config.name)
+        })?;
         Ok(json!({ "prompts": prompts }))
     }
 
@@ -138,16 +101,9 @@ impl Backend {
             request.server_name,
             request.server,
         )?;
-        let result = {
-            let managed = self.ensure_connected(&server_id)?;
-            let result = managed
-                .process
-                .as_mut()
-                .ok_or_else(|| BackendError::protocol("missing MCP process"))?
-                .get_prompt(&request.name, request.arguments)?;
-            managed.status = ServerStatus::Ready;
-            result
-        };
+        let result = self.with_process_for_server(&server_id, "get_prompt", |process, _| {
+            process.get_prompt(&request.name, request.arguments)
+        })?;
         Ok(json!({
             "description": result.description,
             "messages": result.messages,

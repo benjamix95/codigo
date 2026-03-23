@@ -199,6 +199,28 @@ impl ServerConfig {
         }
         Ok(())
     }
+
+    pub fn process_key(&self) -> String {
+        fn normalize(value: &str) -> String {
+            value.trim().to_string()
+        }
+
+        let command = normalize(&self.command);
+        let cwd = normalize(self.cwd.as_deref().unwrap_or(""));
+        let args = self
+            .args
+            .iter()
+            .map(|value| normalize(value))
+            .collect::<Vec<_>>()
+            .join("\u{1f}");
+        let env = self
+            .env
+            .iter()
+            .map(|(key, value)| format!("{}={}", normalize(key), normalize(value)))
+            .collect::<Vec<_>>()
+            .join("\u{1f}");
+        format!("{command}|{cwd}|{args}|{env}")
+    }
 }
 
 fn default_payload() -> Value {

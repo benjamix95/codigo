@@ -156,6 +156,64 @@ fn backend_reports_errors_for_unknown_server() {
     child.close();
 }
 
+#[test]
+fn lifecycle_backend_reuses_process_for_duplicate_server_configs() {
+    let temp_root = make_temp_dir("mcp-lifecycle-dedup");
+    let cwd = temp_root.join("workspace");
+    fs::create_dir_all(&cwd).expect("create workspace");
+    let boot_file = temp_root.join("boot-count.txt");
+    let fake_binary = env!("CARGO_BIN_EXE_fake-mcp-server").to_string();
+
+    let first = json!({
+        "id": "fake-a",
+        "name": "Fake Server",
+        "command": fake_binary,
+        "args": [boot_file.display().to_string()],
+        "cwd": cwd.display().to_string(),
+        "env": { "MCP_FAKE_VALUE": "expected-env" }
+    });
+    let second = json!({
+        "id": "fake-b",
+        "name": "Fake Server",
+        "command": fake_binary,
+        "args": [boot_file.display().to_string()],
+        "cwd": cwd.display().to_string(),
+        "env": { "MCP_FAKE_VALUE": "expected-env" }
+    });
+
+    let mut child = BackendHarness::spawn();
+    let list = child.request("1", "list_servers", json!({ "servers": [first.clone(), second.clone()] }));
+    assert!(list["ok"].as_bool().unwrap_or(false));
+    assert_eq!(list["payload"]["servers"].as_array().map(|items| items.len()), Some(2));
+
+    let reconnect = child.request("2", "reconnect", json!({ "server": first }));
+    assert!(reconnect["ok"].as_bool().unwrap_or(false));
+
+    let boot_via_first = child.request(
+        "3",
+        "call_tool",
+        json!({ "serverId": "fake-a", "toolName": "boot_count", "arguments": {} }),
+    );
+    assert_eq!(boot_via_first["payload"]["content"], "1");
+
+    let boot_via_second = child.request(
+        "4",
+        "call_tool",
+        json!({ "serverId": "fake-b", "toolName": "boot_count", "arguments": {} }),
+    );
+    assert_eq!(boot_via_second["payload"]["content"], "1");
+    assert_eq!(boot_via_second["payload"]["serverId"], "fake-b");
+
+    let shutdown = child.request("5", "shutdown_all", json!({}));
+    assert_eq!(shutdown["payload"]["stopped"], 1);
+
+    let health = child.request("6", "health", json!({}));
+    assert_eq!(health["payload"]["states"]["fake-a"], "stopped");
+    assert_eq!(health["payload"]["states"]["fake-b"], "stopped");
+
+    child.close();
+}
+
 struct BackendHarness {
     child: Child,
     stdin: ChildStdin,
