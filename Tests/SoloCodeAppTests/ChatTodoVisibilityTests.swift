@@ -121,6 +121,10 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
 
         XCTAssertEqual(violation?.errorCode, "todo_first_required")
+        XCTAssertEqual(
+            violation?.detail,
+            "Emit todo_write before starting real execution with 'command_execution'."
+        )
     }
 
     func testTodoPlanStartPolicyAllowsDiscoveryWithoutTodo() {

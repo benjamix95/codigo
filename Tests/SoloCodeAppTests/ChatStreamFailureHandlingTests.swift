@@ -24,6 +24,16 @@ final class ChatStreamFailureHandlingTests: XCTestCase {
         XCTAssertTrue(inlinePolicyAckHashes(in: content).isEmpty)
     }
 
+    func testPolicyAckDispositionTreatsMissingStatusAsIgnored() {
+        XCTAssertEqual(policyAckDisposition(status: nil), .ignored)
+        XCTAssertEqual(policyAckDisposition(status: ""), .ignored)
+    }
+
+    func testPolicyAckDispositionTreatsAcknowledgedAndInvalidStatusesExplicitly() {
+        XCTAssertEqual(policyAckDisposition(status: "acknowledged"), .acknowledged)
+        XCTAssertEqual(policyAckDisposition(status: "invalid"), .invalid)
+    }
+
     func testInlinePolicyAckHashesForStreamingUpdateCombinesPartialDeltaMarkers() {
         let existingContent = "[CODERIDE:policy_ack|ha"
         let incomingContent = "sh=abc123]\nTodo"

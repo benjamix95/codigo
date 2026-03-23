@@ -10,6 +10,26 @@ private enum InlinePolicyAckMatcher {
     )
 }
 
+enum PolicyAckDisposition: Equatable {
+    case acknowledged
+    case invalid
+    case ignored
+}
+
+func policyAckDisposition(status: String?) -> PolicyAckDisposition {
+    let normalized = (status ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    switch normalized {
+    case "acknowledged":
+        return .acknowledged
+    case "invalid":
+        return .invalid
+    default:
+        return .ignored
+    }
+}
+
 func inlinePolicyAckHashes(in content: String) -> [String] {
     guard !content.isEmpty,
           let regex = InlinePolicyAckMatcher.regex else {
@@ -146,21 +166,21 @@ extension ChatPanelView {
                 conversationId: conversationId
             )
 
-            let normalizedStatus = (enriched["status"] ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            if normalizedStatus == "acknowledged" {
+            switch policyAckDisposition(status: enriched["status"]) {
+            case .acknowledged:
                 flushPolicyAckBlockedQueue(
                     providerId: providerId,
                     conversationId: conversationId
                 )
-            } else if normalizedStatus == "invalid" {
+            case .invalid:
                 appendTechnicalErrorMessage(
                     "[Policy error] Invalid AGENTS/SKILL acknowledgment received. Expected hash \(enriched["expected_hash"] ?? "?").",
                     in: conversationId
                 )
                 stopTaskForPolicyViolation(conversationId: conversationId)
                 return
+            case .ignored:
+                break
             }
         }
     }

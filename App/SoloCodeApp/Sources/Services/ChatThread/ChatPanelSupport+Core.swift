@@ -364,7 +364,7 @@ func todoPlanStartPolicyViolation(
         return (
             "todo_first_required",
             "Todo required before execution",
-            "Emit coderide_todo_write before starting real execution with '\(toolName.isEmpty ? normalizedType : toolName)'."
+            "Emit todo_write before starting real execution with '\(toolName.isEmpty ? normalizedType : toolName)'."
         )
     }
 

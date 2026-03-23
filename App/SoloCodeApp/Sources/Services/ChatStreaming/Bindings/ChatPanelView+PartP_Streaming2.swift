@@ -13,17 +13,17 @@ extension ChatPanelView {
         if t == "policy_ack" {
             let enriched = processPolicyAckEvent(payload: p, providerId: pid, conversationId: convId)
             recordTaskActivity(type: t, payload: enriched, providerId: pid, conversationId: convId)
-            let normalizedStatus = (enriched["status"] ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            if normalizedStatus == "acknowledged" {
+            switch policyAckDisposition(status: enriched["status"]) {
+            case .acknowledged:
                 flushPolicyAckBlockedQueue(providerId: pid, conversationId: convId)
-            } else {
+            case .invalid:
                 appendTechnicalErrorMessage(
                     "[Policy error] Invalid AGENTS/SKILL acknowledgment received. Expected hash \(enriched["expected_hash"] ?? "?").",
                     in: convId
                 )
                 stopTaskForPolicyViolation(conversationId: convId)
+            case .ignored:
+                break
             }
             return
         }
