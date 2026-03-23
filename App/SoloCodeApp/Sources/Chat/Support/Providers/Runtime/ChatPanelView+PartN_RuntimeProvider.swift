@@ -3,6 +3,17 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldAllowLegacyMainChatProviderFallback(environment: [String: String]) -> Bool {
+    if environment["SOLOCODE_REVIEW_CORE_FORCE_SWIFT"] == "1"
+        || environment["SOLOCODE_REVIEW_CORE_DISABLE_RUST"] == "1"
+    {
+        return true
+    }
+    return environment["XCTestConfigurationFilePath"] != nil
+        || environment["XCInjectBundleInto"] != nil
+        || environment["XCTestBundlePath"] != nil
+}
+
 func readOnlyPlanProviderResolution(
     baseConfig: ProviderFactoryConfig,
     selectedProviderId: String?,
@@ -56,6 +67,8 @@ func shouldUseCodeReviewRuntimeProvider(
 
 extension ChatPanelView {
     private func resolveReadOnlyPlanRuntimeProvider() -> (any LLMProvider)? {
+        let environment = ProcessInfo.processInfo.environment
+        let allowLegacyFallback = shouldAllowLegacyMainChatProviderFallback(environment: environment)
         let baseConfig = providerFactoryConfig()
         let registryEntries = providerRegistry.providers.map {
             MainChatRuntimeProviderRegistryEntryBridge(
@@ -76,6 +89,13 @@ extension ChatPanelView {
             claudeCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .claude) : [],
             geminiCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .gemini) : []
         )
+        guard resolved != nil || allowLegacyFallback else {
+            appendTechnicalErrorMessage(
+                "[Plan Mode] Rust transport resolution unavailable for read-only plan provider. Standard path is fail-closed outside XCTest or explicit rollback flags.",
+                in: conversationId
+            )
+            return nil
+        }
         let resolution = readOnlyPlanProviderResolution(
             baseConfig: baseConfig,
             selectedProviderId: providerRegistry.selectedProviderId,

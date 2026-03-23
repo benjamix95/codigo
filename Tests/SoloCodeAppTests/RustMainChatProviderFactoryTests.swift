@@ -322,6 +322,25 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertNil(resolved)
     }
 
+    func testLegacyMainChatProviderFallbackAllowedForExplicitRustDeferral() {
+        XCTAssertTrue(
+            shouldAllowLegacyMainChatProviderFallback(
+                environment: ["SOLOCODE_REVIEW_CORE_FORCE_SWIFT": "1"]
+            )
+        )
+        XCTAssertTrue(
+            shouldAllowLegacyMainChatProviderFallback(
+                environment: ["XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration"]
+            )
+        )
+    }
+
+    func testLegacyMainChatProviderFallbackDeniedForStandardRuntimePath() {
+        XCTAssertFalse(
+            shouldAllowLegacyMainChatProviderFallback(environment: [:])
+        )
+    }
+
     func testAgentSendExecutionRouteFallsBackToPipelineWhenProviderDoesNotUseRustTransport() {
         XCTAssertEqual(
             resolveMainChatSendExecutionRoute(

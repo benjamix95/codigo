@@ -1,0 +1,42 @@
+## Bug Fix Record
+- Categoria: A - Critico
+- Bug: la risoluzione del provider runtime della main chat e del provider read-only plan poteva ancora ricadere silenziosamente sul provider Swift locale quando il transport Rust non riusciva a risolvere il backend.
+- Sintomo:
+  - `resolveMainChatTransportProvider(...)` tornava a `selectedProvider` quando `ReviewCoreBridge` era indisponibile o `resolveTransportConfig(...)` restituiva `nil`;
+  - il path read-only plan continuava a costruire un provider locale tramite fallback legacy quando la risoluzione Rust mancava.
+- Impatto: il path standard della chat e del plan mode poteva continuare a funzionare con ownership Swift locale, mascherando il mancato cutover Rust del transport.
+- Gravita': P1
+- Steps to reproduce:
+  1. Eseguire la main chat o il plan mode con bridge Rust non risolto sul path standard.
+  2. Osservare che il codice tornava a `selectedProvider` o a una policy plan read-only locale invece di fallire chiuso.
+- Risultato attuale:
+  - il fallback legacy veniva deciso in modo troppo permissivo;
+  - il path standard non distingueva abbastanza tra deferral esplicito di test e mancanza reale del transport Rust.
+- Risultato atteso:
+  - fallback legacy solo in XCTest o con flag espliciti `SOLOCODE_REVIEW_CORE_FORCE_SWIFT` / `SOLOCODE_REVIEW_CORE_DISABLE_RUST`;
+  - path standard fail-closed quando Rust e' richiesto ma non risolve il provider.
+- Causa probabile:
+  - riuso di una policy di bootstrap Rust troppo ampia per un caso di transport provider di prodotto.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Runtime/ChatPanelView+PartN_RuntimeProvider.swift`
+  - `App/SoloCodeApp/Sources/Chat/Support/Providers/Rust/ChatPanelView+PartN_RuntimeTransportSelection.swift`
+  - `Tests/SoloCodeAppTests/RustMainChatProviderFactoryTests.swift`
+- Non-scope:
+  - store fallback test-only in `ChatStore+RustBridge`
+  - merge binari Rust
+  - refactor UI chat/panel
+- Moduli confinanti da verificare:
+  - `RustMainChatProviderFactoryTests`
+  - `ChatStoreRustBootstrapPolicyTests`
+  - selezione provider plan/read-only
+- Test da aggiungere o aggiornare:
+  - il fallback legacy del provider deve essere ammesso solo per deferral esplicito;
+  - il path standard deve negare il fallback legacy quando l'ambiente e' “normale”.
+- Strategia di fix minimo:
+  - introdurre un gate dedicato per il fallback legacy del provider, piu' stretto del bootstrap Rust generale;
+  - usare quel gate per bloccare il ritorno a `selectedProvider` e al provider plan locale nel path standard.
+- Verifica post-fix:
+  - `cargo test --manifest-path Native/RustCore/Cargo.toml`
+  - `xcodebuild test -workspace 'Solo Code.xcworkspace' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/RustMainChatProviderFactoryTests -only-testing:SoloCodeAppTests/ChatStoreRustBootstrapPolicyTests`
+- Commit previsto:
+  - `fix(chat-runtime): fail closed provider fallback outside explicit rust deferral`

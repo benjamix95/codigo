@@ -8,8 +8,18 @@ extension ChatPanelView {
         forcePlanInline: Bool,
         preferCodeReviewRuntimeProvider: Bool? = nil
     ) -> (any LLMProvider)? {
+        let environment = ProcessInfo.processInfo.environment
+        let allowLegacyFallback = shouldAllowLegacyMainChatProviderFallback(environment: environment)
+
         guard ReviewCoreBridge.isEnabled else {
-            return selectedProvider
+            if allowLegacyFallback {
+                return selectedProvider
+            }
+            appendTechnicalErrorMessage(
+                "[Runtime] Rust transport unavailable for main chat provider resolution. Standard path is fail-closed outside XCTest or explicit rollback flags.",
+                in: conversationId
+            )
+            return nil
         }
 
         let cfg = providerFactoryConfig()
@@ -43,7 +53,14 @@ extension ChatPanelView {
         )
 
         guard let resolved else {
-            return selectedProvider
+            if allowLegacyFallback {
+                return selectedProvider
+            }
+            appendTechnicalErrorMessage(
+                "[Runtime] Rust transport resolution returned no provider. Standard path is fail-closed outside XCTest or explicit rollback flags.",
+                in: conversationId
+            )
+            return nil
         }
 
         let runtimeProvider = providerRegistry.provider(for: resolved.providerId)
