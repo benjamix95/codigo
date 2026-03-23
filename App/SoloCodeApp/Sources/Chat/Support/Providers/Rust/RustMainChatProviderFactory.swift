@@ -144,9 +144,9 @@ enum MainChatRustTransportSupport {
         fallbackSelectedProviderId: String?,
         config: ProviderFactoryConfig
     ) -> Bool {
-        guard config.unifiedToolRuntimeEnabled else { return false }
-        let providerId = normalizedProviderId(selectedProviderId ?? fallbackSelectedProviderId)
-        return providerId == "codex-cli" || providerId == "codex"
+        let _ = normalizedProviderId(selectedProviderId ?? fallbackSelectedProviderId)
+        let _ = config
+        return false
     }
 
     static func resolveTransportConfig(

@@ -1,8 +1,8 @@
-use super::process::stream_process_lines;
-use crate::main_chat::providers::common::{flatten_string_map, join_cli_prompt, string_value};
+use super::codex_app_server;
+use crate::main_chat::providers::common::{flatten_string_map, string_value};
 use crate::main_chat::providers::parsing::jsonl::parse_jsonl_line;
 use crate::main_chat::providers::session::{
-    emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, is_cancelled, running_cli_account,
+    emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, running_cli_account,
 };
 use app_core_protocol::main_chat_provider::{MainChatCLIAccountSnapshot, MainChatProviderSessionConfig};
 use std::collections::BTreeMap;
@@ -11,25 +11,11 @@ use std::path::Path;
 pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> Result<(), String> {
     let account = running_cli_account(session_id, config, "codex")?;
     let executable = resolve_codex_executable(account.as_ref(), config)?;
-    let prompt = join_cli_prompt(
-        config.system_prompt.as_deref(),
-        &config.prompt,
-        config.context_prompt.as_deref(),
-        &config.attachments,
-    );
-    let args = build_exec_arguments(config, &prompt);
     let mut environment = std::env::vars().collect::<BTreeMap<_, _>>();
     if let Some(account) = account {
         environment.extend(account.env_overrides);
     }
-    stream_process_lines(
-        &executable,
-        &args,
-        &config.workspace_path,
-        &environment,
-        |line| consume_line(session_id, line),
-        || is_cancelled(session_id),
-    )
+    codex_app_server::run(session_id, config, &executable, &environment)
 }
 
 fn resolve_codex_executable(
@@ -194,6 +180,9 @@ fn consume_line(session_id: &str, line: &str) -> Result<(), String> {
                 emit_raw(session_id, "turn_started", BTreeMap::new());
                 continue;
             }
+            if lowered == "turn.completed" || lowered == "turn_completed" {
+                emit_raw(session_id, "turn_completed", BTreeMap::new());
+            }
             if lowered.contains("reasoning") || lowered.contains("thinking") {
                 let output = string_value(&json["text"])
                     .or_else(|| string_value(&json["output"]))
@@ -210,6 +199,9 @@ fn consume_line(session_id: &str, line: &str) -> Result<(), String> {
                         ]),
                     );
                 }
+            }
+            if lowered.starts_with("item.") {
+                consume_item_event(session_id, &lowered, &json);
             }
         }
         if let Some(usage) = json.get("usage").and_then(|value| value.as_object()) {
@@ -239,7 +231,16 @@ fn consume_line(session_id: &str, line: &str) -> Result<(), String> {
             let payload = flatten_string_map(&json);
             emit_raw(session_id, &normalize_tool_name(&name), payload);
         }
-        if let Some(error) = string_value(&json["error"]).or_else(|| string_value(&json["message"])) {
+        if let Some(error) = json
+            .get("error")
+            .and_then(|v| v.as_str())
+            .or_else(|| {
+                json.get("message")
+                    .and_then(|v| v.as_str())
+            })
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+        {
             if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota") {
                 if failover_to_next_cli_account(session_id, "codex", &error)? {
                     return Err("retry_with_next_account".to_string());
@@ -250,6 +251,83 @@ fn consume_line(session_id: &str, line: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn consume_item_event(session_id: &str, event_type: &str, json: &serde_json::Value) {
+    let item = match json.get("item").and_then(|v| v.as_object()) {
+        Some(obj) => obj,
+        None => return,
+    };
+    let item_type = item
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let item_id = item
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    match item_type {
+        "agent_message" => {
+            if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+                if !text.is_empty() {
+                    emit_text_delta(session_id, text);
+                }
+            }
+        }
+        "reasoning" => {
+            let output = item
+                .get("text")
+                .or_else(|| item.get("output"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if !output.is_empty() {
+                emit_raw(
+                    session_id,
+                    "reasoning",
+                    BTreeMap::from([
+                        ("output".to_string(), output.to_string()),
+                        ("title".to_string(), "Reasoning".to_string()),
+                        ("group_id".to_string(), "reasoning-stream".to_string()),
+                    ]),
+                );
+            }
+        }
+        "command_execution" => {
+            let mut payload = BTreeMap::new();
+            if let Some(cmd) = item.get("command").and_then(|v| v.as_str()) {
+                payload.insert("command".to_string(), cmd.to_string());
+            }
+            if let Some(status) = item.get("status").and_then(|v| v.as_str()) {
+                payload.insert("status".to_string(), status.to_string());
+            }
+            if !item_id.is_empty() {
+                payload.insert("id".to_string(), item_id.to_string());
+            }
+            let raw_name = if event_type.ends_with("completed") {
+                "shell_completed"
+            } else {
+                "shell"
+            };
+            emit_raw(session_id, raw_name, payload);
+        }
+        other => {
+            let mut payload = BTreeMap::new();
+            payload.insert("item_type".to_string(), other.to_string());
+            if !item_id.is_empty() {
+                payload.insert("id".to_string(), item_id.to_string());
+            }
+            if let Some(status) = item.get("status").and_then(|v| v.as_str()) {
+                payload.insert("status".to_string(), status.to_string());
+            }
+            let raw_name = if event_type.ends_with("completed") {
+                &format!("{other}_completed")
+            } else {
+                other
+            };
+            emit_raw(session_id, raw_name, payload);
+        }
+    }
 }
 
 fn normalize_tool_name(name: &str) -> String {

@@ -128,11 +128,11 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(resolved?.claudeAllowedTools, ["Read", "Glob", "Grep"])
     }
 
-    func testRustTransportBypassKeepsCodexOnSwiftToolRuntimeWhenRuntimeEnabled() {
+    func testRustTransportBypassDoesNotTriggerForCodexWhenRuntimeEnabled() {
         var config = makeProviderFactoryConfig(codexPath: "")
         config.unifiedToolRuntimeEnabled = true
 
-        XCTAssertTrue(
+        XCTAssertFalse(
             MainChatRustTransportSupport.shouldBypassRustTransport(
                 selectedProviderId: "codex-cli",
                 fallbackSelectedProviderId: nil,
