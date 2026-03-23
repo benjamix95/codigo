@@ -14,6 +14,10 @@ extension ProviderFactory {
         _ environmentOverride: [String: String]?
     ) -> [String: String]? {
         var merged = environmentOverride ?? [:]
+        let currentCodexHome = merged["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if currentCodexHome.isEmpty {
+            merged["CODEX_HOME"] = CLIProfileProvisioner.defaultCodexProfilePath()
+        }
         let current = merged["RUST_LOG"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if current.isEmpty {
             merged["RUST_LOG"] = "error"

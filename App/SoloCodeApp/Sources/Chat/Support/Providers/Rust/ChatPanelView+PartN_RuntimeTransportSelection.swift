@@ -14,6 +14,14 @@ extension ChatPanelView {
 
         let cfg = providerFactoryConfig()
 
+        if MainChatRustTransportSupport.shouldBypassRustTransport(
+            selectedProviderId: providerRegistry.selectedProviderId,
+            fallbackSelectedProviderId: selectedProvider.id,
+            config: cfg
+        ) {
+            return selectedProvider
+        }
+
         let resolved = MainChatRustTransportSupport.resolveTransportConfig(
             selectedProviderId: providerRegistry.selectedProviderId,
             fallbackSelectedProviderId: selectedProvider.id,

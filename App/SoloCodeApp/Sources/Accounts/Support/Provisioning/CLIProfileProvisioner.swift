@@ -25,6 +25,19 @@ enum CLIProfileProvisioner {
         return profile.path
     }
 
+    static func defaultCodexProfileURL(baseProfilesRoot: URL? = nil) -> URL {
+        let root = (baseProfilesRoot ?? baseProfilesDir())
+            .appendingPathComponent(CLIProviderKind.codex.rawValue, isDirectory: true)
+        return root.appendingPathComponent("_default", isDirectory: true)
+    }
+
+    static func defaultCodexProfilePath(baseProfilesRoot: URL? = nil) -> String {
+        let profile = defaultCodexProfileURL(baseProfilesRoot: baseProfilesRoot)
+        try? FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        ensureCodexProfileFiles(at: profile, overwrite: false)
+        return profile.path
+    }
+
     static func environmentOverrides(provider: CLIProviderKind, profilePath: String, secret: String?) -> [String: String] {
         var env: [String: String] = [:]
         switch provider {

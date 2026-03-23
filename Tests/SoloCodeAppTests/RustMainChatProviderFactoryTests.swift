@@ -128,6 +128,32 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         XCTAssertEqual(resolved?.claudeAllowedTools, ["Read", "Glob", "Grep"])
     }
 
+    func testRustTransportBypassKeepsCodexOnSwiftToolRuntimeWhenRuntimeEnabled() {
+        var config = makeProviderFactoryConfig(codexPath: "")
+        config.unifiedToolRuntimeEnabled = true
+
+        XCTAssertTrue(
+            MainChatRustTransportSupport.shouldBypassRustTransport(
+                selectedProviderId: "codex-cli",
+                fallbackSelectedProviderId: nil,
+                config: config
+            )
+        )
+    }
+
+    func testRustTransportBypassDoesNotTriggerWhenUnifiedRuntimeDisabled() {
+        var config = makeProviderFactoryConfig(codexPath: "")
+        config.unifiedToolRuntimeEnabled = false
+
+        XCTAssertFalse(
+            MainChatRustTransportSupport.shouldBypassRustTransport(
+                selectedProviderId: "codex-cli",
+                fallbackSelectedProviderId: nil,
+                config: config
+            )
+        )
+    }
+
     func testRuntimeTransportResolutionFailsClosedWhenRustBridgeIsDisabled() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         ReviewCoreBridge.resetForTests()

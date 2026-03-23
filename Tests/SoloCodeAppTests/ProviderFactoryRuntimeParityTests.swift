@@ -123,6 +123,16 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
         XCTAssertFalse(provider is ToolEnabledLLMProvider)
     }
 
+    func testCodexEnvironmentOverrideInjectsManagedCodexHomeByDefault() {
+        let env = ProviderFactory.codexEnvironmentOverride(nil)
+
+        XCTAssertEqual(
+            env?["CODEX_HOME"],
+            CLIProfileProvisioner.defaultCodexProfilePath()
+        )
+        XCTAssertEqual(env?["RUST_LOG"], "error")
+    }
+
     func testSubagentFactoryInheritsParentProviderWhenWorkerBackendIsAuto() async throws {
         var config = makeConfig()
         config.swarmWorkerBackend = "auto"

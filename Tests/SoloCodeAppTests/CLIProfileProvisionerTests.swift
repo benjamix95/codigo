@@ -188,6 +188,24 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertTrue(CLIProfileProvisioner.codexProfileMCPFallbackBinaryPath.hasPrefix("/"))
     }
 
+    func testDefaultCodexProfilePathSeedsManagedProfileUnderProvidedRoot() throws {
+        let managedRoot = try makeTemporaryProfileDirectory()
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
+
+        let profilePath = withMCPServerPathOverride(fakeMCP.path) {
+            CLIProfileProvisioner.defaultCodexProfilePath(baseProfilesRoot: managedRoot)
+        }
+
+        let profileURL = URL(fileURLWithPath: profilePath, isDirectory: true)
+        XCTAssertEqual(profileURL.lastPathComponent, "_default")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: profileURL.appendingPathComponent("config.toml").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: profileURL.appendingPathComponent("AGENTS.md").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: profileURL.appendingPathComponent("instructions.md").path))
+
+        let config = try String(contentsOf: profileURL.appendingPathComponent("config.toml"), encoding: .utf8)
+        XCTAssertEqual(config, expectedCodexConfig(using: fakeMCP.path))
+    }
+
     func testClaudeEnvironmentOverridesIsolateHomePerProfile() throws {
         let profile = try makeTemporaryProfileDirectory()
 

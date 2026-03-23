@@ -139,6 +139,16 @@ struct MainChatRustResolvedProviderConfig {
 }
 
 enum MainChatRustTransportSupport {
+    static func shouldBypassRustTransport(
+        selectedProviderId: String?,
+        fallbackSelectedProviderId: String?,
+        config: ProviderFactoryConfig
+    ) -> Bool {
+        guard config.unifiedToolRuntimeEnabled else { return false }
+        let providerId = normalizedProviderId(selectedProviderId ?? fallbackSelectedProviderId)
+        return providerId == "codex-cli" || providerId == "codex"
+    }
+
     static func resolveTransportConfig(
         selectedProviderId: String?,
         fallbackSelectedProviderId: String?,
@@ -202,5 +212,11 @@ enum MainChatRustTransportSupport {
             return true
         }
         return cliAccounts.contains { $0.isEnabled && $0.isAuthenticated }
+    }
+
+    private static func normalizedProviderId(_ raw: String?) -> String {
+        raw?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
     }
 }
