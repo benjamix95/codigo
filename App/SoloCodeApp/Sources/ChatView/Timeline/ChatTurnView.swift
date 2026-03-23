@@ -1,6 +1,31 @@
 import AppKit
 import SwiftUI
 
+enum ChatTurnTimelineOrdering {
+    static func visibleBlocks(
+        from blocks: [PersistedChatTimelineBlock]
+    ) -> [PersistedChatTimelineBlock] {
+        blocks.filter { block in
+            block.kind != .toolTrace
+                && block.kind != .commands
+                && block.kind != .files
+                && block.kind != .status
+        }
+    }
+
+    static func narrativeBlocks(
+        from visibleBlocks: [PersistedChatTimelineBlock]
+    ) -> [PersistedChatTimelineBlock] {
+        visibleBlocks.filter { $0.kind == .reasoning }
+    }
+
+    static func detailBlocks(
+        from visibleBlocks: [PersistedChatTimelineBlock]
+    ) -> [PersistedChatTimelineBlock] {
+        visibleBlocks.filter { $0.kind != .primaryText && $0.kind != .reasoning }
+    }
+}
+
 struct ChatTurnView: View {
     let message: ChatMessage
     let context: ProjectContext?
@@ -27,12 +52,13 @@ struct ChatTurnView: View {
 
     private var blocks: [PersistedChatTimelineBlock] { message.resolvedTimelineBlocks }
     private var visibleBlocks: [PersistedChatTimelineBlock] {
-        blocks.filter { block in
-            block.kind != .toolTrace
-                && block.kind != .commands
-                && block.kind != .files
-                && block.kind != .status
-        }
+        ChatTurnTimelineOrdering.visibleBlocks(from: blocks)
+    }
+    private var narrativeBlocks: [PersistedChatTimelineBlock] {
+        ChatTurnTimelineOrdering.narrativeBlocks(from: visibleBlocks)
+    }
+    private var detailBlocks: [PersistedChatTimelineBlock] {
+        ChatTurnTimelineOrdering.detailBlocks(from: visibleBlocks)
     }
     private var todoItems: [TodoItem] {
         todoStore.displayTodosForChat(for: conversationId)
@@ -76,6 +102,14 @@ struct ChatTurnView: View {
                     .frame(maxWidth: 800, alignment: .leading)
                     .padding(.vertical, 4)
                 }
+            }
+            ForEach(narrativeBlocks) { block in
+                ArtifactCardView(
+                    block: block,
+                    accentColor: modeColor,
+                    context: context,
+                    onFileClicked: onFileClicked
+                )
             }
             if shouldRenderInlineActivityFeed {
                 InlineActivityFeedView(
@@ -138,7 +172,7 @@ struct ChatTurnView: View {
                     onReviewChanges: onReviewChanges
                 )
             }
-            ForEach(visibleBlocks.filter { $0.kind != .primaryText }) { block in
+            ForEach(detailBlocks) { block in
                 ArtifactCardView(
                     block: block,
                     accentColor: modeColor,

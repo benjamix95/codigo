@@ -1,9 +1,9 @@
+use super::codex_app_server_support::{
+    first_result_text, is_turn_completed, json_rpc_id, normalize_status, raw_string_field,
+    send_error, send_notification, send_request, send_result, spawn_stderr_collector,
+};
 use crate::main_chat::providers::common::string_value;
 use crate::main_chat::providers::session::{emit_error, emit_raw, emit_text_delta, is_cancelled};
-use super::codex_app_server_support::{
-    first_result_text, is_turn_completed, json_rpc_id, normalize_status, send_error, send_notification,
-    send_request, send_result, spawn_stderr_collector, raw_string_field,
-};
 use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -11,33 +11,19 @@ use std::io::{BufRead, BufReader};
 use std::process::{ChildStdin, Command, Stdio};
 
 #[derive(Default)]
-struct CodexAgentMessageGate {
-    has_seen_operational_event: bool,
-    buffered_text: String,
-}
+struct CodexAgentMessageGate;
 
 impl CodexAgentMessageGate {
     fn push_delta(&mut self, delta: &str) -> Option<String> {
-        if self.has_seen_operational_event {
-            return Some(delta.to_string());
-        }
-        self.buffered_text.push_str(delta);
-        None
+        Some(delta.to_string())
     }
 
     fn release_after_operational_event(&mut self) -> Option<String> {
-        if self.has_seen_operational_event {
-            return None;
-        }
-        self.has_seen_operational_event = true;
-        self.flush_pending()
+        None
     }
 
     fn flush_pending(&mut self) -> Option<String> {
-        if self.buffered_text.is_empty() {
-            return None;
-        }
-        Some(std::mem::take(&mut self.buffered_text))
+        None
     }
 }
 
@@ -57,9 +43,18 @@ pub(crate) fn run(
         .spawn()
         .map_err(|error| format!("codex_app_server_spawn_failed:{error}"))?;
 
-    let mut stdin = process.stdin.take().ok_or_else(|| "codex_app_server_missing_stdin".to_string())?;
-    let stdout = process.stdout.take().ok_or_else(|| "codex_app_server_missing_stdout".to_string())?;
-    let stderr = process.stderr.take().ok_or_else(|| "codex_app_server_missing_stderr".to_string())?;
+    let mut stdin = process
+        .stdin
+        .take()
+        .ok_or_else(|| "codex_app_server_missing_stdin".to_string())?;
+    let stdout = process
+        .stdout
+        .take()
+        .ok_or_else(|| "codex_app_server_missing_stdout".to_string())?;
+    let stderr = process
+        .stderr
+        .take()
+        .ok_or_else(|| "codex_app_server_missing_stderr".to_string())?;
     let stderr_tail = spawn_stderr_collector(stderr);
     let mut reader = BufReader::new(stdout);
 
@@ -82,7 +77,11 @@ pub(crate) fn run(
     let _ = process.kill();
     let _ = process.wait();
     if let Err(error) = result {
-        let tail = stderr_tail.lock().ok().map(|items| items.join("\n")).unwrap_or_default();
+        let tail = stderr_tail
+            .lock()
+            .ok()
+            .map(|items| items.join("\n"))
+            .unwrap_or_default();
         if tail.trim().is_empty() {
             return Err(error);
         }
@@ -105,7 +104,10 @@ fn wait_for_thread_start(
         }
         let value = read_json_line(reader)?;
         if let Some(thread_id) = handle_response_id(&value, 3)?.and_then(|result| {
-            result.get("thread").and_then(|thread| thread.get("id")).and_then(string_value)
+            result
+                .get("thread")
+                .and_then(|thread| thread.get("id"))
+                .and_then(string_value)
         }) {
             return Ok(thread_id);
         }
@@ -178,7 +180,11 @@ fn handle_message(
         }
         return handle_notification(session_id, value, &method, gate);
     }
-    if let Some(error) = value.get("error").and_then(|item| item.get("message")).and_then(string_value) {
+    if let Some(error) = value
+        .get("error")
+        .and_then(|item| item.get("message"))
+        .and_then(string_value)
+    {
         emit_error(session_id, &error);
         return Err(error);
     }
@@ -195,7 +201,10 @@ fn handle_notification(
     match method {
         "turn/started" => emit_raw(session_id, "turn_started", BTreeMap::new()),
         "error" => {
-            let message = payload.get("message").and_then(string_value).unwrap_or_else(|| "app_server_error".to_string());
+            let message = payload
+                .get("message")
+                .and_then(string_value)
+                .unwrap_or_else(|| "app_server_error".to_string());
             emit_error(session_id, &message);
             return Err(message);
         }
@@ -208,10 +217,19 @@ fn handle_notification(
         }
         "item/reasoning/textDelta" | "item/reasoning/summaryTextDelta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
-                emit_raw(session_id, "reasoning", BTreeMap::from([("output".to_string(), delta), ("title".to_string(), "Reasoning".to_string())]));
+                emit_raw(
+                    session_id,
+                    "reasoning",
+                    BTreeMap::from([
+                        ("output".to_string(), delta),
+                        ("title".to_string(), "Reasoning".to_string()),
+                    ]),
+                );
             }
         }
-        "item/started" | "item/completed" => handle_item_notification(session_id, method, &payload, gate),
+        "item/started" | "item/completed" => {
+            handle_item_notification(session_id, method, &payload, gate)
+        }
         _ => {}
     }
     Ok(())
@@ -242,21 +260,39 @@ fn handle_item_notification(
 }
 
 fn is_operational_mcp_tool(tool: &str) -> bool {
-    let normalized = tool
-        .strip_prefix("coderide_")
-        .unwrap_or(tool)
-        .trim();
+    let normalized = tool.strip_prefix("coderide_").unwrap_or(tool).trim();
     !normalized.is_empty() && normalized != "policy_ack"
 }
 
 fn emit_mcp_events(session_id: &str, method: &str, item: &Value) {
     let mut payload = BTreeMap::new();
-    let server = item.get("server").and_then(string_value).unwrap_or_default();
+    let server = item
+        .get("server")
+        .and_then(string_value)
+        .unwrap_or_default();
     let tool = item.get("tool").and_then(string_value).unwrap_or_default();
-    let status = item.get("status").and_then(string_value).unwrap_or_else(|| if method.ends_with("started") { "started".to_string() } else { "completed".to_string() });
-    if let Some(id) = item.get("id").and_then(string_value) { payload.insert("id".to_string(), id.clone()); payload.insert("tool_call_id".to_string(), id); }
-    if !server.is_empty() { payload.insert("mcp_server".to_string(), server.clone()); payload.insert("server_id".to_string(), server); }
-    if !tool.is_empty() { payload.insert("mcp_tool".to_string(), tool.clone()); payload.insert("tool".to_string(), tool.clone()); }
+    let status = item
+        .get("status")
+        .and_then(string_value)
+        .unwrap_or_else(|| {
+            if method.ends_with("started") {
+                "started".to_string()
+            } else {
+                "completed".to_string()
+            }
+        });
+    if let Some(id) = item.get("id").and_then(string_value) {
+        payload.insert("id".to_string(), id.clone());
+        payload.insert("tool_call_id".to_string(), id);
+    }
+    if !server.is_empty() {
+        payload.insert("mcp_server".to_string(), server.clone());
+        payload.insert("server_id".to_string(), server);
+    }
+    if !tool.is_empty() {
+        payload.insert("mcp_tool".to_string(), tool.clone());
+        payload.insert("tool".to_string(), tool.clone());
+    }
     payload.insert("status".to_string(), normalize_status(&status));
     if let Some(arguments) = item.get("arguments").and_then(Value::as_object) {
         for (key, value) in arguments {
@@ -272,17 +308,40 @@ fn emit_mcp_events(session_id: &str, method: &str, item: &Value) {
         payload.insert("error".to_string(), error_text);
     }
     emit_raw(session_id, "mcp_tool_call", payload.clone());
-    if payload.get("status").map(String::as_str) != Some("completed") { return; }
+    if payload.get("status").map(String::as_str) != Some("completed") {
+        return;
+    }
     emit_synthetic_ide_event_if_needed(session_id, &tool, &payload);
 }
 
-fn emit_synthetic_ide_event_if_needed(session_id: &str, tool: &str, payload: &BTreeMap<String, String>) {
+fn emit_synthetic_ide_event_if_needed(
+    session_id: &str,
+    tool: &str,
+    payload: &BTreeMap<String, String>,
+) {
     let normalized = tool.strip_prefix("coderide_").unwrap_or(tool);
     let raw_type = match normalized {
-        "todo_write" | "todo_read" | "plan_create" | "plan_read" | "plan_step_upsert" | "plan_step_batch_update" | "plan_step_reorder"
-        | "plan_step_dependency_set" | "plan_set_walkthrough" | "plan_history_read" | "plan_diff" | "plan_request_user_input"
-        | "debug_set_phase" | "debug_request_user" | "debug_resolve" | "policy_ack" | "activate_plan_mode"
-        | "activate_debug_mode" | "show_task_panel" | "show_swarm_panel" | "mermaid_render" => normalized,
+        "todo_write"
+        | "todo_read"
+        | "plan_create"
+        | "plan_read"
+        | "plan_step_upsert"
+        | "plan_step_batch_update"
+        | "plan_step_reorder"
+        | "plan_step_dependency_set"
+        | "plan_set_walkthrough"
+        | "plan_history_read"
+        | "plan_diff"
+        | "plan_request_user_input"
+        | "debug_set_phase"
+        | "debug_request_user"
+        | "debug_resolve"
+        | "policy_ack"
+        | "activate_plan_mode"
+        | "activate_debug_mode"
+        | "show_task_panel"
+        | "show_swarm_panel"
+        | "mermaid_render" => normalized,
         _ => return,
     };
     emit_raw(session_id, raw_type, payload.clone());
@@ -290,19 +349,37 @@ fn emit_synthetic_ide_event_if_needed(session_id: &str, tool: &str, payload: &BT
 
 fn emit_command_execution(session_id: &str, method: &str, item: &Value) {
     let mut payload = BTreeMap::new();
-    if let Some(id) = item.get("id").and_then(string_value) { payload.insert("id".to_string(), id); }
-    if let Some(command) = item.get("command").and_then(string_value) { payload.insert("command".to_string(), command); }
-    if let Some(status) = item.get("status").and_then(string_value) { payload.insert("status".to_string(), normalize_status(&status)); }
-    if method.ends_with("started") && !payload.contains_key("status") { payload.insert("status".to_string(), "started".to_string()); }
-    if method.ends_with("completed") && !payload.contains_key("status") { payload.insert("status".to_string(), "completed".to_string()); }
+    if let Some(id) = item.get("id").and_then(string_value) {
+        payload.insert("id".to_string(), id);
+    }
+    if let Some(command) = item.get("command").and_then(string_value) {
+        payload.insert("command".to_string(), command);
+    }
+    if let Some(status) = item.get("status").and_then(string_value) {
+        payload.insert("status".to_string(), normalize_status(&status));
+    }
+    if method.ends_with("started") && !payload.contains_key("status") {
+        payload.insert("status".to_string(), "started".to_string());
+    }
+    if method.ends_with("completed") && !payload.contains_key("status") {
+        payload.insert("status".to_string(), "completed".to_string());
+    }
     emit_raw(session_id, "command_execution", payload);
 }
 
-fn handle_server_request(stdin: &mut ChildStdin, value: &Value, method: &str) -> Result<(), String> {
+fn handle_server_request(
+    stdin: &mut ChildStdin,
+    value: &Value,
+    method: &str,
+) -> Result<(), String> {
     let id = json_rpc_id(value)?;
     match method {
         "item/tool/requestUserInput" => send_result(stdin, id, json!({ "answers": {} })),
-        "item/tool/call" => send_result(stdin, id, json!({ "success": false, "contentItems": [{ "type": "inputText", "text": "SoloCode main chat does not expose dynamic tools on this transport." }] })),
+        "item/tool/call" => send_result(
+            stdin,
+            id,
+            json!({ "success": false, "contentItems": [{ "type": "inputText", "text": "SoloCode main chat does not expose dynamic tools on this transport." }] }),
+        ),
         _ => send_error(stdin, id, -32601, format!("unsupported method: {method}")),
     }
 }
@@ -333,20 +410,43 @@ fn turn_input(config: &MainChatProviderSessionConfig) -> Vec<Value> {
 }
 
 fn sandbox_value(config: &MainChatProviderSessionConfig) -> &'static str {
-    if config.codex_session_full_access { "danger-full-access" } else { match config.codex_sandbox.as_deref() { Some("read-only") | Some("workspace-read") => "read-only", Some("danger-full-access") => "danger-full-access", _ => "workspace-write" } }
+    if config.codex_session_full_access {
+        "danger-full-access"
+    } else {
+        match config.codex_sandbox.as_deref() {
+            Some("read-only") | Some("workspace-read") => "read-only",
+            Some("danger-full-access") => "danger-full-access",
+            _ => "workspace-write",
+        }
+    }
 }
 
 fn read_json_line(reader: &mut BufReader<std::process::ChildStdout>) -> Result<Value, String> {
     let mut line = String::new();
-    let bytes = reader.read_line(&mut line).map_err(|error| format!("codex_app_server_read_failed:{error}"))?;
-    if bytes == 0 { return Err("codex_app_server_eof".to_string()); }
-    serde_json::from_str(line.trim()).map_err(|error| format!("codex_app_server_decode_failed:{error}"))
+    let bytes = reader
+        .read_line(&mut line)
+        .map_err(|error| format!("codex_app_server_read_failed:{error}"))?;
+    if bytes == 0 {
+        return Err("codex_app_server_eof".to_string());
+    }
+    serde_json::from_str(line.trim())
+        .map_err(|error| format!("codex_app_server_decode_failed:{error}"))
 }
 
 fn handle_response_id<'a>(value: &'a Value, expected_id: i64) -> Result<Option<&'a Value>, String> {
-    let Some(id_value) = value.get("id") else { return Ok(None) };
-    if id_value.as_i64() != Some(expected_id) { return Ok(None); }
-    if let Some(error) = value.get("error").and_then(|item| item.get("message")).and_then(string_value) { return Err(error); }
+    let Some(id_value) = value.get("id") else {
+        return Ok(None);
+    };
+    if id_value.as_i64() != Some(expected_id) {
+        return Ok(None);
+    }
+    if let Some(error) = value
+        .get("error")
+        .and_then(|item| item.get("message"))
+        .and_then(string_value)
+    {
+        return Err(error);
+    }
     Ok(value.get("result"))
 }
 
@@ -355,23 +455,32 @@ mod tests {
     use super::{is_operational_mcp_tool, CodexAgentMessageGate};
 
     #[test]
-    fn codex_agent_message_gate_buffers_text_until_first_operational_event() {
+    fn codex_agent_message_gate_streams_text_immediately() {
         let mut gate = CodexAgentMessageGate::default();
 
-        assert_eq!(gate.push_delta("Prima risposta. "), None);
-        assert_eq!(gate.push_delta("Ancora testo."), None);
         assert_eq!(
-            gate.release_after_operational_event().as_deref(),
-            Some("Prima risposta. Ancora testo.")
+            gate.push_delta("Prima risposta. ").as_deref(),
+            Some("Prima risposta. ")
         );
-        assert_eq!(gate.push_delta(" Dopo il tool.").as_deref(), Some(" Dopo il tool."));
+        assert_eq!(
+            gate.push_delta("Ancora testo.").as_deref(),
+            Some("Ancora testo.")
+        );
+        assert_eq!(gate.release_after_operational_event(), None);
+        assert_eq!(
+            gate.push_delta(" Dopo il tool.").as_deref(),
+            Some(" Dopo il tool.")
+        );
     }
 
     #[test]
-    fn codex_agent_message_gate_flushes_direct_answer_without_tools() {
+    fn codex_agent_message_gate_has_no_pending_flush_when_streaming_live() {
         let mut gate = CodexAgentMessageGate::default();
-        assert_eq!(gate.push_delta("Risposta finale"), None);
-        assert_eq!(gate.flush_pending().as_deref(), Some("Risposta finale"));
+        assert_eq!(
+            gate.push_delta("Risposta finale").as_deref(),
+            Some("Risposta finale")
+        );
+        assert_eq!(gate.flush_pending(), None);
     }
 
     #[test]

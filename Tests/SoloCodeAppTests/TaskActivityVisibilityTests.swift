@@ -121,4 +121,45 @@ final class TaskActivityVisibilityTests: XCTestCase {
         )
         XCTAssertFalse(TaskActivityStore.isConcreteVisibleEvent(hidden))
     }
+
+    func testTimelineOrderingKeepsReasoningBetweenAnswerAndOperationalDetails() {
+        let visible = ChatTurnTimelineOrdering.visibleBlocks(
+            from: [
+                PersistedChatTimelineBlock(id: "primary", kind: .primaryText, text: "Answer"),
+                PersistedChatTimelineBlock(
+                    id: "reasoning",
+                    kind: .reasoning,
+                    title: "Thinking",
+                    text: "I am planning the next step."
+                ),
+                PersistedChatTimelineBlock(id: "status", kind: .status, text: "Running"),
+                PersistedChatTimelineBlock(id: "plan", kind: .plan, text: "Do X"),
+            ]
+        )
+
+        XCTAssertEqual(visible.map(\.kind), [.primaryText, .reasoning, .plan])
+        XCTAssertEqual(
+            ChatTurnTimelineOrdering.narrativeBlocks(from: visible).map(\.kind),
+            [.reasoning]
+        )
+        XCTAssertEqual(
+            ChatTurnTimelineOrdering.detailBlocks(from: visible).map(\.kind),
+            [.plan]
+        )
+    }
+
+    func testTimelineOrderingExcludesOperationalTraceBucketsFromNarrativeBlocks() {
+        let visible = ChatTurnTimelineOrdering.visibleBlocks(
+            from: [
+                PersistedChatTimelineBlock(id: "primary", kind: .primaryText, text: "Answer"),
+                PersistedChatTimelineBlock(id: "commands", kind: .commands, items: ["swift test"]),
+                PersistedChatTimelineBlock(id: "files", kind: .files, items: ["App.swift"]),
+                PersistedChatTimelineBlock(id: "tool-trace", kind: .toolTrace, text: "trace"),
+            ]
+        )
+
+        XCTAssertEqual(visible.map(\.kind), [.primaryText])
+        XCTAssertTrue(ChatTurnTimelineOrdering.narrativeBlocks(from: visible).isEmpty)
+        XCTAssertTrue(ChatTurnTimelineOrdering.detailBlocks(from: visible).isEmpty)
+    }
 }
