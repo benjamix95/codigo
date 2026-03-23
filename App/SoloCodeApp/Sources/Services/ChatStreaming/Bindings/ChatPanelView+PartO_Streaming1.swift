@@ -44,10 +44,12 @@ extension ChatPanelView {
             [DEBUG MODE ACTIVE]
             Use MCP-first typed debug panel controls only:
             - `debug_set_phase` with phase in: describing, reproducing, fixing, instrumenting, verifying, resolved.
-            - `debug_request_user` with kind question|reproduce and a concrete prompt.
-            - `debug_resolve` with final summary.
+            - `debug_request_user` with kind question|reproduce|fix_confirmation and a concrete prompt.
+            - `debug_session` with action start|export|stop when the lifecycle requires it.
+            - `debug_snapshot`, `debug_hypothesize`, `debug_test_check`, `debug_timeline`, `debug_resolve`.
             Legacy `debug_panel` is invalid and must not be used.
-            Keep debug artifacts tracked through `debug_mark`, `debug_log`, `debug_query`, `debug_hypothesize`, `debug_clean`.
+            Keep debug artifacts tracked through `debug_mark`, `debug_instrument`, `debug_log`, `debug_query`, `debug_clean`.
+            Canonical closeout order: `debug_clean` -> `debug_timeline` -> `debug_session action=export` -> `debug_resolve` -> `debug_session action=stop`.
             """
             prompt = debugModeContract + "\n\n" + prompt
         }

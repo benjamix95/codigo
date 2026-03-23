@@ -32,6 +32,33 @@ enum DebugPipelineIntent {
 
 extension ChatPanelView {
     @MainActor
+    private func preflightDebugPipelineIntent(_ intent: DebugPipelineIntent) -> String? {
+        switch intent {
+        case .startSession:
+            return nil
+        case .continueInvestigation:
+            guard debugStore.phase == .reproducing,
+                  debugStore.isAwaitingReproduceConfirmation else {
+                return "[Debug] Continue investigation richiede una sessione in fase reproducing con conferma utente in attesa."
+            }
+            return nil
+        case .resolveAfterFix:
+            guard debugStore.phase == .verifying,
+                  debugStore.awaitingDebugClean else {
+                return "[Debug] Resolve after fix richiede una sessione in verifying dopo Mark Fixed."
+            }
+            return nil
+        }
+    }
+
+    @MainActor
+    private func primeDebugStoreWorkspacePath(_ workspacePath: String) {
+        let normalized = workspacePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        debugStore.debugWorkspacePath = normalized
+    }
+
+    @MainActor
     @discardableResult
     internal func executeDebugPipelineIntent(_ intent: DebugPipelineIntent) -> Bool {
         guard let targetConversationId = conversationId else {
@@ -74,6 +101,10 @@ extension ChatPanelView {
             )
             return false
         }
+        if let preflightError = preflightDebugPipelineIntent(intent) {
+            appendTechnicalErrorMessage(preflightError, in: targetConversationId)
+            return false
+        }
 
         if coderMode != .debug {
             selectMode(.debug)
@@ -87,6 +118,7 @@ extension ChatPanelView {
             activeFilePath: openFilesStore.openFilePath,
             scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
         )
+        primeDebugStoreWorkspacePath(ctx.workspacePath.path)
 
         do {
             try createCheckpointBeforeTurn(

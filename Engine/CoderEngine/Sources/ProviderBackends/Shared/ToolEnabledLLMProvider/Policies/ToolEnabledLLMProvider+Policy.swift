@@ -185,43 +185,58 @@ extension ToolEnabledLLMProvider {
         - **debug_context** — Gather full debug context in one call: git status, open files, lint errors, recent commits, debug log summary. Use this FIRST when entering debug mode. No required args.
         - **debug_log** — Write an entry to the debug log server. Args: `severity` (error/warning/info/verbose/trace), `source` (file:line or module), `message`, `detail` (optional: stack trace), `category` (optional: compiler/runtime/test/network/custom).
         - **debug_query** — Query the debug log. Args: `severity` (optional filter), `category` (optional), `source` (optional), `search` (text search), `format` (summary/full, default: summary), `limit` (default 100).
-        - **debug_session** — Manage debug sessions. Args: `action` (start/end/clear).
-        - **debug_hypothesize** — Propose or update a debug hypothesis (ID-based). Args: `action` (propose/update), `hypothesis_id` (required for update), `title` (required for propose), `description`, `status` (proposed/investigating/confirmed/rejected), `evidence`.
+        - **debug_session** — Manage debug sessions. Args: `action` (start/export/stop/end/clear/snapshot/stats), `label` (optional for snapshot).
+        - **debug_hypothesize** — Propose or update a debug hypothesis (ID-based). Args: `action` (propose/update), `hypothesis_id` (required for update), `title` (required for propose), `description`, `status` (proposed/investigating/confirmed/rejected), `evidence`, `confidence`, `root_cause_type`, `related_files`, `related_tests`.
         - **debug_mark** — Insert a debug marker (print/log/assert) into a file. The marker is tagged with 🐛 DEBUG for easy cleanup. Args: `path`, `line` (line number), `comment` (description), `code` (optional code to insert).
+        - **debug_instrument** — Insert executable instrumentation in source. Args: `path`, `line`, `type`, `expression`, optional `condition`, `label`, `hypothesis_id`.
         - **debug_clean** — Remove ALL debug markers (lines containing 🐛 DEBUG) from a file or entire workspace. Args: `path` (optional, cleans all files if omitted).
+        - **debug_trace_analyze** — Parse an error, stack trace, or crash report into structured findings. Args: `error_text`, optional `error_type`, `context`.
+        - **debug_snapshot** — Capture or compare debug session state. Args: `action`, optional `label`, `compare_with`.
+        - **debug_timeline** — Generate chronological timeline of debug events. Args: optional `filter`, `time_range`, `hypothesis_id`, `format`.
+        - **debug_test_check** — Run targeted Xcode verification for the current workspace. Args: optional `scope`, `path`, `filter`, `hypothesis_id`, `timeout_ms`.
 
         ### Debug Flow (MCP-first, typed events)
         When debugging, use only the canonical typed debug tools for panel control:
         - `debug_set_phase` (phase: describing|reproducing|fixing|instrumenting|verifying|resolved, detail optional)
-        - `debug_request_user` (kind: question|reproduce, prompt)
+        - `debug_request_user` (kind: question|reproduce|fix_confirmation, prompt)
         - `debug_resolve` (summary)
         - `debug_panel` is legacy and invalid.
 
         **Phase 1: Describe**
         1. `debug_set_phase phase=describing`
-        2. Gather context with `debug_context`
-        3. Start/ensure session with `debug_session action=start`
-        4. Log symptoms with `debug_log`
+        2. Start/ensure session with `debug_session action=start`
+        3. Gather context with `debug_context`
+        4. Ask at least two clarifying questions with `debug_request_user kind=question`
+        5. Analyze evidence with `debug_trace_analyze` when traces/errors are available
+        6. Log symptoms with `debug_log`
 
         **Phase 2: Reproduce**
-        5. `debug_set_phase phase=reproducing`
-        6. If user action is needed, call `debug_request_user kind=reproduce prompt=...`
+        7. `debug_set_phase phase=reproducing`
+        8. If user action is needed, call `debug_request_user kind=reproduce prompt=...`
 
         **Phase 3: Fix**
-        7. `debug_set_phase phase=fixing`
-        8. Hypothesize with `debug_hypothesize`
-        9. Instrument with `debug_mark` and `debug_set_phase phase=instrumenting` when relevant
-        10. Observe via `debug_log` + `debug_query`
-        11. Apply minimal fix and update hypothesis status
+        9. `debug_set_phase phase=fixing`
+        10. Capture `debug_snapshot action=capture label=before-fix`
+        11. Hypothesize with `debug_hypothesize`
+        12. Instrument with `debug_mark` or `debug_instrument` and `debug_set_phase phase=instrumenting` when relevant
+        13. Observe via `debug_log` + `debug_query`
+        14. Apply minimal fix
+        15. Capture `debug_snapshot action=capture label=after-fix`
 
         **Phase 4: Verify**
-        12. `debug_set_phase phase=verifying`
-        13. Verify via `read_lints` and targeted tests/diagnostics
-        14. Clean instrumentation with `debug_clean`
+        16. `debug_set_phase phase=verifying`
+        17. Verify via `debug_test_check`
+        18. Compare states with `debug_snapshot action=compare label=after-fix compare_with=before-fix`
+        19. Update hypothesis status with `debug_hypothesize action=update`
+        20. Request final confirmation with `debug_request_user kind=fix_confirmation`
 
         **Phase 5: Resolve**
-        15. Resolve with `debug_resolve summary=...`
-        16. Optionally mirror terminal phase with `debug_set_phase phase=resolved`
+        21. Clean instrumentation with `debug_clean`
+        22. Generate `debug_timeline`
+        23. Export report with `debug_session action=export`
+        24. Resolve with `debug_resolve summary=...`
+        25. Stop session with `debug_session action=stop`
+        26. Optionally mirror terminal phase with `debug_set_phase phase=resolved`
 
         ### Utility
         - **workspace_stats** — Get file/dir counts and size.
@@ -245,7 +260,7 @@ extension ToolEnabledLLMProvider {
         - **plan_request_user_input** — Request structured clarification questions in the plan panel. Args: `questions` (JSON array), optional `title`, `phase`, `round`, `context`, `conversation_id`.
         - **mermaid_render** — Render a Mermaid diagram in the LiveCard. Args: `code` (Mermaid syntax), `title` (optional).
         - **debug_set_phase** — Set debug pipeline phase. Args: `phase`, `detail` (optional).
-        - **debug_request_user** — Request explicit user input in debug flow. Args: `kind` (question/reproduce), `prompt`.
+        - **debug_request_user** — Request explicit user input in debug flow. Args: `kind` (question/reproduce/fix_confirmation), `prompt`.
         - **debug_resolve** — Resolve debug flow with summary. Args: `summary`.
         - **policy_ack** — Acknowledge a mandatory policy hash. Args: `hash`.
         - **activate_plan_mode** — Activate the plan panel. Args: `reason` (optional).

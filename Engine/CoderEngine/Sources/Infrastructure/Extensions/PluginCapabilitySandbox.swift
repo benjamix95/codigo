@@ -9,7 +9,12 @@ enum PluginCapabilitySandbox {
         .web: ["web_search", "web_fetch"],
         .mcp: ["mcp_call", "mcp_batch", "mcp_list_resources", "mcp_read_resource", "mcp_health", "mcp_reconnect", "mcp_restart_server"],
         .git: ["git_diff", "git_status", "git_show", "git_log_search"],
-        .debug: ["debug_context", "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean", "debug_set_phase", "debug_request_user", "debug_resolve"],
+        .debug: [
+            "debug_context", "debug_log", "debug_query", "debug_session",
+            "debug_hypothesize", "debug_mark", "debug_instrument", "debug_clean",
+            "debug_set_phase", "debug_request_user", "debug_resolve",
+            "debug_trace_analyze", "debug_snapshot", "debug_timeline", "debug_test_check",
+        ],
         .subagent: ["subagent_explorer", "subagent_coder", "subagent_reviewer", "subagent_bugHunter", "subagent_testWriter", "subagent_debugger", "subagent_docWriter", "subagent_securityAuditor"],
     ]
 

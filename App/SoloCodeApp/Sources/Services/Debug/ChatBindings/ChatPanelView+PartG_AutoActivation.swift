@@ -26,6 +26,17 @@ extension ChatPanelView {
     internal func handleAutoActivateDebugMode(reason: String?) {
         let normalizedReason = reason?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let workspaceContext = effectiveContext.toWorkspaceContext(
+            openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
+            activeSelection: nil,
+            activeFilePath: openFilesStore.openFilePath,
+            scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
+        )
+        let normalizedWorkspacePath = workspaceContext.workspacePath.path
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedWorkspacePath.isEmpty {
+            debugStore.debugWorkspacePath = normalizedWorkspacePath
+        }
         if coderMode != .debug {
             selectMode(.debug)
         }

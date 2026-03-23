@@ -14,6 +14,10 @@ final class ExtensionRuntimeSandboxCapabilityTests: XCTestCase {
         XCTAssertFalse(tools.contains("debug_mark"))
         XCTAssertFalse(tools.contains("debug_instrument"))
         XCTAssertFalse(tools.contains("debug_clean"))
+        XCTAssertTrue(tools.contains("debug_trace_analyze"))
+        XCTAssertTrue(tools.contains("debug_snapshot"))
+        XCTAssertTrue(tools.contains("debug_timeline"))
+        XCTAssertTrue(tools.contains("debug_test_check"))
     }
 
     func testWriteWorkspaceIncludesMutatingDebugTools() throws {
