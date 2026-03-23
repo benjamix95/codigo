@@ -311,6 +311,7 @@ private func isTodoGatedOperationalTool(_ rawToolName: String) -> Bool {
         || tool == "coderide_activate_plan_mode" || tool == "activate_plan_mode"
         || tool == "coderide_activate_debug_mode" || tool == "activate_debug_mode"
         || tool == "coderide_skill" || tool == "skill"
+        || tool.hasPrefix("coderide_audit_") || tool.hasPrefix("audit_")
         || tool.contains("subagent_")
     {
         return false

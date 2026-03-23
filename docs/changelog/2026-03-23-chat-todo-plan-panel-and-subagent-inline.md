@@ -3,6 +3,7 @@
 ## Modifiche
 - Rimossa la richiesta locale di `plan_create` come prerequisito generale all’esecuzione.
 - Limitato il gating del todo alla vera esecuzione/mutazione, lasciando liberi discovery, `skill`, subagent e attivazione plan/debug.
+- Esclusi anche i tool `coderide_audit_*` dal gating del todo, perché sono audit non mutativi e non devono bloccare la discovery.
 - Separato `plan mode` da `plan panel`: il toggle non apre più il panel automaticamente.
 - Estesa la policy di auto-open del panel con `proposalReady`, mantenendo `awaitingClarification` e `awaitingChoice`.
 - Reso più prudente l’aggancio del todo card al turno assistant: ora richiede contenuto assistant visibile.

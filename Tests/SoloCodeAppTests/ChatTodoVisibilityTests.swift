@@ -143,6 +143,16 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertNil(violation)
     }
 
+    func testTodoPlanStartPolicyAllowsAuditDiscoveryWithoutTodo() {
+        let violation = todoPlanStartPolicyViolation(
+            state: ToolStartRequirementsState(),
+            type: "mcp_tool_call",
+            payload: ["mcp_tool": "coderide_audit_bug_test_gaps"]
+        )
+
+        XCTAssertNil(violation)
+    }
+
     func testTodoPlanStartPolicyDoesNotTreatPlanModeActivationAsOperationalWork() {
         let violation = todoPlanStartPolicyViolation(
             state: ToolStartRequirementsState(),
