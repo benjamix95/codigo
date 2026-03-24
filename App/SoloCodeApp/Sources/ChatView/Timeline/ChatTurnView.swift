@@ -168,16 +168,6 @@ struct ChatTurnView: View {
                 }
                 .padding(.horizontal, 2)
             }
-            if shouldShowTodo, !todoItems.isEmpty {
-                TodoCenterCardView(
-                    store: todoStore,
-                    conversationId: conversationId,
-                    traceEvents: traceEvents,
-                    microStatusText: streamingDetailText,
-                    isStreaming: message.isStreaming && isActuallyLoading,
-                    onReviewChanges: onReviewChanges
-                )
-            }
             ForEach(detailBlocks) { block in
                 ArtifactCardView(
                     block: block,

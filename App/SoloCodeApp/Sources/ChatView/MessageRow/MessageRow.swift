@@ -16,6 +16,7 @@ struct MessageRow: View {
     var showStreamingBar: Bool = true
     let onFileClicked: (String) -> Void
     var onRestoreCheckpoint: (() -> Void)? = nil
+    var onEdit: (() -> Void)? = nil
     var onReply: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
     var canRewind: Bool = false

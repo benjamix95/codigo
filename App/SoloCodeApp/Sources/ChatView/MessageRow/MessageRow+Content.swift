@@ -204,6 +204,19 @@ extension MessageRow {
             .accessibilityLabel(didCopyMessage ? "Copied" : "Copy message")
             .animation(.easeOut(duration: 0.15), value: didCopyMessage)
 
+            if let onEdit {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 24, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Edit message")
+                .accessibilityLabel("Edit message")
+            }
+
             if let onReply {
                 Button(action: onReply) {
                     Image(systemName: "arrowshape.turn.up.left")

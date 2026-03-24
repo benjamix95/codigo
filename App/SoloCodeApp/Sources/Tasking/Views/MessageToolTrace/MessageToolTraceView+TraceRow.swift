@@ -30,7 +30,6 @@ extension MessageToolTraceView {
                         .font(.system(size: 10.5))
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                         .lineLimit(1)
-                        .textShimmer(active: event.isRunning)
                 }
 
                 Spacer(minLength: 0)
