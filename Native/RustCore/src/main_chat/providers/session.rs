@@ -199,7 +199,10 @@ pub fn cancel_session(request: MainChatProviderSessionRequest) -> MainChatProvid
         snapshot.terminal_error = Some("cancelled".to_string());
     }
     let snapshot = handle.snapshot.lock().unwrap().clone();
-    cleanup_session_state(&request.session_id);
+    // NOTE: do NOT call cleanup_session_state here — the next poll_session
+    // call will see the terminal "cancelled" status, emit StreamCompleted,
+    // and clean up.  Cleaning up eagerly causes poll to get "missing_session"
+    // instead of the terminal snapshot.
     MainChatProviderSessionResponse::success(snapshot, Vec::new())
 }
 

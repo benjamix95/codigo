@@ -25,6 +25,25 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         self.jobId = jobId
     }
 
+    // MARK: - Private Helpers
+
+    private func publishOrLog(_ event: EventBusEvent, taskId: String) async {
+        do {
+            try await eventBus.publish(event)
+        } catch let error as EventBusError {
+            switch error {
+            case .duplicateIdempotencyKey:
+                break
+            case .busShutdown:
+                NSLog("[AgentWorkerEventBridge] publish skipped (bus shutdown), taskId=%@", taskId)
+            case .invalidEvent(let reason):
+                NSLog("[AgentWorkerEventBridge] publish failed (invalid event): %@, taskId=%@", reason, taskId)
+            }
+        } catch {
+            NSLog("[AgentWorkerEventBridge] publish failed: %@, taskId=%@", "\(error)", taskId)
+        }
+    }
+
     // MARK: - AgentWorkerDelegate
 
     public func worker(
@@ -41,7 +60,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
             sequenceNumber: seq,
             idempotencyKey: "\(self.jobId)_delta_\(seq)_\(taskId)"
         )
-        try? await eventBus.publish(event)
+        await publishOrLog(event, taskId: taskId)
     }
 
     public func worker(
@@ -58,7 +77,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
             sequenceNumber: seq,
             idempotencyKey: "\(self.jobId)_replace_\(seq)_\(taskId)"
         )
-        try? await eventBus.publish(event)
+        await publishOrLog(event, taskId: taskId)
     }
 
     public func worker(
@@ -79,7 +98,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
             sequenceNumber: seq,
             idempotencyKey: "\(self.jobId)_raw_\(seq)_\(taskId)"
         )
-        try? await eventBus.publish(event)
+        await publishOrLog(event, taskId: taskId)
     }
 
 }

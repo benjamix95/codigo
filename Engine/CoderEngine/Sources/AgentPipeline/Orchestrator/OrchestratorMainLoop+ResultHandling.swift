@@ -188,6 +188,19 @@ extension OrchestratorMainLoop {
             payload: payload,
             idempotencyKey: "\(jobId)_\(type.rawValue)_\(tickCount)_\(taskId ?? "none")"
         )
-        try? await eventBus.publish(event)
+        do {
+            try await eventBus.publish(event)
+        } catch let error as EventBusError {
+            switch error {
+            case .duplicateIdempotencyKey:
+                break
+            case .busShutdown:
+                break
+            case .invalidEvent(let reason):
+                NSLog("[OrchestratorMainLoop] emitEvent failed (invalid): %@, type=%@", reason, type.rawValue)
+            }
+        } catch {
+            NSLog("[OrchestratorMainLoop] emitEvent failed: %@, type=%@", "\(error)", type.rawValue)
+        }
     }
 }

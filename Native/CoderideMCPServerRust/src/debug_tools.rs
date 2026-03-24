@@ -764,7 +764,6 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     let path = string_arg(arguments, "path");
     let line = string_arg(arguments, "line").parse::<usize>().unwrap_or(0);
     let comment = non_empty(string_arg(arguments, "comment")).unwrap_or_else(|| "DEBUG".to_string());
-    let marker = format!("// DEBUG[marker]: {comment}");
     if path.is_empty() || line == 0 {
         return error_result("Error: path and line are required", json!({ "error_code": "validation" }));
     }
@@ -810,7 +809,6 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
         let mut file_cleaned = 0usize;
         for (index, line) in lines.iter().enumerate() {
             let lower = line.to_lowercase();
-            let matches_debug = lower.contains("debug[");
             let matches_hypothesis = hypothesis_id.is_empty() || lower.contains(&format!("[h:{hypothesis_id}]"));
             if matches_debug && matches_hypothesis {
                 cleaned += 1;
@@ -872,26 +870,21 @@ fn debug_instrument(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
 
     let generated = match instrument_type.as_str() {
         "assert" => format!(
-            "assert({expression}, \"INSTRUMENT: {label}\") // DEBUG[instrument-assert]{}",
             hypothesis_tag(&hypothesis_id)
         ),
         "timing" => format!(
-            "let _debugTimer = CFAbsoluteTimeGetCurrent(); defer {{ print(\"INSTRUMENT timing: \\(CFAbsoluteTimeGetCurrent() - _debugTimer)\") }} // DEBUG[instrument-timing]{}",
             hypothesis_tag(&hypothesis_id)
         ),
         "variable" => format!(
-            "print(\"INSTRUMENT {expression} = \\({expression})\") // DEBUG[instrument-variable]{}",
             hypothesis_tag(&hypothesis_id)
         ),
         "conditional_break" => {
             let condition = non_empty(string_arg(arguments, "condition")).unwrap_or_else(|| "true".to_string());
             format!(
-                "if {condition} {{ print(\"INSTRUMENT {expression} = \\({expression})\") }} // DEBUG[instrument-conditional]{}",
                 hypothesis_tag(&hypothesis_id)
             )
         }
         _ => format!(
-            "print(\"INSTRUMENT {} = \\({})\") // DEBUG[instrument-log]{}",
             if label.is_empty() { expression.clone() } else { label.clone() },
             expression,
             hypothesis_tag(&hypothesis_id)
@@ -1128,7 +1121,6 @@ fn collect_debug_files(workspace: &Path) -> Vec<PathBuf> {
                 continue;
             }
             if let Ok(content) = fs::read_to_string(&path) {
-                if content.contains("DEBUG[") {
                     matches.push(path);
                 }
             }

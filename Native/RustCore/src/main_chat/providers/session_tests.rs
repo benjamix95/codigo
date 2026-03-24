@@ -37,6 +37,7 @@ fn minimal_config(backend: MainChatProviderBackend) -> MainChatProviderSessionCo
         claude_path: None,
         claude_model: None,
         claude_allowed_tools: Vec::new(),
+        claude_mcp_server_path: None,
         gemini_cli_path: None,
         gemini_model_override: None,
         attachments: Vec::new(),
@@ -59,6 +60,16 @@ fn cancel_session_marks_snapshot_cancelled() {
         session_id: session_id.clone(),
     });
     assert_eq!(cancelled.snapshot.unwrap().status, "cancelled");
+    // Session stays alive until the next poll drains the terminal snapshot.
+    // This ensures poll_provider_runtime sees the "cancelled" status and
+    // emits StreamCompleted instead of getting a "missing_session" error.
+    assert!(test_session_state_exists(&session_id));
+    // Polling the cancelled session should drain it and clean up.
+    let _ = poll_session(MainChatProviderSessionPollRequest {
+        schema_version: 1,
+        session_id: session_id.clone(),
+        timeout_ms: 10,
+    });
     assert!(!test_session_config_exists(&session_id));
     assert!(!test_session_state_exists(&session_id));
 }

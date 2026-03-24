@@ -178,7 +178,13 @@ fn merge_reasoning_text(existing: Option<String>, incoming: String) -> String {
 fn reasoning_suffix_prefix_overlap_length(lhs: &str, rhs: &str) -> usize {
     let max_overlap = lhs.len().min(rhs.len());
     for length in (1..=max_overlap).rev() {
-        if lhs[lhs.len() - length..] == rhs[..length] {
+        let lhs_start = lhs.len() - length;
+        // Skip byte offsets that land inside a multi-byte UTF-8 character
+        // to avoid panicking on slicing (e.g. '—' is 3 bytes).
+        if !lhs.is_char_boundary(lhs_start) || !rhs.is_char_boundary(length) {
+            continue;
+        }
+        if lhs[lhs_start..] == rhs[..length] {
             return length;
         }
     }
