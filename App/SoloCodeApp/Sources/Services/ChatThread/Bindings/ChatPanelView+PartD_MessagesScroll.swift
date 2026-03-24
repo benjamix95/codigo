@@ -182,7 +182,6 @@ extension ChatPanelView {
                             onEdit: { editedText in
                                 inputText = editedText
                                 isInputFocused = true
-                                handleComposerSend()
                             },
                             onReply: replyAction,
                             onDelete: deleteAction,
