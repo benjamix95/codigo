@@ -145,16 +145,16 @@ struct ModeControlsBarView: View {
             // Model picker (always shown)
             modelPickerForProvider(pid)
 
-            // Reasoning picker (codex only, hidden at minimal)
-            if pid == "codex-cli" && tier != .minimal {
+            // Reasoning picker (codex only, always visible)
+            if pid == "codex-cli" {
                 codexReasoningPicker
             }
 
-            // Access level menu: full/medium=icon+label, compact=icon-only, minimal=hidden
+            // Access level menu: full/medium=icon+label, compact/minimal=icon-only
             if hasAccessLevel(pid) {
                 if tier == .full || tier == .medium {
                     accessLevelMenuView(showLabel: true)
-                } else if tier == .compact {
+                } else {
                     accessLevelMenuView(showLabel: false)
                 }
             }
