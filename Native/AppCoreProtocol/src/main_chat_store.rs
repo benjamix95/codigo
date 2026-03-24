@@ -64,6 +64,10 @@ pub struct MainChatStoreTimelineBlockSnapshot {
     pub is_collapsible: bool,
     #[serde(default)]
     pub is_collapsed_by_default: bool,
+    /// Ordering key for interleaving text blocks with tool trace events.
+    /// Higher values appear later in the timeline.
+    #[serde(default)]
+    pub sequence: i32,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]

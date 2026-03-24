@@ -9,6 +9,9 @@ enum ChatTimelineBlockKind: String, Codable, Equatable {
     case status
     case plan
     case toolTrace
+    /// Placeholder emitted by Rust to mark where tool trace events
+    /// should be inserted in the interleaved timeline.
+    case toolMarker
 }
 
 struct PersistedChatTimelineBlock: Identifiable, Codable, Equatable {
@@ -20,6 +23,9 @@ struct PersistedChatTimelineBlock: Identifiable, Codable, Equatable {
     var metadata: [String: String]
     var isCollapsible: Bool
     var isCollapsedByDefault: Bool
+    /// Ordering sequence for interleaved timeline rendering.
+    /// Blocks and tool trace events are sorted by this value.
+    var sequence: Int
 
     init(
         id: String,
@@ -29,7 +35,8 @@ struct PersistedChatTimelineBlock: Identifiable, Codable, Equatable {
         items: [String] = [],
         metadata: [String: String] = [:],
         isCollapsible: Bool = false,
-        isCollapsedByDefault: Bool = false
+        isCollapsedByDefault: Bool = false,
+        sequence: Int = 0
     ) {
         self.id = id
         self.kind = kind
@@ -39,5 +46,6 @@ struct PersistedChatTimelineBlock: Identifiable, Codable, Equatable {
         self.metadata = metadata
         self.isCollapsible = isCollapsible
         self.isCollapsedByDefault = isCollapsedByDefault
+        self.sequence = sequence
     }
 }

@@ -1,4 +1,6 @@
-use app_core_protocol::main_chat::{MainChatArtifact, MainChatArtifactKind, MainChatTurnState};
+use app_core_protocol::main_chat::{
+    MainChatArtifact, MainChatArtifactKind, MainChatTurnState, TimelineSegmentKind,
+};
 use app_core_protocol::main_chat_store::MainChatStoreTimelineBlockSnapshot;
 use app_core_protocol::main_chat_ui::MainChatUiState;
 
@@ -132,31 +134,96 @@ fn reasoning_text(turn_state: &MainChatTurnState) -> Option<String> {
 
 fn runtime_blocks(turn_state: &MainChatTurnState) -> Vec<MainChatStoreTimelineBlockSnapshot> {
     let mut blocks = Vec::new();
-    let primary_text = turn_primary_text(turn_state);
-    if !primary_text.trim().is_empty() {
-        blocks.push(MainChatStoreTimelineBlockSnapshot {
-            id: "primary-text".to_string(),
-            kind: "primaryText".to_string(),
-            title: None,
-            text: primary_text,
-            items: Vec::new(),
-            metadata: Default::default(),
-            is_collapsible: false,
-            is_collapsed_by_default: false,
-        });
+
+    // If we have interleaved timeline segments, emit multiple text blocks
+    // with proper sequence numbers so Swift can interleave them with tool
+    // trace events.
+    if !turn_state.timeline_segments.is_empty() {
+        let reasoning = reasoning_text(turn_state);
+        for seg in &turn_state.timeline_segments {
+            match seg.kind {
+                TimelineSegmentKind::Text => {
+                    if let Some(text) = turn_state.text_segments.get(seg.index) {
+                        if !text.trim().is_empty() {
+                            blocks.push(MainChatStoreTimelineBlockSnapshot {
+                                id: format!("text-seg-{}", seg.index),
+                                kind: "primaryText".to_string(),
+                                title: None,
+                                text: text.clone(),
+                                items: Vec::new(),
+                                metadata: Default::default(),
+                                is_collapsible: false,
+                                is_collapsed_by_default: false,
+                                sequence: seg.sequence,
+                            });
+                        }
+                    }
+                }
+                TimelineSegmentKind::Reasoning => {
+                    if let Some(ref r) = reasoning {
+                        blocks.push(MainChatStoreTimelineBlockSnapshot {
+                            id: "reasoning".to_string(),
+                            kind: "reasoning".to_string(),
+                            title: Some("Thinking".to_string()),
+                            text: r.clone(),
+                            items: Vec::new(),
+                            metadata: Default::default(),
+                            is_collapsible: true,
+                            is_collapsed_by_default: true,
+                            sequence: seg.sequence,
+                        });
+                    }
+                }
+                TimelineSegmentKind::ToolUse => {
+                    // ToolUse segments are placeholders — the actual tool
+                    // trace events are rendered by Swift's ToolTraceStore.
+                    // We emit a marker block so Swift knows the sequence.
+                    blocks.push(MainChatStoreTimelineBlockSnapshot {
+                        id: format!("tool-marker-{}", seg.sequence),
+                        kind: "toolMarker".to_string(),
+                        title: None,
+                        text: String::new(),
+                        items: Vec::new(),
+                        metadata: Default::default(),
+                        is_collapsible: false,
+                        is_collapsed_by_default: false,
+                        sequence: seg.sequence,
+                    });
+                }
+            }
+        }
+    } else {
+        // Fallback: no timeline segments (e.g. non-streaming or old data).
+        // Emit single blocks like before.
+        let primary_text = turn_primary_text(turn_state);
+        if !primary_text.trim().is_empty() {
+            blocks.push(MainChatStoreTimelineBlockSnapshot {
+                id: "primary-text".to_string(),
+                kind: "primaryText".to_string(),
+                title: None,
+                text: primary_text,
+                items: Vec::new(),
+                metadata: Default::default(),
+                is_collapsible: false,
+                is_collapsed_by_default: false,
+                sequence: 0,
+            });
+        }
+        if let Some(reasoning) = reasoning_text(turn_state) {
+            blocks.push(MainChatStoreTimelineBlockSnapshot {
+                id: "reasoning".to_string(),
+                kind: "reasoning".to_string(),
+                title: Some("Thinking".to_string()),
+                text: reasoning,
+                items: Vec::new(),
+                metadata: Default::default(),
+                is_collapsible: true,
+                is_collapsed_by_default: true,
+                sequence: 0,
+            });
+        }
     }
-    if let Some(reasoning) = reasoning_text(turn_state) {
-        blocks.push(MainChatStoreTimelineBlockSnapshot {
-            id: "reasoning".to_string(),
-            kind: "reasoning".to_string(),
-            title: Some("Thinking".to_string()),
-            text: reasoning,
-            items: Vec::new(),
-            metadata: Default::default(),
-            is_collapsible: true,
-            is_collapsed_by_default: true,
-        });
-    }
+
     blocks.extend(turn_state.artifacts.iter().map(artifact_block));
     blocks
 }
@@ -171,6 +238,7 @@ fn artifact_block(artifact: &MainChatArtifact) -> MainChatStoreTimelineBlockSnap
         metadata: artifact.metadata.clone(),
         is_collapsible: artifact.is_collapsible,
         is_collapsed_by_default: artifact.is_collapsed_by_default,
+        sequence: 0,
     }
 }
 
@@ -182,5 +250,100 @@ fn artifact_kind(kind: MainChatArtifactKind) -> &'static str {
         MainChatArtifactKind::Status => "status",
         MainChatArtifactKind::Plan => "plan",
         MainChatArtifactKind::ToolTrace => "toolTrace",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::runtime_blocks;
+    use app_core_protocol::main_chat::{
+        MainChatTurnState, TimelineSegment, TimelineSegmentKind,
+    };
+
+    fn base_state() -> MainChatTurnState {
+        MainChatTurnState {
+            conversation_id: "conv".to_string(),
+            assistant_message_id: "msg".to_string(),
+            turn_id: "turn".to_string(),
+            status: "streaming".to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn runtime_blocks_with_segments_emits_multiple_text_blocks() {
+        let mut state = base_state();
+        state.text_segments = vec!["First text".to_string(), "Second text".to_string()];
+        state.timeline_segments = vec![
+            TimelineSegment { kind: TimelineSegmentKind::Text, index: 0, sequence: 0 },
+            TimelineSegment { kind: TimelineSegmentKind::ToolUse, index: 0, sequence: 1 },
+            TimelineSegment { kind: TimelineSegmentKind::Text, index: 1, sequence: 2 },
+        ];
+        let blocks = runtime_blocks(&state);
+        let text_blocks: Vec<_> = blocks.iter().filter(|b| b.kind == "primaryText").collect();
+        assert_eq!(text_blocks.len(), 2);
+        assert_eq!(text_blocks[0].text, "First text");
+        assert_eq!(text_blocks[0].sequence, 0);
+        assert_eq!(text_blocks[1].text, "Second text");
+        assert_eq!(text_blocks[1].sequence, 2);
+    }
+
+    #[test]
+    fn runtime_blocks_with_segments_emits_tool_markers() {
+        let mut state = base_state();
+        state.text_segments = vec!["Hello".to_string()];
+        state.timeline_segments = vec![
+            TimelineSegment { kind: TimelineSegmentKind::Text, index: 0, sequence: 0 },
+            TimelineSegment { kind: TimelineSegmentKind::ToolUse, index: 0, sequence: 1 },
+        ];
+        let blocks = runtime_blocks(&state);
+        let markers: Vec<_> = blocks.iter().filter(|b| b.kind == "toolMarker").collect();
+        assert_eq!(markers.len(), 1);
+        assert_eq!(markers[0].sequence, 1);
+    }
+
+    #[test]
+    fn runtime_blocks_with_reasoning_segment() {
+        let mut state = base_state();
+        state.reasoning_by_group_id.insert("reasoning".to_string(), "Thinking hard".to_string());
+        state.text_segments = vec!["Answer".to_string()];
+        state.timeline_segments = vec![
+            TimelineSegment { kind: TimelineSegmentKind::Reasoning, index: 0, sequence: 0 },
+            TimelineSegment { kind: TimelineSegmentKind::Text, index: 0, sequence: 1 },
+        ];
+        let blocks = runtime_blocks(&state);
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].kind, "reasoning");
+        assert_eq!(blocks[0].sequence, 0);
+        assert_eq!(blocks[1].kind, "primaryText");
+        assert_eq!(blocks[1].sequence, 1);
+    }
+
+    #[test]
+    fn runtime_blocks_fallback_when_no_segments() {
+        let mut state = base_state();
+        state.text_by_stream_id.insert("main".to_string(), "Single text".to_string());
+        state.ordered_text_stream_ids.push("main".to_string());
+        // No timeline_segments
+        let blocks = runtime_blocks(&state);
+        let text_blocks: Vec<_> = blocks.iter().filter(|b| b.kind == "primaryText").collect();
+        assert_eq!(text_blocks.len(), 1);
+        assert_eq!(text_blocks[0].text, "Single text");
+        assert_eq!(text_blocks[0].sequence, 0);
+    }
+
+    #[test]
+    fn runtime_blocks_skips_empty_text_segments() {
+        let mut state = base_state();
+        state.text_segments = vec!["  ".to_string(), "Real text".to_string()];
+        state.timeline_segments = vec![
+            TimelineSegment { kind: TimelineSegmentKind::Text, index: 0, sequence: 0 },
+            TimelineSegment { kind: TimelineSegmentKind::ToolUse, index: 0, sequence: 1 },
+            TimelineSegment { kind: TimelineSegmentKind::Text, index: 1, sequence: 2 },
+        ];
+        let blocks = runtime_blocks(&state);
+        let text_blocks: Vec<_> = blocks.iter().filter(|b| b.kind == "primaryText").collect();
+        assert_eq!(text_blocks.len(), 1);
+        assert_eq!(text_blocks[0].text, "Real text");
     }
 }

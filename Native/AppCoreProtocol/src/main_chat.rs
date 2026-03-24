@@ -80,6 +80,31 @@ impl Default for MainChatArtifact {
     }
 }
 
+/// Tracks the kind of each timeline segment for interleaving.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum TimelineSegmentKind {
+    Text,
+    Reasoning,
+    ToolUse,
+}
+
+/// A segment in the interleaved timeline, recording the order in which
+/// text, reasoning, and tool events arrive during streaming.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineSegment {
+    pub kind: TimelineSegmentKind,
+    /// For Text segments: index into `text_segments`.
+    /// For Reasoning: index into `reasoning_by_group_id` keys.
+    /// For ToolUse: opaque (the Swift layer matches via tool trace sequence).
+    #[serde(default)]
+    pub index: usize,
+    /// Monotonically increasing ordering key.
+    #[serde(default)]
+    pub sequence: i32,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MainChatTurnState {
@@ -103,6 +128,18 @@ pub struct MainChatTurnState {
     pub reasoning_by_group_id: BTreeMap<String, String>,
     #[serde(default)]
     pub artifacts: Vec<MainChatArtifact>,
+    /// Ordered list of text segments for interleaved display.
+    /// Each entry holds the accumulated text for one "run" of text
+    /// between tool/reasoning events.
+    #[serde(default)]
+    pub text_segments: Vec<String>,
+    /// Timeline ordering: records the sequence in which text, reasoning,
+    /// and tool events arrived during streaming.
+    #[serde(default)]
+    pub timeline_segments: Vec<TimelineSegment>,
+    /// Next sequence number for timeline segments.
+    #[serde(default)]
+    pub timeline_next_sequence: i32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

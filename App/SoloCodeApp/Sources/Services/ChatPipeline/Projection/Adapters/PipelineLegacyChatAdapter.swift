@@ -193,6 +193,8 @@ extension ChatPanelView {
                     return ChatArtifact(id: block.id, kind: .plan, title: block.title ?? "Plan", text: block.text)
                 case .toolTrace:
                     return ChatArtifact(id: block.id, kind: .toolTrace, title: block.title ?? "Trace summary", text: block.text, isCollapsedByDefault: true)
+                case .toolMarker:
+                    return nil
                 }
             }
         }

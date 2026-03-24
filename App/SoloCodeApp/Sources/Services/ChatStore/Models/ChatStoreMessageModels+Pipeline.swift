@@ -108,6 +108,8 @@ extension ChatMessage {
                 for item in block.items {
                     lines.append("- \(item)")
                 }
+            case .toolMarker:
+                break // Placeholder — no content to render
             }
             lines.append("")
         }

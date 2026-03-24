@@ -68,6 +68,7 @@ pub fn sync_primary_text_block(message: &mut MainChatStoreMessageSnapshot, conte
                 metadata: Default::default(),
                 is_collapsible: false,
                 is_collapsed_by_default: false,
+                sequence: 0,
             },
         );
     }
@@ -108,6 +109,7 @@ pub fn sync_reasoning_block(message: &mut MainChatStoreMessageSnapshot, reasonin
             metadata: Default::default(),
             is_collapsible: true,
             is_collapsed_by_default: true,
+            sequence: 0,
         });
     }
 }

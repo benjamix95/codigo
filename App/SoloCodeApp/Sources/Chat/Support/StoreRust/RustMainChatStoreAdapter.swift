@@ -339,10 +339,10 @@ enum RustMainChatStoreAdapter {
     }
 
     private static func blockSnapshot(_ block: PersistedChatTimelineBlock) -> MainChatStoreTimelineBlockSnapshotBridge {
-        MainChatStoreTimelineBlockSnapshotBridge(id: block.id, kind: block.kind.rawValue, title: block.title, text: block.text, items: block.items, metadata: block.metadata, isCollapsible: block.isCollapsible, isCollapsedByDefault: block.isCollapsedByDefault)
+        MainChatStoreTimelineBlockSnapshotBridge(id: block.id, kind: block.kind.rawValue, title: block.title, text: block.text, items: block.items, metadata: block.metadata, isCollapsible: block.isCollapsible, isCollapsedByDefault: block.isCollapsedByDefault, sequence: block.sequence)
     }
     private static func block(_ snapshot: MainChatStoreTimelineBlockSnapshotBridge) -> PersistedChatTimelineBlock {
-        PersistedChatTimelineBlock(id: snapshot.id, kind: ChatTimelineBlockKind(rawValue: snapshot.kind) ?? .primaryText, title: snapshot.title, text: snapshot.text, items: snapshot.items, metadata: snapshot.metadata, isCollapsible: snapshot.isCollapsible, isCollapsedByDefault: snapshot.isCollapsedByDefault)
+        PersistedChatTimelineBlock(id: snapshot.id, kind: ChatTimelineBlockKind(rawValue: snapshot.kind) ?? .primaryText, title: snapshot.title, text: snapshot.text, items: snapshot.items, metadata: snapshot.metadata, isCollapsible: snapshot.isCollapsible, isCollapsedByDefault: snapshot.isCollapsedByDefault, sequence: snapshot.sequence ?? 0)
     }
     private static func turnMetadataSnapshot(_ metadata: ChatTurnMetadata) -> MainChatStoreTurnMetadataSnapshotBridge {
         MainChatStoreTurnMetadataSnapshotBridge(turnId: metadata.turnId, providerId: metadata.providerId, sequence: metadata.sequence, status: metadata.status, startedAt: metadata.startedAt, completedAt: metadata.completedAt, updatedAt: metadata.updatedAt, isStreaming: metadata.isStreaming)

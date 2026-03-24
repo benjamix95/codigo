@@ -75,11 +75,89 @@ struct ChatTurnView: View {
     private var traceWorkspaceHints: [String] {
         context?.folderPaths.filter { !$0.isEmpty } ?? []
     }
-    private var shouldRenderInlineActivityFeed: Bool {
-        message.isStreaming && isActuallyLoading && !inlineActivities.isEmpty
-    }
-    private var shouldRenderSupervisorTrace: Bool {
-        !supervisorActivities.isEmpty
+
+    // MARK: - Interleaved Timeline Segments
+
+    /// Builds an interleaved timeline: text, reasoning, tool ops, artifacts
+    /// sorted chronologically by sequence number.
+    private var interleavedSegments: [ChatTurnInterleavedSegment] {
+        var segments: [ChatTurnInterleavedSegment] = []
+
+        // Collect toolMarker sequences so we can split tool trace events
+        // into groups that align with the Rust-assigned timeline order.
+        var toolMarkerSequences: [Int] = []
+
+        // 1. Add visible blocks (text, reasoning, artifacts)
+        for block in visibleBlocks {
+            switch block.kind {
+            case .primaryText:
+                let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
+                segments.append(.text(id: block.id, content: block.text, sequence: block.sequence))
+            case .reasoning:
+                segments.append(.reasoning(id: block.id, text: block.text, sequence: block.sequence))
+            case .toolMarker:
+                // Record marker sequence; the actual events are assigned below
+                toolMarkerSequences.append(block.sequence)
+            default:
+                segments.append(.artifact(id: block.id, block: block, sequence: block.sequence))
+            }
+        }
+
+        // 2. Assign tool trace events to marker slots.
+        // If we have toolMarker blocks, distribute events across them
+        // proportionally. Otherwise fall back to a single group.
+        if !inlineTraceEvents.isEmpty {
+            if toolMarkerSequences.isEmpty {
+                // No markers — single group with sequence 0
+                segments.append(.toolTrace(
+                    id: "trace-\(message.id)",
+                    events: inlineTraceEvents,
+                    sequence: inlineTraceEvents.first?.sequence ?? 0
+                ))
+            } else {
+                // Split events into groups by their sequence ranges.
+                // Events with sequence <= first marker go to first marker,
+                // events between marker N and marker N+1 go to marker N+1, etc.
+                let sortedMarkers = toolMarkerSequences.sorted()
+                var eventIndex = 0
+                for (markerIdx, markerSeq) in sortedMarkers.enumerated() {
+                    let nextMarkerSeq = markerIdx + 1 < sortedMarkers.count
+                        ? sortedMarkers[markerIdx + 1]
+                        : Int.max
+                    var groupEvents: [ToolTraceEvent] = []
+                    while eventIndex < inlineTraceEvents.count {
+                        let evt = inlineTraceEvents[eventIndex]
+                        if evt.sequence < nextMarkerSeq || markerIdx == sortedMarkers.count - 1 {
+                            groupEvents.append(evt)
+                            eventIndex += 1
+                        } else {
+                            break
+                        }
+                    }
+                    if !groupEvents.isEmpty {
+                        segments.append(.toolTrace(
+                            id: "trace-\(message.id)-\(markerIdx)",
+                            events: groupEvents,
+                            sequence: markerSeq
+                        ))
+                    }
+                }
+                // Any remaining events
+                if eventIndex < inlineTraceEvents.count {
+                    let remaining = Array(inlineTraceEvents[eventIndex...])
+                    let seq = sortedMarkers.last ?? 0
+                    segments.append(.toolTrace(
+                        id: "trace-\(message.id)-tail",
+                        events: remaining,
+                        sequence: seq + 1
+                    ))
+                }
+            }
+        }
+
+        // 3. Sort by sequence
+        return segments.sorted { $0.sequence < $1.sequence }
     }
 
     var body: some View {
@@ -91,10 +169,12 @@ struct ChatTurnView: View {
                     .padding(.bottom, 20)
             }
             header
-            if let primary = visibleBlocks.first(where: { $0.kind == .primaryText }) {
-                if !primary.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Interleaved timeline: text, reasoning, tool ops in chronological order
+            ForEach(interleavedSegments) { segment in
+                switch segment {
+                case .text(_, let content, _):
                     MarkdownContentView(
-                        content: primary.text,
+                        content: content,
                         context: context,
                         onFileClicked: onFileClicked,
                         textAlignment: .leading,
@@ -102,53 +182,35 @@ struct ChatTurnView: View {
                     )
                     .frame(maxWidth: 800, alignment: .leading)
                     .padding(.vertical, 4)
-                }
-            }
-            if !narrativeBlocks.isEmpty {
-                let reasoningBlocks = narrativeBlocks.map {
-                    ReasoningBlock(id: $0.id, text: $0.text)
-                }
-                ThinkingBlocksView(
-                    blocks: reasoningBlocks,
-                    isLiveStreaming: message.isStreaming && isActuallyLoading
-                )
-                Rectangle()
-                    .fill(Color.primary.opacity(0.06))
-                    .frame(height: 0.5)
-                    .padding(.vertical, 4)
-            }
-            if shouldRenderInlineActivityFeed {
-                InlineActivityFeedView(
-                    activities: inlineActivities,
-                    modeColor: modeColor,
-                    statusFromLLMOrActivity: streamingDetailText,
-                    maxVisible: 24
-                )
-                .frame(maxWidth: 800, alignment: .leading)
-            }
-            if shouldRenderSupervisorTrace {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Orchestrator")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .tracking(0.4)
-                    InlineActivityFeedView(
-                        activities: supervisorActivities,
-                        modeColor: modeColor,
-                        statusFromLLMOrActivity: streamingDetailText,
-                        maxVisible: 12
+
+                case .reasoning(let id, let text, _):
+                    ThinkingBlocksView(
+                        blocks: [ReasoningBlock(id: id, text: text)],
+                        isLiveStreaming: message.isStreaming && isActuallyLoading
+                    )
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.06))
+                        .frame(height: 0.5)
+                        .padding(.vertical, 4)
+
+                case .toolTrace(_, let events, _):
+                    MessageToolTraceView(
+                        events: events,
+                        workspaceHints: traceWorkspaceHints,
+                        onOpenFile: onFileClicked
+                    )
+                    .frame(maxWidth: 800, alignment: .leading)
+
+                case .artifact(_, let block, _):
+                    ArtifactCardView(
+                        block: block,
+                        accentColor: modeColor,
+                        context: context,
+                        onFileClicked: onFileClicked
                     )
                 }
-                .frame(maxWidth: 800, alignment: .leading)
             }
-            if !shouldRenderInlineActivityFeed, !inlineTraceEvents.isEmpty {
-                MessageToolTraceView(
-                    events: inlineTraceEvents,
-                    workspaceHints: traceWorkspaceHints,
-                    onOpenFile: onFileClicked
-                )
-                .frame(maxWidth: 800, alignment: .leading)
-            }
+            // Subagent cards (live or snapshot)
             if !liveSubagentCards.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(liveSubagentCards) { card in
@@ -167,14 +229,6 @@ struct ChatTurnView: View {
                     }
                 }
                 .padding(.horizontal, 2)
-            }
-            ForEach(detailBlocks) { block in
-                ArtifactCardView(
-                    block: block,
-                    accentColor: modeColor,
-                    context: context,
-                    onFileClicked: onFileClicked
-                )
             }
             if message.isStreaming && isActuallyLoading {
                 streamingFooter

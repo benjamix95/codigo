@@ -78,7 +78,7 @@ struct InlineTerminalView: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Capsule().fill(Color.orange.opacity(0.7)))
+            .background(Capsule().fill(DesignSystem.Colors.warning.opacity(0.75)))
         } else if let code = exitCode {
             let isSuccess = code == "0"
             Text("EXIT \(code)")

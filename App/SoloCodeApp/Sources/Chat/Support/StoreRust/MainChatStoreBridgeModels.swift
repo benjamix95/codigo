@@ -48,6 +48,7 @@ struct MainChatStoreTimelineBlockSnapshotBridge: Codable, Equatable {
     let metadata: [String: String]
     let isCollapsible: Bool
     let isCollapsedByDefault: Bool
+    let sequence: Int?
 }
 
 struct MainChatStoreTurnMetadataSnapshotBridge: Codable, Equatable {

@@ -83,6 +83,8 @@ struct ArtifactCardView: View {
                     isStreaming: false
                 )
             }
+        case .toolMarker:
+            EmptyView()
         }
     }
 
@@ -96,6 +98,7 @@ struct ArtifactCardView: View {
         case .toolTrace: return "Trace"
         case .reasoning: return "Thinking"
         case .primaryText: return "Response"
+        case .toolMarker: return ""
         }
     }
 }
