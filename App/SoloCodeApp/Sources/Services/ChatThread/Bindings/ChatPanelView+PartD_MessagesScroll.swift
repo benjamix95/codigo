@@ -180,8 +180,11 @@ extension ChatPanelView {
                             onFileClicked: { openFilesStore.openFile($0) },
                             onRestoreCheckpoint: restoreAction,
                             onEdit: { editedText in
-                                inputText = editedText
-                                isInputFocused = true
+                                editAndResendMessage(
+                                    editedText: editedText,
+                                    at: index,
+                                    conversationId: conversationId
+                                )
                             },
                             onReply: replyAction,
                             onDelete: deleteAction,

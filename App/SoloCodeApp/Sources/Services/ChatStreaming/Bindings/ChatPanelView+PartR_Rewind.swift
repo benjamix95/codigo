@@ -225,4 +225,86 @@ extension ChatPanelView {
             }
         }
     }
+
+    /// Edit a user message in-place: rewind to that point, replace with
+    /// edited text, and auto-send.
+    internal func editAndResendMessage(
+        editedText: String,
+        at messageIndex: Int,
+        conversationId: UUID
+    ) {
+        guard !isRewinding else { return }
+        guard let conv = chatStore.conversation(for: conversationId),
+              messageIndex < conv.messages.count,
+              conv.messages[messageIndex].role == .user
+        else { return }
+
+        let checkpoint = chatStore.checkpoint(
+            forMessageIndex: messageIndex, conversationId: conversationId)
+        isRewinding = true
+
+        Task {
+            await MainActor.run {
+                discardPendingStreamingState(for: conversationId)
+                let didCancelPipeline = pipelineIntegrationService
+                    .cancelCurrentJob(for: conversationId)
+                var didCancelTask = didCancelPipeline
+                    || cancelRunTask(for: conversationId)
+                if !didCancelTask,
+                   activeBuildPlanConversationId == conversationId,
+                   let agentId = activeBuildAgentConversationId
+                {
+                    didCancelTask =
+                        pipelineIntegrationService.cancelCurrentJob(for: agentId)
+                        || cancelRunTask(for: agentId)
+                }
+                if didCancelTask
+                    || chatStore.isTaskActive(for: conversationId)
+                    || pipelineIntegrationService.isRunning(for: conversationId)
+                {
+                    executionController.terminate(scope: .agent)
+                    flowCoordinator.interrupt()
+                    finalizeToolTraceTurn(
+                        conversationId: conversationId, outcome: .aborted)
+                    snapshotSubagentCardsAndEndTask(
+                        conversationId: conversationId)
+                }
+            }
+
+            if let checkpoint {
+                for state in checkpoint.gitStates {
+                    try? checkpointGitStore.restoreSnapshot(
+                        ref: state.gitSnapshotRef,
+                        gitRoot: state.gitRootPath)
+                }
+            }
+
+            await MainActor.run {
+                let rewound = chatStore.rewindConversationToMessageCount(
+                    messageIndex, conversationId: conversationId)
+                guard rewound else {
+                    isRewinding = false
+                    return
+                }
+
+                planningState = .idle
+                planFlowPhase = .idle
+                if shouldResetTaskActivityStoreBeforeStartingTurn(
+                    activeTaskConversationIds: chatStore
+                        .activeTaskConversationIds,
+                    targetConversationId: conversationId
+                ) {
+                    clearTaskActivityPipeline()
+                }
+                swarmProgressStore.clear(conversationId: conversationId)
+                activeBuildPlanConversationId = nil
+                activeBuildAgentConversationId = nil
+                isRewinding = false
+
+                // Set edited text and send
+                inputText = editedText
+                handleComposerSend()
+            }
+        }
+    }
 }
