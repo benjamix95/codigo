@@ -165,7 +165,16 @@ public actor WorkerPool {
                         providerId: capturedProviderId
                     )
                 }
-                let first = await group.next()!
+                guard let first = await group.next() else {
+                    return WorkerTaskResult(
+                        taskId: capturedTaskId,
+                        agentName: capturedAgentName,
+                        agentRole: capturedAgentRole,
+                        success: false,
+                        error: "Worker task group unexpectedly empty",
+                        providerId: capturedProviderId
+                    )
+                }
                 group.cancelAll()
                 return first
             }
@@ -195,9 +204,18 @@ public actor WorkerPool {
 
     public func shutdownAndWait(timeoutMs: Int = 5_000) async {
         shutdown()
-        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
-        while !activeTasks.isEmpty && Date() < deadline {
-            try? await Task.sleep(nanoseconds: 50_000_000)
+        let tasks = Array(runningWorkerTasks.values)
+        guard !tasks.isEmpty else { return }
+        let timeoutNs = UInt64(timeoutMs) * 1_000_000
+        await withTaskGroup(of: Void.self) { group in
+            for task in tasks {
+                group.addTask { await task.value }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNs)
+            }
+            await group.next()
+            group.cancelAll()
         }
     }
 

@@ -1431,6 +1431,10 @@
 		CD17251AA1E592923CD658CC /* ChatPanelView+PartA_NotificationModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB2961E2E05EF0D74D9611F /* ChatPanelView+PartA_NotificationModifiers.swift */; };
 		CD20E467D79F25A8792A0E91 /* ToolEnabledLLMProvider+SendRoundProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B2587685E4C7167E15DEE8 /* ToolEnabledLLMProvider+SendRoundProcessing.swift */; };
 		CD7FD3249B7CA711025515FB /* ProviderCircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE876A3049B461621A0175AF /* ProviderCircuitBreaker.swift */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* SSELineParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* SSELineParser.swift */; };
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* ProviderRetrySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* ProviderRetrySupport.swift */; };
+		E5F6A7B8C9D0E1F2A3B4C5D6 /* SSELineParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* SSELineParser.swift */; };
+		F6A7B8C9D0E1F2A3B4C5D6E7 /* ProviderRetrySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* ProviderRetrySupport.swift */; };
 		CDC1E18162C334CD8641CAA8 /* GitService+Branches.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC335B315E11C9FBE4F0ADBA /* GitService+Branches.swift */; };
 		CDDBEEDAF8B7535E33F1CD51 /* UnifiedToolRuntime+IndexSemantic.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C71A5B372A51C6F6B76EF6 /* UnifiedToolRuntime+IndexSemantic.swift */; };
 		CE077B8E70DEA96BB2B216DE /* PipelineMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A17A016B5AED6DF33E550C /* PipelineMetricsTests.swift */; };
@@ -2397,6 +2401,8 @@
 		45A1B9A786C2D1587E17CBFB /* SubagentChatView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatView.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatView.swift; sourceTree = "<group>"; };
 		45A529AE682A864596033BCB /* CodeSizeStageTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CodeSizeStageTests.swift; path = Tests/CoderEngineTests/Validation/CodeSizeStageTests.swift; sourceTree = "<group>"; };
 		45D6999846CF65E9F5F54F9B /* ProviderCircuitBreakerRegistry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderCircuitBreakerRegistry.swift; path = Engine/CoderEngine/Sources/ProviderBackends/Shared/ProviderCircuitBreakerRegistry.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* SSELineParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSELineParser.swift; path = Engine/CoderEngine/Sources/ProviderBackends/Shared/SSELineParser.swift; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* ProviderRetrySupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderRetrySupport.swift; path = Engine/CoderEngine/Sources/ProviderBackends/Shared/ProviderRetrySupport.swift; sourceTree = "<group>"; };
 		45F8A8E7DC434FDE2ECA79F8 /* BreadcrumbNavigationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BreadcrumbNavigationView.swift; path = App/SoloCodeApp/Sources/Panels/Navigation/BreadcrumbNavigationView.swift; sourceTree = "<group>"; };
 		46202E96028433D98F23B3EA /* ModeControlsBarView+Policies.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ModeControlsBarView+Policies.swift"; path = "App/SoloCodeApp/Sources/App/ModeControls/Sections/Picker/ModeControlsBarView+Policies.swift"; sourceTree = "<group>"; };
 		4623C7CCAC9BE5ACFDD5FF90 /* UnifiedToolRuntime+DebugQuery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+DebugQuery.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Debug/Query/UnifiedToolRuntime+DebugQuery.swift"; sourceTree = "<group>"; };
@@ -4990,6 +4996,8 @@
 				57DD8E33FA1DAE3DE26B738C /* WorkspaceScanner.swift */,
 				EE876A3049B461621A0175AF /* ProviderCircuitBreaker.swift */,
 				45D6999846CF65E9F5F54F9B /* ProviderCircuitBreakerRegistry.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* SSELineParser.swift */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* ProviderRetrySupport.swift */,
 				97F7ACDE259E160D70BB7A39 /* AnthropicSSEModels.swift */,
 				32E73EC9C7A70E04F422B679 /* OpenAISSEModels.swift */,
 			);
@@ -6445,6 +6453,8 @@
 				AD296C7D6CC6CBC6C328E4E0 /* WorkspaceScanner.swift in Sources */,
 				D8BBBCF6D6BEE5E462F4E6E3 /* ProviderCircuitBreaker.swift in Sources */,
 				4C998E86C00819211585122D /* ProviderCircuitBreakerRegistry.swift in Sources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* SSELineParser.swift in Sources */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* ProviderRetrySupport.swift in Sources */,
 				79BD5923C556B7A66A14F26E /* AnthropicSSEModels.swift in Sources */,
 				BDE62FFA2F0AD9042B7B02D6 /* OpenAISSEModels.swift in Sources */,
 			);
@@ -7210,6 +7220,8 @@
 				702621B7BEB430F02963D3DE /* View+ToolbarCompatibility.swift in Sources */,
 				CD7FD3249B7CA711025515FB /* ProviderCircuitBreaker.swift in Sources */,
 				C02056C808D6B760AE9353B8 /* ProviderCircuitBreakerRegistry.swift in Sources */,
+				E5F6A7B8C9D0E1F2A3B4C5D6 /* SSELineParser.swift in Sources */,
+				F6A7B8C9D0E1F2A3B4C5D6E7 /* ProviderRetrySupport.swift in Sources */,
 				E1DC9FFDE9F358971E1A074E /* AnthropicSSEModels.swift in Sources */,
 				3C5B2C057DC339CF468B7416 /* OpenAISSEModels.swift in Sources */,
 				D8D180BF64006AFCC82F9180 /* CodexLoginService.swift in Sources */,

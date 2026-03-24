@@ -162,145 +162,126 @@ extension OpenAIAPIProvider {
         continuation.yield(.started)
 
         let decoder = JSONDecoder()
-        var buffer = [UInt8]()
-        let maxSSEFrameBytes = 1_048_576 // 1 MB limite per frame SSE
-        var skipUntilNewline = false
+        var sseParser = SSELineParser()
         var didEmitUsage = false
         var toolArgsById: [String: String] = [:]
         var toolNameById: [String: String] = [:]
         var accumulatedReasoning = ""
 
         for try await byte in bytes {
-            // Dopo un overflow, scarta tutto fino al prossimo newline
-            // per evitare di contaminare il frame successivo.
-            if skipUntilNewline {
-                if byte == 10 { skipUntilNewline = false }
+            let lineResult = sseParser.feed(byte)
+
+            switch lineResult {
+            case .buffering:
                 continue
-            }
-
-            buffer.append(byte)
-
-            // Protezione: frame senza newline non devono crescere oltre il limite
-            if buffer.count > maxSSEFrameBytes {
-                let droppedSize = buffer.count
-                buffer.removeAll()
-                skipUntilNewline = true
-                NSLog("[OpenAI SSE] Frame overflow: %d bytes exceeded %d limit — frame dropped", droppedSize, maxSSEFrameBytes)
+            case .overflow(let droppedBytes):
+                NSLog("[OpenAI SSE] Frame overflow: %d bytes dropped", droppedBytes)
                 continuation.yield(.raw(type: "sse_frame_overflow", payload: [
                     "provider": id,
-                    "dropped_bytes": "\(droppedSize)",
-                    "limit_bytes": "\(maxSSEFrameBytes)",
+                    "dropped_bytes": "\(droppedBytes)",
+                    "limit_bytes": "\(sseParser.maxFrameBytes)",
                 ]))
                 continue
-            }
-
-            if byte == 10 {
-                let line =
-                    String(bytes: buffer, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                buffer.removeAll()
-                guard line.hasPrefix("data: ") else { continue }
-                let jsonStr = String(line.dropFirst(6))
-                if jsonStr == "[DONE]" {
-                    if !didEmitUsage {
-                        continuation.yield(.raw(
-                            type: "usage",
-                            payload: [
-                                "input_tokens": "-1",
-                                "output_tokens": "-1",
-                                "model": model,
-                            ]))
-                    }
-                    continuation.yield(.completed)
-                    continuation.finish()
-                    return nil
-                }
-
-                guard let lineData = jsonStr.data(using: .utf8),
-                      let chunk = try? decoder.decode(OpenAIChatChunk.self, from: lineData)
-                else {
-                    continue
-                }
-
-                if let error = chunk.error, let errorMessage = error.message {
-                    continuation.yield(.error("API error: \(errorMessage)"))
-                    continue
-                }
-
-                if let usage = chunk.usage,
-                   let inp = usage.resolvedInput,
-                   let out = usage.resolvedOutput {
+            case .done:
+                if !didEmitUsage {
                     continuation.yield(.raw(
                         type: "usage",
                         payload: [
-                            "input_tokens": "\(inp)",
-                            "output_tokens": "\(out)",
+                            "input_tokens": "-1",
+                            "output_tokens": "-1",
                             "model": model,
                         ]))
-                    didEmitUsage = true
+                }
+                continuation.yield(.completed)
+                continuation.finish()
+                return nil
+            case .payload:
+                break
+            }
+
+            guard case .payload(let jsonStr) = lineResult,
+                  let lineData = jsonStr.data(using: .utf8),
+                  let chunk = try? decoder.decode(OpenAIChatChunk.self, from: lineData)
+            else { continue }
+
+            if let error = chunk.error, let errorMessage = error.message {
+                continuation.yield(.error("API error: \(errorMessage)"))
+                continue
+            }
+
+            if let usage = chunk.usage,
+               let inp = usage.resolvedInput,
+               let out = usage.resolvedOutput {
+                continuation.yield(.raw(
+                    type: "usage",
+                    payload: [
+                        "input_tokens": "\(inp)",
+                        "output_tokens": "\(out)",
+                        "model": model,
+                    ]))
+                didEmitUsage = true
+            }
+
+            guard let first = chunk.choices?.first else {
+                continue
+            }
+
+            if let delta = first.delta {
+                if let reasoningChunk = delta.reasoningContent,
+                   !reasoningChunk.isEmpty
+                {
+                    accumulatedReasoning += reasoningChunk
+                    let text = String(accumulatedReasoning.prefix(6_000))
+                    continuation.yield(.raw(
+                        type: "reasoning",
+                        payload: [
+                            "output": text,
+                            "title": "Reasoning",
+                            "group_id": "reasoning-stream",
+                        ]))
                 }
 
-                guard let first = chunk.choices?.first else {
-                    continue
-                }
-
-                if let delta = first.delta {
-                    if let reasoningChunk = delta.reasoningContent,
-                       !reasoningChunk.isEmpty
-                    {
-                        accumulatedReasoning += reasoningChunk
-                        let text = String(accumulatedReasoning.prefix(6_000))
-                        continuation.yield(.raw(
-                            type: "reasoning",
-                            payload: [
-                                "output": text,
-                                "title": "Reasoning",
-                                "group_id": "reasoning-stream",
-                            ]))
-                    }
-
-                    if let toolCalls = delta.toolCalls {
-                        for toolCall in toolCalls {
-                            let fallbackIndex = toolCall.index.map(String.init) ?? "0"
-                            let tcId = toolCall.id ?? "idx-\(fallbackIndex)"
-                            if let function = toolCall.function {
-                                if let name = function.name, !name.isEmpty {
-                                    toolNameById[tcId] = name
-                                }
-                                if let argsFragment = function.arguments,
-                                   !argsFragment.isEmpty
-                                {
-                                    toolArgsById[tcId, default: ""] += argsFragment
-                                    continuation.yield(.raw(
-                                        type: "tool_call_suggested",
-                                        payload: [
-                                            "id": tcId,
-                                            "name": toolNameById[tcId] ?? "",
-                                            "args_fragment": argsFragment,
-                                            "args": toolArgsById[tcId] ?? "",
-                                            "is_partial": "true",
-                                        ]))
-                                }
+                if let toolCalls = delta.toolCalls {
+                    for toolCall in toolCalls {
+                        let fallbackIndex = toolCall.index.map(String.init) ?? "0"
+                        let tcId = toolCall.id ?? "idx-\(fallbackIndex)"
+                        if let function = toolCall.function {
+                            if let name = function.name, !name.isEmpty {
+                                toolNameById[tcId] = name
+                            }
+                            if let argsFragment = function.arguments,
+                               !argsFragment.isEmpty
+                            {
+                                toolArgsById[tcId, default: ""] += argsFragment
+                                continuation.yield(.raw(
+                                    type: "tool_call_suggested",
+                                    payload: [
+                                        "id": tcId,
+                                        "name": toolNameById[tcId] ?? "",
+                                        "args_fragment": argsFragment,
+                                        "args": toolArgsById[tcId] ?? "",
+                                        "is_partial": "true",
+                                    ]))
                             }
                         }
                     }
-
-                    if let textContent = delta.content, !textContent.isEmpty {
-                        continuation.yield(.textDelta(textContent))
-                    }
                 }
 
-                if first.finishReason == "tool_calls" {
-                    for (tcId, args) in toolArgsById {
-                        continuation.yield(.raw(
-                            type: "tool_call_suggested",
-                            payload: [
-                                "id": tcId,
-                                "name": toolNameById[tcId] ?? "",
-                                "args": args,
-                                "is_partial": "false",
-                            ]))
-                    }
+                if let textContent = delta.content, !textContent.isEmpty {
+                    continuation.yield(.textDelta(textContent))
+                }
+            }
+
+            if first.finishReason == "tool_calls" {
+                for (tcId, args) in toolArgsById {
+                    continuation.yield(.raw(
+                        type: "tool_call_suggested",
+                        payload: [
+                            "id": tcId,
+                            "name": toolNameById[tcId] ?? "",
+                            "args": args,
+                            "is_partial": "false",
+                        ]))
                 }
             }
         }

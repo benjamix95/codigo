@@ -152,49 +152,32 @@ extension AnthropicAPIProvider {
         var toolNameByContentBlock: [Int: String] = [:]
         var toolArgsByContentBlock: [Int: String] = [:]
         var accumulatedThinking = ""
-        var buffer = [UInt8]()
-        let maxSSEFrameBytes = 1_048_576 // 1 MB limite per frame SSE
-        var skipUntilNewline = false
+        var sseParser = SSELineParser()
 
         for try await byte in bytes {
-            // Dopo un overflow, scarta tutto fino al prossimo newline
-            // per evitare di contaminare il frame successivo.
-            if skipUntilNewline {
-                if byte == 10 { skipUntilNewline = false }
+            let lineResult = sseParser.feed(byte)
+
+            switch lineResult {
+            case .buffering:
                 continue
-            }
-
-            buffer.append(byte)
-
-            // Protezione: frame senza newline non devono crescere oltre il limite
-            if buffer.count > maxSSEFrameBytes {
-                let droppedSize = buffer.count
-                buffer.removeAll()
-                skipUntilNewline = true
-                NSLog("[Anthropic SSE] Frame overflow: %d bytes exceeded %d limit — frame dropped", droppedSize, maxSSEFrameBytes)
+            case .overflow(let droppedBytes):
+                NSLog("[Anthropic SSE] Frame overflow: %d bytes dropped", droppedBytes)
                 continuation.yield(.raw(type: "sse_frame_overflow", payload: [
                     "provider": "anthropic",
-                    "dropped_bytes": "\(droppedSize)",
-                    "limit_bytes": "\(maxSSEFrameBytes)",
+                    "dropped_bytes": "\(droppedBytes)",
+                    "limit_bytes": "\(sseParser.maxFrameBytes)",
                 ]))
                 continue
-            }
-
-            if byte != 10 { continue }
-
-            let line = String(bytes: buffer, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            buffer.removeAll()
-
-            guard line.hasPrefix("data: ") else { continue }
-            let payload = String(line.dropFirst(6))
-            if payload == "[DONE]" {
+            case .done:
                 continuation.yield(.completed)
                 continuation.finish()
                 return
+            case .payload:
+                break
             }
 
-            guard let data = payload.data(using: .utf8),
+            guard case .payload(let jsonStr) = lineResult,
+                  let data = jsonStr.data(using: .utf8),
                   let event = try? decoder.decode(AnthropicSSEEvent.self, from: data)
             else { continue }
 

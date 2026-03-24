@@ -1,0 +1,133 @@
+import Foundation
+
+// MARK: - ProviderRetrySupport
+
+/// Utility condivise per retry, backoff, e transport error detection.
+/// Eliminate la duplicazione tra AnthropicAPIProvider+Resilience
+/// e OpenAIAPIProvider+Resilience.
+enum ProviderRetrySupport {
+
+    static let maxRetryDelayTotalSeconds: TimeInterval = 120
+
+    static let retryableHTTPStatusCodes: Set<Int> = [408, 409, 425, 429, 500, 502, 503, 504, 529]
+
+    // MARK: - Session
+
+    static func makeSession(timeoutSeconds: TimeInterval) -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = timeoutSeconds
+        config.timeoutIntervalForResource = max(timeoutSeconds * 2, timeoutSeconds + 30)
+        return URLSession(configuration: config)
+    }
+
+    // MARK: - Error Body
+
+    static func readErrorBody(from bytes: URLSession.AsyncBytes) async -> String {
+        var buffer = [UInt8]()
+        do {
+            for try await byte in bytes {
+                buffer.append(byte)
+                if buffer.count >= 8192 { break }
+            }
+        } catch {
+            // Ignore body parsing errors for failed HTTP responses.
+        }
+        return String(bytes: buffer, encoding: .utf8) ?? ""
+    }
+
+    // MARK: - Retry-After
+
+    static func retryAfterSeconds(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
+            return nil
+        }
+        if let seconds = TimeInterval(raw), seconds > 0 {
+            return seconds
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+        if let date = formatter.date(from: raw) {
+            let delay = date.timeIntervalSinceNow
+            return delay > 0 ? delay : nil
+        }
+        return nil
+    }
+
+    static func normalizeRetryAfter(_ value: TimeInterval?) -> TimeInterval {
+        guard let retryAfter = value else { return 0 }
+        if !retryAfter.isFinite || retryAfter <= 0 { return 0 }
+        return min(max(0, retryAfter), maxRetryDelayTotalSeconds)
+    }
+
+    // MARK: - Backoff
+
+    static func retryDelay(
+        attempt: Int,
+        initialDelay: TimeInterval,
+        maxDelay: TimeInterval,
+        retryAfter: TimeInterval?
+    ) -> TimeInterval {
+        let backoff = exponentialBackoffSeconds(
+            attempt: attempt,
+            initialDelay: initialDelay,
+            maxDelay: maxDelay
+        )
+        let serverDelay = normalizeRetryAfter(retryAfter)
+        return min(maxRetryDelayTotalSeconds, max(backoff, serverDelay))
+    }
+
+    static func exponentialBackoffSeconds(
+        attempt: Int,
+        initialDelay: TimeInterval,
+        maxDelay: TimeInterval
+    ) -> TimeInterval {
+        let exponent = max(0, attempt - 1)
+        let exponential = min(maxDelay, initialDelay * pow(2.0, Double(exponent)))
+        let jitter = Double.random(in: 0.8...1.2)
+        return max(0.05, min(maxDelay, exponential * jitter))
+    }
+
+    // MARK: - Transport Errors
+
+    static func shouldRetryTransportError(for error: Error) -> Bool {
+        if error is CancellationError { return false }
+        if let urlError = error as? URLError {
+            return isRetryableTransportCode(urlError.code)
+        }
+        let nsError = error as NSError
+        if nsError.domain != NSURLErrorDomain { return false }
+        return isRetryableTransportCode(URLError.Code(rawValue: nsError.code))
+    }
+
+    static func isRetryableTransportCode(_ code: URLError.Code) -> Bool {
+        switch code {
+        case .timedOut,
+             .cannotFindHost,
+             .cannotConnectToHost,
+             .dnsLookupFailed,
+             .networkConnectionLost,
+             .notConnectedToInternet,
+             .resourceUnavailable,
+             .internationalRoamingOff,
+             .callIsActive,
+             .dataNotAllowed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    // MARK: - Sleep
+
+    static func sleep(seconds: TimeInterval) async throws {
+        try Task.checkCancellation()
+        let safeSeconds = max(0, seconds)
+        let nanos = UInt64(safeSeconds * 1_000_000_000)
+        try await Task.sleep(nanoseconds: nanos)
+        try Task.checkCancellation()
+    }
+}

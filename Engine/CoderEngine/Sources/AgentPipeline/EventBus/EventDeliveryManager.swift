@@ -68,11 +68,15 @@ public actor EventDeliveryManager {
     /// Timeout in millisecondi per singola delivery.
     public let deliveryTimeoutMs: UInt64
 
+    /// Limite massimo di delivery task concorrenti.
+    public let maxConcurrentDeliveries: Int
+
     // MARK: - State
 
     private var pendingRecords: [String: DeliveryRecord] = [:]
     private var attemptLog: [DeliveryAttempt] = []
     private var deliveryTasks: [String: Task<Void, Never>] = [:]
+    private var waitingKeys: [String] = []
     private let deadLetterQueue: DeadLetterQueue
 
     // MARK: - Metrics
@@ -88,6 +92,7 @@ public actor EventDeliveryManager {
         maxDelayMs: UInt64 = 5000,
         maxAttemptLogEntries: Int = 500,
         deliveryTimeoutMs: UInt64 = 30_000,
+        maxConcurrentDeliveries: Int = 32,
         deadLetterQueue: DeadLetterQueue
     ) {
         self.maxAttempts = max(1, maxAttempts)
@@ -95,6 +100,7 @@ public actor EventDeliveryManager {
         self.maxDelayMs = maxDelayMs
         self.maxAttemptLogEntries = max(1, maxAttemptLogEntries)
         self.deliveryTimeoutMs = deliveryTimeoutMs
+        self.maxConcurrentDeliveries = max(1, maxConcurrentDeliveries)
         self.deadLetterQueue = deadLetterQueue
     }
 
@@ -114,8 +120,27 @@ public actor EventDeliveryManager {
             lastError: nil
         )
         guard deliveryTasks[recordKey] == nil else { return }
+
+        if deliveryTasks.count >= maxConcurrentDeliveries {
+            waitingKeys.append(recordKey)
+            return
+        }
+
+        startDeliveryTask(for: recordKey)
+    }
+
+    private func startDeliveryTask(for recordKey: String) {
         deliveryTasks[recordKey] = Task { [recordKey] in
             await self.processDelivery(recordKey: recordKey)
+            await self.drainWaitingQueue()
+        }
+    }
+
+    private func drainWaitingQueue() {
+        while deliveryTasks.count < maxConcurrentDeliveries, !waitingKeys.isEmpty {
+            let key = waitingKeys.removeFirst()
+            guard pendingRecords[key] != nil else { continue }
+            startDeliveryTask(for: key)
         }
     }
 
