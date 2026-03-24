@@ -108,7 +108,7 @@ extension ChatPanelView {
             chatStore: chatStore,
             conversationId: conversationId,
             isTaskRunning: isLoadingForCurrentConversation,
-            selectedSwarmId: $selectedSwarmId,
+            selectedSwarmId: $panelState.selectedSwarmId,
             swarmOrchestrator: $swarmOrchestrator,
             swarmWorkerBackend: $swarmWorkerBackend,
             onClose: {

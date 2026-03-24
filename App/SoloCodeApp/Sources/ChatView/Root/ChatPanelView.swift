@@ -33,11 +33,7 @@ struct ChatPanelView: View {
     }
 
     @Binding var coderMode: CoderMode
-    @State  var inputText = ""
-    @State  var isInputFocused: Bool = false
-    @State  var didAutoFocusComposerOnLaunch: Bool = false
-    @State  var composerAutoFocusTask: Task<Void, Never>?
-    @State  var draftSaveTask: Task<Void, Never>?
+    @State var composerState = ChatPanelComposerViewState()
     @AppStorage("codex_path")  var codexPath = ""
     @AppStorage("codex_sandbox")  var codexSandbox = ""
     @AppStorage("codex_session_full_access")  var codexSessionFullAccess = false
@@ -99,68 +95,16 @@ struct ChatPanelView: View {
     @AppStorage("code_review_panel_width")  var codeReviewPanelWidthStorage: Double = 380
     @AppStorage("git_panel_width")  var gitPanelWidthStorage: Double = 380
     @AppStorage("auto_resize_side_panels")  var autoResizeSidePanels = false
-    @State  var planToggleEnabled = false
-    @State  var debugToggleEnabled = false
+    @State var panelState = ChatPanelThreadViewState()
     @Binding var showPlanPanel: Bool
     @Binding var showDebugPanel: Bool
     @Binding var showSwarmPanel: Bool
     @Binding var showCodeReviewPanel: Bool
     @Binding var showBrowserPanel: Bool
-    @State  var selectedSwarmId: String?
-    @State  var planPanelPresentationSource: PlanPanelPresentationSource = .manualDeepLink
     @ObservedObject var debugStore: DebugStore
-    @State  var planningState: PlanningState = .idle
-    @State  var planFlowPhase: PlanFlowPhase = .idle
-    @State  var planAnalysisContext: String = ""
-    @State  var planUserRequest: String = ""
-    @State  var planClarificationAnswers: String = ""
-    @State  var planClarificationQuestionnaire: PlanClarificationQuestionnaire?
-    @State  var planClarificationCycles: Int = 0
-    @State  var planStreamingContent: String = ""
-    @State  var planStreamingContentByConversation: [UUID: String] = [:]
-    /// Incremented whenever plan_request_user_input emits a new clarification round.
-    @State  var planQuestionToolRequestEpoch: Int = 0
-    @State  var planShouldRunInline: Bool = false
-    @State  var activeBuildPlanConversationId: UUID?
-    @State  var activeBuildAgentConversationId: UUID?
-    @State  var suppressedEmptyBuildAssistantMessageIds: Set<UUID> = []
-    @State  var isProviderReady = false
-    @State  var attachedComposerAttachments: [ComposerAttachment] = []
-    @State  var composerCodeReviewModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
-    @State  var isSelectingImage = false
-    @State  var isComposerDropTargeted = false
-    @State  var isConvertingHeic = false
-    @State  var pasteMonitor: Any?
-    @State  var isSummarizing = false
-    @State  var isRewinding = false
-    @State  var isPlanSummaryCollapsed = false
-    @State  var isPlanTabHovered = false
-    @State  var isPlanShortcutCycling = false
-    @State  var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
-    @State  var threadUIStateByConversation: [UUID: ChatThreadUIState] = [:]
-    @State  var isRestoringThreadUIState = false
-    @State  var hasJustCompletedTask = false
-    @State  var showRateLimitAlert = false
-    @State  var rateLimitAlertText = ""
-    @State  var didCopyAllChat = false
-    @State  var isFollowingLive = true
-    @State  var newEventsWhileDetached = 0
-    @State  var chatHeaderWidth: CGFloat = 800
+    @State var planState = ChatPanelPlanViewState()
+    @State var interactionState = ChatPanelInteractionViewState()
     @StateObject  var voiceInputController = VoiceInputController()
-    @State  var composerFrozenTimerState: ComposerFrozenTimerState?
-    @State  var composerTimerAutoHideTask: Task<Void, Never>?
-    @State  var composerTaskStartDate: Date?
-    @State  var lastTaskEndedByManualStop = false
-    @State  var isOptimizingPrompt = false
-    @State  var showPromptOptimizerPopup = false
-    @State  var optimizedPromptResult = ""
-    @State  var promptOptimizerTask: Task<Void, Never>?
-    @State  var isAnyAgentProviderReady = false
-    @State  var checkProviderAuthGeneration = 0
-    @State  var userModeOverrideUntilConversationChange = false
-    @State  var suppressModeSyncForNextProviderChange = false
-    @State  var ignoreNextConversationChangeReset = false
-    @State  var skipNextLoadingCompletedHandling = false
     @StateObject  var flowCoordinator = ConversationFlowCoordinator()
     @StateObject  var networkMonitor = NetworkMonitor.shared
     @State  var pendingTaskActivities: [TaskActivity] = []

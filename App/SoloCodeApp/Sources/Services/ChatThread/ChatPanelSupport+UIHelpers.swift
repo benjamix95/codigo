@@ -252,3 +252,377 @@ struct ToolStartRequirementsState: Equatable {
     var didSeeTodoWrite: Bool = false
     var violationEmitted: Bool = false
 }
+
+struct ChatPanelComposerViewState {
+    var inputText = ""
+    var isInputFocused = false
+    var didAutoFocusComposerOnLaunch = false
+    var composerAutoFocusTask: Task<Void, Never>?
+    var draftSaveTask: Task<Void, Never>?
+    var attachedComposerAttachments: [ComposerAttachment] = []
+    var composerCodeReviewModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
+    var isSelectingImage = false
+    var isComposerDropTargeted = false
+    var isConvertingHeic = false
+    var pasteMonitor: Any?
+    var composerFrozenTimerState: ComposerFrozenTimerState?
+    var composerTimerAutoHideTask: Task<Void, Never>?
+    var composerTaskStartDate: Date?
+    var lastTaskEndedByManualStop = false
+    var isOptimizingPrompt = false
+    var showPromptOptimizerPopup = false
+    var optimizedPromptResult = ""
+    var promptOptimizerTask: Task<Void, Never>?
+}
+
+struct ChatPanelPlanViewState {
+    var planningState: PlanningState = .idle
+    var planFlowPhase: PlanFlowPhase = .idle
+    var planAnalysisContext = ""
+    var planUserRequest = ""
+    var planClarificationAnswers = ""
+    var planClarificationQuestionnaire: PlanClarificationQuestionnaire?
+    var planClarificationCycles = 0
+    var planStreamingContent = ""
+    var planStreamingContentByConversation: [UUID: String] = [:]
+    var planQuestionToolRequestEpoch = 0
+    var planShouldRunInline = false
+    var activeBuildPlanConversationId: UUID?
+    var activeBuildAgentConversationId: UUID?
+    var suppressedEmptyBuildAssistantMessageIds: Set<UUID> = []
+    var isPlanSummaryCollapsed = false
+    var isPlanTabHovered = false
+    var isPlanShortcutCycling = false
+    var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
+}
+
+struct ChatPanelThreadViewState {
+    var planToggleEnabled = false
+    var debugToggleEnabled = false
+    var selectedSwarmId: String?
+    var planPanelPresentationSource: PlanPanelPresentationSource = .manualDeepLink
+    var threadUIStateByConversation: [UUID: ChatThreadUIState] = [:]
+    var isRestoringThreadUIState = false
+    var hasJustCompletedTask = false
+    var showRateLimitAlert = false
+    var rateLimitAlertText = ""
+    var didCopyAllChat = false
+    var isFollowingLive = true
+    var newEventsWhileDetached = 0
+    var chatHeaderWidth: CGFloat = 800
+}
+
+struct ChatPanelInteractionViewState {
+    var isProviderReady = false
+    var isSummarizing = false
+    var isRewinding = false
+    var isAnyAgentProviderReady = false
+    var checkProviderAuthGeneration = 0
+    var userModeOverrideUntilConversationChange = false
+    var suppressModeSyncForNextProviderChange = false
+    var ignoreNextConversationChangeReset = false
+    var skipNextLoadingCompletedHandling = false
+}
+
+extension ChatPanelView {
+    var inputText: String {
+        get { composerState.inputText }
+        nonmutating set { composerState.inputText = newValue }
+    }
+
+    var isInputFocused: Bool {
+        get { composerState.isInputFocused }
+        nonmutating set { composerState.isInputFocused = newValue }
+    }
+
+    var didAutoFocusComposerOnLaunch: Bool {
+        get { composerState.didAutoFocusComposerOnLaunch }
+        nonmutating set { composerState.didAutoFocusComposerOnLaunch = newValue }
+    }
+
+    var composerAutoFocusTask: Task<Void, Never>? {
+        get { composerState.composerAutoFocusTask }
+        nonmutating set { composerState.composerAutoFocusTask = newValue }
+    }
+
+    var draftSaveTask: Task<Void, Never>? {
+        get { composerState.draftSaveTask }
+        nonmutating set { composerState.draftSaveTask = newValue }
+    }
+
+    var attachedComposerAttachments: [ComposerAttachment] {
+        get { composerState.attachedComposerAttachments }
+        nonmutating set { composerState.attachedComposerAttachments = newValue }
+        nonmutating _modify { yield &composerState.attachedComposerAttachments }
+    }
+
+    var composerCodeReviewModes: Set<CodeReviewPanelMode> {
+        get { composerState.composerCodeReviewModes }
+        nonmutating set { composerState.composerCodeReviewModes = newValue }
+        nonmutating _modify { yield &composerState.composerCodeReviewModes }
+    }
+
+    var isSelectingImage: Bool {
+        get { composerState.isSelectingImage }
+        nonmutating set { composerState.isSelectingImage = newValue }
+    }
+
+    var isComposerDropTargeted: Bool {
+        get { composerState.isComposerDropTargeted }
+        nonmutating set { composerState.isComposerDropTargeted = newValue }
+    }
+
+    var isConvertingHeic: Bool {
+        get { composerState.isConvertingHeic }
+        nonmutating set { composerState.isConvertingHeic = newValue }
+    }
+
+    var pasteMonitor: Any? {
+        get { composerState.pasteMonitor }
+        nonmutating set { composerState.pasteMonitor = newValue }
+    }
+
+    var composerFrozenTimerState: ComposerFrozenTimerState? {
+        get { composerState.composerFrozenTimerState }
+        nonmutating set { composerState.composerFrozenTimerState = newValue }
+    }
+
+    var composerTimerAutoHideTask: Task<Void, Never>? {
+        get { composerState.composerTimerAutoHideTask }
+        nonmutating set { composerState.composerTimerAutoHideTask = newValue }
+    }
+
+    var composerTaskStartDate: Date? {
+        get { composerState.composerTaskStartDate }
+        nonmutating set { composerState.composerTaskStartDate = newValue }
+    }
+
+    var lastTaskEndedByManualStop: Bool {
+        get { composerState.lastTaskEndedByManualStop }
+        nonmutating set { composerState.lastTaskEndedByManualStop = newValue }
+    }
+
+    var isOptimizingPrompt: Bool {
+        get { composerState.isOptimizingPrompt }
+        nonmutating set { composerState.isOptimizingPrompt = newValue }
+    }
+
+    var showPromptOptimizerPopup: Bool {
+        get { composerState.showPromptOptimizerPopup }
+        nonmutating set { composerState.showPromptOptimizerPopup = newValue }
+    }
+
+    var optimizedPromptResult: String {
+        get { composerState.optimizedPromptResult }
+        nonmutating set { composerState.optimizedPromptResult = newValue }
+    }
+
+    var promptOptimizerTask: Task<Void, Never>? {
+        get { composerState.promptOptimizerTask }
+        nonmutating set { composerState.promptOptimizerTask = newValue }
+    }
+
+    var planningState: PlanningState {
+        get { planState.planningState }
+        nonmutating set { planState.planningState = newValue }
+    }
+
+    var planFlowPhase: PlanFlowPhase {
+        get { planState.planFlowPhase }
+        nonmutating set { planState.planFlowPhase = newValue }
+    }
+
+    var planAnalysisContext: String {
+        get { planState.planAnalysisContext }
+        nonmutating set { planState.planAnalysisContext = newValue }
+    }
+
+    var planUserRequest: String {
+        get { planState.planUserRequest }
+        nonmutating set { planState.planUserRequest = newValue }
+    }
+
+    var planClarificationAnswers: String {
+        get { planState.planClarificationAnswers }
+        nonmutating set { planState.planClarificationAnswers = newValue }
+    }
+
+    var planClarificationQuestionnaire: PlanClarificationQuestionnaire? {
+        get { planState.planClarificationQuestionnaire }
+        nonmutating set { planState.planClarificationQuestionnaire = newValue }
+    }
+
+    var planClarificationCycles: Int {
+        get { planState.planClarificationCycles }
+        nonmutating set { planState.planClarificationCycles = newValue }
+    }
+
+    var planStreamingContent: String {
+        get { planState.planStreamingContent }
+        nonmutating set { planState.planStreamingContent = newValue }
+    }
+
+    var planStreamingContentByConversation: [UUID: String] {
+        get { planState.planStreamingContentByConversation }
+        nonmutating set { planState.planStreamingContentByConversation = newValue }
+        nonmutating _modify { yield &planState.planStreamingContentByConversation }
+    }
+
+    var planQuestionToolRequestEpoch: Int {
+        get { planState.planQuestionToolRequestEpoch }
+        nonmutating set { planState.planQuestionToolRequestEpoch = newValue }
+    }
+
+    var planShouldRunInline: Bool {
+        get { planState.planShouldRunInline }
+        nonmutating set { planState.planShouldRunInline = newValue }
+    }
+
+    var activeBuildPlanConversationId: UUID? {
+        get { planState.activeBuildPlanConversationId }
+        nonmutating set { planState.activeBuildPlanConversationId = newValue }
+    }
+
+    var activeBuildAgentConversationId: UUID? {
+        get { planState.activeBuildAgentConversationId }
+        nonmutating set { planState.activeBuildAgentConversationId = newValue }
+    }
+
+    var suppressedEmptyBuildAssistantMessageIds: Set<UUID> {
+        get { planState.suppressedEmptyBuildAssistantMessageIds }
+        nonmutating set { planState.suppressedEmptyBuildAssistantMessageIds = newValue }
+        nonmutating _modify { yield &planState.suppressedEmptyBuildAssistantMessageIds }
+    }
+
+    var isPlanSummaryCollapsed: Bool {
+        get { planState.isPlanSummaryCollapsed }
+        nonmutating set { planState.isPlanSummaryCollapsed = newValue }
+    }
+
+    var isPlanTabHovered: Bool {
+        get { planState.isPlanTabHovered }
+        nonmutating set { planState.isPlanTabHovered = newValue }
+    }
+
+    var isPlanShortcutCycling: Bool {
+        get { planState.isPlanShortcutCycling }
+        nonmutating set { planState.isPlanShortcutCycling = newValue }
+    }
+
+    var inlinePlanSummaries: [UUID: InlinePlanSummary] {
+        get { planState.inlinePlanSummaries }
+        nonmutating set { planState.inlinePlanSummaries = newValue }
+        nonmutating _modify { yield &planState.inlinePlanSummaries }
+    }
+
+    var planToggleEnabled: Bool {
+        get { panelState.planToggleEnabled }
+        nonmutating set { panelState.planToggleEnabled = newValue }
+    }
+
+    var debugToggleEnabled: Bool {
+        get { panelState.debugToggleEnabled }
+        nonmutating set { panelState.debugToggleEnabled = newValue }
+    }
+
+    var selectedSwarmId: String? {
+        get { panelState.selectedSwarmId }
+        nonmutating set { panelState.selectedSwarmId = newValue }
+    }
+
+    var planPanelPresentationSource: PlanPanelPresentationSource {
+        get { panelState.planPanelPresentationSource }
+        nonmutating set { panelState.planPanelPresentationSource = newValue }
+    }
+
+    var threadUIStateByConversation: [UUID: ChatThreadUIState] {
+        get { panelState.threadUIStateByConversation }
+        nonmutating set { panelState.threadUIStateByConversation = newValue }
+        nonmutating _modify { yield &panelState.threadUIStateByConversation }
+    }
+
+    var isRestoringThreadUIState: Bool {
+        get { panelState.isRestoringThreadUIState }
+        nonmutating set { panelState.isRestoringThreadUIState = newValue }
+    }
+
+    var hasJustCompletedTask: Bool {
+        get { panelState.hasJustCompletedTask }
+        nonmutating set { panelState.hasJustCompletedTask = newValue }
+    }
+
+    var showRateLimitAlert: Bool {
+        get { panelState.showRateLimitAlert }
+        nonmutating set { panelState.showRateLimitAlert = newValue }
+    }
+
+    var rateLimitAlertText: String {
+        get { panelState.rateLimitAlertText }
+        nonmutating set { panelState.rateLimitAlertText = newValue }
+    }
+
+    var didCopyAllChat: Bool {
+        get { panelState.didCopyAllChat }
+        nonmutating set { panelState.didCopyAllChat = newValue }
+    }
+
+    var isFollowingLive: Bool {
+        get { panelState.isFollowingLive }
+        nonmutating set { panelState.isFollowingLive = newValue }
+    }
+
+    var newEventsWhileDetached: Int {
+        get { panelState.newEventsWhileDetached }
+        nonmutating set { panelState.newEventsWhileDetached = newValue }
+    }
+
+    var chatHeaderWidth: CGFloat {
+        get { panelState.chatHeaderWidth }
+        nonmutating set { panelState.chatHeaderWidth = newValue }
+    }
+
+    var isProviderReady: Bool {
+        get { interactionState.isProviderReady }
+        nonmutating set { interactionState.isProviderReady = newValue }
+    }
+
+    var isSummarizing: Bool {
+        get { interactionState.isSummarizing }
+        nonmutating set { interactionState.isSummarizing = newValue }
+    }
+
+    var isRewinding: Bool {
+        get { interactionState.isRewinding }
+        nonmutating set { interactionState.isRewinding = newValue }
+    }
+
+    var isAnyAgentProviderReady: Bool {
+        get { interactionState.isAnyAgentProviderReady }
+        nonmutating set { interactionState.isAnyAgentProviderReady = newValue }
+    }
+
+    var checkProviderAuthGeneration: Int {
+        get { interactionState.checkProviderAuthGeneration }
+        nonmutating set { interactionState.checkProviderAuthGeneration = newValue }
+    }
+
+    var userModeOverrideUntilConversationChange: Bool {
+        get { interactionState.userModeOverrideUntilConversationChange }
+        nonmutating set { interactionState.userModeOverrideUntilConversationChange = newValue }
+    }
+
+    var suppressModeSyncForNextProviderChange: Bool {
+        get { interactionState.suppressModeSyncForNextProviderChange }
+        nonmutating set { interactionState.suppressModeSyncForNextProviderChange = newValue }
+    }
+
+    var ignoreNextConversationChangeReset: Bool {
+        get { interactionState.ignoreNextConversationChangeReset }
+        nonmutating set { interactionState.ignoreNextConversationChangeReset = newValue }
+    }
+
+    var skipNextLoadingCompletedHandling: Bool {
+        get { interactionState.skipNextLoadingCompletedHandling }
+        nonmutating set { interactionState.skipNextLoadingCompletedHandling = newValue }
+    }
+}

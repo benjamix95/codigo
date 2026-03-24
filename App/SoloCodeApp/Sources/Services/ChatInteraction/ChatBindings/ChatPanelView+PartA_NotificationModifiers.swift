@@ -7,7 +7,7 @@ extension ChatPanelView {
         content
             .sheet(isPresented: $showSwarmHelp) { AgentSwarmHelpView() }
             .fileImporter(
-                isPresented: $isSelectingImage,
+                isPresented: $composerState.isSelectingImage,
                 allowedContentTypes: [.item],
                 allowsMultipleSelection: true
             ) { result in
