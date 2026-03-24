@@ -113,10 +113,18 @@ final class ToolTraceStore: ObservableObject {
     private func throttledNotify() {
         let now = Date()
         if now.timeIntervalSince(lastChangeNotification) > 0.15 {
+            // Enough time has passed — notify immediately and reset the window.
+            // Previously this called throttledNotify() recursively, which
+            // wasted a stack frame and re-entered the delayed branch, effectively
+            // scheduling a redundant 150ms delayed notification on top of the
+            // immediate one.
             lastChangeNotification = now
-            throttledNotify()
+            changeThrottleTask?.cancel()
+            changeThrottleTask = nil
+            objectWillChange.send()
             return
         }
+        // Within throttle window — coalesce into a single delayed notification.
         changeThrottleTask?.cancel()
         let work = DispatchWorkItem { [weak self] in
             self?.lastChangeNotification = Date()

@@ -35,7 +35,21 @@ extension MarkdownContentView {
         .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// Thread-local cache for the last streaming attributed string.
+    /// During streaming, text grows incrementally (append-only). We cache
+    /// the last result keyed by text length — if the length hasn't changed,
+    /// the content hasn't changed and we skip the expensive
+    /// `AttributedString(markdown:)` parse + run iteration.
+    private static var lastStreamingAttributedLength: Int = 0
+    private static var lastStreamingAttributedResult: AttributedString?
+
     fileprivate func buildStreamingAttributed(_ text: String) -> AttributedString {
+        let length = text.utf16.count
+        if length == Self.lastStreamingAttributedLength,
+           let cached = Self.lastStreamingAttributedResult {
+            return cached
+        }
+
         var result: AttributedString
         if let markdown = try? AttributedString(
             markdown: text,
@@ -61,6 +75,8 @@ extension MarkdownContentView {
                 result[range].foregroundColor = NSColor(inlineCodeColor)
             }
         }
+        Self.lastStreamingAttributedLength = length
+        Self.lastStreamingAttributedResult = result
         return result
     }
 

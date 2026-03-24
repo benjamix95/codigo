@@ -33,12 +33,29 @@ struct ChatTurnView: View {
         todoStore.displayTodosForChat(for: conversationId)
     }
     private var inlineTraceEvents: [ToolTraceEvent] {
-        traceEvents
+        let filtered = traceEvents
             .filter { shouldShowInLinearChatOperationFeed($0, showTodoCard: shouldShowTodo && !todoItems.isEmpty) }
-            .sorted { lhs, rhs in
-                if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
-                return lhs.timestamp < rhs.timestamp
+        // traceEvents from ToolTraceStore are already in insertion order
+        // (NDJSON append-only). .filter() preserves relative order, so the
+        // result is almost always already sorted. Check in O(n) before
+        // paying O(n log n) for the sort — the common case during streaming
+        // is that the array is already ordered.
+        if filtered.count <= 1 { return filtered }
+        var needsSort = false
+        for i in 1..<filtered.count {
+            let prev = filtered[i - 1]
+            let curr = filtered[i]
+            if prev.sequence > curr.sequence
+                || (prev.sequence == curr.sequence && prev.timestamp > curr.timestamp) {
+                needsSort = true
+                break
             }
+        }
+        guard needsSort else { return filtered }
+        return filtered.sorted { lhs, rhs in
+            if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
+            return lhs.timestamp < rhs.timestamp
+        }
     }
     private var traceWorkspaceHints: [String] {
         context?.folderPaths.filter { !$0.isEmpty } ?? []
