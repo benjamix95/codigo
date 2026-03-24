@@ -26,7 +26,7 @@ final class MCPSharedBugHunterFallbackLockTests: XCTestCase {
                 MCPSharedState.ensureBugHunterDirectories()
             },
             acquireLock: {
-                .fallback(EMFILE)
+                .fallback
             },
             body: {
                 42
@@ -67,7 +67,7 @@ final class MCPSharedBugHunterFallbackLockTests: XCTestCase {
                         MCPSharedState.ensureBugHunterDirectories()
                     },
                     acquireLock: {
-                        .fallback(EMFILE)
+                        .fallback
                     },
                     body: {
                         let current = (try? String(contentsOf: counterURL, encoding: .utf8))
