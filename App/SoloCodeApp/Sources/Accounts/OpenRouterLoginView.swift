@@ -1,6 +1,5 @@
 import SwiftUI
 import AuthenticationServices
-import CryptoKit
 
 struct OpenRouterLoginView: View {
     @Environment(\.dismiss) var dismiss
@@ -123,8 +122,8 @@ struct OpenRouterLoginView: View {
         authMessage = "Opening browser..."
         errorMessage = nil
 
-        let verifier = generateCodeVerifier()
-        guard let challenge = generateCodeChallenge(from: verifier) else {
+        let verifier = OpenRouterAuthService.generateCodeVerifier()
+        guard let challenge = OpenRouterAuthService.generateCodeChallenge(from: verifier) else {
             errorMessage = "Error generating code challenge"
             isAuthenticating = false
             return
@@ -210,30 +209,7 @@ struct OpenRouterLoginView: View {
     private func exchangeCodeForKey(code: String, verifier: String) {
         Task {
             do {
-                let url = URL(string: "https://openrouter.ai/api/v1/auth/keys")!
-                var request = URLRequest(url: url)
-                request.httpMethod = "POST"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                let body: [String: String] = ["code": code, "code_verifier": verifier]
-                request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-                let (data, response) = try await URLSession.shared.data(for: request)
-
-                guard let httpResponse = response as? HTTPURLResponse,
-                      (200...299).contains(httpResponse.statusCode) else {
-                    let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    throw URLError(.badServerResponse, userInfo: [
-                        NSLocalizedDescriptionKey: "HTTP \(statusCode)"
-                    ])
-                }
-
-                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let key = json["key"] as? String else {
-                    throw URLError(.cannotParseResponse, userInfo: [
-                        NSLocalizedDescriptionKey: "Response does not contain 'key'"
-                    ])
-                }
-
+                let key = try await OpenRouterAuthService.exchangeCodeForKey(code: code, verifier: verifier)
                 await MainActor.run {
                     apiKey = key
                     isAuthenticating = false
@@ -260,30 +236,6 @@ struct OpenRouterLoginView: View {
         dismiss()
     }
 
-    // MARK: - PKCE Helpers
-
-    private func generateCodeVerifier() -> String {
-        var bytes = [UInt8](repeating: 0, count: 32)
-        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        guard status == errSecSuccess else {
-            return UUID().uuidString.replacingOccurrences(of: "-", with: "")
-        }
-        return Data(bytes)
-            .base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
-    }
-
-    private func generateCodeChallenge(from verifier: String) -> String? {
-        guard let data = verifier.data(using: .ascii) else { return nil }
-        let hash = SHA256.hash(data: data)
-        return Data(hash)
-            .base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
-    }
 }
 
 // MARK: - Auth Presentation Context

@@ -136,107 +136,40 @@ struct CodexLoginView: View {
     private func loginWithBrowser() {
         isPolling = true
         loginMessage = "Opening the browser..."
-        runLogin(args: [])
+        performLogin { await CodexLoginService.runBrowserLogin(codexPath: codexPath, args: []) }
     }
 
     private func loginWithDeviceCode() {
         isPolling = true
         loginMessage = "Showing the code in terminal..."
-        runLogin(args: ["--device-auth"])
+        performLogin { await CodexLoginService.runBrowserLogin(codexPath: codexPath, args: ["--device-auth"]) }
     }
 
     private func loginWithAPIKey() {
         guard !apiKey.isEmpty else { return }
         isPolling = true
         loginMessage = "Authenticating..."
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: codexPath)
-        process.arguments = ["login", "--with-api-key"]
-        let inputPipe = Pipe()
-        process.standardInput = inputPipe
-        process.standardOutput = nil
-        process.standardError = nil
-        process.environment = CodexDetector.shellEnvironment()
-
-        do {
-            try process.run()
-            inputPipe.fileHandleForWriting.write((apiKey + "\n").data(using: .utf8) ?? Data())
-            try inputPipe.fileHandleForWriting.close()
-        } catch {
-            isPolling = false
-            return
-        }
-
-        let capturedPath = codexPath
-        process.terminationHandler = { proc in
-            DispatchQueue.main.async {
-                if proc.terminationStatus == 0 {
-                    startPolling(codexPath: capturedPath)
-                } else {
-                    isPolling = false
-                    loginMessage = "Login failed. Verify API key and try again."
-                }
-            }
-        }
+        performLogin { await CodexLoginService.loginWithAPIKey(codexPath: codexPath, apiKey: apiKey) }
     }
 
-    private func runLogin(args: [String]) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: codexPath)
-        process.arguments = ["login"] + args
-        let outPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = outPipe
-        process.environment = CodexDetector.shellEnvironment()
-
-        do {
-            try process.run()
-        } catch {
-            isPolling = false
-            return
-        }
-
-        // Read output asynchronously — open login URLs in the system browser
-        outPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
-            if let regex = try? NSRegularExpression(pattern: "https?://[^\\s\"'<>]+"),
-               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-               let range = Range(match.range, in: text),
-               let url = URL(string: String(text[range])) {
-                DispatchQueue.main.async { NSWorkspace.shared.open(url) }
-            }
-        }
-
-        let capturedPath = codexPath
-        process.terminationHandler = { proc in
-            outPipe.fileHandleForReading.readabilityHandler = nil
-            DispatchQueue.main.async {
-                if proc.terminationStatus == 0 {
-                    startPolling(codexPath: capturedPath)
-                } else {
-                    isPolling = false
-                    loginMessage = "Login not completed. Try again."
-                }
-            }
-        }
-    }
-
-    private func startPolling(codexPath: String) {
+    /// Shared handler: runs an async login operation and updates UI based on result.
+    private func performLogin(_ operation: @escaping () async -> CodexLoginService.LoginResult) {
         Task {
-            for _ in 0..<30 {
-                try? await Task.sleep(for: .seconds(2))
-                let ready = await Task.detached {
-                    CodexDetector.detect(customPath: codexPath).isLoggedIn
-                }.value
-                if ready {
-                    isPolling = false
-                    dismiss()
-                    onDismiss()
-                    return
-                }
-            }
+            let result = await operation()
+            handleResult(result)
+        }
+    }
+
+    private func handleResult(_ result: CodexLoginService.LoginResult) {
+        switch result {
+        case .success:
+            isPolling = false
+            dismiss()
+            onDismiss()
+        case .failure(let message):
+            isPolling = false
+            loginMessage = message
+        case .timeout:
             isPolling = false
             loginMessage = "Timeout. Try again."
         }
