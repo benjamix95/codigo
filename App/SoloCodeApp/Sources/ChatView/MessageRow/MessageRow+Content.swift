@@ -278,7 +278,7 @@ extension MessageRow {
     // MARK: - Inline Edit Bubble
 
     private var inlineEditBubble: some View {
-        VStack(alignment: .trailing, spacing: 6) {
+        VStack(alignment: .trailing, spacing: 4) {
             InlineEditTextView(
                 text: $editText,
                 onSubmit: {
@@ -291,23 +291,23 @@ extension MessageRow {
                     isEditingInline = false
                 }
             )
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .frame(minHeight: 36, maxHeight: 200)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 13)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(DesignSystem.Colors.chatUserBubbleFill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(DesignSystem.Colors.info.opacity(0.4), lineWidth: 1.5)
+                    .stroke(DesignSystem.Colors.info.opacity(0.5), lineWidth: 1.5)
             )
             .frame(maxWidth: contentMaxWidth, alignment: .trailing)
 
-            HStack(spacing: 8) {
-                Text("Enter to send · Esc to cancel")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.tertiary)
-            }
+            Text("Enter to send · Esc to cancel")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.textQuaternary)
         }
     }
 

@@ -14,49 +14,26 @@ struct InlineEditTextView: NSViewRepresentable {
         Coordinator(parent: self)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
-        scrollView.borderType = .noBorder
-        scrollView.drawsBackground = false
-
-        let textView = EditableNSTextView()
+    func makeNSView(context: Context) -> InlineEditContainerView {
+        let container = InlineEditContainerView()
+        let textView = container.textView
         textView.delegate = context.coordinator
         textView.editDelegate = context.coordinator
-        textView.isEditable = true
-        textView.isSelectable = true
-        textView.isRichText = false
-        textView.allowsUndo = true
-        textView.drawsBackground = false
-        textView.font = .systemFont(ofSize: 13.5, weight: .regular)
-        textView.textColor = .labelColor
-        textView.insertionPointColor = .labelColor
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.textContainerInset = NSSize(width: 2, height: 2)
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         textView.string = text
 
-        scrollView.documentView = textView
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-
-        // Auto-focus
+        // Auto-focus and place cursor at end
         DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
             textView.setSelectedRange(NSRange(location: textView.string.count, length: 0))
         }
 
-        return scrollView
+        return container
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else { return }
-        if textView.string != text {
-            textView.string = text
+    func updateNSView(_ container: InlineEditContainerView, context: Context) {
+        if container.textView.string != text {
+            container.textView.string = text
+            container.invalidateIntrinsicContentSize()
         }
     }
 
@@ -72,17 +49,79 @@ struct InlineEditTextView: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+            // Resize container to fit content
+            if let container = textView.superview?.superview as? InlineEditContainerView {
+                container.invalidateIntrinsicContentSize()
+            }
         }
 
-        // Called by EditableNSTextView on Enter key
-        func handleReturn() {
-            parent.onSubmit()
-        }
+        func handleReturn() { parent.onSubmit() }
+        func handleCancel() { parent.onCancel() }
+    }
+}
 
-        // Called by EditableNSTextView on Esc key
-        func handleCancel() {
-            parent.onCancel()
+// MARK: - Container View
+
+/// Wraps NSScrollView + NSTextView and reports intrinsic content size to SwiftUI.
+final class InlineEditContainerView: NSView {
+    let scrollView = NSScrollView()
+    let textView = EditableNSTextView()
+
+    private let maxHeight: CGFloat = 200
+    private let minHeight: CGFloat = 22
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        setup()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    private func setup() {
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.drawsBackground = false
+        textView.font = .systemFont(ofSize: 13.5, weight: .regular)
+        textView.textColor = .labelColor
+        textView.insertionPointColor = .labelColor
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.textContainerInset = .zero
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.lineFragmentPadding = 0
+
+        scrollView.documentView = textView
+        addSubview(scrollView)
+
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer else {
+            return NSSize(width: NSView.noIntrinsicMetric, height: minHeight)
         }
+        layoutManager.ensureLayout(for: textContainer)
+        let textHeight = layoutManager.usedRect(for: textContainer).height
+        let height = min(max(textHeight + 4, minHeight), maxHeight)
+        return NSSize(width: NSView.noIntrinsicMetric, height: height)
     }
 }
 
@@ -93,9 +132,9 @@ final class EditableNSTextView: NSTextView {
     weak var editDelegate: InlineEditTextView.Coordinator?
 
     override func keyDown(with event: NSEvent) {
-        let isReturn = event.keyCode == 36 // Return
+        let isReturn = event.keyCode == 36
         let isShift = event.modifierFlags.contains(.shift)
-        let isEsc = event.keyCode == 53 // Escape
+        let isEsc = event.keyCode == 53
 
         if isReturn && !isShift {
             editDelegate?.handleReturn()
