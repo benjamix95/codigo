@@ -1216,6 +1216,7 @@
 		B857D8116C62F5B401D939E9 /* SidebarRenameSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8948F7D5AC249A043AC7C7F2 /* SidebarRenameSheets.swift */; };
 		B8E343E43815DCB6A15A8BC2 /* TaskActivityPanel+Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B379397FD37097DF4D926C3 /* TaskActivityPanel+Formatters.swift */; };
 		B914937B960170B196C866B4 /* SubagentChatCardHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8FE3AEF4833220073F62B46 /* SubagentChatCardHelpers.swift */; };
+		B4F8D12747409A15A7910FF1 /* SpinningDottedCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D283D5B1197F581B7B4F42 /* SpinningDottedCircle.swift */; };
 		B5C7C84625ED96B3FED2615F /* SubagentChatCustomBubbles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 861AE3BF1EE6442AB89A79B7 /* SubagentChatCustomBubbles.swift */; };
 		BA71277DDC8E11FDC8282312 /* SubagentChatSegmentBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E471413DECEAC5C66C35CCB /* SubagentChatSegmentBuilder.swift */; };
 		A05401C4F73CC6BF3693B049 /* SubagentChatSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 270B4F17D68A9EF3EBC12469 /* SubagentChatSegment.swift */; };
@@ -3127,6 +3128,7 @@
 		C8CD8637E45406BE5D06A056 /* DebugPanelView+RuntimeLogs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugPanelView+RuntimeLogs.swift"; path = "App/SoloCodeApp/Sources/Panels/DebugPanel/DebugPanelView+RuntimeLogs.swift"; sourceTree = "<group>"; };
 		D7F84A2E6B19C53087DE41F6 /* DebugPanelView+StreamLogs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugPanelView+StreamLogs.swift"; path = "App/SoloCodeApp/Sources/Panels/DebugPanel/DebugPanelView+StreamLogs.swift"; sourceTree = "<group>"; };
 		C8FE3AEF4833220073F62B46 /* SubagentChatCardHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatCardHelpers.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatCardHelpers.swift; sourceTree = "<group>"; };
+		A1D283D5B1197F581B7B4F42 /* SpinningDottedCircle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SpinningDottedCircle.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SpinningDottedCircle.swift; sourceTree = "<group>"; };
 		861AE3BF1EE6442AB89A79B7 /* SubagentChatCustomBubbles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatCustomBubbles.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatCustomBubbles.swift; sourceTree = "<group>"; };
 		3E471413DECEAC5C66C35CCB /* SubagentChatSegmentBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatSegmentBuilder.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatSegmentBuilder.swift; sourceTree = "<group>"; };
 		270B4F17D68A9EF3EBC12469 /* SubagentChatSegment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatSegment.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatSegment.swift; sourceTree = "<group>"; };
@@ -4251,6 +4253,7 @@
 				C4350F2E951F40BD23276F09 /* SubagentChatCard+Snapshot.swift */,
 				D053218B945022CA002BD036 /* SubagentChatCard+SnapshotCard.swift */,
 				C8FE3AEF4833220073F62B46 /* SubagentChatCardHelpers.swift */,
+				A1D283D5B1197F581B7B4F42 /* SpinningDottedCircle.swift */,
 				861AE3BF1EE6442AB89A79B7 /* SubagentChatCustomBubbles.swift */,
 				3E471413DECEAC5C66C35CCB /* SubagentChatSegmentBuilder.swift */,
 				270B4F17D68A9EF3EBC12469 /* SubagentChatSegment.swift */,
@@ -7179,6 +7182,7 @@
 				D9AA3433F9680B71FCE2F384 /* SubagentChatCard+Snapshot.swift in Sources */,
 				9FD4254B3C7E419BC36560CC /* SubagentChatCard+SnapshotCard.swift in Sources */,
 				B914937B960170B196C866B4 /* SubagentChatCardHelpers.swift in Sources */,
+				B4F8D12747409A15A7910FF1 /* SpinningDottedCircle.swift in Sources */,
 				B5C7C84625ED96B3FED2615F /* SubagentChatCustomBubbles.swift in Sources */,
 				BA71277DDC8E11FDC8282312 /* SubagentChatSegmentBuilder.swift in Sources */,
 				A05401C4F73CC6BF3693B049 /* SubagentChatSegment.swift in Sources */,

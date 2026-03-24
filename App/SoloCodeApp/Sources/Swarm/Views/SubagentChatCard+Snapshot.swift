@@ -3,9 +3,7 @@ import SwiftUI
 extension SubagentChatCardView {
     var headerSection: some View {
         HStack(spacing: 8) {
-            Image(systemName: statusIcon)
-                .font(.system(size: 14))
-                .foregroundStyle(statusIconColor)
+            statusIconView
                 .frame(width: 18, alignment: .center)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -171,6 +169,17 @@ extension SubagentChatCardView {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         return lines.suffix(6).joined(separator: "\n")
+    }
+
+    @ViewBuilder
+    var statusIconView: some View {
+        if card.status == .running {
+            SpinningDottedCircle()
+        } else {
+            Image(systemName: statusIcon)
+                .font(.system(size: 14))
+                .foregroundStyle(statusIconColor)
+        }
     }
 
     var statusIcon: String {

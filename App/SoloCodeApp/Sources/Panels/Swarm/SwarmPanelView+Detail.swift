@@ -64,9 +64,13 @@ extension SwarmPanelView {
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Image(systemName: detailStatusIcon(for: card))
-                    .font(.system(size: 16))
-                    .foregroundStyle(panelStatusAccent(for: card.status))
+                if card.status == .running {
+                    SpinningDottedCircle()
+                } else {
+                    Image(systemName: detailStatusIcon(for: card))
+                        .font(.system(size: 16))
+                        .foregroundStyle(panelStatusAccent(for: card.status))
+                }
                 Text(name)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.primary.opacity(0.7))
