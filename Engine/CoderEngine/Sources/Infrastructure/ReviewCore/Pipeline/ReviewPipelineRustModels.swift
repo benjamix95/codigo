@@ -50,6 +50,12 @@ struct ReviewPipelineRustCallbackResult: Codable {
     let testStatus: String?
     let detail: String?
 
+    private enum CodingKeys: String, CodingKey {
+        case kind, files, findings, candidates, patches
+        case promotedFindings, events, audit, text, error
+        case testStatus, detail
+    }
+
     init(
         kind: String,
         files: [String] = [],
@@ -76,6 +82,22 @@ struct ReviewPipelineRustCallbackResult: Codable {
         self.error = error
         self.testStatus = testStatus
         self.detail = detail
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(String.self, forKey: .kind)
+        files = try container.decodeIfPresent([String].self, forKey: .files) ?? []
+        findings = try container.decodeIfPresent([CodeReviewFinding].self, forKey: .findings) ?? []
+        candidates = try container.decodeIfPresent([ReviewCandidate].self, forKey: .candidates) ?? []
+        patches = try container.decodeIfPresent([ReviewPatchArtifact].self, forKey: .patches) ?? []
+        promotedFindings = try container.decodeIfPresent([CodeReviewFinding].self, forKey: .promotedFindings) ?? []
+        events = try container.decodeIfPresent([CodeReviewSessionEvent].self, forKey: .events) ?? []
+        audit = try container.decodeIfPresent(ReviewAuditSnapshot.self, forKey: .audit)
+        text = try container.decodeIfPresent(String.self, forKey: .text)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+        testStatus = try container.decodeIfPresent(String.self, forKey: .testStatus)
+        detail = try container.decodeIfPresent(String.self, forKey: .detail)
     }
 }
 
