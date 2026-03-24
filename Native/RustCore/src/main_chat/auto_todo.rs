@@ -13,7 +13,10 @@ pub fn begin_runtime(
 ) -> Result<(MainChatUiState, Vec<MainChatUiTodoPatch>), MainChatUiIntentResponse> {
     let assistant_message_id = required_payload(request, "assistant_message_id")?;
     let conversation_id = resolve_conversation_id(&state, request)?;
-    if state.auto_todo_runtime_state_by_message.contains_key(&assistant_message_id) {
+    if state
+        .auto_todo_runtime_state_by_message
+        .contains_key(&assistant_message_id)
+    {
         return Ok((state, Vec::new()));
     }
 
@@ -33,19 +36,22 @@ pub fn begin_runtime(
         },
     );
 
-    Ok((state, vec![upsert_patch(
-        todo_id,
-        assistant_message_id,
-        conversation_id,
-        payload(request, "provider_id"),
-        title,
-        "in_progress".to_string(),
-        auto_todo_runtime_notes(0),
-        active_form,
-        linked_files,
-        true,
-        request.timestamp,
-    )]))
+    Ok((
+        state,
+        vec![upsert_patch(
+            todo_id,
+            assistant_message_id,
+            conversation_id,
+            payload(request, "provider_id"),
+            title,
+            "in_progress".to_string(),
+            auto_todo_runtime_notes(0),
+            active_form,
+            linked_files,
+            true,
+            request.timestamp,
+        )],
+    ))
 }
 
 pub fn record_operation(
@@ -53,7 +59,10 @@ pub fn record_operation(
     request: &MainChatUiIntentRequest,
 ) -> Result<(MainChatUiState, Vec<MainChatUiTodoPatch>), MainChatUiIntentResponse> {
     let assistant_message_id = required_payload(request, "assistant_message_id")?;
-    let Some(existing) = state.auto_todo_runtime_state_by_message.get_mut(&assistant_message_id) else {
+    let Some(existing) = state
+        .auto_todo_runtime_state_by_message
+        .get_mut(&assistant_message_id)
+    else {
         return Ok((state, Vec::new()));
     };
     existing.operation_count += 1;
@@ -63,10 +72,8 @@ pub fn record_operation(
         payload(request, "immediate_label"),
         &existing.title,
     );
-    existing.linked_files = merged_linked_files(
-        &existing.linked_files,
-        &linked_files_from_request(request),
-    );
+    existing.linked_files =
+        merged_linked_files(&existing.linked_files, &linked_files_from_request(request));
     let todo_id = existing.todo_id.clone();
     let conversation_id = existing.conversation_id.clone();
     let title = existing.title.clone();
@@ -74,19 +81,22 @@ pub fn record_operation(
     let linked_files = existing.linked_files.clone();
     let operation_count = existing.operation_count;
 
-    Ok((state, vec![upsert_patch(
-        todo_id,
-        assistant_message_id,
-        conversation_id,
-        payload(request, "provider_id"),
-        title,
-        "in_progress".to_string(),
-        auto_todo_runtime_notes(operation_count),
-        active_form,
-        linked_files,
-        false,
-        request.timestamp,
-    )]))
+    Ok((
+        state,
+        vec![upsert_patch(
+            todo_id,
+            assistant_message_id,
+            conversation_id,
+            payload(request, "provider_id"),
+            title,
+            "in_progress".to_string(),
+            auto_todo_runtime_notes(operation_count),
+            active_form,
+            linked_files,
+            false,
+            request.timestamp,
+        )],
+    ))
 }
 
 pub fn finalize_runtime(
@@ -94,32 +104,44 @@ pub fn finalize_runtime(
     request: &MainChatUiIntentRequest,
 ) -> Result<(MainChatUiState, Vec<MainChatUiTodoPatch>), MainChatUiIntentResponse> {
     let assistant_message_id = required_payload(request, "assistant_message_id")?;
-    let Some(existing) = state.auto_todo_runtime_state_by_message.remove(&assistant_message_id) else {
+    let Some(existing) = state
+        .auto_todo_runtime_state_by_message
+        .remove(&assistant_message_id)
+    else {
         return Ok((state, Vec::new()));
     };
     let (status, notes) = match payload(request, "outcome").as_str() {
-        "success" => ("done".to_string(), "Auto-generated: all trace activities completed.".to_string()),
+        "success" => (
+            "done".to_string(),
+            "Auto-generated: all trace activities completed.".to_string(),
+        ),
         "failed" | "aborted" => (
             "blocked".to_string(),
             "Auto-generated: execution interrupted or failed.".to_string(),
         ),
-        _ => ("blocked".to_string(), "Auto-generated: status updated.".to_string()),
-    };
-    Ok((state, vec![
-        status_patch(
-            existing.todo_id.clone(),
-            assistant_message_id.clone(),
-            existing.conversation_id.clone(),
-            payload(request, "provider_id"),
-            existing.title,
-            status,
-            notes,
-            existing.active_form,
-            existing.linked_files,
-            request.timestamp,
+        _ => (
+            "blocked".to_string(),
+            "Auto-generated: status updated.".to_string(),
         ),
-        clear_patch(assistant_message_id),
-    ]))
+    };
+    Ok((
+        state,
+        vec![
+            status_patch(
+                existing.todo_id.clone(),
+                assistant_message_id.clone(),
+                existing.conversation_id.clone(),
+                payload(request, "provider_id"),
+                existing.title,
+                status,
+                notes,
+                existing.active_form,
+                existing.linked_files,
+                request.timestamp,
+            ),
+            clear_patch(assistant_message_id),
+        ],
+    ))
 }
 
 pub fn discard_runtime(
@@ -127,28 +149,34 @@ pub fn discard_runtime(
     request: &MainChatUiIntentRequest,
 ) -> Result<(MainChatUiState, Vec<MainChatUiTodoPatch>), MainChatUiIntentResponse> {
     let assistant_message_id = required_payload(request, "assistant_message_id")?;
-    let Some(existing) = state.auto_todo_runtime_state_by_message.remove(&assistant_message_id) else {
+    let Some(existing) = state
+        .auto_todo_runtime_state_by_message
+        .remove(&assistant_message_id)
+    else {
         return Ok((state, Vec::new()));
     };
-    Ok((state, vec![
-        MainChatUiTodoPatch {
-            mutation: Some(MainChatUiTodoMutation::RemoveTodo),
-            todo_id: Some(existing.todo_id),
-            assistant_message_id: Some(assistant_message_id.clone()),
-            conversation_id: Some(existing.conversation_id),
-            provider_id: None,
-            title: None,
-            status: None,
-            priority: None,
-            notes: None,
-            active_form: None,
-            is_operational_placeholder: true,
-            linked_files: Vec::new(),
-            should_emit_trace_update: false,
-            timestamp: request.timestamp,
-        },
-        clear_patch(assistant_message_id),
-    ]))
+    Ok((
+        state,
+        vec![
+            MainChatUiTodoPatch {
+                mutation: Some(MainChatUiTodoMutation::RemoveTodo),
+                todo_id: Some(existing.todo_id),
+                assistant_message_id: Some(assistant_message_id.clone()),
+                conversation_id: Some(existing.conversation_id),
+                provider_id: None,
+                title: None,
+                status: None,
+                priority: None,
+                notes: None,
+                active_form: None,
+                is_operational_placeholder: true,
+                linked_files: Vec::new(),
+                should_emit_trace_update: false,
+                timestamp: request.timestamp,
+            },
+            clear_patch(assistant_message_id),
+        ],
+    ))
 }
 
 fn upsert_patch(
@@ -240,7 +268,9 @@ fn resolve_conversation_id(
         .clone()
         .or_else(|| state.selected_conversation_id.clone())
         .or_else(|| request.payload.get("conversation_id").cloned())
-        .ok_or_else(|| MainChatUiIntentResponse::error("missing_conversation_id", "conversationId is required"))
+        .ok_or_else(|| {
+            MainChatUiIntentResponse::error("missing_conversation_id", "conversationId is required")
+        })
 }
 
 fn required_payload(
@@ -252,5 +282,10 @@ fn required_payload(
         .get(key)
         .cloned()
         .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| MainChatUiIntentResponse::error("missing_payload", &format!("payload.{} is required", key)))
+        .ok_or_else(|| {
+            MainChatUiIntentResponse::error(
+                "missing_payload",
+                &format!("payload.{} is required", key),
+            )
+        })
 }

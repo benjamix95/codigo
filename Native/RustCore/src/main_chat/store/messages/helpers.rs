@@ -1,5 +1,6 @@
 use app_core_protocol::main_chat_store::{
-    MainChatStoreConversationSnapshot, MainChatStoreMessageSnapshot, MainChatStoreTimelineBlockSnapshot,
+    MainChatStoreConversationSnapshot, MainChatStoreMessageSnapshot,
+    MainChatStoreTimelineBlockSnapshot,
 };
 
 pub fn assistant_target_index(
@@ -17,11 +18,19 @@ pub fn assistant_target_index(
         .messages
         .iter()
         .rposition(|item| item.role == "assistant" && item.is_streaming)
-        .or_else(|| conversation.messages.iter().rposition(|item| item.role == "assistant"))
+        .or_else(|| {
+            conversation
+                .messages
+                .iter()
+                .rposition(|item| item.role == "assistant")
+        })
 }
 
 pub fn last_assistant_index(conversation: &MainChatStoreConversationSnapshot) -> Option<usize> {
-    conversation.messages.iter().rposition(|item| item.role == "assistant")
+    conversation
+        .messages
+        .iter()
+        .rposition(|item| item.role == "assistant")
 }
 
 pub fn clear_stale_assistant_streaming(conversation: &mut MainChatStoreConversationSnapshot) {

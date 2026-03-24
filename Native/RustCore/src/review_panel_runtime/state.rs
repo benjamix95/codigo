@@ -43,7 +43,9 @@ pub fn finalize_response_message(
         return;
     };
 
-    let content = message_content(&state.chat_messages[response_index]).trim().to_string();
+    let content = message_content(&state.chat_messages[response_index])
+        .trim()
+        .to_string();
     if content.is_empty() {
         state.chat_messages.remove(response_index);
         state.response_message_ids.remove(activity_id);
@@ -61,8 +63,14 @@ pub fn finalize_response_message(
         }
         if !verdict_part.is_empty() {
             if let Some(verdict_id) = verdict_message_id {
-                let verdict_message =
-                    make_message(verdict_id, "assistant", "reviewRun", &verdict_part, 0.0, false);
+                let verdict_message = make_message(
+                    verdict_id,
+                    "assistant",
+                    "reviewRun",
+                    &verdict_part,
+                    0.0,
+                    false,
+                );
                 let insert_at = message_index(&state.chat_messages, &response_id)
                     .map(|index| index + 1)
                     .unwrap_or(response_index);

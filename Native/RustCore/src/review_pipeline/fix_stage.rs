@@ -164,7 +164,8 @@ fn non_overlapping_review_task_batches(tasks: &[ReviewTask]) -> Vec<Vec<ReviewTa
         let file_set: HashSet<&str> = task.files.iter().map(String::as_str).collect();
         if let Some(batch_index) = batches.iter().position(|batch| {
             batch.iter().all(|existing| {
-                let existing_files: HashSet<&str> = existing.files.iter().map(String::as_str).collect();
+                let existing_files: HashSet<&str> =
+                    existing.files.iter().map(String::as_str).collect();
                 existing_files.is_disjoint(&file_set)
             })
         }) {
@@ -240,8 +241,20 @@ mod tests {
         });
         assert_eq!(response.pipeline_scope.as_deref(), Some("staged"));
         assert_eq!(response.task_batches.len(), 2);
-        assert_eq!(response.task_batches[0].iter().map(|item| item.id.as_str()).collect::<Vec<_>>(), vec!["t1", "t3"]);
-        assert_eq!(response.task_batches[1].iter().map(|item| item.id.as_str()).collect::<Vec<_>>(), vec!["t2"]);
+        assert_eq!(
+            response.task_batches[0]
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["t1", "t3"]
+        );
+        assert_eq!(
+            response.task_batches[1]
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["t2"]
+        );
     }
 
     #[test]
@@ -258,7 +271,17 @@ mod tests {
             replacement: None,
         });
         assert_eq!(response.raw_type.as_deref(), Some("agent"));
-        assert_eq!(response.raw_payload.as_ref().and_then(|payload| payload.get("group_id")).map(String::as_str), Some("review-session-1-task-9"));
-        assert_eq!(response.text_delta.as_deref(), Some("\n[Task task-9 failed: boom]\n"));
+        assert_eq!(
+            response
+                .raw_payload
+                .as_ref()
+                .and_then(|payload| payload.get("group_id"))
+                .map(String::as_str),
+            Some("review-session-1-task-9")
+        );
+        assert_eq!(
+            response.text_delta.as_deref(),
+            Some("\n[Task task-9 failed: boom]\n")
+        );
     }
 }

@@ -1,6 +1,6 @@
 use app_core_protocol::jsonrpc::{JsonRpcInbound, JsonRpcResponse};
 use app_core_protocol::mcp::{
-    CallToolResult, ListToolsResult, ToolCallParams, ToolDefinition, ToolAnnotations,
+    CallToolResult, ListToolsResult, ToolAnnotations, ToolCallParams, ToolDefinition,
 };
 use serde_json::{json, Value};
 use std::fs;
@@ -23,7 +23,8 @@ fn run() -> Result<(), String> {
         if line.trim().is_empty() {
             continue;
         }
-        let inbound: JsonRpcInbound = serde_json::from_str(&line).map_err(|error| error.to_string())?;
+        let inbound: JsonRpcInbound =
+            serde_json::from_str(&line).map_err(|error| error.to_string())?;
         match inbound {
             JsonRpcInbound::Notification(_) => continue,
             JsonRpcInbound::Request(request) => match request.method.as_str() {
@@ -48,10 +49,26 @@ fn run() -> Result<(), String> {
                     let result = ListToolsResult {
                         tools: vec![
                             tool("echo", "Echo input message", json_schema("message")),
-                            tool("fail", "Return an MCP isError response", json_schema("message")),
-                            tool("boot_count", "Return server boot count", json!({"type":"object","properties":{}})),
-                            tool("cwd", "Return current working directory", json!({"type":"object","properties":{}})),
-                            tool("env_value", "Return MCP_FAKE_VALUE env variable", json!({"type":"object","properties":{}})),
+                            tool(
+                                "fail",
+                                "Return an MCP isError response",
+                                json_schema("message"),
+                            ),
+                            tool(
+                                "boot_count",
+                                "Return server boot count",
+                                json!({"type":"object","properties":{}}),
+                            ),
+                            tool(
+                                "cwd",
+                                "Return current working directory",
+                                json!({"type":"object","properties":{}}),
+                            ),
+                            tool(
+                                "env_value",
+                                "Return MCP_FAKE_VALUE env variable",
+                                json!({"type":"object","properties":{}}),
+                            ),
                         ],
                         next_cursor: None,
                     };
@@ -73,7 +90,10 @@ fn run() -> Result<(), String> {
                 }
                 "resources/read" => {
                     let params = request.params.unwrap_or_else(|| json!({}));
-                    let uri = params.get("uri").and_then(Value::as_str).unwrap_or_default();
+                    let uri = params
+                        .get("uri")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
                     let result = json!({
                         "contents": [
                             {
@@ -147,10 +167,9 @@ fn run() -> Result<(), String> {
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
                 }
                 "tools/call" => {
-                    let params: ToolCallParams = serde_json::from_value(
-                        request.params.unwrap_or_else(|| json!({})),
-                    )
-                    .map_err(|error| error.to_string())?;
+                    let params: ToolCallParams =
+                        serde_json::from_value(request.params.unwrap_or_else(|| json!({})))
+                            .map_err(|error| error.to_string())?;
                     let result = handle_tool(params, boot_count)?;
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
                 }

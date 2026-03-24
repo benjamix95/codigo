@@ -33,6 +33,10 @@ extension ChatPanelView {
         if MainChatRustTransportSupport.shouldBypassRustTransport(
             selectedProviderId: providerRegistry.selectedProviderId,
             fallbackSelectedProviderId: selectedProvider.id,
+            coderMode: coderMode,
+            shouldRunPlanInline: shouldRunPlanInline,
+            forcePlanInline: forcePlanInline,
+            preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider,
             config: cfg
         ) {
             return selectedProvider

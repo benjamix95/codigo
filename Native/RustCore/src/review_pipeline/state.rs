@@ -1,7 +1,12 @@
 use super::finalize::publish_ready_finding_ids;
 use super::ledger::{build_file_ledger, build_phase_ledger};
-use super::models::{ReviewPipelineConfig, ReviewPipelineScope, ReviewPipelineSnapshot, ReviewPipelineStep, ReviewTask};
-use super::phases::{AUDIT, COMPLETED, DISCOVERY, PATCH_PREPARATION, PUBLISH_READY, QUEUED, VERIFICATION};
+use super::models::{
+    ReviewPipelineConfig, ReviewPipelineScope, ReviewPipelineSnapshot, ReviewPipelineStep,
+    ReviewTask,
+};
+use super::phases::{
+    AUDIT, COMPLETED, DISCOVERY, PATCH_PREPARATION, PUBLISH_READY, QUEUED, VERIFICATION,
+};
 use super::support::{apple_reference_seconds, is_open_status, session_started_event};
 use serde_json::{json, Value};
 
@@ -36,7 +41,13 @@ impl PipelineSession {
             findings: Vec::new(),
             candidates: Vec::new(),
             patches: Vec::new(),
-            events: vec![session_started_event(&resolved_scope, 0, &session_id, 1, now)],
+            events: vec![session_started_event(
+                &resolved_scope,
+                0,
+                &session_id,
+                1,
+                now,
+            )],
             config: config.clone(),
             scope: None,
             workspace_path: Some(workspace_path),
@@ -60,7 +71,11 @@ impl PipelineSession {
             file_ledger: Vec::new(),
             last_updated_at: now,
         };
-        let step = ReviewPipelineStep::resolve_scope_files(clean_prompt.clone(), resolved_scope.clone(), against_ref.clone());
+        let step = ReviewPipelineStep::resolve_scope_files(
+            clean_prompt.clone(),
+            resolved_scope.clone(),
+            against_ref.clone(),
+        );
         let mut session = Self {
             snapshot,
             clean_prompt,
@@ -83,7 +98,11 @@ impl PipelineSession {
 
 pub fn set_scope(session: &mut PipelineSession, files: Vec<String>) {
     session.snapshot.scope = Some(ReviewPipelineScope {
-        r#type: if session.against_ref.is_some() { "against_ref".to_string() } else { session.resolved_scope.clone() },
+        r#type: if session.against_ref.is_some() {
+            "against_ref".to_string()
+        } else {
+            session.resolved_scope.clone()
+        },
         files: files.clone(),
         r#ref: session.against_ref.clone(),
     });
@@ -125,8 +144,14 @@ pub fn replace_patches(session: &mut PipelineSession, patches: Vec<Value>) {
 pub fn replace_open_findings_in_files(session: &mut PipelineSession, files: &[String]) {
     let file_set: std::collections::HashSet<String> = files.iter().cloned().collect();
     session.snapshot.findings.retain(|finding| {
-        let status = finding.get("status").and_then(Value::as_str).unwrap_or("open");
-        let path = finding.get("filePath").and_then(Value::as_str).unwrap_or("");
+        let status = finding
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("open");
+        let path = finding
+            .get("filePath")
+            .and_then(Value::as_str)
+            .unwrap_or("");
         !(is_open_status(status) && file_set.contains(path))
     });
     refresh_outcome(session);
@@ -135,8 +160,14 @@ pub fn replace_open_findings_in_files(session: &mut PipelineSession, files: &[St
 pub fn mark_open_findings_fix_applied(session: &mut PipelineSession, files: &[String]) {
     let file_set: std::collections::HashSet<String> = files.iter().cloned().collect();
     for finding in &mut session.snapshot.findings {
-        let path = finding.get("filePath").and_then(Value::as_str).unwrap_or("");
-        let status = finding.get("status").and_then(Value::as_str).unwrap_or("open");
+        let path = finding
+            .get("filePath")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let status = finding
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("open");
         if file_set.contains(path) && is_open_status(status) {
             if let Some(object) = finding.as_object_mut() {
                 object.insert("status".to_string(), json!("patch_applied"));
@@ -148,8 +179,16 @@ pub fn mark_open_findings_fix_applied(session: &mut PipelineSession, files: &[St
 
 pub fn has_blocking_open_findings(session: &PipelineSession) -> bool {
     session.snapshot.findings.iter().any(|finding| {
-        finding.get("blocking").and_then(Value::as_bool).unwrap_or(false)
-            && is_open_status(finding.get("status").and_then(Value::as_str).unwrap_or("open"))
+        finding
+            .get("blocking")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            && is_open_status(
+                finding
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .unwrap_or("open"),
+            )
     })
 }
 
@@ -160,7 +199,15 @@ pub fn complete(session: &mut PipelineSession, message: Option<String>) {
     session.snapshot.active_worker_count = 0;
     session.snapshot.current_job_id = None;
     session.snapshot.last_error = None;
-    session.snapshot.outcome = build_outcome(session, message.unwrap_or_else(|| format!("Review completed with {} findings", session.snapshot.findings.len())));
+    session.snapshot.outcome = build_outcome(
+        session,
+        message.unwrap_or_else(|| {
+            format!(
+                "Review completed with {} findings",
+                session.snapshot.findings.len()
+            )
+        }),
+    );
     session.bump();
 }
 
@@ -183,8 +230,13 @@ pub fn analysis_completed(session: &mut PipelineSession) {
 
 fn upsert_by_id(target: &mut Vec<Value>, incoming: &[Value]) {
     for value in incoming {
-        let Some(id) = value.get("id").and_then(Value::as_str) else { continue };
-        if let Some(index) = target.iter().position(|item| item.get("id").and_then(Value::as_str) == Some(id)) {
+        let Some(id) = value.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        if let Some(index) = target
+            .iter()
+            .position(|item| item.get("id").and_then(Value::as_str) == Some(id))
+        {
             target[index] = value.clone();
         } else {
             target.push(value.clone());
@@ -193,7 +245,14 @@ fn upsert_by_id(target: &mut Vec<Value>, incoming: &[Value]) {
 }
 
 fn refresh_outcome(session: &mut PipelineSession) {
-    session.snapshot.outcome = build_outcome(session, format!("{} verified finding(s), {} false positive(s), 0 patch(es) applied.", session.snapshot.findings.len(), false_positive_count(&session.snapshot.candidates)));
+    session.snapshot.outcome = build_outcome(
+        session,
+        format!(
+            "{} verified finding(s), {} false positive(s), 0 patch(es) applied.",
+            session.snapshot.findings.len(),
+            false_positive_count(&session.snapshot.candidates)
+        ),
+    );
     session.bump();
 }
 
@@ -235,7 +294,10 @@ fn build_outcome(session: &PipelineSession, summary: String) -> Value {
 fn false_positive_count(candidates: &[Value]) -> usize {
     candidates
         .iter()
-        .filter(|item| item.get("verificationStatus").and_then(Value::as_str) == Some("rejected_false_positive"))
+        .filter(|item| {
+            item.get("verificationStatus").and_then(Value::as_str)
+                == Some("rejected_false_positive")
+        })
         .count()
 }
 
@@ -267,7 +329,9 @@ fn derived_pipeline_phase(session: &PipelineSession) -> String {
         .unwrap_or(false);
     let publish_ready_count = publish_ready_finding_ids(&session.snapshot).len();
 
-    if is_terminal && (publish_ready_count > 0 || (!has_verified && session.snapshot.findings.is_empty())) {
+    if is_terminal
+        && (publish_ready_count > 0 || (!has_verified && session.snapshot.findings.is_empty()))
+    {
         return COMPLETED.to_string();
     }
     if publish_ready_count > 0 {
@@ -276,10 +340,19 @@ fn derived_pipeline_phase(session: &PipelineSession) -> String {
     if has_verified {
         return PATCH_PREPARATION.to_string();
     }
-    if session.snapshot.analysis_completed_at.is_some() || !session.snapshot.candidates.is_empty() || !session.snapshot.findings.is_empty() {
+    if session.snapshot.analysis_completed_at.is_some()
+        || !session.snapshot.candidates.is_empty()
+        || !session.snapshot.findings.is_empty()
+    {
         return VERIFICATION.to_string();
     }
-    let tool_count = session.snapshot.audit.pointer("/toolCoverage").and_then(Value::as_object).map(|items| items.len()).unwrap_or(0);
+    let tool_count = session
+        .snapshot
+        .audit
+        .pointer("/toolCoverage")
+        .and_then(Value::as_object)
+        .map(|items| items.len())
+        .unwrap_or(0);
     if tool_count > 0 {
         return AUDIT.to_string();
     }

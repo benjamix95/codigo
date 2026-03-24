@@ -62,7 +62,10 @@ fn ffi_markers_extracts_last_operational_thinking_line() {
     assert_eq!(response.text.as_deref(), Some("Reading config"));
 }
 
-fn call(runtime: &LoadedMarkersRuntime, request: MainChatMarkersRequest) -> MainChatMarkersResponse {
+fn call(
+    runtime: &LoadedMarkersRuntime,
+    request: MainChatMarkersRequest,
+) -> MainChatMarkersResponse {
     let raw_request = CString::new(serde_json::to_string(&request).expect("encode request"))
         .expect("request cstring");
     let raw_response = unsafe { (runtime.markers)(raw_request.as_ptr()) };
@@ -94,7 +97,12 @@ fn load_runtime() -> LoadedMarkersRuntime {
 fn load_symbol<T>(handle: *mut c_void, symbol: &str) -> T {
     let symbol = CString::new(symbol).expect("symbol cstring");
     let raw = unsafe { dlsym(handle, symbol.as_ptr()) };
-    assert!(!raw.is_null(), "dlsym failed for {}: {}", symbol.to_string_lossy(), last_dlerror());
+    assert!(
+        !raw.is_null(),
+        "dlsym failed for {}: {}",
+        symbol.to_string_lossy(),
+        last_dlerror()
+    );
     unsafe { std::mem::transmute_copy(&raw) }
 }
 
@@ -112,6 +120,8 @@ fn last_dlerror() -> String {
     if ptr.is_null() {
         "unknown dlerror".to_string()
     } else {
-        unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned()
+        unsafe { CStr::from_ptr(ptr) }
+            .to_string_lossy()
+            .into_owned()
     }
 }

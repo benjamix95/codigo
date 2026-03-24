@@ -10,7 +10,10 @@ pub fn build_prompt(request: ReviewPanelPromptRequest) -> ReviewPanelPromptRespo
         "branch_review" => ReviewPanelPromptResponse::success(branch_review_prompt(&request)),
         "commit_range" => ReviewPanelPromptResponse::success(commit_range_prompt(&request)),
         "chat_context" => ReviewPanelPromptResponse::success(chat_context_prompt(&request)),
-        kind => ReviewPanelPromptResponse::error("unsupported_prompt_kind", &format!("Unsupported prompt kind: {kind}")),
+        kind => ReviewPanelPromptResponse::error(
+            "unsupported_prompt_kind",
+            &format!("Unsupported prompt kind: {kind}"),
+        ),
     }
 }
 
@@ -103,7 +106,10 @@ fn scope_header(request: &ReviewPanelPromptRequest) -> String {
     match request.scope_kind.as_deref().unwrap_or("uncommitted") {
         "branch" => branch_review_prompt(request),
         "commits" if !request.commits.is_empty() => commit_range_prompt(request),
-        _ => format!("{}\nRun a code review over the selected scope.", default_scope_tag(request)),
+        _ => format!(
+            "{}\nRun a code review over the selected scope.",
+            default_scope_tag(request)
+        ),
     }
 }
 
@@ -117,7 +123,10 @@ fn default_scope_tag(request: &ReviewPanelPromptRequest) -> String {
 }
 
 fn non_empty(value: &Option<String>) -> Option<String> {
-    value.as_ref().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+    value
+        .as_ref()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn normalized_modes(modes: &[String]) -> BTreeSet<String> {
@@ -146,7 +155,11 @@ mod tests {
             current_branch: Some("main".to_string()),
             branch_name: None,
             commits: Vec::new(),
-            selected_modes: vec!["standard".to_string(), "securityAudit".to_string(), "bugFinder".to_string()],
+            selected_modes: vec![
+                "standard".to_string(),
+                "securityAudit".to_string(),
+                "bugFinder".to_string(),
+            ],
             custom_instructions: Some("Check API edges".to_string()),
             user_message: None,
             session_summary: None,

@@ -149,8 +149,17 @@ mod tests {
     fn initial_timeout_retries_before_failing() {
         let snapshot = start_direct_stream(base_snapshot(), Some(1.0), Some("codex".to_string()));
         let snapshot = handle_direct_stream_timeout(snapshot, true);
-        assert_eq!(snapshot.output.as_ref().and_then(|it| it.terminal_error.as_ref()), None);
-        assert_eq!(snapshot.output.as_ref().map(|it| it.should_retry_poll), Some(true));
+        assert_eq!(
+            snapshot
+                .output
+                .as_ref()
+                .and_then(|it| it.terminal_error.as_ref()),
+            None
+        );
+        assert_eq!(
+            snapshot.output.as_ref().map(|it| it.should_retry_poll),
+            Some(true)
+        );
     }
 
     #[test]
@@ -181,7 +190,11 @@ mod tests {
         assert!(direct.has_received_any_event);
         assert!(direct.emitted_first_text);
         assert_eq!(
-            snapshot.turn_state.text_by_stream_id.get("main").map(String::as_str),
+            snapshot
+                .turn_state
+                .text_by_stream_id
+                .get("main")
+                .map(String::as_str),
             Some("ciao")
         );
     }
@@ -200,7 +213,11 @@ mod tests {
             ]),
         );
         assert_eq!(
-            snapshot.turn_state.reasoning_by_group_id.get("reasoning").map(String::as_str),
+            snapshot
+                .turn_state
+                .reasoning_by_group_id
+                .get("reasoning")
+                .map(String::as_str),
             Some("analisi")
         );
     }

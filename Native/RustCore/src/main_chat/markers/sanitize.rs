@@ -121,25 +121,49 @@ fn split_by_code_fences(input: &str) -> Vec<(String, bool)> {
 }
 
 fn strip_prose_segment(text: &str, aggressive: bool) -> String {
-    let mut out = patterns::coderide_marker().replace_all(text, "").into_owned();
+    let mut out = patterns::coderide_marker()
+        .replace_all(text, "")
+        .into_owned();
     out = remove_incomplete_markers(out);
     if aggressive {
-        out = patterns::inline_op_prefix().replace_all(&out, "").into_owned();
+        out = patterns::inline_op_prefix()
+            .replace_all(&out, "")
+            .into_owned();
         out = filter_aggressive_lines(out);
     }
-    out = patterns::inline_marker_prefix().replace_all(&out, "").into_owned();
-    out = patterns::inline_marker_types().replace_all(&out, "").into_owned();
-    out = patterns::inline_marker_broken().replace_all(&out, "").into_owned();
-    out = patterns::technical_events().replace_all(&out, "").into_owned();
+    out = patterns::inline_marker_prefix()
+        .replace_all(&out, "")
+        .into_owned();
+    out = patterns::inline_marker_types()
+        .replace_all(&out, "")
+        .into_owned();
+    out = patterns::inline_marker_broken()
+        .replace_all(&out, "")
+        .into_owned();
+    out = patterns::technical_events()
+        .replace_all(&out, "")
+        .into_owned();
     if aggressive {
-        out = patterns::sticky_key_value().replace_all(&out, "$1 $2").into_owned();
-        out = patterns::single_key_value().replace_all(&out, "").into_owned();
-        out = patterns::key_value_bracket().replace_all(&out, "").into_owned();
+        out = patterns::sticky_key_value()
+            .replace_all(&out, "$1 $2")
+            .into_owned();
+        out = patterns::single_key_value()
+            .replace_all(&out, "")
+            .into_owned();
+        out = patterns::key_value_bracket()
+            .replace_all(&out, "")
+            .into_owned();
         out = strip_structured_payloads(out);
     }
-    out = patterns::trailing_space_newline().replace_all(&out, "\n").into_owned();
-    out = patterns::excessive_spaces().replace_all(&out, " ").into_owned();
-    patterns::missing_space_after_punct().replace_all(&out, "$1 $2").into_owned()
+    out = patterns::trailing_space_newline()
+        .replace_all(&out, "\n")
+        .into_owned();
+    out = patterns::excessive_spaces()
+        .replace_all(&out, " ")
+        .into_owned();
+    patterns::missing_space_after_punct()
+        .replace_all(&out, "$1 $2")
+        .into_owned()
 }
 
 fn remove_incomplete_markers(mut out: String) -> String {
@@ -175,7 +199,10 @@ fn should_drop_aggressive_line(line: &str) -> bool {
     if lower == "planning bug review workflow" || lower == "planning code review workflow" {
         return true;
     }
-    if lower.starts_with("explored ") || lower.starts_with("inspecting ") || lower.starts_with("ran ") {
+    if lower.starts_with("explored ")
+        || lower.starts_with("inspecting ")
+        || lower.starts_with("ran ")
+    {
         return true;
     }
     false

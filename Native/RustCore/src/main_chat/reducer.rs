@@ -52,7 +52,8 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
                 next,
                 "turn-failed".to_string(),
                 "Turn failed".to_string(),
-                event.payload
+                event
+                    .payload
                     .get("detail")
                     .cloned()
                     .or_else(|| event.payload.get("error").cloned())
@@ -62,7 +63,11 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
         MainChatEventKind::TextDelta => {
             let stream_id = stream_id(event);
             register_stream(&mut next, &stream_id);
-            let delta = event.payload.get("delta").map(String::as_str).unwrap_or_default();
+            let delta = event
+                .payload
+                .get("delta")
+                .map(String::as_str)
+                .unwrap_or_default();
             next.text_by_stream_id
                 .entry(stream_id)
                 .and_modify(|text| text.push_str(delta))
@@ -79,11 +84,13 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
         MainChatEventKind::TextReplace => {
             let stream_id = stream_id(event);
             register_stream(&mut next, &stream_id);
-            let replacement = event.payload.get("replacement").cloned().unwrap_or_default();
-            next.text_by_stream_id.insert(
-                stream_id,
-                replacement.clone(),
-            );
+            let replacement = event
+                .payload
+                .get("replacement")
+                .cloned()
+                .unwrap_or_default();
+            next.text_by_stream_id
+                .insert(stream_id, replacement.clone());
             // Track interleaved timeline
             ensure_text_segment(&mut next);
             if let Some(seg_idx) = current_text_segment_index(&next) {
@@ -109,7 +116,12 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
             ensure_reasoning_segment(&mut next);
         }
         MainChatEventKind::MermaidArtifact => {
-            if let Some(code) = event.payload.get("code").cloned().filter(|value| !value.is_empty()) {
+            if let Some(code) = event
+                .payload
+                .get("code")
+                .cloned()
+                .filter(|value| !value.is_empty())
+            {
                 let next_artifact_id = event
                     .payload
                     .get("artifact_id")
@@ -147,7 +159,13 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
                         .payload
                         .get("artifact_id")
                         .cloned()
-                        .unwrap_or_else(|| event.payload.get("title").cloned().unwrap_or_else(|| "Status".to_string())),
+                        .unwrap_or_else(|| {
+                            event
+                                .payload
+                                .get("title")
+                                .cloned()
+                                .unwrap_or_else(|| "Status".to_string())
+                        }),
                     event
                         .payload
                         .get("title")
@@ -158,7 +176,12 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
             }
         }
         MainChatEventKind::PlanArtifact => {
-            if let Some(text) = event.payload.get("text").cloned().filter(|value| !value.is_empty()) {
+            if let Some(text) = event
+                .payload
+                .get("text")
+                .cloned()
+                .filter(|value| !value.is_empty())
+            {
                 let next_artifact_id = event
                     .payload
                     .get("artifact_id")
@@ -188,7 +211,12 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
             // so we duplicate the original handling inline.
             match event.kind {
                 MainChatEventKind::CommandsArtifact => {
-                    if let Some(item) = event.payload.get("command").cloned().filter(|v| !v.is_empty()) {
+                    if let Some(item) = event
+                        .payload
+                        .get("command")
+                        .cloned()
+                        .filter(|v| !v.is_empty())
+                    {
                         next = append_item_artifact(
                             next,
                             "commands".to_string(),
@@ -199,7 +227,8 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
                     }
                 }
                 MainChatEventKind::FilesArtifact => {
-                    if let Some(item) = event.payload.get("path").cloned().filter(|v| !v.is_empty()) {
+                    if let Some(item) = event.payload.get("path").cloned().filter(|v| !v.is_empty())
+                    {
                         next = append_item_artifact(
                             next,
                             "files".to_string(),
@@ -214,7 +243,12 @@ pub fn apply_event(state: MainChatTurnState, event: &MainChatEvent) -> MainChatT
         }
         MainChatEventKind::ToolTraceArtifact => {
             ensure_tool_segment(&mut next);
-            if let Some(text) = event.payload.get("detail").cloned().filter(|value| !value.is_empty()) {
+            if let Some(text) = event
+                .payload
+                .get("detail")
+                .cloned()
+                .filter(|value| !value.is_empty())
+            {
                 next = upsert_artifact(
                     next,
                     MainChatArtifact {
@@ -325,8 +359,22 @@ mod tests {
             ordered_text_stream_ids: vec!["task-1".to_string(), "task-2".to_string()],
             ..Default::default()
         };
-        state = apply_event(state, &event(1, MainChatEventKind::TextDelta, map(&[("stream_id", "task-2"), ("delta", "second")])));
-        state = apply_event(state, &event(2, MainChatEventKind::TextDelta, map(&[("stream_id", "task-1"), ("delta", "first ")])));
+        state = apply_event(
+            state,
+            &event(
+                1,
+                MainChatEventKind::TextDelta,
+                map(&[("stream_id", "task-2"), ("delta", "second")]),
+            ),
+        );
+        state = apply_event(
+            state,
+            &event(
+                2,
+                MainChatEventKind::TextDelta,
+                map(&[("stream_id", "task-1"), ("delta", "first ")]),
+            ),
+        );
         let joined = state
             .ordered_text_stream_ids
             .iter()
@@ -346,13 +394,42 @@ mod tests {
             status: "idle".to_string(),
             ..Default::default()
         };
-        let state = apply_event(state, &event(1, MainChatEventKind::TextReplace, map(&[("replacement", "Primary response"), ("stream_id", "main")])));
-        let state = apply_event(state, &event(2, MainChatEventKind::MermaidArtifact, map(&[("artifact_id", "mermaid-1"), ("title", "Flow"), ("code", "graph TD; A-->B;")])));
-        assert_eq!(state.text_by_stream_id.get("main").map(String::as_str), Some("Primary response"));
-        assert!(state.artifacts.iter().any(|artifact| artifact.kind == app_core_protocol::main_chat::MainChatArtifactKind::Mermaid));
+        let state = apply_event(
+            state,
+            &event(
+                1,
+                MainChatEventKind::TextReplace,
+                map(&[("replacement", "Primary response"), ("stream_id", "main")]),
+            ),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                2,
+                MainChatEventKind::MermaidArtifact,
+                map(&[
+                    ("artifact_id", "mermaid-1"),
+                    ("title", "Flow"),
+                    ("code", "graph TD; A-->B;"),
+                ]),
+            ),
+        );
+        assert_eq!(
+            state.text_by_stream_id.get("main").map(String::as_str),
+            Some("Primary response")
+        );
+        assert!(state
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.kind
+                == app_core_protocol::main_chat::MainChatArtifactKind::Mermaid));
     }
 
-    fn event(sequence: i32, kind: MainChatEventKind, payload: BTreeMap<String, String>) -> MainChatEvent {
+    fn event(
+        sequence: i32,
+        kind: MainChatEventKind,
+        payload: BTreeMap<String, String>,
+    ) -> MainChatEvent {
         MainChatEvent {
             id: format!("event-{sequence}"),
             conversation_id: "conv".to_string(),
@@ -388,19 +465,31 @@ mod tests {
     #[test]
     fn text_delta_creates_first_text_segment() {
         let state = base_state();
-        let state = apply_event(state, &event(1, MainChatEventKind::TextDelta, map(&[("delta", "Hello")])));
+        let state = apply_event(
+            state,
+            &event(1, MainChatEventKind::TextDelta, map(&[("delta", "Hello")])),
+        );
         assert_eq!(state.text_segments.len(), 1);
         assert_eq!(state.text_segments[0], "Hello");
         assert_eq!(state.timeline_segments.len(), 1);
-        assert_eq!(state.timeline_segments[0].kind, app_core_protocol::main_chat::TimelineSegmentKind::Text);
+        assert_eq!(
+            state.timeline_segments[0].kind,
+            app_core_protocol::main_chat::TimelineSegmentKind::Text
+        );
         assert_eq!(state.timeline_segments[0].sequence, 0);
     }
 
     #[test]
     fn consecutive_text_deltas_accumulate_in_same_segment() {
         let state = base_state();
-        let state = apply_event(state, &event(1, MainChatEventKind::TextDelta, map(&[("delta", "Hello")])));
-        let state = apply_event(state, &event(2, MainChatEventKind::TextDelta, map(&[("delta", " World")])));
+        let state = apply_event(
+            state,
+            &event(1, MainChatEventKind::TextDelta, map(&[("delta", "Hello")])),
+        );
+        let state = apply_event(
+            state,
+            &event(2, MainChatEventKind::TextDelta, map(&[("delta", " World")])),
+        );
         assert_eq!(state.text_segments.len(), 1);
         assert_eq!(state.text_segments[0], "Hello World");
         assert_eq!(state.timeline_segments.len(), 1);
@@ -409,11 +498,31 @@ mod tests {
     #[test]
     fn tool_after_text_creates_new_segment() {
         let state = base_state();
-        let state = apply_event(state, &event(1, MainChatEventKind::TextDelta, map(&[("delta", "Analyzing...")])));
-        let state = apply_event(state, &event(2, MainChatEventKind::ToolTraceArtifact, map(&[("detail", "Ran grep"), ("title", "Trace")])));
+        let state = apply_event(
+            state,
+            &event(
+                1,
+                MainChatEventKind::TextDelta,
+                map(&[("delta", "Analyzing...")]),
+            ),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                2,
+                MainChatEventKind::ToolTraceArtifact,
+                map(&[("detail", "Ran grep"), ("title", "Trace")]),
+            ),
+        );
         assert_eq!(state.timeline_segments.len(), 2);
-        assert_eq!(state.timeline_segments[0].kind, app_core_protocol::main_chat::TimelineSegmentKind::Text);
-        assert_eq!(state.timeline_segments[1].kind, app_core_protocol::main_chat::TimelineSegmentKind::ToolUse);
+        assert_eq!(
+            state.timeline_segments[0].kind,
+            app_core_protocol::main_chat::TimelineSegmentKind::Text
+        );
+        assert_eq!(
+            state.timeline_segments[1].kind,
+            app_core_protocol::main_chat::TimelineSegmentKind::ToolUse
+        );
         assert_eq!(state.timeline_segments[0].sequence, 0);
         assert_eq!(state.timeline_segments[1].sequence, 1);
     }
@@ -421,9 +530,22 @@ mod tests {
     #[test]
     fn text_after_tool_creates_new_text_segment() {
         let state = base_state();
-        let state = apply_event(state, &event(1, MainChatEventKind::TextDelta, map(&[("delta", "First")])));
-        let state = apply_event(state, &event(2, MainChatEventKind::CommandsArtifact, map(&[("command", "ls -la")])));
-        let state = apply_event(state, &event(3, MainChatEventKind::TextDelta, map(&[("delta", "Second")])));
+        let state = apply_event(
+            state,
+            &event(1, MainChatEventKind::TextDelta, map(&[("delta", "First")])),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                2,
+                MainChatEventKind::CommandsArtifact,
+                map(&[("command", "ls -la")]),
+            ),
+        );
+        let state = apply_event(
+            state,
+            &event(3, MainChatEventKind::TextDelta, map(&[("delta", "Second")])),
+        );
         assert_eq!(state.text_segments.len(), 2);
         assert_eq!(state.text_segments[0], "First");
         assert_eq!(state.text_segments[1], "Second");
@@ -436,20 +558,68 @@ mod tests {
     #[test]
     fn reasoning_creates_reasoning_segment() {
         let state = base_state();
-        let state = apply_event(state, &event(1, MainChatEventKind::TextDelta, map(&[("delta", "Hello")])));
-        let state = apply_event(state, &event(2, MainChatEventKind::ReasoningDelta, map(&[("output", "Thinking...")])));
+        let state = apply_event(
+            state,
+            &event(1, MainChatEventKind::TextDelta, map(&[("delta", "Hello")])),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                2,
+                MainChatEventKind::ReasoningDelta,
+                map(&[("output", "Thinking...")]),
+            ),
+        );
         assert_eq!(state.timeline_segments.len(), 2);
-        assert_eq!(state.timeline_segments[1].kind, app_core_protocol::main_chat::TimelineSegmentKind::Reasoning);
+        assert_eq!(
+            state.timeline_segments[1].kind,
+            app_core_protocol::main_chat::TimelineSegmentKind::Reasoning
+        );
     }
 
     #[test]
     fn full_interleaved_sequence_text_tool_text_tool_text() {
         let state = base_state();
-        let state = apply_event(state, &event(1, MainChatEventKind::TextDelta, map(&[("delta", "Analyzing project")])));
-        let state = apply_event(state, &event(2, MainChatEventKind::CommandsArtifact, map(&[("command", "grep -r TODO")])));
-        let state = apply_event(state, &event(3, MainChatEventKind::TextDelta, map(&[("delta", "Found issues")])));
-        let state = apply_event(state, &event(4, MainChatEventKind::FilesArtifact, map(&[("path", "src/main.rs")])));
-        let state = apply_event(state, &event(5, MainChatEventKind::TextDelta, map(&[("delta", "Fixed all")])));
+        let state = apply_event(
+            state,
+            &event(
+                1,
+                MainChatEventKind::TextDelta,
+                map(&[("delta", "Analyzing project")]),
+            ),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                2,
+                MainChatEventKind::CommandsArtifact,
+                map(&[("command", "grep -r TODO")]),
+            ),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                3,
+                MainChatEventKind::TextDelta,
+                map(&[("delta", "Found issues")]),
+            ),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                4,
+                MainChatEventKind::FilesArtifact,
+                map(&[("path", "src/main.rs")]),
+            ),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                5,
+                MainChatEventKind::TextDelta,
+                map(&[("delta", "Fixed all")]),
+            ),
+        );
 
         assert_eq!(state.text_segments.len(), 3);
         assert_eq!(state.text_segments[0], "Analyzing project");
@@ -467,17 +637,41 @@ mod tests {
     #[test]
     fn consecutive_tools_reuse_same_tool_segment() {
         let state = base_state();
-        let state = apply_event(state, &event(1, MainChatEventKind::CommandsArtifact, map(&[("command", "ls")])));
-        let state = apply_event(state, &event(2, MainChatEventKind::FilesArtifact, map(&[("path", "a.rs")])));
+        let state = apply_event(
+            state,
+            &event(
+                1,
+                MainChatEventKind::CommandsArtifact,
+                map(&[("command", "ls")]),
+            ),
+        );
+        let state = apply_event(
+            state,
+            &event(
+                2,
+                MainChatEventKind::FilesArtifact,
+                map(&[("path", "a.rs")]),
+            ),
+        );
         // Both tool events should go into one ToolUse segment
         assert_eq!(state.timeline_segments.len(), 1);
-        assert_eq!(state.timeline_segments[0].kind, app_core_protocol::main_chat::TimelineSegmentKind::ToolUse);
+        assert_eq!(
+            state.timeline_segments[0].kind,
+            app_core_protocol::main_chat::TimelineSegmentKind::ToolUse
+        );
     }
 
     #[test]
     fn text_replace_creates_or_updates_segment() {
         let state = base_state();
-        let state = apply_event(state, &event(1, MainChatEventKind::TextReplace, map(&[("replacement", "Replaced text"), ("stream_id", "main")])));
+        let state = apply_event(
+            state,
+            &event(
+                1,
+                MainChatEventKind::TextReplace,
+                map(&[("replacement", "Replaced text"), ("stream_id", "main")]),
+            ),
+        );
         assert_eq!(state.text_segments.len(), 1);
         assert_eq!(state.text_segments[0], "Replaced text");
     }

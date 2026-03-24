@@ -39,17 +39,15 @@ fn parse_scope_files(arguments: &BTreeMap<String, Value>) -> Vec<String> {
             .map(|text| text.trim().to_string())
             .filter(|text| !text.is_empty())
             .collect(),
-        Value::String(text) if text.trim().starts_with('[') => {
-            serde_json::from_str::<Value>(&text)
-                .ok()
-                .and_then(|parsed| parsed.as_array().cloned())
-                .unwrap_or_default()
-                .iter()
-                .filter_map(Value::as_str)
-                .map(|part| part.trim().to_string())
-                .filter(|part| !part.is_empty())
-                .collect()
-        }
+        Value::String(text) if text.trim().starts_with('[') => serde_json::from_str::<Value>(&text)
+            .ok()
+            .and_then(|parsed| parsed.as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|part| part.trim().to_string())
+            .filter(|part| !part.is_empty())
+            .collect(),
         Value::String(text) => text
             .split(',')
             .map(|part| part.trim().to_string())

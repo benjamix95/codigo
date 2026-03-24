@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 const STOP_WORDS: &[&str] = &[
-    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it",
-    "of", "on", "or", "that", "the", "this", "to", "was", "where", "with",
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it", "of",
+    "on", "or", "that", "the", "this", "to", "was", "where", "with",
 ];
 
 #[derive(Deserialize)]
@@ -23,8 +23,11 @@ pub fn handle_tokenize_request(raw: &str) -> Result<String, String> {
     let payload: RustTokenizeRequestPayload =
         serde_json::from_str(raw).map_err(|err| format!("decode failed: {err}"))?;
     let tokens = tokenize_query(&payload.text);
-    serde_json::to_string(&RustTokenizeResponsePayload { hits: tokens, error: None })
-        .map_err(|err| format!("encode failed: {err}"))
+    serde_json::to_string(&RustTokenizeResponsePayload {
+        hits: tokens,
+        error: None,
+    })
+    .map_err(|err| format!("encode failed: {err}"))
 }
 
 pub fn tokenize_query(text: &str) -> Vec<String> {

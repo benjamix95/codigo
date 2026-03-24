@@ -71,7 +71,9 @@ fn boundary_audit_keeps_existing_non_ui_swift_as_legacy() {
             .join("Config/validation/rust-cutover-swift-allowlist.txt")
             .to_string_lossy()
             .to_string(),
-        candidate_files: vec!["Engine/CoderEngine/Sources/CodeReview/LegacyService.swift".to_string()],
+        candidate_files: vec![
+            "Engine/CoderEngine/Sources/CodeReview/LegacyService.swift".to_string()
+        ],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec![],
         legacy_non_ui_budget_by_prefix: Default::default(),
@@ -83,7 +85,9 @@ fn boundary_audit_keeps_existing_non_ui_swift_as_legacy() {
     assert_eq!(report.summary.legacy_non_ui_files, 1);
     assert_eq!(report.summary.new_non_ui_files, 0);
     assert_eq!(
-        report.legacy_domain_counts.get("Engine/CoderEngine/Sources/CodeReview"),
+        report
+            .legacy_domain_counts
+            .get("Engine/CoderEngine/Sources/CodeReview"),
         Some(&1)
     );
 }
@@ -118,7 +122,9 @@ fn boundary_audit_enforces_zero_legacy_for_review_prefixes() {
             .join("Config/validation/rust-cutover-swift-allowlist.txt")
             .to_string_lossy()
             .to_string(),
-        candidate_files: vec!["App/SoloCodeApp/Sources/Panels/CodeReview/Views/AllowedView.swift".to_string()],
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Panels/CodeReview/Views/AllowedView.swift".to_string(),
+        ],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Panels/CodeReview".to_string()],
         legacy_non_ui_budget_by_prefix: Default::default(),
@@ -131,7 +137,9 @@ fn boundary_audit_enforces_zero_legacy_for_review_prefixes() {
     assert_eq!(report.summary.legacy_non_ui_files, 2);
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 2);
     assert_eq!(
-        report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Panels/CodeReview"),
+        report
+            .enforced_prefix_counts
+            .get("App/SoloCodeApp/Sources/Panels/CodeReview"),
         Some(&2)
     );
     assert_eq!(report.summary.budget_exceeded_legacy_non_ui_files, 2);
@@ -151,22 +159,25 @@ fn boundary_audit_allows_tranche_when_legacy_budget_is_not_exceeded() {
         "import Foundation\nstruct LegacyAudit {}\n",
     );
 
-    let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
-        workspace_root: workspace.to_string_lossy().to_string(),
-        allowlist_path: workspace
-            .join("Config/validation/rust-cutover-swift-allowlist.txt")
-            .to_string_lossy()
-            .to_string(),
-        candidate_files: vec!["Engine/CoderEngine/Sources/CodeReview/LegacyAudit.swift".to_string()],
-        new_files: vec![],
-        enforce_legacy_zero_prefixes: vec!["Engine/CoderEngine/Sources/CodeReview".to_string()],
-        legacy_non_ui_budget_by_prefix: std::collections::BTreeMap::from([(
-            "Engine/CoderEngine/Sources/CodeReview".to_string(),
-            1,
-        )]),
-        include_missing_candidate_files: false,
-    }))
-    .expect("boundary dispatch should succeed");
+    let response =
+        dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
+            workspace_root: workspace.to_string_lossy().to_string(),
+            allowlist_path: workspace
+                .join("Config/validation/rust-cutover-swift-allowlist.txt")
+                .to_string_lossy()
+                .to_string(),
+            candidate_files: vec![
+                "Engine/CoderEngine/Sources/CodeReview/LegacyAudit.swift".to_string()
+            ],
+            new_files: vec![],
+            enforce_legacy_zero_prefixes: vec!["Engine/CoderEngine/Sources/CodeReview".to_string()],
+            legacy_non_ui_budget_by_prefix: std::collections::BTreeMap::from([(
+                "Engine/CoderEngine/Sources/CodeReview".to_string(),
+                1,
+            )]),
+            include_missing_candidate_files: false,
+        }))
+        .expect("boundary dispatch should succeed");
 
     let AppCoreResponse::BoundaryAudit(report) = response;
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
@@ -198,9 +209,7 @@ fn boundary_audit_ignores_missing_candidate_files() {
             "App/SoloCodeApp/Sources/Panels/CodeReview/Store/Deleted.swift".to_string(),
         ],
         new_files: vec![],
-        enforce_legacy_zero_prefixes: vec![
-            "App/SoloCodeApp/Sources/Panels/CodeReview".to_string(),
-        ],
+        enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Panels/CodeReview".to_string()],
         legacy_non_ui_budget_by_prefix: std::collections::BTreeMap::from([(
             "App/SoloCodeApp/Sources/Panels/CodeReview".to_string(),
             1,
@@ -233,9 +242,7 @@ fn boundary_audit_can_include_missing_candidate_files_when_requested() {
             "App/SoloCodeApp/Sources/Panels/CodeReview/Store/Deleted.swift".to_string(),
         ],
         new_files: vec![],
-        enforce_legacy_zero_prefixes: vec![
-            "App/SoloCodeApp/Sources/Panels/CodeReview".to_string(),
-        ],
+        enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Panels/CodeReview".to_string()],
         legacy_non_ui_budget_by_prefix: Default::default(),
         include_missing_candidate_files: true,
     }))

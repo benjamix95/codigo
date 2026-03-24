@@ -14,7 +14,9 @@ pub fn run_stdio_service() -> Result<(), String> {
         }
         let response = match serde_json::from_str::<RequestEnvelope>(&line) {
             Ok(request) => backend.handle(request.id, &request.op, request.payload),
-            Err(error) => ResponseEnvelope::err("".to_string(), format!("invalid request: {error}")),
+            Err(error) => {
+                ResponseEnvelope::err("".to_string(), format!("invalid request: {error}"))
+            }
         };
         write_line(&mut stdout, &response)?;
     }

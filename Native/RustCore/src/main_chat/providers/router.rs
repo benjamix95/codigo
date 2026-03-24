@@ -20,7 +20,11 @@ pub(crate) fn available_cli_accounts(
     items.sort_by(|lhs, rhs| {
         lhs.priority
             .cmp(&rhs.priority)
-            .then_with(|| lhs.created_at.partial_cmp(&rhs.created_at).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| {
+                lhs.created_at
+                    .partial_cmp(&rhs.created_at)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .then_with(|| lhs.id.cmp(&rhs.id))
     });
     items
@@ -38,7 +42,10 @@ pub(crate) fn select_active_cli_account(
         return None;
     }
     if let Some(current_active_id) = current_active_id {
-        if let Some(existing) = available.iter().find(|account| account.id == current_active_id) {
+        if let Some(existing) = available
+            .iter()
+            .find(|account| account.id == current_active_id)
+        {
             return Some((existing.clone(), round_robin_index));
         }
     }
@@ -57,7 +64,10 @@ pub(crate) fn next_cli_account_after(
     if available.is_empty() {
         return None;
     }
-    if let Some(index) = available.iter().position(|account| account.id == current_account_id) {
+    if let Some(index) = available
+        .iter()
+        .position(|account| account.id == current_account_id)
+    {
         let next_index = (index + 1) % available.len();
         return Some(available[next_index].clone());
     }
@@ -105,7 +115,8 @@ mod tests {
     #[test]
     fn select_active_cli_account_respects_round_robin_and_current_selection() {
         let accounts = vec![account("a", 0), account("b", 1)];
-        let (first, next) = select_active_cli_account(&accounts, "codex", 0, None, 1.0).expect("first");
+        let (first, next) =
+            select_active_cli_account(&accounts, "codex", 0, None, 1.0).expect("first");
         assert_eq!(first.id, "a");
         assert_eq!(next, 1);
 

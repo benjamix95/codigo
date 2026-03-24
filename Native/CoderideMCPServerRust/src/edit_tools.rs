@@ -40,7 +40,10 @@ fn create_file(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
     }
     let line_count = count_lines(&content);
     success_with_structured(
-        format!("Created {}", path.file_name().and_then(|v| v.to_str()).unwrap_or("file")),
+        format!(
+            "Created {}",
+            path.file_name().and_then(|v| v.to_str()).unwrap_or("file")
+        ),
         json!({
             "path": path.display().to_string(),
             "file": path.display().to_string(),
@@ -106,7 +109,11 @@ fn str_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
         return CallToolResult::error(error.to_string());
     }
     success_with_structured(
-        format!("str_replace {}:{}", path.file_name().and_then(|v| v.to_str()).unwrap_or("file"), line_number),
+        format!(
+            "str_replace {}:{}",
+            path.file_name().and_then(|v| v.to_str()).unwrap_or("file"),
+            line_number
+        ),
         json!({
             "path": path.display().to_string(),
             "file": path.display().to_string(),
@@ -142,7 +149,10 @@ fn regex_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
         return CallToolResult::error(error.to_string());
     }
     success_with_structured(
-        format!("regex_replace {}", path.file_name().and_then(|v| v.to_str()).unwrap_or("file")),
+        format!(
+            "regex_replace {}",
+            path.file_name().and_then(|v| v.to_str()).unwrap_or("file")
+        ),
         json!({
             "path": path.display().to_string(),
             "file": path.display().to_string(),
@@ -181,5 +191,7 @@ fn count_lines(text: &str) -> usize {
 }
 
 fn line_number_for(content: &str, needle: &str) -> Option<usize> {
-    content.find(needle).map(|offset| content[..offset].chars().filter(|ch| *ch == '\n').count() + 1)
+    content
+        .find(needle)
+        .map(|offset| content[..offset].chars().filter(|ch| *ch == '\n').count() + 1)
 }

@@ -47,7 +47,9 @@ pub fn apply_intent(request: ReviewPanelIntentRequest) -> ReviewPanelRuntimeResp
 }
 
 fn normalized_value(value: Option<String>) -> Option<String> {
-    value.map(|item| item.trim().to_string()).filter(|item| !item.is_empty())
+    value
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
 }
 
 #[cfg(test)]
@@ -100,7 +102,10 @@ mod tests {
         assert_eq!(state.selected_tab, "Chat");
         assert_eq!(state.panel_session_id.as_deref(), Some("session-a"));
         assert_eq!(state.selected_finding_id.as_deref(), Some("finding-a"));
-        assert_eq!(state.selected_historical_finding_id.as_deref(), Some("hist-a"));
+        assert_eq!(
+            state.selected_historical_finding_id.as_deref(),
+            Some("hist-a")
+        );
     }
 
     #[test]
@@ -114,7 +119,10 @@ mod tests {
         let state = response.state.expect("state");
         assert_eq!(state.panel_session_id.as_deref(), Some("session-b"));
         assert_eq!(state.selected_finding_id.as_deref(), Some("finding-a"));
-        assert_eq!(state.selected_historical_finding_id.as_deref(), Some("hist-a"));
+        assert_eq!(
+            state.selected_historical_finding_id.as_deref(),
+            Some("hist-a")
+        );
         assert_eq!(state.active_chat_thread_id.as_deref(), Some("thread-a"));
     }
 
@@ -130,7 +138,10 @@ mod tests {
         assert_eq!(state.active_chat_thread_id.as_deref(), Some("thread-b"));
         assert_eq!(state.panel_session_id.as_deref(), Some("session-a"));
         assert_eq!(state.selected_finding_id.as_deref(), Some("finding-a"));
-        assert_eq!(state.selected_historical_finding_id.as_deref(), Some("hist-a"));
+        assert_eq!(
+            state.selected_historical_finding_id.as_deref(),
+            Some("hist-a")
+        );
         assert_eq!(state.selected_tab, "Findings");
     }
 
@@ -157,7 +168,10 @@ mod tests {
         });
         let state = response.state.expect("state");
         assert_eq!(state.selected_finding_id, None);
-        assert_eq!(state.selected_historical_finding_id.as_deref(), Some("hist-b"));
+        assert_eq!(
+            state.selected_historical_finding_id.as_deref(),
+            Some("hist-b")
+        );
     }
 
     #[test]

@@ -9,7 +9,10 @@ pub fn append_message(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
@@ -33,7 +36,10 @@ pub fn insert_message_before(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
@@ -50,7 +56,11 @@ pub fn insert_message_before(
     update_new_conversation_title(conversation, &message);
 
     if let Some(anchor_id) = request.message_id.as_deref() {
-        if let Some(anchor_index) = conversation.messages.iter().position(|item| item.id == anchor_id) {
+        if let Some(anchor_index) = conversation
+            .messages
+            .iter()
+            .position(|item| item.id == anchor_id)
+        {
             conversation.messages.insert(anchor_index, message);
             return MainChatStoreResponse::success(snapshot);
         }

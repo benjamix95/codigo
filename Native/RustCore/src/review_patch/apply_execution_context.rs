@@ -41,7 +41,10 @@ mod tests {
         });
 
         assert_eq!(response.patch_file_prefix.as_deref(), Some("patch-1"));
-        assert_eq!(response.validation_trigger.as_deref(), Some("review_patch_apply"));
+        assert_eq!(
+            response.validation_trigger.as_deref(),
+            Some("review_patch_apply")
+        );
         assert_eq!(response.workspace_contains_patch, Some(true));
     }
 }

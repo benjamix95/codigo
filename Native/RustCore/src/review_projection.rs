@@ -36,7 +36,10 @@ pub fn build_projection(findings: &[Value], trace_log: &[String]) -> Value {
                 .get("duplicateOf")
                 .and_then(Value::as_array)
                 .is_none_or(|value| value.is_empty())
-                || !item.get("mergedIntoFindingId").map(Value::is_null).unwrap_or(true)
+                || !item
+                    .get("mergedIntoFindingId")
+                    .map(Value::is_null)
+                    .unwrap_or(true)
         })
         .count();
     let stale_candidates_count = candidates

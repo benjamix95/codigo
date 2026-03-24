@@ -44,7 +44,11 @@ pub fn build_phase_ledger(
             id: (*phase_id).to_string(),
             title: phase_title(phase_id).to_string(),
             status: ledger_status(phase_id, current_phase, terminal).to_string(),
-            file_count: snapshot.scope.as_ref().map(|scope| scope.files.len() as i32).unwrap_or(0),
+            file_count: snapshot
+                .scope
+                .as_ref()
+                .map(|scope| scope.files.len() as i32)
+                .unwrap_or(0),
             worker_count: snapshot.active_worker_count,
             findings_count: snapshot.findings.len() as i32,
             started_at: snapshot.started_at,
@@ -55,7 +59,11 @@ pub fn build_phase_ledger(
             },
             summary: Some(format!(
                 "{} files, {} candidates, {} findings, {} patches",
-                snapshot.scope.as_ref().map(|scope| scope.files.len()).unwrap_or(0),
+                snapshot
+                    .scope
+                    .as_ref()
+                    .map(|scope| scope.files.len())
+                    .unwrap_or(0),
                 snapshot.candidates.len(),
                 snapshot.findings.len(),
                 snapshot.patches.len()
@@ -72,11 +80,26 @@ pub fn build_file_ledger(
     if let Some(scope) = &snapshot.scope {
         files.extend(scope.files.iter().cloned());
     }
-    files.extend(current_tasks.iter().flat_map(|task| task.files.iter().cloned()));
-    files.extend(snapshot.findings.iter().filter_map(|finding| finding.get("filePath").and_then(Value::as_str).map(ToString::to_string)));
-    files.extend(snapshot.candidates.iter().filter_map(|candidate| candidate.get("filePath").and_then(Value::as_str).map(ToString::to_string)));
+    files.extend(
+        current_tasks
+            .iter()
+            .flat_map(|task| task.files.iter().cloned()),
+    );
+    files.extend(snapshot.findings.iter().filter_map(|finding| {
+        finding
+            .get("filePath")
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+    }));
+    files.extend(snapshot.candidates.iter().filter_map(|candidate| {
+        candidate
+            .get("filePath")
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+    }));
     files.extend(snapshot.patches.iter().flat_map(|patch| {
-        patch.get("touchedFiles")
+        patch
+            .get("touchedFiles")
             .and_then(Value::as_array)
             .into_iter()
             .flatten()
@@ -86,9 +109,12 @@ pub fn build_file_ledger(
     }));
 
     let task_map = tasks_by_file(current_tasks);
-    let tool_ids = snapshot.audit.pointer("/toolCoverage").and_then(Value::as_object).map(|items| {
-        items.keys().cloned().collect::<Vec<_>>()
-    }).unwrap_or_default();
+    let tool_ids = snapshot
+        .audit
+        .pointer("/toolCoverage")
+        .and_then(Value::as_object)
+        .map(|items| items.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
 
     files
         .into_iter()
@@ -100,16 +126,31 @@ pub fn build_file_ledger(
                 .patches
                 .iter()
                 .filter(|patch| {
-                    patch.get("status").and_then(Value::as_str).map(is_patch_ready).unwrap_or(false)
+                    patch
+                        .get("status")
+                        .and_then(Value::as_str)
+                        .map(is_patch_ready)
+                        .unwrap_or(false)
                         && patch
                             .get("touchedFiles")
                             .and_then(Value::as_array)
-                            .map(|items| items.iter().filter_map(Value::as_str).any(|item| item == path))
+                            .map(|items| {
+                                items
+                                    .iter()
+                                    .filter_map(Value::as_str)
+                                    .any(|item| item == path)
+                            })
                             .unwrap_or(false)
                 })
                 .count() as i32;
             let severity = highest_severity(&snapshot.findings, &snapshot.candidates, &path);
-            let (phase_id, status) = classify_file_ledger_state(candidate_count, finding_count, patch_ready_count, !tasks.is_empty(), !tool_ids.is_empty());
+            let (phase_id, status) = classify_file_ledger_state(
+                candidate_count,
+                finding_count,
+                patch_ready_count,
+                !tasks.is_empty(),
+                !tool_ids.is_empty(),
+            );
             ReviewPipelineFileLedgerEntry {
                 path,
                 phase_id: phase_id.to_string(),

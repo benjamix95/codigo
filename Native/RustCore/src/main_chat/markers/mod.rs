@@ -12,19 +12,13 @@ pub fn handle_request(request: MainChatMarkersRequest) -> MainChatMarkersRespons
 
     match request.operation.as_str() {
         "strip_coderide_markers" => MainChatMarkersResponse::success(Some(
-            sanitize::strip_coderide_markers(
-                &request.text,
-                request.aggressive.unwrap_or(true),
-            ),
+            sanitize::strip_coderide_markers(&request.text, request.aggressive.unwrap_or(true)),
         )),
-        "extract_last_operational_thinking_line" => {
-            MainChatMarkersResponse::success(thinking::extract_last_operational_thinking_line(
-                &request.text,
-            ))
-        }
-        _ => MainChatMarkersResponse::error(
-            "unsupported_operation",
-            "Unsupported markers operation",
+        "extract_last_operational_thinking_line" => MainChatMarkersResponse::success(
+            thinking::extract_last_operational_thinking_line(&request.text),
         ),
+        _ => {
+            MainChatMarkersResponse::error("unsupported_operation", "Unsupported markers operation")
+        }
     }
 }

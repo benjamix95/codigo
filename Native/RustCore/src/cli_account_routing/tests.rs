@@ -7,7 +7,9 @@ fn selected_or_next_available_respects_current_active() {
         schema_version: 1,
         action: "selected_or_next_available".to_string(),
         state: CLIAccountRoutingState {
-            current_active_account_by_provider: [("codex".to_string(), "a".to_string())].into_iter().collect(),
+            current_active_account_by_provider: [("codex".to_string(), "a".to_string())]
+                .into_iter()
+                .collect(),
             ..Default::default()
         },
         accounts: vec![account("a", true), account("b", true)],
@@ -36,8 +38,20 @@ fn mark_provider_error_sets_cooldown_and_reason() {
         }),
         ..Default::default()
     });
-    assert_eq!(response.updated_account.as_ref().and_then(|item| item.health.last_error_code.as_deref()), Some("rate_limited"));
-    assert_eq!(response.state.as_ref().and_then(|item| item.last_failover_reason_by_provider.get("codex").map(String::as_str)), Some("rate_limited"));
+    assert_eq!(
+        response
+            .updated_account
+            .as_ref()
+            .and_then(|item| item.health.last_error_code.as_deref()),
+        Some("rate_limited")
+    );
+    assert_eq!(
+        response.state.as_ref().and_then(|item| item
+            .last_failover_reason_by_provider
+            .get("codex")
+            .map(String::as_str)),
+        Some("rate_limited")
+    );
 }
 
 #[test]
@@ -55,7 +69,13 @@ fn mark_usage_exhausts_account_when_quota_reached() {
         account_id: Some("a".to_string()),
         ..Default::default()
     });
-    assert_eq!(response.updated_account.as_ref().map(|item| item.health.is_exhausted_locally), Some(true));
+    assert_eq!(
+        response
+            .updated_account
+            .as_ref()
+            .map(|item| item.health.is_exhausted_locally),
+        Some(true)
+    );
 }
 
 #[test]
@@ -64,7 +84,9 @@ fn bootstrap_selections_prefers_authenticated_account_and_preserves_valid_active
         schema_version: 1,
         action: "bootstrap_selections".to_string(),
         state: CLIAccountRoutingState {
-            current_active_account_by_provider: [("claude".to_string(), "c1".to_string())].into_iter().collect(),
+            current_active_account_by_provider: [("claude".to_string(), "c1".to_string())]
+                .into_iter()
+                .collect(),
             ..Default::default()
         },
         accounts: vec![
@@ -78,8 +100,20 @@ fn bootstrap_selections_prefers_authenticated_account_and_preserves_valid_active
     });
 
     let state = response.state.expect("state");
-    assert_eq!(state.current_active_account_by_provider.get("codex").map(String::as_str), Some("b"));
-    assert_eq!(state.current_active_account_by_provider.get("claude").map(String::as_str), Some("c1"));
+    assert_eq!(
+        state
+            .current_active_account_by_provider
+            .get("codex")
+            .map(String::as_str),
+        Some("b")
+    );
+    assert_eq!(
+        state
+            .current_active_account_by_provider
+            .get("claude")
+            .map(String::as_str),
+        Some("c1")
+    );
 }
 
 #[test]
@@ -101,7 +135,13 @@ fn select_account_rotates_round_robin_and_records_active_selection() {
     assert_eq!(response.selected_account_id.as_deref(), Some("b"));
     let state = response.state.expect("state");
     assert_eq!(state.round_robin_index.get("codex"), Some(&0));
-    assert_eq!(state.current_active_account_by_provider.get("codex").map(String::as_str), Some("b"));
+    assert_eq!(
+        state
+            .current_active_account_by_provider
+            .get("codex")
+            .map(String::as_str),
+        Some("b")
+    );
     assert_eq!(state.last_switch_at_by_provider.get("codex"), Some(&33.0));
 }
 
@@ -125,8 +165,20 @@ fn next_available_account_wraps_and_keeps_failover_reason() {
 
     assert_eq!(response.selected_account_id.as_deref(), Some("a"));
     let state = response.state.expect("state");
-    assert_eq!(state.current_active_account_by_provider.get("codex").map(String::as_str), Some("a"));
-    assert_eq!(state.last_failover_reason_by_provider.get("codex").map(String::as_str), Some("rate_limited"));
+    assert_eq!(
+        state
+            .current_active_account_by_provider
+            .get("codex")
+            .map(String::as_str),
+        Some("a")
+    );
+    assert_eq!(
+        state
+            .last_failover_reason_by_provider
+            .get("codex")
+            .map(String::as_str),
+        Some("rate_limited")
+    );
 }
 
 #[test]
@@ -136,7 +188,9 @@ fn current_availability_and_active_account_reflect_state() {
         schema_version: 1,
         action: "active_account".to_string(),
         state: CLIAccountRoutingState {
-            current_active_account_by_provider: [("codex".to_string(), "a".to_string())].into_iter().collect(),
+            current_active_account_by_provider: [("codex".to_string(), "a".to_string())]
+                .into_iter()
+                .collect(),
             ..Default::default()
         },
         accounts: accounts.clone(),
@@ -160,14 +214,21 @@ fn current_availability_and_active_account_reflect_state() {
         provider: Some("codex".to_string()),
         ..Default::default()
     });
-    assert_eq!(unavailable.availability_status.as_deref(), Some("all_exhausted"));
+    assert_eq!(
+        unavailable.availability_status.as_deref(),
+        Some("all_exhausted")
+    );
 }
 
 fn account(id: &str, authenticated: bool) -> CLIAccountRoutingAccountSnapshot {
     account_for_provider(id, "codex", authenticated)
 }
 
-fn account_for_provider(id: &str, provider: &str, authenticated: bool) -> CLIAccountRoutingAccountSnapshot {
+fn account_for_provider(
+    id: &str,
+    provider: &str,
+    authenticated: bool,
+) -> CLIAccountRoutingAccountSnapshot {
     CLIAccountRoutingAccountSnapshot {
         id: id.to_string(),
         provider: provider.to_string(),

@@ -4,8 +4,9 @@ use app_core_protocol::jsonrpc::{
     JsonRpcErrorResponse, JsonRpcId, JsonRpcInbound, JsonRpcResponse,
 };
 use app_core_protocol::mcp::{
-    CallToolResult, InitializeResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
-    MCP_LATEST_PROTOCOL_VERSION, ServerCapabilities, ServerInfo, ToolCallParams, ToolsCapability,
+    CallToolResult, InitializeResult, ListResourceTemplatesResult, ListResourcesResult,
+    ListToolsResult, ServerCapabilities, ServerInfo, ToolCallParams, ToolsCapability,
+    MCP_LATEST_PROTOCOL_VERSION,
 };
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
@@ -63,7 +64,10 @@ pub fn run_stdio_server(config: ServerConfig) -> Result<(), String> {
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
                 }
                 "ping" => {
-                    write_line(&mut stdout, &JsonRpcResponse::ok(request.id, Value::Object(Default::default())))?;
+                    write_line(
+                        &mut stdout,
+                        &JsonRpcResponse::ok(request.id, Value::Object(Default::default())),
+                    )?;
                 }
                 "tools/list" => {
                     let result = ListToolsResult {
@@ -99,7 +103,8 @@ pub fn run_stdio_server(config: ServerConfig) -> Result<(), String> {
                             continue;
                         }
                     };
-                    let result: CallToolResult = handlers::handle_tool_call(&config.workspace, params);
+                    let result: CallToolResult =
+                        handlers::handle_tool_call(&config.workspace, params);
                     write_line(&mut stdout, &JsonRpcResponse::ok(request.id, result))?;
                 }
                 _ => {

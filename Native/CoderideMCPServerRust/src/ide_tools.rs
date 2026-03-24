@@ -11,8 +11,8 @@ pub fn handle(
     match name {
         "coderide_show_task_panel" => Some(CallToolResult::text("OK — task panel shown")),
         "coderide_show_swarm_panel" => Some(CallToolResult::text("OK — swarm panel opened")),
-        "coderide_activate_plan_mode" => Some(CallToolResult::text("OK — plan mode activated")),
         "coderide_activate_debug_mode" => Some(CallToolResult::text("OK — debug mode activated")),
+        "coderide_activate_plan_mode" => Some(CallToolResult::text("OK — plan mode activated")),
         "coderide_policy_ack" => Some(CallToolResult::text("OK — policy acknowledged")),
         "coderide_mermaid_render" => Some(mermaid_render(arguments)),
         _ => None,
@@ -25,8 +25,8 @@ pub fn supports(name: &str) -> bool {
         name,
         "coderide_show_task_panel"
             | "coderide_show_swarm_panel"
-            | "coderide_activate_plan_mode"
             | "coderide_activate_debug_mode"
+            | "coderide_activate_plan_mode"
             | "coderide_policy_ack"
             | "coderide_mermaid_render"
     )
@@ -63,5 +63,9 @@ fn json_value_to_string(value: &Value) -> String {
 
 fn non_empty(value: String) -> Option<String> {
     let trimmed = value.trim().to_string();
-    if trimmed.is_empty() { None } else { Some(trimmed) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }

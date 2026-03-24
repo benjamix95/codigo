@@ -16,7 +16,9 @@ pub fn handle(
         .or_else(|| string_arg(arguments, "name"))
         .or_else(|| string_arg(arguments, "task"));
     let Some(skill) = skill else {
-        return Some(CallToolResult::error("Error: 'skill' parameter is required"));
+        return Some(CallToolResult::error(
+            "Error: 'skill' parameter is required",
+        ));
     };
     let task = string_arg(arguments, "task")
         .or_else(|| string_arg(arguments, "args"))
@@ -51,5 +53,9 @@ fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> Option<String> 
         .and_then(Value::as_str)?
         .trim()
         .to_string();
-    if value.is_empty() { None } else { Some(value) }
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
 }

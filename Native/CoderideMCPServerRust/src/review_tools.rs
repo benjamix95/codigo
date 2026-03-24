@@ -2,15 +2,19 @@ use crate::shared_review_state as state;
 use app_core_protocol::mcp::CallToolResult;
 use serde_json::Value;
 use solocode_rust_core::review_diff::{render_summary, ReviewDiffSummaryRequest};
-use solocode_rust_core::review_mcp::{
-    enqueue_bughunter_command, enqueue_review_command, handle_bughunter_tool,
-    handle_review_tool, handle_security_tool,
-};
 use solocode_rust_core::review_mcp::models::{ReviewMCPCommandQueueRequest, ReviewMCPToolRequest};
+use solocode_rust_core::review_mcp::{
+    enqueue_bughunter_command, enqueue_review_command, handle_bughunter_tool, handle_review_tool,
+    handle_security_tool,
+};
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
-pub fn handle(name: &str, _workspace: &Path, arguments: &BTreeMap<String, Value>) -> Option<CallToolResult> {
+pub fn handle(
+    name: &str,
+    _workspace: &Path,
+    arguments: &BTreeMap<String, Value>,
+) -> Option<CallToolResult> {
     if name.starts_with("coderide_review_") {
         return Some(handle_review(name, arguments));
     }
@@ -44,14 +48,24 @@ fn handle_review(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolRes
         let commands = state::read_review_commands();
         let request = ReviewMCPCommandQueueRequest {
             schema_version: 1,
-            operation: if name == "coderide_review_start" { "enqueue_unique_review_start".to_string() } else { "enqueue".to_string() },
+            operation: if name == "coderide_review_start" {
+                "enqueue_unique_review_start".to_string()
+            } else {
+                "enqueue".to_string()
+            },
             queue_kind: "review".to_string(),
             commands,
             command_id: None,
             action: Some(review_action(name).to_string()),
-            session_id: args.get("session_id").or_else(|| args.get("sessionId")).cloned(),
+            session_id: args
+                .get("session_id")
+                .or_else(|| args.get("sessionId"))
+                .cloned(),
             run_id: None,
-            conversation_id: args.get("conversation_id").or_else(|| args.get("conversationId")).cloned(),
+            conversation_id: args
+                .get("conversation_id")
+                .or_else(|| args.get("conversationId"))
+                .cloned(),
             status: None,
             result_message: None,
             now_reference_seconds: state::reference_seconds_now(),
@@ -73,7 +87,10 @@ fn handle_security(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolR
     if response.is_error {
         return CallToolResult::error(response.message);
     }
-    if name != "coderide_security_status" && name != "coderide_security_findings" && name != "coderide_security_preview_patch" {
+    if name != "coderide_security_status"
+        && name != "coderide_security_findings"
+        && name != "coderide_security_preview_patch"
+    {
         let commands = state::read_review_commands();
         let request = ReviewMCPCommandQueueRequest {
             schema_version: 1,
@@ -82,9 +99,15 @@ fn handle_security(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolR
             commands,
             command_id: None,
             action: Some(security_action(name).to_string()),
-            session_id: args.get("session_id").or_else(|| args.get("sessionId")).cloned(),
+            session_id: args
+                .get("session_id")
+                .or_else(|| args.get("sessionId"))
+                .cloned(),
             run_id: None,
-            conversation_id: args.get("conversation_id").or_else(|| args.get("conversationId")).cloned(),
+            conversation_id: args
+                .get("conversation_id")
+                .or_else(|| args.get("conversationId"))
+                .cloned(),
             status: None,
             result_message: None,
             now_reference_seconds: state::reference_seconds_now(),
@@ -111,7 +134,10 @@ fn handle_bughunter(name: &str, arguments: &BTreeMap<String, Value>) -> CallTool
             action: Some("start".to_string()),
             session_id: None,
             run_id: Some(run_id.clone()),
-            conversation_id: args.get("conversation_id").or_else(|| args.get("conversationId")).cloned(),
+            conversation_id: args
+                .get("conversation_id")
+                .or_else(|| args.get("conversationId"))
+                .cloned(),
             status: None,
             result_message: None,
             now_reference_seconds: state::reference_seconds_now(),
@@ -122,7 +148,9 @@ fn handle_bughunter(name: &str, arguments: &BTreeMap<String, Value>) -> CallTool
         return CallToolResult::text(format!(
             "OK — bugHunter start queued (run_id={}, source_kind={})",
             run_id,
-            args.get("source_kind").cloned().unwrap_or_else(|| "uncommitted".to_string())
+            args.get("source_kind")
+                .cloned()
+                .unwrap_or_else(|| "uncommitted".to_string())
         ));
     }
     let request = build_review_request(name, &args);
@@ -141,7 +169,10 @@ fn handle_bughunter(name: &str, arguments: &BTreeMap<String, Value>) -> CallTool
             action: Some(name.trim_start_matches("coderide_bughunter_").to_string()),
             session_id: None,
             run_id: args.get("run_id").cloned(),
-            conversation_id: args.get("conversation_id").or_else(|| args.get("conversationId")).cloned(),
+            conversation_id: args
+                .get("conversation_id")
+                .or_else(|| args.get("conversationId"))
+                .cloned(),
             status: None,
             result_message: None,
             now_reference_seconds: state::reference_seconds_now(),
@@ -162,13 +193,29 @@ fn build_review_request(name: &str, args: &HashMap<String, String>) -> ReviewMCP
         schema_version: 1,
         tool_name: name.trim_start_matches("coderide_").to_string(),
         args: args.clone(),
-        review_snapshots: review_snapshots.iter().filter_map(state::make_review_snapshot_record).collect(),
-        active_review_snapshot: active_review.as_ref().and_then(state::make_review_snapshot_record),
-        review_findings_payload: active_review.as_ref().map(|snapshot| findings_payload(snapshot, args)).unwrap_or_default(),
-        review_status_payload: active_review.as_ref().map(status_payload).or_else(|| bughunter_status_payload_from_review(&bughunter_snapshots)),
+        review_snapshots: review_snapshots
+            .iter()
+            .filter_map(state::make_review_snapshot_record)
+            .collect(),
+        active_review_snapshot: active_review
+            .as_ref()
+            .and_then(state::make_review_snapshot_record),
+        review_findings_payload: active_review
+            .as_ref()
+            .map(|snapshot| findings_payload(snapshot, args))
+            .unwrap_or_default(),
+        review_status_payload: active_review
+            .as_ref()
+            .map(status_payload)
+            .or_else(|| bughunter_status_payload_from_review(&bughunter_snapshots)),
         review_outcome_payload: active_review.as_ref().map(outcome_payload),
-        bughunter_snapshots: bughunter_snapshots.iter().filter_map(state::make_bughunter_snapshot_record).collect(),
-        active_bughunter_snapshot: active_bughunter.as_ref().and_then(state::make_bughunter_snapshot_record),
+        bughunter_snapshots: bughunter_snapshots
+            .iter()
+            .filter_map(state::make_bughunter_snapshot_record)
+            .collect(),
+        active_bughunter_snapshot: active_bughunter
+            .as_ref()
+            .and_then(state::make_bughunter_snapshot_record),
         bughunter_findings_payload: active_bughunter
             .as_ref()
             .and_then(|run| run.get("reviewSessionId").and_then(Value::as_str))
@@ -184,36 +231,94 @@ fn build_review_request(name: &str, args: &HashMap<String, String>) -> ReviewMCP
     }
 }
 
-fn resolve_active_review_snapshot(snapshots: &[Value], args: &HashMap<String, String>) -> Option<Value> {
+fn resolve_active_review_snapshot(
+    snapshots: &[Value],
+    args: &HashMap<String, String>,
+) -> Option<Value> {
     if let Some(session_id) = args.get("session_id").or_else(|| args.get("sessionId")) {
-        return snapshots.iter().find(|snapshot| snapshot.get("sessionId").and_then(Value::as_str) == Some(session_id.as_str())).cloned();
+        return snapshots
+            .iter()
+            .find(|snapshot| {
+                snapshot.get("sessionId").and_then(Value::as_str) == Some(session_id.as_str())
+            })
+            .cloned();
     }
     snapshots
         .iter()
         .filter(|snapshot| snapshot.get("phase").and_then(Value::as_str) != Some("completed"))
-        .max_by_key(|snapshot| snapshot.get("lastUpdatedAt").and_then(Value::as_str).unwrap_or(""))
+        .max_by_key(|snapshot| {
+            snapshot
+                .get("lastUpdatedAt")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+        })
         .cloned()
-        .or_else(|| snapshots.iter().max_by_key(|snapshot| snapshot.get("lastUpdatedAt").and_then(Value::as_str).unwrap_or("")).cloned())
+        .or_else(|| {
+            snapshots
+                .iter()
+                .max_by_key(|snapshot| {
+                    snapshot
+                        .get("lastUpdatedAt")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                })
+                .cloned()
+        })
 }
 
-fn resolve_active_bughunter_snapshot(snapshots: &[Value], args: &HashMap<String, String>) -> Option<Value> {
+fn resolve_active_bughunter_snapshot(
+    snapshots: &[Value],
+    args: &HashMap<String, String>,
+) -> Option<Value> {
     if let Some(run_id) = args.get("run_id") {
-        return snapshots.iter().find(|snapshot| snapshot.get("runId").and_then(Value::as_str) == Some(run_id.as_str())).cloned();
+        return snapshots
+            .iter()
+            .find(|snapshot| snapshot.get("runId").and_then(Value::as_str) == Some(run_id.as_str()))
+            .cloned();
     }
-    snapshots.iter().max_by_key(|snapshot| snapshot.get("lastUpdatedAt").and_then(Value::as_str).unwrap_or("")).cloned()
+    snapshots
+        .iter()
+        .max_by_key(|snapshot| {
+            snapshot
+                .get("lastUpdatedAt")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+        })
+        .cloned()
 }
 
-fn findings_payload(snapshot: &Value, args: &HashMap<String, String>) -> Vec<HashMap<String, String>> {
-    let kind = args.get("kind").map(String::as_str).unwrap_or("verified").to_lowercase();
+fn findings_payload(
+    snapshot: &Value,
+    args: &HashMap<String, String>,
+) -> Vec<HashMap<String, String>> {
+    let kind = args
+        .get("kind")
+        .map(String::as_str)
+        .unwrap_or("verified")
+        .to_lowercase();
     let items = if kind == "candidate" || kind == "candidates" {
-        snapshot.get("candidates").and_then(Value::as_array).cloned().unwrap_or_default()
+        snapshot
+            .get("candidates")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
     } else {
-        snapshot.get("findings").and_then(Value::as_array).cloned().unwrap_or_default()
+        snapshot
+            .get("findings")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
     };
-    items.into_iter().filter_map(|item| finding_map(&item, kind.starts_with("candidate"))).collect()
+    items
+        .into_iter()
+        .filter_map(|item| finding_map(&item, kind.starts_with("candidate")))
+        .collect()
 }
 
-fn bughunter_findings_payload(snapshot: &Value, args: &HashMap<String, String>) -> Vec<HashMap<String, String>> {
+fn bughunter_findings_payload(
+    snapshot: &Value,
+    args: &HashMap<String, String>,
+) -> Vec<HashMap<String, String>> {
     findings_payload(snapshot, args)
         .into_iter()
         .filter(|item| item.get("domain").map(String::as_str) == Some("bug"))
@@ -231,11 +336,35 @@ fn finding_map(item: &Value, is_candidate: bool) -> Option<HashMap<String, Strin
     map.insert("severity".to_string(), severity.clone());
     map.insert("category".to_string(), category.clone());
     map.insert("origin".to_string(), origin.clone());
-    map.insert("status".to_string(), item.get("status").and_then(Value::as_str).unwrap_or(if is_candidate { "new" } else { "open" }).to_string());
-    map.insert("kind".to_string(), if is_candidate { "candidate" } else { "verified" }.to_string());
-    map.insert("domain".to_string(), if category == "security" || origin == "securityAuditor" { "security".to_string() } else { "bug".to_string() });
+    map.insert(
+        "status".to_string(),
+        item.get("status")
+            .and_then(Value::as_str)
+            .unwrap_or(if is_candidate { "new" } else { "open" })
+            .to_string(),
+    );
+    map.insert(
+        "kind".to_string(),
+        if is_candidate {
+            "candidate"
+        } else {
+            "verified"
+        }
+        .to_string(),
+    );
+    map.insert(
+        "domain".to_string(),
+        if category == "security" || origin == "securityAuditor" {
+            "security".to_string()
+        } else {
+            "bug".to_string()
+        },
+    );
     map.insert("file_label".to_string(), state::redacted_label(&file_path));
-    map.insert("message_summary".to_string(), state::redacted_summary(&severity, &category));
+    map.insert(
+        "message_summary".to_string(),
+        state::redacted_summary(&severity, &category),
+    );
     if let Some(line) = item.get("lineNumber").and_then(Value::as_i64) {
         map.insert("line_number".to_string(), line.to_string());
     }
@@ -243,7 +372,11 @@ fn finding_map(item: &Value, is_candidate: bool) -> Option<HashMap<String, Strin
         map.insert("stale_status".to_string(), stale.to_string());
     }
     if let Some(duplicates) = item.get("possibleDuplicateOf").and_then(Value::as_array) {
-        let joined = duplicates.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ");
+        let joined = duplicates
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
         if !joined.is_empty() {
             map.insert("possible_duplicate_of".to_string(), joined);
         }
@@ -265,8 +398,24 @@ fn status_payload(snapshot: &Value) -> HashMap<String, String> {
             payload.insert(key.to_string(), value.to_string());
         }
     }
-    payload.insert("findings_total".to_string(), snapshot.get("findings").and_then(Value::as_array).map(|v| v.len()).unwrap_or(0).to_string());
-    payload.insert("candidates_total".to_string(), snapshot.get("candidates").and_then(Value::as_array).map(|v| v.len()).unwrap_or(0).to_string());
+    payload.insert(
+        "findings_total".to_string(),
+        snapshot
+            .get("findings")
+            .and_then(Value::as_array)
+            .map(|v| v.len())
+            .unwrap_or(0)
+            .to_string(),
+    );
+    payload.insert(
+        "candidates_total".to_string(),
+        snapshot
+            .get("candidates")
+            .and_then(Value::as_array)
+            .map(|v| v.len())
+            .unwrap_or(0)
+            .to_string(),
+    );
     payload
 }
 
@@ -283,7 +432,17 @@ fn outcome_payload(snapshot: &Value) -> HashMap<String, String> {
         ("merged_patches", "mergedPatches"),
         ("conflicts_detected", "conflictsDetected"),
     ] {
-        if let Some(text) = outcome.get(field).and_then(|value| value.as_str().map(ToString::to_string).or_else(|| value.as_i64().map(|v| v.to_string())).or_else(|| value.as_bool().map(|v| if v { "true".into() } else { "false".into() }))) {
+        if let Some(text) = outcome.get(field).and_then(|value| {
+            value
+                .as_str()
+                .map(ToString::to_string)
+                .or_else(|| value.as_i64().map(|v| v.to_string()))
+                .or_else(|| {
+                    value
+                        .as_bool()
+                        .map(|v| if v { "true".into() } else { "false".into() })
+                })
+        }) {
             payload.insert(key.to_string(), text);
         }
     }
@@ -292,10 +451,18 @@ fn outcome_payload(snapshot: &Value) -> HashMap<String, String> {
 
 fn security_gate_payload(snapshot: &Value) -> HashMap<String, String> {
     let mut ready = false;
-    if let Some(verified) = snapshot.get("verifiedFindings").and_then(|value| value.get("canonicalSnapshot")).and_then(|value| value.get("findings")).and_then(Value::as_object) {
+    if let Some(verified) = snapshot
+        .get("verifiedFindings")
+        .and_then(|value| value.get("canonicalSnapshot"))
+        .and_then(|value| value.get("findings"))
+        .and_then(Value::as_object)
+    {
         ready = verified.values().any(|finding| {
             finding.get("domain").and_then(Value::as_str) == Some("bug")
-                && matches!(finding.get("status").and_then(Value::as_str), Some("verified" | "fixedVerified" | "patchApplied" | "patchPrepared"))
+                && matches!(
+                    finding.get("status").and_then(Value::as_str),
+                    Some("verified" | "fixedVerified" | "patchApplied" | "patchPrepared")
+                )
         });
     }
     let summary = if ready {
@@ -304,7 +471,14 @@ fn security_gate_payload(snapshot: &Value) -> HashMap<String, String> {
         "security_gate=blocked, no verified bughunter baseline is available"
     };
     HashMap::from([
-        ("ready".to_string(), if ready { "true".to_string() } else { "false".to_string() }),
+        (
+            "ready".to_string(),
+            if ready {
+                "true".to_string()
+            } else {
+                "false".to_string()
+            },
+        ),
         ("summary".to_string(), summary.to_string()),
     ])
 }
@@ -315,7 +489,9 @@ fn cluster_payload(snapshot: &Value) -> Option<HashMap<String, String>> {
         .get("canonicalSnapshot")?
         .get("findings")?
         .as_object()?;
-    let bug_titles = findings.values().filter(|finding| finding.get("domain").and_then(Value::as_str) == Some("bug"));
+    let bug_titles = findings
+        .values()
+        .filter(|finding| finding.get("domain").and_then(Value::as_str) == Some("bug"));
     let mut grouped: HashMap<String, Vec<&Value>> = HashMap::new();
     for finding in bug_titles {
         let title = finding.get("title").and_then(Value::as_str).unwrap_or("");
@@ -337,7 +513,14 @@ fn cluster_payload(snapshot: &Value) -> Option<HashMap<String, String>> {
         ("cluster_size".to_string(), members.len().to_string()),
         ("files".to_string(), files.join(", ")),
         ("avg_confidence".to_string(), format!("{avg:.2}")),
-        ("primary_risk".to_string(), members.first().and_then(|finding| finding.get("category").and_then(Value::as_str)).unwrap_or("unknown").to_string()),
+        (
+            "primary_risk".to_string(),
+            members
+                .first()
+                .and_then(|finding| finding.get("category").and_then(Value::as_str))
+                .unwrap_or("unknown")
+                .to_string(),
+        ),
     ]))
 }
 
@@ -346,7 +529,11 @@ fn bughunter_status_payload_from_review(_snapshots: &[Value]) -> Option<HashMap<
 }
 
 fn preview_patch(args: &HashMap<String, String>) -> CallToolResult {
-    let session_id = args.get("session_id").or_else(|| args.get("sessionId")).cloned().unwrap_or_default();
+    let session_id = args
+        .get("session_id")
+        .or_else(|| args.get("sessionId"))
+        .cloned()
+        .unwrap_or_default();
     let finding_id = args.get("finding_id").cloned().unwrap_or_default();
     let Some(snapshot) = state::read_review_snapshot(&session_id) else {
         return CallToolResult::error("Error: unable to load the requested review session");
@@ -354,24 +541,55 @@ fn preview_patch(args: &HashMap<String, String>) -> CallToolResult {
     let patch = snapshot
         .get("patches")
         .and_then(Value::as_array)
-        .and_then(|items| items.iter().find(|item| item.get("findingId").and_then(Value::as_str) == Some(finding_id.as_str())));
+        .and_then(|items| {
+            items.iter().find(|item| {
+                item.get("findingId").and_then(Value::as_str) == Some(finding_id.as_str())
+            })
+        });
     let Some(patch) = patch else {
         return CallToolResult::text("No patch artifact available for the requested finding.");
     };
     let lines = [
         format!("finding_id: {finding_id}"),
-        format!("patch_id: {}", patch.get("id").and_then(Value::as_str).unwrap_or("n/a")),
-        format!("status: {}", patch.get("status").and_then(Value::as_str).unwrap_or("n/a")),
-        format!("verify_status: {}", patch.get("verifyStatus").and_then(Value::as_str).unwrap_or("n/a")),
-        format!("validation_status: {}", patch.get("validationStatus").and_then(Value::as_str).unwrap_or("n/a")),
+        format!(
+            "patch_id: {}",
+            patch.get("id").and_then(Value::as_str).unwrap_or("n/a")
+        ),
+        format!(
+            "status: {}",
+            patch.get("status").and_then(Value::as_str).unwrap_or("n/a")
+        ),
+        format!(
+            "verify_status: {}",
+            patch
+                .get("verifyStatus")
+                .and_then(Value::as_str)
+                .unwrap_or("n/a")
+        ),
+        format!(
+            "validation_status: {}",
+            patch
+                .get("validationStatus")
+                .and_then(Value::as_str)
+                .unwrap_or("n/a")
+        ),
         "diff_preview:".to_string(),
-        patch.get("diffPreview").and_then(Value::as_str).unwrap_or("").to_string(),
+        patch
+            .get("diffPreview")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
     ];
     CallToolResult::text(lines.join("\n"))
 }
 
 fn diff_summary(args: &HashMap<String, String>) -> CallToolResult {
-    let origin_filter = args.get("origin").cloned().unwrap_or_default().trim().to_string();
+    let origin_filter = args
+        .get("origin")
+        .cloned()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     if !origin_filter.is_empty() {
         let valid_origins = ["reviewer", "bugHunter", "securityAuditor", "audit_tool"];
         if !valid_origins.contains(&origin_filter.as_str()) {
@@ -382,7 +600,12 @@ fn diff_summary(args: &HashMap<String, String>) -> CallToolResult {
         }
     }
 
-    let category_filter = args.get("category").cloned().unwrap_or_default().trim().to_lowercase();
+    let category_filter = args
+        .get("category")
+        .cloned()
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase();
     if !category_filter.is_empty() {
         let valid_categories = [
             "correctness",
@@ -412,7 +635,12 @@ fn diff_summary(args: &HashMap<String, String>) -> CallToolResult {
         .and_then(Value::as_str)
         .filter(|value| !value.trim().is_empty())
         .map(ToString::to_string)
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default().to_string_lossy().into_owned());
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned()
+        });
 
     let filtered_files = filtered_diff_files(&snapshot, &origin_filter, &category_filter);
     let file_filter = args
@@ -525,9 +753,18 @@ fn security_payload(name: &str, args: &HashMap<String, String>) -> HashMap<Strin
     }
     let mut payload = args.clone();
     payload.insert("analysis_only".to_string(), "true".to_string());
-    payload.insert("auto_prepare_verified_patches".to_string(), "true".to_string());
-    payload.insert("auto_prepare_origin_filter".to_string(), "securityAuditor".to_string());
-    payload.insert("review_prompt_override".to_string(), "Security-focused review".to_string());
+    payload.insert(
+        "auto_prepare_verified_patches".to_string(),
+        "true".to_string(),
+    );
+    payload.insert(
+        "auto_prepare_origin_filter".to_string(),
+        "securityAuditor".to_string(),
+    );
+    payload.insert(
+        "review_prompt_override".to_string(),
+        "Security-focused review".to_string(),
+    );
     payload
 }
 

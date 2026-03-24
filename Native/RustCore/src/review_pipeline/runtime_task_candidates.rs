@@ -45,7 +45,10 @@ pub fn reduce_prepare_task_candidates(
     request: ReviewRuntimeTaskCandidatesRequest,
 ) -> ReviewRuntimeTaskCandidatesResponse {
     if request.schema_version != 1 {
-        return ReviewRuntimeTaskCandidatesResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return ReviewRuntimeTaskCandidatesResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
 
     let mut candidates = Vec::with_capacity(request.tasks.len());
@@ -53,7 +56,9 @@ pub fn reduce_prepare_task_candidates(
     for task in request.tasks {
         let task_value = serde_json::to_value(&task)
             .map_err(|err| err.to_string())
-            .map_err(|message| ReviewRuntimeTaskCandidatesResponse::error("encode_failed", &message));
+            .map_err(|message| {
+                ReviewRuntimeTaskCandidatesResponse::error("encode_failed", &message)
+            });
         let Ok(task_value) = task_value else {
             return task_value.err().unwrap();
         };
@@ -65,7 +70,11 @@ pub fn reduce_prepare_task_candidates(
         if response.error.is_some() {
             return ReviewRuntimeTaskCandidatesResponse::error(
                 "candidate_build_failed",
-                response.error.as_ref().map(|err| err.message.as_str()).unwrap_or("candidate build failed"),
+                response
+                    .error
+                    .as_ref()
+                    .map(|err| err.message.as_str())
+                    .unwrap_or("candidate build failed"),
             );
         }
         candidates.push(response.candidate.unwrap_or(Value::Null));
@@ -85,7 +94,11 @@ pub fn reduce_prepare_task_candidates(
     let mut events = Vec::new();
     let mut promoted_findings = Vec::new();
     for candidate in &mut candidates {
-        let candidate_id = candidate.get("id").and_then(Value::as_str).unwrap_or_default().to_string();
+        let candidate_id = candidate
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
         events.push(event(
             "candidate_added",
             candidate
@@ -95,7 +108,10 @@ pub fn reduce_prepare_task_candidates(
                 .to_string(),
             json!({"candidate_id": candidate_id.clone()}),
         ));
-        if let Some(result) = verification_results.iter().find(|item| item.candidate_id == candidate_id) {
+        if let Some(result) = verification_results
+            .iter()
+            .find(|item| item.candidate_id == candidate_id)
+        {
             candidate["verificationStatus"] = json!(result.status);
             candidate["verificationMethod"] = json!(result.method);
             candidate["verificationReport"] = json!(result.report);
@@ -197,7 +213,10 @@ mod tests {
     fn reduce_prepare_task_candidates_builds_candidates_and_promotes_verified_ones() {
         let root = std::env::temp_dir().join(format!(
             "review-runtime-candidates-{}",
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         ));
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("Service.swift"), "fatalError(\"boom\")\n").unwrap();
@@ -228,7 +247,10 @@ mod tests {
         let callback = response.callback.unwrap();
         assert_eq!(callback["candidates"].as_array().unwrap().len(), 1);
         assert_eq!(callback["candidates"][0]["id"].as_str(), Some("r2-task-1"));
-        assert_eq!(callback["candidates"][0]["verificationStatus"].as_str(), Some("verified"));
+        assert_eq!(
+            callback["candidates"][0]["verificationStatus"].as_str(),
+            Some("verified")
+        );
         assert_eq!(callback["promotedFindings"].as_array().unwrap().len(), 1);
     }
 }

@@ -31,8 +31,14 @@ pub fn shape_historical_findings(records: Vec<Value>) -> Vec<Value> {
 fn normalize_timeline(record: &mut Value) {
     if let Some(timeline) = record.get_mut("timeline").and_then(Value::as_array_mut) {
         timeline.sort_by(|lhs, rhs| {
-            let lhs_created = lhs.get("createdAt").and_then(Value::as_str).unwrap_or_default();
-            let rhs_created = rhs.get("createdAt").and_then(Value::as_str).unwrap_or_default();
+            let lhs_created = lhs
+                .get("createdAt")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let rhs_created = rhs
+                .get("createdAt")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             lhs_created.cmp(rhs_created)
         });
     }
@@ -49,11 +55,17 @@ fn compare_records(lhs: &Value, rhs: &Value) -> std::cmp::Ordering {
 }
 
 fn resume_eligible(value: &Value) -> bool {
-    value.get("resumeEligible").and_then(Value::as_bool).unwrap_or(false)
+    value
+        .get("resumeEligible")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
 }
 
 fn updated_at(value: &Value) -> f64 {
-    value.get("updatedAt").and_then(Value::as_f64).unwrap_or(0.0)
+    value
+        .get("updatedAt")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0)
 }
 
 #[cfg(test)]

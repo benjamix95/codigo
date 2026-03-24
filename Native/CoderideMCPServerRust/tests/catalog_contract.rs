@@ -22,11 +22,17 @@ fn tools_list_matches_frozen_catalog_size_and_annotations() {
 
     let listed = read_message(&mut child);
     let tools = listed["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 131);
+    assert_eq!(tools.len(), 114);
     assert!(tools.iter().all(|tool| tool["description"].is_string()));
-    assert!(tools.iter().all(|tool| tool["annotations"]["readOnlyHint"].is_boolean()));
-    assert!(tools.iter().any(|tool| tool["name"] == "coderide_review_start"));
-    assert!(tools.iter().any(|tool| tool["name"] == "coderide_web_search"));
+    assert!(tools
+        .iter()
+        .all(|tool| tool["annotations"]["readOnlyHint"].is_boolean()));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_review_start"));
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "coderide_web_search"));
 
     terminate(child);
 }
@@ -50,15 +56,24 @@ fn core_tools_expose_non_empty_input_schemas() {
     let listed = read_message(&mut child);
     let tools = listed["result"]["tools"].as_array().expect("tools array");
 
-    let read = tools.iter().find(|tool| tool["name"] == "coderide_read").expect("read tool");
+    let read = tools
+        .iter()
+        .find(|tool| tool["name"] == "coderide_read")
+        .expect("read tool");
     assert_eq!(read["inputSchema"]["required"], json!(["path"]));
     assert!(read["inputSchema"]["properties"]["path"].is_object());
 
-    let todo_write = tools.iter().find(|tool| tool["name"] == "coderide_todo_write").expect("todo_write tool");
+    let todo_write = tools
+        .iter()
+        .find(|tool| tool["name"] == "coderide_todo_write")
+        .expect("todo_write tool");
     assert!(todo_write["inputSchema"]["properties"]["title"].is_object());
     assert!(todo_write["inputSchema"]["properties"]["todos"].is_object());
 
-    let plan_create = tools.iter().find(|tool| tool["name"] == "coderide_plan_create").expect("plan_create tool");
+    let plan_create = tools
+        .iter()
+        .find(|tool| tool["name"] == "coderide_plan_create")
+        .expect("plan_create tool");
     assert_eq!(plan_create["inputSchema"]["required"], json!(["goal"]));
     assert!(plan_create["inputSchema"]["properties"]["steps"].is_object());
 
@@ -93,7 +108,14 @@ fn initialize(child: &mut std::process::Child) {
 
 fn spawn_server(home: &PathBuf, workspace: &PathBuf) -> std::process::Child {
     Command::new("cargo")
-        .args(["run", "--quiet", "--manifest-path", "Native/CoderideMCPServerRust/Cargo.toml", "--", "--workspace"])
+        .args([
+            "run",
+            "--quiet",
+            "--manifest-path",
+            "Native/CoderideMCPServerRust/Cargo.toml",
+            "--",
+            "--workspace",
+        ])
         .arg(workspace)
         .current_dir("/Users/benjaminstoica/SoloCode")
         .env("HOME", home)

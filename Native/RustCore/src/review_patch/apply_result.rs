@@ -1,6 +1,8 @@
 use super::models::{ReviewPatchApplyResultRequest, ReviewPatchApplyResultResponse};
 
-pub fn build_apply_result(request: ReviewPatchApplyResultRequest) -> ReviewPatchApplyResultResponse {
+pub fn build_apply_result(
+    request: ReviewPatchApplyResultRequest,
+) -> ReviewPatchApplyResultResponse {
     if !request.success {
         return ReviewPatchApplyResultResponse::error(
             request

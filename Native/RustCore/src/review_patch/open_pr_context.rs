@@ -1,6 +1,4 @@
-use super::pr_result_models::{
-    ReviewPatchOpenPrContextRequest, ReviewPatchOpenPrContextResponse,
-};
+use super::pr_result_models::{ReviewPatchOpenPrContextRequest, ReviewPatchOpenPrContextResponse};
 
 pub fn build_open_pr_context(
     request: ReviewPatchOpenPrContextRequest,

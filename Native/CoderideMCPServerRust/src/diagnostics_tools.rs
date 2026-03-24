@@ -30,15 +30,16 @@ fn git_diff(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolRe
 
 fn diagnostics(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let manager = string_arg(arguments, "manager").to_lowercase();
-    let (command, args): (&str, Vec<&str>) = if manager == "cargo" || workspace.join("Cargo.toml").exists() {
-        ("cargo", vec!["check"])
-    } else if workspace.join("Package.swift").exists() {
-        ("swift", vec!["build"])
-    } else if workspace.join("package.json").exists() {
-        ("npm", vec!["run", "build"])
-    } else {
-        ("swift", vec!["build"])
-    };
+    let (command, args): (&str, Vec<&str>) =
+        if manager == "cargo" || workspace.join("Cargo.toml").exists() {
+            ("cargo", vec!["check"])
+        } else if workspace.join("Package.swift").exists() {
+            ("swift", vec!["build"])
+        } else if workspace.join("package.json").exists() {
+            ("npm", vec!["run", "build"])
+        } else {
+            ("swift", vec!["build"])
+        };
     shell_text(command, &args, workspace)
 }
 
@@ -72,9 +73,9 @@ fn shell_text(command: &str, args: &[&str], cwd: &Path) -> CallToolResult {
                 CallToolResult::text(text)
             }
         }
-        Ok(output) => CallToolResult::error(
-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ),
+        Ok(output) => {
+            CallToolResult::error(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        }
         Err(error) => CallToolResult::error(error.to_string()),
     }
 }

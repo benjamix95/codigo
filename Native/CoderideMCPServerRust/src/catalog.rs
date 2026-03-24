@@ -3,14 +3,13 @@ use crate::tool_schema::input_schema_for;
 
 const TOOL_NAMES: &str = include_str!("tool_names.txt");
 pub const CATALOG_VERSION: &str = "2026-03-12";
-pub const CATALOG_TOOL_COUNT: usize = 131;
+pub const CATALOG_TOOL_COUNT: usize = 114;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ToolFamily {
     Audit,
     BugHunter,
     Codebase,
-    Debug,
     Diagnostics,
     Edit,
     File,
@@ -67,8 +66,6 @@ fn family_for(name: &str) -> ToolFamily {
         ToolFamily::Audit
     } else if name.starts_with("coderide_bughunter_") {
         ToolFamily::BugHunter
-    } else if name.starts_with("coderide_debug_") {
-        ToolFamily::Debug
     } else if name.starts_with("coderide_diagnostics") {
         ToolFamily::Diagnostics
     } else if name.starts_with("coderide_plan_") || name == "coderide_activate_plan_mode" {
@@ -201,7 +198,6 @@ mod tests {
         let families: HashSet<_> = specs.iter().map(|spec| spec.family).collect();
         assert!(families.contains(&ToolFamily::Review));
         assert!(families.contains(&ToolFamily::Plan));
-        assert!(families.contains(&ToolFamily::Debug));
         assert!(families.contains(&ToolFamily::File));
         assert!(families.contains(&ToolFamily::Web));
     }

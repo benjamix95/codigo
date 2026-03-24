@@ -76,7 +76,11 @@ struct ReviewPanelChatThinkingView: View {
                 .fill(DesignSystem.Colors.thinkingBackground)
         )
         .onChange(of: isStreaming) { streaming in
-            if streaming { isExpanded = true }
+            if streaming {
+                DispatchQueue.main.async {
+                    isExpanded = true
+                }
+            }
         }
     }
 }

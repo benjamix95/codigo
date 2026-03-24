@@ -1,14 +1,14 @@
 use super::format::{append_section_line, apply_raw_event};
-use super::models::{
-    ReviewPanelEventReduceRequest, ReviewPanelRuntimeStateSnapshot,
-};
+use super::models::{ReviewPanelEventReduceRequest, ReviewPanelRuntimeStateSnapshot};
 use super::state::{
     append_text_delta, clear_message_presentation, finalize_response_message, is_finished,
     mark_finished, replace_response,
 };
 use serde_json::Value;
 
-pub fn reduce_output_event(request: ReviewPanelEventReduceRequest) -> ReviewPanelRuntimeStateSnapshot {
+pub fn reduce_output_event(
+    request: ReviewPanelEventReduceRequest,
+) -> ReviewPanelRuntimeStateSnapshot {
     let mut state = request.state;
     let activity_id = request.activity_message_id;
     if is_finished(&state, &activity_id) {
@@ -16,8 +16,18 @@ pub fn reduce_output_event(request: ReviewPanelEventReduceRequest) -> ReviewPane
     }
 
     match request.event.kind.as_str() {
-        "started" => append_section_line(&mut state, &activity_id, "Activity", "Review stream started"),
-        "completed" => append_section_line(&mut state, &activity_id, "Activity", "Review stream completed"),
+        "started" => append_section_line(
+            &mut state,
+            &activity_id,
+            "Activity",
+            "Review stream started",
+        ),
+        "completed" => append_section_line(
+            &mut state,
+            &activity_id,
+            "Activity",
+            "Review stream completed",
+        ),
         "textDelta" => {
             if let Some(delta) = request.event.text {
                 append_text_delta(
@@ -108,7 +118,10 @@ pub fn fail_output(
         .position(|message| message.get("id").and_then(Value::as_str) == Some(activity_id))
     {
         if let Some(object) = state.chat_messages[index].as_object_mut() {
-            object.insert("content".to_string(), Value::String(format!("Error: {error}")));
+            object.insert(
+                "content".to_string(),
+                Value::String(format!("Error: {error}")),
+            );
             object.insert("isStreaming".to_string(), Value::Bool(false));
             object.insert("presentation".to_string(), Value::Null);
         }
@@ -122,13 +135,28 @@ pub fn cancel_all_streaming_messages(state: &mut ReviewPanelRuntimeStateSnapshot
     let mut updated = Vec::with_capacity(state.chat_messages.len());
     for mut message in state.chat_messages.clone() {
         let is_assistant = message.get("role").and_then(Value::as_str) == Some("assistant");
-        let is_streaming = message.get("isStreaming").and_then(Value::as_bool).unwrap_or(false);
-        let kind = message.get("kind").and_then(Value::as_str).unwrap_or_default();
+        let is_streaming = message
+            .get("isStreaming")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let kind = message
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         if is_assistant && is_streaming {
             if kind == "reviewRun" {
-                if message.get("content").and_then(Value::as_str).unwrap_or_default().trim().is_empty() {
+                if message
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .trim()
+                    .is_empty()
+                {
                     if let Some(object) = message.as_object_mut() {
-                        object.insert("content".to_string(), Value::String("Cancelled.".to_string()));
+                        object.insert(
+                            "content".to_string(),
+                            Value::String("Cancelled.".to_string()),
+                        );
                         object.insert("presentation".to_string(), Value::Null);
                     }
                 }
@@ -142,7 +170,14 @@ pub fn cancel_all_streaming_messages(state: &mut ReviewPanelRuntimeStateSnapshot
                 updated.push(message);
                 continue;
             }
-            if kind == "plain" && message.get("content").and_then(Value::as_str).unwrap_or_default().trim().is_empty() {
+            if kind == "plain"
+                && message
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .trim()
+                    .is_empty()
+            {
                 continue;
             }
             if let Some(object) = message.as_object_mut() {

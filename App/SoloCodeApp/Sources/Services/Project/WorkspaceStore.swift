@@ -189,6 +189,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func setActive(id: UUID?) {
+        guard activeWorkspaceId != id else { return }
         activeWorkspaceId = id
         save()
         indexActiveWorkspace()

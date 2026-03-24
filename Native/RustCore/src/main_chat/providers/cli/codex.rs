@@ -4,7 +4,9 @@ use crate::main_chat::providers::parsing::jsonl::parse_jsonl_line;
 use crate::main_chat::providers::session::{
     emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, running_cli_account,
 };
-use app_core_protocol::main_chat_provider::{MainChatCLIAccountSnapshot, MainChatProviderSessionConfig};
+use app_core_protocol::main_chat_provider::{
+    MainChatCLIAccountSnapshot, MainChatProviderSessionConfig,
+};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -58,8 +60,11 @@ fn valid_executable_path(candidate: String) -> Option<String> {
 }
 
 fn detect_codex_path() -> Option<String> {
-    find_in_path(std::env::var("PATH").ok().as_deref().unwrap_or(""), "codex")
-        .or_else(|| default_codex_candidates().into_iter().find_map(valid_executable_path))
+    find_in_path(std::env::var("PATH").ok().as_deref().unwrap_or(""), "codex").or_else(|| {
+        default_codex_candidates()
+            .into_iter()
+            .find_map(valid_executable_path)
+    })
 }
 
 fn find_in_path(path_env: &str, executable: &str) -> Option<String> {
@@ -116,15 +121,23 @@ fn build_exec_arguments(config: &MainChatProviderSessionConfig, prompt: &str) ->
     );
     insert_before_prompt(
         &mut args,
-        flag_value("-c", config.codex_reasoning_effort.clone().map(|value| {
-            format!("model_reasoning_effort={value}")
-        })),
+        flag_value(
+            "-c",
+            config
+                .codex_reasoning_effort
+                .clone()
+                .map(|value| format!("model_reasoning_effort={value}")),
+        ),
     );
     insert_before_prompt(
         &mut args,
-        flag_value("-c", config.codex_model_provider.clone().map(|value| {
-            format!("model_provider=\"{value}\"")
-        })),
+        flag_value(
+            "-c",
+            config
+                .codex_model_provider
+                .clone()
+                .map(|value| format!("model_provider=\"{value}\"")),
+        ),
     );
     insert_before_prompt(
         &mut args,
@@ -132,7 +145,11 @@ fn build_exec_arguments(config: &MainChatProviderSessionConfig, prompt: &str) ->
             "-c".to_string(),
             format!(
                 "fast_mode={}",
-                if config.codex_fast_mode { "true" } else { "false" }
+                if config.codex_fast_mode {
+                    "true"
+                } else {
+                    "false"
+                }
             ),
         ]),
     );
@@ -160,7 +177,8 @@ fn insert_before_prompt(target: &mut Vec<String>, value: Option<Vec<String>>) {
 }
 
 fn flag_value(flag: &str, value: Option<String>) -> Option<Vec<String>> {
-    value.filter(|value| !value.trim().is_empty())
+    value
+        .filter(|value| !value.trim().is_empty())
         .map(|value| vec![flag.to_string(), value])
 }
 
@@ -234,14 +252,12 @@ fn consume_line(session_id: &str, line: &str) -> Result<(), String> {
         if let Some(error) = json
             .get("error")
             .and_then(|v| v.as_str())
-            .or_else(|| {
-                json.get("message")
-                    .and_then(|v| v.as_str())
-            })
+            .or_else(|| json.get("message").and_then(|v| v.as_str()))
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
         {
-            if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota") {
+            if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota")
+            {
                 if failover_to_next_cli_account(session_id, "codex", &error)? {
                     return Err("retry_with_next_account".to_string());
                 }
@@ -258,14 +274,8 @@ fn consume_item_event(session_id: &str, event_type: &str, json: &serde_json::Val
         Some(obj) => obj,
         None => return,
     };
-    let item_type = item
-        .get("type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let item_id = item
-        .get("id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let item_type = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    let item_id = item.get("id").and_then(|v| v.as_str()).unwrap_or("");
 
     match item_type {
         "agent_message" => {

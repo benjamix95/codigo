@@ -89,21 +89,32 @@ pub fn handle_search_request(raw: &str) -> Result<RustSearchResponsePayload, Str
     let (positive_query, negative_tokens) = split_negations(&payload.query.query);
     let query_tokens = tokenize_query(&positive_query);
     if query_tokens.is_empty() || payload.snapshot.total_docs == 0 {
-        return Ok(RustSearchResponsePayload { hits: Vec::new(), error: None });
+        return Ok(RustSearchResponsePayload {
+            hits: Vec::new(),
+            error: None,
+        });
     }
 
     let mut scores: HashMap<&str, f64> = HashMap::new();
     let unique_tokens: HashSet<&str> = query_tokens.iter().map(String::as_str).collect();
     for token in unique_tokens {
-        let Some(postings) = payload.snapshot.inverted_index.get(token) else { continue };
+        let Some(postings) = payload.snapshot.inverted_index.get(token) else {
+            continue;
+        };
         let df = postings.len() as f64;
         let n = payload.snapshot.total_docs as f64;
         let idf = ((n - df + 0.5) / (df + 0.5) + 1.0).ln();
 
         for chunk_id in postings {
-            let Some(chunk) = chunks_by_id.get(chunk_id.as_str()) else { continue };
+            let Some(chunk) = chunks_by_id.get(chunk_id.as_str()) else {
+                continue;
+            };
             if !payload.query.target_directories.is_empty()
-                && !payload.query.target_directories.iter().any(|prefix| chunk.file_path.starts_with(prefix))
+                && !payload
+                    .query
+                    .target_directories
+                    .iter()
+                    .any(|prefix| chunk.file_path.starts_with(prefix))
             {
                 continue;
             }
@@ -114,10 +125,17 @@ pub fn handle_search_request(raw: &str) -> Result<RustSearchResponsePayload, Str
                 .and_then(|terms| terms.get(token))
                 .copied()
                 .unwrap_or(0) as f64;
-            let dl = payload.snapshot.doc_lengths.get(chunk_id).copied().unwrap_or(1) as f64;
+            let dl = payload
+                .snapshot
+                .doc_lengths
+                .get(chunk_id)
+                .copied()
+                .unwrap_or(1) as f64;
             let avg_dl = payload.snapshot.avg_doc_length.max(1.0);
             let tf_norm = (tf * (payload.snapshot.k1 + 1.0))
-                / (tf + payload.snapshot.k1 * (1.0 - payload.snapshot.b + payload.snapshot.b * dl / avg_dl));
+                / (tf
+                    + payload.snapshot.k1
+                        * (1.0 - payload.snapshot.b + payload.snapshot.b * dl / avg_dl));
             *scores.entry(chunk_id.as_str()).or_insert(0.0) += idf * tf_norm;
         }
     }
@@ -135,7 +153,9 @@ pub fn handle_search_request(raw: &str) -> Result<RustSearchResponsePayload, Str
             chunks_by_id
                 .get(chunk_id)
                 .map(|chunk| {
-                    let chunk_tokens: HashSet<String> = tokenize_query(&chunk.contextualized_text).into_iter().collect();
+                    let chunk_tokens: HashSet<String> = tokenize_query(&chunk.contextualized_text)
+                        .into_iter()
+                        .collect();
                     negative_set.is_disjoint(&chunk_tokens)
                 })
                 .unwrap_or(false)
@@ -144,12 +164,22 @@ pub fn handle_search_request(raw: &str) -> Result<RustSearchResponsePayload, Str
 
     let mut ranked: Vec<RustSearchHitPayload> = scores
         .into_iter()
-        .map(|(chunk_id, score)| RustSearchHitPayload { chunk_id: chunk_id.to_string(), score })
+        .map(|(chunk_id, score)| RustSearchHitPayload {
+            chunk_id: chunk_id.to_string(),
+            score,
+        })
         .collect();
-    ranked.sort_by(|lhs, rhs| rhs.score.partial_cmp(&lhs.score).unwrap_or(std::cmp::Ordering::Equal));
+    ranked.sort_by(|lhs, rhs| {
+        rhs.score
+            .partial_cmp(&lhs.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     ranked.truncate(payload.query.num_results);
 
-    Ok(RustSearchResponsePayload { hits: ranked, error: None })
+    Ok(RustSearchResponsePayload {
+        hits: ranked,
+        error: None,
+    })
 }
 
 fn split_negations(query: &str) -> (String, Vec<String>) {
@@ -189,7 +219,12 @@ fn score_bonus(chunk: &RustSearchChunkPayload, query_lower: &str, query_tokens: 
         }
     }
 
-    let file_name = chunk.file_path.rsplit('/').next().unwrap_or_default().to_lowercase();
+    let file_name = chunk
+        .file_path
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_lowercase();
     if file_name.contains(query_lower) {
         bonus += 2.0;
     }
@@ -201,7 +236,10 @@ fn score_bonus(chunk: &RustSearchChunkPayload, query_lower: &str, query_tokens: 
         _ => {}
     }
 
-    if chunk.content.contains("///") || chunk.content.contains("/**") || chunk.content.contains("# ") {
+    if chunk.content.contains("///")
+        || chunk.content.contains("/**")
+        || chunk.content.contains("# ")
+    {
         bonus += 0.25;
     }
 

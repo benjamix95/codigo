@@ -10,10 +10,12 @@ pub extern "C" fn review_core_fix_stage_plan(input: *const c_char) -> *mut c_cha
         let request: ReviewFixStagePlanRequest = match serde_json::from_str(raw) {
             Ok(request) => request,
             Err(err) => {
-                return encode_raw(&crate::review_pipeline::fix_stage::ReviewFixStagePlanResponse::error(
-                    "decode_failed",
-                    &err.to_string(),
-                ))
+                return encode_raw(
+                    &crate::review_pipeline::fix_stage::ReviewFixStagePlanResponse::error(
+                        "decode_failed",
+                        &err.to_string(),
+                    ),
+                )
             }
         };
         encode_raw(&plan_fix_stage(request))
@@ -26,10 +28,12 @@ pub extern "C" fn review_core_fix_stage_bridge_event(input: *const c_char) -> *m
         let request: ReviewFixStageEventRequest = match serde_json::from_str(raw) {
             Ok(request) => request,
             Err(err) => {
-                return encode_raw(&crate::review_pipeline::fix_stage::ReviewFixStageEventResponse::error(
-                    "decode_failed",
-                    &err.to_string(),
-                ))
+                return encode_raw(
+                    &crate::review_pipeline::fix_stage::ReviewFixStageEventResponse::error(
+                        "decode_failed",
+                        &err.to_string(),
+                    ),
+                )
             }
         };
         encode_raw(&bridge_fix_stage_event(request))

@@ -1,7 +1,7 @@
-use super::{cancel_all_streaming_messages, fail_output, finish_output};
 use super::models::{
     ReviewPanelChatFinishRequest, ReviewPanelChatStartRequest, ReviewPanelRuntimeResponse,
 };
+use super::{cancel_all_streaming_messages, fail_output, finish_output};
 use serde_json::{json, Value};
 
 pub fn start_chat_runtime(request: ReviewPanelChatStartRequest) -> ReviewPanelRuntimeResponse {
@@ -126,6 +126,9 @@ mod tests {
         });
         let state = response.state.expect("state");
         assert!(!state.is_chat_processing);
-        assert_eq!(state.chat_messages[0]["content"].as_str(), Some("Cancelled."));
+        assert_eq!(
+            state.chat_messages[0]["content"].as_str(),
+            Some("Cancelled.")
+        );
     }
 }

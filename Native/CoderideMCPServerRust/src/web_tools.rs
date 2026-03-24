@@ -32,9 +32,9 @@ fn web_fetch(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             let text = String::from_utf8_lossy(&output.stdout);
             CallToolResult::text(text.chars().take(12_000).collect::<String>())
         }
-        Ok(output) => CallToolResult::error(
-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ),
+        Ok(output) => {
+            CallToolResult::error(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        }
         Err(error) => CallToolResult::error(error.to_string()),
     }
 }
@@ -70,9 +70,9 @@ fn web_search(arguments: &BTreeMap<String, Value>) -> CallToolResult {
                 CallToolResult::text(lines.join("\n"))
             }
         }
-        Ok(output) => CallToolResult::error(
-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ),
+        Ok(output) => {
+            CallToolResult::error(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        }
         Err(error) => CallToolResult::error(error.to_string()),
     }
 }

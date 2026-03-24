@@ -47,8 +47,14 @@ pub fn start_runtime(request: ReviewPatchRuntimeStartRequest) -> ReviewPatchRunt
     });
     if planning.is_error {
         return ReviewPatchRuntimeResponse::err(
-            planning.error_code.as_deref().unwrap_or("runtime_start_failed"),
-            planning.error_message.as_deref().unwrap_or("failed to start patch runtime"),
+            planning
+                .error_code
+                .as_deref()
+                .unwrap_or("runtime_start_failed"),
+            planning
+                .error_message
+                .as_deref()
+                .unwrap_or("failed to start patch runtime"),
         );
     }
 
@@ -82,17 +88,29 @@ pub fn start_runtime(request: ReviewPatchRuntimeStartRequest) -> ReviewPatchRunt
     response
 }
 
-pub fn apply_runtime_result(request: ReviewPatchRuntimeResultRequest) -> ReviewPatchRuntimeResponse {
+pub fn apply_runtime_result(
+    request: ReviewPatchRuntimeResultRequest,
+) -> ReviewPatchRuntimeResponse {
     let mut runtimes = store().lock().unwrap();
     let Some(session) = runtimes.get_mut(&request.runtime_id) else {
-        return ReviewPatchRuntimeResponse::err("runtime_not_found", "patch runtime session not found");
+        return ReviewPatchRuntimeResponse::err(
+            "runtime_not_found",
+            "patch runtime session not found",
+        );
     };
     if session.status != RuntimeStatus::Running {
-        return ReviewPatchRuntimeResponse::err("runtime_terminal", "patch runtime session is already terminal");
+        return ReviewPatchRuntimeResponse::err(
+            "runtime_terminal",
+            "patch runtime session is already terminal",
+        );
     }
     if !request.succeeded {
         session.status = RuntimeStatus::Failed;
-        session.error_message = Some(request.error_message.unwrap_or_else(|| "patch step failed".to_string()));
+        session.error_message = Some(
+            request
+                .error_message
+                .unwrap_or_else(|| "patch step failed".to_string()),
+        );
         session.last_transition_at = timestamp_now();
         session.terminal_reason = Some("step_failed".to_string());
         return response_for(
@@ -120,14 +138,22 @@ pub fn apply_runtime_result(request: ReviewPatchRuntimeResultRequest) -> ReviewP
 pub fn get_runtime_state(request: ReviewPatchRuntimeStateRequest) -> ReviewPatchRuntimeResponse {
     let runtimes = store().lock().unwrap();
     let Some(session) = runtimes.get(&request.runtime_id) else {
-        return ReviewPatchRuntimeResponse::err("runtime_not_found", "patch runtime session not found");
+        return ReviewPatchRuntimeResponse::err(
+            "runtime_not_found",
+            "patch runtime session not found",
+        );
     };
     let current_step = if session.status == RuntimeStatus::Running {
         session.steps.get(session.step_index).cloned()
     } else {
         None
     };
-    response_for(session, session.status.clone(), current_step, session.error_message.clone())
+    response_for(
+        session,
+        session.status.clone(),
+        current_step,
+        session.error_message.clone(),
+    )
 }
 
 fn response_for(

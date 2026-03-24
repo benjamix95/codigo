@@ -4,8 +4,9 @@ use app_core_protocol::main_chat_provider::{
     MainChatProviderEvent, MainChatProviderEventKind, MainChatProviderSessionPollRequest,
 };
 use app_core_protocol::main_chat_runtime::{
-    MainChatRuntimeActionRequest, MainChatRuntimeProviderPollRequest, MainChatRuntimeProviderPollResponse,
-    MainChatRuntimeSignalKind, MainChatRuntimeUIEvent, MainChatRuntimeUIEventKind,
+    MainChatRuntimeActionRequest, MainChatRuntimeProviderPollRequest,
+    MainChatRuntimeProviderPollResponse, MainChatRuntimeSignalKind, MainChatRuntimeUIEvent,
+    MainChatRuntimeUIEventKind,
 };
 
 pub fn poll_provider_runtime(
@@ -48,8 +49,7 @@ pub fn poll_provider_runtime(
 
     let mut is_terminal = false;
     let mut signals: Vec<MainChatRuntimeSignalKind> = Vec::new();
-    let mut ui_events: Vec<MainChatRuntimeUIEvent> =
-        provider_events.iter().map(ui_event).collect();
+    let mut ui_events: Vec<MainChatRuntimeUIEvent> = provider_events.iter().map(ui_event).collect();
     if let Some(snapshot) = session_snapshot {
         match snapshot.status.as_str() {
             "completed" => {
@@ -70,10 +70,7 @@ pub fn poll_provider_runtime(
                     .as_deref()
                     .unwrap_or("Provider session failed")
                     .to_string();
-                runtime_snapshot = fail_runtime(
-                    runtime_snapshot,
-                    &message,
-                );
+                runtime_snapshot = fail_runtime(runtime_snapshot, &message);
                 ui_events.push(MainChatRuntimeUIEvent {
                     kind: MainChatRuntimeUIEventKind::Error,
                     text: message,
@@ -129,7 +126,12 @@ pub fn poll_provider_runtime(
                 )
             }
         };
-        if runtime_snapshot.output.as_ref().map(|item| item.should_retry_poll) != Some(true) {
+        if runtime_snapshot
+            .output
+            .as_ref()
+            .map(|item| item.should_retry_poll)
+            != Some(true)
+        {
             is_terminal = true;
             ui_events.push(MainChatRuntimeUIEvent {
                 kind: MainChatRuntimeUIEventKind::Error,
@@ -177,7 +179,16 @@ fn reduce_provider_event(
     event: &MainChatProviderEvent,
 ) -> app_core_protocol::main_chat_runtime::MainChatRuntimeSnapshot {
     let (event_kind, payload, status, use_provider_event_reducer) = match event.kind {
-        MainChatProviderEventKind::Started => return apply_runtime_action(snapshot, "direct_stream_event_received", provider_id, None, None, Default::default()),
+        MainChatProviderEventKind::Started => {
+            return apply_runtime_action(
+                snapshot,
+                "direct_stream_event_received",
+                provider_id,
+                None,
+                None,
+                Default::default(),
+            )
+        }
         MainChatProviderEventKind::TextDelta => (
             Some("textDelta".to_string()),
             event.payload.clone(),
@@ -191,14 +202,26 @@ fn reduce_provider_event(
             true,
         ),
         MainChatProviderEventKind::Raw => (
-            Some(event.raw_type.clone().unwrap_or_else(|| "provider_raw".to_string())),
+            Some(
+                event
+                    .raw_type
+                    .clone()
+                    .unwrap_or_else(|| "provider_raw".to_string()),
+            ),
             event.payload.clone(),
             None,
             true,
         ),
         MainChatProviderEventKind::Completed => return complete_runtime(snapshot),
         MainChatProviderEventKind::Error => {
-            return fail_runtime(snapshot, if event.text.is_empty() { "Provider stream failed" } else { &event.text })
+            return fail_runtime(
+                snapshot,
+                if event.text.is_empty() {
+                    "Provider stream failed"
+                } else {
+                    &event.text
+                },
+            )
         }
     };
 
@@ -230,7 +253,14 @@ fn reduce_provider_event(
 fn complete_runtime(
     snapshot: app_core_protocol::main_chat_runtime::MainChatRuntimeSnapshot,
 ) -> app_core_protocol::main_chat_runtime::MainChatRuntimeSnapshot {
-    apply_runtime_action(snapshot, "direct_stream_complete", "", Some("completed".to_string()), None, Default::default())
+    apply_runtime_action(
+        snapshot,
+        "direct_stream_complete",
+        "",
+        Some("completed".to_string()),
+        None,
+        Default::default(),
+    )
 }
 
 fn fail_runtime(
@@ -260,7 +290,14 @@ fn fail_runtime(
 fn interrupt_runtime(
     snapshot: app_core_protocol::main_chat_runtime::MainChatRuntimeSnapshot,
 ) -> app_core_protocol::main_chat_runtime::MainChatRuntimeSnapshot {
-    apply_runtime_action(snapshot, "direct_stream_interrupt", "", Some("cancelled".to_string()), None, Default::default())
+    apply_runtime_action(
+        snapshot,
+        "direct_stream_interrupt",
+        "",
+        Some("cancelled".to_string()),
+        None,
+        Default::default(),
+    )
 }
 
 fn apply_runtime_action(
@@ -276,7 +313,11 @@ fn apply_runtime_action(
         action: action.to_string(),
         snapshot,
         timestamp: None,
-        provider_id: if provider_id.is_empty() { None } else { Some(provider_id.to_string()) },
+        provider_id: if provider_id.is_empty() {
+            None
+        } else {
+            Some(provider_id.to_string())
+        },
         status,
         detail: None,
         text: None,
@@ -348,11 +389,11 @@ mod tests {
 
     #[test]
     fn poll_provider_runtime_applies_text_delta_to_turn_state() {
+        use crate::main_chat::providers::append_test_event;
+        use crate::main_chat::start_session;
         use app_core_protocol::main_chat_provider::{
             MainChatProviderEvent, MainChatProviderEventKind,
         };
-        use crate::main_chat::providers::append_test_event;
-        use crate::main_chat::start_session;
 
         let session_id = "runtime-provider-poll-delta".to_string();
         let _ = start_session(MainChatProviderSessionStartRequest {
@@ -369,15 +410,18 @@ mod tests {
             },
         });
 
-        append_test_event(&session_id, MainChatProviderEvent {
-            kind: MainChatProviderEventKind::TextDelta,
-            text: String::new(),
-            raw_type: None,
-            payload: std::collections::BTreeMap::from([
-                ("delta".to_string(), "ciao".to_string()),
-                ("stream_id".to_string(), "main".to_string()),
-            ]),
-        });
+        append_test_event(
+            &session_id,
+            MainChatProviderEvent {
+                kind: MainChatProviderEventKind::TextDelta,
+                text: String::new(),
+                raw_type: None,
+                payload: std::collections::BTreeMap::from([
+                    ("delta".to_string(), "ciao".to_string()),
+                    ("stream_id".to_string(), "main".to_string()),
+                ]),
+            },
+        );
 
         let response = poll_provider_runtime(MainChatRuntimeProviderPollRequest {
             schema_version: 1,
@@ -395,7 +439,11 @@ mod tests {
             ]
         );
         assert_eq!(
-            snapshot.turn_state.text_by_stream_id.get("main").map(String::as_str),
+            snapshot
+                .turn_state
+                .text_by_stream_id
+                .get("main")
+                .map(String::as_str),
             Some("ciao")
         );
     }
@@ -438,5 +486,4 @@ mod tests {
             .iter()
             .any(|event| event.kind == MainChatRuntimeUIEventKind::Completed));
     }
-
 }

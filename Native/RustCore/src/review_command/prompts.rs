@@ -76,13 +76,11 @@ mod tests {
             config: default_config(),
         });
         assert!(!response.is_error);
-        assert!(
-            response
-                .prompt
-                .as_deref()
-                .unwrap_or_default()
-                .contains("[REVIEW_SCOPE:staged]")
-        );
+        assert!(response
+            .prompt
+            .as_deref()
+            .unwrap_or_default()
+            .contains("[REVIEW_SCOPE:staged]"));
     }
 
     #[test]

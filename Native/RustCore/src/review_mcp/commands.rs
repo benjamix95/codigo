@@ -1,18 +1,22 @@
 use super::models::{
-    CommandRecord, ReviewMCPCommandQueueRequest, ReviewMCPCommandQueueResponse, ReviewMCPIndexResponse,
-    ReviewMCPIndexRequest, ReviewSnapshotIndexRecord, ReviewSnapshotRecord,
+    CommandRecord, ReviewMCPCommandQueueRequest, ReviewMCPCommandQueueResponse,
+    ReviewMCPIndexRequest, ReviewMCPIndexResponse, ReviewSnapshotIndexRecord, ReviewSnapshotRecord,
 };
 use std::collections::HashMap;
 
 const REVIEW_STALE_TIMEOUT: f64 = 120.0;
 const BUGHUNTER_STALE_TIMEOUT: f64 = 3605.0;
 
-pub fn enqueue_review_command(request: ReviewMCPCommandQueueRequest) -> ReviewMCPCommandQueueResponse {
+pub fn enqueue_review_command(
+    request: ReviewMCPCommandQueueRequest,
+) -> ReviewMCPCommandQueueResponse {
     let unique_start = request.operation == "enqueue_unique_review_start";
     enqueue_command(request, unique_start)
 }
 
-pub fn enqueue_bughunter_command(request: ReviewMCPCommandQueueRequest) -> ReviewMCPCommandQueueResponse {
+pub fn enqueue_bughunter_command(
+    request: ReviewMCPCommandQueueRequest,
+) -> ReviewMCPCommandQueueResponse {
     enqueue_command(request, false)
 }
 
@@ -24,7 +28,11 @@ fn enqueue_command(
     let action = request.action.unwrap_or_default();
     let session_id = sanitize_session_id(request.session_id);
     let run_id = non_empty(request.run_id);
-    let payload = request.payload.into_iter().filter(|(key, _)| !key.is_empty()).collect::<HashMap<_, _>>();
+    let payload = request
+        .payload
+        .into_iter()
+        .filter(|(key, _)| !key.is_empty())
+        .collect::<HashMap<_, _>>();
 
     if unique_start && action == "start" {
         if let Some(ref session_id) = session_id {
@@ -81,15 +89,18 @@ pub fn claim_commands(request: ReviewMCPCommandQueueRequest) -> ReviewMCPCommand
 
     let mut claimed = commands
         .iter()
-        .filter(|command| command.status == "processing" && command.updated_at_reference_seconds == request.now_reference_seconds)
+        .filter(|command| {
+            command.status == "processing"
+                && command.updated_at_reference_seconds == request.now_reference_seconds
+        })
         .cloned()
         .collect::<Vec<_>>();
     claimed.sort_by(|lhs, rhs| {
-            lhs.created_at_reference_seconds
-                .partial_cmp(&rhs.created_at_reference_seconds)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| lhs.id.cmp(&rhs.id))
-        });
+        lhs.created_at_reference_seconds
+            .partial_cmp(&rhs.created_at_reference_seconds)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| lhs.id.cmp(&rhs.id))
+    });
     ReviewMCPCommandQueueResponse::ok(commands, claimed.first().cloned(), claimed)
 }
 
@@ -116,7 +127,10 @@ pub fn heartbeat_command(request: ReviewMCPCommandQueueRequest) -> ReviewMCPComm
     let Some(command_id) = request.command_id else {
         return ReviewMCPCommandQueueResponse::err("missing command id", commands);
     };
-    if let Some(command) = commands.iter_mut().find(|command| command.id == command_id && command.status == "processing") {
+    if let Some(command) = commands
+        .iter_mut()
+        .find(|command| command.id == command_id && command.status == "processing")
+    {
         command.updated_at_reference_seconds = request.now_reference_seconds;
         let updated = command.clone();
         return ReviewMCPCommandQueueResponse::ok(commands, Some(updated), Vec::new());
@@ -144,7 +158,9 @@ pub fn build_review_index(request: ReviewMCPIndexRequest) -> ReviewMCPIndexRespo
 
     ReviewMCPIndexResponse {
         schema_version: 1,
-        latest_session_id: snapshots.first().map(|snapshot| snapshot.session_id.clone()),
+        latest_session_id: snapshots
+            .first()
+            .map(|snapshot| snapshot.session_id.clone()),
         latest_session_id_by_conversation: latest_by_conversation,
         sessions: snapshots.into_iter().map(index_record).collect(),
     }
@@ -175,7 +191,9 @@ fn sanitize_session_id(session_id: Option<String>) -> Option<String> {
         return None;
     }
     let mut chars = session_id.chars();
-    let Some(first) = chars.next() else { return None };
+    let Some(first) = chars.next() else {
+        return None;
+    };
     if !first.is_ascii_alphanumeric() {
         return None;
     }
@@ -189,7 +207,11 @@ fn sanitize_session_id(session_id: Option<String>) -> Option<String> {
 fn non_empty(value: Option<String>) -> Option<String> {
     value.and_then(|value| {
         let trimmed = value.trim().to_string();
-        if trimmed.is_empty() { None } else { Some(trimmed) }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     })
 }
 
@@ -260,6 +282,9 @@ mod tests {
             payload: HashMap::new(),
         };
         let response = claim_commands(request);
-        assert_eq!(response.command.as_ref().map(|command| command.id.as_str()), Some("existing"));
+        assert_eq!(
+            response.command.as_ref().map(|command| command.id.as_str()),
+            Some("existing")
+        );
     }
 }

@@ -44,9 +44,14 @@ impl ReviewCandidateRuntimeResponse {
     }
 }
 
-pub fn candidate_from_finding(request: ReviewCandidateFromFindingRequest) -> ReviewCandidateRuntimeResponse {
+pub fn candidate_from_finding(
+    request: ReviewCandidateFromFindingRequest,
+) -> ReviewCandidateRuntimeResponse {
     if request.schema_version != 1 {
-        return ReviewCandidateRuntimeResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return ReviewCandidateRuntimeResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     let finding = request.finding;
     let candidate = json!({
@@ -74,16 +79,31 @@ pub fn candidate_from_finding(request: ReviewCandidateFromFindingRequest) -> Rev
     ReviewCandidateRuntimeResponse::success(candidate)
 }
 
-pub fn candidate_from_task(request: ReviewCandidateFromTaskRequest) -> ReviewCandidateRuntimeResponse {
+pub fn candidate_from_task(
+    request: ReviewCandidateFromTaskRequest,
+) -> ReviewCandidateRuntimeResponse {
     if request.schema_version != 1 {
-        return ReviewCandidateRuntimeResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return ReviewCandidateRuntimeResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     let task = request.task;
     let task_id = required_str(&task, "id").unwrap_or_default();
     let description = required_str(&task, "description").unwrap_or_default();
-    let files = task.get("files").and_then(Value::as_array).cloned().unwrap_or_default();
-    let file_path = files.first().and_then(Value::as_str).unwrap_or("unknown").to_string();
-    let origin = required_str(&task, "origin").unwrap_or("reviewer").to_string();
+    let files = task
+        .get("files")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let file_path = files
+        .first()
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    let origin = required_str(&task, "origin")
+        .unwrap_or("reviewer")
+        .to_string();
     let category = task
         .get("category")
         .and_then(Value::as_str)
@@ -91,7 +111,11 @@ pub fn candidate_from_task(request: ReviewCandidateFromTaskRequest) -> ReviewCan
         .map(|value| value.trim().to_string())
         .unwrap_or_else(|| infer_category(description));
     let severity = normalize_severity(required_str(&task, "severity").unwrap_or("warning"));
-    let signal_type = if origin == "audit_tool" { "pattern" } else { "semantic" };
+    let signal_type = if origin == "audit_tool" {
+        "pattern"
+    } else {
+        "semantic"
+    };
     let candidate = json!({
         "id": format!("{}{}", request.prefix, task_id),
         "severity": severity,
@@ -143,13 +167,22 @@ fn normalize_severity(raw: &str) -> &'static str {
 
 fn infer_category(description: &str) -> String {
     let lower = description.to_lowercase();
-    if lower.contains("security") || lower.contains("vulnerability") || lower.contains("injection") {
+    if lower.contains("security") || lower.contains("vulnerability") || lower.contains("injection")
+    {
         return "security".to_string();
     }
-    if lower.contains("race") || lower.contains("deadlock") || lower.contains("thread") || lower.contains("concurrency") {
+    if lower.contains("race")
+        || lower.contains("deadlock")
+        || lower.contains("thread")
+        || lower.contains("concurrency")
+    {
         return "concurrency".to_string();
     }
-    if lower.contains("regression") || lower.contains("crash") || lower.contains("fatal") || lower.contains("force unwrap") {
+    if lower.contains("regression")
+        || lower.contains("crash")
+        || lower.contains("fatal")
+        || lower.contains("force unwrap")
+    {
         return "regression".to_string();
     }
     if lower.contains("performance") || lower.contains("slow") || lower.contains("o(n") {

@@ -1,6 +1,10 @@
 use app_core_protocol::main_chat_provider::{MainChatCLIAccountSnapshot, MainChatCLIQuotaSnapshot};
 
-pub fn exceeds_policy(account: &MainChatCLIAccountSnapshot, input_tokens: i64, output_tokens: i64) -> bool {
+pub fn exceeds_policy(
+    account: &MainChatCLIAccountSnapshot,
+    input_tokens: i64,
+    output_tokens: i64,
+) -> bool {
     let total = input_tokens + output_tokens;
     exceeds_token_limit(&account.quota, total)
 }

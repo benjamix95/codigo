@@ -1,14 +1,14 @@
 use super::api::{anthropic, google, openai};
 use super::cli::{claude, codex, gemini};
 use super::models::{
-    make_completed_event, make_error_event, make_raw_event, make_started_event, make_text_delta_event,
-    make_text_replace_event, ProviderSessionHandle,
+    make_completed_event, make_error_event, make_raw_event, make_started_event,
+    make_text_delta_event, make_text_replace_event, ProviderSessionHandle,
 };
 use super::router::{next_cli_account, next_cli_account_after};
 use app_core_protocol::main_chat_provider::{
     MainChatCLIAccountSnapshot, MainChatProviderBackend, MainChatProviderSessionConfig,
-    MainChatProviderSessionPollRequest, MainChatProviderSessionRequest, MainChatProviderSessionResponse,
-    MainChatProviderSessionStartRequest,
+    MainChatProviderSessionPollRequest, MainChatProviderSessionRequest,
+    MainChatProviderSessionResponse, MainChatProviderSessionStartRequest,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::Ordering;
@@ -56,12 +56,22 @@ pub(crate) fn running_cli_account(
     }
     let current_id = {
         let guard = sessions().lock().unwrap();
-        guard
-            .get(session_id)
-            .and_then(|handle| handle.snapshot.lock().ok().and_then(|snapshot| snapshot.active_account_id.clone()))
+        guard.get(session_id).and_then(|handle| {
+            handle
+                .snapshot
+                .lock()
+                .ok()
+                .and_then(|snapshot| snapshot.active_account_id.clone())
+        })
     };
     let selected = current_id
-        .and_then(|id| config.cli_accounts.iter().find(|item| item.id == id).cloned())
+        .and_then(|id| {
+            config
+                .cli_accounts
+                .iter()
+                .find(|item| item.id == id)
+                .cloned()
+        })
         .or_else(|| next_cli_account(config));
     if let Some(account) = &selected {
         let guard = sessions().lock().unwrap();
@@ -98,7 +108,8 @@ pub(crate) fn failover_to_next_cli_account(
         MainChatProviderBackend::GeminiCli => "gemini",
         _ => return Ok(false),
     };
-    let Some(next) = next_cli_account_after(&config.cli_accounts, provider, &current_id, 0.0) else {
+    let Some(next) = next_cli_account_after(&config.cli_accounts, provider, &current_id, 0.0)
+    else {
         return Ok(false);
     };
     let mut snapshot = handle.snapshot.lock().unwrap();
@@ -107,9 +118,14 @@ pub(crate) fn failover_to_next_cli_account(
     Ok(true)
 }
 
-pub fn start_session(request: MainChatProviderSessionStartRequest) -> MainChatProviderSessionResponse {
+pub fn start_session(
+    request: MainChatProviderSessionStartRequest,
+) -> MainChatProviderSessionResponse {
     if request.schema_version != 1 {
-        return MainChatProviderSessionResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return MainChatProviderSessionResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     let handle = ProviderSessionHandle::new(
         request.session_id.clone(),
@@ -120,7 +136,11 @@ pub fn start_session(request: MainChatProviderSessionStartRequest) -> MainChatPr
         let mut guard = handle.snapshot.lock().unwrap();
         guard.status = "streaming".to_string();
     }
-    handle.events.lock().unwrap().push_back(make_started_event());
+    handle
+        .events
+        .lock()
+        .unwrap()
+        .push_back(make_started_event());
     {
         let mut guard = sessions().lock().unwrap();
         guard.insert(request.session_id.clone(), handle.clone());
@@ -139,13 +159,21 @@ pub fn get_snapshot(request: MainChatProviderSessionRequest) -> MainChatProvider
     session_response(request, false)
 }
 
-pub fn poll_session(request: MainChatProviderSessionPollRequest) -> MainChatProviderSessionResponse {
+pub fn poll_session(
+    request: MainChatProviderSessionPollRequest,
+) -> MainChatProviderSessionResponse {
     if request.schema_version != 1 {
-        return MainChatProviderSessionResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return MainChatProviderSessionResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     let guard = sessions().lock().unwrap();
     let Some(handle) = guard.get(&request.session_id).cloned() else {
-        return MainChatProviderSessionResponse::error("missing_session", "Provider session not found");
+        return MainChatProviderSessionResponse::error(
+            "missing_session",
+            "Provider session not found",
+        );
     };
     drop(guard);
 
@@ -159,7 +187,10 @@ pub fn poll_session(request: MainChatProviderSessionPollRequest) -> MainChatProv
         let mut queue = handle.events.lock().unwrap();
         if !queue.is_empty() {
             let events = queue.drain(..).collect();
-            let terminal = matches!(snapshot.status.as_str(), "completed" | "failed" | "cancelled");
+            let terminal = matches!(
+                snapshot.status.as_str(),
+                "completed" | "failed" | "cancelled"
+            );
             drop(queue);
             if terminal {
                 cleanup_session_state(&request.session_id);
@@ -168,7 +199,10 @@ pub fn poll_session(request: MainChatProviderSessionPollRequest) -> MainChatProv
         }
         drop(queue);
 
-        if matches!(snapshot.status.as_str(), "completed" | "failed" | "cancelled") {
+        if matches!(
+            snapshot.status.as_str(),
+            "completed" | "failed" | "cancelled"
+        ) {
             cleanup_session_state(&request.session_id);
             return MainChatProviderSessionResponse::success(snapshot, Vec::new());
         }
@@ -184,15 +218,25 @@ pub fn poll_session(request: MainChatProviderSessionPollRequest) -> MainChatProv
 
 pub fn cancel_session(request: MainChatProviderSessionRequest) -> MainChatProviderSessionResponse {
     if request.schema_version != 1 {
-        return MainChatProviderSessionResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return MainChatProviderSessionResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     let guard = sessions().lock().unwrap();
     let Some(handle) = guard.get(&request.session_id).cloned() else {
-        return MainChatProviderSessionResponse::error("missing_session", "Provider session not found");
+        return MainChatProviderSessionResponse::error(
+            "missing_session",
+            "Provider session not found",
+        );
     };
     drop(guard);
     handle.cancelled.store(true, Ordering::SeqCst);
-    handle.events.lock().unwrap().push_back(make_completed_event());
+    handle
+        .events
+        .lock()
+        .unwrap()
+        .push_back(make_completed_event());
     {
         let mut snapshot = handle.snapshot.lock().unwrap();
         snapshot.status = "cancelled".to_string();
@@ -206,13 +250,22 @@ pub fn cancel_session(request: MainChatProviderSessionRequest) -> MainChatProvid
     MainChatProviderSessionResponse::success(snapshot, Vec::new())
 }
 
-fn session_response(request: MainChatProviderSessionRequest, consume_events: bool) -> MainChatProviderSessionResponse {
+fn session_response(
+    request: MainChatProviderSessionRequest,
+    consume_events: bool,
+) -> MainChatProviderSessionResponse {
     if request.schema_version != 1 {
-        return MainChatProviderSessionResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return MainChatProviderSessionResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     let guard = sessions().lock().unwrap();
     let Some(handle) = guard.get(&request.session_id).cloned() else {
-        return MainChatProviderSessionResponse::error("missing_session", "Provider session not found");
+        return MainChatProviderSessionResponse::error(
+            "missing_session",
+            "Provider session not found",
+        );
     };
     drop(guard);
     let snapshot = handle.snapshot.lock().unwrap().clone();
@@ -222,7 +275,10 @@ fn session_response(request: MainChatProviderSessionRequest, consume_events: boo
     } else {
         Vec::new()
     };
-    let terminal = matches!(snapshot.status.as_str(), "completed" | "failed" | "cancelled");
+    let terminal = matches!(
+        snapshot.status.as_str(),
+        "completed" | "failed" | "cancelled"
+    );
     if terminal && (consume_events || events.is_empty()) {
         cleanup_session_state(&request.session_id);
     }
@@ -235,9 +291,15 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
             MainChatProviderBackend::OpenaiApi => openai::run(&session_id, &config),
             MainChatProviderBackend::GoogleApi => google::run(&session_id, &config),
             MainChatProviderBackend::AnthropicApi => anthropic::run(&session_id, &config),
-            MainChatProviderBackend::CodexCli => retry_cli(&session_id, &config, MainChatProviderBackend::CodexCli),
-            MainChatProviderBackend::ClaudeCli => retry_cli(&session_id, &config, MainChatProviderBackend::ClaudeCli),
-            MainChatProviderBackend::GeminiCli => retry_cli(&session_id, &config, MainChatProviderBackend::GeminiCli),
+            MainChatProviderBackend::CodexCli => {
+                retry_cli(&session_id, &config, MainChatProviderBackend::CodexCli)
+            }
+            MainChatProviderBackend::ClaudeCli => {
+                retry_cli(&session_id, &config, MainChatProviderBackend::ClaudeCli)
+            }
+            MainChatProviderBackend::GeminiCli => {
+                retry_cli(&session_id, &config, MainChatProviderBackend::GeminiCli)
+            }
         };
         let guard = sessions().lock().unwrap();
         if let Some(handle) = guard.get(&session_id) {
@@ -245,7 +307,11 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
             match result {
                 Ok(()) if snapshot.status != "cancelled" => {
                     snapshot.status = "completed".to_string();
-                    handle.events.lock().unwrap().push_back(make_completed_event());
+                    handle
+                        .events
+                        .lock()
+                        .unwrap()
+                        .push_back(make_completed_event());
                 }
                 Ok(()) => {}
                 Err(error) if error == "cancelled" => {
@@ -254,7 +320,11 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
                 Err(error) => {
                     snapshot.status = "failed".to_string();
                     snapshot.terminal_error = Some(error.clone());
-                    handle.events.lock().unwrap().push_back(make_error_event(error));
+                    handle
+                        .events
+                        .lock()
+                        .unwrap()
+                        .push_back(make_error_event(error));
                 }
             }
         }
@@ -280,7 +350,10 @@ fn retry_cli(
     }
 }
 
-fn push_event(session_id: &str, event: app_core_protocol::main_chat_provider::MainChatProviderEvent) {
+fn push_event(
+    session_id: &str,
+    event: app_core_protocol::main_chat_provider::MainChatProviderEvent,
+) {
     let guard = sessions().lock().unwrap();
     if let Some(handle) = guard.get(session_id) {
         if let Ok(mut snapshot) = handle.snapshot.lock() {

@@ -764,6 +764,12 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     let path = string_arg(arguments, "path");
     let line = string_arg(arguments, "line").parse::<usize>().unwrap_or(0);
     let comment = non_empty(string_arg(arguments, "comment")).unwrap_or_else(|| "DEBUG".to_string());
+    let code = string_arg(arguments, "code");
+    let marker_type = non_empty(string_arg(arguments, "type"))
+        .unwrap_or_else(|| "marker".to_string())
+        .to_lowercase();
+    let expression = string_arg(arguments, "expression");
+    let hypothesis_id = short_id(&string_arg(arguments, "hypothesis_id"));
     if path.is_empty() || line == 0 {
         return error_result("Error: path and line are required", json!({ "error_code": "validation" }));
     }
@@ -771,6 +777,29 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     let mut lines = match read_lines(&file_path) {
         Ok(value) => value,
         Err(error) => return error,
+    };
+    let tag = hypothesis_tag(&hypothesis_id);
+    let marker = if !code.is_empty() {
+        format!("{code} // [DEBUG:{marker_type}] {comment}{tag}")
+    } else {
+        match marker_type.as_str() {
+            "log" => {
+                let expr = if expression.is_empty() { "\"checkpoint\"" } else { expression.as_str() };
+                format!("print(\"[DEBUG] {comment}: \\({expr})\") // [DEBUG:log] {comment}{tag}")
+            }
+            "assert" => {
+                let expr = if expression.is_empty() { "true" } else { expression.as_str() };
+                format!("assert({expr}, \"[DEBUG ASSERT] {comment}\") // [DEBUG:assert] {comment}{tag}")
+            }
+            "timing" => format!(
+                "let _debugTimerStart_{line} = CFAbsoluteTimeGetCurrent(); defer {{ print(\"[DEBUG TIMING] {comment}: \\(CFAbsoluteTimeGetCurrent() - _debugTimerStart_{line})s\") }} // [DEBUG:timing] {comment}{tag}"
+            ),
+            "variable" => {
+                let expr = if expression.is_empty() { "self" } else { expression.as_str() };
+                format!("print(\"[DEBUG VAR] {comment} {expr} = \\({expr})\") // [DEBUG:variable] {comment}{tag}")
+            }
+            _ => format!("// [DEBUG:marker] {comment}{tag}"),
+        }
     };
     let insert_at = line.min(lines.len());
     lines.insert(insert_at, marker.clone());
@@ -784,7 +813,9 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
             "path": file_path.display().to_string(),
             "line": line,
             "comment": comment,
-            "marker_info": format!("{}|{}|{}", file_path.display(), line, comment)
+            "type": marker_type,
+            "hypothesis_id": hypothesis_id,
+            "marker_info": format!("{}|{}|{}|{}", file_path.display(), line, comment, marker_type)
         }),
     )
 }
@@ -792,11 +823,22 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
 fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let raw_path = string_arg(arguments, "path");
     let dry_run = matches!(string_arg(arguments, "dry_run").as_str(), "true" | "1" | "yes");
+    let clean_type = non_empty(string_arg(arguments, "type"))
+        .unwrap_or_else(|| "all".to_string())
+        .to_lowercase();
     let hypothesis_id = short_id(&string_arg(arguments, "hypothesis_id"));
     let files = if raw_path.is_empty() {
         collect_debug_files(workspace)
     } else {
         vec![resolve_path(workspace, &raw_path)]
+    };
+    let type_patterns: Vec<&str> = match clean_type.as_str() {
+        "markers" => vec!["DEBUG[marker]"],
+        "logs" => vec!["DEBUG[log]", "DEBUG[instrument-log]"],
+        "asserts" => vec!["DEBUG[assert]", "DEBUG[instrument-assert]", "DEBUG[instrument-conditional]"],
+        "timing" => vec!["DEBUG[timing]", "DEBUG[instrument-timing]"],
+        "variables" => vec!["DEBUG[variable]", "DEBUG[instrument-variable]"],
+        _ => vec!["DEBUG"],
     };
 
     let mut cleaned = 0usize;
@@ -809,6 +851,9 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
         let mut file_cleaned = 0usize;
         for (index, line) in lines.iter().enumerate() {
             let lower = line.to_lowercase();
+            let matches_debug = type_patterns
+                .iter()
+                .any(|pattern| lower.contains(&pattern.to_lowercase()));
             let matches_hypothesis = hypothesis_id.is_empty() || lower.contains(&format!("[h:{hypothesis_id}]"));
             if matches_debug && matches_hypothesis {
                 cleaned += 1;
@@ -829,10 +874,15 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
         }
     }
 
-    let detail = if dry_run {
-        format!("[DRY RUN] {cleaned} markers in {touched} files")
+    let type_label = if clean_type == "all" {
+        "all types".to_string()
     } else {
-        format!("[CLEANED] {cleaned} markers in {touched} files")
+        clean_type.clone()
+    };
+    let detail = if dry_run {
+        format!("[DRY RUN] {cleaned} {type_label} markers in {touched} files")
+    } else {
+        format!("[CLEANED] {cleaned} {type_label} markers in {touched} files")
     };
     let mut output = detail.clone();
     if !preview.is_empty() {
@@ -851,6 +901,7 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
             "output": output,
             "cleaned_markers": cleaned,
             "cleaned_files": touched,
+            "type": clean_type,
             "dry_run": dry_run,
             "status": if dry_run { "preview" } else { "completed" }
         }),
@@ -868,26 +919,39 @@ fn debug_instrument(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         return error_result("Error: path and line are required", json!({ "error_code": "validation" }));
     }
 
+    let tag = hypothesis_tag(&hypothesis_id);
+    let label_tag = if label.is_empty() {
+        String::new()
+    } else {
+        format!(" [{label}]")
+    };
+    let display_label = if label.is_empty() { expression.clone() } else { label.clone() };
     let generated = match instrument_type.as_str() {
-        "assert" => format!(
-            hypothesis_tag(&hypothesis_id)
-        ),
+        "assert" => {
+            let msg = non_empty(string_arg(arguments, "condition")).unwrap_or_else(|| expression.clone());
+            format!(
+                "assert({}, \"[INSTRUMENT ASSERT]{}: {}\") // [DEBUG:instrument-assert] {}{}",
+                expression, label_tag, msg, display_label, tag
+            )
+        }
         "timing" => format!(
-            hypothesis_tag(&hypothesis_id)
+            "let _instrTimer_{line} = CFAbsoluteTimeGetCurrent(); defer {{ print(\"[INSTRUMENT TIMING]{}: \\(String(format: \\\"%.4f\\\", CFAbsoluteTimeGetCurrent() - _instrTimer_{line}))s for {}\") }} // [DEBUG:instrument-timing] {}{}",
+            label_tag, expression, display_label, tag
         ),
         "variable" => format!(
-            hypothesis_tag(&hypothesis_id)
+            "print(\"[INSTRUMENT VAR]{} {} = \\({}) [type: \\(type(of: {}))]\") // [DEBUG:instrument-variable] {}{}",
+            label_tag, expression, expression, expression, display_label, tag
         ),
         "conditional_break" => {
             let condition = non_empty(string_arg(arguments, "condition")).unwrap_or_else(|| "true".to_string());
             format!(
-                hypothesis_tag(&hypothesis_id)
+                "if {} {{ print(\"[INSTRUMENT BREAK]{}: condition met - {} = \\({})\") }} // [DEBUG:instrument-conditional] {}{}",
+                condition, label_tag, expression, expression, display_label, tag
             )
         }
         _ => format!(
-            if label.is_empty() { expression.clone() } else { label.clone() },
-            expression,
-            hypothesis_tag(&hypothesis_id)
+            "print(\"[INSTRUMENT]{}: \\({})\") // [DEBUG:instrument-log] {}{}",
+            label_tag, expression, display_label, tag
         ),
     };
 
@@ -1120,9 +1184,8 @@ fn collect_debug_files(workspace: &Path) -> Vec<PathBuf> {
                 stack.push(path);
                 continue;
             }
-            if let Ok(content) = fs::read_to_string(&path) {
-                    matches.push(path);
-                }
+            if fs::read_to_string(&path).is_ok() {
+                matches.push(path);
             }
         }
     }

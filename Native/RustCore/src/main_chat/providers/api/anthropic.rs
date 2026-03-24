@@ -69,7 +69,9 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
             return Err("cancelled".to_string());
         }
         let payload = line.map_err(|error| format!("anthropic_stream_read_failed:{error}"))?;
-        let Some(payload) = sse_data_payload(&payload) else { continue };
+        let Some(payload) = sse_data_payload(&payload) else {
+            continue;
+        };
         if payload == "[DONE]" {
             return Ok(());
         }
@@ -81,10 +83,14 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
 }
 
 fn consume_payload(session_id: &str, json: &Value) {
-    let Some(event_type) = json.get("type").and_then(string_value) else { return };
+    let Some(event_type) = json.get("type").and_then(string_value) else {
+        return;
+    };
     match event_type.as_str() {
         "content_block_delta" => {
-            let Some(delta) = json.get("delta") else { return };
+            let Some(delta) = json.get("delta") else {
+                return;
+            };
             let delta_type = delta.get("type").and_then(string_value).unwrap_or_default();
             if delta_type == "thinking_delta" {
                 if let Some(thinking) = delta.get("thinking").and_then(string_value) {
@@ -103,10 +109,20 @@ fn consume_payload(session_id: &str, json: &Value) {
                     emit_text_delta(session_id, &text);
                 }
             } else if delta_type == "input_json_delta" {
-                emit_raw(session_id, "tool_call_suggested", BTreeMap::from([
-                    ("args_fragment".to_string(), delta.get("partial_json").and_then(string_value).unwrap_or_default()),
-                    ("is_partial".to_string(), "true".to_string()),
-                ]));
+                emit_raw(
+                    session_id,
+                    "tool_call_suggested",
+                    BTreeMap::from([
+                        (
+                            "args_fragment".to_string(),
+                            delta
+                                .get("partial_json")
+                                .and_then(string_value)
+                                .unwrap_or_default(),
+                        ),
+                        ("is_partial".to_string(), "true".to_string()),
+                    ]),
+                );
             }
         }
         "content_block_start" => {
@@ -119,7 +135,10 @@ fn consume_payload(session_id: &str, json: &Value) {
                     if let Some(value) = block.get("name").and_then(string_value) {
                         payload.insert("name".to_string(), value);
                     }
-                    if let Some(value) = block.get("input").and_then(|value| serde_json::to_string(value).ok()) {
+                    if let Some(value) = block
+                        .get("input")
+                        .and_then(|value| serde_json::to_string(value).ok())
+                    {
                         payload.insert("args".to_string(), value);
                     }
                     payload.insert("is_partial".to_string(), "false".to_string());

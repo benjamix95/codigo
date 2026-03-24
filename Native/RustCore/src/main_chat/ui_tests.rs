@@ -6,8 +6,9 @@ use app_core_protocol::main_chat_runtime::{
     MainChatPlanPhase, MainChatPlanSnapshot, MainChatRuntimeOutput, MainChatRuntimeSnapshot,
 };
 use app_core_protocol::main_chat_store::{
-    MainChatStoreConversationSnapshot, MainChatStoreMessageSnapshot, MainChatStorePlanBoardSnapshot,
-    MainChatStorePlanOptionSnapshot, MainChatStorePlanStepSnapshot, MainChatStoreSnapshot,
+    MainChatStoreConversationSnapshot, MainChatStoreMessageSnapshot,
+    MainChatStorePlanBoardSnapshot, MainChatStorePlanOptionSnapshot, MainChatStorePlanStepSnapshot,
+    MainChatStoreSnapshot,
 };
 use app_core_protocol::main_chat_task_runtime::{
     MainChatTaskRuntimeState, MainChatTaskStateSnapshot,
@@ -25,8 +26,14 @@ fn ui_projection_merges_runtime_state_plan_and_task_flags() {
     let snapshot = response.snapshot.expect("snapshot");
     assert_eq!(snapshot.selected_conversation_id.as_deref(), Some("conv-1"));
     assert_eq!(snapshot.messages.len(), 1);
-    assert_eq!(snapshot.messages[0].primary_text.as_deref(), Some("Hello world"));
-    assert!(snapshot.messages[0].timeline_blocks.iter().any(|block| block.kind == "status"));
+    assert_eq!(
+        snapshot.messages[0].primary_text.as_deref(),
+        Some("Hello world")
+    );
+    assert!(snapshot.messages[0]
+        .timeline_blocks
+        .iter()
+        .any(|block| block.kind == "status"));
     assert!(snapshot.task.is_loading);
     assert_eq!(snapshot.task.status_text.as_deref(), Some("Running"));
     assert_eq!(snapshot.plan.phase, Some(MainChatPlanPhase::ProposalReady));
@@ -89,14 +96,17 @@ fn ui_intent_stream_replace_text_syncs_runtime_text_into_store_snapshot() {
     });
     let state = response.state.expect("state");
     assert_eq!(
-        state.store_snapshot.conversations[0].messages[0].primary_text_snapshot.as_deref(),
+        state.store_snapshot.conversations[0].messages[0]
+            .primary_text_snapshot
+            .as_deref(),
         Some("Hello world")
     );
     assert!(state.store_snapshot.conversations[0].messages[0].is_streaming);
 }
 
 #[test]
-fn ui_intent_stream_replace_text_does_not_overwrite_previous_assistant_when_runtime_target_is_stale() {
+fn ui_intent_stream_replace_text_does_not_overwrite_previous_assistant_when_runtime_target_is_stale(
+) {
     let response = handle_ui_intent(MainChatUiIntentRequest {
         schema_version: 1,
         intent: "stream_replace_text".to_string(),
@@ -112,8 +122,14 @@ fn ui_intent_stream_replace_text_does_not_overwrite_previous_assistant_when_runt
     });
     let state = response.state.expect("state");
     let conversation = &state.store_snapshot.conversations[0];
-    assert_eq!(conversation.messages[0].primary_text_snapshot.as_deref(), Some("Older answer"));
-    assert_eq!(conversation.messages[1].primary_text_snapshot.as_deref(), Some(""));
+    assert_eq!(
+        conversation.messages[0].primary_text_snapshot.as_deref(),
+        Some("Older answer")
+    );
+    assert_eq!(
+        conversation.messages[1].primary_text_snapshot.as_deref(),
+        Some("")
+    );
     assert_eq!(conversation.messages[1].content, "");
 }
 
@@ -135,7 +151,9 @@ fn ui_intent_stream_finish_marks_store_message_not_streaming() {
     let state = response.state.expect("state");
     assert!(!state.store_snapshot.conversations[0].messages[0].is_streaming);
     assert_eq!(
-        state.store_snapshot.conversations[0].messages[0].primary_text_snapshot.as_deref(),
+        state.store_snapshot.conversations[0].messages[0]
+            .primary_text_snapshot
+            .as_deref(),
         Some("Final answer")
     );
 }
@@ -164,7 +182,9 @@ fn ui_intent_plan_receive_clarification_questions_updates_epoch_and_visibility()
             .as_ref()
             .and_then(|runtime| runtime.plan.as_ref())
             .and_then(|plan| plan.planning_state_kind.clone()),
-        Some(app_core_protocol::main_chat_runtime::MainChatPlanningStateKind::AwaitingClarification)
+        Some(
+            app_core_protocol::main_chat_runtime::MainChatPlanningStateKind::AwaitingClarification
+        )
     );
     assert_eq!(snapshot.plan.question_epoch, 1);
     assert!(snapshot.plan.is_visible);
@@ -187,9 +207,12 @@ fn ui_intent_apply_plan_runtime_action_projects_prompt_and_panel_state() {
         timestamp: Some(42.0),
         pipeline_event: None,
         pipeline_events: Vec::new(),
-        payload: [("action".to_string(), "plan_prepare_phase1_analysis_prompt".to_string())]
-            .into_iter()
-            .collect(),
+        payload: [(
+            "action".to_string(),
+            "plan_prepare_phase1_analysis_prompt".to_string(),
+        )]
+        .into_iter()
+        .collect(),
     });
     let state = response.state.expect("state");
     let snapshot = response.snapshot.expect("snapshot");
@@ -272,9 +295,12 @@ fn ui_intent_pipeline_apply_events_syncs_runtime_and_store_snapshot() {
                 sequence: 2,
                 source: "pipeline".to_string(),
                 kind: MainChatEventKind::TextDelta,
-                payload: [("stream_id".to_string(), "main".to_string()), ("delta".to_string(), "Pipeline ".to_string())]
-                    .into_iter()
-                    .collect(),
+                payload: [
+                    ("stream_id".to_string(), "main".to_string()),
+                    ("delta".to_string(), "Pipeline ".to_string()),
+                ]
+                .into_iter()
+                .collect(),
                 timestamp: 42.0,
             },
             MainChatEvent {
@@ -285,9 +311,12 @@ fn ui_intent_pipeline_apply_events_syncs_runtime_and_store_snapshot() {
                 sequence: 3,
                 source: "pipeline".to_string(),
                 kind: MainChatEventKind::TextDelta,
-                payload: [("stream_id".to_string(), "main".to_string()), ("delta".to_string(), "batch".to_string())]
-                    .into_iter()
-                    .collect(),
+                payload: [
+                    ("stream_id".to_string(), "main".to_string()),
+                    ("delta".to_string(), "batch".to_string()),
+                ]
+                .into_iter()
+                .collect(),
                 timestamp: 43.0,
             },
         ],
@@ -334,7 +363,10 @@ fn ui_intent_auto_todo_begin_record_and_finalize_emit_patches() {
         .collect(),
     });
     assert_eq!(begin.todo_patches.len(), 1);
-    assert_eq!(begin.todo_patches[0].title.as_deref(), Some("Complete changes on App.swift"));
+    assert_eq!(
+        begin.todo_patches[0].title.as_deref(),
+        Some("Complete changes on App.swift")
+    );
     assert!(begin.todo_patches[0].is_operational_placeholder);
 
     let record = handle_ui_intent(MainChatUiIntentRequest {
@@ -527,7 +559,9 @@ fn base_ui_state() -> MainChatUiState {
                 status: "streaming".to_string(),
                 is_streaming: true,
                 ordered_text_stream_ids: vec!["main".to_string()],
-                text_by_stream_id: [("main".to_string(), "Hello world".to_string())].into_iter().collect(),
+                text_by_stream_id: [("main".to_string(), "Hello world".to_string())]
+                    .into_iter()
+                    .collect(),
                 artifacts: vec![MainChatArtifact {
                     id: "status-1".to_string(),
                     kind: MainChatArtifactKind::Status,
@@ -634,7 +668,9 @@ fn stale_runtime_target_ui_state() -> MainChatUiState {
                 status: "streaming".to_string(),
                 is_streaming: true,
                 ordered_text_stream_ids: vec!["main".to_string()],
-                text_by_stream_id: [("main".to_string(), "New answer".to_string())].into_iter().collect(),
+                text_by_stream_id: [("main".to_string(), "New answer".to_string())]
+                    .into_iter()
+                    .collect(),
                 artifacts: vec![],
                 ..Default::default()
             },

@@ -1,11 +1,11 @@
 use super::common::{encode_raw, with_raw_json_input};
+use crate::review_command::models::ReviewCommandPlanRequest;
+use crate::review_models::ReviewCoreReduceResponse;
 use crate::review_panel::{
     derive_panel_history_live, derive_panel_history_records, extract_panel_chat_findings,
     plan_panel_launch, ReviewPanelChatExtractRequest, ReviewPanelHistoryLiveRequest,
     ReviewPanelSnapshotRequest,
 };
-use crate::review_command::models::ReviewCommandPlanRequest;
-use crate::review_models::ReviewCoreReduceResponse;
 use std::os::raw::c_char;
 
 #[no_mangle]
@@ -38,29 +38,25 @@ pub extern "C" fn review_core_panel_chat_extract(input: *const c_char) -> *mut c
         let request: ReviewPanelChatExtractRequest = match serde_json::from_str(raw) {
             Ok(request) => request,
             Err(err) => {
-                return encode_raw(
-                    &crate::review_panel::ReviewPanelChatExtractResponse::error(
-                        "decode_failed",
-                        &err.to_string(),
-                        String::new(),
-                        Vec::new(),
-                        false,
-                        None,
-                    ),
-                );
+                return encode_raw(&crate::review_panel::ReviewPanelChatExtractResponse::error(
+                    "decode_failed",
+                    &err.to_string(),
+                    String::new(),
+                    Vec::new(),
+                    false,
+                    None,
+                ));
             }
         };
         if request.schema_version != 1 {
-            return encode_raw(
-                &crate::review_panel::ReviewPanelChatExtractResponse::error(
-                    "unsupported_schema",
-                    "schemaVersion must be 1",
-                    request.content,
-                    request.existing_findings,
-                    false,
-                    None,
-                ),
-            );
+            return encode_raw(&crate::review_panel::ReviewPanelChatExtractResponse::error(
+                "unsupported_schema",
+                "schemaVersion must be 1",
+                request.content,
+                request.existing_findings,
+                false,
+                None,
+            ));
         }
         encode_raw(&extract_panel_chat_findings(request))
     })

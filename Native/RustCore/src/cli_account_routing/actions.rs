@@ -1,4 +1,6 @@
-use super::availability::{available_accounts, exceeds_policy, sorted_provider_accounts, usage_by_account};
+use super::availability::{
+    available_accounts, exceeds_policy, sorted_provider_accounts, usage_by_account,
+};
 use app_core_protocol::cli_account_routing::{
     CLIAccountRoutingAccountSnapshot, CLIAccountRoutingRequest, CLIAccountRoutingResponse,
     CLIAccountRoutingState, CLIAccountUsageTotalsSnapshot,
@@ -21,7 +23,10 @@ pub fn handle_action(request: CLIAccountRoutingRequest) -> CLIAccountRoutingResp
         "mark_usage" => mark_usage(request, &usage),
         "mark_provider_error" => mark_provider_error(request),
         "mark_account_selected" => mark_account_selected(request),
-        _ => CLIAccountRoutingResponse::error("unsupported_action", "account routing action not supported"),
+        _ => CLIAccountRoutingResponse::error(
+            "unsupported_action",
+            "account routing action not supported",
+        ),
     }
 }
 
@@ -39,8 +44,14 @@ fn bootstrap_selections(
                 continue;
             }
         }
-        if let Some(selected) = enabled.iter().find(|account| account.is_authenticated).or_else(|| enabled.first()) {
-            state.current_active_account_by_provider.insert(provider.to_string(), selected.id.clone());
+        if let Some(selected) = enabled
+            .iter()
+            .find(|account| account.is_authenticated)
+            .or_else(|| enabled.first())
+        {
+            state
+                .current_active_account_by_provider
+                .insert(provider.to_string(), selected.id.clone());
         }
     }
     CLIAccountRoutingResponse::success(state)
@@ -58,10 +69,17 @@ fn select_account(
     if available.is_empty() {
         return unavailable(state);
     }
-    let current = state.round_robin_index.get(&provider).copied().unwrap_or(0).max(0) as usize;
+    let current = state
+        .round_robin_index
+        .get(&provider)
+        .copied()
+        .unwrap_or(0)
+        .max(0) as usize;
     let index = current % available.len();
     let selected = available[index].clone();
-    state.round_robin_index.insert(provider.clone(), ((index + 1) % available.len()) as i32);
+    state
+        .round_robin_index
+        .insert(provider.clone(), ((index + 1) % available.len()) as i32);
     select_into_state(&mut state, &provider, &selected.id, request.timestamp, None);
     let mut response = CLIAccountRoutingResponse::success(state);
     response.selected_account_id = Some(selected.id);
@@ -107,7 +125,10 @@ fn next_available_account_after(
     if available.is_empty() {
         return unavailable(state);
     }
-    let selected = if let Some(index) = available.iter().position(|account| account.id == current_id) {
+    let selected = if let Some(index) = available
+        .iter()
+        .position(|account| account.id == current_id)
+    {
         available[(index + 1) % available.len()].clone()
     } else {
         available[0].clone()
@@ -147,7 +168,10 @@ fn active_account(request: CLIAccountRoutingRequest) -> CLIAccountRoutingRespons
         return CLIAccountRoutingResponse::error("missing_provider", "provider is required");
     };
     let mut response = CLIAccountRoutingResponse::success(state.clone());
-    response.active_account_id = state.current_active_account_by_provider.get(&provider).cloned();
+    response.active_account_id = state
+        .current_active_account_by_provider
+        .get(&provider)
+        .cloned();
     response
 }
 
@@ -158,7 +182,12 @@ fn mark_usage(
     let Some(account_id) = request.account_id else {
         return CLIAccountRoutingResponse::error("missing_account_id", "accountId is required");
     };
-    let Some(mut account) = request.accounts.iter().find(|item| item.id == account_id).cloned() else {
+    let Some(mut account) = request
+        .accounts
+        .iter()
+        .find(|item| item.id == account_id)
+        .cloned()
+    else {
         return CLIAccountRoutingResponse::error("missing_account", "account not found");
     };
     account.health.consecutive_failures = 0;
@@ -187,7 +216,12 @@ fn mark_provider_error(request: CLIAccountRoutingRequest) -> CLIAccountRoutingRe
     let Some(provider) = request.provider else {
         return CLIAccountRoutingResponse::error("missing_provider", "provider is required");
     };
-    let Some(mut account) = request.accounts.iter().find(|item| item.id == account_id).cloned() else {
+    let Some(mut account) = request
+        .accounts
+        .iter()
+        .find(|item| item.id == account_id)
+        .cloned()
+    else {
         return CLIAccountRoutingResponse::error("missing_account", "account not found");
     };
     account.health.consecutive_failures += 1;
@@ -199,7 +233,9 @@ fn mark_provider_error(request: CLIAccountRoutingRequest) -> CLIAccountRoutingRe
         let retry_after = failure.retry_after_seconds.unwrap_or(120).max(30) as f64;
         account.health.cooldown_until = request.timestamp.map(|timestamp| timestamp + retry_after);
     }
-    state.last_failover_reason_by_provider.insert(provider, failure.normalized_code);
+    state
+        .last_failover_reason_by_provider
+        .insert(provider, failure.normalized_code);
     let mut response = CLIAccountRoutingResponse::success(state);
     response.updated_account = Some(account);
     response
@@ -237,11 +273,17 @@ fn select_into_state(
     timestamp: Option<f64>,
     reason: Option<String>,
 ) {
-    state.current_active_account_by_provider.insert(provider.to_string(), account_id.to_string());
+    state
+        .current_active_account_by_provider
+        .insert(provider.to_string(), account_id.to_string());
     if let Some(timestamp) = timestamp {
-        state.last_switch_at_by_provider.insert(provider.to_string(), timestamp);
+        state
+            .last_switch_at_by_provider
+            .insert(provider.to_string(), timestamp);
     }
     if let Some(reason) = reason {
-        state.last_failover_reason_by_provider.insert(provider.to_string(), reason);
+        state
+            .last_failover_reason_by_provider
+            .insert(provider.to_string(), reason);
     }
 }

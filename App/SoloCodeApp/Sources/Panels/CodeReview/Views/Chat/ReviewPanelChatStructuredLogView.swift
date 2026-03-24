@@ -34,8 +34,10 @@ struct ReviewPanelChatStructuredLogView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.12)) {
-            proxy.scrollTo(bottomAnchorId, anchor: .bottom)
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.12)) {
+                proxy.scrollTo(bottomAnchorId, anchor: .bottom)
+            }
         }
     }
 

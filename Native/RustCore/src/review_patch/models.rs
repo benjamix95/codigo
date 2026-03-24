@@ -635,7 +635,6 @@ impl ReviewPatchRollbackResultResponse {
     }
 }
 
-
 impl ReviewPatchRollbackExecutionContextResponse {
     pub fn success(patch_file_prefix: String) -> Self {
         Self {

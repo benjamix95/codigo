@@ -25,7 +25,9 @@ pub fn prepare(value: &Value) -> PreparedIdentity {
     PreparedIdentity {
         finding_id: get_str(value, "id").unwrap_or_default().to_string(),
         domain: get_str(value, "domain").unwrap_or("bug").to_string(),
-        fingerprint: get_str(value, "findingFingerprint").unwrap_or_default().to_string(),
+        fingerprint: get_str(value, "findingFingerprint")
+            .unwrap_or_default()
+            .to_string(),
         normalized_file_path: normalize(get_str(value, "filePath").unwrap_or_default()),
         normalized_category: normalize(get_str(value, "category").unwrap_or_default()),
         normalized_title: normalize(get_str(value, "title").unwrap_or_default()),
@@ -41,9 +43,13 @@ impl IdentityIndex {
             identity.finding_id.clone(),
         );
         for bucket in bucket_keys(&identity) {
-            self.bucketed.entry(bucket).or_default().insert(identity.finding_id.clone());
+            self.bucketed
+                .entry(bucket)
+                .or_default()
+                .insert(identity.finding_id.clone());
         }
-        self.identities_by_id.insert(identity.finding_id.clone(), identity);
+        self.identities_by_id
+            .insert(identity.finding_id.clone(), identity);
     }
 
     pub fn exact_duplicate_id(&self, identity: &PreparedIdentity) -> Option<String> {
@@ -85,11 +91,7 @@ pub fn similarity_score(lhs: &PreparedIdentity, rhs: &PreparedIdentity) -> f64 {
     score
 }
 
-pub fn find_duplicate(
-    candidate: &Value,
-    existing: &[Value],
-    minimum_score: f64,
-) -> Option<Value> {
+pub fn find_duplicate(candidate: &Value, existing: &[Value], minimum_score: f64) -> Option<Value> {
     let candidate_identity = prepare(candidate);
     let mut index = IdentityIndex::default();
     for finding in existing

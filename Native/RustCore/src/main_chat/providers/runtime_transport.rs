@@ -48,7 +48,10 @@ pub fn resolve_runtime_transport(
         }
     };
     let claude_allowed_tools = if read_only_plan {
-        READ_ONLY_CLAUDE_TOOLS.iter().map(|tool| tool.to_string()).collect()
+        READ_ONLY_CLAUDE_TOOLS
+            .iter()
+            .map(|tool| tool.to_string())
+            .collect()
     } else {
         request.claude_allowed_tools.clone()
     };
@@ -64,16 +67,12 @@ pub fn resolve_runtime_transport(
     };
 
     let (model, api_key, base_url) = match backend {
-        MainChatProviderBackend::CodexCli => (
-            normalized_string(&request.codex_model_override),
-            None,
-            None,
-        ),
-        MainChatProviderBackend::ClaudeCli => (
-            normalized_string(&request.claude_model),
-            None,
-            None,
-        ),
+        MainChatProviderBackend::CodexCli => {
+            (normalized_string(&request.codex_model_override), None, None)
+        }
+        MainChatProviderBackend::ClaudeCli => {
+            (normalized_string(&request.claude_model), None, None)
+        }
         MainChatProviderBackend::GeminiCli => (
             normalized_string(&request.gemini_model_override),
             None,
@@ -92,7 +91,10 @@ pub fn resolve_runtime_transport(
         MainChatProviderBackend::GoogleApi => (
             normalized_string(&request.google_model),
             normalized_string(&request.google_api_key),
-            Some("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".to_string()),
+            Some(
+                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+                    .to_string(),
+            ),
         ),
     };
     let is_authenticated = resolve_transport_authentication(&provider_id, &request);
@@ -134,13 +136,8 @@ mod tests {
 
     #[test]
     fn read_only_plan_uses_plan_backend_and_locked_permissions() {
-        let response = resolve_runtime_transport(request(
-            "openai-api",
-            Some("openai-api"),
-            true,
-            false,
-            None,
-        ));
+        let response =
+            resolve_runtime_transport(request("openai-api", Some("openai-api"), true, false, None));
         assert_eq!(response.provider_id.as_deref(), Some("openai-api"));
         assert_eq!(response.backend, Some(MainChatProviderBackend::OpenaiApi));
         assert!(response.read_only_plan);
@@ -223,7 +220,10 @@ mod tests {
             response.execution_strategy,
             MainChatRuntimeExecutionStrategy::SingleConfiguredProvider
         );
-        assert_eq!(response.failure_reason.as_deref(), Some("Daily limit reached"));
+        assert_eq!(
+            response.failure_reason.as_deref(),
+            Some("Daily limit reached")
+        );
         assert!(response
             .user_facing_hint
             .as_deref()
@@ -246,7 +246,10 @@ mod tests {
             response.execution_strategy,
             MainChatRuntimeExecutionStrategy::FailClosed
         );
-        assert_eq!(response.failure_reason.as_deref(), Some("Daily limit reached"));
+        assert_eq!(
+            response.failure_reason.as_deref(),
+            Some("Daily limit reached")
+        );
         assert!(response
             .user_facing_hint
             .as_deref()
@@ -256,13 +259,7 @@ mod tests {
 
     #[test]
     fn falls_back_to_selected_provider_when_no_special_mode_is_active() {
-        let response = resolve_runtime_transport(request(
-            "codex-cli",
-            None,
-            false,
-            false,
-            None,
-        ));
+        let response = resolve_runtime_transport(request("codex-cli", None, false, false, None));
         assert_eq!(response.provider_id.as_deref(), Some("codex-cli"));
         assert_eq!(response.backend, Some(MainChatProviderBackend::CodexCli));
         assert_eq!(response.model.as_deref(), Some("o3"));

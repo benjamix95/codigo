@@ -1,17 +1,20 @@
 use super::finalize::patchable_verified_finding_ids;
-use super::models::{
-    ReviewPipelineResponse, ReviewPipelineStep,
-};
+use super::models::{ReviewPipelineResponse, ReviewPipelineStep};
 use super::requests::{
     ReviewPipelineApplyRequest, ReviewPipelineCallbackResult, ReviewPipelineSessionRequest,
     ReviewPipelineStartRequest,
 };
-use super::scope::{infer_review_scope, parse_against_ref, parse_review_scope, review_scope_description};
-use super::state::{
-    analysis_completed, append_events, complete, fail, has_blocking_open_findings, mark_open_findings_fix_applied,
-    replace_findings, replace_open_findings_in_files, replace_patches, set_scope, upsert_candidates, upsert_findings, PipelineSession,
+use super::scope::{
+    infer_review_scope, parse_against_ref, parse_review_scope, review_scope_description,
 };
-use super::tasks::{classify_review_outcome, parse_review_tasks, ReviewFindingsState, TaskExtraction};
+use super::state::{
+    analysis_completed, append_events, complete, fail, has_blocking_open_findings,
+    mark_open_findings_fix_applied, replace_findings, replace_open_findings_in_files,
+    replace_patches, set_scope, upsert_candidates, upsert_findings, PipelineSession,
+};
+use super::tasks::{
+    classify_review_outcome, parse_review_tasks, ReviewFindingsState, TaskExtraction,
+};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
@@ -35,7 +38,10 @@ pub fn start_session(request: ReviewPipelineStartRequest) -> ReviewPipelineRespo
         session.snapshot.clone(),
         session.step.clone(),
     );
-    sessions().lock().unwrap().insert(request.session_id, session);
+    sessions()
+        .lock()
+        .unwrap()
+        .insert(request.session_id, session);
     response
 }
 
@@ -64,7 +70,11 @@ pub fn apply_callback_result(request: ReviewPipelineApplyRequest) -> ReviewPipel
 pub fn get_snapshot(request: ReviewPipelineSessionRequest) -> ReviewPipelineResponse {
     let sessions = sessions().lock().unwrap();
     if let Some(session) = sessions.get(&request.session_id) {
-        return ReviewPipelineResponse::success(request.session_id, session.snapshot.clone(), session.step.clone());
+        return ReviewPipelineResponse::success(
+            request.session_id,
+            session.snapshot.clone(),
+            session.step.clone(),
+        );
     }
     missing_session(&request.session_id)
 }
@@ -78,12 +88,19 @@ pub fn cancel_session(request: ReviewPipelineSessionRequest) -> ReviewPipelineRe
     if let Some(session) = sessions.get_mut(&request.session_id) {
         fail(session, "Review cancelled.".to_string());
         session.step = ReviewPipelineStep::failed("Review cancelled.");
-        return ReviewPipelineResponse::success(request.session_id, session.snapshot.clone(), session.step.clone());
+        return ReviewPipelineResponse::success(
+            request.session_id,
+            session.snapshot.clone(),
+            session.step.clone(),
+        );
     }
     missing_session(&request.session_id)
 }
 
-fn on_resolve_scope_files(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_resolve_scope_files(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     set_scope(session, callback.files.clone());
     if callback.files.is_empty() {
         complete(session, None);
@@ -92,7 +109,10 @@ fn on_resolve_scope_files(session: &mut PipelineSession, callback: ReviewPipelin
     ReviewPipelineStep::run_audit(callback.files)
 }
 
-fn on_run_audit_stage(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_run_audit_stage(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     append_events(session, &callback.events);
     if let Some(audit) = callback.audit {
         session.snapshot.audit = audit;
@@ -103,44 +123,85 @@ fn on_run_audit_stage(session: &mut PipelineSession, callback: ReviewPipelineCal
     ReviewPipelineStep::analysis(
         session.clean_prompt.clone(),
         review_scope_description(&session.resolved_scope, session.against_ref.as_deref()),
-        session.snapshot.scope.as_ref().map(|scope| scope.files.clone()).unwrap_or_default(),
+        session
+            .snapshot
+            .scope
+            .as_ref()
+            .map(|scope| scope.files.clone())
+            .unwrap_or_default(),
         session.snapshot.config.max_workers,
     )
 }
 
-fn on_analysis(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_analysis(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     if let Some(message) = callback.error {
         fail(session, format!("Analysis stream failed: {message}"));
         return ReviewPipelineStep::failed(format!("Analysis stream failed: {message}"));
     }
     analysis_completed(session);
     let text = callback.text.unwrap_or_default();
-    match parse_review_tasks(&text, &session.snapshot.scope.as_ref().map(|scope| scope.files.clone()).unwrap_or_default(), session.snapshot.config.max_workers as usize) {
+    match parse_review_tasks(
+        &text,
+        &session
+            .snapshot
+            .scope
+            .as_ref()
+            .map(|scope| scope.files.clone())
+            .unwrap_or_default(),
+        session.snapshot.config.max_workers as usize,
+    ) {
         TaskExtraction::NoFixes => {
             session.current_tasks = Vec::new();
             if session.snapshot.config.enabled_phases == "analysis-only" {
-                complete(session, Some("Analysis complete. (Analysis-only mode)".to_string()));
-                ReviewPipelineStep::completed(Some("\n---\n**Analysis complete.** (Analysis-only mode)\n".to_string()))
+                complete(
+                    session,
+                    Some("Analysis complete. (Analysis-only mode)".to_string()),
+                );
+                ReviewPipelineStep::completed(Some(
+                    "\n---\n**Analysis complete.** (Analysis-only mode)\n".to_string(),
+                ))
             } else {
                 ReviewPipelineStep::run_tests()
             }
         }
         TaskExtraction::Tasks(tasks) => {
             session.current_tasks = tasks.clone();
-            ReviewPipelineStep::prepare_task_candidates(tasks, session.snapshot.scope.as_ref().map(|scope| scope.files.clone()).unwrap_or_default(), 0)
+            ReviewPipelineStep::prepare_task_candidates(
+                tasks,
+                session
+                    .snapshot
+                    .scope
+                    .as_ref()
+                    .map(|scope| scope.files.clone())
+                    .unwrap_or_default(),
+                0,
+            )
         }
         TaskExtraction::NoPayload(reason) => extraction_failure(session, reason),
-        TaskExtraction::InvalidJson(reason) => extraction_failure(session, format!("Could not parse task JSON: {reason}")),
+        TaskExtraction::InvalidJson(reason) => {
+            extraction_failure(session, format!("Could not parse task JSON: {reason}"))
+        }
     }
 }
 
-fn on_prepare_task_candidates(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_prepare_task_candidates(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     append_events(session, &callback.events);
     upsert_candidates(session, &callback.candidates);
     upsert_findings(session, &callback.promoted_findings);
     if session.snapshot.config.enabled_phases == "analysis-only" {
-        complete(session, Some("Analysis complete. (Analysis-only mode)".to_string()));
-        return ReviewPipelineStep::completed(Some("\n---\n**Analysis complete.** (Analysis-only mode)\n".to_string()));
+        complete(
+            session,
+            Some("Analysis complete. (Analysis-only mode)".to_string()),
+        );
+        return ReviewPipelineStep::completed(Some(
+            "\n---\n**Analysis complete.** (Analysis-only mode)\n".to_string(),
+        ));
     }
     if session.current_tasks.is_empty() {
         return ReviewPipelineStep::run_tests();
@@ -154,7 +215,10 @@ fn on_prepare_task_candidates(session: &mut PipelineSession, callback: ReviewPip
     )
 }
 
-fn on_fix_stage(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_fix_stage(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     append_events(session, &callback.events);
     if let Some(reason) = callback.error {
         fail(session, reason.clone());
@@ -163,7 +227,10 @@ fn on_fix_stage(session: &mut PipelineSession, callback: ReviewPipelineCallbackR
     ReviewPipelineStep::run_tests()
 }
 
-fn on_run_tests(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_run_tests(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     session.snapshot.last_test_status = callback.test_status.clone();
     session.snapshot.stage = "testing".to_string();
     session.snapshot.phase = "testing".to_string();
@@ -171,16 +238,27 @@ fn on_run_tests(session: &mut PipelineSession, callback: ReviewPipelineCallbackR
     ReviewPipelineStep::scan_modified_files()
 }
 
-fn on_scan_modified_files(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_scan_modified_files(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     if callback.files.is_empty() {
         if session.snapshot.last_test_status.as_deref() != Some("passed")
             && !session.snapshot.findings.is_empty()
         {
-            fail(session, "Review finished with failing or inconclusive tests.".to_string());
-            return ReviewPipelineStep::failed("Review finished with failing or inconclusive tests.");
+            fail(
+                session,
+                "Review finished with failing or inconclusive tests.".to_string(),
+            );
+            return ReviewPipelineStep::failed(
+                "Review finished with failing or inconclusive tests.",
+            );
         }
         if has_blocking_open_findings(session) {
-            fail(session, "Review finished with remaining blocking findings.".to_string());
+            fail(
+                session,
+                "Review finished with remaining blocking findings.".to_string(),
+            );
             return ReviewPipelineStep::failed("Review finished with remaining blocking findings.");
         }
         let pending_patch_ids = patchable_verified_finding_ids(&session.snapshot);
@@ -197,7 +275,10 @@ fn on_scan_modified_files(session: &mut PipelineSession, callback: ReviewPipelin
     )
 }
 
-fn on_rereview(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_rereview(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     if let Some(message) = callback.error {
         fail(session, format!("Re-review stream failed: {message}"));
         return ReviewPipelineStep::failed(format!("Re-review stream failed: {message}"));
@@ -209,8 +290,13 @@ fn on_rereview(session: &mut PipelineSession, callback: ReviewPipelineCallbackRe
             if session.snapshot.last_test_status.as_deref() != Some("passed")
                 && !session.snapshot.findings.is_empty()
             {
-                fail(session, "Review finished with failing or inconclusive tests.".to_string());
-                return ReviewPipelineStep::failed("Review finished with failing or inconclusive tests.");
+                fail(
+                    session,
+                    "Review finished with failing or inconclusive tests.".to_string(),
+                );
+                return ReviewPipelineStep::failed(
+                    "Review finished with failing or inconclusive tests.",
+                );
             }
             if has_blocking_open_findings(session) {
                 fail(session, "Some blocking review findings remain open outside the files modified in the current round.".to_string());
@@ -221,7 +307,10 @@ fn on_rereview(session: &mut PipelineSession, callback: ReviewPipelineCallbackRe
                 return ReviewPipelineStep::prepare_verified_patches(pending_patch_ids);
             }
             complete(session, None);
-            ReviewPipelineStep::completed(Some("\n---\n**Multi-swarm code review complete.** Tests passing. Re-review clean.\n".to_string()))
+            ReviewPipelineStep::completed(Some(
+                "\n---\n**Multi-swarm code review complete.** Tests passing. Re-review clean.\n"
+                    .to_string(),
+            ))
         }
         ReviewFindingsState::Inconclusive(reason) => {
             fail(session, format!("Review ended inconclusively: {reason}"));
@@ -229,8 +318,13 @@ fn on_rereview(session: &mut PipelineSession, callback: ReviewPipelineCallbackRe
         }
         ReviewFindingsState::Issues => {
             if session.snapshot.current_round >= session.snapshot.config.max_review_rounds {
-                fail(session, "Review finished with remaining blocking findings.".to_string());
-                return ReviewPipelineStep::failed("Review finished with remaining blocking findings.");
+                fail(
+                    session,
+                    "Review finished with remaining blocking findings.".to_string(),
+                );
+                return ReviewPipelineStep::failed(
+                    "Review finished with remaining blocking findings.",
+                );
             }
             let files = callback.files.clone();
             match parse_review_tasks(&text, &files, session.snapshot.config.max_workers as usize) {
@@ -238,11 +332,21 @@ fn on_rereview(session: &mut PipelineSession, callback: ReviewPipelineCallbackRe
                     session.snapshot.current_round += 1;
                     session.current_tasks = tasks.clone();
                     replace_open_findings_in_files(session, &files);
-                    ReviewPipelineStep::prepare_task_candidates(tasks, files, session.snapshot.current_round)
+                    ReviewPipelineStep::prepare_task_candidates(
+                        tasks,
+                        files,
+                        session.snapshot.current_round,
+                    )
                 }
                 TaskExtraction::NoFixes | TaskExtraction::Tasks(_) => {
-                    fail(session, "Re-review reported issues but produced no actionable follow-up tasks.".to_string());
-                    ReviewPipelineStep::failed("Re-review reported issues but produced no actionable follow-up tasks.")
+                    fail(
+                        session,
+                        "Re-review reported issues but produced no actionable follow-up tasks."
+                            .to_string(),
+                    );
+                    ReviewPipelineStep::failed(
+                        "Re-review reported issues but produced no actionable follow-up tasks.",
+                    )
                 }
                 TaskExtraction::NoPayload(reason) | TaskExtraction::InvalidJson(reason) => {
                     fail(session, reason.clone());
@@ -253,7 +357,10 @@ fn on_rereview(session: &mut PipelineSession, callback: ReviewPipelineCallbackRe
     }
 }
 
-fn on_prepare_verified_patches(session: &mut PipelineSession, callback: ReviewPipelineCallbackResult) -> ReviewPipelineStep {
+fn on_prepare_verified_patches(
+    session: &mut PipelineSession,
+    callback: ReviewPipelineCallbackResult,
+) -> ReviewPipelineStep {
     append_events(session, &callback.events);
     if let Some(reason) = callback.error {
         fail(session, format!("Patch preparation failed: {reason}"));
@@ -267,11 +374,22 @@ fn on_prepare_verified_patches(session: &mut PipelineSession, callback: ReviewPi
     }
     let pending_patch_ids = patchable_verified_finding_ids(&session.snapshot);
     if !pending_patch_ids.is_empty() {
-        fail(session, "Review finished without patch-ready artifacts for all verified findings.".to_string());
-        return ReviewPipelineStep::failed("Review finished without patch-ready artifacts for all verified findings.");
+        fail(
+            session,
+            "Review finished without patch-ready artifacts for all verified findings.".to_string(),
+        );
+        return ReviewPipelineStep::failed(
+            "Review finished without patch-ready artifacts for all verified findings.",
+        );
     }
-    complete(session, Some("Review completed with publish-ready findings.".to_string()));
-    ReviewPipelineStep::completed(Some("\n---\n**Multi-swarm code review complete.** Tests passing. Patch previews ready.\n".to_string()))
+    complete(
+        session,
+        Some("Review completed with publish-ready findings.".to_string()),
+    );
+    ReviewPipelineStep::completed(Some(
+        "\n---\n**Multi-swarm code review complete.** Tests passing. Patch previews ready.\n"
+            .to_string(),
+    ))
 }
 
 fn extraction_failure(session: &mut PipelineSession, reason: String) -> ReviewPipelineStep {

@@ -1,12 +1,17 @@
 use crate::main_chat::store::models::conversation_index;
-use app_core_protocol::main_chat_store::{MainChatStoreActionRequest, MainChatStoreResponse, MainChatStoreSnapshot};
+use app_core_protocol::main_chat_store::{
+    MainChatStoreActionRequest, MainChatStoreResponse, MainChatStoreSnapshot,
+};
 
 pub fn remove_trailing_empty_assistant_messages(
     mut snapshot: MainChatStoreSnapshot,
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(conversation_index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");
@@ -27,7 +32,10 @@ pub fn remove_message(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(conversation_index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");

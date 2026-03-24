@@ -83,29 +83,52 @@ fn formatted_raw_event(
     match event_type {
         "reasoning" => first_non_empty(payload, &["detail", "text", "delta", "content", "summary"])
             .map(|detail| ("Thinking".to_string(), detail)),
-        "assistant_update" => first_non_empty(payload, &["output", "content", "text", "detail", "summary"])
-            .map(|detail| ("Response".to_string(), detail)),
+        "assistant_update" => {
+            first_non_empty(payload, &["output", "content", "text", "detail", "summary"])
+                .map(|detail| ("Response".to_string(), detail))
+        }
         "review-worker-plan" => {
             let description = first_non_empty(payload, &["description", "title"])
                 .unwrap_or_else(|| "Planned worker".to_string());
-            let severity = payload.get("severity").map(|item| format!("[{item}] ")).unwrap_or_default();
-            let file_count = payload.get("fileCount").map(|item| format!(" ({item} files)")).unwrap_or_default();
-            Some(("Planned Work".to_string(), format!("- [ ] {severity}{description}{file_count}")))
+            let severity = payload
+                .get("severity")
+                .map(|item| format!("[{item}] "))
+                .unwrap_or_default();
+            let file_count = payload
+                .get("fileCount")
+                .map(|item| format!(" ({item} files)"))
+                .unwrap_or_default();
+            Some((
+                "Planned Work".to_string(),
+                format!("- [ ] {severity}{description}{file_count}"),
+            ))
         }
         "review-fix-round" => Some((
             "Progress".to_string(),
             format!(
                 "Round {}/{}",
-                payload.get("round").cloned().unwrap_or_else(|| "?".to_string()),
-                payload.get("maxRounds").cloned().unwrap_or_else(|| "?".to_string())
+                payload
+                    .get("round")
+                    .cloned()
+                    .unwrap_or_else(|| "?".to_string()),
+                payload
+                    .get("maxRounds")
+                    .cloned()
+                    .unwrap_or_else(|| "?".to_string())
             ),
         )),
         "review-audit-tool" => Some((
             "Audit".to_string(),
             format!(
                 "{}: {}",
-                payload.get("tool").cloned().unwrap_or_else(|| "audit".to_string()),
-                payload.get("detail").cloned().unwrap_or_else(|| "completed".to_string())
+                payload
+                    .get("tool")
+                    .cloned()
+                    .unwrap_or_else(|| "audit".to_string()),
+                payload
+                    .get("detail")
+                    .cloned()
+                    .unwrap_or_else(|| "completed".to_string())
             ),
         )),
         "agent" => Some((

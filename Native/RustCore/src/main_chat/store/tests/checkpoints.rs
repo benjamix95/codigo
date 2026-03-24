@@ -1,12 +1,11 @@
-use super::common::{action, checkpoint, conversation_with_messages, empty_snapshot, message, unwrap_snapshot};
+use super::common::{
+    action, checkpoint, conversation_with_messages, empty_snapshot, message, unwrap_snapshot,
+};
 use crate::main_chat::store::handle_action;
 
 #[test]
 fn reducer_can_create_append_checkpoint_and_rewind() {
-    let mut request = action(
-        empty_snapshot(),
-        "create_conversation",
-    );
+    let mut request = action(empty_snapshot(), "create_conversation");
     request.conversation = Some(conversation_with_messages("conv-1", "Test", Vec::new()));
     let snapshot = unwrap_snapshot(handle_action(request));
     assert_eq!(snapshot.conversations.len(), 1);

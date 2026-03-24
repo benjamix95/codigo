@@ -43,9 +43,14 @@ impl ReviewRuntimeAuditStageResponse {
     }
 }
 
-pub fn reduce_audit_stage(request: ReviewRuntimeAuditStageRequest) -> ReviewRuntimeAuditStageResponse {
+pub fn reduce_audit_stage(
+    request: ReviewRuntimeAuditStageRequest,
+) -> ReviewRuntimeAuditStageResponse {
     if request.schema_version != 1 {
-        return ReviewRuntimeAuditStageResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return ReviewRuntimeAuditStageResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
 
     let mut candidates = Vec::with_capacity(request.findings.len());
@@ -58,7 +63,11 @@ pub fn reduce_audit_stage(request: ReviewRuntimeAuditStageRequest) -> ReviewRunt
         if response.error.is_some() {
             return ReviewRuntimeAuditStageResponse::error(
                 "candidate_build_failed",
-                response.error.as_ref().map(|err| err.message.as_str()).unwrap_or("candidate build failed"),
+                response
+                    .error
+                    .as_ref()
+                    .map(|err| err.message.as_str())
+                    .unwrap_or("candidate build failed"),
             );
         }
         candidates.push(response.candidate.unwrap_or(Value::Null));
@@ -76,8 +85,15 @@ pub fn reduce_audit_stage(request: ReviewRuntimeAuditStageRequest) -> ReviewRunt
     let mut candidate_values = candidates;
     let mut promoted_findings = Vec::new();
     for candidate in &mut candidate_values {
-        let candidate_id = candidate.get("id").and_then(Value::as_str).unwrap_or_default().to_string();
-        if let Some(result) = verification_results.iter().find(|item| item.candidate_id == candidate_id) {
+        let candidate_id = candidate
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        if let Some(result) = verification_results
+            .iter()
+            .find(|item| item.candidate_id == candidate_id)
+        {
             candidate["verificationStatus"] = json!(result.status);
             candidate["verificationMethod"] = json!(result.method);
             candidate["verificationReport"] = json!(result.report);
@@ -112,22 +128,38 @@ fn build_audit_snapshot(results: &[Value]) -> Value {
     let mut counts = Map::new();
     let mut adapters = Map::new();
     for result in results {
-        let tool_name = result.get("toolName").and_then(Value::as_str).unwrap_or_default();
+        let tool_name = result
+            .get("toolName")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         coverage.insert(
             tool_name.to_string(),
-            json!(result.get("coverageAvailable").and_then(Value::as_bool).unwrap_or(false)),
+            json!(result
+                .get("coverageAvailable")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)),
         );
         durations.insert(
             tool_name.to_string(),
-            json!(result.get("durationMs").and_then(Value::as_i64).unwrap_or(0)),
+            json!(result
+                .get("durationMs")
+                .and_then(Value::as_i64)
+                .unwrap_or(0)),
         );
         counts.insert(
             tool_name.to_string(),
-            json!(result.get("findings").and_then(Value::as_array).map(|items| items.len()).unwrap_or(0)),
+            json!(result
+                .get("findings")
+                .and_then(Value::as_array)
+                .map(|items| items.len())
+                .unwrap_or(0)),
         );
         adapters.insert(
             tool_name.to_string(),
-            result.get("adaptersUsed").cloned().unwrap_or_else(|| json!([])),
+            result
+                .get("adaptersUsed")
+                .cloned()
+                .unwrap_or_else(|| json!([])),
         );
     }
     Value::Object(Map::from_iter([
@@ -145,14 +177,34 @@ fn build_audit_events(results: &[Value]) -> Vec<Value> {
         lhs.get("toolName")
             .and_then(Value::as_str)
             .unwrap_or_default()
-            .cmp(rhs.get("toolName").and_then(Value::as_str).unwrap_or_default())
+            .cmp(
+                rhs.get("toolName")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
     });
     for result in sorted {
-        let tool_name = result.get("toolName").and_then(Value::as_str).unwrap_or_default();
-        let summary = result.get("summary").and_then(Value::as_str).unwrap_or_default();
-        let coverage = result.get("coverageAvailable").and_then(Value::as_bool).unwrap_or(false);
-        let duration_ms = result.get("durationMs").and_then(Value::as_i64).unwrap_or(0);
-        let findings_count = result.get("findings").and_then(Value::as_array).map(|items| items.len()).unwrap_or(0);
+        let tool_name = result
+            .get("toolName")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let summary = result
+            .get("summary")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let coverage = result
+            .get("coverageAvailable")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let duration_ms = result
+            .get("durationMs")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        let findings_count = result
+            .get("findings")
+            .and_then(Value::as_array)
+            .map(|items| items.len())
+            .unwrap_or(0);
         events.push(make_event(
             "audit_completed",
             summary.to_string(),
@@ -224,7 +276,10 @@ mod tests {
     fn reduce_audit_stage_builds_audit_snapshot_and_promotes_verified_findings() {
         let root = std::env::temp_dir().join(format!(
             "review-runtime-audit-{}",
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         ));
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("Service.swift"), "fatalError(\"boom\")\n").unwrap();
@@ -261,7 +316,10 @@ mod tests {
         });
 
         let callback = response.callback.unwrap();
-        assert_eq!(callback["audit"]["toolCoverage"]["audit_bug_nil_crash_paths"].as_bool(), Some(true));
+        assert_eq!(
+            callback["audit"]["toolCoverage"]["audit_bug_nil_crash_paths"].as_bool(),
+            Some(true)
+        );
         assert_eq!(callback["candidates"].as_array().unwrap().len(), 1);
         assert_eq!(callback["promotedFindings"].as_array().unwrap().len(), 1);
         assert_eq!(callback["events"].as_array().unwrap().len(), 1);

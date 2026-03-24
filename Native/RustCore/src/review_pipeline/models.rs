@@ -13,7 +13,6 @@ pub struct ReviewPipelineConfig {
     pub execution_backend: String,
 }
 
-
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewPipelineResponse {
@@ -111,7 +110,11 @@ pub struct ReviewTask {
 }
 
 impl ReviewPipelineResponse {
-    pub fn success(session_id: String, snapshot: ReviewPipelineSnapshot, step: ReviewPipelineStep) -> Self {
+    pub fn success(
+        session_id: String,
+        snapshot: ReviewPipelineSnapshot,
+        step: ReviewPipelineStep,
+    ) -> Self {
         Self {
             schema_version: 1,
             error: None,
@@ -121,7 +124,12 @@ impl ReviewPipelineResponse {
         }
     }
 
-    pub fn error(session_id: String, snapshot: ReviewPipelineSnapshot, code: &str, message: &str) -> Self {
+    pub fn error(
+        session_id: String,
+        snapshot: ReviewPipelineSnapshot,
+        code: &str,
+        message: &str,
+    ) -> Self {
         Self {
             schema_version: 1,
             error: Some(ReviewCoreErrorPayload::new(code, message)),
@@ -133,7 +141,11 @@ impl ReviewPipelineResponse {
 }
 
 impl ReviewPipelineStep {
-    pub fn resolve_scope_files(clean_prompt: String, resolved_scope: String, against_ref: Option<String>) -> Self {
+    pub fn resolve_scope_files(
+        clean_prompt: String,
+        resolved_scope: String,
+        against_ref: Option<String>,
+    ) -> Self {
         Self {
             kind: "resolve_scope_files".to_string(),
             clean_prompt: Some(clean_prompt),
@@ -167,7 +179,12 @@ impl ReviewPipelineStep {
         }
     }
 
-    pub fn analysis(clean_prompt: String, scope_description: String, files: Vec<String>, max_workers: i32) -> Self {
+    pub fn analysis(
+        clean_prompt: String,
+        scope_description: String,
+        files: Vec<String>,
+        max_workers: i32,
+    ) -> Self {
         Self {
             kind: "request_analysis_stream".to_string(),
             clean_prompt: Some(clean_prompt),
@@ -201,7 +218,12 @@ impl ReviewPipelineStep {
         }
     }
 
-    pub fn fix_stage(tasks: Vec<ReviewTask>, round: i32, resolved_scope: String, against_ref: Option<String>) -> Self {
+    pub fn fix_stage(
+        tasks: Vec<ReviewTask>,
+        round: i32,
+        resolved_scope: String,
+        against_ref: Option<String>,
+    ) -> Self {
         Self {
             kind: "run_fix_stage".to_string(),
             clean_prompt: None,

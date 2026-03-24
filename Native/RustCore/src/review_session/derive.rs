@@ -24,7 +24,12 @@ pub fn derive_view(request: ReviewSessionActionRequest) -> ReviewSessionProjecti
 
     let open_findings = findings
         .iter()
-        .filter(|item| item.get("status").and_then(Value::as_str).map(is_open_status).unwrap_or(false))
+        .filter(|item| {
+            item.get("status")
+                .and_then(Value::as_str)
+                .map(is_open_status)
+                .unwrap_or(false)
+        })
         .count();
 
     ReviewSessionProjectionResponse::success(json!({

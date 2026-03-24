@@ -288,7 +288,10 @@ pub struct MainChatProviderSessionResponse {
 }
 
 impl MainChatProviderSessionResponse {
-    pub fn success(snapshot: MainChatProviderSessionSnapshot, events: Vec<MainChatProviderEvent>) -> Self {
+    pub fn success(
+        snapshot: MainChatProviderSessionSnapshot,
+        events: Vec<MainChatProviderEvent>,
+    ) -> Self {
         Self {
             schema_version: 1,
             error: None,

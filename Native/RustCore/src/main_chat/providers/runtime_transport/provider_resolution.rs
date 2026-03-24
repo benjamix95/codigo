@@ -91,7 +91,10 @@ fn normalized_optional_string(raw: Option<&str>) -> Option<String> {
     raw.and_then(normalized_string)
 }
 
-fn resolve_swarm_backend_id(configured_backend_id: &str, agent_provider_id: Option<&str>) -> String {
+fn resolve_swarm_backend_id(
+    configured_backend_id: &str,
+    agent_provider_id: Option<&str>,
+) -> String {
     let normalized = normalized_backend_id(configured_backend_id);
     if normalized.is_empty() || normalized == "auto" {
         return swarm_backend_id_for_agent_provider(agent_provider_id)

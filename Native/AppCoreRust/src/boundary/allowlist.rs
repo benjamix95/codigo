@@ -10,8 +10,12 @@ pub struct AllowlistRule {
 }
 
 pub fn load_allowlist(path: &Path) -> Result<Vec<AllowlistRule>, String> {
-    let contents = fs::read_to_string(path)
-        .map_err(|error| format!("Impossibile leggere allowlist Rust cutover {}: {error}", path.display()))?;
+    let contents = fs::read_to_string(path).map_err(|error| {
+        format!(
+            "Impossibile leggere allowlist Rust cutover {}: {error}",
+            path.display()
+        )
+    })?;
     let mut rules = Vec::new();
     for (index, raw_line) in contents.lines().enumerate() {
         let line = raw_line.trim();
@@ -48,7 +52,10 @@ pub fn matches(pattern: &str, path: &str) -> bool {
         return true;
     }
 
-    let parts: Vec<&str> = normalized_pattern.split('*').filter(|part| !part.is_empty()).collect();
+    let parts: Vec<&str> = normalized_pattern
+        .split('*')
+        .filter(|part| !part.is_empty())
+        .collect();
     if parts.is_empty() {
         return true;
     }
@@ -95,8 +102,17 @@ mod tests {
 
     #[test]
     fn matches_wildcard_prefix_suffix_and_middle() {
-        assert!(matches("App/*/Views/*", "App/SoloCodeApp/Sources/Views/Foo.swift"));
-        assert!(matches("*/AppDelegate*.swift", "App/SoloCodeApp/Sources/App/AppDelegate.swift"));
-        assert!(!matches("App/*/Views/*", "Engine/CoderEngine/Sources/CodeReview/Foo.swift"));
+        assert!(matches(
+            "App/*/Views/*",
+            "App/SoloCodeApp/Sources/Views/Foo.swift"
+        ));
+        assert!(matches(
+            "*/AppDelegate*.swift",
+            "App/SoloCodeApp/Sources/App/AppDelegate.swift"
+        ));
+        assert!(!matches(
+            "App/*/Views/*",
+            "Engine/CoderEngine/Sources/CodeReview/Foo.swift"
+        ));
     }
 }

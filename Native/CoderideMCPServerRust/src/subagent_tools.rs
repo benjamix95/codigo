@@ -27,7 +27,6 @@ fn subagent_ack(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolResu
         "explorer" => "Explorer",
         "reviewer" => "Reviewer",
         "coder" => "Coder",
-        "debugger" => "Debugger",
         "docWriter" => "Doc Writer",
         "testWriter" => "Test Writer",
         "securityAuditor" => "Security Auditor",
@@ -56,5 +55,9 @@ fn json_value_to_string(value: &Value) -> String {
 
 fn non_empty(value: String) -> Option<String> {
     let trimmed = value.trim().to_string();
-    if trimmed.is_empty() { None } else { Some(trimmed) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }

@@ -11,7 +11,11 @@ pub struct FileSummary {
     pub deletions: i32,
 }
 
-pub fn diff_summaries(scope: &Value, workspace_path: &str, target_files: &[String]) -> Result<Vec<FileSummary>, String> {
+pub fn diff_summaries(
+    scope: &Value,
+    workspace_path: &str,
+    target_files: &[String],
+) -> Result<Vec<FileSummary>, String> {
     let target_set: BTreeSet<&str> = target_files.iter().map(String::as_str).collect();
     let output = run_git(&diff_arguments(scope), workspace_path)?;
     let mut by_file: BTreeMap<String, FileSummary> = BTreeMap::new();
@@ -20,7 +24,10 @@ pub fn diff_summaries(scope: &Value, workspace_path: &str, target_files: &[Strin
         let Some((additions, deletions, candidate_paths)) = parse_numstat_line(line) else {
             continue;
         };
-        for file_path in candidate_paths.into_iter().filter(|path| target_set.contains(path.as_str())) {
+        for file_path in candidate_paths
+            .into_iter()
+            .filter(|path| target_set.contains(path.as_str()))
+        {
             let current = by_file.entry(file_path.clone()).or_insert(FileSummary {
                 file_path,
                 additions: 0,
@@ -52,11 +59,25 @@ pub fn diff_summaries(scope: &Value, workspace_path: &str, target_files: &[Strin
 }
 
 fn diff_arguments(scope: &Value) -> Vec<String> {
-    let mut args = vec!["diff".to_string(), "--numstat".to_string(), "-M".to_string(), "-C".to_string()];
-    match scope.get("type").and_then(Value::as_str).unwrap_or_default() {
+    let mut args = vec![
+        "diff".to_string(),
+        "--numstat".to_string(),
+        "-M".to_string(),
+        "-C".to_string(),
+    ];
+    match scope
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+    {
         "staged" => args.push("--cached".to_string()),
         "against_ref" => {
-            if let Some(reference) = scope.get("ref").and_then(Value::as_str).map(str::trim).filter(|value| !value.is_empty()) {
+            if let Some(reference) = scope
+                .get("ref")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
                 args.push(reference.to_string());
             }
         }
@@ -90,7 +111,10 @@ fn rename_aware_paths(raw_path: &str) -> Vec<String> {
         candidates.insert(from.trim().to_string());
         candidates.insert(to.trim().to_string());
     }
-    candidates.into_iter().filter(|item| !item.is_empty()).collect()
+    candidates
+        .into_iter()
+        .filter(|item| !item.is_empty())
+        .collect()
 }
 
 fn expanded_brace_paths(raw_path: &str) -> Option<[String; 2]> {
@@ -143,5 +167,9 @@ fn line_count(path: &Path) -> i32 {
         return 0;
     }
     let count = text.lines().count() as i32;
-    if text.ends_with('\n') { count } else { count.max(1) }
+    if text.ends_with('\n') {
+        count
+    } else {
+        count.max(1)
+    }
 }

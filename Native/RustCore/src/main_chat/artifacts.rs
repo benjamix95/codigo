@@ -3,7 +3,9 @@ use app_core_protocol::main_chat::{
 };
 
 pub fn stream_id(event: &MainChatEvent) -> String {
-    event.payload.get("stream_id")
+    event
+        .payload
+        .get("stream_id")
         .or_else(|| event.payload.get("task_id"))
         .or_else(|| event.payload.get("group_id"))
         .cloned()
@@ -11,13 +13,24 @@ pub fn stream_id(event: &MainChatEvent) -> String {
 }
 
 pub fn register_stream(state: &mut MainChatTurnState, stream_id: &str) {
-    if !state.ordered_text_stream_ids.iter().any(|value| value == stream_id) {
+    if !state
+        .ordered_text_stream_ids
+        .iter()
+        .any(|value| value == stream_id)
+    {
         state.ordered_text_stream_ids.push(stream_id.to_string());
     }
 }
 
-pub fn upsert_artifact(mut state: MainChatTurnState, artifact: MainChatArtifact) -> MainChatTurnState {
-    if let Some(index) = state.artifacts.iter().position(|candidate| candidate.id == artifact.id) {
+pub fn upsert_artifact(
+    mut state: MainChatTurnState,
+    artifact: MainChatArtifact,
+) -> MainChatTurnState {
+    if let Some(index) = state
+        .artifacts
+        .iter()
+        .position(|candidate| candidate.id == artifact.id)
+    {
         state.artifacts[index] = artifact;
     } else {
         state.artifacts.push(artifact);
@@ -78,8 +91,14 @@ pub fn merge_reasoning_text(existing: Option<String>, incoming: String) -> Strin
     match existing {
         None => incoming_trimmed,
         Some(current) if current.is_empty() => incoming_trimmed,
-        Some(current) if current == incoming_trimmed || current.contains(&incoming_trimmed) => current,
-        Some(current) if incoming_trimmed.starts_with(&current) || incoming_trimmed.contains(&current) => incoming_trimmed,
+        Some(current) if current == incoming_trimmed || current.contains(&incoming_trimmed) => {
+            current
+        }
+        Some(current)
+            if incoming_trimmed.starts_with(&current) || incoming_trimmed.contains(&current) =>
+        {
+            incoming_trimmed
+        }
         Some(current) => format!("{current}\n\n{incoming_trimmed}"),
     }
 }

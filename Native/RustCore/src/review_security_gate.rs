@@ -15,36 +15,66 @@ pub fn evaluate_security_gate(envelope: &Value) -> Result<Value, String> {
         .get("traceLog")
         .and_then(Value::as_array)
         .map(|items| {
-            items.iter()
+            items
+                .iter()
                 .filter_map(Value::as_str)
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
     let rebuilt_projection = build_projection(&findings, &trace_log);
-    let mismatch_count = if envelope.get("projectionSnapshot") == Some(&rebuilt_projection) { 0 } else { 1 };
+    let mismatch_count = if envelope.get("projectionSnapshot") == Some(&rebuilt_projection) {
+        0
+    } else {
+        1
+    };
     let verification_reports = group_by_finding_id(canonical.get("verificationReports"));
     let evidences = group_by_finding_id(canonical.get("evidences"));
     let undetected_duplicate_count = count_undetected_duplicates(&findings);
     let findings_missing_evidence_count = findings
         .iter()
-        .filter(|finding| is_verified(finding) && evidences.get(id(finding)).is_none_or(|items| items.is_empty()))
+        .filter(|finding| {
+            is_verified(finding)
+                && evidences
+                    .get(id(finding))
+                    .is_none_or(|items| items.is_empty())
+        })
         .count();
     let findings_missing_verification_count = findings
         .iter()
-        .filter(|finding| is_verified(finding) && verification_reports.get(id(finding)).is_none_or(|items| items.is_empty()))
+        .filter(|finding| {
+            is_verified(finding)
+                && verification_reports
+                    .get(id(finding))
+                    .is_none_or(|items| items.is_empty())
+        })
         .count();
     let bug_patches = canonical
         .get("patchArtifacts")
         .and_then(Value::as_object)
-        .map(|items| items.values().filter(|patch| finding_domain(findings_map, patch) == Some("bug")).cloned().collect::<Vec<_>>())
+        .map(|items| {
+            items
+                .values()
+                .filter(|patch| finding_domain(findings_map, patch) == Some("bug"))
+                .cloned()
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
-    let rollback_coverage_count = bug_patches.iter().filter(|patch| patch.get("rollbackAvailable").and_then(Value::as_bool) == Some(true)).count();
+    let rollback_coverage_count = bug_patches
+        .iter()
+        .filter(|patch| patch.get("rollbackAvailable").and_then(Value::as_bool) == Some(true))
+        .count();
     let rollback_eligible_count = bug_patches.len();
     let bug_revalidations = canonical
         .get("revalidationReports")
         .and_then(Value::as_object)
-        .map(|items| items.values().filter(|report| finding_domain(findings_map, report) == Some("bug")).cloned().collect::<Vec<_>>())
+        .map(|items| {
+            items
+                .values()
+                .filter(|report| finding_domain(findings_map, report) == Some("bug"))
+                .cloned()
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
     let successful_bug_revalidations = bug_revalidations
         .iter()
@@ -85,12 +115,16 @@ pub fn evaluate_security_gate(envelope: &Value) -> Result<Value, String> {
 }
 
 fn group_by_finding_id(value: Option<&Value>) -> HashMap<String, Vec<Value>> {
-    value.and_then(Value::as_object)
+    value
+        .and_then(Value::as_object)
         .map(|items| {
             let mut grouped: HashMap<String, Vec<Value>> = HashMap::new();
             for item in items.values() {
                 if let Some(finding_id) = item.get("findingId").and_then(Value::as_str) {
-                    grouped.entry(finding_id.to_string()).or_default().push(item.clone());
+                    grouped
+                        .entry(finding_id.to_string())
+                        .or_default()
+                        .push(item.clone());
                 }
             }
             grouped
@@ -102,23 +136,34 @@ fn count_undetected_duplicates(findings: &[Value]) -> usize {
     let mut grouped: HashMap<String, Vec<&Value>> = HashMap::new();
     for finding in findings {
         if let Some(fingerprint) = finding.get("findingFingerprint").and_then(Value::as_str) {
-            grouped.entry(fingerprint.to_string()).or_default().push(finding);
+            grouped
+                .entry(fingerprint.to_string())
+                .or_default()
+                .push(finding);
         }
     }
     grouped.values().fold(0, |sum, group| {
         if group.len() <= 1 {
             sum
         } else {
-            sum + group.iter().filter(|finding| {
-                is_empty_array(finding.get("possibleDuplicateOf"))
-                    && finding.get("mergedIntoFindingId").is_none_or(Value::is_null)
-                    && finding.get("recurrenceGroupId").is_none_or(Value::is_null)
-            }).count()
+            sum + group
+                .iter()
+                .filter(|finding| {
+                    is_empty_array(finding.get("possibleDuplicateOf"))
+                        && finding
+                            .get("mergedIntoFindingId")
+                            .is_none_or(Value::is_null)
+                        && finding.get("recurrenceGroupId").is_none_or(Value::is_null)
+                })
+                .count()
         }
     })
 }
 
-fn finding_domain<'a>(findings: &'a serde_json::Map<String, Value>, value: &Value) -> Option<&'a str> {
+fn finding_domain<'a>(
+    findings: &'a serde_json::Map<String, Value>,
+    value: &Value,
+) -> Option<&'a str> {
     let finding_id = value.get("findingId").and_then(Value::as_str)?;
     findings.get(finding_id)?.get("domain")?.as_str()
 }
@@ -128,11 +173,16 @@ fn id(value: &Value) -> &str {
 }
 
 fn is_empty_array(value: Option<&Value>) -> bool {
-    value.and_then(Value::as_array).is_none_or(|items| items.is_empty())
+    value
+        .and_then(Value::as_array)
+        .is_none_or(|items| items.is_empty())
 }
 
 fn is_verified(value: &Value) -> bool {
-    matches!(value.get("status").and_then(Value::as_str), Some("verified" | "fixed_verified"))
+    matches!(
+        value.get("status").and_then(Value::as_str),
+        Some("verified" | "fixed_verified")
+    )
 }
 
 #[cfg(test)]

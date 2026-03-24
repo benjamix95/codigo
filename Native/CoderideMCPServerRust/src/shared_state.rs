@@ -33,18 +33,22 @@ pub fn read_todos_text() -> String {
         let files = todo
             .get("linkedFiles")
             .and_then(Value::as_array)
-            .map(|items| {
-                items.iter().filter_map(Value::as_str).collect::<Vec<_>>()
-            })
+            .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>())
             .unwrap_or_default();
         let files_suffix = if files.is_empty() {
             String::new()
         } else {
             format!(" [files: {}]", files.join(", "))
         };
-        lines.push(format!("{icon} {title}{form_suffix} ({priority}){files_suffix}"));
+        lines.push(format!(
+            "{icon} {title}{form_suffix} ({priority}){files_suffix}"
+        ));
     }
-    lines.push(format!("--- {} total, {} done ---", todos.len(), done_count));
+    lines.push(format!(
+        "--- {} total, {} done ---",
+        todos.len(),
+        done_count
+    ));
     lines.join("\n")
 }
 
@@ -110,7 +114,9 @@ fn write_json_array(items: Vec<Value>) -> Result<(), String> {
 
 fn read_todos() -> Vec<Value> {
     let path = todos_file_path();
-    let Ok(data) = fs::read(path) else { return Vec::new() };
+    let Ok(data) = fs::read(path) else {
+        return Vec::new();
+    };
     serde_json::from_slice::<Vec<Value>>(&data).unwrap_or_default()
 }
 
@@ -128,7 +134,8 @@ fn normalize_status(raw: &str) -> &'static str {
     match raw.trim().to_lowercase().as_str() {
         "done" | "completed" | "complete" | "finished" => "done",
         "in_progress" | "running" | "active" | "doing" | "started" => "in_progress",
-        "blocked" | "failed" | "error" | "stuck" | "cancelled" | "canceled" | "aborted" | "skipped" => "blocked",
+        "blocked" | "failed" | "error" | "stuck" | "cancelled" | "canceled" | "aborted"
+        | "skipped" => "blocked",
         _ => "pending",
     }
 }

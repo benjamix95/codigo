@@ -18,8 +18,14 @@ fn phase2_action_opens_panel_and_sets_questions() {
     .expect("snapshot");
     let plan = snapshot.plan.expect("plan");
     assert_eq!(plan.phase, Some(MainChatPlanPhase::Questioning));
-    assert_eq!(plan.planning_state_kind, Some(MainChatPlanningStateKind::AwaitingClarification));
-    assert!(snapshot.output.as_ref().is_some_and(|it| it.should_open_plan_panel));
+    assert_eq!(
+        plan.planning_state_kind,
+        Some(MainChatPlanningStateKind::AwaitingClarification)
+    );
+    assert!(snapshot
+        .output
+        .as_ref()
+        .is_some_and(|it| it.should_open_plan_panel));
 }
 
 #[test]

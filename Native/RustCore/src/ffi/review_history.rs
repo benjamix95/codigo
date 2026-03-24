@@ -1,7 +1,9 @@
 use super::common::{encode_raw, with_raw_json_input, ReviewFindDuplicateRequest};
 use crate::review_history::shape_historical_findings;
 use crate::review_identity::find_duplicate;
-use crate::review_models::{ReviewCoreAuditResponse, ReviewCoreReduceResponse, ReviewHistoricalShapeRequest};
+use crate::review_models::{
+    ReviewCoreAuditResponse, ReviewCoreReduceResponse, ReviewHistoricalShapeRequest,
+};
 use std::os::raw::c_char;
 
 #[no_mangle]
@@ -22,9 +24,9 @@ pub extern "C" fn review_core_shape_historical_findings(input: *const c_char) ->
                 "schemaVersion must be 1",
             ));
         }
-        encode_raw(&ReviewCoreReduceResponse::success(shape_historical_findings(
-            request.records,
-        )))
+        encode_raw(&ReviewCoreReduceResponse::success(
+            shape_historical_findings(request.records),
+        ))
     })
 }
 

@@ -113,7 +113,8 @@ fn missing_cli_path_bubbles_error_into_session_events() {
     });
     let snapshot = response.snapshot.unwrap();
     assert_eq!(snapshot.status, "failed");
-    assert!(response.events.iter().any(|event| event.kind == app_core_protocol::main_chat_provider::MainChatProviderEventKind::Error));
+    assert!(response.events.iter().any(|event| event.kind
+        == app_core_protocol::main_chat_provider::MainChatProviderEventKind::Error));
 }
 
 #[test]

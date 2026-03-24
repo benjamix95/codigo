@@ -9,7 +9,9 @@ pub fn merge_history(primary: Vec<Value>, fallback: Vec<Value>) -> Vec<Value> {
         .collect();
 
     for record in fallback {
-        let Some(finding_id) = record.get("findingId").and_then(Value::as_str) else { continue };
+        let Some(finding_id) = record.get("findingId").and_then(Value::as_str) else {
+            continue;
+        };
         let replace = merged
             .get(finding_id)
             .map(|existing| updated_at(&record) > updated_at(existing))
@@ -25,7 +27,10 @@ pub fn merge_history(primary: Vec<Value>, fallback: Vec<Value>) -> Vec<Value> {
 }
 
 fn compare_history(lhs: &Value, rhs: &Value) -> std::cmp::Ordering {
-    match (get_bool(lhs, "resumeEligible"), get_bool(rhs, "resumeEligible")) {
+    match (
+        get_bool(lhs, "resumeEligible"),
+        get_bool(rhs, "resumeEligible"),
+    ) {
         (true, false) => std::cmp::Ordering::Less,
         (false, true) => std::cmp::Ordering::Greater,
         _ => updated_at(rhs)
@@ -35,7 +40,10 @@ fn compare_history(lhs: &Value, rhs: &Value) -> std::cmp::Ordering {
 }
 
 fn updated_at(value: &Value) -> f64 {
-    value.get("updatedAt").and_then(Value::as_f64).unwrap_or(0.0)
+    value
+        .get("updatedAt")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0)
 }
 
 #[cfg(test)]

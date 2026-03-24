@@ -2,7 +2,8 @@ use super::process::stream_process_lines;
 use crate::main_chat::providers::common::{flatten_string_map, join_cli_prompt, string_value};
 use crate::main_chat::providers::parsing::jsonl::parse_jsonl_line;
 use crate::main_chat::providers::session::{
-    emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, is_cancelled, running_cli_account,
+    emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, is_cancelled,
+    running_cli_account,
 };
 use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
 use std::collections::BTreeMap;
@@ -27,7 +28,11 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
         "stream-json".to_string(),
         "--verbose".to_string(),
     ];
-    if let Some(model) = config.claude_model.clone().filter(|value| !value.trim().is_empty()) {
+    if let Some(model) = config
+        .claude_model
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+    {
         args.extend(["--model".to_string(), model]);
     }
     // If a coderide MCP server binary is available, write a temp config
@@ -41,7 +46,10 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
         // In non-interactive (-p) mode, MCP tool permissions are not
         // auto-granted.  bypassPermissions lets Claude use MCP tools
         // without an interactive approval prompt.
-        args.extend(["--permission-mode".to_string(), "bypassPermissions".to_string()]);
+        args.extend([
+            "--permission-mode".to_string(),
+            "bypassPermissions".to_string(),
+        ]);
         // Block built-in tools that overlap with coderide MCP tools.
         // Claude will discover and use the MCP equivalents instead.
         // NOTE: Bash is NOT blocked because subagents need it for
@@ -59,7 +67,10 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
         eprintln!("[CLAUDE_DEBUG] MCP config written to: {}", path);
         eprintln!("[CLAUDE_DEBUG] Built-in tools blocked, permission-mode=bypassPermissions, coderide prompt injected");
     } else {
-        eprintln!("[CLAUDE_DEBUG] MCP config NOT available (server_path={:?})", config.claude_mcp_server_path);
+        eprintln!(
+            "[CLAUDE_DEBUG] MCP config NOT available (server_path={:?})",
+            config.claude_mcp_server_path
+        );
         if !config.claude_allowed_tools.is_empty() {
             // Fallback: restrict to built-in tool whitelist when MCP is unavailable
             args.extend([
@@ -71,8 +82,14 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
 
     // Log the full command for debugging
     eprintln!("[CLAUDE_DEBUG] executable={}", executable);
-    eprintln!("[CLAUDE_DEBUG] args (excluding prompt): {:?}",
-        args.iter().enumerate().filter(|(i, _)| *i != 1).map(|(_, a)| a.clone()).collect::<Vec<_>>());
+    eprintln!(
+        "[CLAUDE_DEBUG] args (excluding prompt): {:?}",
+        args.iter()
+            .enumerate()
+            .filter(|(i, _)| *i != 1)
+            .map(|(_, a)| a.clone())
+            .collect::<Vec<_>>()
+    );
     eprintln!("[CLAUDE_DEBUG] workspace={}", config.workspace_path);
 
     let mut environment = std::env::vars().collect::<BTreeMap<_, _>>();
@@ -122,7 +139,9 @@ fn consume_line(
     // Log every raw line (truncated for readability, respecting char boundaries)
     let truncated = if line.len() > 300 {
         let mut end = 300;
-        while end > 0 && !line.is_char_boundary(end) { end -= 1; }
+        while end > 0 && !line.is_char_boundary(end) {
+            end -= 1;
+        }
         &line[..end]
     } else {
         line
@@ -130,16 +149,23 @@ fn consume_line(
     eprintln!("[CLAUDE_DEBUG] line#{}: {}", line_number, truncated);
 
     let payloads = parse_jsonl_line(line);
-    eprintln!("[CLAUDE_DEBUG] line#{}: parsed {} JSON payloads", line_number, payloads.len());
+    eprintln!(
+        "[CLAUDE_DEBUG] line#{}: parsed {} JSON payloads",
+        line_number,
+        payloads.len()
+    );
 
     for (idx, json) in payloads.iter().enumerate() {
         // Log the top-level keys and type
-        let top_keys: Vec<String> = json.as_object()
+        let top_keys: Vec<String> = json
+            .as_object()
             .map(|o| o.keys().cloned().collect())
             .unwrap_or_default();
         let event_type = string_value(&json["type"]).unwrap_or_else(|| "(no type)".to_string());
-        eprintln!("[CLAUDE_DEBUG] line#{} payload#{}: type={}, keys={:?}",
-            line_number, idx, event_type, top_keys);
+        eprintln!(
+            "[CLAUDE_DEBUG] line#{} payload#{}: type={}, keys={:?}",
+            line_number, idx, event_type, top_keys
+        );
 
         // Emit turn_started before the first meaningful event so the
         // Swift layer can create auto-todo placeholders and initialize
@@ -172,7 +198,10 @@ fn consume_line(
             }
         }
         if event_type == "result" {
-            eprintln!("[CLAUDE_DEBUG] GOT result event. received_stream_text={}", *received_stream_text);
+            eprintln!(
+                "[CLAUDE_DEBUG] GOT result event. received_stream_text={}",
+                *received_stream_text
+            );
             if let Some(result_text) = string_value(&json["result"]) {
                 eprintln!("[CLAUDE_DEBUG] result text length={}", result_text.len());
             }
@@ -181,7 +210,10 @@ fn consume_line(
             // (reasoning + response) which would duplicate content.
             if !*received_stream_text {
                 if let Some(result) = string_value(&json["result"]) {
-                    eprintln!("[CLAUDE_DEBUG] >>> EMITTING text_delta from result (len={})", result.len());
+                    eprintln!(
+                        "[CLAUDE_DEBUG] >>> EMITTING text_delta from result (len={})",
+                        result.len()
+                    );
                     emit_text_delta(session_id, &result);
                 }
             } else {
@@ -192,18 +224,29 @@ fn consume_line(
         if event_type == "stream_event" {
             // Log the full event structure for debugging
             if let Some(event_obj) = json.get("event") {
-                let event_type_inner = event_obj.get("type").and_then(|v| v.as_str()).unwrap_or("?");
-                eprintln!("[CLAUDE_DEBUG] stream_event inner type={}", event_type_inner);
+                let event_type_inner = event_obj
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
+                eprintln!(
+                    "[CLAUDE_DEBUG] stream_event inner type={}",
+                    event_type_inner
+                );
 
                 if let Some(delta) = event_obj.get("delta").and_then(|value| value.as_object()) {
-                    let delta_type = delta.get("type").and_then(string_value)
+                    let delta_type = delta
+                        .get("type")
+                        .and_then(string_value)
                         .unwrap_or_else(|| "(no delta type)".to_string());
                     eprintln!("[CLAUDE_DEBUG] delta type={}", delta_type);
 
                     if delta_type == "thinking_delta" {
                         if let Some(thinking) = delta.get("thinking").and_then(string_value) {
                             *received_stream_reasoning = true;
-                            eprintln!("[CLAUDE_DEBUG] >>> EMITTING reasoning delta (len={})", thinking.len());
+                            eprintln!(
+                                "[CLAUDE_DEBUG] >>> EMITTING reasoning delta (len={})",
+                                thinking.len()
+                            );
                             emit_raw(
                                 session_id,
                                 "reasoning",
@@ -220,7 +263,10 @@ fn consume_line(
                     if delta_type == "text_delta" {
                         if let Some(text) = delta.get("text").and_then(string_value) {
                             *received_stream_text = true;
-                            eprintln!("[CLAUDE_DEBUG] >>> EMITTING text_delta (len={})", text.len());
+                            eprintln!(
+                                "[CLAUDE_DEBUG] >>> EMITTING text_delta (len={})",
+                                text.len()
+                            );
                             emit_text_delta(session_id, &text);
                         } else {
                             eprintln!("[CLAUDE_DEBUG] text_delta but no 'text' field!");
@@ -232,8 +278,12 @@ fn consume_line(
                         eprintln!("[CLAUDE_DEBUG]   delta keys: {:?}", delta_keys);
                     }
                 } else {
-                    eprintln!("[CLAUDE_DEBUG] stream_event has no delta object. event keys: {:?}",
-                        event_obj.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()));
+                    eprintln!(
+                        "[CLAUDE_DEBUG] stream_event has no delta object. event keys: {:?}",
+                        event_obj
+                            .as_object()
+                            .map(|o| o.keys().cloned().collect::<Vec<_>>())
+                    );
                 }
             } else {
                 eprintln!("[CLAUDE_DEBUG] stream_event but no 'event' field!");
@@ -249,12 +299,21 @@ fn consume_line(
             .and_then(|value| value.get("content"))
             .and_then(|value| value.as_array())
         {
-            eprintln!("[CLAUDE_DEBUG] message.content has {} blocks (is_assistant={})", content.len(), is_assistant_message);
+            eprintln!(
+                "[CLAUDE_DEBUG] message.content has {} blocks (is_assistant={})",
+                content.len(),
+                is_assistant_message
+            );
             if !is_assistant_message {
-                eprintln!("[CLAUDE_DEBUG] SKIPPING non-assistant message content (type={})", event_type);
+                eprintln!(
+                    "[CLAUDE_DEBUG] SKIPPING non-assistant message content (type={})",
+                    event_type
+                );
             }
             for (bi, block) in content.iter().enumerate() {
-                let block_type = block.get("type").and_then(string_value)
+                let block_type = block
+                    .get("type")
+                    .and_then(string_value)
                     .unwrap_or_else(|| "(no type)".to_string());
                 eprintln!("[CLAUDE_DEBUG] message.content[{}] type={}", bi, block_type);
 
@@ -285,16 +344,20 @@ fn consume_line(
                             })
                             .unwrap_or_default();
                         // Try to parse result_text as JSON to extract structured fields
-                        if let Ok(result_json) = serde_json::from_str::<serde_json::Value>(&result_text) {
+                        if let Ok(result_json) =
+                            serde_json::from_str::<serde_json::Value>(&result_text)
+                        {
                             for (k, v) in flatten_string_map(&result_json) {
                                 result_payload.entry(k).or_insert(v);
                             }
                         } else if !result_text.is_empty() {
                             result_payload.insert("output".to_string(), result_text);
                         }
-                        eprintln!("[CLAUDE_DEBUG] >>> EMITTING tool_finish id={} keys={:?}",
+                        eprintln!(
+                            "[CLAUDE_DEBUG] >>> EMITTING tool_finish id={} keys={:?}",
                             result_payload.get("id").cloned().unwrap_or_default(),
-                            result_payload.keys().cloned().collect::<Vec<_>>());
+                            result_payload.keys().cloned().collect::<Vec<_>>()
+                        );
                         emit_raw(session_id, "tool_finish", result_payload);
                     }
                 }
@@ -308,7 +371,9 @@ fn consume_line(
                             emit_text_delta(session_id, &text);
                         }
                     } else {
-                        eprintln!("[CLAUDE_DEBUG] SKIPPING message.content text (already streamed)");
+                        eprintln!(
+                            "[CLAUDE_DEBUG] SKIPPING message.content text (already streamed)"
+                        );
                     }
                 }
                 if block_type == "thinking" && is_assistant_message {
@@ -332,7 +397,9 @@ fn consume_line(
                             );
                         }
                     } else {
-                        eprintln!("[CLAUDE_DEBUG] SKIPPING message.content thinking (already streamed)");
+                        eprintln!(
+                            "[CLAUDE_DEBUG] SKIPPING message.content thinking (already streamed)"
+                        );
                     }
                 }
                 if block_type == "tool_use" && is_assistant_message {
@@ -343,7 +410,8 @@ fn consume_line(
                     // so tool parameters (command, path, file_path, etc.)
                     // are visible to the Swift event mapper and UI cards.
                     if let Some(input) = block.get("input") {
-                        let input_keys: Vec<String> = input.as_object()
+                        let input_keys: Vec<String> = input
+                            .as_object()
                             .map(|o| o.keys().cloned().collect())
                             .unwrap_or_default();
                         eprintln!("[CLAUDE_DEBUG]   tool input keys: {:?}", input_keys);
@@ -353,33 +421,206 @@ fn consume_line(
                     }
                     // Mark tool as running so the UI shows a spinner until
                     // the tool_finish event arrives with status=completed.
-                    payload.entry("status".to_string()).or_insert_with(|| "running".to_string());
+                    payload
+                        .entry("status".to_string())
+                        .or_insert_with(|| "running".to_string());
                     let normalized = normalize_tool_name(&name);
                     eprintln!("[CLAUDE_DEBUG]   normalized tool name: {}", normalized);
+
+                    // For subagent tools, inject swarm metadata so
+                    // SwarmLiveReducer creates visible subagent cards.
+                    if is_subagent_tool(&name) {
+                        let agent_label = subagent_display_name(&name);
+                        payload
+                            .entry("swarm_id".to_string())
+                            .or_insert_with(|| format!("swarm-claude-{}", session_id));
+                        payload
+                            .entry("group_id".to_string())
+                            .or_insert_with(|| format!("swarm-claude-{}", session_id));
+                        payload
+                            .entry("agent_name".to_string())
+                            .or_insert_with(|| agent_label.clone());
+                        payload
+                            .entry("title".to_string())
+                            .or_insert_with(|| agent_label.clone());
+                        payload
+                            .entry("detail".to_string())
+                            .or_insert_with(|| "started".to_string());
+                        // Include task description if present
+                        if let Some(task) = payload.get("task").cloned() {
+                            let preview = if task.len() > 120 {
+                                format!(
+                                    "{}…",
+                                    &task[..task
+                                        .char_indices()
+                                        .nth(120)
+                                        .map_or(task.len(), |(i, _)| i)]
+                                )
+                            } else {
+                                task
+                            };
+                            payload.entry("description".to_string()).or_insert(preview);
+                        }
+                    }
+
                     emit_raw(session_id, &normalized, payload);
                 }
                 if block_type != "text" && block_type != "thinking" && block_type != "tool_use" {
-                    eprintln!("[CLAUDE_DEBUG] UNHANDLED message.content block type: {}", block_type);
+                    eprintln!(
+                        "[CLAUDE_DEBUG] UNHANDLED message.content block type: {}",
+                        block_type
+                    );
+                }
+            }
+        }
+        // Handle system subtype events for subagent lifecycle.
+        if event_type == "system" {
+            let subtype = json
+                .get("subtype")
+                .and_then(string_value)
+                .unwrap_or_default();
+            let swarm_id = format!("swarm-claude-{}", session_id);
+
+            // task_started: a new subagent was launched
+            if subtype == "task_started" {
+                let tool_use_id = json
+                    .get("tool_use_id")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let task_id = json
+                    .get("task_id")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let description = json
+                    .get("description")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let prompt = json
+                    .get("prompt")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                eprintln!(
+                    "[CLAUDE_DEBUG] task_started: id={} desc={}",
+                    task_id, description
+                );
+                if !tool_use_id.is_empty() {
+                    let mut payload = BTreeMap::new();
+                    payload.insert("id".to_string(), tool_use_id.clone());
+                    payload.insert("task_id".to_string(), task_id);
+                    payload.insert("status".to_string(), "running".to_string());
+                    payload.insert("agent_name".to_string(), description.clone());
+                    payload.insert(
+                        "title".to_string(),
+                        format!("Starting Sub Agent: {}", description),
+                    );
+                    payload.insert("detail".to_string(), "started".to_string());
+                    payload.insert(
+                        "text".to_string(),
+                        if prompt.len() > 200 {
+                            let end = prompt
+                                .char_indices()
+                                .nth(200)
+                                .map_or(prompt.len(), |(i, _)| i);
+                            format!("{}…", &prompt[..end])
+                        } else {
+                            prompt
+                        },
+                    );
+                    payload.insert("swarm_id".to_string(), swarm_id.clone());
+                    payload.insert("group_id".to_string(), swarm_id.clone());
+                    emit_raw(session_id, "agent", payload);
+                }
+            }
+
+            // task_progress: subagent is doing work
+            if subtype == "task_progress" {
+                let tool_use_id = json
+                    .get("tool_use_id")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let description = json
+                    .get("description")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let last_tool = json
+                    .get("last_tool_name")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                if !tool_use_id.is_empty() {
+                    let step_title = if !last_tool.is_empty() {
+                        format!("{} — {}", last_tool, description)
+                    } else {
+                        description.clone()
+                    };
+                    let mut payload = BTreeMap::new();
+                    payload.insert("id".to_string(), tool_use_id);
+                    payload.insert("status".to_string(), "running".to_string());
+                    payload.insert("detail".to_string(), description);
+                    payload.insert("title".to_string(), step_title.clone());
+                    payload.insert("text".to_string(), step_title);
+                    payload.insert("swarm_id".to_string(), swarm_id.clone());
+                    payload.insert("group_id".to_string(), swarm_id.clone());
+                    emit_raw(session_id, "subagent_text", payload);
+                }
+            }
+
+            // task_notification: subagent completed or failed
+            if subtype == "task_notification" {
+                let status = json
+                    .get("status")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let tool_use_id = json
+                    .get("tool_use_id")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                let summary = json
+                    .get("summary")
+                    .and_then(string_value)
+                    .unwrap_or_default();
+                eprintln!(
+                    "[CLAUDE_DEBUG] task_notification: status={} id={} summary={}",
+                    status, tool_use_id, summary
+                );
+                if status == "completed" || status == "failed" {
+                    let mut payload = BTreeMap::new();
+                    payload.insert("id".to_string(), tool_use_id);
+                    payload.insert("status".to_string(), "completed".to_string());
+                    payload.insert("detail".to_string(), "completed".to_string());
+                    payload.insert("title".to_string(), summary.clone());
+                    payload.insert("agent_name".to_string(), summary.clone());
+                    payload.insert(
+                        "text".to_string(),
+                        format!("Sub Agent {} — {}", status, summary),
+                    );
+                    payload.insert("swarm_id".to_string(), swarm_id.clone());
+                    payload.insert("group_id".to_string(), swarm_id.clone());
+                    emit_raw(session_id, "agent", payload);
                 }
             }
         }
         // Check for unhandled event types
-        if event_type != "result" && event_type != "stream_event" && event_type != "(no type)" {
-            eprintln!("[CLAUDE_DEBUG] UNHANDLED top-level event type: {}", event_type);
+        if event_type != "result"
+            && event_type != "stream_event"
+            && event_type != "(no type)"
+            && event_type != "system"
+        {
+            eprintln!(
+                "[CLAUDE_DEBUG] UNHANDLED top-level event type: {}",
+                event_type
+            );
         }
         // Check for errors
         if let Some(error) = json
             .get("error")
             .and_then(|v| v.as_str())
-            .or_else(|| {
-                json.get("message")
-                    .and_then(|v| v.as_str())
-            })
+            .or_else(|| json.get("message").and_then(|v| v.as_str()))
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
         {
             eprintln!("[CLAUDE_DEBUG] ERROR: {}", error);
-            if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota") {
+            if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota")
+            {
                 if failover_to_next_cli_account(session_id, "claude", &error)? {
                     return Err("retry_with_next_account".to_string());
                 }
@@ -389,6 +630,37 @@ fn consume_line(
         }
     }
     Ok(())
+}
+
+/// Returns true if the tool name is a coderide subagent tool.
+fn is_subagent_tool(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.contains("subagent_") || lower == "agent"
+}
+
+/// Extracts a human-friendly display name from a subagent tool name.
+fn subagent_display_name(name: &str) -> String {
+    let lower = name.to_lowercase();
+    if let Some(suffix) = lower
+        .strip_prefix("mcp__coderide__coderide_subagent_")
+        .or_else(|| lower.strip_prefix("subagent_"))
+    {
+        // e.g. "explorer" → "Explorer", "bugHunter" → "Bug Hunter"
+        let mut result = String::new();
+        for (i, ch) in suffix.chars().enumerate() {
+            if i == 0 {
+                result.extend(ch.to_uppercase());
+            } else if ch.is_uppercase() {
+                result.push(' ');
+                result.push(ch);
+            } else {
+                result.push(ch);
+            }
+        }
+        result
+    } else {
+        "Agent".to_string()
+    }
 }
 
 fn normalize_tool_name(name: &str) -> String {
@@ -406,7 +678,9 @@ fn normalize_tool_name(name: &str) -> String {
         "exec" => "bash".to_string(),
         "file_outline" => "read".to_string(),
         "list_dir" => "list_dir".to_string(),
-        "subagent_explorer" | "subagent_bughunter" | "subagent_securityauditor" => "agent".to_string(),
+        "subagent_explorer" | "subagent_bughunter" | "subagent_securityauditor" => {
+            "agent".to_string()
+        }
         "policy_ack" => "policy_ack".to_string(),
         "todo_write" | "todo_read" | "todo_update" => "todo_write".to_string(),
         "plan_create" | "plan_update" | "plan_read" => "plan_create".to_string(),
@@ -470,12 +744,21 @@ fn write_mcp_config(config: &MainChatProviderSessionConfig) -> Option<String> {
         return None;
     }
     if !std::path::Path::new(server_path).exists() {
-        eprintln!("[CLAUDE_DEBUG] write_mcp_config: server_path does not exist: {}", server_path);
+        eprintln!(
+            "[CLAUDE_DEBUG] write_mcp_config: server_path does not exist: {}",
+            server_path
+        );
         return None;
     }
-    eprintln!("[CLAUDE_DEBUG] write_mcp_config: using server at {}", server_path);
+    eprintln!(
+        "[CLAUDE_DEBUG] write_mcp_config: using server at {}",
+        server_path
+    );
     let escaped_path = server_path.replace('\\', "\\\\").replace('"', "\\\"");
-    let escaped_workspace = config.workspace_path.replace('\\', "\\\\").replace('"', "\\\"");
+    let escaped_workspace = config
+        .workspace_path
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
     let config_json = format!(
         "{{\n  \"mcpServers\": {{\n    \"coderide\": {{\n      \"command\": \"{}\",\n      \"args\": [],\n      \"env\": {{\n        \"SOLOCODE_WORKSPACE\": \"{}\"\n      }}\n    }}\n  }}\n}}",
         escaped_path,
@@ -485,7 +768,10 @@ fn write_mcp_config(config: &MainChatProviderSessionConfig) -> Option<String> {
     std::fs::create_dir_all(&tmp_dir).ok()?;
     let config_path = tmp_dir.join("mcp-config.json");
     std::fs::write(&config_path, &config_json).ok()?;
-    eprintln!("[CLAUDE_DEBUG] write_mcp_config: wrote config to {}", config_path.display());
+    eprintln!(
+        "[CLAUDE_DEBUG] write_mcp_config: wrote config to {}",
+        config_path.display()
+    );
     eprintln!("[CLAUDE_DEBUG] write_mcp_config: content={}", config_json);
     Some(config_path.to_string_lossy().into_owned())
 }

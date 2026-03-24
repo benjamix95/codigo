@@ -1,11 +1,11 @@
 use super::config::config_from_snapshot;
+use super::models::{ReviewCommandMutationRequest, ReviewCommandMutationResponse};
 use super::mutator_configure::configure_snapshot;
 use super::mutator_support::{
     event_with_reference_timestamp, find_finding, find_patch, reference_timestamp, required,
 };
-use super::models::{ReviewCommandMutationRequest, ReviewCommandMutationResponse};
-use serde_json::{json, Value};
 use crate::review_session::build_outcome;
+use serde_json::{json, Value};
 
 pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMutationResponse {
     let Some(findings) = request.snapshot.get("findings").and_then(Value::as_array) else {
@@ -30,7 +30,12 @@ pub fn mutate_snapshot(request: ReviewCommandMutationRequest) -> ReviewCommandMu
         "apply_fix" => apply_fix(&mut findings, &mut events, &request.payload, timestamp),
         "dismiss" => dismiss(&mut findings, &mut events, &request.payload, timestamp),
         "comment" => comment(&mut findings, &mut events, &request.payload, timestamp),
-        "configure" => configure_snapshot(&mut events, &request.payload, &mut resolved_config, timestamp),
+        "configure" => configure_snapshot(
+            &mut events,
+            &request.payload,
+            &mut resolved_config,
+            timestamp,
+        ),
         "close_finding" => close_finding(
             &mut findings,
             &mut events,
@@ -76,8 +81,13 @@ fn canonicalized_snapshot(
     if let Some(config) = config {
         snapshot["config"] = serde_json::to_value(config).unwrap_or(Value::Null);
     }
-    snapshot["mutationSequence"] =
-        json!(snapshot.get("mutationSequence").and_then(Value::as_u64).unwrap_or(0) + 1);
+    snapshot["mutationSequence"] = json!(
+        snapshot
+            .get("mutationSequence")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            + 1
+    );
     snapshot["lastUpdatedAt"] = json!(timestamp);
     snapshot["outcome"] = build_outcome(&snapshot, None);
     snapshot
@@ -108,7 +118,11 @@ fn dismiss(
     timestamp: f64,
 ) -> Result<(), ReviewCommandMutationResponse> {
     let finding_id = required(payload, "finding_id")?;
-    let reason = payload.get("reason").map(|v| v.trim()).filter(|v| !v.is_empty()).unwrap_or("dismissed");
+    let reason = payload
+        .get("reason")
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .unwrap_or("dismissed");
     let finding = find_finding(findings, &finding_id)?;
     finding["status"] = Value::String(if reason.eq_ignore_ascii_case("wont_fix") {
         "wont_fix".to_string()
@@ -132,7 +146,11 @@ fn comment(
 ) -> Result<(), ReviewCommandMutationResponse> {
     let finding_id = required(payload, "finding_id")?;
     let content = required(payload, "content")?;
-    let author = payload.get("author").map(|v| v.trim()).filter(|v| !v.is_empty()).unwrap_or("agent");
+    let author = payload
+        .get("author")
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .unwrap_or("agent");
     let finding = find_finding(findings, &finding_id)?;
     let comments = finding
         .get_mut("comments")
@@ -174,9 +192,11 @@ fn close_finding(
         .unwrap_or("open");
     let can_close = match current_status {
         "merged" | "dismissed" | "wont_fix" | "closed" => true,
-        "patch_applied" | "fix_applied" => find_patch(patches, &finding_id)
-            .and_then(|patch| patch.get("validationStatus").and_then(Value::as_str))
-            == Some("passed"),
+        "patch_applied" | "fix_applied" => {
+            find_patch(patches, &finding_id)
+                .and_then(|patch| patch.get("validationStatus").and_then(Value::as_str))
+                == Some("passed")
+        }
         _ => false,
     };
     if !can_close {
@@ -231,17 +251,19 @@ fn upsert_patch(
 
     let finding = find_finding(findings, &finding_id)?;
     finding["patchArtifactId"] = Value::String(patch_id.clone());
-    finding["status"] = Value::String(match patch_status.as_str() {
-        "draft" => "patch_preparing",
-        "verified" => "patch_ready",
-        "applied" => "patch_applied",
-        "apply_failed" => "patch_failed",
-        "pr_opened" => "pr_opened",
-        "merged" => "merged",
-        "conflict" | "rolled_back" => "blocked",
-        _ => "open",
-    }
-    .to_string());
+    finding["status"] = Value::String(
+        match patch_status.as_str() {
+            "draft" => "patch_preparing",
+            "verified" => "patch_ready",
+            "applied" => "patch_applied",
+            "apply_failed" => "patch_failed",
+            "pr_opened" => "pr_opened",
+            "merged" => "merged",
+            "conflict" | "rolled_back" => "blocked",
+            _ => "open",
+        }
+        .to_string(),
+    );
 
     let event_value = match patch_status.as_str() {
         "draft" => event_with_reference_timestamp(
@@ -258,7 +280,8 @@ fn upsert_patch(
         ),
         "apply_failed" => event_with_reference_timestamp(
             "patch_apply_failed",
-            patch.get("applyMessage")
+            patch
+                .get("applyMessage")
                 .and_then(Value::as_str)
                 .unwrap_or("Patch apply failed")
                 .to_string(),
@@ -267,7 +290,8 @@ fn upsert_patch(
         ),
         "pr_opened" => event_with_reference_timestamp(
             "pr_opened",
-            patch.get("prURL")
+            patch
+                .get("prURL")
                 .and_then(Value::as_str)
                 .unwrap_or("Pull request opened")
                 .to_string(),
@@ -276,7 +300,8 @@ fn upsert_patch(
         ),
         "merged" => event_with_reference_timestamp(
             "pr_merged",
-            patch.get("prURL")
+            patch
+                .get("prURL")
                 .and_then(Value::as_str)
                 .unwrap_or("Patch merged")
                 .to_string(),
@@ -285,7 +310,8 @@ fn upsert_patch(
         ),
         "conflict" => event_with_reference_timestamp(
             "conflict_detected",
-            patch.get("conflicts")
+            patch
+                .get("conflicts")
                 .and_then(Value::as_array)
                 .map(|items| {
                     items
@@ -345,10 +371,15 @@ mod tests {
         });
         assert!(!response.is_error);
         assert_eq!(
-            response.findings.unwrap()[0].get("status").and_then(Value::as_str),
+            response.findings.unwrap()[0]
+                .get("status")
+                .and_then(Value::as_str),
             Some("wont_fix")
         );
-        assert!(response.events.unwrap()[0].get("timestamp").and_then(Value::as_f64).is_some());
+        assert!(response.events.unwrap()[0]
+            .get("timestamp")
+            .and_then(Value::as_f64)
+            .is_some());
     }
 
     #[test]
@@ -364,10 +395,19 @@ mod tests {
         });
         assert!(!response.is_error);
         let findings = response.findings.unwrap();
-        let comments = findings[0].get("comments").and_then(Value::as_array).unwrap();
+        let comments = findings[0]
+            .get("comments")
+            .and_then(Value::as_array)
+            .unwrap();
         assert_eq!(comments.len(), 1);
-        assert_eq!(comments[0].get("content").and_then(Value::as_str), Some("hello"));
-        assert!(comments[0].get("createdAt").and_then(Value::as_f64).is_some());
+        assert_eq!(
+            comments[0].get("content").and_then(Value::as_str),
+            Some("hello")
+        );
+        assert!(comments[0]
+            .get("createdAt")
+            .and_then(Value::as_f64)
+            .is_some());
     }
 
     #[test]
@@ -396,7 +436,9 @@ mod tests {
         });
         assert!(!response.is_error);
         assert_eq!(
-            response.findings.unwrap()[0].get("status").and_then(Value::as_str),
+            response.findings.unwrap()[0]
+                .get("status")
+                .and_then(Value::as_str),
             Some("closed")
         );
     }
@@ -430,10 +472,19 @@ mod tests {
             ]),
         });
         assert!(!response.is_error);
-        assert_eq!(response.config.as_ref().map(|config| config.max_workers), Some(7));
-        assert_eq!(response.config.as_ref().map(|config| config.analysis_only), Some(true));
+        assert_eq!(
+            response.config.as_ref().map(|config| config.max_workers),
+            Some(7)
+        );
+        assert_eq!(
+            response.config.as_ref().map(|config| config.analysis_only),
+            Some(true)
+        );
         let events = response.events.unwrap();
-        assert_eq!(events[0].get("type").and_then(Value::as_str), Some("config_updated"));
+        assert_eq!(
+            events[0].get("type").and_then(Value::as_str),
+            Some("config_updated")
+        );
         assert!(events[0].get("timestamp").and_then(Value::as_f64).is_some());
     }
 

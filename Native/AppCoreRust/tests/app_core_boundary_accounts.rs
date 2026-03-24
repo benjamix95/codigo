@@ -12,13 +12,26 @@ fn boundary_audit_enforces_broad_main_chat_prefix_for_nested_accounts_legacy_fil
         "Config/validation/rust-cutover-swift-allowlist.txt",
         "binding_adapter|App/SoloCodeApp/Sources/Accounts/Support/**|Relocated account support adapters remain Swift-only support code outside main-chat ownership.\n",
     );
-    write_file(&workspace, "App/SoloCodeApp/Sources/Accounts/Support/CLIAccountRouter.swift", "import Foundation\nstruct CLIAccountRouter {}\n");
-    write_file(&workspace, "App/SoloCodeApp/Sources/Accounts/Login/CLIAccountLoginCoordinator.swift", "import Foundation\nfinal class CLIAccountLoginCoordinator {}\n");
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Accounts/Support/CLIAccountRouter.swift",
+        "import Foundation\nstruct CLIAccountRouter {}\n",
+    );
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Accounts/Login/CLIAccountLoginCoordinator.swift",
+        "import Foundation\nfinal class CLIAccountLoginCoordinator {}\n",
+    );
 
     let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
         workspace_root: workspace.to_string_lossy().to_string(),
-        allowlist_path: workspace.join("Config/validation/rust-cutover-swift-allowlist.txt").to_string_lossy().to_string(),
-        candidate_files: vec!["App/SoloCodeApp/Sources/Accounts/Support/CLIAccountRouter.swift".to_string()],
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Accounts/Support/CLIAccountRouter.swift".to_string(),
+        ],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Accounts".to_string()],
         legacy_non_ui_budget_by_prefix: Default::default(),
@@ -30,7 +43,12 @@ fn boundary_audit_enforces_broad_main_chat_prefix_for_nested_accounts_legacy_fil
     assert_eq!(report.summary.allowed_swift_files, 1);
     assert_eq!(report.summary.legacy_non_ui_files, 1);
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
-    assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Accounts"), Some(&1));
+    assert_eq!(
+        report
+            .enforced_prefix_counts
+            .get("App/SoloCodeApp/Sources/Accounts"),
+        Some(&1)
+    );
 }
 
 #[test]
@@ -95,13 +113,24 @@ fn boundary_audit_treats_account_state_store_as_allowed_when_rule_is_present() {
 
 fn assert_accounts_rule(label: &str, rule: &str, candidate: &str, candidate_source: &str) {
     let workspace = make_workspace(label);
-    write_file(&workspace, "Config/validation/rust-cutover-swift-allowlist.txt", rule);
+    write_file(
+        &workspace,
+        "Config/validation/rust-cutover-swift-allowlist.txt",
+        rule,
+    );
     write_file(&workspace, candidate, candidate_source);
-    write_file(&workspace, "App/SoloCodeApp/Sources/Accounts/AccountUsageDashboardStore.swift", "import Foundation\nstruct DashboardStore {}\n");
+    write_file(
+        &workspace,
+        "App/SoloCodeApp/Sources/Accounts/AccountUsageDashboardStore.swift",
+        "import Foundation\nstruct DashboardStore {}\n",
+    );
 
     let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
         workspace_root: workspace.to_string_lossy().to_string(),
-        allowlist_path: workspace.join("Config/validation/rust-cutover-swift-allowlist.txt").to_string_lossy().to_string(),
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
         candidate_files: vec![candidate.to_string()],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Accounts".to_string()],
@@ -114,11 +143,19 @@ fn assert_accounts_rule(label: &str, rule: &str, candidate: &str, candidate_sour
     assert_eq!(report.summary.allowed_swift_files, 1);
     assert_eq!(report.summary.legacy_non_ui_files, 1);
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
-    assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Accounts"), Some(&1));
+    assert_eq!(
+        report
+            .enforced_prefix_counts
+            .get("App/SoloCodeApp/Sources/Accounts"),
+        Some(&1)
+    );
 }
 
 fn make_workspace(label: &str) -> PathBuf {
-    let suffix = SystemTime::now().duration_since(UNIX_EPOCH).expect("system time").as_nanos();
+    let suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time")
+        .as_nanos();
     let path = std::env::temp_dir().join(format!("solocode-app-core-rust-{label}-{suffix}"));
     fs::create_dir_all(&path).expect("workspace dir");
     path

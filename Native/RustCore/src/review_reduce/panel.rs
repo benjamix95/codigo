@@ -1,10 +1,12 @@
+use super::panel_support::{
+    build_file_ledger, build_phase_ledger, bundle_modes, severity_counts, sorted_ids,
+    tool_executions,
+};
 use crate::review_pipeline::phases::{
-    steps_completed, AUDIT, COMPLETED, DISCOVERY, PATCH_PREPARATION, PUBLISH_READY, QUEUED, VERIFICATION,
+    steps_completed, AUDIT, COMPLETED, DISCOVERY, PATCH_PREPARATION, PUBLISH_READY, QUEUED,
+    VERIFICATION,
 };
 use crate::review_value::get_str;
-use super::panel_support::{
-    build_file_ledger, build_phase_ledger, bundle_modes, severity_counts, sorted_ids, tool_executions,
-};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 
@@ -49,8 +51,14 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
     let verified_count = verified_ids.len() as i64;
     let publish_ready_count = publish_ready_ids.len() as i64;
     let visible_count = candidate_count + verified_count;
-    let hidden_count = findings.len().saturating_sub(publish_ready_count as usize + verified_only_ids.len()) as i64;
-    let terminal = matches!(get_str(&snapshot, "phase"), Some("completed") | Some("failed"));
+    let hidden_count = findings
+        .len()
+        .saturating_sub(publish_ready_count as usize + verified_only_ids.len())
+        as i64;
+    let terminal = matches!(
+        get_str(&snapshot, "phase"),
+        Some("completed") | Some("failed")
+    );
 
     json!({
         "liveCandidateIds": live_candidate_ids,
@@ -83,14 +91,25 @@ pub fn derive_review_panel_state(snapshot: Value) -> Value {
 }
 
 fn array(snapshot: &Value, key: &str) -> Vec<Value> {
-    snapshot.get(key).and_then(Value::as_array).cloned().unwrap_or_default()
+    snapshot
+        .get(key)
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn queue_ids(queue: &[Value]) -> Vec<String> {
-    queue.iter().filter_map(|item| get_str(item, "id").map(ToString::to_string)).collect()
+    queue
+        .iter()
+        .filter_map(|item| get_str(item, "id").map(ToString::to_string))
+        .collect()
 }
 
-fn publish_ready_ids(findings: &[Value], patches: &[Value], verified_ids: &[String]) -> HashSet<String> {
+fn publish_ready_ids(
+    findings: &[Value],
+    patches: &[Value],
+    verified_ids: &[String],
+) -> HashSet<String> {
     let patch_by_finding = patches
         .iter()
         .filter_map(|patch| get_str(patch, "findingId").map(|id| (id.to_string(), patch)))
@@ -110,7 +129,7 @@ fn publish_ready_ids(findings: &[Value], patches: &[Value], verified_ids: &[Stri
             (get_str(patch, "id") == Some(patch_id)
                 && verify_status == "verified"
                 && matches!(patch_status, "verified" | "applied" | "prOpened" | "merged"))
-                .then(|| finding_id.to_string())
+            .then(|| finding_id.to_string())
         })
         .collect()
 }
@@ -121,9 +140,15 @@ fn pipeline_phase(
     verified_ids: &[String],
     publish_ready_ids: &HashSet<String>,
 ) -> String {
-    let terminal = matches!(get_str(snapshot, "phase"), Some("completed") | Some("failed"));
+    let terminal = matches!(
+        get_str(snapshot, "phase"),
+        Some("completed") | Some("failed")
+    );
     let verified_total = if verified_ids.is_empty() {
-        findings.iter().filter(|finding| finding_is_verified(finding)).count()
+        findings
+            .iter()
+            .filter(|finding| finding_is_verified(finding))
+            .count()
     } else {
         verified_ids.len()
     };
@@ -136,14 +161,26 @@ fn pipeline_phase(
     if !verified_ids.is_empty() {
         return PATCH_PREPARATION.to_string();
     }
-    if snapshot.get("analysisCompletedAt").is_some() || !findings.is_empty() || !array(snapshot, "candidates").is_empty() {
+    if snapshot.get("analysisCompletedAt").is_some()
+        || !findings.is_empty()
+        || !array(snapshot, "candidates").is_empty()
+    {
         return VERIFICATION.to_string();
     }
-    let tool_count = snapshot.pointer("/audit/toolCoverage").and_then(Value::as_object).map(|items| items.len()).unwrap_or(0);
+    let tool_count = snapshot
+        .pointer("/audit/toolCoverage")
+        .and_then(Value::as_object)
+        .map(|items| items.len())
+        .unwrap_or(0);
     if tool_count > 0 {
         return AUDIT.to_string();
     }
-    if snapshot.get("startedAt").is_some() || matches!(get_str(snapshot, "phase"), Some("analyzing") | Some("fixing") | Some("testing") | Some("re_reviewing")) {
+    if snapshot.get("startedAt").is_some()
+        || matches!(
+            get_str(snapshot, "phase"),
+            Some("analyzing") | Some("fixing") | Some("testing") | Some("re_reviewing")
+        )
+    {
         return DISCOVERY.to_string();
     }
     QUEUED.to_string()
@@ -153,7 +190,9 @@ fn progress_percent(pipeline_phase: &str, verified_count: i64, publish_ready_cou
     match pipeline_phase {
         COMPLETED => 100,
         PUBLISH_READY => 92,
-        PATCH_PREPARATION => 65 + ((publish_ready_count as f64 / (verified_count.max(1) as f64)) * 20.0) as i64,
+        PATCH_PREPARATION => {
+            65 + ((publish_ready_count as f64 / (verified_count.max(1) as f64)) * 20.0) as i64
+        }
         VERIFICATION => 45,
         AUDIT => 25,
         DISCOVERY => 10,
@@ -171,7 +210,12 @@ fn empty_title(visible_count: i64, publish_ready_count: i64, pipeline_phase: &st
     }
 }
 
-fn empty_subtitle(candidate_count: i64, verified_count: i64, publish_ready_count: i64, terminal: bool) -> &'static str {
+fn empty_subtitle(
+    candidate_count: i64,
+    verified_count: i64,
+    publish_ready_count: i64,
+    terminal: bool,
+) -> &'static str {
     if publish_ready_count > 0 {
         "I finding publish-ready hanno patch e azioni già disponibili."
     } else if verified_count > 0 {
@@ -187,7 +231,10 @@ fn empty_subtitle(candidate_count: i64, verified_count: i64, publish_ready_count
 
 fn finding_is_verified(finding: &Value) -> bool {
     !finding.get("verifiedAt").unwrap_or(&Value::Null).is_null()
-        || !finding.get("verificationReport").unwrap_or(&Value::Null).is_null()
+        || !finding
+            .get("verificationReport")
+            .unwrap_or(&Value::Null)
+            .is_null()
 }
 
 #[cfg(test)]
@@ -232,8 +279,18 @@ mod tests {
             }
         }));
 
-        assert_eq!(derived["liveCandidateIds"].as_array().map(|items| items.len()), Some(1));
-        assert_eq!(derived["publishReadyFindingIds"].as_array().map(|items| items.len()), Some(1));
+        assert_eq!(
+            derived["liveCandidateIds"]
+                .as_array()
+                .map(|items| items.len()),
+            Some(1)
+        );
+        assert_eq!(
+            derived["publishReadyFindingIds"]
+                .as_array()
+                .map(|items| items.len()),
+            Some(1)
+        );
         assert_eq!(derived["pipelinePhase"].as_str(), Some("completed"));
         assert_eq!(derived["stepsCompleted"].as_i64(), Some(6));
     }

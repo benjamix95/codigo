@@ -9,42 +9,58 @@ use crate::review_persistence::{
 use std::os::raw::c_char;
 
 #[no_mangle]
-pub extern "C" fn review_core_persistence_encode_review_snapshot(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_persistence_encode_review_snapshot(
+    input: *const c_char,
+) -> *mut c_char {
     persistence_payload_call(input, encode_review_snapshot_response)
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_persistence_decode_review_snapshot(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_persistence_decode_review_snapshot(
+    input: *const c_char,
+) -> *mut c_char {
     persistence_payload_call(input, decode_review_snapshot_response)
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_persistence_encode_bughunter_snapshot(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_persistence_encode_bughunter_snapshot(
+    input: *const c_char,
+) -> *mut c_char {
     persistence_payload_call(input, encode_bughunter_snapshot_response)
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_persistence_decode_bughunter_snapshot(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_persistence_decode_bughunter_snapshot(
+    input: *const c_char,
+) -> *mut c_char {
     persistence_payload_call(input, decode_bughunter_snapshot_response)
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_persistence_encode_review_commands(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_persistence_encode_review_commands(
+    input: *const c_char,
+) -> *mut c_char {
     persistence_payload_call(input, encode_review_commands_response)
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_persistence_decode_review_commands(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_persistence_decode_review_commands(
+    input: *const c_char,
+) -> *mut c_char {
     persistence_payload_call(input, decode_review_commands_response)
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_persistence_encode_bughunter_commands(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_persistence_encode_bughunter_commands(
+    input: *const c_char,
+) -> *mut c_char {
     persistence_payload_call(input, encode_bughunter_commands_response)
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_persistence_decode_bughunter_commands(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_persistence_decode_bughunter_commands(
+    input: *const c_char,
+) -> *mut c_char {
     persistence_payload_call(input, decode_bughunter_commands_response)
 }
 

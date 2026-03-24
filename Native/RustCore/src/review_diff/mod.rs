@@ -47,9 +47,9 @@ pub fn render_summary(request: ReviewDiffSummaryRequest) -> Result<String, Strin
         .filter_map(Value::as_str)
         .map(str::to_string)
         .collect::<Vec<_>>();
-    let target_files = request.filtered_files.unwrap_or_else(|| {
-        filter_scope_files(scope_files, request.file_filter.as_deref())
-    });
+    let target_files = request
+        .filtered_files
+        .unwrap_or_else(|| filter_scope_files(scope_files, request.file_filter.as_deref()));
     if target_files.is_empty() {
         return Ok("No files available for diff summary.".to_string());
     }
@@ -69,11 +69,12 @@ pub fn render_summary(request: ReviewDiffSummaryRequest) -> Result<String, Strin
         total_additions,
         total_deletions
     ));
-    lines.extend(
-        summaries
-            .into_iter()
-            .map(|item| format!("{} | +{} / -{}", item.file_path, item.additions, item.deletions)),
-    );
+    lines.extend(summaries.into_iter().map(|item| {
+        format!(
+            "{} | +{} / -{}",
+            item.file_path, item.additions, item.deletions
+        )
+    }));
     Ok(lines.join("\n"))
 }
 
@@ -103,7 +104,10 @@ fn filter_scope_files(files: Vec<String>, file_filter: Option<&str>) -> Vec<Stri
     if needle.is_empty() {
         return files;
     }
-    files.into_iter().filter(|item| item.contains(needle)).collect()
+    files
+        .into_iter()
+        .filter(|item| item.contains(needle))
+        .collect()
 }
 
 #[cfg(test)]
@@ -125,7 +129,11 @@ mod tests {
         run_git_checked(&["add", "Sources/Old.swift"], &repo);
         run_git_checked(&["commit", "-qm", "initial"], &repo);
         run_git_checked(&["mv", "Sources/Old.swift", "Sources/New.swift"], &repo);
-        fs::write(repo.join("Sources/New.swift"), "print(\"before\")\nprint(\"after\")\n").unwrap();
+        fs::write(
+            repo.join("Sources/New.swift"),
+            "print(\"before\")\nprint(\"after\")\n",
+        )
+        .unwrap();
         run_git_checked(&["commit", "-am", "rename"], &repo);
 
         let summary = render_summary(ReviewDiffSummaryRequest {
@@ -137,7 +145,8 @@ mod tests {
             workspace_path: repo.to_string_lossy().into_owned(),
             file_filter: None,
             filtered_files: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         assert!(summary.contains("Sources/New.swift"));
         assert!(summary.contains("+1 / -0"));
@@ -163,21 +172,34 @@ mod tests {
             workspace_path: repo.to_string_lossy().into_owned(),
             file_filter: None,
             filtered_files: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         assert!(summary.contains("scratch.swift"));
         assert!(summary.contains("+2 / -0"));
     }
 
     fn make_repo() -> std::path::PathBuf {
-        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         let repo = std::env::temp_dir().join(format!("review-diff-{nanos}"));
         fs::create_dir_all(&repo).unwrap();
         repo
     }
 
     fn run_git_checked(arguments: &[&str], repo: &Path) {
-        let output = Command::new("/usr/bin/git").args(arguments).current_dir(repo).output().unwrap();
-        assert!(output.status.success(), "git {:?} failed: {}", arguments, String::from_utf8_lossy(&output.stderr));
+        let output = Command::new("/usr/bin/git")
+            .args(arguments)
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            arguments,
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 }

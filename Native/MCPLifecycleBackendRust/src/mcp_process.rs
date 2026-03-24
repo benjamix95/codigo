@@ -4,9 +4,7 @@ use crate::mcp_models::{
     ResourceTemplateDescriptor,
 };
 use crate::protocol::{ServerConfig, ToolDescriptor};
-use app_core_protocol::mcp::{
-    CallToolResult, InitializeResult, ListToolsResult, ToolContent,
-};
+use app_core_protocol::mcp::{CallToolResult, InitializeResult, ListToolsResult, ToolContent};
 use serde_json::{Map, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -121,7 +119,10 @@ impl McpProcess {
             .collect())
     }
 
-    pub fn read_resource(&mut self, uri: &str) -> Result<Vec<ResourceContentPayload>, BackendError> {
+    pub fn read_resource(
+        &mut self,
+        uri: &str,
+    ) -> Result<Vec<ResourceContentPayload>, BackendError> {
         let response = self.send_request("resources/read", serde_json::json!({ "uri": uri }))?;
         let contents = response
             .get("contents")

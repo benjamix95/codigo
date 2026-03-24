@@ -5,10 +5,7 @@ use app_core_protocol::main_chat_reasoning::{
 
 pub fn handle_reasoning_request(request: MainChatReasoningRequest) -> MainChatReasoningResponse {
     if request.schema_version != 1 {
-        return MainChatReasoningResponse::error(
-            "unsupported_schema",
-            "schemaVersion must be 1",
-        );
+        return MainChatReasoningResponse::error("unsupported_schema", "schemaVersion must be 1");
     }
     match request.operation.as_str() {
         "is_codex_provider" => response_codex(request.provider_id.as_deref().unwrap_or_default()),
@@ -99,9 +96,7 @@ fn apply_stream_chunk_response(request: MainChatReasoningRequest) -> MainChatRea
             output,
             group_id,
             state,
-            request
-                .sequential_streaming_layout_enabled
-                .unwrap_or(false),
+            request.sequential_streaming_layout_enabled.unwrap_or(false),
             request.streaming_segment_turn_index.unwrap_or(0),
         )),
     }
@@ -115,7 +110,11 @@ fn apply_stream_chunk(
     streaming_segment_turn_index: i32,
 ) -> MainChatReasoningState {
     let mut next_state = state;
-    if let Some(index) = next_state.blocks.iter().position(|item| item.id == group_id) {
+    if let Some(index) = next_state
+        .blocks
+        .iter()
+        .position(|item| item.id == group_id)
+    {
         next_state.blocks[index].text =
             merge_reasoning_text(Some(next_state.blocks[index].text.clone()), output.clone());
     } else {
@@ -144,7 +143,11 @@ fn apply_stream_chunk(
         .find(|item| item.id == group_id)
         .map(|item| item.text.clone())
         .unwrap_or(output);
-    if let Some(index) = next_state.segments.iter().position(|segment| segment.id == segment_id) {
+    if let Some(index) = next_state
+        .segments
+        .iter()
+        .position(|segment| segment.id == segment_id)
+    {
         next_state.segments[index].kind = "reasoning".to_string();
         next_state.segments[index].text = current_block_text;
     } else {
@@ -204,7 +207,10 @@ mod tests {
     #[test]
     fn providers_can_still_opt_into_separate_messages_mode() {
         let response = response_mode("codex-cli", true);
-        assert_eq!(response.presentation_mode.as_deref(), Some("separateMessages"));
+        assert_eq!(
+            response.presentation_mode.as_deref(),
+            Some("separateMessages")
+        );
     }
 
     #[test]
@@ -226,7 +232,10 @@ mod tests {
         assert_eq!(second.blocks.len(), 1);
         assert_eq!(second.blocks[0].id, "reasoning-stream");
         assert_eq!(second.blocks[0].text, "Planning next move\nReading files");
-        assert_eq!(second.text.as_deref(), Some("Planning next move\nReading files"));
+        assert_eq!(
+            second.text.as_deref(),
+            Some("Planning next move\nReading files")
+        );
     }
 
     #[test]
@@ -242,8 +251,7 @@ mod tests {
             Some(false)
         );
         assert_eq!(
-            response_selected_conversation(None, Some("b"))
-                .should_update_inline_reasoning_state,
+            response_selected_conversation(None, Some("b")).should_update_inline_reasoning_state,
             Some(false)
         );
     }

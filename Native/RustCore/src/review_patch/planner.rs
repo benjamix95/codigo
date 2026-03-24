@@ -4,31 +4,51 @@ use super::models::{
 
 pub fn handle_patch_action(request: ReviewPatchActionRequest) -> ReviewPatchActionResponse {
     if request.session_id.trim().is_empty() || request.finding_id.trim().is_empty() {
-        return ReviewPatchActionResponse::err("missing_identifiers", "finding_id and session_id are required");
+        return ReviewPatchActionResponse::err(
+            "missing_identifiers",
+            "finding_id and session_id are required",
+        );
     }
     if request.snapshot.session_id != request.session_id {
-        return ReviewPatchActionResponse::err("session_not_found", &format!("session_id '{}' was not found", request.session_id));
+        return ReviewPatchActionResponse::err(
+            "session_not_found",
+            &format!("session_id '{}' was not found", request.session_id),
+        );
     }
     if let Some(snapshot_conversation_id) = request.snapshot.conversation_id.as_ref() {
         match request.conversation_id.as_ref() {
             None => {
                 return ReviewPatchActionResponse::err(
                     "conversation_required",
-                    &format!("conversation_id is required for session_id '{}'", request.session_id),
+                    &format!(
+                        "conversation_id is required for session_id '{}'",
+                        request.session_id
+                    ),
                 );
             }
             Some(conversation_id) if conversation_id != snapshot_conversation_id => {
                 return ReviewPatchActionResponse::err(
                     "conversation_mismatch",
-                    &format!("session_id '{}' does not belong to the requested conversation", request.session_id),
+                    &format!(
+                        "session_id '{}' does not belong to the requested conversation",
+                        request.session_id
+                    ),
                 );
             }
             _ => {}
         }
     }
 
-    let owned = request.snapshot.finding_ids.iter().any(|id| id == &request.finding_id)
-        || request.snapshot.candidate_ids.iter().any(|id| id == &request.finding_id);
+    let owned = request
+        .snapshot
+        .finding_ids
+        .iter()
+        .any(|id| id == &request.finding_id)
+        || request
+            .snapshot
+            .candidate_ids
+            .iter()
+            .any(|id| id == &request.finding_id);
     if !owned {
         return ReviewPatchActionResponse::err(
             "finding_not_owned",
@@ -79,7 +99,10 @@ fn queue_context(
         }
         "close_finding" => {
             let Some(finding) = finding else {
-                return ReviewPatchActionResponse::err("finding_not_owned", "finding is not available in the snapshot");
+                return ReviewPatchActionResponse::err(
+                    "finding_not_owned",
+                    "finding is not available in the snapshot",
+                );
             };
             if !can_close(finding, patch) {
                 return ReviewPatchActionResponse::err(
@@ -102,7 +125,10 @@ fn execution_plan(
         "prepare_patch" => vec!["prepare_patch".to_string()],
         "verify_patch" => {
             if patch.is_none() {
-                return ReviewPatchActionResponse::err("invalid_patch", "patch artifact missing for verification");
+                return ReviewPatchActionResponse::err(
+                    "invalid_patch",
+                    "patch artifact missing for verification",
+                );
             }
             vec!["verify_patch".to_string()]
         }
@@ -115,13 +141,19 @@ fn execution_plan(
         },
         "revalidate_finding" | "rollback_patch" | "open_pr" | "merge_pr" | "resolve_conflicts" => {
             if patch.is_none() {
-                return ReviewPatchActionResponse::err("invalid_patch", "patch artifact missing for requested action");
+                return ReviewPatchActionResponse::err(
+                    "invalid_patch",
+                    "patch artifact missing for requested action",
+                );
             }
             vec![action.to_string()]
         }
         "close_finding" => {
             let Some(finding) = finding else {
-                return ReviewPatchActionResponse::err("finding_not_owned", "finding is not available in the snapshot");
+                return ReviewPatchActionResponse::err(
+                    "finding_not_owned",
+                    "finding is not available in the snapshot",
+                );
             };
             if !can_close(finding, patch) {
                 return ReviewPatchActionResponse::err(
@@ -131,7 +163,9 @@ fn execution_plan(
             }
             vec!["close_finding".to_string()]
         }
-        _ => return ReviewPatchActionResponse::err("unsupported_action", "unsupported patch action"),
+        _ => {
+            return ReviewPatchActionResponse::err("unsupported_action", "unsupported patch action")
+        }
     };
     ReviewPatchActionResponse::ok(steps, patch, finding)
 }
@@ -211,7 +245,10 @@ mod tests {
                 }],
             },
         });
-        assert_eq!(response.steps, vec!["prepare_patch".to_string(), "apply_patch".to_string()]);
+        assert_eq!(
+            response.steps,
+            vec!["prepare_patch".to_string(), "apply_patch".to_string()]
+        );
     }
 
     #[test]

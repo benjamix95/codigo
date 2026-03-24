@@ -58,10 +58,7 @@ pub(crate) fn image_data_urls(
             let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
             let mut item = BTreeMap::new();
             item.insert("type".to_string(), "image_url".to_string());
-            item.insert(
-                "url".to_string(),
-                format!("data:{mime};base64,{encoded}"),
-            );
+            item.insert("url".to_string(), format!("data:{mime};base64,{encoded}"));
             Some(item)
         })
         .collect()

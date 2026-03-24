@@ -79,14 +79,19 @@ fn group_events_by_finding(events: &[Value]) -> HashMap<String, Vec<Value>> {
             .and_then(Value::as_object)
             .and_then(|meta| meta.get("finding_id").or_else(|| meta.get("candidate_id")))
             .and_then(Value::as_str);
-        let Some(finding_id) = finding_id else { continue };
-        grouped.entry(finding_id.to_string()).or_default().push(serde_json::json!({
-            "eventId": event.get("id").cloned().unwrap_or(Value::Null),
-            "eventType": event.get("type").cloned().unwrap_or(Value::Null),
-            "detail": event.get("detail").cloned().unwrap_or(Value::Null),
-            "createdAt": event.get("timestamp").cloned().unwrap_or(Value::from(0.0)),
-            "metadata": event.get("metadata").cloned().unwrap_or_else(|| serde_json::json!({})),
-        }));
+        let Some(finding_id) = finding_id else {
+            continue;
+        };
+        grouped
+            .entry(finding_id.to_string())
+            .or_default()
+            .push(serde_json::json!({
+                "eventId": event.get("id").cloned().unwrap_or(Value::Null),
+                "eventType": event.get("type").cloned().unwrap_or(Value::Null),
+                "detail": event.get("detail").cloned().unwrap_or(Value::Null),
+                "createdAt": event.get("timestamp").cloned().unwrap_or(Value::from(0.0)),
+                "metadata": event.get("metadata").cloned().unwrap_or_else(|| serde_json::json!({})),
+            }));
     }
     grouped
 }
@@ -170,7 +175,10 @@ fn terminal_historical_status(status: &str) -> bool {
 }
 
 fn finding_applied(status: Option<&str>) -> bool {
-    matches!(status, Some("fix_applied") | Some("patch_applied") | Some("merged"))
+    matches!(
+        status,
+        Some("fix_applied") | Some("patch_applied") | Some("merged")
+    )
 }
 
 #[cfg(test)]
@@ -217,6 +225,9 @@ mod tests {
         assert_eq!(records[0]["findingId"].as_str(), Some("finding-1"));
         assert_eq!(records[0]["status"].as_str(), Some("fixed_verified"));
         assert_eq!(records[0]["patchApplyStatus"].as_str(), Some("applied"));
-        assert_eq!(records[0]["timeline"].as_array().map(|items| items.len()), Some(1));
+        assert_eq!(
+            records[0]["timeline"].as_array().map(|items| items.len()),
+            Some(1)
+        );
     }
 }

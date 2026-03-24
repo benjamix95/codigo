@@ -79,6 +79,7 @@ final class ProjectContextStore: ObservableObject {
     func ensureWorkspaceContexts(_ workspaces: [Workspace]) {
         for workspace in workspaces {
             var context = ProjectContext.fromWorkspace(workspace)
+            var shouldUpsert = true
             if let existing = contexts.first(where: { $0.id == workspace.id }) {
                 context.createdAt = existing.createdAt
                 let hasStructuralChange =
@@ -87,8 +88,14 @@ final class ProjectContextStore: ObservableObject {
                     || existing.excludedPaths != context.excludedPaths
                 context.updatedAt = hasStructuralChange ? .now : existing.updatedAt
                 context.lastActiveFolderPath = existing.lastActiveFolderPath ?? (workspace.folderPaths.isEmpty ? nil : workspace.folderPaths.first)
+                shouldUpsert = hasStructuralChange
+                    || existing.lastActiveFolderPath != context.lastActiveFolderPath
+                    || existing.createdAt != context.createdAt
+                    || existing.updatedAt != context.updatedAt
             }
-            upsert(context)
+            if shouldUpsert {
+                upsert(context)
+            }
         }
     }
 

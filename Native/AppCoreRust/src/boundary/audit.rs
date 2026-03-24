@@ -1,6 +1,8 @@
 use crate::boundary::allowlist::load_allowlist;
 use crate::boundary::classify::{classify_path, derive_domain, BoundaryDisposition};
-use app_core_protocol::app_core::{BoundaryAuditRequest, BoundaryAuditResponse, BoundaryAuditSummary, SwiftBoundaryFinding};
+use app_core_protocol::app_core::{
+    BoundaryAuditRequest, BoundaryAuditResponse, BoundaryAuditSummary, SwiftBoundaryFinding,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,10 +40,14 @@ pub fn audit_request(request: BoundaryAuditRequest) -> Result<BoundaryAuditRespo
             BoundaryDisposition::LegacyNonUi(finding) => {
                 summary.total_swift_files += 1;
                 summary.legacy_non_ui_files += 1;
-                *legacy_domain_counts.entry(derive_domain(&finding.path)).or_insert(0) += 1;
+                *legacy_domain_counts
+                    .entry(derive_domain(&finding.path))
+                    .or_insert(0) += 1;
                 if let Some(prefix) = matching_enforced_prefix(&finding.path, &enforced_prefixes) {
                     summary.enforced_legacy_non_ui_files += 1;
-                    *enforced_prefix_counts.entry(prefix.to_string()).or_insert(0) += 1;
+                    *enforced_prefix_counts
+                        .entry(prefix.to_string())
+                        .or_insert(0) += 1;
                 }
                 findings.push(finding);
             }
@@ -69,10 +75,16 @@ pub fn format_text_report(report: &BoundaryAuditResponse) -> String {
     let mut lines = vec![
         "Rust Cutover Boundary Audit".to_string(),
         format!("Swift scansionati: {}", report.summary.total_swift_files),
-        format!("Allowlist UI/bootstrap: {}", report.summary.allowed_swift_files),
+        format!(
+            "Allowlist UI/bootstrap: {}",
+            report.summary.allowed_swift_files
+        ),
         format!("Legacy non-UI: {}", report.summary.legacy_non_ui_files),
         format!("Nuove violazioni: {}", report.summary.new_non_ui_files),
-        format!("Legacy hard-fail attivi: {}", report.summary.enforced_legacy_non_ui_files),
+        format!(
+            "Legacy hard-fail attivi: {}",
+            report.summary.enforced_legacy_non_ui_files
+        ),
         format!(
             "Legacy oltre budget nel tranche gate: {}",
             report.summary.budget_exceeded_legacy_non_ui_files
@@ -100,10 +112,12 @@ pub fn format_text_report(report: &BoundaryAuditResponse) -> String {
         }
     }
 
-    let new_findings = report
-        .findings
-        .iter()
-        .filter(|finding| matches!(finding.status, app_core_protocol::app_core::BoundaryFindingStatus::NewViolation));
+    let new_findings = report.findings.iter().filter(|finding| {
+        matches!(
+            finding.status,
+            app_core_protocol::app_core::BoundaryFindingStatus::NewViolation
+        )
+    });
     let mut emitted_header = false;
     for finding in new_findings {
         if !emitted_header {
@@ -164,10 +178,14 @@ fn collect_enforced_prefix_files(
 }
 
 fn walk_swift_files(root: &Path, current: &Path, output: &mut Vec<String>) -> Result<(), String> {
-    for entry in fs::read_dir(current)
-        .map_err(|error| format!("Impossibile leggere directory {}: {error}", current.display()))?
-    {
-        let entry = entry.map_err(|error| format!("Impossibile leggere entry {}: {error}", current.display()))?;
+    for entry in fs::read_dir(current).map_err(|error| {
+        format!(
+            "Impossibile leggere directory {}: {error}",
+            current.display()
+        )
+    })? {
+        let entry = entry
+            .map_err(|error| format!("Impossibile leggere entry {}: {error}", current.display()))?;
         let path = entry.path();
         let relative = path
             .strip_prefix(root)
@@ -187,15 +205,27 @@ fn walk_swift_files(root: &Path, current: &Path, output: &mut Vec<String>) -> Re
 
 fn should_skip_dir(path: &Path, relative: &str) -> bool {
     path.is_dir()
-        && ["Native/target", ".build", ".xcodebuild", "tmp", "DerivedData"]
-            .iter()
-            .any(|prefix| relative == *prefix || relative.starts_with(&format!("{prefix}/")))
+        && [
+            "Native/target",
+            ".build",
+            ".xcodebuild",
+            "tmp",
+            "DerivedData",
+        ]
+        .iter()
+        .any(|prefix| relative == *prefix || relative.starts_with(&format!("{prefix}/")))
 }
 
 fn normalize_prefixes(prefixes: &[String]) -> Vec<String> {
     prefixes
         .iter()
-        .map(|prefix| prefix.trim().trim_start_matches("./").trim_end_matches('/').to_string())
+        .map(|prefix| {
+            prefix
+                .trim()
+                .trim_start_matches("./")
+                .trim_end_matches('/')
+                .to_string()
+        })
         .filter(|prefix| !prefix.is_empty())
         .collect()
 }
@@ -205,7 +235,11 @@ fn normalize_budgets(input: &BTreeMap<String, usize>) -> BTreeMap<String, usize>
         .iter()
         .map(|(prefix, budget)| {
             (
-                prefix.trim().trim_start_matches("./").trim_end_matches('/').to_string(),
+                prefix
+                    .trim()
+                    .trim_start_matches("./")
+                    .trim_end_matches('/')
+                    .to_string(),
                 *budget,
             )
         })

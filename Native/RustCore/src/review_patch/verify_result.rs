@@ -59,6 +59,9 @@ mod tests {
         assert!(!response.is_error);
         assert_eq!(response.status.as_deref(), Some("conflict"));
         assert_eq!(response.verify_status.as_deref(), Some("failed"));
-        assert_eq!(response.apply_message.as_deref(), Some("cannot apply cleanly"));
+        assert_eq!(
+            response.apply_message.as_deref(),
+            Some("cannot apply cleanly")
+        );
     }
 }

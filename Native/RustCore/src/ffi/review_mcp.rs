@@ -51,10 +51,11 @@ pub extern "C" fn review_core_mcp_command_heartbeat(input: *const c_char) -> *mu
 #[no_mangle]
 pub extern "C" fn review_core_mcp_read_index(input: *const c_char) -> *mut c_char {
     with_raw_json_input(input, |raw| {
-        let request: crate::review_mcp::models::ReviewMCPIndexRequest = match serde_json::from_str(raw) {
-            Ok(request) => request,
-            Err(_) => return empty_index_payload(),
-        };
+        let request: crate::review_mcp::models::ReviewMCPIndexRequest =
+            match serde_json::from_str(raw) {
+                Ok(request) => request,
+                Err(_) => return empty_index_payload(),
+            };
         if request.schema_version != 1 {
             return empty_index_payload();
         }
@@ -64,17 +65,20 @@ pub extern "C" fn review_core_mcp_read_index(input: *const c_char) -> *mut c_cha
 
 fn tool_request_call(
     input: *const c_char,
-    handler: fn(crate::review_mcp::models::ReviewMCPToolRequest) -> crate::review_mcp::models::ReviewMCPToolResponse,
+    handler: fn(
+        crate::review_mcp::models::ReviewMCPToolRequest,
+    ) -> crate::review_mcp::models::ReviewMCPToolResponse,
 ) -> *mut c_char {
     with_raw_json_input(input, |raw| {
-        let request: crate::review_mcp::models::ReviewMCPToolRequest = match serde_json::from_str(raw) {
-            Ok(request) => request,
-            Err(err) => {
-                return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err(
-                    format!("decode_failed: {}", err),
-                ));
-            }
-        };
+        let request: crate::review_mcp::models::ReviewMCPToolRequest =
+            match serde_json::from_str(raw) {
+                Ok(request) => request,
+                Err(err) => {
+                    return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err(
+                        format!("decode_failed: {}", err),
+                    ));
+                }
+            };
         if request.schema_version != 1 {
             return encode_raw(&crate::review_mcp::models::ReviewMCPToolResponse::err(
                 "unsupported_schema",

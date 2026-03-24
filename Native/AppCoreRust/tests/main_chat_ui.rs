@@ -48,32 +48,41 @@ impl Drop for LoadedRuntime {
 #[test]
 fn ffi_ui_project_returns_selected_conversation_snapshot() {
     let runtime = load_runtime();
-    let response = call_project(&runtime, MainChatUiProjectRequest {
-        schema_version: 1,
-        state: base_ui_state(),
-    });
+    let response = call_project(
+        &runtime,
+        MainChatUiProjectRequest {
+            schema_version: 1,
+            state: base_ui_state(),
+        },
+    );
     let snapshot = response.snapshot.expect("snapshot");
     assert_eq!(snapshot.selected_conversation_id.as_deref(), Some("conv-1"));
-    assert_eq!(snapshot.messages[0].primary_text.as_deref(), Some("Hello from Rust"));
+    assert_eq!(
+        snapshot.messages[0].primary_text.as_deref(),
+        Some("Hello from Rust")
+    );
     assert!(snapshot.task.is_loading);
 }
 
 #[test]
 fn ffi_ui_handle_intent_can_toggle_collapsed_artifact() {
     let runtime = load_runtime();
-    let response = call_intent(&runtime, MainChatUiIntentRequest {
-        schema_version: 1,
-        intent: "toggle_artifact_collapsed".to_string(),
-        state: base_ui_state(),
-        conversation_id: None,
-        turn_id: Some("turn-1".to_string()),
-        artifact_id: Some("artifact-1".to_string()),
-        text: None,
-        timestamp: None,
-        pipeline_event: None,
-        pipeline_events: Vec::new(),
-        payload: Default::default(),
-    });
+    let response = call_intent(
+        &runtime,
+        MainChatUiIntentRequest {
+            schema_version: 1,
+            intent: "toggle_artifact_collapsed".to_string(),
+            state: base_ui_state(),
+            conversation_id: None,
+            turn_id: Some("turn-1".to_string()),
+            artifact_id: Some("artifact-1".to_string()),
+            text: None,
+            timestamp: None,
+            pipeline_event: None,
+            pipeline_events: Vec::new(),
+            payload: Default::default(),
+        },
+    );
     let state = response.state.expect("state");
     assert_eq!(
         state.collapsed_artifact_ids_by_turn.get("turn-1"),
@@ -84,23 +93,28 @@ fn ffi_ui_handle_intent_can_toggle_collapsed_artifact() {
 #[test]
 fn ffi_ui_handle_intent_stream_finish_marks_message_not_streaming() {
     let runtime = load_runtime();
-    let response = call_intent(&runtime, MainChatUiIntentRequest {
-        schema_version: 1,
-        intent: "stream_finish_success".to_string(),
-        state: base_ui_state(),
-        conversation_id: Some("conv-1".to_string()),
-        turn_id: None,
-        artifact_id: None,
-        text: Some("Final answer".to_string()),
-        timestamp: Some(2.0),
-        pipeline_event: None,
-        pipeline_events: Vec::new(),
-        payload: Default::default(),
-    });
+    let response = call_intent(
+        &runtime,
+        MainChatUiIntentRequest {
+            schema_version: 1,
+            intent: "stream_finish_success".to_string(),
+            state: base_ui_state(),
+            conversation_id: Some("conv-1".to_string()),
+            turn_id: None,
+            artifact_id: None,
+            text: Some("Final answer".to_string()),
+            timestamp: Some(2.0),
+            pipeline_event: None,
+            pipeline_events: Vec::new(),
+            payload: Default::default(),
+        },
+    );
     let state = response.state.expect("state");
     assert!(!state.store_snapshot.conversations[0].messages[0].is_streaming);
     assert_eq!(
-        state.store_snapshot.conversations[0].messages[0].primary_text_snapshot.as_deref(),
+        state.store_snapshot.conversations[0].messages[0]
+            .primary_text_snapshot
+            .as_deref(),
         Some("Final answer")
     );
 }
@@ -108,19 +122,22 @@ fn ffi_ui_handle_intent_stream_finish_marks_message_not_streaming() {
 #[test]
 fn ffi_ui_handle_intent_plan_questions_raise_epoch_and_open_panel() {
     let runtime = load_runtime();
-    let response = call_intent(&runtime, MainChatUiIntentRequest {
-        schema_version: 1,
-        intent: "plan_receive_clarification_questions".to_string(),
-        state: base_ui_state(),
-        conversation_id: Some("conv-1".to_string()),
-        turn_id: None,
-        artifact_id: None,
-        text: Some("## Questions\n- Which phase should move first?".to_string()),
-        timestamp: Some(2.0),
-        pipeline_event: None,
-        pipeline_events: Vec::new(),
-        payload: Default::default(),
-    });
+    let response = call_intent(
+        &runtime,
+        MainChatUiIntentRequest {
+            schema_version: 1,
+            intent: "plan_receive_clarification_questions".to_string(),
+            state: base_ui_state(),
+            conversation_id: Some("conv-1".to_string()),
+            turn_id: None,
+            artifact_id: None,
+            text: Some("## Questions\n- Which phase should move first?".to_string()),
+            timestamp: Some(2.0),
+            pipeline_event: None,
+            pipeline_events: Vec::new(),
+            payload: Default::default(),
+        },
+    );
     let state = response.state.expect("state");
     let snapshot = response.snapshot.expect("snapshot");
     assert!(state.plan_panel_visible);
@@ -134,31 +151,34 @@ fn ffi_ui_handle_intent_plan_questions_raise_epoch_and_open_panel() {
 #[test]
 fn ffi_ui_handle_intent_pipeline_apply_event_updates_store_snapshot() {
     let runtime = load_runtime();
-    let response = call_intent(&runtime, MainChatUiIntentRequest {
-        schema_version: 1,
-        intent: "pipeline_apply_event".to_string(),
-        state: base_ui_state(),
-        conversation_id: Some("conv-1".to_string()),
-        turn_id: None,
-        artifact_id: None,
-        text: None,
-        timestamp: Some(2.0),
-        pipeline_event: Some(MainChatEvent {
-            id: "pipeline-1".to_string(),
-            conversation_id: "conv-1".to_string(),
-            assistant_message_id: "msg-1".to_string(),
-            turn_id: "turn-1".to_string(),
-            sequence: 2,
-            source: "pipeline".to_string(),
-            kind: MainChatEventKind::TextReplace,
-            payload: [("replacement".to_string(), "Pipeline text".to_string())]
-                .into_iter()
-                .collect(),
-            timestamp: 2.0,
-        }),
-        pipeline_events: Vec::new(),
-        payload: Default::default(),
-    });
+    let response = call_intent(
+        &runtime,
+        MainChatUiIntentRequest {
+            schema_version: 1,
+            intent: "pipeline_apply_event".to_string(),
+            state: base_ui_state(),
+            conversation_id: Some("conv-1".to_string()),
+            turn_id: None,
+            artifact_id: None,
+            text: None,
+            timestamp: Some(2.0),
+            pipeline_event: Some(MainChatEvent {
+                id: "pipeline-1".to_string(),
+                conversation_id: "conv-1".to_string(),
+                assistant_message_id: "msg-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                sequence: 2,
+                source: "pipeline".to_string(),
+                kind: MainChatEventKind::TextReplace,
+                payload: [("replacement".to_string(), "Pipeline text".to_string())]
+                    .into_iter()
+                    .collect(),
+                timestamp: 2.0,
+            }),
+            pipeline_events: Vec::new(),
+            payload: Default::default(),
+        },
+    );
     let state = response.state.expect("state");
     assert_eq!(
         state.store_snapshot.conversations[0].messages[0]
@@ -171,52 +191,70 @@ fn ffi_ui_handle_intent_pipeline_apply_event_updates_store_snapshot() {
 #[test]
 fn ffi_ui_handle_intent_auto_todo_begin_and_discard_emit_patches() {
     let runtime = load_runtime();
-    let begin = call_intent(&runtime, MainChatUiIntentRequest {
-        schema_version: 1,
-        intent: "auto_todo_begin_runtime".to_string(),
-        state: base_ui_state(),
-        conversation_id: Some("conv-1".to_string()),
-        turn_id: None,
-        artifact_id: None,
-        text: None,
-        timestamp: Some(2.0),
-        pipeline_event: None,
-        pipeline_events: Vec::new(),
-        payload: [
-            ("assistant_message_id".to_string(), "00000000-0000-0000-0000-000000000002".to_string()),
-            ("provider_id".to_string(), "codex-cli".to_string()),
-            ("path".to_string(), "Sources/App.swift".to_string()),
-        ]
-        .into_iter()
-        .collect(),
-    });
+    let begin = call_intent(
+        &runtime,
+        MainChatUiIntentRequest {
+            schema_version: 1,
+            intent: "auto_todo_begin_runtime".to_string(),
+            state: base_ui_state(),
+            conversation_id: Some("conv-1".to_string()),
+            turn_id: None,
+            artifact_id: None,
+            text: None,
+            timestamp: Some(2.0),
+            pipeline_event: None,
+            pipeline_events: Vec::new(),
+            payload: [
+                (
+                    "assistant_message_id".to_string(),
+                    "00000000-0000-0000-0000-000000000002".to_string(),
+                ),
+                ("provider_id".to_string(), "codex-cli".to_string()),
+                ("path".to_string(), "Sources/App.swift".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        },
+    );
     assert_eq!(begin.todo_patches.len(), 1);
-    assert_eq!(begin.todo_patches[0].title.as_deref(), Some("Complete changes on App.swift"));
+    assert_eq!(
+        begin.todo_patches[0].title.as_deref(),
+        Some("Complete changes on App.swift")
+    );
     assert!(begin.todo_patches[0].is_operational_placeholder);
 
-    let discard = call_intent(&runtime, MainChatUiIntentRequest {
-        schema_version: 1,
-        intent: "auto_todo_discard_runtime".to_string(),
-        state: begin.state.expect("state"),
-        conversation_id: Some("conv-1".to_string()),
-        turn_id: None,
-        artifact_id: None,
-        text: None,
-        timestamp: Some(3.0),
-        pipeline_event: None,
-        pipeline_events: Vec::new(),
-        payload: [
-            ("assistant_message_id".to_string(), "00000000-0000-0000-0000-000000000002".to_string()),
-            ("provider_id".to_string(), "codex-cli".to_string()),
-        ]
-        .into_iter()
-        .collect(),
-    });
+    let discard = call_intent(
+        &runtime,
+        MainChatUiIntentRequest {
+            schema_version: 1,
+            intent: "auto_todo_discard_runtime".to_string(),
+            state: begin.state.expect("state"),
+            conversation_id: Some("conv-1".to_string()),
+            turn_id: None,
+            artifact_id: None,
+            text: None,
+            timestamp: Some(3.0),
+            pipeline_event: None,
+            pipeline_events: Vec::new(),
+            payload: [
+                (
+                    "assistant_message_id".to_string(),
+                    "00000000-0000-0000-0000-000000000002".to_string(),
+                ),
+                ("provider_id".to_string(), "codex-cli".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        },
+    );
     assert_eq!(discard.todo_patches.len(), 2);
     assert!(discard.todo_patches[0].is_operational_placeholder);
 }
 
-fn call_project(runtime: &LoadedRuntime, request: MainChatUiProjectRequest) -> MainChatUiProjectResponse {
+fn call_project(
+    runtime: &LoadedRuntime,
+    request: MainChatUiProjectRequest,
+) -> MainChatUiProjectResponse {
     let raw_request = CString::new(serde_json::to_string(&request).expect("encode request"))
         .expect("request cstring");
     let raw_response = unsafe { (runtime.project_ui)(raw_request.as_ptr()) };
@@ -224,7 +262,10 @@ fn call_project(runtime: &LoadedRuntime, request: MainChatUiProjectRequest) -> M
     serde_json::from_str(&encoded).expect("decode project response")
 }
 
-fn call_intent(runtime: &LoadedRuntime, request: MainChatUiIntentRequest) -> MainChatUiIntentResponse {
+fn call_intent(
+    runtime: &LoadedRuntime,
+    request: MainChatUiIntentRequest,
+) -> MainChatUiIntentResponse {
     let raw_request = CString::new(serde_json::to_string(&request).expect("encode request"))
         .expect("request cstring");
     let raw_response = unsafe { (runtime.handle_intent)(raw_request.as_ptr()) };
@@ -232,10 +273,7 @@ fn call_intent(runtime: &LoadedRuntime, request: MainChatUiIntentRequest) -> Mai
     serde_json::from_str(&encoded).expect("decode intent response")
 }
 
-fn decode_raw_response(
-    raw_response: *mut c_char,
-    free: FreeFunction,
-) -> String {
+fn decode_raw_response(raw_response: *mut c_char, free: FreeFunction) -> String {
     assert!(!raw_response.is_null(), "ui runtime returned null");
     let encoded = unsafe { CStr::from_ptr(raw_response) }
         .to_str()
@@ -263,7 +301,12 @@ fn load_runtime() -> LoadedRuntime {
 fn load_symbol<T>(handle: *mut c_void, symbol: &str) -> T {
     let symbol = CString::new(symbol).expect("symbol cstring");
     let raw = unsafe { dlsym(handle, symbol.as_ptr()) };
-    assert!(!raw.is_null(), "dlsym failed for {}: {}", symbol.to_string_lossy(), last_dlerror());
+    assert!(
+        !raw.is_null(),
+        "dlsym failed for {}: {}",
+        symbol.to_string_lossy(),
+        last_dlerror()
+    );
     unsafe { std::mem::transmute_copy(&raw) }
 }
 
@@ -283,7 +326,9 @@ fn last_dlerror() -> String {
     if ptr.is_null() {
         "unknown dlerror".to_string()
     } else {
-        unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned()
+        unsafe { CStr::from_ptr(ptr) }
+            .to_string_lossy()
+            .into_owned()
     }
 }
 
@@ -334,7 +379,9 @@ fn base_ui_state() -> MainChatUiState {
                 status: "streaming".to_string(),
                 is_streaming: true,
                 ordered_text_stream_ids: vec!["main".to_string()],
-                text_by_stream_id: [("main".to_string(), "Hello from Rust".to_string())].into_iter().collect(),
+                text_by_stream_id: [("main".to_string(), "Hello from Rust".to_string())]
+                    .into_iter()
+                    .collect(),
                 artifacts: vec![MainChatArtifact {
                     id: "artifact-1".to_string(),
                     kind: MainChatArtifactKind::Status,

@@ -4,10 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
-pub fn handle_action(
-    action: &str,
-    arguments: &BTreeMap<String, String>,
-) -> Result<String, String> {
+pub fn handle_action(action: &str, arguments: &BTreeMap<String, String>) -> Result<String, String> {
     match action {
         "todo_read" => Ok(read_todos_text()),
         "todo_write" => write_todos(arguments),
@@ -52,9 +49,15 @@ pub fn read_todos_text() -> String {
         } else {
             format!(" [files: {}]", files.join(", "))
         };
-        lines.push(format!("{icon} {title}{form_suffix} ({priority}){files_suffix}"));
+        lines.push(format!(
+            "{icon} {title}{form_suffix} ({priority}){files_suffix}"
+        ));
     }
-    lines.push(format!("--- {} total, {} done ---", todos.len(), done_count));
+    lines.push(format!(
+        "--- {} total, {} done ---",
+        todos.len(),
+        done_count
+    ));
     lines.join("\n")
 }
 
@@ -100,7 +103,9 @@ pub fn write_todos(arguments: &BTreeMap<String, String>) -> Result<String, Strin
 
 pub fn read_todos() -> Vec<Value> {
     let path = todos_file_path();
-    let Ok(data) = fs::read(path) else { return Vec::new() };
+    let Ok(data) = fs::read(path) else {
+        return Vec::new();
+    };
     let parsed = serde_json::from_slice::<Vec<Value>>(&data).unwrap_or_default();
     canonicalized_todos(parsed, "agent")
 }
@@ -122,7 +127,9 @@ fn canonicalized_todos(items: Vec<Value>, default_source: &str) -> Vec<Value> {
 
     for raw in items {
         let has_provided_id = provided_todo_id(&raw).is_some();
-        let Some(mut item) = canonical_todo(&raw, default_source) else { continue };
+        let Some(mut item) = canonical_todo(&raw, default_source) else {
+            continue;
+        };
         let id = string_field(&item, "id")
             .map(ToString::to_string)
             .unwrap_or_else(new_id);
@@ -260,15 +267,13 @@ fn merge_todo_fields(mut target: Value, incoming: Value) -> Value {
     }
     if let Some(created_at) = string_field(&incoming, "createdAt") {
         target["createdAt"] = Value::String(
-            normalize_timestamp(Some(created_at))
-                .unwrap_or_else(|| created_at.to_string()),
+            normalize_timestamp(Some(created_at)).unwrap_or_else(|| created_at.to_string()),
         );
     } else if target.get("createdAt").is_none() {
         target["createdAt"] = Value::String(iso_now());
     }
     target["updatedAt"] = Value::String(
-        normalize_timestamp(string_field(&incoming, "updatedAt"))
-            .unwrap_or_else(iso_now),
+        normalize_timestamp(string_field(&incoming, "updatedAt")).unwrap_or_else(iso_now),
     );
     target
 }
@@ -289,7 +294,8 @@ fn parse_string_array(raw: Option<&str>) -> Option<Vec<String>> {
         }
         let parsed = serde_json::from_str::<Value>(trimmed).ok()?;
         parsed.as_array().map(|items| {
-            items.iter()
+            items
+                .iter()
                 .filter_map(Value::as_str)
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
@@ -358,7 +364,10 @@ fn string_arg(arguments: &BTreeMap<String, String>, key: &str) -> String {
 
 fn new_id() -> String {
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
     let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
     format!("todo-{nanos}-{sequence}")
 }

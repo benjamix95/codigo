@@ -1,4 +1,3 @@
-coderide_activate_debug_mode
 coderide_activate_plan_mode
 coderide_audit_bug_api_contracts
 coderide_audit_bug_concurrency
@@ -38,21 +37,6 @@ coderide_bughunter_status
 coderide_bughunter_uninstall_hook
 coderide_codebase_search
 coderide_create_file
-coderide_debug_clean
-coderide_debug_context
-coderide_debug_hypothesize
-coderide_debug_instrument
-coderide_debug_log
-coderide_debug_mark
-coderide_debug_query
-coderide_debug_request_user
-coderide_debug_resolve
-coderide_debug_session
-coderide_debug_set_phase
-coderide_debug_snapshot
-coderide_debug_test_check
-coderide_debug_timeline
-coderide_debug_trace_analyze
 coderide_diagnostics
 coderide_file_outline
 coderide_find_files
@@ -118,7 +102,6 @@ coderide_skill
 coderide_str_replace
 coderide_subagent_bugHunter
 coderide_subagent_coder
-coderide_subagent_debugger
 coderide_subagent_docWriter
 coderide_subagent_explorer
 coderide_subagent_reviewer

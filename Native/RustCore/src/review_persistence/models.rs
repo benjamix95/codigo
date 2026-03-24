@@ -66,7 +66,9 @@ pub fn normalize_json_array_payload<T: serde::de::DeserializeOwned + serde::Seri
     }
 }
 
-pub fn build_index_response(request: ReviewPersistenceIndexRequest) -> ReviewPersistenceIndexResponse {
+pub fn build_index_response(
+    request: ReviewPersistenceIndexRequest,
+) -> ReviewPersistenceIndexResponse {
     let response: ReviewMCPIndexResponse = build_review_index(ReviewMCPIndexRequest {
         schema_version: request.schema_version,
         review_snapshots: request.review_snapshots,

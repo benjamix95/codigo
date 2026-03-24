@@ -48,24 +48,44 @@ pub fn reduce_tests_callback(
     request: ReviewRuntimeTestsReductionRequest,
 ) -> ReviewRuntimeReductionResponse {
     if request.schema_version != 1 {
-        return ReviewRuntimeReductionResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return ReviewRuntimeReductionResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     let request_detail = request.detail.clone();
     let result = request.result.as_str();
     let (test_status, event_type, detail) = match result {
-        "passed" => ("passed", "tests_passed", request_detail.clone().unwrap_or_else(|| "Tests passed".to_string())),
-        "failed" => ("failed", "tests_failed", request_detail.clone().unwrap_or_else(|| "Tests failed".to_string())),
+        "passed" => (
+            "passed",
+            "tests_passed",
+            request_detail
+                .clone()
+                .unwrap_or_else(|| "Tests passed".to_string()),
+        ),
+        "failed" => (
+            "failed",
+            "tests_failed",
+            request_detail
+                .clone()
+                .unwrap_or_else(|| "Tests failed".to_string()),
+        ),
         "inconclusive" => (
             "inconclusive",
             "tests_failed",
-            request_detail.clone().unwrap_or_else(|| "Tests inconclusive".to_string()),
+            request_detail
+                .clone()
+                .unwrap_or_else(|| "Tests inconclusive".to_string()),
         ),
-        _ => return ReviewRuntimeReductionResponse::error("unsupported_result", "Unsupported test result kind"),
+        _ => {
+            return ReviewRuntimeReductionResponse::error(
+                "unsupported_result",
+                "Unsupported test result kind",
+            )
+        }
     };
     let detail_value = if test_status == "inconclusive" {
-        request_detail
-            .map(Value::String)
-            .unwrap_or(Value::Null)
+        request_detail.map(Value::String).unwrap_or(Value::Null)
     } else {
         Value::Null
     };
@@ -82,7 +102,10 @@ pub fn reduce_prepare_verified_patches_callback(
     request: ReviewRuntimePatchReductionRequest,
 ) -> ReviewRuntimeReductionResponse {
     if request.schema_version != 1 {
-        return ReviewRuntimeReductionResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return ReviewRuntimeReductionResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     let current_events = request
         .current_snapshot
@@ -102,7 +125,10 @@ pub fn reduce_prepare_verified_patches_callback(
             "Updated snapshot has fewer events than the current snapshot",
         );
     }
-    let delta_events = updated_events.into_iter().skip(current_events.len()).collect::<Vec<_>>();
+    let delta_events = updated_events
+        .into_iter()
+        .skip(current_events.len())
+        .collect::<Vec<_>>();
     let callback = json!({
         "kind": "prepare_verified_patches",
         "findings": request.updated_snapshot.get("findings").cloned().unwrap_or_else(|| json!([])),
@@ -152,20 +178,22 @@ mod tests {
 
     #[test]
     fn reduce_patch_callback_returns_delta_events_only() {
-        let response = reduce_prepare_verified_patches_callback(ReviewRuntimePatchReductionRequest {
-            schema_version: 1,
-            current_snapshot: json!({
-                "events": [{"id":"old","type":"analysis_completed","timestamp":1.0,"detail":"old","metadata":{}}]
-            }),
-            updated_snapshot: json!({
-                "findings": [{"id":"finding-1"}],
-                "patches": [{"id":"patch-1"}],
-                "events": [
-                    {"id":"old","type":"analysis_completed","timestamp":1.0,"detail":"old","metadata":{}},
-                    {"id":"new","type":"patch_prepared","timestamp":2.0,"detail":"new","metadata":{}}
-                ]
-            }),
-        });
+        let response = reduce_prepare_verified_patches_callback(
+            ReviewRuntimePatchReductionRequest {
+                schema_version: 1,
+                current_snapshot: json!({
+                    "events": [{"id":"old","type":"analysis_completed","timestamp":1.0,"detail":"old","metadata":{}}]
+                }),
+                updated_snapshot: json!({
+                    "findings": [{"id":"finding-1"}],
+                    "patches": [{"id":"patch-1"}],
+                    "events": [
+                        {"id":"old","type":"analysis_completed","timestamp":1.0,"detail":"old","metadata":{}},
+                        {"id":"new","type":"patch_prepared","timestamp":2.0,"detail":"new","metadata":{}}
+                    ]
+                }),
+            },
+        );
         let callback = response.callback.unwrap();
         assert_eq!(callback["events"].as_array().unwrap().len(), 1);
         assert_eq!(callback["events"][0]["id"].as_str(), Some("new"));

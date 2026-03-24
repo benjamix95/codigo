@@ -14,7 +14,8 @@ pub fn build_replay_report(envelope: &Value, checkpoint_source: &str) -> Result<
         .get("traceLog")
         .and_then(Value::as_array)
         .map(|items| {
-            items.iter()
+            items
+                .iter()
                 .filter_map(Value::as_str)
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()

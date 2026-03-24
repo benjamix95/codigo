@@ -9,7 +9,10 @@ use std::path::PathBuf;
 
 #[test]
 fn normalizes_codex_tool_names() {
-    assert_eq!(normalize_tool_name("planRequestUserInput"), "plan_request_user_input");
+    assert_eq!(
+        normalize_tool_name("planRequestUserInput"),
+        "plan_request_user_input"
+    );
     assert_eq!(normalize_tool_name("mermaidRender"), "mermaid_render");
 }
 
@@ -20,7 +23,8 @@ fn resolves_codex_executable_from_account_override_before_config() {
     let detected_path = temp_file("detected-codex");
     let config = provider_config(Some(&config_path));
     let account = cli_account(Some(&account_path));
-    let resolved = resolve_codex_executable_with(Some(&account), &config, || Some(detected_path.clone()));
+    let resolved =
+        resolve_codex_executable_with(Some(&account), &config, || Some(detected_path.clone()));
     assert_eq!(resolved.as_deref(), Ok(account_path.as_str()));
 }
 
@@ -30,7 +34,8 @@ fn resolves_codex_executable_from_config_when_override_is_invalid() {
     let detected_path = temp_file("detected-codex");
     let config = provider_config(Some(&config_path));
     let account = cli_account(Some("/tmp/missing-codex"));
-    let resolved = resolve_codex_executable_with(Some(&account), &config, || Some(detected_path.clone()));
+    let resolved =
+        resolve_codex_executable_with(Some(&account), &config, || Some(detected_path.clone()));
     assert_eq!(resolved.as_deref(), Ok(config_path.as_str()));
 }
 
@@ -45,7 +50,8 @@ fn resolves_codex_executable_from_detector_when_other_sources_missing() {
 #[test]
 fn returns_missing_codex_path_when_no_source_is_valid() {
     let config = provider_config(None);
-    let resolved = resolve_codex_executable_with(None, &config, || Some("/tmp/missing-codex".to_string()));
+    let resolved =
+        resolve_codex_executable_with(None, &config, || Some("/tmp/missing-codex".to_string()));
     assert_eq!(resolved.unwrap_err(), "missing_codex_path");
 }
 

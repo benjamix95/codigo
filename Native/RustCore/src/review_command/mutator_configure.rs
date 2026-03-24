@@ -1,6 +1,6 @@
 use super::config::resolve_config_from_payload;
-use super::mutator_support::event_with_reference_timestamp;
 use super::models::{ReviewCommandConfig, ReviewCommandMutationResponse};
+use super::mutator_support::event_with_reference_timestamp;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 

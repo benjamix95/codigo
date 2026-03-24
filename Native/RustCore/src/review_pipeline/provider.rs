@@ -130,7 +130,8 @@ pub fn plan_step(request: ReviewProviderPlanRequest) -> ReviewProviderPlanRespon
             let reference = request.against_ref.unwrap_or_default();
             let mut response = ReviewProviderPlanResponse::success();
             response.normalized_against_ref_input = Some(normalized_against_ref_input(&reference));
-            response.normalized_against_ref_revision = Some(normalized_against_ref_revision(&reference));
+            response.normalized_against_ref_revision =
+                Some(normalized_against_ref_revision(&reference));
             response
         }
         "parse_tasks_json" => {
@@ -168,13 +169,19 @@ pub fn plan_step(request: ReviewProviderPlanRequest) -> ReviewProviderPlanRespon
                 max_workers,
             ))
         }
-        _ => ReviewProviderPlanResponse::error("unsupported_operation", "Unsupported provider plan operation"),
+        _ => ReviewProviderPlanResponse::error(
+            "unsupported_operation",
+            "Unsupported provider plan operation",
+        ),
     }
 }
 
 pub fn reduce_event(request: ReviewProviderReduceRequest) -> ReviewProviderReduceResponse {
     if request.schema_version != 1 {
-        return ReviewProviderReduceResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return ReviewProviderReduceResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
     match request.operation.as_str() {
         "classify_review_outcome" => {
@@ -190,7 +197,10 @@ pub fn reduce_event(request: ReviewProviderReduceRequest) -> ReviewProviderReduc
             }
             response
         }
-        _ => ReviewProviderReduceResponse::error("unsupported_operation", "Unsupported provider reduce operation"),
+        _ => ReviewProviderReduceResponse::error(
+            "unsupported_operation",
+            "Unsupported provider reduce operation",
+        ),
     }
 }
 

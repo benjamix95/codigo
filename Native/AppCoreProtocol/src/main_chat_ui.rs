@@ -1,6 +1,7 @@
 use crate::main_chat::MainChatEvent;
 use crate::main_chat_runtime::{
-    MainChatPlanPhase, MainChatPlanningStateKind, MainChatPlanQuestionnaire, MainChatRuntimeSnapshot,
+    MainChatPlanPhase, MainChatPlanQuestionnaire, MainChatPlanningStateKind,
+    MainChatRuntimeSnapshot,
 };
 use crate::main_chat_store::{
     MainChatStoreSnapshot, MainChatStoreSubagentCardSnapshot, MainChatStoreTimelineBlockSnapshot,
@@ -260,7 +261,11 @@ pub struct MainChatUiIntentResponse {
 
 impl MainChatUiProjectResponse {
     pub fn success(snapshot: MainChatUiSnapshot) -> Self {
-        Self { schema_version: 1, error: None, snapshot: Some(snapshot) }
+        Self {
+            schema_version: 1,
+            error: None,
+            snapshot: Some(snapshot),
+        }
     }
 
     pub fn error(code: &str, message: &str) -> Self {

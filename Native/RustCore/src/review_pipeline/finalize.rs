@@ -7,7 +7,12 @@ pub fn publish_ready_finding_ids(snapshot: &ReviewPipelineSnapshot) -> HashSet<S
     let patches_by_finding = snapshot
         .patches
         .iter()
-        .filter_map(|patch| patch.get("findingId").and_then(Value::as_str).map(|id| (id.to_string(), patch)))
+        .filter_map(|patch| {
+            patch
+                .get("findingId")
+                .and_then(Value::as_str)
+                .map(|id| (id.to_string(), patch))
+        })
         .collect::<HashMap<_, _>>();
 
     snapshot
@@ -22,7 +27,9 @@ pub fn publish_ready_finding_ids(snapshot: &ReviewPipelineSnapshot) -> HashSet<S
             let patch = patches_by_finding.get(finding_id)?;
             let patch_status = patch.get("status").and_then(Value::as_str)?;
             let verify_status = patch.get("verifyStatus").and_then(Value::as_str)?;
-            if patch.get("id").and_then(Value::as_str) != Some(patch_id) || verify_status != "verified" {
+            if patch.get("id").and_then(Value::as_str) != Some(patch_id)
+                || verify_status != "verified"
+            {
                 return None;
             }
             matches!(patch_status, "verified" | "applied" | "prOpened" | "merged")
@@ -42,7 +49,9 @@ pub fn patchable_verified_finding_ids(snapshot: &ReviewPipelineSnapshot) -> Vec<
             if publish_ready.contains(finding_id) {
                 return None;
             }
-            if (!verified_ids.is_empty() && !verified_ids.contains(finding_id)) || !is_verified_finding(finding) {
+            if (!verified_ids.is_empty() && !verified_ids.contains(finding_id))
+                || !is_verified_finding(finding)
+            {
                 return None;
             }
             Some(finding_id.to_string())
@@ -65,5 +74,8 @@ fn verified_queue_ids(snapshot: &ReviewPipelineSnapshot) -> HashSet<String> {
 
 fn is_verified_finding(finding: &Value) -> bool {
     !finding.get("verifiedAt").unwrap_or(&Value::Null).is_null()
-        || !finding.get("verificationReport").unwrap_or(&Value::Null).is_null()
+        || !finding
+            .get("verificationReport")
+            .unwrap_or(&Value::Null)
+            .is_null()
 }

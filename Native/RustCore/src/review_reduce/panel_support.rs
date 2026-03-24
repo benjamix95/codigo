@@ -6,10 +6,24 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashSet};
 
 pub fn build_phase_ledger(snapshot: &Value, current_phase: &str) -> Vec<Value> {
-    let file_count = snapshot.pointer("/scope/files").and_then(Value::as_array).map(|items| items.len()).unwrap_or(0);
-    let worker_count = snapshot.get("activeWorkerCount").and_then(Value::as_i64).unwrap_or(0);
-    let findings_count = snapshot.get("findings").and_then(Value::as_array).map(|items| items.len()).unwrap_or(0);
-    let terminal = matches!(get_str(snapshot, "phase"), Some("completed") | Some("failed")) && current_phase == COMPLETED;
+    let file_count = snapshot
+        .pointer("/scope/files")
+        .and_then(Value::as_array)
+        .map(|items| items.len())
+        .unwrap_or(0);
+    let worker_count = snapshot
+        .get("activeWorkerCount")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let findings_count = snapshot
+        .get("findings")
+        .and_then(Value::as_array)
+        .map(|items| items.len())
+        .unwrap_or(0);
+    let terminal = matches!(
+        get_str(snapshot, "phase"),
+        Some("completed") | Some("failed")
+    ) && current_phase == COMPLETED;
     [DISCOVERY, AUDIT, VERIFICATION, PATCH_PREPARATION, PUBLISH_READY, COMPLETED]
         .iter()
         .map(|phase_id| {
@@ -28,30 +42,48 @@ pub fn build_phase_ledger(snapshot: &Value, current_phase: &str) -> Vec<Value> {
         .collect()
 }
 
-pub fn build_file_ledger(snapshot: &Value, findings: &[Value], candidates: &[Value], patches: &[Value]) -> Vec<Value> {
+pub fn build_file_ledger(
+    snapshot: &Value,
+    findings: &[Value],
+    candidates: &[Value],
+    patches: &[Value],
+) -> Vec<Value> {
     let mut seed: BTreeMap<String, (Vec<String>, Vec<String>)> = BTreeMap::new();
     if let Some(existing) = snapshot.get("fileLedger").and_then(Value::as_array) {
         for item in existing {
-            let Some(path) = get_str(item, "path") else { continue };
-            let workers = item.get("workerIds").and_then(Value::as_array).map(|values| values_to_strings(values)).unwrap_or_default();
-            let tools = item.get("toolIds").and_then(Value::as_array).map(|values| values_to_strings(values)).unwrap_or_default();
+            let Some(path) = get_str(item, "path") else {
+                continue;
+            };
+            let workers = item
+                .get("workerIds")
+                .and_then(Value::as_array)
+                .map(|values| values_to_strings(values))
+                .unwrap_or_default();
+            let tools = item
+                .get("toolIds")
+                .and_then(Value::as_array)
+                .map(|values| values_to_strings(values))
+                .unwrap_or_default();
             seed.insert(path.to_string(), (workers, tools));
         }
     }
     if let Some(scope_files) = snapshot.pointer("/scope/files").and_then(Value::as_array) {
         for path in scope_files.iter().filter_map(Value::as_str) {
-            seed.entry(path.to_string()).or_insert_with(|| (Vec::new(), Vec::new()));
+            seed.entry(path.to_string())
+                .or_insert_with(|| (Vec::new(), Vec::new()));
         }
     }
     for item in findings.iter().chain(candidates.iter()) {
         if let Some(path) = get_str(item, "filePath") {
-            seed.entry(path.to_string()).or_insert_with(|| (Vec::new(), Vec::new()));
+            seed.entry(path.to_string())
+                .or_insert_with(|| (Vec::new(), Vec::new()));
         }
     }
     for patch in patches {
         if let Some(files) = patch.get("touchedFiles").and_then(Value::as_array) {
             for path in files.iter().filter_map(Value::as_str) {
-                seed.entry(path.to_string()).or_insert_with(|| (Vec::new(), Vec::new()));
+                seed.entry(path.to_string())
+                    .or_insert_with(|| (Vec::new(), Vec::new()));
             }
         }
     }
@@ -89,8 +121,16 @@ pub fn build_file_ledger(snapshot: &Value, findings: &[Value], candidates: &[Val
 }
 
 pub fn tool_executions(snapshot: &Value, pipeline_phase: &str) -> Vec<Value> {
-    let coverage = snapshot.pointer("/audit/toolCoverage").and_then(Value::as_object).cloned().unwrap_or_default();
-    let findings_counts = snapshot.pointer("/audit/toolFindingsCounts").and_then(Value::as_object).cloned().unwrap_or_default();
+    let coverage = snapshot
+        .pointer("/audit/toolCoverage")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let findings_counts = snapshot
+        .pointer("/audit/toolFindingsCounts")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
     if !coverage.is_empty() {
         return coverage
             .keys()
@@ -117,8 +157,18 @@ pub fn tool_executions(snapshot: &Value, pipeline_phase: &str) -> Vec<Value> {
 }
 
 pub fn bundle_modes(snapshot: &Value) -> Vec<String> {
-    if snapshot.get("startedAt").is_some() || !snapshot.get("events").and_then(Value::as_array).unwrap_or(&Vec::new()).is_empty() {
-        vec!["standard".to_string(), "bugFinder".to_string(), "securityAudit".to_string()]
+    if snapshot.get("startedAt").is_some()
+        || !snapshot
+            .get("events")
+            .and_then(Value::as_array)
+            .unwrap_or(&Vec::new())
+            .is_empty()
+    {
+        vec![
+            "standard".to_string(),
+            "bugFinder".to_string(),
+            "securityAudit".to_string(),
+        ]
     } else {
         Vec::new()
     }
@@ -127,8 +177,12 @@ pub fn bundle_modes(snapshot: &Value) -> Vec<String> {
 pub fn severity_counts(findings: &[Value], ids: &HashSet<String>) -> BTreeMap<String, i64> {
     let mut out = BTreeMap::new();
     for finding in findings {
-        let Some(id) = get_str(finding, "id") else { continue };
-        let Some(severity) = get_str(finding, "severity") else { continue };
+        let Some(id) = get_str(finding, "id") else {
+            continue;
+        };
+        let Some(severity) = get_str(finding, "severity") else {
+            continue;
+        };
         if ids.contains(id) {
             *out.entry(severity.to_string()).or_insert(0) += 1;
         }
@@ -143,31 +197,65 @@ pub fn sorted_ids(ids: &HashSet<String>, findings: &[Value]) -> Vec<String> {
 }
 
 fn compare_finding(lhs: &str, rhs: &str, findings: &[Value]) -> std::cmp::Ordering {
-    let left = findings.iter().find(|finding| get_str(finding, "id") == Some(lhs));
-    let right = findings.iter().find(|finding| get_str(finding, "id") == Some(rhs));
-    let left_rank = left.and_then(|finding| severity_rank(get_str(finding, "severity"))).unwrap_or(99);
-    let right_rank = right.and_then(|finding| severity_rank(get_str(finding, "severity"))).unwrap_or(99);
+    let left = findings
+        .iter()
+        .find(|finding| get_str(finding, "id") == Some(lhs));
+    let right = findings
+        .iter()
+        .find(|finding| get_str(finding, "id") == Some(rhs));
+    let left_rank = left
+        .and_then(|finding| severity_rank(get_str(finding, "severity")))
+        .unwrap_or(99);
+    let right_rank = right
+        .and_then(|finding| severity_rank(get_str(finding, "severity")))
+        .unwrap_or(99);
     left_rank
         .cmp(&right_rank)
-        .then_with(|| left.and_then(|finding| get_str(finding, "filePath")).unwrap_or("").cmp(right.and_then(|finding| get_str(finding, "filePath")).unwrap_or("")))
-        .then_with(|| left.and_then(|finding| get_i64(finding, "lineNumber")).unwrap_or(0).cmp(&right.and_then(|finding| get_i64(finding, "lineNumber")).unwrap_or(0)))
+        .then_with(|| {
+            left.and_then(|finding| get_str(finding, "filePath"))
+                .unwrap_or("")
+                .cmp(
+                    right
+                        .and_then(|finding| get_str(finding, "filePath"))
+                        .unwrap_or(""),
+                )
+        })
+        .then_with(|| {
+            left.and_then(|finding| get_i64(finding, "lineNumber"))
+                .unwrap_or(0)
+                .cmp(
+                    &right
+                        .and_then(|finding| get_i64(finding, "lineNumber"))
+                        .unwrap_or(0),
+                )
+        })
         .then_with(|| lhs.cmp(rhs))
 }
 
 fn count_by_file(items: &[Value], path: &str) -> i64 {
-    items.iter().filter(|item| get_str(item, "filePath") == Some(path)).count() as i64
+    items
+        .iter()
+        .filter(|item| get_str(item, "filePath") == Some(path))
+        .count() as i64
 }
 
 fn count_patch_ready(patches: &[Value], path: &str) -> i64 {
     patches
         .iter()
         .filter(|patch| {
-            matches!(get_str(patch, "status"), Some("verified") | Some("applied") | Some("prOpened") | Some("merged"))
-                && patch
-                    .get("touchedFiles")
-                    .and_then(Value::as_array)
-                    .map(|items| items.iter().filter_map(Value::as_str).any(|item| item == path))
-                    .unwrap_or(false)
+            matches!(
+                get_str(patch, "status"),
+                Some("verified") | Some("applied") | Some("prOpened") | Some("merged")
+            ) && patch
+                .get("touchedFiles")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .any(|item| item == path)
+                })
+                .unwrap_or(false)
         })
         .count() as i64
 }
@@ -219,5 +307,9 @@ fn severity_rank(severity: Option<&str>) -> Option<i64> {
 }
 
 fn values_to_strings(values: &[Value]) -> Vec<String> {
-    values.iter().filter_map(Value::as_str).map(ToString::to_string).collect()
+    values
+        .iter()
+        .filter_map(Value::as_str)
+        .map(ToString::to_string)
+        .collect()
 }

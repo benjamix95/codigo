@@ -56,7 +56,12 @@ pub fn resolve_thread_provider_selection(
     {
         preferred.clone()
     } else {
-        fallback_provider_id(mode, current.as_deref(), registry_selected.as_deref(), &request.registry_providers)
+        fallback_provider_id(
+            mode,
+            current.as_deref(),
+            registry_selected.as_deref(),
+            &request.registry_providers,
+        )
     };
 
     let missing_bound_provider_id = preferred
@@ -105,7 +110,10 @@ fn fallback_provider_id(
             {
                 return current.map(str::to_string);
             }
-            Some(preferred_ide_provider(registry_selected, registry_providers))
+            Some(preferred_ide_provider(
+                registry_selected,
+                registry_providers,
+            ))
         }
         "Agent" | "Code Review" | "Debug" | "Plan" | "Browser" => {
             if current
@@ -145,7 +153,10 @@ fn preferred_ide_provider(
     {
         return provider.id.clone();
     }
-    if registry_selected.filter(|provider| is_ide_provider(provider)).is_some() {
+    if registry_selected
+        .filter(|provider| is_ide_provider(provider))
+        .is_some()
+    {
         return registry_selected.unwrap_or("openai-api").to_string();
     }
     for provider in PREFERRED_IDE_PROVIDER_IDS {
@@ -153,7 +164,10 @@ fn preferred_ide_provider(
             return provider.to_string();
         }
     }
-    if let Some(provider) = registry_providers.iter().find(|provider| is_ide_provider(&provider.id)) {
+    if let Some(provider) = registry_providers
+        .iter()
+        .find(|provider| is_ide_provider(&provider.id))
+    {
         return provider.id.clone();
     }
     "openai-api".to_string()
@@ -186,7 +200,10 @@ fn provider_registered(provider: &str, registry_providers: &[ThreadProviderRegis
     registry_providers.iter().any(|entry| entry.id == provider)
 }
 
-fn provider_authenticated(provider: &str, registry_providers: &[ThreadProviderRegistryEntry]) -> bool {
+fn provider_authenticated(
+    provider: &str,
+    registry_providers: &[ThreadProviderRegistryEntry],
+) -> bool {
     registry_providers
         .iter()
         .find(|entry| entry.id == provider)
@@ -244,7 +261,10 @@ mod tests {
         let response = resolve_thread_provider_selection(ThreadProviderSelectionRequest {
             conversation_mode: Some("IDE".to_string()),
             registry_selected_provider_id: Some("anthropic-api".to_string()),
-            registry_providers: vec![provider("openai-api", false), provider("anthropic-api", true)],
+            registry_providers: vec![
+                provider("openai-api", false),
+                provider("anthropic-api", true),
+            ],
             ..request(None, Some("openai-api"), vec![])
         });
         assert_eq!(response.resolved_provider_id.as_deref(), Some("openai-api"));
@@ -257,7 +277,10 @@ mod tests {
             registry_providers: vec![provider("codex-cli", true)],
             ..request(None, None, vec![])
         });
-        assert_eq!(response.missing_bound_provider_id.as_deref(), Some("openrouter-api"));
+        assert_eq!(
+            response.missing_bound_provider_id.as_deref(),
+            Some("openrouter-api")
+        );
     }
 
     #[test]

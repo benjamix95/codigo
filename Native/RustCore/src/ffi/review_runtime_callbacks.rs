@@ -1,7 +1,8 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::review_pipeline::runtime_callbacks::{
-    reduce_prepare_verified_patches_callback, reduce_tests_callback, ReviewRuntimePatchReductionRequest,
-    ReviewRuntimeReductionResponse, ReviewRuntimeTestsReductionRequest,
+    reduce_prepare_verified_patches_callback, reduce_tests_callback,
+    ReviewRuntimePatchReductionRequest, ReviewRuntimeReductionResponse,
+    ReviewRuntimeTestsReductionRequest,
 };
 use std::os::raw::c_char;
 

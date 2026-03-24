@@ -15,9 +15,15 @@ pub enum ReviewFindingsState {
     Inconclusive(String),
 }
 
-pub fn parse_review_tasks(analysis_text: &str, files_to_review: &[String], max_workers: usize) -> TaskExtraction {
+pub fn parse_review_tasks(
+    analysis_text: &str,
+    files_to_review: &[String],
+    max_workers: usize,
+) -> TaskExtraction {
     let Some(json) = extract_review_tasks_json_payload(analysis_text) else {
-        return TaskExtraction::NoPayload("No JSON review task block found in analysis output.".to_string());
+        return TaskExtraction::NoPayload(
+            "No JSON review task block found in analysis output.".to_string(),
+        );
     };
     match extract_review_tasks_json(analysis_text, files_to_review) {
         Some(ExtractedReviewTasks::JsonTasks(tasks)) if tasks.is_empty() => TaskExtraction::NoFixes,
@@ -27,7 +33,9 @@ pub fn parse_review_tasks(analysis_text: &str, files_to_review: &[String], max_w
         Some(ExtractedReviewTasks::InvalidJson(message)) => TaskExtraction::InvalidJson(message),
         None => match parse_tasks_json(&json, files_to_review) {
             ParsedTasksResult::Tasks(tasks) if tasks.is_empty() => TaskExtraction::NoFixes,
-            ParsedTasksResult::Tasks(tasks) => TaskExtraction::Tasks(tasks.into_iter().take(max_workers).collect()),
+            ParsedTasksResult::Tasks(tasks) => {
+                TaskExtraction::Tasks(tasks.into_iter().take(max_workers).collect())
+            }
             ParsedTasksResult::InvalidJson(message) => TaskExtraction::InvalidJson(message),
         },
     }
@@ -65,7 +73,10 @@ fn extract_review_tasks_json_payload(text: &str) -> Option<String> {
     None
 }
 
-pub fn extract_review_tasks_json(text: &str, allowed_files: &[String]) -> Option<ExtractedReviewTasks> {
+pub fn extract_review_tasks_json(
+    text: &str,
+    allowed_files: &[String],
+) -> Option<ExtractedReviewTasks> {
     if let Some(start) = text.rfind("```json") {
         let rest = &text[start + 7..];
         if let Some(end) = rest.find("```") {
@@ -73,7 +84,9 @@ pub fn extract_review_tasks_json(text: &str, allowed_files: &[String]) -> Option
             if candidate.starts_with('[') && candidate.ends_with(']') {
                 return Some(match parse_tasks_json(candidate, allowed_files) {
                     ParsedTasksResult::Tasks(tasks) => ExtractedReviewTasks::JsonTasks(tasks),
-                    ParsedTasksResult::InvalidJson(message) => ExtractedReviewTasks::InvalidJson(message),
+                    ParsedTasksResult::InvalidJson(message) => {
+                        ExtractedReviewTasks::InvalidJson(message)
+                    }
                 });
             }
         }
@@ -97,9 +110,16 @@ pub fn extract_review_tasks_json(text: &str, allowed_files: &[String]) -> Option
 pub fn parse_tasks_json(json: &str, allowed_files: &[String]) -> ParsedTasksResult {
     let parsed: Vec<Value> = match serde_json::from_str(json) {
         Ok(parsed) => parsed,
-        Err(_) => return ParsedTasksResult::InvalidJson("Unable to parse task JSON block as an array.".to_string()),
+        Err(_) => {
+            return ParsedTasksResult::InvalidJson(
+                "Unable to parse task JSON block as an array.".to_string(),
+            )
+        }
     };
-    let allowed: HashSet<String> = allowed_files.iter().map(|file| normalize_file(file)).collect();
+    let allowed: HashSet<String> = allowed_files
+        .iter()
+        .map(|file| normalize_file(file))
+        .collect();
     let mut tasks = Vec::new();
     let mut claimed = HashSet::new();
     let mut used_ids = HashSet::new();
@@ -112,7 +132,11 @@ pub fn parse_tasks_json(json: &str, allowed_files: &[String]) -> ParsedTasksResu
                 continue;
             }
         };
-        let preferred_id = object.get("id").and_then(Value::as_str).unwrap_or("").trim();
+        let preferred_id = object
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
         let id = unique_id(preferred_id, index, &mut used_ids);
         let description = object
             .get("description")
@@ -123,12 +147,16 @@ pub fn parse_tasks_json(json: &str, allowed_files: &[String]) -> ParsedTasksResu
             .to_string();
         let files = deduped_files(
             object
-            .get("files")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items.iter().filter_map(Value::as_str).map(normalize_file).collect::<Vec<_>>()
-            })
-            .unwrap_or_default()
+                .get("files")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(normalize_file)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default(),
         );
         if files.is_empty() {
             invalid_entries += 1;
@@ -147,7 +175,10 @@ pub fn parse_tasks_json(json: &str, allowed_files: &[String]) -> ParsedTasksResu
             invalid_entries += 1;
             continue;
         }
-        let severity_raw = object.get("severity").and_then(Value::as_str).unwrap_or("warning");
+        let severity_raw = object
+            .get("severity")
+            .and_then(Value::as_str)
+            .unwrap_or("warning");
         let severity = match severity_raw.to_lowercase().as_str() {
             "critical" | "warning" | "suggestion" => severity_raw.to_lowercase(),
             _ => "warning".to_string(),
@@ -157,15 +188,45 @@ pub fn parse_tasks_json(json: &str, allowed_files: &[String]) -> ParsedTasksResu
             description,
             files: scoped_files,
             severity,
-            category: object.get("category").and_then(Value::as_str).map(|value| value.trim().to_string()).filter(|value| !value.is_empty()),
-            line_number: object.get("line").and_then(Value::as_i64).map(|value| value as i32),
-            end_line_number: object.get("end_line").and_then(Value::as_i64).map(|value| value as i32),
-            origin: object.get("origin").and_then(Value::as_str).unwrap_or("reviewer").to_string(),
+            category: object
+                .get("category")
+                .and_then(Value::as_str)
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            line_number: object
+                .get("line")
+                .and_then(Value::as_i64)
+                .map(|value| value as i32),
+            end_line_number: object
+                .get("end_line")
+                .and_then(Value::as_i64)
+                .map(|value| value as i32),
+            origin: object
+                .get("origin")
+                .and_then(Value::as_str)
+                .unwrap_or("reviewer")
+                .to_string(),
             confidence: object.get("confidence").and_then(Value::as_f64),
-            evidence: object.get("evidence").and_then(Value::as_str).map(|value| value.trim().to_string()).filter(|value| !value.is_empty()),
-            expected_invariant: object.get("expected_invariant").and_then(Value::as_str).map(|value| value.trim().to_string()).filter(|value| !value.is_empty()),
-            repro_or_reasoning: object.get("repro_or_reasoning").and_then(Value::as_str).map(|value| value.trim().to_string()).filter(|value| !value.is_empty()),
-            source_tool: object.get("source_tool").and_then(Value::as_str).map(|value| value.trim().to_string()).filter(|value| !value.is_empty()),
+            evidence: object
+                .get("evidence")
+                .and_then(Value::as_str)
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            expected_invariant: object
+                .get("expected_invariant")
+                .and_then(Value::as_str)
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            repro_or_reasoning: object
+                .get("repro_or_reasoning")
+                .and_then(Value::as_str)
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            source_tool: object
+                .get("source_tool")
+                .and_then(Value::as_str)
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
             blocking: object.get("blocking").and_then(Value::as_bool),
         });
     }
@@ -237,9 +298,11 @@ pub fn classify_review_outcome(text: &str) -> ReviewFindingsState {
     let has_clean_indicator = no_issues_indicators.iter().any(|item| lower.contains(item));
     let mut sorted_indicators = no_issues_indicators.to_vec();
     sorted_indicators.sort_by_key(|item| std::cmp::Reverse(item.len()));
-    let issue_scan_text = sorted_indicators.into_iter().fold(lower.clone(), |partial, phrase| {
-        partial.replace(phrase, " ")
-    });
+    let issue_scan_text = sorted_indicators
+        .into_iter()
+        .fold(lower.clone(), |partial, phrase| {
+            partial.replace(phrase, " ")
+        });
 
     let inconclusive_indicators = [
         "could not determine",
@@ -289,9 +352,15 @@ pub fn classify_review_outcome(text: &str) -> ReviewFindingsState {
         .iter()
         .any(|item| issue_scan_text.contains(item));
 
-    let has_word_boundary_issue_indicator = ["leak", "exception", "permission", "authorization", "authentication"]
-        .iter()
-        .any(|word| contains_word(&issue_scan_text, word));
+    let has_word_boundary_issue_indicator = [
+        "leak",
+        "exception",
+        "permission",
+        "authorization",
+        "authentication",
+    ]
+    .iter()
+    .any(|word| contains_word(&issue_scan_text, word));
     let has_weak_word_boundary_issue_indicator = ["bug", "warning", "error", "issue", "severity"]
         .iter()
         .any(|word| contains_word(&issue_scan_text, word));
@@ -317,9 +386,13 @@ pub fn classify_review_outcome(text: &str) -> ReviewFindingsState {
         return ReviewFindingsState::Clean;
     }
     if has_inconclusive_indicator {
-        return ReviewFindingsState::Inconclusive("Review text contained inconclusive language.".to_string());
+        return ReviewFindingsState::Inconclusive(
+            "Review text contained inconclusive language.".to_string(),
+        );
     }
-    ReviewFindingsState::Inconclusive("No robust issue indicators found in re-review output.".to_string())
+    ReviewFindingsState::Inconclusive(
+        "No robust issue indicators found in re-review output.".to_string(),
+    )
 }
 
 fn normalize_file(raw: &str) -> String {
@@ -419,7 +492,9 @@ mod tests {
             ReviewFindingsState::Issues
         ));
         assert!(matches!(
-            classify_review_outcome("The previous fix was applied correctly and no remaining issues were found."),
+            classify_review_outcome(
+                "The previous fix was applied correctly and no remaining issues were found."
+            ),
             ReviewFindingsState::Clean
         ));
     }

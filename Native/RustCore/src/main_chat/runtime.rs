@@ -92,11 +92,7 @@ pub fn handle_action(request: MainChatActionRequest) -> MainChatRuntimeResponse 
             schema_version: 1,
             state: request.state,
             timestamp: request.timestamp.unwrap_or(0.0),
-            status: Some(
-                request
-                    .status
-                    .unwrap_or_else(|| "cancelled".to_string()),
-            ),
+            status: Some(request.status.unwrap_or_else(|| "cancelled".to_string())),
             detail: request.detail,
             was_cancelled: true,
         }),
@@ -117,9 +113,14 @@ pub fn handle_action(request: MainChatActionRequest) -> MainChatRuntimeResponse 
     }
 }
 
-pub fn handle_runtime_action(request: MainChatRuntimeActionRequest) -> MainChatRuntimeActionResponse {
+pub fn handle_runtime_action(
+    request: MainChatRuntimeActionRequest,
+) -> MainChatRuntimeActionResponse {
     if request.schema_version != 1 {
-        return MainChatRuntimeActionResponse::error("unsupported_schema", "schemaVersion must be 1");
+        return MainChatRuntimeActionResponse::error(
+            "unsupported_schema",
+            "schemaVersion must be 1",
+        );
     }
 
     if let Some(snapshot) = handle_plan_action(
@@ -135,20 +136,17 @@ pub fn handle_runtime_action(request: MainChatRuntimeActionRequest) -> MainChatR
     }
 
     let snapshot = match request.action.as_str() {
-        "direct_stream_start" => start_direct_stream(
-            request.snapshot,
-            request.timestamp,
-            request.provider_id,
-        ),
+        "direct_stream_start" => {
+            start_direct_stream(request.snapshot, request.timestamp, request.provider_id)
+        }
         "direct_stream_event_received" => register_direct_stream_event(
             request.snapshot,
             request.timestamp,
             request.status.as_deref() == Some("text"),
         ),
-        "direct_stream_timeout" => handle_direct_stream_timeout(
-            request.snapshot,
-            request.is_initial_poll.unwrap_or(false),
-        ),
+        "direct_stream_timeout" => {
+            handle_direct_stream_timeout(request.snapshot, request.is_initial_poll.unwrap_or(false))
+        }
         "direct_stream_apply_provider_event" => apply_direct_stream_provider_event(
             request.snapshot,
             request.timestamp,
@@ -181,7 +179,12 @@ pub fn handle_runtime_action(request: MainChatRuntimeActionRequest) -> MainChatR
             snapshot
         }
         "runtime_restore_snapshot" => request.snapshot,
-        _ => return MainChatRuntimeActionResponse::error("unsupported_action", "main chat runtime action not supported"),
+        _ => {
+            return MainChatRuntimeActionResponse::error(
+                "unsupported_action",
+                "main chat runtime action not supported",
+            )
+        }
     };
     MainChatRuntimeActionResponse::success(snapshot)
 }
@@ -189,7 +192,9 @@ pub fn handle_runtime_action(request: MainChatRuntimeActionRequest) -> MainChatR
 #[cfg(test)]
 mod tests {
     use super::{finish_turn, handle_action, start_turn};
-    use app_core_protocol::main_chat::{MainChatActionRequest, MainChatFinishRequest, MainChatStartRequest, MainChatTurnState};
+    use app_core_protocol::main_chat::{
+        MainChatActionRequest, MainChatFinishRequest, MainChatStartRequest, MainChatTurnState,
+    };
 
     #[test]
     fn start_turn_marks_state_streaming() {
@@ -219,14 +224,19 @@ mod tests {
         let state = response.state.expect("state");
         assert!(!state.is_streaming);
         assert_eq!(state.status, "failed");
-        assert!(state.artifacts.iter().any(|artifact| artifact.id == "turn-failed"));
+        assert!(state
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.id == "turn-failed"));
     }
 
     #[test]
     fn rewind_turn_clears_buffers() {
         let mut state = base_state();
         state.sequence = 9;
-        state.text_by_stream_id.insert("main".to_string(), "hello".to_string());
+        state
+            .text_by_stream_id
+            .insert("main".to_string(), "hello".to_string());
         let response = handle_action(MainChatActionRequest {
             schema_version: 1,
             action: "rewind_turn".to_string(),

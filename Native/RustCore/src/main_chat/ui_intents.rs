@@ -1,21 +1,20 @@
+use crate::main_chat::apply_event;
 use crate::main_chat::auto_todo::{
     begin_runtime as begin_auto_todo_runtime, discard_runtime as discard_auto_todo_runtime,
-    finalize_runtime as finalize_auto_todo_runtime,
-    record_operation as record_auto_todo_operation,
+    finalize_runtime as finalize_auto_todo_runtime, record_operation as record_auto_todo_operation,
 };
-use crate::main_chat::apply_event;
 use crate::main_chat::plan_ui_flow::{
     apply_plan_runtime_action, receive_clarification_questions, set_plan_panel_visible,
 };
 use crate::main_chat::runtime::handle_runtime_action;
+use crate::main_chat::ui_projection::project_ui;
 use crate::main_chat::ui_state_sync::{
     apply_terminal_text_override, mark_store_stream_finished, sync_store_from_runtime,
 };
-use crate::main_chat::ui_projection::project_ui;
+use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
 use app_core_protocol::main_chat_store::{
     MainChatStorePlanBoardSnapshot, MainChatStorePlanOptionSnapshot, MainChatStorePlanStepSnapshot,
 };
-use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
 use app_core_protocol::main_chat_ui::{
     MainChatUiIntentRequest, MainChatUiIntentResponse, MainChatUiProjectRequest,
 };
@@ -100,15 +99,24 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
         "stream_clear_ephemeral_state" => {}
         "toggle_artifact_collapsed" => {
             let Some(artifact_id) = request.artifact_id else {
-                return MainChatUiIntentResponse::error("missing_artifact_id", "artifactId is required");
+                return MainChatUiIntentResponse::error(
+                    "missing_artifact_id",
+                    "artifactId is required",
+                );
             };
-            let turn_id = request
-                .turn_id
-                .or_else(|| state.runtime_snapshot.as_ref().map(|snapshot| snapshot.turn_state.turn_id.clone()));
+            let turn_id = request.turn_id.or_else(|| {
+                state
+                    .runtime_snapshot
+                    .as_ref()
+                    .map(|snapshot| snapshot.turn_state.turn_id.clone())
+            });
             let Some(turn_id) = turn_id else {
                 return MainChatUiIntentResponse::error("missing_turn_id", "turnId is required");
             };
-            let entry = state.collapsed_artifact_ids_by_turn.entry(turn_id).or_default();
+            let entry = state
+                .collapsed_artifact_ids_by_turn
+                .entry(turn_id)
+                .or_default();
             if let Some(index) = entry.iter().position(|candidate| candidate == &artifact_id) {
                 entry.remove(index);
             } else {
@@ -167,8 +175,12 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
             let Some(conversation_id) = request
                 .conversation_id
                 .clone()
-                .or_else(|| state.selected_conversation_id.clone()) else {
-                return MainChatUiIntentResponse::error("missing_conversation_id", "conversationId is required");
+                .or_else(|| state.selected_conversation_id.clone())
+            else {
+                return MainChatUiIntentResponse::error(
+                    "missing_conversation_id",
+                    "conversationId is required",
+                );
             };
             let Some(chosen_path) = request.text.clone() else {
                 return MainChatUiIntentResponse::error("missing_text", "text is required");
@@ -276,7 +288,10 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
         }
         "restore_snapshot" => {}
         _ => {
-            return MainChatUiIntentResponse::error("unsupported_intent", "Unsupported main chat UI intent");
+            return MainChatUiIntentResponse::error(
+                "unsupported_intent",
+                "Unsupported main chat UI intent",
+            );
         }
     }
 
@@ -285,8 +300,12 @@ pub fn handle_ui_intent(request: MainChatUiIntentRequest) -> MainChatUiIntentRes
         state: state.clone(),
     });
     match snapshot.snapshot {
-        Some(snapshot) => MainChatUiIntentResponse::success_with_patches(state, snapshot, todo_patches),
-        None => MainChatUiIntentResponse::error("projection_failed", "Failed to project UI snapshot"),
+        Some(snapshot) => {
+            MainChatUiIntentResponse::success_with_patches(state, snapshot, todo_patches)
+        }
+        None => {
+            MainChatUiIntentResponse::error("projection_failed", "Failed to project UI snapshot")
+        }
     }
 }
 
@@ -302,7 +321,10 @@ fn apply_runtime_action(
     should_run_inline: Option<bool>,
 ) -> Result<app_core_protocol::main_chat_ui::MainChatUiState, MainChatUiIntentResponse> {
     let Some(snapshot) = state.runtime_snapshot.clone() else {
-        return Err(MainChatUiIntentResponse::error("missing_runtime_snapshot", "runtimeSnapshot is required"));
+        return Err(MainChatUiIntentResponse::error(
+            "missing_runtime_snapshot",
+            "runtimeSnapshot is required",
+        ));
     };
     let response = handle_runtime_action(MainChatRuntimeActionRequest {
         schema_version: 1,
@@ -322,7 +344,10 @@ fn apply_runtime_action(
         payload: Default::default(),
     });
     let Some(runtime_snapshot) = response.runtime_snapshot else {
-        return Err(MainChatUiIntentResponse::error("runtime_action_failed", "Runtime action did not return a snapshot"));
+        return Err(MainChatUiIntentResponse::error(
+            "runtime_action_failed",
+            "Runtime action did not return a snapshot",
+        ));
     };
     state.runtime_snapshot = Some(runtime_snapshot);
     Ok(state)
@@ -387,7 +412,11 @@ fn sync_plan_board_from_runtime(
         return;
     };
 
-    let existing = state.store_snapshot.plan_boards.get(conversation_id).cloned();
+    let existing = state
+        .store_snapshot
+        .plan_boards
+        .get(conversation_id)
+        .cloned();
     let options = plan
         .option_full_texts
         .iter()
@@ -437,10 +466,11 @@ fn sync_plan_board_from_runtime(
                 .map(|board| board.options.clone())
                 .unwrap_or_default()
         },
-        chosen_path: plan
-            .chosen_path
-            .clone()
-            .or_else(|| existing.as_ref().and_then(|board| board.chosen_path.clone())),
+        chosen_path: plan.chosen_path.clone().or_else(|| {
+            existing
+                .as_ref()
+                .and_then(|board| board.chosen_path.clone())
+        }),
         steps: if !steps.is_empty() {
             steps
         } else {
@@ -450,9 +480,15 @@ fn sync_plan_board_from_runtime(
                 .unwrap_or_default()
         },
         updated_at: timestamp.or_else(|| existing.as_ref().and_then(|board| board.updated_at)),
-        walkthrough_markdown: existing.as_ref().and_then(|board| board.walkthrough_markdown.clone()),
-        walkthrough_summary: existing.as_ref().and_then(|board| board.walkthrough_summary.clone()),
-        walkthrough_outcome: existing.as_ref().and_then(|board| board.walkthrough_outcome.clone()),
+        walkthrough_markdown: existing
+            .as_ref()
+            .and_then(|board| board.walkthrough_markdown.clone()),
+        walkthrough_summary: existing
+            .as_ref()
+            .and_then(|board| board.walkthrough_summary.clone()),
+        walkthrough_outcome: existing
+            .as_ref()
+            .and_then(|board| board.walkthrough_outcome.clone()),
     };
 
     state

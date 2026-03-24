@@ -47,17 +47,30 @@ fn lifecycle_backend_manages_generic_mcp_servers() {
     assert_eq!(described["payload"]["tool"]["name"], "echo");
 
     let resources = child.request("4r", "list_resources", json!({ "serverId": "fake" }));
-    assert_eq!(resources["payload"]["resources"][0]["uri"], "fake://welcome");
+    assert_eq!(
+        resources["payload"]["resources"][0]["uri"],
+        "fake://welcome"
+    );
 
     let resource_content = child.request(
         "4rr",
         "read_resource",
         json!({ "serverId": "fake", "uri": "fake://welcome" }),
     );
-    assert_eq!(resource_content["payload"]["contents"][0]["text"], "resource:fake://welcome");
+    assert_eq!(
+        resource_content["payload"]["contents"][0]["text"],
+        "resource:fake://welcome"
+    );
 
-    let templates = child.request("4rt", "list_resource_templates", json!({ "serverId": "fake" }));
-    assert_eq!(templates["payload"]["templates"][0]["uriTemplate"], "fake://template/{id}");
+    let templates = child.request(
+        "4rt",
+        "list_resource_templates",
+        json!({ "serverId": "fake" }),
+    );
+    assert_eq!(
+        templates["payload"]["templates"][0]["uriTemplate"],
+        "fake://template/{id}"
+    );
 
     let prompts = child.request("4p", "list_prompts", json!({ "serverId": "fake" }));
     assert_eq!(prompts["payload"]["prompts"][0]["name"], "review_summary");
@@ -67,7 +80,10 @@ fn lifecycle_backend_manages_generic_mcp_servers() {
         "get_prompt",
         json!({ "serverId": "fake", "name": "review_summary", "arguments": { "topic": "scope" } }),
     );
-    assert_eq!(prompt["payload"]["messages"][0]["content"]["text"], "summary:scope");
+    assert_eq!(
+        prompt["payload"]["messages"][0]["content"]["text"],
+        "summary:scope"
+    );
 
     let echoed = child.request(
         "5",
@@ -182,9 +198,18 @@ fn lifecycle_backend_reuses_process_for_duplicate_server_configs() {
     });
 
     let mut child = BackendHarness::spawn();
-    let list = child.request("1", "list_servers", json!({ "servers": [first.clone(), second.clone()] }));
+    let list = child.request(
+        "1",
+        "list_servers",
+        json!({ "servers": [first.clone(), second.clone()] }),
+    );
     assert!(list["ok"].as_bool().unwrap_or(false));
-    assert_eq!(list["payload"]["servers"].as_array().map(|items| items.len()), Some(2));
+    assert_eq!(
+        list["payload"]["servers"]
+            .as_array()
+            .map(|items| items.len()),
+        Some(2)
+    );
 
     let reconnect = child.request("2", "reconnect", json!({ "server": first }));
     assert!(reconnect["ok"].as_bool().unwrap_or(false));

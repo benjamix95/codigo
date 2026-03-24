@@ -42,8 +42,16 @@ pub fn write_bughunter_commands(commands: &[CommandRecord]) -> Result<(), String
 
 pub fn make_review_snapshot_record(value: &Value) -> Option<ReviewSnapshotRecord> {
     let findings = value.get("findings")?.as_array()?.clone();
-    let candidates = value.get("candidates").and_then(Value::as_array).cloned().unwrap_or_default();
-    let patches = value.get("patches").and_then(Value::as_array).cloned().unwrap_or_default();
+    let candidates = value
+        .get("candidates")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let patches = value
+        .get("patches")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     Some(ReviewSnapshotRecord {
         session_id: string_field(value, "sessionId")?,
         conversation_id: optional_string_field(value, "conversationId"),
@@ -52,27 +60,41 @@ pub fn make_review_snapshot_record(value: &Value) -> Option<ReviewSnapshotRecord
         findings_count: findings.len() as i32,
         open_findings_count: findings
             .iter()
-            .filter(|item| string_field(item, "status").unwrap_or_else(|| "open".to_string()) == "open")
+            .filter(|item| {
+                string_field(item, "status").unwrap_or_else(|| "open".to_string()) == "open"
+            })
             .count() as i32,
         current_round: int_field(value, "currentRound").unwrap_or(0) as i32,
         active_worker_count: int_field(value, "activeWorkerCount").unwrap_or(0) as i32,
-        scope_type: value.get("scope").and_then(|scope| optional_string_field(scope, "type")),
-        scope_ref: value.get("scope").and_then(|scope| optional_string_field(scope, "ref")),
+        scope_type: value
+            .get("scope")
+            .and_then(|scope| optional_string_field(scope, "type")),
+        scope_ref: value
+            .get("scope")
+            .and_then(|scope| optional_string_field(scope, "ref")),
         started_at_reference_seconds: date_field(value, "startedAt").map(reference_seconds),
         updated_at_reference_seconds: date_field(value, "lastUpdatedAt")
             .or_else(|| date_field(value, "updatedAt"))
             .map(reference_seconds)
             .unwrap_or_else(reference_seconds_now),
         is_active: is_active_review_phase(&string_field(value, "phase").unwrap_or_default()),
-        finding_ids: findings.iter().filter_map(|item| optional_string_field(item, "id")).collect(),
-        candidate_ids: candidates.iter().filter_map(|item| optional_string_field(item, "id")).collect(),
+        finding_ids: findings
+            .iter()
+            .filter_map(|item| optional_string_field(item, "id"))
+            .collect(),
+        candidate_ids: candidates
+            .iter()
+            .filter_map(|item| optional_string_field(item, "id"))
+            .collect(),
         patches: patches
             .iter()
             .filter_map(|item| {
                 Some(PatchRecord {
                     id: string_field(item, "id")?,
-                    finding_id: string_field(item, "findingId").or_else(|| string_field(item, "finding_id"))?,
-                    verify_status: string_field(item, "verifyStatus").or_else(|| string_field(item, "verify_status"))?,
+                    finding_id: string_field(item, "findingId")
+                        .or_else(|| string_field(item, "finding_id"))?,
+                    verify_status: string_field(item, "verifyStatus")
+                        .or_else(|| string_field(item, "verify_status"))?,
                     risk_score: float_field(item, "riskScore").unwrap_or(0.0),
                 })
             })
@@ -93,7 +115,13 @@ pub fn make_bughunter_snapshot_record(value: &Value) -> Option<BugHunterSnapshot
         related_commits: value
             .get("relatedCommits")
             .and_then(Value::as_array)
-            .map(|items| items.iter().filter_map(Value::as_str).map(ToString::to_string).collect())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(ToString::to_string)
+                    .collect()
+            })
             .unwrap_or_default(),
         status: string_field(value, "status")?,
         last_message: optional_string_field(value, "lastMessage"),
@@ -118,7 +146,12 @@ pub fn redacted_summary(severity: &str, category: &str) -> String {
 }
 
 pub fn reference_seconds_now() -> f64 {
-    reference_seconds(SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs_f64())
+    reference_seconds(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64(),
+    )
 }
 
 pub fn reference_seconds(unix_seconds: f64) -> f64 {
@@ -166,7 +199,9 @@ fn read_json_value(path: &Path) -> Option<Value> {
 }
 
 fn read_command_records(path: &Path) -> Vec<CommandRecord> {
-    let Ok(data) = fs::read(path) else { return Vec::new() };
+    let Ok(data) = fs::read(path) else {
+        return Vec::new();
+    };
     serde_json::from_slice(&data).unwrap_or_default()
 }
 
@@ -179,7 +214,10 @@ fn write_json<T: serde::Serialize + ?Sized>(path: &Path, value: &T) -> Result<()
 }
 
 fn string_field(value: &Value, key: &str) -> Option<String> {
-    value.get(key).and_then(Value::as_str).map(|text| text.to_string())
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(|text| text.to_string())
 }
 
 fn optional_string_field(value: &Value, key: &str) -> Option<String> {
@@ -195,7 +233,8 @@ fn float_field(value: &Value, key: &str) -> Option<f64> {
 }
 
 fn date_field(value: &Value, key: &str) -> Option<f64> {
-    value.get(key)
+    value
+        .get(key)
         .and_then(Value::as_str)
         .and_then(|text| chrono_like_to_unix(text))
 }

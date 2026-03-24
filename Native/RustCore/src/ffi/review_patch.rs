@@ -1,11 +1,12 @@
 use super::common::{encode_raw, with_raw_json_input};
 use crate::review_patch::{
-    apply_runtime_result, build_apply_execution_context, build_apply_result, build_merge_execution_context, build_merge_result, build_open_pr_context,
-    build_open_pr_execution_context, build_open_pr_result,
-    build_prepare_context, build_prepare_result, build_revalidate_execution_context, build_revalidate_result,
-    build_resolve_conflicts_context, build_resolve_conflicts_result,
-    build_rollback_execution_context, build_rollback_result, build_step_context, build_verify_result, get_runtime_state, handle_patch_action,
-    start_runtime,
+    apply_runtime_result, build_apply_execution_context, build_apply_result,
+    build_merge_execution_context, build_merge_result, build_open_pr_context,
+    build_open_pr_execution_context, build_open_pr_result, build_prepare_context,
+    build_prepare_result, build_resolve_conflicts_context, build_resolve_conflicts_result,
+    build_revalidate_execution_context, build_revalidate_result, build_rollback_execution_context,
+    build_rollback_result, build_step_context, build_verify_result, get_runtime_state,
+    handle_patch_action, start_runtime,
 };
 use std::os::raw::c_char;
 
@@ -16,17 +17,21 @@ pub extern "C" fn review_core_patch_handle_action(input: *const c_char) -> *mut 
             match serde_json::from_str(raw) {
                 Ok(request) => request,
                 Err(err) => {
-                    return encode_raw(&crate::review_patch::models::ReviewPatchActionResponse::err(
-                        "decode_failed",
-                        &err.to_string(),
-                    ));
+                    return encode_raw(
+                        &crate::review_patch::models::ReviewPatchActionResponse::err(
+                            "decode_failed",
+                            &err.to_string(),
+                        ),
+                    );
                 }
             };
         if request.schema_version != 1 {
-            return encode_raw(&crate::review_patch::models::ReviewPatchActionResponse::err(
-                "unsupported_schema",
-                "schemaVersion must be 1",
-            ));
+            return encode_raw(
+                &crate::review_patch::models::ReviewPatchActionResponse::err(
+                    "unsupported_schema",
+                    "schemaVersion must be 1",
+                ),
+            );
         }
         encode_raw(&handle_patch_action(request))
     })
@@ -159,7 +164,9 @@ pub extern "C" fn review_core_patch_build_verify_result(input: *const c_char) ->
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_patch_build_apply_execution_context(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_patch_build_apply_execution_context(
+    input: *const c_char,
+) -> *mut c_char {
     with_raw_json_input(input, |raw| {
         let request: crate::review_patch::models::ReviewPatchApplyExecutionContextRequest =
             match serde_json::from_str(raw) {
@@ -310,7 +317,9 @@ pub extern "C" fn review_core_patch_build_open_pr_context(input: *const c_char) 
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_patch_build_open_pr_execution_context(input: *const c_char) -> *mut c_char {
+pub extern "C" fn review_core_patch_build_open_pr_execution_context(
+    input: *const c_char,
+) -> *mut c_char {
     with_raw_json_input(input, |raw| {
         let request: crate::review_patch::pr_result_models::ReviewPatchOpenPrExecutionContextRequest =
             match serde_json::from_str(raw) {
@@ -464,7 +473,5 @@ fn runtime_request_call(
 }
 
 fn patch_runtime_error(code: &str, message: &str) -> String {
-    encode_raw(&crate::review_patch::models::ReviewPatchRuntimeResponse::err(
-        code, message,
-    ))
+    encode_raw(&crate::review_patch::models::ReviewPatchRuntimeResponse::err(code, message))
 }

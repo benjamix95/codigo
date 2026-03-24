@@ -16,7 +16,8 @@ mod tests {
 
     #[test]
     fn strip_removes_complete_and_incomplete_markers() {
-        let input = "Before [CODERIDE:read|path=Sources/A.swift] after\nhalf [CODERIDE:grep|query=foo";
+        let input =
+            "Before [CODERIDE:read|path=Sources/A.swift] after\nhalf [CODERIDE:grep|query=foo";
         let sanitized = strip(input, true);
         assert!(!sanitized.contains("CODERIDE"));
         assert!(sanitized.contains("Before"));

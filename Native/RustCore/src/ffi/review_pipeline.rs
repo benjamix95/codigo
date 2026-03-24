@@ -25,9 +25,7 @@ pub extern "C" fn review_core_pipeline_start_session(input: *const c_char) -> *m
 }
 
 #[no_mangle]
-pub extern "C" fn review_core_pipeline_apply_callback_result(
-    input: *const c_char,
-) -> *mut c_char {
+pub extern "C" fn review_core_pipeline_apply_callback_result(input: *const c_char) -> *mut c_char {
     with_raw_json_input(input, |raw| {
         let request: crate::review_pipeline::requests::ReviewPipelineApplyRequest =
             match serde_json::from_str(raw) {
@@ -87,7 +85,9 @@ fn pipeline_decode_error(
     )
 }
 
-fn pipeline_schema_error(session_id: &str) -> crate::review_pipeline::models::ReviewPipelineResponse {
+fn pipeline_schema_error(
+    session_id: &str,
+) -> crate::review_pipeline::models::ReviewPipelineResponse {
     crate::review_pipeline::models::ReviewPipelineResponse::error(
         session_id.to_string(),
         pipeline_placeholder_snapshot(session_id),

@@ -159,11 +159,11 @@ pub fn parse_clarification_questionnaire(text: &str) -> Option<MainChatPlanQuest
     let mut invalid_block = false;
 
     let flush_question = |questions: &mut Vec<MainChatPlanQuestion>,
-                              current_id: &mut Option<i32>,
-                              current_prompt: &mut String,
-                              current_options: &mut Vec<MainChatPlanQuestionOption>,
-                              current_has_checkbox_options: &mut bool,
-                              invalid_block: &mut bool| {
+                          current_id: &mut Option<i32>,
+                          current_prompt: &mut String,
+                          current_options: &mut Vec<MainChatPlanQuestionOption>,
+                          current_has_checkbox_options: &mut bool,
+                          invalid_block: &mut bool| {
         let Some(question_id) = *current_id else {
             return;
         };
@@ -212,7 +212,8 @@ pub fn parse_clarification_questionnaire(text: &str) -> Option<MainChatPlanQuest
             continue;
         }
 
-        let looks_like_numeric_option_line = current_id.is_some() && numeric_option_line_regex().is_match(trimmed);
+        let looks_like_numeric_option_line =
+            current_id.is_some() && numeric_option_line_regex().is_match(trimmed);
         if !looks_like_numeric_option_line {
             if let Some(capture) = question_line_regex().captures(trimmed) {
                 flush_question(
@@ -230,7 +231,9 @@ pub fn parse_clarification_questionnaire(text: &str) -> Option<MainChatPlanQuest
                         Some(MainChatPlanQuestionnaire { questions })
                     };
                 }
-                current_id = capture.get(1).and_then(|value| value.as_str().parse::<i32>().ok());
+                current_id = capture
+                    .get(1)
+                    .and_then(|value| value.as_str().parse::<i32>().ok());
                 current_prompt = capture
                     .get(2)
                     .map(|value| value.as_str().trim().to_string())
@@ -427,7 +430,10 @@ fn normalized_option_id(raw_id: Option<&str>, existing: &[MainChatPlanQuestionOp
         let candidate = raw_id.trim();
         if !candidate.is_empty() {
             let normalized = candidate.to_uppercase();
-            if !existing.iter().any(|option| option.id.eq_ignore_ascii_case(&normalized)) {
+            if !existing
+                .iter()
+                .any(|option| option.id.eq_ignore_ascii_case(&normalized))
+            {
                 return normalized;
             }
         }
@@ -468,9 +474,7 @@ fn todo_header_regex() -> &'static Regex {
 
 fn next_header_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| {
-        Regex::new(r"(?im)^\s*#{1,6}\s+\S").expect("valid next header regex")
-    })
+    REGEX.get_or_init(|| Regex::new(r"(?im)^\s*#{1,6}\s+\S").expect("valid next header regex"))
 }
 
 fn checklist_regex() -> &'static Regex {
@@ -493,7 +497,8 @@ fn bullet_regex() -> &'static Regex {
 fn markdown_header_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        Regex::new(r"(?i)^\s*#{1,6}\s*(?:plan\s*:?\s*)?(.+?)\s*$").expect("valid markdown header regex")
+        Regex::new(r"(?i)^\s*#{1,6}\s*(?:plan\s*:?\s*)?(.+?)\s*$")
+            .expect("valid markdown header regex")
     })
 }
 
@@ -538,7 +543,9 @@ fn numeric_option_regex() -> &'static Regex {
 
 fn bullet_option_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| Regex::new(r"^\s*[-*•]\s*(?:\[\s*[xX ]?\s*\]\s*)?(.+)$").expect("valid bullet option regex"))
+    REGEX.get_or_init(|| {
+        Regex::new(r"^\s*[-*•]\s*(?:\[\s*[xX ]?\s*\]\s*)?(.+)$").expect("valid bullet option regex")
+    })
 }
 
 fn checkbox_option_regex() -> &'static Regex {
@@ -584,8 +591,9 @@ fn no_questions_regex() -> &'static Regex {
 #[cfg(test)]
 mod tests {
     use super::{
-        extract_display_summary_title, extract_todos_from_option_text, has_no_questions_needed_signal,
-        parse_clarification_questionnaire, parse_plan_option_records, todo_compliant_options,
+        extract_display_summary_title, extract_todos_from_option_text,
+        has_no_questions_needed_signal, parse_clarification_questionnaire,
+        parse_plan_option_records, todo_compliant_options,
     };
 
     #[test]
@@ -626,7 +634,9 @@ mod tests {
     #[test]
     fn detects_no_questions_needed_variants() {
         assert!(has_no_questions_needed_signal("NO_QUESTIONS_NEEDED"));
-        assert!(has_no_questions_needed_signal("## Decision\nNo-Questions-Needed"));
+        assert!(has_no_questions_needed_signal(
+            "## Decision\nNo-Questions-Needed"
+        ));
         assert!(!has_no_questions_needed_signal("need more clarification"));
     }
 
@@ -653,7 +663,10 @@ mod tests {
 graph TD
 ```
 "#;
-        assert_eq!(extract_todos_from_option_text(input), vec!["First", "Second"]);
+        assert_eq!(
+            extract_todos_from_option_text(input),
+            vec!["First", "Second"]
+        );
     }
 
     #[test]

@@ -24,7 +24,9 @@ pub fn project_ui(request: MainChatUiProjectRequest) -> MainChatUiProjectRespons
         .store_snapshot
         .conversations
         .iter()
-        .map(|conversation| conversation_summary(conversation, selected_conversation_id.as_deref(), &state))
+        .map(|conversation| {
+            conversation_summary(conversation, selected_conversation_id.as_deref(), &state)
+        })
         .collect::<Vec<_>>();
     let selected_conversation = selected_conversation_id
         .as_deref()
@@ -53,8 +55,16 @@ pub fn project_ui(request: MainChatUiProjectRequest) -> MainChatUiProjectRespons
         composer,
         task,
         plan,
-        follow_up_prompt: state.runtime_snapshot.as_ref().and_then(|snapshot| snapshot.output.as_ref()).and_then(|output| output.follow_up_prompt.clone()),
-        generated_prompt: state.runtime_snapshot.as_ref().and_then(|snapshot| snapshot.output.as_ref()).and_then(|output| output.generated_prompt.clone()),
+        follow_up_prompt: state
+            .runtime_snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.output.as_ref())
+            .and_then(|output| output.follow_up_prompt.clone()),
+        generated_prompt: state
+            .runtime_snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.output.as_ref())
+            .and_then(|output| output.generated_prompt.clone()),
         is_empty: state.store_snapshot.conversations.is_empty(),
     })
 }
@@ -63,7 +73,12 @@ fn resolve_selected_conversation_id(
     state: &app_core_protocol::main_chat_ui::MainChatUiState,
 ) -> Option<String> {
     if let Some(selected) = state.selected_conversation_id.as_ref() {
-        if state.store_snapshot.conversations.iter().any(|conversation| &conversation.id == selected) {
+        if state
+            .store_snapshot
+            .conversations
+            .iter()
+            .any(|conversation| &conversation.id == selected)
+        {
             return Some(selected.clone());
         }
     }
@@ -110,9 +125,11 @@ fn message_snapshot(
     state: &app_core_protocol::main_chat_ui::MainChatUiState,
 ) -> MainChatUiMessageSnapshot {
     let runtime_turn = active_turn_for_message(message, state);
-    let turn_id = message.turn_metadata.as_ref().map(|metadata| metadata.turn_id.clone()).or_else(|| {
-        runtime_turn.map(|turn_state| turn_state.turn_id.clone())
-    });
+    let turn_id = message
+        .turn_metadata
+        .as_ref()
+        .map(|metadata| metadata.turn_id.clone())
+        .or_else(|| runtime_turn.map(|turn_state| turn_state.turn_id.clone()));
     let collapsed_ids = turn_id
         .as_ref()
         .and_then(|value| state.collapsed_artifact_ids_by_turn.get(value))
@@ -126,7 +143,12 @@ fn message_snapshot(
         .map(|block| timeline_block_from_store(block, collapsed_ids.contains(&block.id)))
         .collect::<Vec<_>>();
     if let Some(turn_state) = runtime_turn {
-        timeline_blocks.extend(turn_state.artifacts.iter().map(|artifact| artifact_block(artifact, &collapsed_ids)));
+        timeline_blocks.extend(
+            turn_state
+                .artifacts
+                .iter()
+                .map(|artifact| artifact_block(artifact, &collapsed_ids)),
+        );
     }
 
     let primary_text = runtime_turn
@@ -149,10 +171,17 @@ fn message_snapshot(
             .unwrap_or_else(|| message.content.clone()),
         primary_text,
         reasoning_text,
-        turn_status: runtime_turn.map(|turn_state| turn_state.status.clone()).or_else(|| {
-            message.turn_metadata.as_ref().map(|metadata| metadata.status.clone())
-        }),
-        is_streaming: runtime_turn.map(|turn_state| turn_state.is_streaming).unwrap_or(message.is_streaming),
+        turn_status: runtime_turn
+            .map(|turn_state| turn_state.status.clone())
+            .or_else(|| {
+                message
+                    .turn_metadata
+                    .as_ref()
+                    .map(|metadata| metadata.status.clone())
+            }),
+        is_streaming: runtime_turn
+            .map(|turn_state| turn_state.is_streaming)
+            .unwrap_or(message.is_streaming),
         timeline_blocks,
         subagent_cards: message.subagent_cards.clone().unwrap_or_default(),
     }
@@ -162,18 +191,38 @@ fn task_snapshot(
     selected_conversation_id: Option<&str>,
     state: &app_core_protocol::main_chat_ui::MainChatUiState,
 ) -> MainChatUiTaskSnapshot {
-    let task_state = selected_conversation_id.and_then(|conversation_id| task_state_for(conversation_id, state));
-    let runtime_output = state.runtime_snapshot.as_ref().and_then(|snapshot| snapshot.output.as_ref());
+    let task_state =
+        selected_conversation_id.and_then(|conversation_id| task_state_for(conversation_id, state));
+    let runtime_output = state
+        .runtime_snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.output.as_ref());
     MainChatUiTaskSnapshot {
         is_loading: task_state.is_some()
-            || state.runtime_snapshot.as_ref().map(|snapshot| snapshot.turn_state.is_streaming).unwrap_or(false),
-        started_at: task_state.and_then(|task| task.started_at).or_else(|| state.runtime_snapshot.as_ref().and_then(|snapshot| snapshot.turn_state.started_at)),
+            || state
+                .runtime_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.turn_state.is_streaming)
+                .unwrap_or(false),
+        started_at: task_state.and_then(|task| task.started_at).or_else(|| {
+            state
+                .runtime_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.turn_state.started_at)
+        }),
         status_text: task_state.map(|task| task.status_text.clone()).or_else(|| {
-            state.runtime_snapshot.as_ref().map(|snapshot| snapshot.turn_state.status.clone())
+            state
+                .runtime_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.turn_state.status.clone())
         }),
         terminal_error: runtime_output.and_then(|output| output.terminal_error.clone()),
-        should_retry_poll: runtime_output.map(|output| output.should_retry_poll).unwrap_or(false),
-        should_finalize_stream: runtime_output.map(|output| output.should_finalize_stream).unwrap_or(false),
+        should_retry_poll: runtime_output
+            .map(|output| output.should_retry_poll)
+            .unwrap_or(false),
+        should_finalize_stream: runtime_output
+            .map(|output| output.should_finalize_stream)
+            .unwrap_or(false),
     }
 }
 
@@ -181,10 +230,22 @@ fn plan_snapshot(
     selected_conversation_id: Option<&str>,
     state: &app_core_protocol::main_chat_ui::MainChatUiState,
 ) -> MainChatUiPlanSnapshot {
-    let runtime_plan = state.runtime_snapshot.as_ref().and_then(|snapshot| snapshot.plan.as_ref());
-    let runtime_output = state.runtime_snapshot.as_ref().and_then(|snapshot| snapshot.output.as_ref());
-    let plan_board = selected_conversation_id.and_then(|conversation_id| state.store_snapshot.plan_boards.get(conversation_id));
-    plan_snapshot_from_sources(runtime_plan, runtime_output, plan_board, state.plan_panel_visible)
+    let runtime_plan = state
+        .runtime_snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.plan.as_ref());
+    let runtime_output = state
+        .runtime_snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.output.as_ref());
+    let plan_board = selected_conversation_id
+        .and_then(|conversation_id| state.store_snapshot.plan_boards.get(conversation_id));
+    plan_snapshot_from_sources(
+        runtime_plan,
+        runtime_output,
+        plan_board,
+        state.plan_panel_visible,
+    )
 }
 
 fn plan_snapshot_from_sources(
@@ -194,22 +255,36 @@ fn plan_snapshot_from_sources(
     plan_panel_visible: bool,
 ) -> MainChatUiPlanSnapshot {
     MainChatUiPlanSnapshot {
-        is_visible: plan_panel_visible || runtime_output.map(|output| output.should_open_plan_panel).unwrap_or(false) || runtime_plan.is_some() || plan_board.is_some(),
+        is_visible: plan_panel_visible
+            || runtime_output
+                .map(|output| output.should_open_plan_panel)
+                .unwrap_or(false)
+            || runtime_plan.is_some()
+            || plan_board.is_some(),
         phase: runtime_plan.and_then(|plan| plan.phase.clone()),
         planning_state_kind: runtime_plan.and_then(|plan| plan.planning_state_kind.clone()),
-        question_epoch: runtime_plan.map(|plan| plan.question_epoch).unwrap_or_default(),
+        question_epoch: runtime_plan
+            .map(|plan| plan.question_epoch)
+            .unwrap_or_default(),
         clarification_questions: runtime_plan.and_then(|plan| plan.clarification_questions.clone()),
-        clarification_questionnaire: runtime_plan.and_then(|plan| plan.clarification_questionnaire.clone()),
-        proposal_content: runtime_plan.and_then(|plan| plan.proposal_content.clone()).or_else(|| {
-            plan_board.and_then(|board| board.walkthrough_markdown.clone())
-        }),
+        clarification_questionnaire: runtime_plan
+            .and_then(|plan| plan.clarification_questionnaire.clone()),
+        proposal_content: runtime_plan
+            .and_then(|plan| plan.proposal_content.clone())
+            .or_else(|| plan_board.and_then(|board| board.walkthrough_markdown.clone())),
         summary_title: runtime_plan.and_then(|plan| plan.summary_title.clone()),
         chosen_path: runtime_plan
             .and_then(|plan| plan.chosen_path.clone())
             .or_else(|| plan_board.and_then(|board| board.chosen_path.clone())),
-        option_full_texts: runtime_plan.map(|plan| plan.option_full_texts.clone()).unwrap_or_default(),
-        option_titles: runtime_plan.map(|plan| plan.option_titles.clone()).unwrap_or_default(),
-        canonical_todos: runtime_plan.map(|plan| plan.canonical_todos.clone()).unwrap_or_default(),
+        option_full_texts: runtime_plan
+            .map(|plan| plan.option_full_texts.clone())
+            .unwrap_or_default(),
+        option_titles: runtime_plan
+            .map(|plan| plan.option_titles.clone())
+            .unwrap_or_default(),
+        canonical_todos: runtime_plan
+            .map(|plan| plan.canonical_todos.clone())
+            .unwrap_or_default(),
         goal: runtime_plan
             .and_then(|plan| plan.summary_title.clone())
             .or_else(|| plan_board.map(|board| board.goal.clone()))
@@ -219,8 +294,12 @@ fn plan_snapshot_from_sources(
             .filter(|count| *count > 0)
             .or_else(|| plan_board.map(|board| board.steps.len() as i32))
             .unwrap_or_default(),
-        should_hide_markdown: runtime_output.map(|output| output.should_hide_plan_markdown).unwrap_or(false),
-        should_run_inline: runtime_plan.map(|plan| plan.should_run_inline).unwrap_or(false),
+        should_hide_markdown: runtime_output
+            .map(|output| output.should_hide_plan_markdown)
+            .unwrap_or(false),
+        should_run_inline: runtime_plan
+            .map(|plan| plan.should_run_inline)
+            .unwrap_or(false),
         is_ready_to_build: runtime_plan
             .and_then(|plan| plan.phase.as_ref())
             .map(|phase| phase == &MainChatPlanPhase::ReadyToBuild)
@@ -232,7 +311,12 @@ fn task_state_for<'a>(
     conversation_id: &str,
     state: &'a app_core_protocol::main_chat_ui::MainChatUiState,
 ) -> Option<&'a MainChatTaskStateSnapshot> {
-    state.task_runtime_state.as_ref()?.task_states.iter().find(|task| task.conversation_id == conversation_id)
+    state
+        .task_runtime_state
+        .as_ref()?
+        .task_states
+        .iter()
+        .find(|task| task.conversation_id == conversation_id)
 }
 
 fn active_turn_for_message<'a>(
@@ -247,7 +331,11 @@ fn active_turn_for_message<'a>(
 }
 
 fn message_preview(message: &MainChatStoreMessageSnapshot) -> Option<String> {
-    let candidate = message.primary_text_snapshot.as_ref().unwrap_or(&message.content).trim();
+    let candidate = message
+        .primary_text_snapshot
+        .as_ref()
+        .unwrap_or(&message.content)
+        .trim();
     (!candidate.is_empty()).then(|| candidate.chars().take(80).collect())
 }
 
@@ -267,7 +355,12 @@ fn turn_primary_text(turn_state: &MainChatTurnState) -> String {
 }
 
 fn turn_reasoning_text(turn_state: &MainChatTurnState) -> String {
-    turn_state.reasoning_by_group_id.values().cloned().collect::<Vec<_>>().join("\n\n")
+    turn_state
+        .reasoning_by_group_id
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 fn artifact_block(

@@ -22,12 +22,11 @@ mod tests {
 
     #[test]
     fn build_revalidate_execution_context_requires_applied_status() {
-        let response = build_revalidate_execution_context(
-            ReviewPatchRevalidateExecutionContextRequest {
+        let response =
+            build_revalidate_execution_context(ReviewPatchRevalidateExecutionContextRequest {
                 schema_version: 1,
                 status: "verified".to_string(),
-            },
-        );
+            });
 
         assert!(response.is_error);
     }

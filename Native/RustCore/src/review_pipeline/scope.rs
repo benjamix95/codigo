@@ -1,5 +1,7 @@
 pub fn parse_review_scope(prompt: &str) -> (String, Option<String>) {
-    let limit = prompt.find("## Conversation context (recent)").unwrap_or(prompt.len());
+    let limit = prompt
+        .find("## Conversation context (recent)")
+        .unwrap_or(prompt.len());
     let searchable = &prompt[..limit];
     let marker = "[REVIEW_SCOPE:";
     if let Some(start) = searchable.find(marker) {
@@ -17,7 +19,11 @@ pub fn parse_review_scope(prompt: &str) -> (String, Option<String>) {
                 clean.push_str(&prompt[limit..]);
                 let trimmed = clean.trim();
                 return (
-                    if trimmed.is_empty() { "Review all changes".to_string() } else { trimmed.to_string() },
+                    if trimmed.is_empty() {
+                        "Review all changes".to_string()
+                    } else {
+                        trimmed.to_string()
+                    },
                     Some(scope),
                 );
             }
@@ -54,7 +60,9 @@ pub fn infer_review_scope_optional(prompt: &str) -> Option<String> {
 }
 
 pub fn parse_against_ref(prompt: &str) -> (String, Option<String>) {
-    let limit = prompt.find("## Conversation context (recent)").unwrap_or(prompt.len());
+    let limit = prompt
+        .find("## Conversation context (recent)")
+        .unwrap_or(prompt.len());
     let searchable = &prompt[..limit];
     let marker = "[AGAINST:";
     if let Some(start) = searchable.find(marker) {
@@ -67,8 +75,16 @@ pub fn parse_against_ref(prompt: &str) -> (String, Option<String>) {
             clean.push_str(&prompt[limit..]);
             let trimmed = clean.trim();
             return (
-                if trimmed.is_empty() { "Review all changes".to_string() } else { trimmed.to_string() },
-                if reference.is_empty() { None } else { Some(reference) },
+                if trimmed.is_empty() {
+                    "Review all changes".to_string()
+                } else {
+                    trimmed.to_string()
+                },
+                if reference.is_empty() {
+                    None
+                } else {
+                    Some(reference)
+                },
             );
         }
     }
@@ -88,10 +104,17 @@ pub fn review_scope_description(scope: &str, against_ref: Option<&str>) -> Strin
 
 pub fn is_valid_against_ref_format(reference: &str) -> bool {
     let trimmed = reference.trim();
-    if trimmed.is_empty() || trimmed.starts_with('-') || trimmed.ends_with(".lock") || trimmed.ends_with('.') {
+    if trimmed.is_empty()
+        || trimmed.starts_with('-')
+        || trimmed.ends_with(".lock")
+        || trimmed.ends_with('.')
+    {
         return false;
     }
-    if trimmed.chars().any(|ch| ch.is_whitespace() || ch.is_control()) {
+    if trimmed
+        .chars()
+        .any(|ch| ch.is_whitespace() || ch.is_control())
+    {
         return false;
     }
     for forbidden in [":", "?", "*", "[", "\\", "@{"] {
@@ -132,7 +155,10 @@ mod tests {
         let prompt = "[REVIEW_SCOPE:workspace] Review repo\n## Conversation context (recent)\nuser: [REVIEW_SCOPE:staged]";
         let (clean, scope) = parse_review_scope(prompt);
         assert_eq!(scope.as_deref(), Some("workspace"));
-        assert_eq!(clean, "Review repo\n## Conversation context (recent)\nuser: [REVIEW_SCOPE:staged]");
+        assert_eq!(
+            clean,
+            "Review repo\n## Conversation context (recent)\nuser: [REVIEW_SCOPE:staged]"
+        );
     }
 
     #[test]

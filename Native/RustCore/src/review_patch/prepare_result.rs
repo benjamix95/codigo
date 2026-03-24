@@ -25,7 +25,9 @@ pub fn build_prepare_result(
         diff_preview,
         risk_score,
         request.base_branch_name,
-        request.verification_report.filter(|value| !value.trim().is_empty()),
+        request
+            .verification_report
+            .filter(|value| !value.trim().is_empty()),
     )
 }
 

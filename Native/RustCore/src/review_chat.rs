@@ -66,7 +66,10 @@ mod tests {
 
         let merged = merge_chat_findings(&existing, &incoming);
         assert_eq!(merged["insertedCount"].as_i64(), Some(0));
-        assert_eq!(merged["findings"].as_array().map(|items| items.len()), Some(1));
+        assert_eq!(
+            merged["findings"].as_array().map(|items| items.len()),
+            Some(1)
+        );
     }
 
     #[test]
@@ -88,6 +91,9 @@ mod tests {
 
         let merged = merge_chat_findings(&existing, &incoming);
         assert_eq!(merged["insertedCount"].as_i64(), Some(1));
-        assert_eq!(merged["findings"].as_array().map(|items| items.len()), Some(2));
+        assert_eq!(
+            merged["findings"].as_array().map(|items| items.len()),
+            Some(2)
+        );
     }
 }

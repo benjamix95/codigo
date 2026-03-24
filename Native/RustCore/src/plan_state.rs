@@ -42,10 +42,7 @@ pub struct PlanStep {
     pub updated_at: String,
 }
 
-pub fn handle_action(
-    action: &str,
-    arguments: &BTreeMap<String, String>,
-) -> Result<String, String> {
+pub fn handle_action(action: &str, arguments: &BTreeMap<String, String>) -> Result<String, String> {
     match action {
         "plan_create" => create_snapshot(arguments),
         "plan_read" => read_latest(arguments),
@@ -197,26 +194,31 @@ pub fn read_history(arguments: &BTreeMap<String, String>) -> Result<String, Stri
         .cloned()
         .unwrap_or_default();
     let recent = history.into_iter().rev().take(limit).collect::<Vec<_>>();
-    Ok(pretty_json(json!(recent.into_iter().rev().collect::<Vec<_>>())))
+    Ok(pretty_json(json!(recent
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>())))
 }
 
 pub fn step_update(arguments: &BTreeMap<String, String>) -> Result<String, String> {
-    let step_id = required_string(arguments, "step_id")
-        .or_else(|_| required_string(arguments, "stepId"))?;
+    let step_id =
+        required_string(arguments, "step_id").or_else(|_| required_string(arguments, "stepId"))?;
     let status = required_string(arguments, "status")?;
     let document = read_document();
     let conversation_id = resolve_mutation_conversation_id(arguments, &document, true)
         .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
     let title = non_empty(string_arg(arguments, "title"));
     mutate_latest_snapshot(&conversation_id, true, |snapshot| {
-        upsert_step(snapshot, &step_id, &status, title, None, None, None, None, None);
+        upsert_step(
+            snapshot, &step_id, &status, title, None, None, None, None, None,
+        );
     })?;
     Ok(format!("OK — plan step {step_id} updated to {status}"))
 }
 
 pub fn step_upsert(arguments: &BTreeMap<String, String>) -> Result<String, String> {
-    let step_id = required_string(arguments, "step_id")
-        .or_else(|_| required_string(arguments, "stepId"))?;
+    let step_id =
+        required_string(arguments, "step_id").or_else(|_| required_string(arguments, "stepId"))?;
     let status = required_string(arguments, "status")?;
     let document = read_document();
     let conversation_id = resolve_mutation_conversation_id(arguments, &document, true)
@@ -266,8 +268,7 @@ pub fn step_batch_update(arguments: &BTreeMap<String, String>) -> Result<String,
                 &status,
                 string_value(update, "title"),
                 string_value(update, "description"),
-                string_value(update, "targetFile")
-                    .or_else(|| string_value(update, "target_file")),
+                string_value(update, "targetFile").or_else(|| string_value(update, "target_file")),
                 parse_value_string_array(update.get("linkedFiles"))
                     .or_else(|| parse_value_string_array(update.get("linked_files"))),
                 parse_value_string_array(update.get("dependsOn"))
@@ -329,8 +330,8 @@ pub fn step_reorder(arguments: &BTreeMap<String, String>) -> Result<String, Stri
 }
 
 pub fn step_dependency_set(arguments: &BTreeMap<String, String>) -> Result<String, String> {
-    let step_id = required_string(arguments, "step_id")
-        .or_else(|_| required_string(arguments, "stepId"))?;
+    let step_id =
+        required_string(arguments, "step_id").or_else(|_| required_string(arguments, "stepId"))?;
     let depends_on = parse_string_array(
         non_empty(string_arg(arguments, "depends_on"))
             .or_else(|| non_empty(string_arg(arguments, "dependsOn")))
@@ -397,7 +398,8 @@ pub fn request_user_input(arguments: &BTreeMap<String, String>) -> Result<String
             .get("options")
             .and_then(Value::as_array)
             .map(|items| {
-                items.iter()
+                items
+                    .iter()
                     .filter_map(|item| {
                         item.as_str()
                             .map(ToString::to_string)
@@ -421,10 +423,9 @@ pub fn request_user_input(arguments: &BTreeMap<String, String>) -> Result<String
 
     let title = non_empty(string_arg(arguments, "title"))
         .unwrap_or_else(|| "Clarification questions".to_string());
-    let phase = non_empty(string_arg(arguments, "phase"))
-        .unwrap_or_else(|| "questioning".to_string());
-    let round = non_empty(string_arg(arguments, "round"))
-        .unwrap_or_else(|| "n/a".to_string());
+    let phase =
+        non_empty(string_arg(arguments, "phase")).unwrap_or_else(|| "questioning".to_string());
+    let round = non_empty(string_arg(arguments, "round")).unwrap_or_else(|| "n/a".to_string());
     let context = non_empty(string_arg(arguments, "context"))
         .map(|value| format!(" | context: {value}"))
         .unwrap_or_default();
@@ -535,26 +536,26 @@ where
 {
     let mut document = read_document();
     if create_if_missing
-        && !document.snapshots_by_conversation.contains_key(conversation_id)
+        && !document
+            .snapshots_by_conversation
+            .contains_key(conversation_id)
     {
         let now = iso_now();
-        document
-            .snapshots_by_conversation
-            .insert(
-                conversation_id.to_string(),
-                vec![PlanSnapshot {
-                    snapshot_id: next_id("snapshot"),
-                    conversation_id: conversation_id.to_string(),
-                    goal: "Operational plan in progress".to_string(),
-                    chosen_path: None,
-                    steps: Vec::new(),
-                    walkthrough_markdown: None,
-                    summary: None,
-                    outcome: None,
-                    created_at: now.clone(),
-                    updated_at: now,
-                }],
-            );
+        document.snapshots_by_conversation.insert(
+            conversation_id.to_string(),
+            vec![PlanSnapshot {
+                snapshot_id: next_id("snapshot"),
+                conversation_id: conversation_id.to_string(),
+                goal: "Operational plan in progress".to_string(),
+                chosen_path: None,
+                steps: Vec::new(),
+                walkthrough_markdown: None,
+                summary: None,
+                outcome: None,
+                created_at: now.clone(),
+                updated_at: now,
+            }],
+        );
         document.latest_conversation_id = Some(conversation_id.to_string());
     }
     let history = document
@@ -650,8 +651,7 @@ fn parse_steps(raw: &str) -> Result<Vec<PlanStep>, String> {
             id: string_value(item, "id")
                 .or_else(|| string_value(item, "step_id"))
                 .unwrap_or_else(|| format!("{}", index + 1)),
-            title: string_value(item, "title")
-                .unwrap_or_else(|| format!("Step {}", index + 1)),
+            title: string_value(item, "title").unwrap_or_else(|| format!("Step {}", index + 1)),
             description: string_value(item, "description")
                 .or_else(|| string_value(item, "title"))
                 .unwrap_or_else(|| format!("Step {}", index + 1)),
@@ -678,7 +678,8 @@ fn parse_string_array(raw: Option<&str>) -> Option<Vec<String>> {
         }
         let parsed = serde_json::from_str::<Value>(trimmed).ok()?;
         parsed.as_array().map(|items| {
-            items.iter()
+            items
+                .iter()
                 .filter_map(|item| item.as_str().map(|text| text.trim().to_string()))
                 .filter(|text| !text.is_empty())
                 .collect::<Vec<_>>()
@@ -690,24 +691,31 @@ fn parse_value_string_array(value: Option<&Value>) -> Option<Vec<String>> {
     value.and_then(|value| {
         if let Some(items) = value.as_array() {
             return Some(
-                items.iter()
+                items
+                    .iter()
                     .filter_map(|item| item.as_str().map(|text| text.trim().to_string()))
                     .filter(|text| !text.is_empty())
                     .collect::<Vec<_>>(),
             );
         }
-        value.as_str().and_then(|text| parse_string_array(Some(text)))
+        value
+            .as_str()
+            .and_then(|text| parse_string_array(Some(text)))
     })
 }
 
 fn parse_value_array(raw: Option<&str>, field_name: &str) -> Result<Vec<Value>, String> {
     let Some(raw) = raw else {
-        return Err(format!("Error: '{field_name}' must be a non-empty JSON array"));
+        return Err(format!(
+            "Error: '{field_name}' must be a non-empty JSON array"
+        ));
     };
     let parsed = serde_json::from_str::<Value>(raw)
         .map_err(|_| format!("Error: '{field_name}' must be a non-empty JSON array"))?;
     let Some(items) = parsed.as_array() else {
-        return Err(format!("Error: '{field_name}' must be a non-empty JSON array"));
+        return Err(format!(
+            "Error: '{field_name}' must be a non-empty JSON array"
+        ));
     };
     Ok(items.clone())
 }
@@ -740,8 +748,7 @@ fn resolve_mutation_conversation_id(
 }
 
 fn required_string(arguments: &BTreeMap<String, String>, key: &str) -> Result<String, String> {
-    non_empty(string_arg(arguments, key))
-        .ok_or_else(|| format!("Error: '{key}' is required"))
+    non_empty(string_arg(arguments, key)).ok_or_else(|| format!("Error: '{key}' is required"))
 }
 
 fn resolve_conversation_id(
@@ -809,7 +816,10 @@ fn generate_conversation_id() -> String {
 
 fn next_id(prefix: &str) -> String {
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
     let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
     format!("{prefix}-{nanos}-{sequence}")
 }
@@ -828,7 +838,8 @@ fn string_arg(arguments: &BTreeMap<String, String>, key: &str) -> String {
 }
 
 fn string_value(value: &Value, key: &str) -> Option<String> {
-    value.get(key)
+    value
+        .get(key)
         .and_then(Value::as_str)
         .map(|text| text.trim().to_string())
         .filter(|text| !text.is_empty())
@@ -851,15 +862,19 @@ fn non_empty(value: String) -> Option<String> {
 }
 
 fn int_arg(arguments: &BTreeMap<String, String>, key: &str) -> Option<i64> {
-    arguments.get(key).and_then(|value| value.parse::<i64>().ok())
+    arguments
+        .get(key)
+        .and_then(|value| value.parse::<i64>().ok())
 }
 
 fn bool_arg(arguments: &BTreeMap<String, String>, key: &str) -> Option<bool> {
-    arguments.get(key).and_then(|value| match value.trim().to_lowercase().as_str() {
-        "1" | "true" | "yes" | "y" => Some(true),
-        "0" | "false" | "no" | "n" => Some(false),
-        _ => None,
-    })
+    arguments
+        .get(key)
+        .and_then(|value| match value.trim().to_lowercase().as_str() {
+            "1" | "true" | "yes" | "y" => Some(true),
+            "0" | "false" | "no" | "n" => Some(false),
+            _ => None,
+        })
 }
 
 #[cfg(test)]
@@ -913,7 +928,11 @@ mod tests {
                 .cloned()
                 .unwrap_or_default();
             let latest = history.last().unwrap();
-            let step_ids = latest.steps.iter().map(|step| step.id.as_str()).collect::<Vec<_>>();
+            let step_ids = latest
+                .steps
+                .iter()
+                .map(|step| step.id.as_str())
+                .collect::<Vec<_>>();
             assert_eq!(step_ids, vec!["1", "2"]);
         });
     }
@@ -937,7 +956,10 @@ mod tests {
                 .unwrap();
             assert_eq!(latest.goal, "Operational plan in progress");
             assert_eq!(latest.steps.first().map(|step| step.id.as_str()), Some("7"));
-            assert_eq!(latest.steps.first().map(|step| step.status.as_str()), Some("running"));
+            assert_eq!(
+                latest.steps.first().map(|step| step.status.as_str()),
+                Some("running")
+            );
         });
     }
 
@@ -962,7 +984,10 @@ mod tests {
                 .next()
                 .cloned()
                 .unwrap();
-            assert_eq!(document.latest_conversation_id.as_deref(), Some(generated_id.as_str()));
+            assert_eq!(
+                document.latest_conversation_id.as_deref(),
+                Some(generated_id.as_str())
+            );
             assert_eq!(generated_id.len(), 36);
             assert_eq!(generated_id.matches('-').count(), 4);
         });

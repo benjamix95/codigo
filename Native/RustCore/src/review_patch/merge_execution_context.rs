@@ -49,7 +49,10 @@ mod tests {
             safe_only: true,
         });
 
-        assert_eq!(response.pr_url.as_deref(), Some("https://example.test/pr/1"));
+        assert_eq!(
+            response.pr_url.as_deref(),
+            Some("https://example.test/pr/1")
+        );
         assert_eq!(response.first_merge_auto, Some(true));
         assert_eq!(response.retry_after_conflicts, Some(true));
         assert_eq!(response.retry_merge_auto, Some(false));

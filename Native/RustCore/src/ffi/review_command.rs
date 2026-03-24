@@ -1,5 +1,7 @@
 use super::common::{encode_raw, with_raw_json_input};
-use crate::review_command::{build_start_prompt, finalize_deferred_command, mutate_snapshot, plan_command};
+use crate::review_command::{
+    build_start_prompt, finalize_deferred_command, mutate_snapshot, plan_command,
+};
 use std::os::raw::c_char;
 
 #[no_mangle]

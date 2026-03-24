@@ -4,59 +4,7 @@ import CoderEngine
 extension SoloCodeApp {
     func registerProviders() {
         let cfg = providerFactoryConfig()
-        if providerRegistry.provider(for: "openai-api") == nil {
-            let effort = OpenAIAPIProvider.isReasoningModel(model) ? "medium" : nil
-            providerRegistry.register(
-                ProviderFactory.openAIAPIProvider(
-                    config: cfg,
-                    reasoningEffort: effort,
-                    executionController: executionController,
-                    codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
-                        "openai-api",
-                        config: cfg,
-                        executionController: executionController,
-                        codebaseIndex: workspaceStore.codebaseIndex,
-                        workspacePaths: workspaceStore.activeWorkspacePaths
-                    )
-                )
-            )
-        }
-        if providerRegistry.provider(for: "anthropic-api") == nil {
-            providerRegistry.register(
-                ProviderFactory.anthropicAPIProvider(
-                    config: cfg,
-                    executionController: executionController,
-                    codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
-                        "anthropic-api",
-                        config: cfg,
-                        executionController: executionController,
-                        codebaseIndex: workspaceStore.codebaseIndex,
-                        workspacePaths: workspaceStore.activeWorkspacePaths
-                    )
-                )
-            )
-        }
-        if providerRegistry.provider(for: "google-api") == nil {
-            providerRegistry.register(
-                ProviderFactory.googleAPIProvider(
-                    config: cfg,
-                    executionController: executionController,
-                    codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
-                        "google-api",
-                        config: cfg,
-                        executionController: executionController,
-                        codebaseIndex: workspaceStore.codebaseIndex,
-                        workspacePaths: workspaceStore.activeWorkspacePaths
-                    )
-                )
-            )
-        }
+        // ── CLI Providers first (Codex is default) ──────────────
         if providerRegistry.provider(for: "codex-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.codexProvider(
@@ -117,6 +65,60 @@ extension SoloCodeApp {
                     workspacePaths: workspaceStore.activeWorkspacePaths,
                     subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
                         "gemini-cli",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
+                )
+            )
+        }
+        // ── API Providers ───────────────────────────────────────
+        if providerRegistry.provider(for: "openai-api") == nil {
+            let effort = OpenAIAPIProvider.isReasoningModel(model) ? "medium" : nil
+            providerRegistry.register(
+                ProviderFactory.openAIAPIProvider(
+                    config: cfg,
+                    reasoningEffort: effort,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "openai-api",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
+                )
+            )
+        }
+        if providerRegistry.provider(for: "anthropic-api") == nil {
+            providerRegistry.register(
+                ProviderFactory.anthropicAPIProvider(
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "anthropic-api",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
+                )
+            )
+        }
+        if providerRegistry.provider(for: "google-api") == nil {
+            providerRegistry.register(
+                ProviderFactory.googleAPIProvider(
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "google-api",
                         config: cfg,
                         executionController: executionController,
                         codebaseIndex: workspaceStore.codebaseIndex,

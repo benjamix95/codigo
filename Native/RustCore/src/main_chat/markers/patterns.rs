@@ -118,5 +118,11 @@ pub fn excessive_newlines() -> &'static Regex {
 
 pub fn structured_payload() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| regex(r"(?:\b[a-z_][a-z0-9_]*=[^\|\n\r]+(?:\|\s*|\s*$)){2,}", true, false))
+    REGEX.get_or_init(|| {
+        regex(
+            r"(?:\b[a-z_][a-z0-9_]*=[^\|\n\r]+(?:\|\s*|\s*$)){2,}",
+            true,
+            false,
+        )
+    })
 }

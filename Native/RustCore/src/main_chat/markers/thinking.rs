@@ -5,10 +5,24 @@ pub fn extract_last_operational_thinking_line(content: &str) -> Option<String> {
     }
 
     let prefixes = [
-        "planning", "explored", "inspecting", "ran ", "reading", "analyzing",
-        "implementing", "updating", "creating", "generating", "processing",
-        "setting", "preparing", "starting", "initializing", "bootstrapping",
-        "writing", "searching",
+        "planning",
+        "explored",
+        "inspecting",
+        "ran ",
+        "reading",
+        "analyzing",
+        "implementing",
+        "updating",
+        "creating",
+        "generating",
+        "processing",
+        "setting",
+        "preparing",
+        "starting",
+        "initializing",
+        "bootstrapping",
+        "writing",
+        "searching",
     ];
 
     trimmed

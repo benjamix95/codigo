@@ -56,8 +56,14 @@ mod tests {
 
     #[test]
     fn detects_stub_and_builds_follow_up_prompt() {
-        let snapshot = prepare_auto_continuation(base_snapshot(), "Fix it", "I'll start by checking the files...");
-        assert!(should_auto_continue_stub("I'll start by checking the files..."));
+        let snapshot = prepare_auto_continuation(
+            base_snapshot(),
+            "Fix it",
+            "I'll start by checking the files...",
+        );
+        assert!(should_auto_continue_stub(
+            "I'll start by checking the files..."
+        ));
         assert!(snapshot.output.and_then(|it| it.follow_up_prompt).is_some());
     }
 

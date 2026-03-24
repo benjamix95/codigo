@@ -1,10 +1,12 @@
 use app_core_protocol::main_chat_runtime::{
-    MainChatDirectStreamSnapshot, MainChatPlanPhase, MainChatPlanSnapshot, MainChatPlanningStateKind,
-    MainChatRuntimeMode, MainChatRuntimeOutput, MainChatRuntimeSnapshot,
+    MainChatDirectStreamSnapshot, MainChatPlanPhase, MainChatPlanSnapshot,
+    MainChatPlanningStateKind, MainChatRuntimeMode, MainChatRuntimeOutput, MainChatRuntimeSnapshot,
 };
 
 pub fn ensure_direct_stream_defaults(snapshot: &mut MainChatRuntimeSnapshot) {
-    snapshot.mode.get_or_insert(MainChatRuntimeMode::DirectStream);
+    snapshot
+        .mode
+        .get_or_insert(MainChatRuntimeMode::DirectStream);
     snapshot
         .direct_stream
         .get_or_insert_with(|| MainChatDirectStreamSnapshot {
@@ -14,7 +16,9 @@ pub fn ensure_direct_stream_defaults(snapshot: &mut MainChatRuntimeSnapshot) {
             max_stall_retries: 12,
             ..Default::default()
         });
-    snapshot.output.get_or_insert_with(MainChatRuntimeOutput::default);
+    snapshot
+        .output
+        .get_or_insert_with(MainChatRuntimeOutput::default);
 }
 
 pub fn ensure_plan_defaults(snapshot: &mut MainChatRuntimeSnapshot) {
@@ -24,7 +28,9 @@ pub fn ensure_plan_defaults(snapshot: &mut MainChatRuntimeSnapshot) {
         planning_state_kind: Some(MainChatPlanningStateKind::Idle),
         ..Default::default()
     });
-    snapshot.output.get_or_insert_with(MainChatRuntimeOutput::default);
+    snapshot
+        .output
+        .get_or_insert_with(MainChatRuntimeOutput::default);
 }
 
 pub fn reset_output(snapshot: &mut MainChatRuntimeSnapshot) {

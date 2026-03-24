@@ -1,6 +1,4 @@
-use super::models::{
-    ReviewDeferredCommandFinalizeRequest, ReviewDeferredCommandFinalizeResponse,
-};
+use super::models::{ReviewDeferredCommandFinalizeRequest, ReviewDeferredCommandFinalizeResponse};
 
 pub fn finalize_deferred_command(
     request: ReviewDeferredCommandFinalizeRequest,
@@ -26,9 +24,12 @@ pub fn finalize_deferred_command(
 
     ReviewDeferredCommandFinalizeResponse::success(
         "failed",
-        request
-            .last_error
-            .unwrap_or_else(|| format!("Code review session {} did not complete successfully", request.session_id)),
+        request.last_error.unwrap_or_else(|| {
+            format!(
+                "Code review session {} did not complete successfully",
+                request.session_id
+            )
+        }),
     )
 }
 

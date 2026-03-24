@@ -147,11 +147,19 @@ enum MainChatRustTransportSupport {
     static func shouldBypassRustTransport(
         selectedProviderId: String?,
         fallbackSelectedProviderId: String?,
+        coderMode: CoderMode,
+        shouldRunPlanInline: Bool,
+        forcePlanInline: Bool,
+        preferCodeReviewRuntimeProvider: Bool?,
         config: ProviderFactoryConfig
     ) -> Bool {
-        let _ = normalizedProviderId(selectedProviderId ?? fallbackSelectedProviderId)
+        let providerId = normalizedProviderId(selectedProviderId ?? fallbackSelectedProviderId)
+        let isPlanFlow = forcePlanInline || shouldRunPlanInline || coderMode == .plan
+        let isCodeReviewFlow = preferCodeReviewRuntimeProvider == true || coderMode == .codeReviewMultiSwarm
         let _ = config
-        return false
+        // Kilo CLI still runs through the Swift provider pipeline.
+        // Rust runtime transport/session support currently covers Codex/Claude/Gemini/API backends.
+        return providerId == "kilo-cli" && !isPlanFlow && !isCodeReviewFlow
     }
 
     static func resolveTransportConfig(

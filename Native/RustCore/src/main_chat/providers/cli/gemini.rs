@@ -2,7 +2,8 @@ use super::process::stream_process_lines;
 use crate::main_chat::providers::common::{flatten_string_map, join_cli_prompt, string_value};
 use crate::main_chat::providers::parsing::jsonl::parse_jsonl_line;
 use crate::main_chat::providers::session::{
-    emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, is_cancelled, running_cli_account,
+    emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, is_cancelled,
+    running_cli_account,
 };
 use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
 use std::collections::BTreeMap;
@@ -20,7 +21,12 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
         config.context_prompt.as_deref(),
         &config.attachments,
     );
-    let mut args = vec!["-p".to_string(), prompt, "--output-format".to_string(), "json".to_string()];
+    let mut args = vec![
+        "-p".to_string(),
+        prompt,
+        "--output-format".to_string(),
+        "json".to_string(),
+    ];
     if let Some(model) = config
         .gemini_model_override
         .clone()
@@ -84,7 +90,8 @@ fn consume_line(session_id: &str, line: &str) -> Result<(), String> {
             .and_then(string_value)
             .or_else(|| json.get("message").and_then(string_value))
         {
-            if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota") {
+            if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota")
+            {
                 if failover_to_next_cli_account(session_id, "gemini", &error)? {
                     return Err("retry_with_next_account".to_string());
                 }
@@ -119,7 +126,12 @@ fn parse_raw_event(json: &serde_json::Value) -> Option<(String, BTreeMap<String,
         .get("tool")
         .and_then(string_value)
         .or_else(|| item.get("name").and_then(string_value));
-    tool_name.map(|tool_name| (tool_name.replace('-', "_").to_lowercase(), flatten_string_map(item)))
+    tool_name.map(|tool_name| {
+        (
+            tool_name.replace('-', "_").to_lowercase(),
+            flatten_string_map(item),
+        )
+    })
 }
 
 fn extract_text(value: &serde_json::Value) -> Option<String> {

@@ -283,6 +283,10 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             MainChatRustTransportSupport.shouldBypassRustTransport(
                 selectedProviderId: "codex-cli",
                 fallbackSelectedProviderId: nil,
+                coderMode: .agent,
+                shouldRunPlanInline: false,
+                forcePlanInline: false,
+                preferCodeReviewRuntimeProvider: nil,
                 config: config
             )
         )
@@ -296,6 +300,42 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             MainChatRustTransportSupport.shouldBypassRustTransport(
                 selectedProviderId: "codex-cli",
                 fallbackSelectedProviderId: nil,
+                coderMode: .agent,
+                shouldRunPlanInline: false,
+                forcePlanInline: false,
+                preferCodeReviewRuntimeProvider: nil,
+                config: config
+            )
+        )
+    }
+
+    func testRustTransportBypassTriggersForKiloInStandardAgentFlow() {
+        let config = makeProviderFactoryConfig(codexPath: "")
+
+        XCTAssertTrue(
+            MainChatRustTransportSupport.shouldBypassRustTransport(
+                selectedProviderId: "kilo-cli",
+                fallbackSelectedProviderId: nil,
+                coderMode: .agent,
+                shouldRunPlanInline: false,
+                forcePlanInline: false,
+                preferCodeReviewRuntimeProvider: nil,
+                config: config
+            )
+        )
+    }
+
+    func testRustTransportBypassDoesNotTriggerForKiloDuringPlanFlow() {
+        let config = makeProviderFactoryConfig(codexPath: "")
+
+        XCTAssertFalse(
+            MainChatRustTransportSupport.shouldBypassRustTransport(
+                selectedProviderId: "kilo-cli",
+                fallbackSelectedProviderId: nil,
+                coderMode: .plan,
+                shouldRunPlanInline: false,
+                forcePlanInline: false,
+                preferCodeReviewRuntimeProvider: nil,
                 config: config
             )
         )
@@ -423,6 +463,8 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
             openrouterModel: "",
             grokApiKey: "",
             grokModel: "",
+            kiloPath: "",
+            kiloModel: "",
             codexPath: codexPath,
             codexSandbox: "workspace-write",
             codexSessionFullAccess: false,

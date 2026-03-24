@@ -135,8 +135,10 @@ struct ReviewPanelChatTab: View {
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         if !store.chatMessages.isEmpty {
-            withAnimation(.easeOut(duration: 0.15)) {
-                proxy.scrollTo(ReviewPanelChatAutoscroll.bottomAnchorId, anchor: .bottom)
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(ReviewPanelChatAutoscroll.bottomAnchorId, anchor: .bottom)
+                }
             }
         }
     }

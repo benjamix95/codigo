@@ -91,10 +91,11 @@ pub(crate) fn stream_process_lines(
             }
         }
     }
-
 }
 
-fn finish_stderr(stderr_thread: thread::JoinHandle<Result<String, String>>) -> Result<String, String> {
+fn finish_stderr(
+    stderr_thread: thread::JoinHandle<Result<String, String>>,
+) -> Result<String, String> {
     stderr_thread
         .join()
         .map_err(|_| "failed_to_join_stderr_reader".to_string())?

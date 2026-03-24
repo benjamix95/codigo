@@ -29,12 +29,18 @@ fn select_patch_finalization_targets_filtered(
                 }
             }
             let is_verified = finding.get("verifiedAt").is_some()
-                || finding.get("verificationReport").and_then(Value::as_str).is_some();
+                || finding
+                    .get("verificationReport")
+                    .and_then(Value::as_str)
+                    .is_some();
             if !is_verified {
                 return None;
             }
             if require_missing_patch_artifact
-                && finding.get("patchArtifactId").and_then(Value::as_str).is_some()
+                && finding
+                    .get("patchArtifactId")
+                    .and_then(Value::as_str)
+                    .is_some()
             {
                 return None;
             }
@@ -71,7 +77,10 @@ fn is_patch_ready(patch: &Value) -> bool {
     let verify_status = patch.get("verifyStatus").and_then(Value::as_str);
     let status = patch.get("status").and_then(Value::as_str);
     verify_status == Some("verified")
-        && matches!(status, Some("verified") | Some("applied") | Some("pr_opened") | Some("merged"))
+        && matches!(
+            status,
+            Some("verified") | Some("applied") | Some("pr_opened") | Some("merged")
+        )
 }
 
 #[cfg(test)]

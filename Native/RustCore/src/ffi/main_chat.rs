@@ -6,26 +6,24 @@ use crate::main_chat::{
     replace_store_snapshot, resolve_runtime_transport, resolve_thread_provider_selection,
     resume_session, start_session, start_turn,
 };
-use app_core_protocol::main_chat_markers::{MainChatMarkersRequest, MainChatMarkersResponse};
 use app_core_protocol::main_chat::{
     MainChatActionRequest, MainChatReduceEventRequest, MainChatRuntimeResponse,
 };
-use app_core_protocol::main_chat_reasoning::{
-    MainChatReasoningRequest, MainChatReasoningResponse,
-};
+use app_core_protocol::main_chat_markers::{MainChatMarkersRequest, MainChatMarkersResponse};
 use app_core_protocol::main_chat_provider::{
-    MainChatProviderSessionPollRequest, MainChatProviderSessionResponse, MainChatRuntimeTransportRequest,
-    MainChatRuntimeTransportResponse,
+    MainChatProviderSessionPollRequest, MainChatProviderSessionResponse,
+    MainChatRuntimeTransportRequest, MainChatRuntimeTransportResponse,
+};
+use app_core_protocol::main_chat_reasoning::{MainChatReasoningRequest, MainChatReasoningResponse};
+use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
+use app_core_protocol::main_chat_runtime::{
+    MainChatRuntimeProviderPollRequest, MainChatRuntimeProviderPollResponse,
 };
 use app_core_protocol::main_chat_store::{
     MainChatStoreActionRequest, MainChatStoreResponse, MainChatStoreSnapshot,
 };
 use app_core_protocol::main_chat_task_runtime::{
     MainChatTaskRuntimeRequest, MainChatTaskRuntimeResponse,
-};
-use app_core_protocol::main_chat_runtime::MainChatRuntimeActionRequest;
-use app_core_protocol::main_chat_runtime::{
-    MainChatRuntimeProviderPollRequest, MainChatRuntimeProviderPollResponse,
 };
 use app_core_protocol::thread_provider_selection::{
     ThreadProviderSelectionRequest, ThreadProviderSelectionResponse,
@@ -53,7 +51,10 @@ pub extern "C" fn chat_core_runtime_reduce_event(input: *const c_char) -> *mut c
         let request: MainChatReduceEventRequest = match serde_json::from_str(raw) {
             Ok(request) => request,
             Err(err) => {
-                return encode_raw(&MainChatRuntimeResponse::error("decode_failed", &err.to_string()));
+                return encode_raw(&MainChatRuntimeResponse::error(
+                    "decode_failed",
+                    &err.to_string(),
+                ));
             }
         };
         if request.schema_version != 1 {
@@ -62,7 +63,10 @@ pub extern "C" fn chat_core_runtime_reduce_event(input: *const c_char) -> *mut c
                 "schemaVersion must be 1",
             ));
         }
-        encode_raw(&MainChatRuntimeResponse::success(apply_event(request.state, &request.event)))
+        encode_raw(&MainChatRuntimeResponse::success(apply_event(
+            request.state,
+            &request.event,
+        )))
     })
 }
 
@@ -93,7 +97,9 @@ pub extern "C" fn chat_core_provider_poll(input: *const c_char) -> *mut c_char {
 
 #[no_mangle]
 pub extern "C" fn chat_core_runtime_poll_provider(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| decode_runtime_provider_poll_call(raw, poll_provider_runtime))
+    with_raw_json_input(input, |raw| {
+        decode_runtime_provider_poll_call(raw, poll_provider_runtime)
+    })
 }
 
 #[no_mangle]
@@ -108,22 +114,30 @@ pub extern "C" fn chat_core_provider_cancel(input: *const c_char) -> *mut c_char
 
 #[no_mangle]
 pub extern "C" fn chat_core_provider_resolve_transport(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| decode_runtime_transport_call(raw, resolve_runtime_transport))
+    with_raw_json_input(input, |raw| {
+        decode_runtime_transport_call(raw, resolve_runtime_transport)
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn chat_core_reasoning_handle(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| decode_reasoning_call(raw, handle_reasoning_request))
+    with_raw_json_input(input, |raw| {
+        decode_reasoning_call(raw, handle_reasoning_request)
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn chat_core_markers_handle(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| decode_markers_call(raw, handle_markers_request))
+    with_raw_json_input(input, |raw| {
+        decode_markers_call(raw, handle_markers_request)
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn chat_core_task_runtime_handle_action(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| decode_task_runtime_call(raw, handle_task_runtime_action))
+    with_raw_json_input(input, |raw| {
+        decode_task_runtime_call(raw, handle_task_runtime_action)
+    })
 }
 
 #[no_mangle]
@@ -135,17 +149,23 @@ pub extern "C" fn chat_core_thread_provider_selection(input: *const c_char) -> *
 
 #[no_mangle]
 pub extern "C" fn chat_core_store_load(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| decode_store_snapshot_call(raw, load_store_snapshot))
+    with_raw_json_input(input, |raw| {
+        decode_store_snapshot_call(raw, load_store_snapshot)
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn chat_core_store_replace_snapshot(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| decode_store_snapshot_call(raw, replace_store_snapshot))
+    with_raw_json_input(input, |raw| {
+        decode_store_snapshot_call(raw, replace_store_snapshot)
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn chat_core_store_handle_action(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| decode_store_action_call(raw, handle_store_action))
+    with_raw_json_input(input, |raw| {
+        decode_store_action_call(raw, handle_store_action)
+    })
 }
 
 fn decode_and_encode<Request, Response>(
@@ -159,7 +179,10 @@ where
     let request: Request = match serde_json::from_str(raw) {
         Ok(request) => request,
         Err(err) => {
-            return encode_raw(&MainChatRuntimeResponse::error("decode_failed", &err.to_string()));
+            return encode_raw(&MainChatRuntimeResponse::error(
+                "decode_failed",
+                &err.to_string(),
+            ));
         }
     };
     encode_raw(&handler(request))

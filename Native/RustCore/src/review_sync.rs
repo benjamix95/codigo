@@ -3,8 +3,15 @@ use crate::review_projection::build_projection;
 use crate::review_value::{set_optional_string, set_string_array};
 use serde_json::Value;
 
-pub fn sync_findings(mut findings: Vec<Value>, trace_log: Vec<String>) -> Result<(Vec<Value>, Value), String> {
-    findings.sort_by(|lhs, rhs| created_at(lhs).partial_cmp(&created_at(rhs)).unwrap_or(std::cmp::Ordering::Equal));
+pub fn sync_findings(
+    mut findings: Vec<Value>,
+    trace_log: Vec<String>,
+) -> Result<(Vec<Value>, Value), String> {
+    findings.sort_by(|lhs, rhs| {
+        created_at(lhs)
+            .partial_cmp(&created_at(rhs))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let mut index = IdentityIndex::default();
     let mut output = Vec::with_capacity(findings.len());
@@ -14,8 +21,16 @@ pub fn sync_findings(mut findings: Vec<Value>, trace_log: Vec<String>) -> Result
             return Err("finding missing id".to_string());
         }
         if let Some(existing_id) = index.exact_duplicate_id(&identity) {
-            set_string_array(&mut finding, "possibleDuplicateOf", vec![existing_id.clone()]);
-            set_optional_string(&mut finding, "mergedIntoFindingId", Some(existing_id.clone()));
+            set_string_array(
+                &mut finding,
+                "possibleDuplicateOf",
+                vec![existing_id.clone()],
+            );
+            set_optional_string(
+                &mut finding,
+                "mergedIntoFindingId",
+                Some(existing_id.clone()),
+            );
             set_optional_string(&mut finding, "recurrenceGroupId", Some(existing_id));
         } else {
             let best = index
@@ -26,9 +41,17 @@ pub fn sync_findings(mut findings: Vec<Value>, trace_log: Vec<String>) -> Result
                     (candidate.finding_id, score)
                 })
                 .filter(|(_, score)| *score >= 0.75)
-                .max_by(|lhs, rhs| lhs.1.partial_cmp(&rhs.1).unwrap_or(std::cmp::Ordering::Equal));
+                .max_by(|lhs, rhs| {
+                    lhs.1
+                        .partial_cmp(&rhs.1)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
             if let Some((existing_id, _)) = best {
-                set_string_array(&mut finding, "possibleDuplicateOf", vec![existing_id.clone()]);
+                set_string_array(
+                    &mut finding,
+                    "possibleDuplicateOf",
+                    vec![existing_id.clone()],
+                );
                 set_optional_string(&mut finding, "recurrenceGroupId", Some(existing_id));
             }
         }
@@ -41,7 +64,10 @@ pub fn sync_findings(mut findings: Vec<Value>, trace_log: Vec<String>) -> Result
 }
 
 fn created_at(finding: &Value) -> f64 {
-    finding.get("createdAt").and_then(Value::as_f64).unwrap_or(0.0)
+    finding
+        .get("createdAt")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0)
 }
 
 #[cfg(test)]
@@ -79,7 +105,8 @@ mod tests {
             "staleStatus": "active",
             "createdAt": 2.0
         });
-        let (findings, projection) = sync_findings(vec![first, second], vec!["a".to_string()]).unwrap();
+        let (findings, projection) =
+            sync_findings(vec![first, second], vec!["a".to_string()]).unwrap();
         assert_eq!(findings.len(), 2);
         assert_eq!(projection["duplicatesCount"].as_i64(), Some(1));
         assert_eq!(

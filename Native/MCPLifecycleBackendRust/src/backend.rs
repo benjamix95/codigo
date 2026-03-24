@@ -81,11 +81,8 @@ impl Backend {
 
     fn list_tools(&mut self, payload: Value) -> Result<Value, BackendError> {
         let request: ListToolsRequest = serde_json::from_value(payload)?;
-        let server_id = self.resolve_server_identity(
-            request.server_id,
-            request.server_name,
-            request.server,
-        )?;
+        let server_id =
+            self.resolve_server_identity(request.server_id, request.server_name, request.server)?;
         let tools = self.with_process_for_server(&server_id, "list_tools", |process, config| {
             process.list_tools(&config.id, &config.name)
         })?;
@@ -97,11 +94,8 @@ impl Backend {
         if request.tool_name.trim().is_empty() {
             return Err(BackendError::invalid("toolName is required"));
         }
-        let server_id = self.resolve_server_identity(
-            request.server_id,
-            request.server_name,
-            request.server,
-        )?;
+        let server_id =
+            self.resolve_server_identity(request.server_id, request.server_name, request.server)?;
         let config = self.managed_server(&server_id)?.config.clone();
         let result = self.with_process_for_server(&server_id, "call_tool", |process, _| {
             process.call_tool(&request.tool_name, request.arguments)
@@ -116,11 +110,8 @@ impl Backend {
 
     fn reconnect(&mut self, payload: Value) -> Result<Value, BackendError> {
         let request: ServerActionRequest = serde_json::from_value(payload)?;
-        let server_id = self.resolve_server_identity(
-            request.server_id,
-            request.server_name,
-            request.server,
-        )?;
+        let server_id =
+            self.resolve_server_identity(request.server_id, request.server_name, request.server)?;
         let config = self.managed_server(&server_id)?.config.clone();
         let process_key = self.managed_server(&server_id)?.process_key.clone();
         self.stop_process_for_key(&process_key, "reconnect")?;
@@ -182,7 +173,9 @@ impl Backend {
             if self.servers.contains_key(&server_id) {
                 return Ok(server_id);
             }
-            return Err(BackendError::not_found(format!("unknown serverId: {server_id}")));
+            return Err(BackendError::not_found(format!(
+                "unknown serverId: {server_id}"
+            )));
         }
         if let Some(server_name) = server_name.filter(|value| !value.trim().is_empty()) {
             let mut matches = self
@@ -195,7 +188,9 @@ impl Backend {
                 return Ok(matches.remove(0));
             }
             if matches.is_empty() {
-                return Err(BackendError::not_found(format!("unknown serverName: {server_name}")));
+                return Err(BackendError::not_found(format!(
+                    "unknown serverName: {server_name}"
+                )));
             }
             return Err(BackendError::invalid(format!(
                 "ambiguous serverName: {server_name}"
@@ -234,7 +229,12 @@ impl Backend {
 
         match result {
             Ok(result) => {
-                self.update_servers_for_process_key(&process_key, ServerStatus::Ready, None, reason);
+                self.update_servers_for_process_key(
+                    &process_key,
+                    ServerStatus::Ready,
+                    None,
+                    reason,
+                );
                 Ok(result)
             }
             Err(error) => {
@@ -255,10 +255,13 @@ impl Backend {
             .ok_or_else(|| BackendError::not_found(format!("unknown serverId: {server_id}")))
     }
 
-    fn managed_process_mut(&mut self, process_key: &str) -> Result<&mut ManagedProcess, BackendError> {
-        self.processes
-            .get_mut(process_key)
-            .ok_or_else(|| BackendError::protocol(format!("missing managed process for key: {process_key}")))
+    fn managed_process_mut(
+        &mut self,
+        process_key: &str,
+    ) -> Result<&mut ManagedProcess, BackendError> {
+        self.processes.get_mut(process_key).ok_or_else(|| {
+            BackendError::protocol(format!("missing managed process for key: {process_key}"))
+        })
     }
 
     fn ensure_connected(
@@ -277,7 +280,8 @@ impl Backend {
         };
 
         if needs_restart {
-            self.stop_process_for_key(&process_key, "restart_stale_process").ok();
+            self.stop_process_for_key(&process_key, "restart_stale_process")
+                .ok();
             self.start_process(&config, &process_key, reason)?;
         } else if let Some(managed_process) = self.processes.get_mut(&process_key) {
             managed_process.touch(reason);
@@ -349,14 +353,22 @@ impl Backend {
         }
     }
 
-    fn start_process_for_server(&mut self, server_id: &str, reason: &str) -> Result<(), BackendError> {
+    fn start_process_for_server(
+        &mut self,
+        server_id: &str,
+        reason: &str,
+    ) -> Result<(), BackendError> {
         let managed = self.managed_server(server_id)?;
         let config = managed.config.clone();
         let process_key = managed.process_key.clone();
         self.start_process(&config, &process_key, reason)
     }
 
-    fn stop_process_for_key(&mut self, process_key: &str, reason: &str) -> Result<(), BackendError> {
+    fn stop_process_for_key(
+        &mut self,
+        process_key: &str,
+        reason: &str,
+    ) -> Result<(), BackendError> {
         if let Some(mut managed_process) = self.processes.remove(process_key) {
             managed_process.process.shutdown()?;
         }

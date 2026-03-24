@@ -1,12 +1,6 @@
 use crate::review_chat::merge_chat_findings;
-use crate::review_command::{
-    models::ReviewCommandPlanRequest,
-    plan_command,
-};
-use crate::review_history::{
-    derive_history_live_state,
-    derive_historical_findings_from_snapshot,
-};
+use crate::review_command::{models::ReviewCommandPlanRequest, plan_command};
+use crate::review_history::{derive_historical_findings_from_snapshot, derive_history_live_state};
 use crate::review_models::ReviewCoreErrorPayload;
 use crate::review_session::build_outcome;
 use serde::{Deserialize, Serialize};
@@ -53,12 +47,18 @@ pub struct ReviewPanelChatExtractResponse {
     pub snapshot: Option<Value>,
 }
 
-pub fn plan_panel_launch(request: ReviewCommandPlanRequest) -> crate::review_command::models::ReviewCommandPlanResponse {
+pub fn plan_panel_launch(
+    request: ReviewCommandPlanRequest,
+) -> crate::review_command::models::ReviewCommandPlanResponse {
     plan_command(request)
 }
 
 pub fn derive_panel_history_live(request: ReviewPanelHistoryLiveRequest) -> Value {
-    derive_history_live_state(&request.snapshot, &request.worker_plans, &request.live_cards)
+    derive_history_live_state(
+        &request.snapshot,
+        &request.worker_plans,
+        &request.live_cards,
+    )
 }
 
 pub fn derive_panel_history_records(snapshot: Value) -> Vec<Value> {
@@ -97,7 +97,8 @@ pub fn extract_panel_chat_findings(
         .get("findings")
         .and_then(Value::as_array)
         .map(|items| {
-            items.iter()
+            items
+                .iter()
                 .enumerate()
                 .filter_map(|(index, item)| map_chat_finding(item, index))
                 .collect::<Vec<_>>()
@@ -183,14 +184,20 @@ fn canonicalized_chat_snapshot(
         .and_then(Value::as_array)
         .map(|items| items.len())
         .unwrap_or(0);
-    let inserted = findings.iter().skip(previous_count).take(inserted_count as usize);
+    let inserted = findings
+        .iter()
+        .skip(previous_count)
+        .take(inserted_count as usize);
     let mut events = existing_events;
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs_f64())
         .unwrap_or(0.0);
     for finding in inserted {
-        let finding_id = finding.get("id").and_then(Value::as_str).unwrap_or_default();
+        let finding_id = finding
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         let severity = finding
             .get("severity")
             .and_then(Value::as_str)
@@ -212,8 +219,13 @@ fn canonicalized_chat_snapshot(
     }
     snapshot["findings"] = Value::Array(findings.to_vec());
     snapshot["events"] = Value::Array(events);
-    snapshot["mutationSequence"] =
-        json!(snapshot.get("mutationSequence").and_then(Value::as_u64).unwrap_or(0) + 1);
+    snapshot["mutationSequence"] = json!(
+        snapshot
+            .get("mutationSequence")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            + 1
+    );
     snapshot["lastUpdatedAt"] = json!(timestamp);
     snapshot["outcome"] = build_outcome(&snapshot, None);
     Some(snapshot)
@@ -296,7 +308,8 @@ fn normalize_category(raw: Option<&str>, message: &str) -> &'static str {
 
 fn infer_category(message: &str) -> &'static str {
     let lower = message.to_lowercase();
-    if lower.contains("security") || lower.contains("injection") || lower.contains("authorization") {
+    if lower.contains("security") || lower.contains("injection") || lower.contains("authorization")
+    {
         "security"
     } else if lower.contains("race") || lower.contains("deadlock") || lower.contains("thread") {
         "concurrency"

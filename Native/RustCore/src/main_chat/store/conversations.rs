@@ -8,7 +8,10 @@ pub fn create_conversation(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation) = request.conversation.clone() else {
-        return MainChatStoreResponse::error("missing_conversation", "conversation payload is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation",
+            "conversation payload is required",
+        );
     };
     snapshot.conversations.push(conversation);
     MainChatStoreResponse::success(snapshot)
@@ -18,7 +21,9 @@ pub fn delete_conversation(
     mut snapshot: MainChatStoreSnapshot,
     conversation_id: &str,
 ) -> MainChatStoreResponse {
-    snapshot.conversations.retain(|item| item.id != conversation_id);
+    snapshot
+        .conversations
+        .retain(|item| item.id != conversation_id);
     snapshot.plan_boards.remove(conversation_id);
     MainChatStoreResponse::success(snapshot)
 }
@@ -28,7 +33,10 @@ pub fn update_conversation_preferences(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(index) = conversation_index(&snapshot, conversation_id) else {
         return MainChatStoreResponse::error("missing_conversation", "conversation not found");

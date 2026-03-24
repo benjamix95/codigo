@@ -58,7 +58,10 @@ fn derive_live_workers(file_ledger: &[Value], active: bool) -> Vec<Value> {
             .cloned()
             .unwrap_or_default();
         for worker_id in worker_ids.iter().filter_map(Value::as_str) {
-            grouped.entry(worker_id.to_string()).or_default().push(entry);
+            grouped
+                .entry(worker_id.to_string())
+                .or_default()
+                .push(entry);
         }
     }
 
@@ -147,13 +150,17 @@ mod tests {
 
     #[test]
     fn derives_history_live_state_from_file_ledger() {
-        let state = derive_history_live_state(&json!({
-            "phase": "completed",
-            "fileLedger": [
-                {"path": "Sources/A.swift", "phaseId": "verification", "status": "running", "workerIds": ["worker-1"], "severity": "warning"},
-                {"path": "Sources/B.swift", "phaseId": "publish_ready", "status": "completed", "workerIds": ["worker-1"], "severity": "critical"}
-            ]
-        }), &[], &[]);
+        let state = derive_history_live_state(
+            &json!({
+                "phase": "completed",
+                "fileLedger": [
+                    {"path": "Sources/A.swift", "phaseId": "verification", "status": "running", "workerIds": ["worker-1"], "severity": "warning"},
+                    {"path": "Sources/B.swift", "phaseId": "publish_ready", "status": "completed", "workerIds": ["worker-1"], "severity": "critical"}
+                ]
+            }),
+            &[],
+            &[],
+        );
         assert_eq!(state["workers"][0]["id"].as_str(), Some("worker-1"));
         assert_eq!(state["files"][0]["path"].as_str(), Some("Sources/B.swift"));
         assert_eq!(state["files"][0]["status"].as_str(), Some("completed"));
@@ -164,24 +171,32 @@ mod tests {
     fn derives_history_live_state_from_worker_plans_when_file_ledger_is_empty() {
         let state = derive_history_live_state(
             &json!({ "phase": "analyzing", "fileLedger": [] }),
-            &[json!({
-                "workerId": "worker-1",
-                "description": "Analyze retry paths",
-                "severity": "warning",
-                "files": ["Sources/A.swift", "Sources/B.swift"],
-                "fileCount": 2
-            }), json!({
-                "workerId": "worker-2",
-                "description": "Analyze auth guards",
-                "severity": "critical",
-                "files": ["Sources/B.swift"],
-                "fileCount": 1
-            })],
+            &[
+                json!({
+                    "workerId": "worker-1",
+                    "description": "Analyze retry paths",
+                    "severity": "warning",
+                    "files": ["Sources/A.swift", "Sources/B.swift"],
+                    "fileCount": 2
+                }),
+                json!({
+                    "workerId": "worker-2",
+                    "description": "Analyze auth guards",
+                    "severity": "critical",
+                    "files": ["Sources/B.swift"],
+                    "fileCount": 1
+                }),
+            ],
             &[],
         );
         assert_eq!(state["workers"][0]["id"].as_str(), Some("worker-1"));
         assert_eq!(state["files"][0]["path"].as_str(), Some("Sources/B.swift"));
-        assert_eq!(state["files"][0]["workerIds"].as_array().map(|items| items.len()), Some(2));
+        assert_eq!(
+            state["files"][0]["workerIds"]
+                .as_array()
+                .map(|items| items.len()),
+            Some(2)
+        );
         assert_eq!(state["isRunning"].as_bool(), Some(true));
     }
 }

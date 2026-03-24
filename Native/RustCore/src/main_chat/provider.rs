@@ -20,7 +20,9 @@ pub fn bridge_provider_stream(request: MainChatProviderStreamRequest) -> MainCha
             source: request.source.clone(),
             kind: map_chunk_kind(&chunk.kind),
             payload: chunk.payload,
-            timestamp: chunk.timestamp.unwrap_or_else(|| state.updated_at.unwrap_or(0.0)),
+            timestamp: chunk
+                .timestamp
+                .unwrap_or_else(|| state.updated_at.unwrap_or(0.0)),
         };
         state = apply_event(state, &event);
         emitted_events.push(event);
@@ -67,14 +69,26 @@ mod tests {
             },
             source: "codex".to_string(),
             chunks: vec![
-                chunk(MainChatProviderChunkKind::Started, &[("status", "streaming")]),
-                chunk(MainChatProviderChunkKind::TextDelta, &[("stream_id", "main"), ("delta", "ciao")]),
-                chunk(MainChatProviderChunkKind::Completed, &[("status", "completed")]),
+                chunk(
+                    MainChatProviderChunkKind::Started,
+                    &[("status", "streaming")],
+                ),
+                chunk(
+                    MainChatProviderChunkKind::TextDelta,
+                    &[("stream_id", "main"), ("delta", "ciao")],
+                ),
+                chunk(
+                    MainChatProviderChunkKind::Completed,
+                    &[("status", "completed")],
+                ),
             ],
         });
         let state = response.state.expect("state");
         assert_eq!(response.emitted_events.len(), 3);
-        assert_eq!(state.text_by_stream_id.get("main").map(String::as_str), Some("ciao"));
+        assert_eq!(
+            state.text_by_stream_id.get("main").map(String::as_str),
+            Some("ciao")
+        );
         assert_eq!(state.status, "completed");
     }
 

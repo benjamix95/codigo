@@ -10,10 +10,17 @@ pub fn verify_candidates(
     workspace_path: &str,
     scope_files: Vec<String>,
 ) -> Result<Vec<ReviewVerificationResultPayload>, String> {
-    let normalized_scope: HashSet<String> = scope_files.into_iter().map(|file| normalize_path(&file)).collect();
+    let normalized_scope: HashSet<String> = scope_files
+        .into_iter()
+        .map(|file| normalize_path(&file))
+        .collect();
     let mut results = Vec::with_capacity(candidates.len());
     for candidate in candidates {
-        results.push(verify_candidate(candidate, workspace_path, &normalized_scope)?);
+        results.push(verify_candidate(
+            candidate,
+            workspace_path,
+            &normalized_scope,
+        )?);
     }
     Ok(results)
 }
@@ -51,7 +58,10 @@ fn verify_candidate(
                         candidate_id,
                         "verified",
                         "line_evidence_match",
-                        &format!("L'evidenza del candidate coincide con il contesto della riga {}.", line_number),
+                        &format!(
+                            "L'evidenza del candidate coincide con il contesto della riga {}.",
+                            line_number
+                        ),
                         None,
                     ));
                 }
@@ -136,11 +146,22 @@ fn matches_known_risk(message: &str, line: &str) -> bool {
         ("forced cast", vec![" as! "]),
         ("deadlock", vec!["dispatchqueue.main.sync"]),
         ("html injection", vec!["innerhtml"]),
-        ("secret", vec!["api_key", "access_token", "client_secret", "ghp_", "sk_live_"]),
+        (
+            "secret",
+            vec![
+                "api_key",
+                "access_token",
+                "client_secret",
+                "ghp_",
+                "sk_live_",
+            ],
+        ),
         ("http", vec!["http://"]),
     ]
     .into_iter()
-    .any(|(needle, tokens)| lower_message.contains(needle) && tokens.into_iter().any(|token| lower_line.contains(token)))
+    .any(|(needle, tokens)| {
+        lower_message.contains(needle) && tokens.into_iter().any(|token| lower_line.contains(token))
+    })
 }
 
 #[cfg(test)]
@@ -153,7 +174,10 @@ mod tests {
     fn verification_requires_line_context_for_promotion() {
         let root = std::env::temp_dir().join(format!(
             "review-verify-{}",
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         ));
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("Service.swift"), "fatalError()\n").unwrap();

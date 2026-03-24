@@ -55,7 +55,10 @@ where
         let raw = unsafe { CStr::from_ptr(input) };
         match raw.to_str() {
             Ok(text) => handler(text),
-            Err(_) => "{\"error\":{\"code\":\"invalid_utf8\",\"message\":\"input was not valid UTF-8\"}}".to_string(),
+            Err(_) => {
+                "{\"error\":{\"code\":\"invalid_utf8\",\"message\":\"input was not valid UTF-8\"}}"
+                    .to_string()
+            }
         }
     };
 

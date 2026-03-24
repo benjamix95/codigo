@@ -243,7 +243,10 @@ impl MainChatRuntimeResponse {
         }
     }
 
-    pub fn success_with_events(state: MainChatTurnState, emitted_events: Vec<MainChatEvent>) -> Self {
+    pub fn success_with_events(
+        state: MainChatTurnState,
+        emitted_events: Vec<MainChatEvent>,
+    ) -> Self {
         Self {
             schema_version: 1,
             error: None,

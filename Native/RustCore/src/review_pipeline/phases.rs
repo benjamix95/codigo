@@ -27,11 +27,7 @@ pub fn phase_title(phase_id: &str) -> &'static str {
     }
 }
 
-pub fn ledger_status(
-    phase_id: &str,
-    current_phase: &str,
-    terminal: bool,
-) -> &'static str {
+pub fn ledger_status(phase_id: &str, current_phase: &str, terminal: bool) -> &'static str {
     let current_rank = phase_rank(current_phase);
     let target_rank = phase_rank(phase_id);
     if terminal && current_phase == COMPLETED {

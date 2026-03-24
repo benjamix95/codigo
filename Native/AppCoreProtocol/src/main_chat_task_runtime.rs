@@ -43,7 +43,11 @@ pub struct MainChatTaskRuntimeResponse {
 
 impl MainChatTaskRuntimeResponse {
     pub fn success(state: MainChatTaskRuntimeState) -> Self {
-        Self { schema_version: 1, error: None, state: Some(state) }
+        Self {
+            schema_version: 1,
+            error: None,
+            state: Some(state),
+        }
     }
 
     pub fn error(code: &str, message: &str) -> Self {

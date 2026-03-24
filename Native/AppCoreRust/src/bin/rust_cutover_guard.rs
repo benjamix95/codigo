@@ -1,7 +1,7 @@
 use app_core_protocol::app_core::{
     AppCoreRequest, AppCoreResponse, BoundaryAuditRequest, BoundaryAuditSummary,
 };
-use app_core_rust::{dispatch, boundary::format_text_report};
+use app_core_rust::{boundary::format_text_report, dispatch};
 use std::collections::BTreeMap;
 use std::env;
 use std::process::ExitCode;
@@ -31,7 +31,10 @@ fn run() -> Result<ExitCode, String> {
 
     let AppCoreResponse::BoundaryAudit(report) = response;
     if args.format == "json" {
-        println!("{}", serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?
+        );
     } else {
         println!("{}", format_text_report(&report));
     }
@@ -81,7 +84,9 @@ fn parse_args(args: Vec<String>) -> Result<Args, String> {
             }
             "--workspace" => workspace = args.get(index + 1).cloned().unwrap_or_default(),
             "--allowlist" => allowlist = args.get(index + 1).cloned().unwrap_or_default(),
-            "--candidate-files" => candidate_files = args.get(index + 1).cloned().unwrap_or_default(),
+            "--candidate-files" => {
+                candidate_files = args.get(index + 1).cloned().unwrap_or_default()
+            }
             "--new-files" => new_files = args.get(index + 1).cloned().unwrap_or_default(),
             "--enforce-legacy-zero-prefixes" => {
                 enforce_legacy_zero_prefixes = args.get(index + 1).cloned().unwrap_or_default()
@@ -90,7 +95,11 @@ fn parse_args(args: Vec<String>) -> Result<Args, String> {
                 legacy_budget_prefixes = args.get(index + 1).cloned().unwrap_or_default()
             }
             "--format" => format = args.get(index + 1).cloned().unwrap_or_default(),
-            other => return Err(format!("Argomento sconosciuto per rust_cutover_guard: {other}")),
+            other => {
+                return Err(format!(
+                    "Argomento sconosciuto per rust_cutover_guard: {other}"
+                ))
+            }
         }
         index += 2;
     }
@@ -134,7 +143,11 @@ fn split_csv(value: &str) -> Vec<String> {
 
 fn split_budget_csv(value: &str) -> Result<BTreeMap<String, usize>, String> {
     let mut output = BTreeMap::new();
-    for item in value.split(';').map(str::trim).filter(|item| !item.is_empty()) {
+    for item in value
+        .split(';')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+    {
         let Some((prefix, budget)) = item.rsplit_once('=') else {
             return Err(format!("Formato budget non valido: {item}"));
         };
@@ -142,7 +155,11 @@ fn split_budget_csv(value: &str) -> Result<BTreeMap<String, usize>, String> {
             .trim()
             .parse::<usize>()
             .map_err(|_| format!("Budget non valido per {prefix}: {budget}"))?;
-        let normalized_prefix = prefix.trim().trim_start_matches("./").trim_end_matches('/').to_string();
+        let normalized_prefix = prefix
+            .trim()
+            .trim_start_matches("./")
+            .trim_end_matches('/')
+            .to_string();
         if normalized_prefix.is_empty() {
             return Err(format!("Prefisso budget non valido: {item}"));
         }

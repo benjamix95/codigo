@@ -9,7 +9,10 @@ pub fn build_resolve_conflicts_context(
         return ReviewPatchResolveConflictsContextResponse::error("schemaVersion must be 1");
     }
 
-    let worktree_path = match request.worktree_path.filter(|value| !value.trim().is_empty()) {
+    let worktree_path = match request
+        .worktree_path
+        .filter(|value| !value.trim().is_empty())
+    {
         Some(value) => value,
         None => {
             return ReviewPatchResolveConflictsContextResponse::error(
@@ -25,15 +28,17 @@ pub fn build_resolve_conflicts_context(
             )
         }
     };
-    let base_branch_name =
-        match request.base_branch_name.filter(|value| !value.trim().is_empty()) {
-            Some(value) => value,
-            None => {
-                return ReviewPatchResolveConflictsContextResponse::error(
-                    "Worktree o branch mancanti per la risoluzione conflitti.",
-                )
-            }
-        };
+    let base_branch_name = match request
+        .base_branch_name
+        .filter(|value| !value.trim().is_empty())
+    {
+        Some(value) => value,
+        None => {
+            return ReviewPatchResolveConflictsContextResponse::error(
+                "Worktree o branch mancanti per la risoluzione conflitti.",
+            )
+        }
+    };
     let commit_message = format!(
         "chore(review): sync {} with {}",
         branch_name, base_branch_name

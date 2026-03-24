@@ -13,14 +13,20 @@ pub fn validate_schema(version: i32) -> Result<(), MainChatStoreResponse> {
     Ok(())
 }
 
-pub fn conversation_index(snapshot: &MainChatStoreSnapshot, conversation_id: &str) -> Option<usize> {
+pub fn conversation_index(
+    snapshot: &MainChatStoreSnapshot,
+    conversation_id: &str,
+) -> Option<usize> {
     snapshot
         .conversations
         .iter()
         .position(|item| item.id == conversation_id)
 }
 
-pub fn assistant_message_index(conversation: &MainChatStoreConversationSnapshot, message_id: Option<&str>) -> Option<usize> {
+pub fn assistant_message_index(
+    conversation: &MainChatStoreConversationSnapshot,
+    message_id: Option<&str>,
+) -> Option<usize> {
     if let Some(message_id) = message_id {
         return conversation
             .messages
@@ -36,7 +42,11 @@ pub fn assistant_message_index(conversation: &MainChatStoreConversationSnapshot,
 pub fn normalized_provider_id(provider_id: Option<String>) -> Option<String> {
     provider_id.and_then(|value| {
         let trimmed = value.trim().to_string();
-        if trimmed.is_empty() { None } else { Some(trimmed) }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     })
 }
 

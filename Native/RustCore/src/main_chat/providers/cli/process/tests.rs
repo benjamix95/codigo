@@ -9,7 +9,10 @@ use std::time::{Duration, Instant};
 fn includes_stderr_in_process_exit_errors() {
     let result = stream_process_lines(
         "/bin/sh",
-        &["-c".to_string(), "echo provider failed 1>&2; exit 7".to_string()],
+        &[
+            "-c".to_string(),
+            "echo provider failed 1>&2; exit 7".to_string(),
+        ],
         ".",
         &BTreeMap::new(),
         |_| Ok(()),

@@ -76,13 +76,12 @@ fn ffi_task_runtime_handles_begin_end_and_status_flow() {
             started_at: None,
         },
     );
-    assert!(
-        end.state
-            .expect("state after end")
-            .task_states
-            .iter()
-            .all(|item| item.conversation_id != "conv-a")
-    );
+    assert!(end
+        .state
+        .expect("state after end")
+        .task_states
+        .iter()
+        .all(|item| item.conversation_id != "conv-a"));
 }
 
 #[test]
@@ -141,7 +140,8 @@ fn load_runtime() -> LoadedRuntime {
         last_dlerror()
     );
 
-    let task_runtime = load_symbol::<RuntimeFunction>(handle, "chat_core_task_runtime_handle_action");
+    let task_runtime =
+        load_symbol::<RuntimeFunction>(handle, "chat_core_task_runtime_handle_action");
     let free_buffer = load_symbol::<FreeFunction>(handle, "solocode_free_buffer");
     LoadedRuntime {
         handle,
@@ -153,7 +153,12 @@ fn load_runtime() -> LoadedRuntime {
 fn load_symbol<T>(handle: *mut c_void, symbol: &str) -> T {
     let symbol = CString::new(symbol).expect("symbol cstring");
     let raw = unsafe { dlsym(handle, symbol.as_ptr()) };
-    assert!(!raw.is_null(), "dlsym failed for symbol {}: {}", symbol.to_string_lossy(), last_dlerror());
+    assert!(
+        !raw.is_null(),
+        "dlsym failed for symbol {}: {}",
+        symbol.to_string_lossy(),
+        last_dlerror()
+    );
     unsafe { std::mem::transmute_copy(&raw) }
 }
 

@@ -77,7 +77,9 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
             return Err("cancelled".to_string());
         }
         let payload = line.map_err(|error| format!("openai_stream_read_failed:{error}"))?;
-        let Some(payload) = sse_data_payload(&payload) else { continue };
+        let Some(payload) = sse_data_payload(&payload) else {
+            continue;
+        };
         if payload == "[DONE]" {
             return Ok(());
         }
@@ -116,7 +118,11 @@ fn consume_payload(session_id: &str, json: &Value) {
         emit_error(session_id, &error);
         return;
     }
-    let Some(choice) = json.get("choices").and_then(|value| value.as_array()).and_then(|value| value.first()) else {
+    let Some(choice) = json
+        .get("choices")
+        .and_then(|value| value.as_array())
+        .and_then(|value| value.first())
+    else {
         return;
     };
     if let Some(delta) = choice.get("delta") {

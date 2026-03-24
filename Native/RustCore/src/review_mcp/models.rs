@@ -227,8 +227,14 @@ pub fn trimmed_arg(args: &HashMap<String, String>, key: &str) -> String {
     get_arg(args, key).trim().to_string()
 }
 
-pub fn find_patch<'a>(snapshot: &'a ReviewSnapshotRecord, finding_id: &str) -> Option<&'a PatchRecord> {
-    snapshot.patches.iter().find(|patch| patch.finding_id == finding_id)
+pub fn find_patch<'a>(
+    snapshot: &'a ReviewSnapshotRecord,
+    finding_id: &str,
+) -> Option<&'a PatchRecord> {
+    snapshot
+        .patches
+        .iter()
+        .find(|patch| patch.finding_id == finding_id)
 }
 
 pub fn payload_line_map(payload: &HashMap<String, String>, keys: &[&str]) -> Vec<String> {

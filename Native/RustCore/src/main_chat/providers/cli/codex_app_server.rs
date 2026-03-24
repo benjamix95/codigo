@@ -246,7 +246,13 @@ fn handle_notification(
     gate: &mut CodexAgentMessageGate,
 ) -> Result<(), String> {
     let payload = value.get("params").cloned().unwrap_or(Value::Null);
-    rust_codex_trace(format!("notification method={method} payload_keys={}", payload.as_object().map(|map| map.keys().cloned().collect::<Vec<_>>().join(",")).unwrap_or_default()));
+    rust_codex_trace(format!(
+        "notification method={method} payload_keys={}",
+        payload
+            .as_object()
+            .map(|map| map.keys().cloned().collect::<Vec<_>>().join(","))
+            .unwrap_or_default()
+    ));
     match method {
         "turn/started" => {
             rust_codex_trace("emit raw turn_started");
@@ -329,7 +335,149 @@ fn handle_item_notification(
         if let Some(buffered) = gate.release_after_operational_event() {
             emit_text_delta(session_id, &buffered);
         }
+    } else if item_type == "collabToolCall" {
+        emit_collab_tool_call(session_id, method, &item);
+        if let Some(buffered) = gate.release_after_operational_event() {
+            emit_text_delta(session_id, &buffered);
+        }
+    } else if item_type == "fileChange" {
+        emit_file_change(session_id, method, &item);
+        if let Some(buffered) = gate.release_after_operational_event() {
+            emit_text_delta(session_id, &buffered);
+        }
     }
+}
+
+fn emit_file_change(session_id: &str, method: &str, item: &Value) {
+    let id = item.get("id").and_then(string_value).unwrap_or_default();
+    let file_path = item
+        .get("filePath")
+        .or_else(|| item.get("file"))
+        .and_then(string_value)
+        .unwrap_or_default();
+    let is_completed = method == "item/completed";
+    let mut payload = BTreeMap::new();
+    payload.insert("id".to_string(), id);
+    payload.insert("type".to_string(), "file_change".to_string());
+    payload.insert("name".to_string(), "edit".to_string());
+    payload.insert("path".to_string(), file_path.clone());
+    payload.insert("file".to_string(), file_path);
+    payload.insert(
+        "status".to_string(),
+        if is_completed {
+            "completed".to_string()
+        } else {
+            "running".to_string()
+        },
+    );
+    // Extract line counts if available
+    if let Some(added) = item.get("linesAdded").and_then(string_value) {
+        payload.insert("linesAdded".to_string(), added);
+    }
+    if let Some(removed) = item.get("linesRemoved").and_then(string_value) {
+        payload.insert("linesRemoved".to_string(), removed);
+    }
+    emit_raw(session_id, "file_change", payload);
+}
+
+/// Handle native Codex subagent events (`collabToolCall` item type).
+/// These represent the App Server's native multi-agent coordination —
+/// a parent agent delegates work to a child thread.
+fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
+    let id = item.get("id").and_then(string_value).unwrap_or_default();
+    let tool = item.get("tool").and_then(string_value).unwrap_or_default();
+    let prompt = item
+        .get("prompt")
+        .and_then(string_value)
+        .unwrap_or_default();
+    let sender_thread = item
+        .get("senderThreadId")
+        .and_then(string_value)
+        .unwrap_or_default();
+    let new_thread = item
+        .get("newThreadId")
+        .or_else(|| item.get("receiverThreadId"))
+        .and_then(string_value)
+        .unwrap_or_default();
+    let agent_status = item
+        .get("agentStatus")
+        .and_then(string_value)
+        .unwrap_or_default();
+    let is_completed = method == "item/completed";
+    let swarm_id = format!("swarm-codex-{}", session_id);
+
+    // Derive a human-readable agent name from the tool or prompt
+    let agent_label = if !tool.is_empty() {
+        tool.strip_prefix("coderide_subagent_")
+            .or_else(|| tool.strip_prefix("coderide_"))
+            .unwrap_or(&tool)
+            .to_string()
+    } else if !prompt.is_empty() {
+        let preview_end = prompt
+            .char_indices()
+            .nth(50)
+            .map_or(prompt.len(), |(i, _)| i);
+        prompt[..preview_end].to_string()
+    } else {
+        "Sub Agent".to_string()
+    };
+
+    let status = if is_completed { "completed" } else { "running" };
+    let title = if is_completed {
+        format!(
+            "Sub Agent {} — {}",
+            agent_label,
+            if agent_status.is_empty() {
+                "completed"
+            } else {
+                &agent_status
+            }
+        )
+    } else {
+        format!("Starting Sub Agent: {}", agent_label)
+    };
+
+    let mut payload = BTreeMap::new();
+    payload.insert(
+        "id".to_string(),
+        if !id.is_empty() {
+            id
+        } else {
+            new_thread.clone()
+        },
+    );
+    payload.insert("status".to_string(), status.to_string());
+    payload.insert("agent_name".to_string(), agent_label);
+    payload.insert("title".to_string(), title);
+    payload.insert("swarm_id".to_string(), swarm_id.clone());
+    payload.insert("group_id".to_string(), swarm_id);
+    if !sender_thread.is_empty() {
+        payload.insert("sender_thread_id".to_string(), sender_thread);
+    }
+    if !new_thread.is_empty() {
+        payload.insert("thread_id".to_string(), new_thread);
+    }
+    if !prompt.is_empty() {
+        let text_preview = if prompt.len() > 200 {
+            let end = prompt
+                .char_indices()
+                .nth(200)
+                .map_or(prompt.len(), |(i, _)| i);
+            format!("{}…", &prompt[..end])
+        } else {
+            prompt
+        };
+        payload.insert("text".to_string(), text_preview.clone());
+        payload.insert("description".to_string(), text_preview);
+    }
+
+    eprintln!(
+        "[CODEX_DEBUG] collabToolCall: method={} status={} agent={}",
+        method,
+        status,
+        payload.get("agent_name").cloned().unwrap_or_default()
+    );
+    emit_raw(session_id, "agent", payload);
 }
 
 fn is_operational_mcp_tool(tool: &str) -> bool {
@@ -388,6 +536,40 @@ fn emit_mcp_events(session_id: &str, method: &str, item: &Value) {
         payload.keys().cloned().collect::<Vec<_>>().join(",")
     ));
     emit_raw(session_id, "mcp_tool_call", payload.clone());
+
+    // Detect coderide subagent tools and emit an `agent` event so the
+    // SwarmLiveReducer creates visible subagent cards in the chat.
+    if tool.contains("subagent_") {
+        let agent_label = tool
+            .strip_prefix("coderide_subagent_")
+            .unwrap_or(&tool)
+            .to_string();
+        let is_completed = payload.get("status").map(String::as_str) == Some("completed");
+        let swarm_id = format!("swarm-codex-{}", session_id);
+        let mut agent_payload = payload.clone();
+        agent_payload.insert("agent_name".to_string(), agent_label.clone());
+        agent_payload.insert(
+            "title".to_string(),
+            if is_completed {
+                format!("Sub Agent {} — completed", agent_label)
+            } else {
+                format!("Starting Sub Agent: {}", agent_label)
+            },
+        );
+        agent_payload.insert("swarm_id".to_string(), swarm_id.clone());
+        agent_payload.insert("group_id".to_string(), swarm_id);
+        if let Some(task) = agent_payload.get("task").cloned() {
+            let text_preview = if task.len() > 200 {
+                let end = task.char_indices().nth(200).map_or(task.len(), |(i, _)| i);
+                format!("{}…", &task[..end])
+            } else {
+                task
+            };
+            agent_payload.insert("text".to_string(), text_preview);
+        }
+        emit_raw(session_id, "agent", agent_payload);
+    }
+
     if payload.get("status").map(String::as_str) != Some("completed") {
         return;
     }
@@ -582,10 +764,7 @@ mod tests {
             gate.push_delta("Ancora testo.").as_deref(),
             Some("Ancora testo.")
         );
-        assert_eq!(
-            gate.cumulative_text(),
-            "Prima risposta. Ancora testo."
-        );
+        assert_eq!(gate.cumulative_text(), "Prima risposta. Ancora testo.");
         assert_eq!(gate.release_after_operational_event(), None);
         assert_eq!(
             gate.push_delta(" Dopo il tool.").as_deref(),

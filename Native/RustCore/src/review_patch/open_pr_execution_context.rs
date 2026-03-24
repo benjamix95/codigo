@@ -19,7 +19,12 @@ pub fn build_open_pr_execution_context(
         .unwrap_or_else(|| {
             format!(
                 "codex/review-pr-{}",
-                request.finding_id.chars().take(8).collect::<String>().to_lowercase()
+                request
+                    .finding_id
+                    .chars()
+                    .take(8)
+                    .collect::<String>()
+                    .to_lowercase()
             )
         });
     let worktree_path = format!(
@@ -28,11 +33,7 @@ pub fn build_open_pr_execution_context(
         branch_name.replace('/', "-")
     );
 
-    ReviewPatchOpenPrExecutionContextResponse::success(
-        branch_name,
-        base_branch_name,
-        worktree_path,
-    )
+    ReviewPatchOpenPrExecutionContextResponse::success(branch_name, base_branch_name, worktree_path)
 }
 
 #[cfg(test)]

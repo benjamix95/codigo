@@ -59,10 +59,7 @@ pub fn config_from_snapshot(snapshot: &Value) -> Result<ReviewCommandConfig, Str
             .get("maxWorkers")
             .and_then(Value::as_i64)
             .unwrap_or(6) as i32,
-        max_rounds: config
-            .get("maxRounds")
-            .and_then(Value::as_i64)
-            .unwrap_or(3) as i32,
+        max_rounds: config.get("maxRounds").and_then(Value::as_i64).unwrap_or(3) as i32,
         analysis_backend: config
             .get("analysisBackend")
             .and_then(Value::as_str)
@@ -81,7 +78,9 @@ pub fn config_from_snapshot(snapshot: &Value) -> Result<ReviewCommandConfig, Str
 }
 
 pub fn trim(value: Option<&String>) -> String {
-    value.map(|value| value.trim().to_string()).unwrap_or_default()
+    value
+        .map(|value| value.trim().to_string())
+        .unwrap_or_default()
 }
 
 pub fn non_empty(value: Option<&String>) -> Option<String> {

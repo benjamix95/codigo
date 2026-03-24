@@ -7,10 +7,7 @@ pub fn handle_task_runtime_action(
     request: MainChatTaskRuntimeRequest,
 ) -> MainChatTaskRuntimeResponse {
     if request.schema_version != 1 {
-        return MainChatTaskRuntimeResponse::error(
-            "unsupported_schema",
-            "schemaVersion must be 1",
-        );
+        return MainChatTaskRuntimeResponse::error("unsupported_schema", "schemaVersion must be 1");
     }
 
     match request.operation.as_str() {
@@ -33,7 +30,8 @@ fn begin_task(request: MainChatTaskRuntimeRequest) -> MainChatTaskRuntimeRespons
     };
     let mut state = request.state;
     if let Some(index) = task_index(&state, &conversation_id) {
-        state.task_states[index].started_at = request.started_at.or(state.task_states[index].started_at);
+        state.task_states[index].started_at =
+            request.started_at.or(state.task_states[index].started_at);
         state.task_states[index].status_text = "Thinking".to_string();
     } else {
         state.task_states.push(MainChatTaskStateSnapshot {
@@ -53,7 +51,9 @@ fn end_task(request: MainChatTaskRuntimeRequest) -> MainChatTaskRuntimeResponse 
         );
     };
     let mut state = request.state;
-    state.task_states.retain(|item| item.conversation_id != conversation_id);
+    state
+        .task_states
+        .retain(|item| item.conversation_id != conversation_id);
     MainChatTaskRuntimeResponse::success(sorted_state(state))
 }
 

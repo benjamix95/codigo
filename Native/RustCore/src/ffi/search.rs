@@ -18,11 +18,13 @@ pub extern "C" fn solocode_semantic_search(input: *const c_char) -> *mut c_char 
 
 #[no_mangle]
 pub extern "C" fn solocode_semantic_tokenize(input: *const c_char) -> *mut c_char {
-    with_raw_json_input(input, |raw| match handle_tokenize_request(raw) {
+    with_raw_json_input(input, |raw| {
+        match handle_tokenize_request(raw) {
         Ok(response) => response,
         Err(message) => {
             serde_json::to_string(&RustSearchResponsePayload::error("tokenize_failed", &message))
                 .unwrap_or_else(|_| "{\"error\":{\"code\":\"tokenize_failed\",\"message\":\"response encoding failed\"},\"hits\":[]}".to_string())
         }
+    }
     })
 }

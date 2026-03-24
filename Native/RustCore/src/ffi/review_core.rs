@@ -2,15 +2,13 @@ use super::common::{encode_raw, with_raw_json_input, BACKEND_VERSION};
 use crate::review_audit::run_audit;
 use crate::review_chat::merge_chat_findings;
 use crate::review_finalize::{select_auto_prepare_targets, select_patch_finalization_targets};
-use crate::review_history::{
-    derive_historical_findings_from_snapshot, derive_history_live_state,
-};
+use crate::review_history::{derive_historical_findings_from_snapshot, derive_history_live_state};
 use crate::review_models::{
     ReviewAuditRequest, ReviewCoreAuditResponse, ReviewCoreListResponse,
-    ReviewFinalizeTargetsRequest,
     ReviewCoreProjectionResponse, ReviewCoreReduceResponse, ReviewCoreReplayResponse,
-    ReviewCoreSecurityGateResponse, ReviewCoreSyncResponse, ReviewProjectionRequest,
-    ReviewReplayRequest, ReviewSecurityGateRequest, ReviewSyncRequest, ReviewVerifyRequest,
+    ReviewCoreSecurityGateResponse, ReviewCoreSyncResponse, ReviewFinalizeTargetsRequest,
+    ReviewProjectionRequest, ReviewReplayRequest, ReviewSecurityGateRequest, ReviewSyncRequest,
+    ReviewVerifyRequest,
 };
 use crate::review_projection::build_projection;
 use crate::review_reduce::{derive_review_panel_state, merge_history};
@@ -55,27 +53,28 @@ pub extern "C" fn review_core_verify_candidates(input: *const c_char) -> *mut c_
         let request: ReviewVerifyRequest = match serde_json::from_str(raw) {
             Ok(request) => request,
             Err(err) => {
-                return encode_raw(
-                    &ReviewCoreListResponse::<serde_json::Value>::error(
-                        "decode_failed",
-                        &err.to_string(),
-                    ),
-                );
+                return encode_raw(&ReviewCoreListResponse::<serde_json::Value>::error(
+                    "decode_failed",
+                    &err.to_string(),
+                ));
             }
         };
         if request.schema_version != 1 {
-            return encode_raw(
-                &ReviewCoreListResponse::<serde_json::Value>::error(
-                    "unsupported_schema",
-                    "schemaVersion must be 1",
-                ),
-            );
+            return encode_raw(&ReviewCoreListResponse::<serde_json::Value>::error(
+                "unsupported_schema",
+                "schemaVersion must be 1",
+            ));
         }
-        match verify_candidates(request.candidates, &request.workspace_path, request.scope_files) {
+        match verify_candidates(
+            request.candidates,
+            &request.workspace_path,
+            request.scope_files,
+        ) {
             Ok(results) => encode_raw(&ReviewCoreListResponse::success(results)),
-            Err(message) => encode_raw(
-                &ReviewCoreListResponse::<serde_json::Value>::error("verify_failed", &message),
-            ),
+            Err(message) => encode_raw(&ReviewCoreListResponse::<serde_json::Value>::error(
+                "verify_failed",
+                &message,
+            )),
         }
     })
 }
@@ -125,14 +124,18 @@ pub extern "C" fn review_core_run_audit(input: *const c_char) -> *mut c_char {
                 "schemaVersion must be 1",
             ));
         }
-        match run_audit(&request.tool_name, request.scope_files, &request.workspace_path) {
+        match run_audit(
+            &request.tool_name,
+            request.scope_files,
+            &request.workspace_path,
+        ) {
             Ok(result) => encode_raw(&ReviewCoreAuditResponse::success(result)),
-            Err(message) if message == "unsupported_tool" => encode_raw(
-                &ReviewCoreAuditResponse::error(
+            Err(message) if message == "unsupported_tool" => {
+                encode_raw(&ReviewCoreAuditResponse::error(
                     "unsupported_tool",
                     "tool not implemented in rust core",
-                ),
-            ),
+                ))
+            }
             Err(message) => encode_raw(&ReviewCoreAuditResponse::error("audit_failed", &message)),
         }
     })
@@ -289,9 +292,10 @@ pub extern "C" fn review_core_evaluate_security_gate(input: *const c_char) -> *m
         }
         match evaluate_security_gate(&request.envelope) {
             Ok(report) => encode_raw(&ReviewCoreSecurityGateResponse::success(report)),
-            Err(message) => encode_raw(
-                &ReviewCoreSecurityGateResponse::error("security_gate_failed", &message),
-            ),
+            Err(message) => encode_raw(&ReviewCoreSecurityGateResponse::error(
+                "security_gate_failed",
+                &message,
+            )),
         }
     })
 }

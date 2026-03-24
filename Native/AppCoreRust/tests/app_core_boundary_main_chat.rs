@@ -28,8 +28,14 @@ fn boundary_audit_enforces_broad_main_chat_prefix_for_nested_chat_legacy_files()
 
     let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
         workspace_root: workspace.to_string_lossy().to_string(),
-        allowlist_path: workspace.join("Config/validation/rust-cutover-swift-allowlist.txt").to_string_lossy().to_string(),
-        candidate_files: vec!["App/SoloCodeApp/Sources/Chat/Support/PipelineRuntime/PipelineIntegrationService.swift".to_string()],
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Chat/Support/PipelineRuntime/PipelineIntegrationService.swift"
+                .to_string(),
+        ],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Chat".to_string()],
         legacy_non_ui_budget_by_prefix: Default::default(),
@@ -41,7 +47,12 @@ fn boundary_audit_enforces_broad_main_chat_prefix_for_nested_chat_legacy_files()
     assert_eq!(report.summary.allowed_swift_files, 1);
     assert_eq!(report.summary.legacy_non_ui_files, 1);
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
-    assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Chat"), Some(&1));
+    assert_eq!(
+        report
+            .enforced_prefix_counts
+            .get("App/SoloCodeApp/Sources/Chat"),
+        Some(&1)
+    );
 }
 
 #[test]
@@ -65,8 +76,13 @@ fn boundary_audit_treats_runtime_bridge_file_as_allowed_when_rule_is_present() {
 
     let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
         workspace_root: workspace.to_string_lossy().to_string(),
-        allowlist_path: workspace.join("Config/validation/rust-cutover-swift-allowlist.txt").to_string_lossy().to_string(),
-        candidate_files: vec!["App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift".to_string()],
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Runtime/ConversationFlowCoordinator+Support.swift".to_string(),
+        ],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Runtime".to_string()],
         legacy_non_ui_budget_by_prefix: Default::default(),
@@ -78,7 +94,12 @@ fn boundary_audit_treats_runtime_bridge_file_as_allowed_when_rule_is_present() {
     assert_eq!(report.summary.allowed_swift_files, 1);
     assert_eq!(report.summary.legacy_non_ui_files, 1);
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
-    assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Runtime"), Some(&1));
+    assert_eq!(
+        report
+            .enforced_prefix_counts
+            .get("App/SoloCodeApp/Sources/Runtime"),
+        Some(&1)
+    );
 }
 
 #[test]
@@ -102,8 +123,13 @@ fn boundary_audit_treats_runtime_direct_stream_adapter_file_as_allowed_when_rule
 
     let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
         workspace_root: workspace.to_string_lossy().to_string(),
-        allowlist_path: workspace.join("Config/validation/rust-cutover-swift-allowlist.txt").to_string_lossy().to_string(),
-        candidate_files: vec!["App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift".to_string()],
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Runtime/WorkspaceStore+ProjectContextSync.swift".to_string(),
+        ],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Runtime".to_string()],
         legacy_non_ui_budget_by_prefix: Default::default(),
@@ -115,7 +141,12 @@ fn boundary_audit_treats_runtime_direct_stream_adapter_file_as_allowed_when_rule
     assert_eq!(report.summary.allowed_swift_files, 1);
     assert_eq!(report.summary.legacy_non_ui_files, 1);
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
-    assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Runtime"), Some(&1));
+    assert_eq!(
+        report
+            .enforced_prefix_counts
+            .get("App/SoloCodeApp/Sources/Runtime"),
+        Some(&1)
+    );
 }
 
 #[test]
@@ -139,8 +170,13 @@ fn boundary_audit_treats_storerust_bridge_files_as_allowed_when_rule_is_present(
 
     let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
         workspace_root: workspace.to_string_lossy().to_string(),
-        allowlist_path: workspace.join("Config/validation/rust-cutover-swift-allowlist.txt").to_string_lossy().to_string(),
-        candidate_files: vec!["App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift".to_string()],
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
+        candidate_files: vec![
+            "App/SoloCodeApp/Sources/Chat/Support/StoreRust/ChatStore+RustBridge.swift".to_string(),
+        ],
         new_files: vec![],
         enforce_legacy_zero_prefixes: vec!["App/SoloCodeApp/Sources/Chat".to_string()],
         legacy_non_ui_budget_by_prefix: Default::default(),
@@ -152,7 +188,12 @@ fn boundary_audit_treats_storerust_bridge_files_as_allowed_when_rule_is_present(
     assert_eq!(report.summary.allowed_swift_files, 1);
     assert_eq!(report.summary.legacy_non_ui_files, 1);
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 1);
-    assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Chat"), Some(&1));
+    assert_eq!(
+        report
+            .enforced_prefix_counts
+            .get("App/SoloCodeApp/Sources/Chat"),
+        Some(&1)
+    );
 }
 
 #[test]
@@ -185,10 +226,15 @@ fn boundary_audit_treats_plan_services_support_files_as_allowed_when_rules_are_p
 
     let response = dispatch(AppCoreRequest::BoundaryAudit(BoundaryAuditRequest {
         workspace_root: workspace.to_string_lossy().to_string(),
-        allowlist_path: workspace.join("Config/validation/rust-cutover-swift-allowlist.txt").to_string_lossy().to_string(),
+        allowlist_path: workspace
+            .join("Config/validation/rust-cutover-swift-allowlist.txt")
+            .to_string_lossy()
+            .to_string(),
         candidate_files: vec![
-            "App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanFlowHelpers.swift".to_string(),
-            "App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanQuestionnaire.swift".to_string(),
+            "App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanFlowHelpers.swift"
+                .to_string(),
+            "App/SoloCodeApp/Sources/Services/ChatPlan/ChatPanelSupport+PlanQuestionnaire.swift"
+                .to_string(),
             "App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift".to_string(),
         ],
         new_files: vec![],
@@ -202,12 +248,19 @@ fn boundary_audit_treats_plan_services_support_files_as_allowed_when_rules_are_p
     assert_eq!(report.summary.allowed_swift_files, 3);
     assert_eq!(report.summary.legacy_non_ui_files, 0);
     assert_eq!(report.summary.enforced_legacy_non_ui_files, 0);
-    assert_eq!(report.enforced_prefix_counts.get("App/SoloCodeApp/Sources/Services"), None);
+    assert_eq!(
+        report
+            .enforced_prefix_counts
+            .get("App/SoloCodeApp/Sources/Services"),
+        None
+    );
 }
 
-
 fn make_workspace(label: &str) -> PathBuf {
-    let suffix = SystemTime::now().duration_since(UNIX_EPOCH).expect("system time").as_nanos();
+    let suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time")
+        .as_nanos();
     let path = std::env::temp_dir().join(format!("solocode-app-core-rust-{label}-{suffix}"));
     fs::create_dir_all(&path).expect("workspace dir");
     path

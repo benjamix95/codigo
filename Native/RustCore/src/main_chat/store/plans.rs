@@ -8,7 +8,10 @@ pub fn set_plan_board(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let plan_board = match request_plan_board(request) {
         Ok(plan_board) => plan_board.clone(),
@@ -31,7 +34,10 @@ pub fn attach_plan_to_message(
     request: &MainChatStoreActionRequest,
 ) -> MainChatStoreResponse {
     let Some(conversation_id) = request.conversation_id.as_deref() else {
-        return MainChatStoreResponse::error("missing_conversation_id", "conversationId is required");
+        return MainChatStoreResponse::error(
+            "missing_conversation_id",
+            "conversationId is required",
+        );
     };
     let Some(message_id) = request.message_id.as_deref() else {
         return MainChatStoreResponse::error("missing_message_id", "messageId is required");
@@ -42,10 +48,13 @@ pub fn attach_plan_to_message(
     let Some(message_index) = snapshot.conversations[conversation_index]
         .messages
         .iter()
-        .position(|item| item.id == message_id) else {
+        .position(|item| item.id == message_id)
+    else {
         return MainChatStoreResponse::error("missing_message", "message not found");
     };
-    snapshot.conversations[conversation_index].messages[message_index].plan_attachment =
-        request.message.as_ref().and_then(|item| item.plan_attachment.clone());
+    snapshot.conversations[conversation_index].messages[message_index].plan_attachment = request
+        .message
+        .as_ref()
+        .and_then(|item| item.plan_attachment.clone());
     MainChatStoreResponse::success(snapshot)
 }

@@ -8,21 +8,29 @@ pub fn plan_command(request: ReviewCommandPlanRequest) -> ReviewCommandPlanRespo
         "dismiss" => plan_dismiss(request),
         "comment" => plan_comment(request),
         "apply_fix" | "verify_finding" | "prepare_patch" | "verify_patch" | "apply_patch"
-        | "revalidate_finding" | "rollback_patch" | "close_finding" | "open_pr"
-        | "merge_pr" | "resolve_conflicts" => plan_patch_action(request),
-        _ => ReviewCommandPlanResponse::error(format!("Unsupported code review command: {}", request.action)),
+        | "revalidate_finding" | "rollback_patch" | "close_finding" | "open_pr" | "merge_pr"
+        | "resolve_conflicts" => plan_patch_action(request),
+        _ => ReviewCommandPlanResponse::error(format!(
+            "Unsupported code review command: {}",
+            request.action
+        )),
     }
 }
 
 fn plan_start(request: ReviewCommandPlanRequest) -> ReviewCommandPlanResponse {
     if !request.workspace_available {
-        return ReviewCommandPlanResponse::error("No active workspace is available for code review");
+        return ReviewCommandPlanResponse::error(
+            "No active workspace is available for code review",
+        );
     }
     let session_id = sanitize_session_id(request.session_id)
         .unwrap_or_else(|| generated_session_id(&request.payload));
     let mut response = ReviewCommandPlanResponse::success("start");
     response.session_id = Some(session_id);
-    response.config = Some(resolve_config_from_payload(&request.payload, request.default_config));
+    response.config = Some(resolve_config_from_payload(
+        &request.payload,
+        request.default_config,
+    ));
     response.deferred = true;
     response
 }
@@ -48,13 +56,11 @@ fn plan_dismiss(request: ReviewCommandPlanRequest) -> ReviewCommandPlanResponse 
     }
     let mut response = ReviewCommandPlanResponse::success("dismiss");
     response.finding_id = Some(finding_id);
-    response.reason = Some(
-        if trim(request.payload.get("reason")).is_empty() {
-            "dismissed".to_string()
-        } else {
-            trim(request.payload.get("reason"))
-        }
-    );
+    response.reason = Some(if trim(request.payload.get("reason")).is_empty() {
+        "dismissed".to_string()
+    } else {
+        trim(request.payload.get("reason"))
+    });
     response
 }
 
@@ -142,8 +148,14 @@ mod tests {
         assert!(!response.is_error);
         assert_eq!(response.kind, "start");
         assert!(response.deferred);
-        assert_eq!(response.config.as_ref().map(|config| config.max_workers), Some(4));
-        assert_eq!(response.config.as_ref().map(|config| config.analysis_only), Some(true));
+        assert_eq!(
+            response.config.as_ref().map(|config| config.max_workers),
+            Some(4)
+        );
+        assert_eq!(
+            response.config.as_ref().map(|config| config.analysis_only),
+            Some(true)
+        );
     }
 
     #[test]
@@ -212,6 +224,10 @@ mod tests {
         });
         assert!(!response.is_error);
         assert_eq!(response.kind, "start");
-        assert!(response.session_id.as_deref().unwrap_or_default().starts_with("panel-"));
+        assert!(response
+            .session_id
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("panel-"));
     }
 }

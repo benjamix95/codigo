@@ -75,7 +75,9 @@ fn is_ignored(path: &str) -> bool {
     path.contains("/.build/")
         || path.contains("/.xcodebuild/")
         || path.contains("/DerivedData/")
-        || IGNORED_PREFIXES.iter().any(|prefix| path.starts_with(prefix))
+        || IGNORED_PREFIXES
+            .iter()
+            .any(|prefix| path.starts_with(prefix))
 }
 
 #[cfg(test)]
@@ -89,7 +91,11 @@ mod tests {
     fn classify_new_non_ui_swift_as_violation() {
         let mut new_files = BTreeSet::new();
         new_files.insert("App/SoloCodeApp/Sources/Runtime/NewLogic.swift".to_string());
-        let disposition = classify_path("App/SoloCodeApp/Sources/Runtime/NewLogic.swift", &[], &new_files);
+        let disposition = classify_path(
+            "App/SoloCodeApp/Sources/Runtime/NewLogic.swift",
+            &[],
+            &new_files,
+        );
         assert!(matches!(disposition, BoundaryDisposition::NewViolation(_)));
     }
 
@@ -100,7 +106,11 @@ mod tests {
             pattern: "App/SoloCodeApp/Sources/**/Views/**".to_string(),
             reason: "UI".to_string(),
         }];
-        let disposition = classify_path("App/SoloCodeApp/Sources/Panels/CodeReview/Views/Foo.swift", &rules, &BTreeSet::new());
+        let disposition = classify_path(
+            "App/SoloCodeApp/Sources/Panels/CodeReview/Views/Foo.swift",
+            &rules,
+            &BTreeSet::new(),
+        );
         assert!(matches!(disposition, BoundaryDisposition::Allowed(_)));
     }
 

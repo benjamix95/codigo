@@ -12,7 +12,12 @@ pub fn build_prepare_context(
 
     let branch_name = format!(
         "codex/review-patch-{}",
-        request.finding_id.chars().take(8).collect::<String>().to_lowercase()
+        request
+            .finding_id
+            .chars()
+            .take(8)
+            .collect::<String>()
+            .to_lowercase()
     );
     let prompt = format!(
         "Sei in una worktree temporanea creata solo per preparare una patch preview.\n\

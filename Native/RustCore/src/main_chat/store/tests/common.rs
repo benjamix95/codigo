@@ -82,7 +82,12 @@ pub fn checkpoint(id: &str) -> MainChatStoreCheckpointSnapshot {
     }
 }
 
-pub fn message(id: &str, role: &str, content: &str, is_streaming: bool) -> MainChatStoreMessageSnapshot {
+pub fn message(
+    id: &str,
+    role: &str,
+    content: &str,
+    is_streaming: bool,
+) -> MainChatStoreMessageSnapshot {
     MainChatStoreMessageSnapshot {
         id: id.to_string(),
         role: role.to_string(),

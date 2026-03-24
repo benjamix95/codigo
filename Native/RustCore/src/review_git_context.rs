@@ -42,7 +42,10 @@ pub struct ReviewPanelGitCommit {
 
 pub fn load_git_context(request: ReviewPanelGitContextRequest) -> ReviewPanelGitContextResponse {
     if request.workspace_path.trim().is_empty() {
-        return ReviewPanelGitContextResponse::error("missing_workspace", "workspacePath is required");
+        return ReviewPanelGitContextResponse::error(
+            "missing_workspace",
+            "workspacePath is required",
+        );
     }
     let limit = request.limit.unwrap_or(50);
     let git_root = match run_git(&["rev-parse", "--show-toplevel"], &request.workspace_path) {
@@ -79,17 +82,32 @@ impl ReviewPanelGitContextResponse {
 }
 
 fn current_branch(git_root: &str) -> Result<String, String> {
-    let branch = run_git(&["branch", "--show-current"], git_root)?.trim().to_string();
+    let branch = run_git(&["branch", "--show-current"], git_root)?
+        .trim()
+        .to_string();
     if !branch.is_empty() {
         return Ok(branch);
     }
-    let detached = run_git(&["rev-parse", "--short", "HEAD"], git_root)?.trim().to_string();
-    Ok(if detached.is_empty() { "(detached)".to_string() } else { format!("detached@{detached}") })
+    let detached = run_git(&["rev-parse", "--short", "HEAD"], git_root)?
+        .trim()
+        .to_string();
+    Ok(if detached.is_empty() {
+        "(detached)".to_string()
+    } else {
+        format!("detached@{detached}")
+    })
 }
 
-fn local_branches(git_root: &str, current_branch: &str) -> Result<Vec<ReviewPanelGitBranch>, String> {
+fn local_branches(
+    git_root: &str,
+    current_branch: &str,
+) -> Result<Vec<ReviewPanelGitBranch>, String> {
     let output = run_git(
-        &["for-each-ref", "--format=%(refname:short)|%(upstream:short)", "refs/heads"],
+        &[
+            "for-each-ref",
+            "--format=%(refname:short)|%(upstream:short)",
+            "refs/heads",
+        ],
         git_root,
     )?;
     let mut branches = output
@@ -106,7 +124,12 @@ fn local_branches(git_root: &str, current_branch: &str) -> Result<Vec<ReviewPane
             }
         })
         .collect::<Vec<_>>();
-    branches.sort_by(|lhs, rhs| lhs.is_current.cmp(&rhs.is_current).reverse().then_with(|| lhs.name.cmp(&rhs.name)));
+    branches.sort_by(|lhs, rhs| {
+        lhs.is_current
+            .cmp(&rhs.is_current)
+            .reverse()
+            .then_with(|| lhs.name.cmp(&rhs.name))
+    });
     Ok(branches)
 }
 
@@ -126,7 +149,10 @@ fn remote_branches(git_root: &str) -> Result<Vec<ReviewPanelGitBranch>, String> 
 
 fn commit_history(git_root: &str, limit: usize) -> Result<Vec<ReviewPanelGitCommit>, String> {
     let format = "%H|%h|%an|%ar|%s";
-    let output = run_git(&["log", &format!("--format={format}"), &format!("-{limit}")], git_root)?;
+    let output = run_git(
+        &["log", &format!("--format={format}"), &format!("-{limit}")],
+        git_root,
+    )?;
     Ok(output
         .lines()
         .filter(|line| !line.trim().is_empty())

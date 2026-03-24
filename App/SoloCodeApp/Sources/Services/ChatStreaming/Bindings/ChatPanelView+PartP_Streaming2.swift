@@ -328,8 +328,23 @@ extension ChatPanelView {
                 swarmProgressStore.setSteps(n, conversationId: scopedConversationId)
             }
         }
-        if t == "agent", let title = p["title"], let detail = p["detail"] {
+        if t == "agent" {
+            let title = p["title"] ?? p["agent_name"] ?? "Agent"
+            let detail = p["detail"] ?? "started"
             let scopedConversationId = convId ?? selectedConversationId
+
+            // Ensure swarm_id exists — auto-generate from provider + conversation
+            // so SwarmLiveReducer creates a visible subagent card.
+            var enrichedPayload = p
+            if enrichedPayload["swarm_id"] == nil && enrichedPayload["swarmId"] == nil {
+                let autoSwarmId = "swarm-\(pid)-\(scopedConversationId?.uuidString.prefix(8) ?? "unknown")"
+                enrichedPayload["swarm_id"] = autoSwarmId
+                enrichedPayload["group_id"] = autoSwarmId
+            }
+            if enrichedPayload["agent_name"] == nil {
+                enrichedPayload["agent_name"] = title
+            }
+
             if detail == "started" {
                 if let scopedConversationId {
                     swarmProgressStore.markStarted(name: title, conversationId: scopedConversationId)
@@ -339,6 +354,16 @@ extension ChatPanelView {
                     swarmProgressStore.markCompleted(name: title, conversationId: scopedConversationId)
                 }
             }
+
+            // Record as task activity so SwarmLiveReducer creates a card.
+            // This makes subagent cards appear in chat timeline and swarm panel
+            // for ALL providers (Claude CLI, Codex, Kilo, Gemini).
+            recordTaskActivity(
+                type: "agent",
+                payload: enrichedPayload,
+                providerId: pid,
+                conversationId: scopedConversationId
+            )
         }
         if t == "usage",
            let inpStr = p["input_tokens"], let outStr = p["output_tokens"],
