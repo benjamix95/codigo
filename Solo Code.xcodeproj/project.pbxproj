@@ -1708,6 +1708,12 @@
 		FF6F8D2DABCFBA8DA0A42F37 /* EventNormalizerCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B123D062FDB6AE75B59C4282 /* EventNormalizerCore.swift */; };
 		FF8D3AF172251408C059BF15 /* ProviderFactory+CLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4895A98FD55B5BEE380DF6FF /* ProviderFactory+CLI.swift */; };
 		FFBF6802143C096661417765 /* AgentSwarmTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E087E81A1A0548C42633731E /* AgentSwarmTests.swift */; };
+		19E74AF574E7435486319766 /* ChatPanelProviderSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC304493C9F4FC7B5D07359 /* ChatPanelProviderSettings.swift */; };
+		831917A3494F4AD7947A70B7 /* ChatPanelSwarmReviewSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE868DC572A349948BAB1F80 /* ChatPanelSwarmReviewSettings.swift */; };
+		541D719EDB73477F9E3C89CD /* ChatPanelUISettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16ED1D5594AB4E70A404887F /* ChatPanelUISettings.swift */; };
+		AB72E80F9428431BB97E236A /* ChatStreamingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E650B9E665436BBFF04476 /* ChatStreamingState.swift */; };
+		AD86F5EC8C6A48BE9F4E7C61 /* ChatToolRuntimeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40FAB758A26A453094846FD7 /* ChatToolRuntimeState.swift */; };
+		7C15ADD935004A85B159528E /* ChatConversationRuntimeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C845A7C67BA4179B61BC482 /* ChatConversationRuntimeState.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -3489,6 +3495,12 @@
 		FFA96F4C526887D130513AB2 /* LanguageServiceModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LanguageServiceModels.swift; path = App/SoloCodeApp/Sources/Services/Language/LanguageServiceModels.swift; sourceTree = "<group>"; };
 		FFAD0E59661323F20976AF22 /* PostgresPersistenceStore+HistoricalFindings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PostgresPersistenceStore+HistoricalFindings.swift"; path = "Engine/CoderEngine/Sources/PersistenceCore/PostgresPersistenceStore+HistoricalFindings.swift"; sourceTree = "<group>"; };
 		FFBA1C331193D76D63EC68CB /* WebFetchService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebFetchService.swift; path = Engine/CoderEngine/Sources/Tools/Web/Fetch/WebFetchService.swift; sourceTree = "<group>"; };
+		EEC304493C9F4FC7B5D07359 /* ChatPanelProviderSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SoloCodeApp/Sources/ChatView/Root/Settings/ChatPanelProviderSettings.swift"; sourceTree = "<group>"; };
+		EE868DC572A349948BAB1F80 /* ChatPanelSwarmReviewSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SoloCodeApp/Sources/ChatView/Root/Settings/ChatPanelSwarmReviewSettings.swift"; sourceTree = "<group>"; };
+		16ED1D5594AB4E70A404887F /* ChatPanelUISettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SoloCodeApp/Sources/ChatView/Root/Settings/ChatPanelUISettings.swift"; sourceTree = "<group>"; };
+		49E650B9E665436BBFF04476 /* ChatStreamingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SoloCodeApp/Sources/ChatView/Root/StateContainers/ChatStreamingState.swift"; sourceTree = "<group>"; };
+		40FAB758A26A453094846FD7 /* ChatToolRuntimeState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SoloCodeApp/Sources/ChatView/Root/StateContainers/ChatToolRuntimeState.swift"; sourceTree = "<group>"; };
+		4C845A7C67BA4179B61BC482 /* ChatConversationRuntimeState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SoloCodeApp/Sources/ChatView/Root/StateContainers/ChatConversationRuntimeState.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -3669,6 +3681,12 @@
 				CB5C5724C0DDAD9808FCB3C0 /* WindowTitlebarChatAccessory.swift */,
 				B21EB3C84137799B94F19DEB /* ChatPanelView.swift */,
 				F1A001A1B2C3D4E5F6072001 /* ChatPanelView+ShellProperties.swift */,
+				EEC304493C9F4FC7B5D07359 /* ChatPanelProviderSettings.swift */,
+				EE868DC572A349948BAB1F80 /* ChatPanelSwarmReviewSettings.swift */,
+				16ED1D5594AB4E70A404887F /* ChatPanelUISettings.swift */,
+				49E650B9E665436BBFF04476 /* ChatStreamingState.swift */,
+				40FAB758A26A453094846FD7 /* ChatToolRuntimeState.swift */,
+				4C845A7C67BA4179B61BC482 /* ChatConversationRuntimeState.swift */,
 				F1A001A1B2C3D4E5F6072003 /* ChatPanelView+PanelResize.swift */,
 				148FDBFE35B32CF74EF552DB /* ClickableMessageContent.swift */,
 				C5A360C7DC6E0320CEAAEC22 /* ChatComposerView+Attachments.swift */,
@@ -6680,6 +6698,12 @@
 				C8CC64EB99BFD95E8A5603DA /* ChatPanelSupport+UIHelpers.swift in Sources */,
 				21F395B3E1D41855BF1B6861 /* ChatPanelThreadUIState.swift in Sources */,
 				8346B76DBB5356DD74F4E460 /* ChatPanelView+RootLayout.swift in Sources */,
+				19E74AF574E7435486319766 /* ChatPanelProviderSettings.swift in Sources */,
+				831917A3494F4AD7947A70B7 /* ChatPanelSwarmReviewSettings.swift in Sources */,
+				541D719EDB73477F9E3C89CD /* ChatPanelUISettings.swift in Sources */,
+				AB72E80F9428431BB97E236A /* ChatStreamingState.swift in Sources */,
+				AD86F5EC8C6A48BE9F4E7C61 /* ChatToolRuntimeState.swift in Sources */,
+				7C15ADD935004A85B159528E /* ChatConversationRuntimeState.swift in Sources */,
 				F1A001A1B2C3D4E5F6071002 /* ChatPanelView+LifecycleModifiers.swift in Sources */,
 				80C7973352E9386C1FA4CDF2 /* ChatPanelView+PartB_ComposerUI.swift in Sources */,
 				0CB2F900328AAEE7B287F5B0 /* ChatPanelView+PartC_MessageHeader.swift in Sources */,

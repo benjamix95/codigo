@@ -34,7 +34,7 @@ extension ChatPanelView {
         guard message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         guard let targetConversationId else { return true }
 
-        if activeToolTraceTurnsByConversation[targetConversationId]?.assistantMessageId == message.id {
+        if toolRuntime.activeToolTraceTurnsByConversation[targetConversationId]?.assistantMessageId == message.id {
             return false
         }
         if toolTraceStore.hasTrace(
@@ -252,7 +252,7 @@ extension ChatPanelView {
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 24)
-        .onChange(of: streamContentVersion) { _ in
+        .onChange(of: streaming.streamContentVersion) { _ in
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleStreamContentVersionChange(proxy: proxy)
         }
@@ -271,8 +271,8 @@ extension ChatPanelView {
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
         }
         .onDisappear {
-            autoScrollWorkItem?.cancel()
-            autoScrollWorkItem = nil
+            streaming.autoScrollWorkItem?.cancel()
+            streaming.autoScrollWorkItem = nil
         }
     }
 

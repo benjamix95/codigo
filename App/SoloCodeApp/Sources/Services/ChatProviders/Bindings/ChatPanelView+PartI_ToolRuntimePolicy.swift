@@ -7,18 +7,18 @@ extension ChatPanelView {
     @MainActor
     internal func scheduleToolRuntimePolicySync(immediate: Bool = false) {
         if immediate {
-            toolRuntimeSyncTask?.cancel()
-            toolRuntimeSyncTask = nil
+            toolRuntime.toolRuntimeSyncTask?.cancel()
+            toolRuntime.toolRuntimeSyncTask = nil
             syncToolRuntimePolicy()
             return
         }
 
-        toolRuntimeSyncTask?.cancel()
-        toolRuntimeSyncTask = Task { @MainActor in
+        toolRuntime.toolRuntimeSyncTask?.cancel()
+        toolRuntime.toolRuntimeSyncTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 180_000_000) // 180ms debounce
             guard !Task.isCancelled else { return }
             syncToolRuntimePolicy()
-            toolRuntimeSyncTask = nil
+            toolRuntime.toolRuntimeSyncTask = nil
         }
     }
 

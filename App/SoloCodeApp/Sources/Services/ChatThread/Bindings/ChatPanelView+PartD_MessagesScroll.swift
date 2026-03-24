@@ -22,7 +22,7 @@ extension ChatPanelView {
         })?.id
         let todoCardAssistantMessageId = resolveTodoCardAssistantMessageId(
             messages: messages,
-            activeAssistantMessageId: activeToolTraceTurnsByConversation[convId]?.assistantMessageId,
+            activeAssistantMessageId: toolRuntime.activeToolTraceTurnsByConversation[convId]?.assistantMessageId,
             latestAssistantMessageIdWithTrace: latestAssistantMessageIdWithTrace,
             pipelineAssistantMessageId: nil,
             latestVisibleAssistantMessageId: latestVisibleAssistantMessageId

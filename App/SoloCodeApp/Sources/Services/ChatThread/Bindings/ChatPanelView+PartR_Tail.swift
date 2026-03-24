@@ -49,8 +49,8 @@ extension ChatPanelView {
         let shouldHidePlanMarkdownForBuild =
             isBuildContext && shouldRoutePlanStreamToPanel
         let hasPlanContextForStreamConversation = hasActivePlanContext(for: streamConversationId)
-        let activeReasoningText = streamingReasoningConversationId == streamConversationId
-            ? streamingReasoningText
+        let activeReasoningText = streaming.streamingReasoningConversationId == streamConversationId
+            ? streaming.streamingReasoningText
             : chatStore.conversation(for: streamConversationId)?
                 .messages
                 .last(where: { $0.role == .assistant })?

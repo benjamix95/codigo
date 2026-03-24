@@ -51,9 +51,9 @@ extension ChatPanelView {
             preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider,
             config: cfg,
             registryProviders: registryEntries,
-            codexCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .codex) : [],
-            claudeCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .claude) : [],
-            geminiCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .gemini) : []
+            codexCLIAccounts: providerSettings.multiCLIAccountEnabled ? cliAccountSnapshots(for: .codex) : [],
+            claudeCLIAccounts: providerSettings.multiCLIAccountEnabled ? cliAccountSnapshots(for: .claude) : [],
+            geminiCLIAccounts: providerSettings.multiCLIAccountEnabled ? cliAccountSnapshots(for: .gemini) : []
         )
 
         guard let resolved else {
@@ -70,7 +70,7 @@ extension ChatPanelView {
         let runtimeProvider = providerRegistry.provider(for: resolved.providerId)
 
         let displayName = runtimeProvider?.displayName ?? selectedProvider.displayName
-        let cliAccounts = multiCLIAccountEnabled
+        let cliAccounts = providerSettings.multiCLIAccountEnabled
             ? CLIProviderKind.fromProviderId(resolved.providerId).map(cliAccountSnapshots(for:)) ?? []
             : []
 

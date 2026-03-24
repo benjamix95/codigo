@@ -23,7 +23,7 @@ extension ChatPanelView {
             openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
             activeSelection: nil,
             activeFilePath: openFilesStore.openFilePath,
-            scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
+            scopeMode: ContextScopeMode(rawValue: uiSettings.contextScopeModeRaw) ?? .auto
         )
         let normalizedWorkspacePath = workspaceContext.workspacePath.path
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -53,15 +53,15 @@ extension ChatPanelView {
 
     @MainActor
     internal func enqueueTaskActivity(_ activity: TaskActivity) {
-        pendingTaskActivities.append(activity)
+        conversationRuntime.pendingTaskActivities.append(activity)
         logTaskBacklogIfNeeded(context: "enqueue_activity")
 
         let needsImmediateFlush = activity.type == "agent"
             || activity.isRunning
             || TaskActivityStore.isConcreteVisibleEventType(activity.type)
         if needsImmediateFlush {
-            taskFlushTask?.cancel()
-            taskFlushTask = nil
+            conversationRuntime.taskFlushTask?.cancel()
+            conversationRuntime.taskFlushTask = nil
             flushPendingTaskActivities()
 
             // Fast-path: push the sidebar subtitle immediately so it

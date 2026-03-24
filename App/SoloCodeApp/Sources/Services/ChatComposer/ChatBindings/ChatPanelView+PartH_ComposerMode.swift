@@ -44,7 +44,7 @@ extension ChatPanelView {
         guard let id = providerRegistry.selectedProviderId else {
             return "No provider selected. Go to Settings to configure."
         }
-        if multiCLIAccountEnabled,
+        if providerSettings.multiCLIAccountEnabled,
            let kind = CLIProviderKind.fromProviderId(id),
            case .allExhausted(let reason) = cliAccountRouter.currentAvailability(provider: kind) {
             return "\(kind.displayName) account unavailable (\(reason)). Configure accounts in Settings."
@@ -118,7 +118,7 @@ extension ChatPanelView {
             let label: String
             let prompt: String
         }
-        let raw = codeReviewQuickCommandsCustomJSON.trimmingCharacters(
+        let raw = swarmReviewSettings.codeReviewQuickCommandsCustomJSON.trimmingCharacters(
             in: .whitespacesAndNewlines)
         guard !raw.isEmpty, let data = raw.data(using: .utf8) else { return [] }
         guard let decoded = try? JSONDecoder().decode([CustomPreset].self, from: data) else {
@@ -140,8 +140,8 @@ extension ChatPanelView {
     }
 
     internal var effectiveSandbox: String {
-        codexSandbox.isEmpty
-            ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
+        providerSettings.codexSandbox.isEmpty
+            ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : providerSettings.codexSandbox
     }
 
     internal func selectMode(_ mode: CoderMode) {

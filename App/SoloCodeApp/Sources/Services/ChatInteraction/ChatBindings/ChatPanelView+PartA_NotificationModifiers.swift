@@ -19,26 +19,26 @@ extension ChatPanelView {
             .onDisappear {
                 composerAutoFocusTask?.cancel()
                 composerAutoFocusTask = nil
-                toolRuntimeSyncTask?.cancel()
-                toolRuntimeSyncTask = nil
-                taskFlushTask?.cancel()
-                taskFlushTask = nil
-                streamThrottleTask?.cancel()
-                streamThrottleTask = nil
-                planStreamThrottleTask?.cancel()
-                planStreamThrottleTask = nil
+                toolRuntime.toolRuntimeSyncTask?.cancel()
+                toolRuntime.toolRuntimeSyncTask = nil
+                conversationRuntime.taskFlushTask?.cancel()
+                conversationRuntime.taskFlushTask = nil
+                streaming.streamThrottleTask?.cancel()
+                streaming.streamThrottleTask = nil
+                streaming.planStreamThrottleTask?.cancel()
+                streaming.planStreamThrottleTask = nil
                 cancelFallbackTurnStartEvent()
-                autoScrollWorkItem?.cancel()
+                streaming.autoScrollWorkItem?.cancel()
                 composerTimerAutoHideTask?.cancel()
                 composerTimerAutoHideTask = nil
                 voiceInputController.cancel()
                 flushPendingTaskActivities()
                 removePasteMonitor()
-                for (_, task) in activeRunTaskByConversation {
+                for (_, task) in toolRuntime.activeRunTaskByConversation {
                     task.cancel()
                 }
-                activeRunTaskByConversation.removeAll()
-                activeRunTokenByConversation.removeAll()
+                toolRuntime.activeRunTaskByConversation.removeAll()
+                toolRuntime.activeRunTokenByConversation.removeAll()
             }
             .onReceive(NotificationCenter.default.publisher(for: Self.attachmentPastedNotification)) {
                 notification in

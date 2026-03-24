@@ -85,9 +85,9 @@ extension ChatPanelView {
             preferCodeReviewRuntimeProvider: nil,
             config: baseConfig,
             registryProviders: registryEntries,
-            codexCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .codex) : [],
-            claudeCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .claude) : [],
-            geminiCLIAccounts: multiCLIAccountEnabled ? cliAccountSnapshots(for: .gemini) : []
+            codexCLIAccounts: providerSettings.multiCLIAccountEnabled ? cliAccountSnapshots(for: .codex) : [],
+            claudeCLIAccounts: providerSettings.multiCLIAccountEnabled ? cliAccountSnapshots(for: .claude) : [],
+            geminiCLIAccounts: providerSettings.multiCLIAccountEnabled ? cliAccountSnapshots(for: .gemini) : []
         )
         guard resolved != nil || allowLegacyFallback else {
             appendTechnicalErrorMessage(
@@ -193,7 +193,7 @@ extension ChatPanelView {
             appendTechnicalErrorMessage(msg, in: conversationId)
             return nil
         }
-        if multiCLIAccountEnabled,
+        if providerSettings.multiCLIAccountEnabled,
             let selectedProviderId = providerRegistry.selectedProviderId,
             let kind = CLIProviderKind.fromProviderId(selectedProviderId)
         {

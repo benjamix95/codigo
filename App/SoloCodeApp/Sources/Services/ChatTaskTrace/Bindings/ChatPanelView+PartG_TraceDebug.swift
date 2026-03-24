@@ -41,7 +41,7 @@ extension ChatPanelView {
             // swarm follow-up), accept the todo so the live activity is not silently lost.
             return true
         }
-        return !didReceiveExplicitTodoByMessage.contains(assistantMessageId)
+        return !conversationRuntime.didReceiveExplicitTodoByMessage.contains(assistantMessageId)
     }
 
     internal func shouldAcceptTodoRead(conversationId: UUID?) -> Bool {
@@ -71,7 +71,7 @@ extension ChatPanelView {
               let assistantMessageId = currentAssistantMessageIdForTrace(conversationId: conversationId) else {
             return false
         }
-        if let cached = toolTraceOperationalSeenByMessage[assistantMessageId] {
+        if let cached = toolRuntime.toolTraceOperationalSeenByMessage[assistantMessageId] {
             return cached
         }
         let existing = toolTraceStore.events(
@@ -79,12 +79,12 @@ extension ChatPanelView {
             assistantMessageId: assistantMessageId
         )
         let hasOperational = existing.contains { isOperationalTraceEvent($0) }
-        toolTraceOperationalSeenByMessage[assistantMessageId] = hasOperational
+        toolRuntime.toolTraceOperationalSeenByMessage[assistantMessageId] = hasOperational
         return hasOperational
     }
 
     internal func currentAssistantMessageIdForTrace(conversationId: UUID) -> UUID? {
-        if let active = activeToolTraceTurnsByConversation[conversationId] {
+        if let active = toolRuntime.activeToolTraceTurnsByConversation[conversationId] {
             return active.assistantMessageId
         }
         return chatStore.conversation(for: conversationId)?

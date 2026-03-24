@@ -18,9 +18,9 @@ extension ChatPanelView {
             draftText: inputText,
             planPanelVisible: showPlanPanel,
             followLive: isFollowingLive,
-            collapsedArtifactsByTurn: collapsedArtifactsByTurn,
+            collapsedArtifactsByTurn: conversationRuntime.collapsedArtifactsByTurn,
             autoTodoRuntimeStateByMessage: includeAutoTodoRuntimeState
-                ? autoTodoRuntimeStateByMessage
+                ? conversationRuntime.autoTodoRuntimeStateByMessage
                 : [:]
         )
     }
@@ -123,10 +123,10 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
-        guard autoTodoRuntimeStateByMessage[turn.assistantMessageId.uuidString.lowercased()] == nil else {
+        guard conversationRuntime.autoTodoRuntimeStateByMessage[turn.assistantMessageId.uuidString.lowercased()] == nil else {
             return
         }
-        guard !didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
+        guard !conversationRuntime.didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
         applyAutoTodoRuntimeIntent(
             "auto_todo_begin_runtime",
             assistantMessageId: turn.assistantMessageId,
@@ -152,10 +152,10 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
-        guard autoTodoRuntimeStateByMessage[turn.assistantMessageId.uuidString.lowercased()] == nil else {
+        guard conversationRuntime.autoTodoRuntimeStateByMessage[turn.assistantMessageId.uuidString.lowercased()] == nil else {
             return
         }
-        guard !didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
+        guard !conversationRuntime.didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
         applyAutoTodoRuntimeIntent(
             "auto_todo_begin_runtime",
             assistantMessageId: turn.assistantMessageId,
@@ -174,7 +174,7 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
-        guard !didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
+        guard !conversationRuntime.didReceiveExplicitTodoByMessage.contains(turn.assistantMessageId) else { return }
         applyAutoTodoRuntimeIntent(
             "auto_todo_record_operation",
             assistantMessageId: turn.assistantMessageId,
@@ -220,8 +220,8 @@ extension ChatPanelView {
             payload: payload,
             includeAutoTodoRuntimeState: true
         ) else { return }
-        autoTodoRuntimeStateByMessage = response.state?.autoTodoRuntimeStateByMessage
-            ?? autoTodoRuntimeStateByMessage
+        conversationRuntime.autoTodoRuntimeStateByMessage = response.state?.autoTodoRuntimeStateByMessage
+            ?? conversationRuntime.autoTodoRuntimeStateByMessage
         MainChatTodoPatchAdapter.apply(response.todoPatches, to: todoStore) { patch, conversationId, status, linkedFiles in
             guard let todoId = patch.todoId.flatMap(UUID.init(uuidString:)),
                   let title = patch.title,

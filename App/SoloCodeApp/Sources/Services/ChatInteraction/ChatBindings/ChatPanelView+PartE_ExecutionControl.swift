@@ -15,8 +15,8 @@ extension ChatPanelView {
                 || cancelRunTask(for: agentId)
         }
         applyFlowCoordinatorState(for: targetConversationId) { $0.interrupt() }
-        taskFlushTask?.cancel()
-        taskFlushTask = nil
+        conversationRuntime.taskFlushTask?.cancel()
+        conversationRuntime.taskFlushTask = nil
         flushPendingTaskActivities()
         if let cid = targetConversationId {
             let cur =

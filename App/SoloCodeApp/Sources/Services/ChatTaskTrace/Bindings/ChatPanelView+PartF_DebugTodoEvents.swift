@@ -181,7 +181,7 @@ extension ChatPanelView {
                     conversationId: conversationId,
                     payload: envelope.payload
                 )
-                pendingInstantGreps.append(scopedGrep)
+                conversationRuntime.pendingInstantGreps.append(scopedGrep)
                 logTaskBacklogIfNeeded(context: "enqueue_grep")
                 scheduleTaskActivityFlush()
             case .todoWrite(let todo):
@@ -296,7 +296,7 @@ extension ChatPanelView {
             return
         }
         let messageId = turn.assistantMessageId
-        didReceiveExplicitTodoByMessage.insert(messageId)
+        conversationRuntime.didReceiveExplicitTodoByMessage.insert(messageId)
         applyAutoTodoRuntimeIntent(
             "auto_todo_discard_runtime",
             assistantMessageId: messageId,

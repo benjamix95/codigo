@@ -78,35 +78,35 @@ extension ChatPanelView {
             }
             if showPlanPanel {
                 PanelResizeHandle(
-                    panelWidth: Binding(get: { CGFloat(planPanelWidthStorage) }, set: { planPanelWidthStorage = Double($0) }),
+                    panelWidth: Binding(get: { CGFloat(uiSettings.planPanelWidthStorage) }, set: { uiSettings.planPanelWidthStorage = Double($0) }),
                     minWidth: 220, maxWidth: 500, leadingEdge: true
                 )
                 planPanelSidebar
             }
             if showDebugPanel {
                 PanelResizeHandle(
-                    panelWidth: Binding(get: { CGFloat(debugPanelWidthStorage) }, set: { debugPanelWidthStorage = Double($0) }),
+                    panelWidth: Binding(get: { CGFloat(uiSettings.debugPanelWidthStorage) }, set: { uiSettings.debugPanelWidthStorage = Double($0) }),
                     minWidth: 240, maxWidth: 500, leadingEdge: true
                 )
                 debugPanelSidebar
             }
             if showSwarmPanel {
                 PanelResizeHandle(
-                    panelWidth: Binding(get: { CGFloat(swarmPanelWidthStorage) }, set: { swarmPanelWidthStorage = Double($0) }),
+                    panelWidth: Binding(get: { CGFloat(uiSettings.swarmPanelWidthStorage) }, set: { uiSettings.swarmPanelWidthStorage = Double($0) }),
                     minWidth: 260, maxWidth: 540, leadingEdge: true
                 )
                 swarmPanelSidebar
             }
             if showCodeReviewPanel {
                 PanelResizeHandle(
-                    panelWidth: Binding(get: { CGFloat(codeReviewPanelWidthStorage) }, set: { codeReviewPanelWidthStorage = Double($0) }),
+                    panelWidth: Binding(get: { CGFloat(uiSettings.codeReviewPanelWidthStorage) }, set: { uiSettings.codeReviewPanelWidthStorage = Double($0) }),
                     minWidth: 280, maxWidth: 560, leadingEdge: true
                 )
                 codeReviewPanelSidebar
             }
             if gitPanelStore.isOpen {
                 PanelResizeHandle(
-                    panelWidth: Binding(get: { CGFloat(gitPanelWidthStorage) }, set: { gitPanelWidthStorage = Double($0) }),
+                    panelWidth: Binding(get: { CGFloat(uiSettings.gitPanelWidthStorage) }, set: { uiSettings.gitPanelWidthStorage = Double($0) }),
                     minWidth: 280, maxWidth: 500, leadingEdge: false
                 )
                 GitPanelView(
@@ -115,7 +115,7 @@ extension ChatPanelView {
                     onOpenFile: { openFilesStore.openFile($0) }
                 )
                 .environmentObject(providerRegistry)
-                .frame(width: CGFloat(gitPanelWidthStorage))
+                .frame(width: CGFloat(uiSettings.gitPanelWidthStorage))
             }
         }
         .animation(.none, value: showPlanPanel)

@@ -58,14 +58,14 @@ extension ChatPanelView {
     }
 
     internal func enableTaskPanelIfNeeded() {
-        taskPanelEnabled = resolveTaskPanelEnabled(
-            currentValue: taskPanelEnabled,
+        uiSettings.taskPanelEnabled = resolveTaskPanelEnabled(
+            currentValue: uiSettings.taskPanelEnabled,
             mode: coderMode
         )
     }
 
     internal func scheduleFallbackTurnStartEvent(conversationId: UUID, providerId: String) {
-        fallbackTurnStartWorkItemsByConversation[conversationId]?.cancel()
+        conversationRuntime.fallbackTurnStartWorkItemsByConversation[conversationId]?.cancel()
         let work = DispatchWorkItem {
             Task { @MainActor in
                 let scopedActivityCount = taskActivityStore.activities(for: conversationId).count
@@ -73,7 +73,7 @@ extension ChatPanelView {
                     isTaskActive: chatStore.isTaskActive(for: conversationId),
                     scopedActivityCount: scopedActivityCount
                 ) else {
-                    fallbackTurnStartWorkItemsByConversation.removeValue(forKey: conversationId)
+                    conversationRuntime.fallbackTurnStartWorkItemsByConversation.removeValue(forKey: conversationId)
                     return
                 }
                 recordTaskActivity(
@@ -87,24 +87,24 @@ extension ChatPanelView {
                     providerId: providerId,
                     conversationId: conversationId
                 )
-                fallbackTurnStartWorkItemsByConversation.removeValue(forKey: conversationId)
+                conversationRuntime.fallbackTurnStartWorkItemsByConversation.removeValue(forKey: conversationId)
             }
         }
-        fallbackTurnStartWorkItemsByConversation[conversationId] = work
+        conversationRuntime.fallbackTurnStartWorkItemsByConversation[conversationId] = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
     internal func cancelFallbackTurnStartEvent(for targetConversationId: UUID? = nil) {
         guard let targetConversationId else {
-            let pending = fallbackTurnStartWorkItemsByConversation.values
-            fallbackTurnStartWorkItemsByConversation.removeAll()
+            let pending = conversationRuntime.fallbackTurnStartWorkItemsByConversation.values
+            conversationRuntime.fallbackTurnStartWorkItemsByConversation.removeAll()
             for workItem in pending {
                 workItem.cancel()
             }
             return
         }
-        fallbackTurnStartWorkItemsByConversation[targetConversationId]?.cancel()
-        fallbackTurnStartWorkItemsByConversation.removeValue(forKey: targetConversationId)
+        conversationRuntime.fallbackTurnStartWorkItemsByConversation[targetConversationId]?.cancel()
+        conversationRuntime.fallbackTurnStartWorkItemsByConversation.removeValue(forKey: targetConversationId)
     }
 
     internal func liveScrollTarget() -> AnyHashable? {
@@ -219,13 +219,13 @@ extension ChatPanelView {
         delay: TimeInterval = 0.08
     ) {
         let now = Date()
-        let sinceLastScroll = now.timeIntervalSince(lastAutoScrollAt)
-        if lastAutoScrollTarget == target, sinceLastScroll < 0.20 {
+        let sinceLastScroll = now.timeIntervalSince(streaming.lastAutoScrollAt)
+        if streaming.lastAutoScrollTarget == target, sinceLastScroll < 0.20 {
             return
         }
-        lastAutoScrollTarget = target
-        lastAutoScrollAt = now
-        autoScrollWorkItem?.cancel()
+        streaming.lastAutoScrollTarget = target
+        streaming.lastAutoScrollAt = now
+        streaming.autoScrollWorkItem?.cancel()
         let work = DispatchWorkItem {
             guard NSApplication.shared.isActive else { return }
             guard !showsSwarmViewOnly else { return }
@@ -248,7 +248,7 @@ extension ChatPanelView {
                 proxy.scrollTo(target, anchor: .bottom)
             }
         }
-        autoScrollWorkItem = work
+        streaming.autoScrollWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
@@ -261,27 +261,27 @@ extension ChatPanelView {
         for conversationId: UUID,
         operation: @escaping () async -> Void
     ) {
-        activeRunTaskByConversation[conversationId]?.cancel()
+        toolRuntime.activeRunTaskByConversation[conversationId]?.cancel()
         let token = UUID()
-        activeRunTokenByConversation[conversationId] = token
+        toolRuntime.activeRunTokenByConversation[conversationId] = token
 
         let task = Task { @MainActor in
             await operation()
-            guard activeRunTokenByConversation[conversationId] == token else { return }
-            activeRunTokenByConversation.removeValue(forKey: conversationId)
-            activeRunTaskByConversation.removeValue(forKey: conversationId)
+            guard toolRuntime.activeRunTokenByConversation[conversationId] == token else { return }
+            toolRuntime.activeRunTokenByConversation.removeValue(forKey: conversationId)
+            toolRuntime.activeRunTaskByConversation.removeValue(forKey: conversationId)
         }
-        activeRunTaskByConversation[conversationId] = task
+        toolRuntime.activeRunTaskByConversation[conversationId] = task
     }
 
     @MainActor
     @discardableResult
     internal func cancelRunTask(for conversationId: UUID?) -> Bool {
         guard let conversationId else { return false }
-        guard let task = activeRunTaskByConversation[conversationId] else { return false }
+        guard let task = toolRuntime.activeRunTaskByConversation[conversationId] else { return false }
         task.cancel()
-        activeRunTaskByConversation.removeValue(forKey: conversationId)
-        activeRunTokenByConversation.removeValue(forKey: conversationId)
+        toolRuntime.activeRunTaskByConversation.removeValue(forKey: conversationId)
+        toolRuntime.activeRunTokenByConversation.removeValue(forKey: conversationId)
         return true
     }
 

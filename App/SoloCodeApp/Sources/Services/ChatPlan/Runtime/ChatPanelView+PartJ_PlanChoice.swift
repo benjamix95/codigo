@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     internal func trySummarizeIfNeeded(ctx: WorkspaceContext) async {
         guard let conv = chatStore.conversation(for: conversationId) else { return }
-        guard conv.messages.count >= (summarizeKeepLast + 4) else { return }
+        guard conv.messages.count >= (uiSettings.summarizeKeepLast + 4) else { return }
 
         let activeModel = resolveActiveModelForContext()
         let size = resolvedContextWindowSizeForSummarize(model: activeModel)
@@ -14,9 +14,9 @@ extension ChatPanelView {
         let (_, _, pct) = ContextEstimator.estimate(
             messages: conv.messages, contextPrompt: ctxPrompt, modelContextSize: size,
             lastInputTokens: conv.lastInputTokens)
-        guard pct >= summarizeThreshold else { return }
+        guard pct >= uiSettings.summarizeThreshold else { return }
 
-        guard let summarize = providerRegistry.provider(for: summarizeProvider),
+        guard let summarize = providerRegistry.provider(for: uiSettings.summarizeProvider),
               summarize.isAuthenticated() else {
             return
         }
@@ -26,13 +26,13 @@ extension ChatPanelView {
     internal func resolveActiveModelForContext() -> String {
         let pid = providerRegistry.selectedProviderId ?? ""
         switch pid {
-        case "codex-cli": return codexModelOverride.isEmpty ? "gpt-5-codex" : codexModelOverride
-        case "claude-cli": return claudeModel
-        case "gemini-cli": return geminiModelOverride.isEmpty ? googleModel : geminiModelOverride
-        case "openai-api": return openaiModel
-        case "anthropic-api": return anthropicModel
-        case "google-api": return googleModel
-        default: return openaiModel
+        case "codex-cli": return providerSettings.codexModelOverride.isEmpty ? "gpt-5-codex" : providerSettings.codexModelOverride
+        case "claude-cli": return providerSettings.claudeModel
+        case "gemini-cli": return providerSettings.geminiModelOverride.isEmpty ? providerSettings.googleModel : providerSettings.geminiModelOverride
+        case "openai-api": return providerSettings.openaiModel
+        case "anthropic-api": return providerSettings.anthropicModel
+        case "google-api": return providerSettings.googleModel
+        default: return providerSettings.openaiModel
         }
     }
 
@@ -49,7 +49,7 @@ extension ChatPanelView {
         defer { Task { @MainActor in isSummarizing = false } }
         do {
             _ = try await chatStore.summarizeConversation(
-                id: conversationId, keepLast: summarizeKeepLast, provider: provider, context: ctx)
+                id: conversationId, keepLast: uiSettings.summarizeKeepLast, provider: provider, context: ctx)
         } catch {
             // Do not block on error
         }

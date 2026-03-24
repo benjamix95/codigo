@@ -25,10 +25,10 @@ extension ChatPanelView {
 
     internal func persistCodexConfigToToml() {
         var cfg = CodexConfigLoader.load()
-        cfg.sandboxMode = codexSandbox.isEmpty ? nil : codexSandbox
+        cfg.sandboxMode = providerSettings.codexSandbox.isEmpty ? nil : providerSettings.codexSandbox
         cfg.fastMode = CodexFastModeStore.currentValue()
-        cfg.model = codexModelOverride.isEmpty ? nil : codexModelOverride
-        cfg.modelReasoningEffort = codexReasoningEffort.isEmpty ? nil : codexReasoningEffort
+        cfg.model = providerSettings.codexModelOverride.isEmpty ? nil : providerSettings.codexModelOverride
+        cfg.modelReasoningEffort = providerSettings.codexReasoningEffort.isEmpty ? nil : providerSettings.codexReasoningEffort
         CodexConfigLoader.save(cfg)
         let presetEnabled = UserDefaults.standard.bool(
             forKey: CodexCustomModelProfileSync.settingsKey
@@ -54,12 +54,12 @@ extension ChatPanelView {
     }
 
     internal func migrateSwarmProviderDefaultsIfNeeded() {
-        guard !swarmProviderAutoMigrated else { return }
-        if swarmOrchestrator == "openai" && swarmWorkerBackend == "codex" {
-            swarmOrchestrator = "auto"
-            swarmWorkerBackend = "auto"
+        guard !swarmReviewSettings.swarmProviderAutoMigrated else { return }
+        if swarmReviewSettings.swarmOrchestrator == "openai" && swarmReviewSettings.swarmWorkerBackend == "codex" {
+            swarmReviewSettings.swarmOrchestrator = "auto"
+            swarmReviewSettings.swarmWorkerBackend = "auto"
         }
-        swarmProviderAutoMigrated = true
+        swarmReviewSettings.swarmProviderAutoMigrated = true
     }
 
     internal func syncCodeReviewRuntimeConfig() {
@@ -146,7 +146,7 @@ extension ChatPanelView {
             return providerRegistry.selectedProviderId ?? fallback
         }
 
-        if let activeProviderId = activeToolTraceTurnsByConversation[conversationId]?.providerId,
+        if let activeProviderId = toolRuntime.activeToolTraceTurnsByConversation[conversationId]?.providerId,
            !activeProviderId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return activeProviderId
         }
@@ -174,53 +174,53 @@ extension ChatPanelView {
     }
 
     internal func providerFactoryConfig() -> ProviderFactoryConfig {
-        let parsedClaudeTools = ProviderFactory.normalizedToolList(from: claudeAllowedTools)
+        let parsedClaudeTools = ProviderFactory.normalizedToolList(from: providerSettings.claudeAllowedTools)
         return ProviderFactoryConfig(
-            openaiApiKey: openaiApiKey,
-            openaiModel: openaiModel,
-            anthropicApiKey: anthropicApiKey,
-            anthropicModel: anthropicModel,
-            googleApiKey: googleApiKey,
-            googleModel: googleModel,
+            openaiApiKey: providerSettings.openaiApiKey,
+            openaiModel: providerSettings.openaiModel,
+            anthropicApiKey: providerSettings.anthropicApiKey,
+            anthropicModel: providerSettings.anthropicModel,
+            googleApiKey: providerSettings.googleApiKey,
+            googleModel: providerSettings.googleModel,
             minimaxApiKey: "",
             minimaxModel: "",
-            openrouterApiKey: openrouterApiKey,
-            openrouterModel: openrouterModel,
+            openrouterApiKey: providerSettings.openrouterApiKey,
+            openrouterModel: providerSettings.openrouterModel,
             grokApiKey: "",
             grokModel: "",
-            kiloPath: kiloPath,
-            kiloModel: kiloModel,
-            codexPath: codexPath,
+            kiloPath: providerSettings.kiloPath,
+            kiloModel: providerSettings.kiloModel,
+            codexPath: providerSettings.codexPath,
             codexSandbox: effectiveSandbox,
-            codexSessionFullAccess: codexSessionFullAccess,
-            codexAskForApproval: codexAskForApproval,
-            codexModelOverride: codexModelOverride,
-            codexReasoningEffort: codexReasoningEffort,
+            codexSessionFullAccess: providerSettings.codexSessionFullAccess,
+            codexAskForApproval: providerSettings.codexAskForApproval,
+            codexModelOverride: providerSettings.codexModelOverride,
+            codexReasoningEffort: providerSettings.codexReasoningEffort,
             codexFastMode: CodexFastModeStore.currentValue(),
-            codexModelProvider: codexModelProvider,
-            codexPreferResponsesWireAPI: codexPreferResponsesWireAPI,
-            planModeBackend: planModeBackend,
-            swarmOrchestrator: swarmOrchestrator,
-            swarmWorkerBackend: swarmWorkerBackend,
-            swarmEnabledRoles: swarmEnabledRoles,
-            globalYolo: globalYolo,
-            codeReviewPartitions: codeReviewPartitions,
-            codeReviewAnalysisOnly: codeReviewAnalysisOnly,
-            codeReviewMaxRounds: codeReviewMaxRounds,
-            codeReviewAnalysisBackend: codeReviewAnalysisBackend,
-            codeReviewExecutionBackend: codeReviewExecutionBackend,
-            claudePath: claudePath,
-            claudeModel: claudeModel,
+            codexModelProvider: providerSettings.codexModelProvider,
+            codexPreferResponsesWireAPI: providerSettings.codexPreferResponsesWireAPI,
+            planModeBackend: uiSettings.planModeBackend,
+            swarmOrchestrator: swarmReviewSettings.swarmOrchestrator,
+            swarmWorkerBackend: swarmReviewSettings.swarmWorkerBackend,
+            swarmEnabledRoles: swarmReviewSettings.swarmEnabledRoles,
+            globalYolo: uiSettings.globalYolo,
+            codeReviewPartitions: swarmReviewSettings.codeReviewPartitions,
+            codeReviewAnalysisOnly: swarmReviewSettings.codeReviewAnalysisOnly,
+            codeReviewMaxRounds: swarmReviewSettings.codeReviewMaxRounds,
+            codeReviewAnalysisBackend: swarmReviewSettings.codeReviewAnalysisBackend,
+            codeReviewExecutionBackend: swarmReviewSettings.codeReviewExecutionBackend,
+            claudePath: providerSettings.claudePath,
+            claudeModel: providerSettings.claudeModel,
             claudeAllowedTools: parsedClaudeTools,
-            geminiCliPath: geminiCliPath,
-            geminiModelOverride: geminiModelOverride,
-            unifiedToolRuntimeEnabled: unifiedToolRuntimeEnabled,
-            agentsHardBlockEnabled: agentsHardBlockEnabled,
-            mcpEditEnforcementEnabled: mcpEditEnforcementEnabled,
-            webSearchProvider: webSearchProvider,
-            braveSearchApiKey: braveSearchApiKey,
-            tavilyApiKey: tavilyApiKey,
-            serperApiKey: serperApiKey
+            geminiCliPath: providerSettings.geminiCliPath,
+            geminiModelOverride: providerSettings.geminiModelOverride,
+            unifiedToolRuntimeEnabled: uiSettings.unifiedToolRuntimeEnabled,
+            agentsHardBlockEnabled: uiSettings.agentsHardBlockEnabled,
+            mcpEditEnforcementEnabled: uiSettings.mcpEditEnforcementEnabled,
+            webSearchProvider: uiSettings.webSearchProvider,
+            braveSearchApiKey: uiSettings.braveSearchApiKey,
+            tavilyApiKey: uiSettings.tavilyApiKey,
+            serperApiKey: uiSettings.serperApiKey
         )
     }
 }

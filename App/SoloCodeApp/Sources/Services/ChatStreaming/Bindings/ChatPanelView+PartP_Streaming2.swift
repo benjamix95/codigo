@@ -141,7 +141,7 @@ extension ChatPanelView {
             // Queue the event instead of silently dropping it.
             // It will be flushed when the policy_ack arrives.
             if let turn = resolveToolTraceTurn(conversationId: convId, providerId: pid) {
-                policyAckBlockedQueue[turn.assistantMessageId, default: []].append(
+                toolRuntime.policyAckBlockedQueue[turn.assistantMessageId, default: []].append(
                     (
                         type: t,
                         payload: p,
@@ -191,7 +191,7 @@ extension ChatPanelView {
                 providerId: pid,
                 conversationId: convId
             )
-            streamingSegmentTurnIndex += 1
+            streaming.streamingSegmentTurnIndex += 1
             resetReasoningMessageState(for: convId)
             if shouldUseLinearChat(providerId: pid) {
                 splitStreamingMessageForNewTurn(conversationId: convId, providerId: pid)
@@ -251,10 +251,10 @@ extension ChatPanelView {
                     conversationId: convId
                 )
                 if convId == self.conversationId {
-                    streamingReasoningText = nil
-                    streamingReasoningConversationId = nil
-                    streamingReasoningBlocks = []
-                    streamingSegments.removeAll { segment in
+                    streaming.streamingReasoningText = nil
+                    streaming.streamingReasoningConversationId = nil
+                    streaming.streamingReasoningBlocks = []
+                    streaming.streamingSegments.removeAll { segment in
                         if case .reasoning = segment.kind {
                             return true
                         }
@@ -268,7 +268,7 @@ extension ChatPanelView {
                 )
                 print("[REASONING_DEBUG] shouldUpdateVisibleReasoning=\(shouldUpdateVisibleReasoning) eventConv=\(convId?.uuidString.prefix(8) ?? "nil") selectedConv=\(self.conversationId?.uuidString.prefix(8) ?? "nil")")
                 if shouldUseLinearChat(providerId: pid), shouldUpdateVisibleReasoning {
-                    codexLastReasoningLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    streaming.codexLastReasoningLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
                 }
                 guard shouldUpdateVisibleReasoning else {
                     print("[REASONING_DEBUG] BLOCKED by shouldUpdateVisibleReasoning=false")
@@ -279,26 +279,26 @@ extension ChatPanelView {
                     providerId: pid,
                     payload: p
                 )
-                if streamingReasoningConversationId != convId {
-                    streamingReasoningBlocks = []
-                    streamingSegments = []
-                    streamingSegmentTurnIndex = 0
+                if streaming.streamingReasoningConversationId != convId {
+                    streaming.streamingReasoningBlocks = []
+                    streaming.streamingSegments = []
+                    streaming.streamingSegmentTurnIndex = 0
                 }
                 let reducedState = ChatReasoningStreamReducer.apply(
                     output: output,
                     groupId: groupId,
                     state: .init(
-                        blocks: streamingReasoningBlocks,
-                        text: streamingReasoningText,
-                        segments: streamingSegments
+                        blocks: streaming.streamingReasoningBlocks,
+                        text: streaming.streamingReasoningText,
+                        segments: streaming.streamingSegments
                     ),
                     sequentialStreamingLayoutEnabled: sequentialStreamingLayoutEnabled,
-                    streamingSegmentTurnIndex: streamingSegmentTurnIndex
+                    streamingSegmentTurnIndex: streaming.streamingSegmentTurnIndex
                 )
-                streamingReasoningBlocks = reducedState.blocks
-                streamingReasoningText = reducedState.text
-                streamingSegments = reducedState.segments
-                streamingReasoningConversationId = convId
+                streaming.streamingReasoningBlocks = reducedState.blocks
+                streaming.streamingReasoningText = reducedState.text
+                streaming.streamingSegments = reducedState.segments
+                streaming.streamingReasoningConversationId = convId
                 print("[REASONING_DEBUG] AFTER reducer: blocks=\(reducedState.blocks.count) text=\(reducedState.text?.count ?? 0) segments=\(reducedState.segments.count)")
                 // Save reasoning to the message immediately so ChatTurnView
                 // can display it during streaming (not just after stop).

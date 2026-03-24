@@ -38,7 +38,7 @@ extension ChatPanelView {
             }
         }
         let selectedProviderId = providerRegistry.selectedProviderId
-        if multiCLIAccountEnabled,
+        if providerSettings.multiCLIAccountEnabled,
             let selectedProviderId,
             let kind = CLIProviderKind.fromProviderId(selectedProviderId)
         {

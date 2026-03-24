@@ -25,15 +25,15 @@ extension ChatPanelView {
         ) else { return }
 
         let groupId = "reasoning-stream"
-        if streamingReasoningConversationId != targetConversationId {
-            streamingReasoningBlocks = []
-            streamingSegments = []
-            streamingSegmentTurnIndex = 0
+        if streaming.streamingReasoningConversationId != targetConversationId {
+            streaming.streamingReasoningBlocks = []
+            streaming.streamingSegments = []
+            streaming.streamingSegmentTurnIndex = 0
         }
-        streamingReasoningConversationId = targetConversationId
-        streamingReasoningText = trimmed
-        streamingReasoningBlocks = [ReasoningBlock(id: groupId, text: trimmed)]
-        streamContentVersion &+= 1
+        streaming.streamingReasoningConversationId = targetConversationId
+        streaming.streamingReasoningText = trimmed
+        streaming.streamingReasoningBlocks = [ReasoningBlock(id: groupId, text: trimmed)]
+        streaming.streamContentVersion &+= 1
     }
 
     @MainActor
@@ -54,7 +54,7 @@ extension ChatPanelView {
             preserveLocalMessages: false
         ) != nil
         if applied {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
         if intent == "stream_replace_text",
            let text,
@@ -74,7 +74,7 @@ extension ChatPanelView {
                     in: targetConversationId,
                     persistImmediately: false
                 )
-                if !applied { streamContentVersion &+= 1 }
+                if !applied { streaming.streamContentVersion &+= 1 }
             }
         }
         // Safety net: when Rust fails mid-stream, fall through to Swift
@@ -97,27 +97,27 @@ extension ChatPanelView {
                     applyChatPipelineEvents(pipelineEvents)
                 }
             }
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 
     internal func discardPendingStreamingState(for targetConversationId: UUID?) {
-        streamThrottleTask?.cancel()
-        streamThrottleTask = nil
+        streaming.streamThrottleTask?.cancel()
+        streaming.streamThrottleTask = nil
         if shouldDiscardPendingStreamSnapshot(
             targetConversationId: targetConversationId,
-            pendingConversationId: pendingStreamConversationId
+            pendingConversationId: streaming.pendingStreamConversationId
         ) {
-            pendingStreamContent = nil
-            pendingStreamConversationId = nil
-            streamingSegments.removeAll()
+            streaming.pendingStreamContent = nil
+            streaming.pendingStreamConversationId = nil
+            streaming.streamingSegments.removeAll()
         }
-        planStreamThrottleTask?.cancel()
-        planStreamThrottleTask = nil
+        streaming.planStreamThrottleTask?.cancel()
+        streaming.planStreamThrottleTask = nil
         if let targetConversationId,
-           pendingPlanStreamConversationId == targetConversationId {
-            pendingPlanStreamingContent = nil
-            pendingPlanStreamConversationId = nil
+           streaming.pendingPlanStreamConversationId == targetConversationId {
+            streaming.pendingPlanStreamingContent = nil
+            streaming.pendingPlanStreamConversationId = nil
         }
     }
 
@@ -197,25 +197,25 @@ extension ChatPanelView {
             providerId: resolvedTurnProviderId(for: conversationId)
         )
         guard let id = conversationId else { return }
-        let hadInlineReasoning = streamingReasoningConversationId == id
+        let hadInlineReasoning = streaming.streamingReasoningConversationId == id
         let hasSeparateThinkingMessages =
-            !(reasoningMessageIdByConversationAndGroup[id]?.isEmpty ?? true)
+            !(streaming.reasoningMessageIdByConversationAndGroup[id]?.isEmpty ?? true)
         if hadInlineReasoning,
            !hasSeparateThinkingMessages,
-           let reasoning = streamingReasoningText,
+           let reasoning = streaming.streamingReasoningText,
            !reasoning.isEmpty
         {
             chatStore.saveReasoningToLastAssistant(reasoning: reasoning, in: id)
         }
         resetReasoningMessageState(for: id)
-        codexLastReasoningLine = nil
+        streaming.codexLastReasoningLine = nil
         chatStore.removeTrailingEmptyAssistantMessages(in: id)
         if hadInlineReasoning || hasSeparateThinkingMessages {
-            streamingReasoningText = nil
-            streamingReasoningConversationId = nil
-            streamingReasoningBlocks = []
-            streamingSegments = []
-            streamingSegmentTurnIndex = 0
+            streaming.streamingReasoningText = nil
+            streaming.streamingReasoningConversationId = nil
+            streaming.streamingReasoningBlocks = []
+            streaming.streamingSegments = []
+            streaming.streamingSegmentTurnIndex = 0
         }
     }
 
@@ -224,18 +224,18 @@ extension ChatPanelView {
         if let targetConversationId = conversationId {
             planStreamingContentByConversation[targetConversationId] = ""
             planStreamingContent = ""
-            if pendingPlanStreamConversationId == targetConversationId {
-                pendingPlanStreamConversationId = nil
-                pendingPlanStreamingContent = nil
+            if streaming.pendingPlanStreamConversationId == targetConversationId {
+                streaming.pendingPlanStreamConversationId = nil
+                streaming.pendingPlanStreamingContent = nil
             }
         } else {
             planStreamingContentByConversation.removeAll()
             planStreamingContent = ""
-            pendingPlanStreamConversationId = nil
-            pendingPlanStreamingContent = nil
+            streaming.pendingPlanStreamConversationId = nil
+            streaming.pendingPlanStreamingContent = nil
         }
-        planStreamThrottleTask?.cancel()
-        planStreamThrottleTask = nil
+        streaming.planStreamThrottleTask?.cancel()
+        streaming.planStreamThrottleTask = nil
     }
 
     internal func shouldRoutePlanStream(to conversationId: UUID?) -> Bool {
@@ -251,19 +251,19 @@ extension ChatPanelView {
     }
 
     internal func updatePlanStreamingContent(_ content: String, conversationId: UUID?) {
-        pendingPlanStreamConversationId = conversationId
-        pendingPlanStreamingContent = content.count > 24_000
+        streaming.pendingPlanStreamConversationId = conversationId
+        streaming.pendingPlanStreamingContent = content.count > 24_000
             ? String(content.suffix(24_000))
             : content
 
         // If a throttle is already scheduled, coalesce with latest text.
-        if planStreamThrottleTask != nil { return }
+        if streaming.planStreamThrottleTask != nil { return }
 
         // Show first chunk without delay.
         flushPlanStreamingContent()
 
         // Coalesce and defer subsequent updates to reduce re-render churn.
-        planStreamThrottleTask = Task {
+        streaming.planStreamThrottleTask = Task {
             let delay = UInt64(planStreamThrottleInterval * 1_000_000_000)
             try? await Task.sleep(nanoseconds: delay)
             guard !Task.isCancelled else { return }
@@ -286,17 +286,17 @@ extension ChatPanelView {
     }
 
     internal func flushPlanStreamingContent() {
-        planStreamThrottleTask?.cancel()
-        planStreamThrottleTask = nil
-        guard let newContent = pendingPlanStreamingContent else {
+        streaming.planStreamThrottleTask?.cancel()
+        streaming.planStreamThrottleTask = nil
+        guard let newContent = streaming.pendingPlanStreamingContent else {
             if let currentConversationId = conversationId {
                 planStreamingContent = planStreamingContentByConversation[currentConversationId] ?? ""
             }
             return
         }
-        let targetConversationId = pendingPlanStreamConversationId
-        pendingPlanStreamingContent = nil
-        pendingPlanStreamConversationId = nil
+        let targetConversationId = streaming.pendingPlanStreamConversationId
+        streaming.pendingPlanStreamingContent = nil
+        streaming.pendingPlanStreamConversationId = nil
         if let targetConversationId {
             planStreamingContentByConversation[targetConversationId] = newContent
         }

@@ -81,7 +81,7 @@ extension ChatPanelView {
         }
         recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "todo_write") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 
@@ -90,7 +90,7 @@ extension ChatPanelView {
         guard shouldAcceptTodoRead(conversationId: conversationId) else { return }
         enableTaskPanelIfNeeded()
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "todo_read") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 }

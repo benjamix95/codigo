@@ -18,7 +18,7 @@ extension ChatPanelView {
         guard !SwarmMetadata.isSwarmEvent(payload), let eventConversationId else {
             return
         }
-        pendingDebugEventsByConversation[eventConversationId, default: []].append(event)
+        conversationRuntime.pendingDebugEventsByConversation[eventConversationId, default: []].append(event)
     }
 
     @MainActor
@@ -30,7 +30,7 @@ extension ChatPanelView {
     @MainActor
     internal func persistDebugState(for conversationId: UUID?) {
         guard let conversationId else { return }
-        debugStateByConversation[conversationId] = debugStore.snapshot()
+        conversationRuntime.debugStateByConversation[conversationId] = debugStore.snapshot()
     }
 
     @MainActor
@@ -39,7 +39,7 @@ extension ChatPanelView {
             debugStore.resetSession()
             return
         }
-        if let snapshot = debugStateByConversation[conversationId] {
+        if let snapshot = conversationRuntime.debugStateByConversation[conversationId] {
             debugStore.restore(from: snapshot)
         } else {
             debugStore.resetSession()
@@ -49,7 +49,7 @@ extension ChatPanelView {
     @MainActor
     internal func applyPendingDebugEvents(for conversationId: UUID?) {
         guard let conversationId,
-              let pending = pendingDebugEventsByConversation.removeValue(forKey: conversationId),
+              let pending = conversationRuntime.pendingDebugEventsByConversation.removeValue(forKey: conversationId),
               !pending.isEmpty
         else {
             return

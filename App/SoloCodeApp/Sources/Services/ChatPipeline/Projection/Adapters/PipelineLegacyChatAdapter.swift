@@ -36,7 +36,7 @@ extension ChatPanelView {
         else {
             return nil
         }
-        let activeTurn = activeToolTraceTurnsByConversation[conversationId]
+        let activeTurn = toolRuntime.activeToolTraceTurnsByConversation[conversationId]
         return resolvePipelineBindingTarget(
             conversation: conversation,
             activeTurn: activeTurn
@@ -48,13 +48,13 @@ extension ChatPanelView {
         _ event: ChatPipelineEvent,
         persistImmediately: Bool = false
     ) {
-        let currentState = activeTurnStateByConversation[event.conversationId]
+        let currentState = conversationRuntime.activeTurnStateByConversation[event.conversationId]
             ?? restoreChatTurnState(for: event)
         let nextSequence = max(
-            pipelineEventSequenceByConversation[event.conversationId, default: 0] + 1,
+            conversationRuntime.pipelineEventSequenceByConversation[event.conversationId, default: 0] + 1,
             event.sequence
         )
-        pipelineEventSequenceByConversation[event.conversationId] = nextSequence
+        conversationRuntime.pipelineEventSequenceByConversation[event.conversationId] = nextSequence
 
         let sequenced = ChatPipelineEvent(
             conversationId: event.conversationId,
@@ -71,8 +71,8 @@ extension ChatPanelView {
             currentState: currentState,
             persistImmediately: persistImmediately
         ) {
-            activeTurnStateByConversation[event.conversationId] = nextState
-            renderSnapshotByConversation[event.conversationId] = nextState
+            conversationRuntime.activeTurnStateByConversation[event.conversationId] = nextState
+            conversationRuntime.renderSnapshotByConversation[event.conversationId] = nextState
         } else if shouldSkipRustStoreBootstrapForTests(
             environment: ProcessInfo.processInfo.environment
         ) {
@@ -80,8 +80,8 @@ extension ChatPanelView {
                 state: currentState,
                 event: sequenced
             )
-            activeTurnStateByConversation[event.conversationId] = state
-            renderSnapshotByConversation[event.conversationId] = state
+            conversationRuntime.activeTurnStateByConversation[event.conversationId] = state
+            conversationRuntime.renderSnapshotByConversation[event.conversationId] = state
             ChatPipelineCommitter.commit(
                 state,
                 chatStore: chatStore,
@@ -94,7 +94,7 @@ extension ChatPanelView {
             )
             return
         }
-        streamContentVersion &+= 1
+        streaming.streamContentVersion &+= 1
     }
 
     @MainActor

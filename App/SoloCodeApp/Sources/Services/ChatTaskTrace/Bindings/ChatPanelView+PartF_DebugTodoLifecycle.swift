@@ -14,8 +14,8 @@ extension ChatPanelView {
                 providerId: active.providerId,
                 conversationId: active.conversationId
             )
-            let pendingPolicyQueue = policyAckBlockedQueue[active.assistantMessageId] ?? []
-            let policySatisfied = policyAckStateByMessage[active.assistantMessageId]?.isSatisfied == true
+            let pendingPolicyQueue = toolRuntime.policyAckBlockedQueue[active.assistantMessageId] ?? []
+            let policySatisfied = toolRuntime.policyAckStateByMessage[active.assistantMessageId]?.isSatisfied == true
             if !pendingPolicyQueue.isEmpty, !policySatisfied {
                 appendTechnicalErrorMessage(
                     "[Policy error] Required AGENTS/SKILL acknowledgment did not arrive before queued operational events could be applied.",
@@ -35,16 +35,16 @@ extension ChatPanelView {
             conversationId: active.conversationId,
             assistantMessageId: active.assistantMessageId
         )
-        toolTraceNextSequenceByMessage.removeValue(forKey: active.assistantMessageId)
-        toolTraceOperationalSeenByMessage.removeValue(forKey: active.assistantMessageId)
-        toolTraceOperationalCountByMessage.removeValue(forKey: active.assistantMessageId)
-        policyAckStateByMessage.removeValue(forKey: active.assistantMessageId)
-        toolStartRequirementsStateByMessage.removeValue(forKey: active.assistantMessageId)
-        policyAckBlockedQueue.removeValue(forKey: active.assistantMessageId)
-        autoTodoRuntimeStateByMessage.removeValue(
+        toolRuntime.toolTraceNextSequenceByMessage.removeValue(forKey: active.assistantMessageId)
+        toolRuntime.toolTraceOperationalSeenByMessage.removeValue(forKey: active.assistantMessageId)
+        toolRuntime.toolTraceOperationalCountByMessage.removeValue(forKey: active.assistantMessageId)
+        toolRuntime.policyAckStateByMessage.removeValue(forKey: active.assistantMessageId)
+        toolRuntime.toolStartRequirementsStateByMessage.removeValue(forKey: active.assistantMessageId)
+        toolRuntime.policyAckBlockedQueue.removeValue(forKey: active.assistantMessageId)
+        conversationRuntime.autoTodoRuntimeStateByMessage.removeValue(
             forKey: active.assistantMessageId.uuidString.lowercased()
         )
-        didReceiveExplicitTodoByMessage.remove(active.assistantMessageId)
+        conversationRuntime.didReceiveExplicitTodoByMessage.remove(active.assistantMessageId)
     }
 
     @MainActor
@@ -54,7 +54,7 @@ extension ChatPanelView {
         providerId: String,
         conversationId: UUID
     ) {
-        guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
+        guard !conversationRuntime.didReceiveExplicitTodoByMessage.contains(messageId) else { return }
         applyAutoTodoRuntimeIntent(
             "auto_todo_finalize_runtime",
             assistantMessageId: messageId,
@@ -66,7 +66,7 @@ extension ChatPanelView {
 
     @MainActor
     internal func resolveToolTraceTurn(conversationId: UUID?, providerId: String) -> ToolTraceTurnContext? {
-        let activeTurn = conversationId.flatMap { activeToolTraceTurnsByConversation[$0] }
+        let activeTurn = conversationId.flatMap { toolRuntime.activeToolTraceTurnsByConversation[$0] }
         if let activeTurn,
            activeTurn.providerId != providerId,
            !isSwarmPolicyAckExemptProvider(providerId) {
@@ -98,37 +98,37 @@ extension ChatPanelView {
             assistantMessageId: target.assistantMessageId,
             providerId: providerId
         )
-        if toolTraceNextSequenceByMessage[target.assistantMessageId] == nil {
+        if toolRuntime.toolTraceNextSequenceByMessage[target.assistantMessageId] == nil {
             let existing = toolTraceStore.events(
                 conversationId: target.conversationId,
                 assistantMessageId: target.assistantMessageId
             )
             let next = (existing.last?.sequence ?? 0) + 1
-            toolTraceNextSequenceByMessage[target.assistantMessageId] = max(1, next)
+            toolRuntime.toolTraceNextSequenceByMessage[target.assistantMessageId] = max(1, next)
         }
-        if toolTraceOperationalSeenByMessage[target.assistantMessageId] == nil {
+        if toolRuntime.toolTraceOperationalSeenByMessage[target.assistantMessageId] == nil {
             let existing = toolTraceStore.events(
                 conversationId: target.conversationId,
                 assistantMessageId: target.assistantMessageId
             )
-            toolTraceOperationalSeenByMessage[target.assistantMessageId] = existing.contains {
+            toolRuntime.toolTraceOperationalSeenByMessage[target.assistantMessageId] = existing.contains {
                 isOperationalTraceEvent($0)
             }
         }
-        if toolTraceOperationalCountByMessage[target.assistantMessageId] == nil {
+        if toolRuntime.toolTraceOperationalCountByMessage[target.assistantMessageId] == nil {
             let existing = toolTraceStore.events(
                 conversationId: target.conversationId,
                 assistantMessageId: target.assistantMessageId
             )
-            toolTraceOperationalCountByMessage[target.assistantMessageId] = existing.reduce(into: 0) { partial, event in
+            toolRuntime.toolTraceOperationalCountByMessage[target.assistantMessageId] = existing.reduce(into: 0) { partial, event in
                 if isOperationalTraceEvent(event) {
                     partial += 1
                 }
             }
         }
         if isSwarmPolicyAckExemptProvider(providerId) {
-            policyAckStateByMessage.removeValue(forKey: target.assistantMessageId)
-            policyAckFailedMessages.remove(target.assistantMessageId)
+            toolRuntime.policyAckStateByMessage.removeValue(forKey: target.assistantMessageId)
+            toolRuntime.policyAckFailedMessages.remove(target.assistantMessageId)
         } else {
             initializePolicyAckStateIfNeeded(for: target.assistantMessageId)
         }
@@ -137,7 +137,7 @@ extension ChatPanelView {
             assistantMessageId: target.assistantMessageId,
             providerId: providerId
         )
-        activeToolTraceTurnsByConversation[target.conversationId] = fallbackTurn
+        toolRuntime.activeToolTraceTurnsByConversation[target.conversationId] = fallbackTurn
         return fallbackTurn
     }
 
@@ -152,7 +152,7 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
-        let sequence = toolTraceNextSequenceByMessage[turn.assistantMessageId] ?? 1
+        let sequence = toolRuntime.toolTraceNextSequenceByMessage[turn.assistantMessageId] ?? 1
         let event = ToolTraceEvent(
             sequence: sequence,
             timestamp: activity.timestamp,
@@ -169,11 +169,11 @@ extension ChatPanelView {
             rawKind: rawKind.rawValue
         )
         toolTraceStore.append(event: event)
-        toolTraceNextSequenceByMessage[turn.assistantMessageId] = sequence + 1
+        toolRuntime.toolTraceNextSequenceByMessage[turn.assistantMessageId] = sequence + 1
         if isOperationalTraceActivity(activity) {
-            toolTraceOperationalSeenByMessage[turn.assistantMessageId] = true
-            let current = toolTraceOperationalCountByMessage[turn.assistantMessageId] ?? 0
-            toolTraceOperationalCountByMessage[turn.assistantMessageId] = current + 1
+            toolRuntime.toolTraceOperationalSeenByMessage[turn.assistantMessageId] = true
+            let current = toolRuntime.toolTraceOperationalCountByMessage[turn.assistantMessageId] ?? 0
+            toolRuntime.toolTraceOperationalCountByMessage[turn.assistantMessageId] = current + 1
         }
         updateStreamingToolSegment(newEvent: event, conversationId: turn.conversationId, assistantMessageId: turn.assistantMessageId)
     }
@@ -194,18 +194,18 @@ extension ChatPanelView {
         else {
             return
         }
-        let segId = "tools-\(streamingSegmentTurnIndex)"
-        if let idx = streamingSegments.firstIndex(where: { $0.id == segId }) {
-            if case .toolTrace(var existing) = streamingSegments[idx].kind {
+        let segId = "tools-\(streaming.streamingSegmentTurnIndex)"
+        if let idx = streaming.streamingSegments.firstIndex(where: { $0.id == segId }) {
+            if case .toolTrace(var existing) = streaming.streamingSegments[idx].kind {
                 if let updateIdx = existing.firstIndex(where: { $0.id == newEvent.id }) {
                     existing[updateIdx] = newEvent
                 } else {
                     existing.append(newEvent)
                 }
-                streamingSegments[idx].kind = .toolTrace(existing)
+                streaming.streamingSegments[idx].kind = .toolTrace(existing)
             }
         } else {
-            streamingSegments.append(MessageSegment(id: segId, kind: .toolTrace([newEvent])))
+            streaming.streamingSegments.append(MessageSegment(id: segId, kind: .toolTrace([newEvent])))
         }
     }
 

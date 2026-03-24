@@ -82,12 +82,12 @@ extension ChatPanelView {
                 if isShowing && !wasOpen {
                     adjustWindowForPanelToggle(
                         isOpening: true,
-                        width: CGFloat(swarmPanelWidthStorage)
+                        width: CGFloat(uiSettings.swarmPanelWidthStorage)
                     )
                 } else if !isShowing && wasOpen {
                     adjustWindowForPanelToggle(
                         isOpening: false,
-                        width: CGFloat(swarmPanelWidthStorage)
+                        width: CGFloat(uiSettings.swarmPanelWidthStorage)
                     )
                     if planToggleEnabled && !showPlanPanel && !showDebugPanel {
                         showPlanPanel = true
@@ -106,12 +106,12 @@ extension ChatPanelView {
                 if isShowing && !wasOpen {
                     adjustWindowForPanelToggle(
                         isOpening: true,
-                        width: CGFloat(debugPanelWidthStorage)
+                        width: CGFloat(uiSettings.debugPanelWidthStorage)
                     )
                 } else if !isShowing && wasOpen {
                     adjustWindowForPanelToggle(
                         isOpening: false,
-                        width: CGFloat(debugPanelWidthStorage)
+                        width: CGFloat(uiSettings.debugPanelWidthStorage)
                     )
                     if planToggleEnabled && !showPlanPanel {
                         showPlanPanel = true
@@ -135,12 +135,12 @@ extension ChatPanelView {
                 if isOpen && !wasOpen {
                     adjustWindowForPanelToggle(
                         isOpening: true,
-                        width: CGFloat(planPanelWidthStorage)
+                        width: CGFloat(uiSettings.planPanelWidthStorage)
                     )
                 } else if !isOpen && wasOpen {
                     adjustWindowForPanelToggle(
                         isOpening: false,
-                        width: CGFloat(planPanelWidthStorage)
+                        width: CGFloat(uiSettings.planPanelWidthStorage)
                     )
                     if planPanelPresentationSource == .automaticFlow {
                         planPanelPresentationSource = .manualDeepLink
@@ -173,12 +173,12 @@ extension ChatPanelView {
                 if isOpen && !wasOpen {
                     adjustWindowForPanelToggle(
                         isOpening: true,
-                        width: CGFloat(codeReviewPanelWidthStorage)
+                        width: CGFloat(uiSettings.codeReviewPanelWidthStorage)
                     )
                 } else if !isOpen && wasOpen {
                     adjustWindowForPanelToggle(
                         isOpening: false,
-                        width: CGFloat(codeReviewPanelWidthStorage)
+                        width: CGFloat(uiSettings.codeReviewPanelWidthStorage)
                     )
                     if planToggleEnabled && !showPlanPanel && !showDebugPanel {
                         showPlanPanel = true
@@ -261,17 +261,17 @@ extension ChatPanelView {
                 }
             }
         let swarmTracked = lifecycleTracked
-            .onChange(of: swarmWorkerBackend) { _ in syncSwarmProvider() }
-            .onChange(of: claudeAllowedTools) { _ in syncClaudeProvider() }
-            .onChange(of: unifiedToolRuntimeEnabled) { _ in
+            .onChange(of: swarmReviewSettings.swarmWorkerBackend) { _ in syncSwarmProvider() }
+            .onChange(of: providerSettings.claudeAllowedTools) { _ in syncClaudeProvider() }
+            .onChange(of: uiSettings.unifiedToolRuntimeEnabled) { _ in
                 syncClaudeProvider()
                 syncGeminiProvider()
                 scheduleToolRuntimePolicySync()
             }
-            .onChange(of: mcpEditEnforcementEnabled) { _ in
+            .onChange(of: uiSettings.mcpEditEnforcementEnabled) { _ in
                 scheduleToolRuntimePolicySync()
             }
-            .onChange(of: globalYolo) { _ in
+            .onChange(of: uiSettings.globalYolo) { _ in
                 syncCodexProvider()
                 syncCodeReviewRuntimeConfig()
                 syncPlanProvider()
@@ -294,10 +294,10 @@ extension ChatPanelView {
                 syncCodeReviewRuntimeConfig()
             }
         return workspaceTracked
-            .onChange(of: codeReviewPartitions) { _ in syncCodeReviewRuntimeConfig() }
-            .onChange(of: codeReviewAnalysisOnly) { _ in syncCodeReviewRuntimeConfig() }
-            .onChange(of: codeReviewMaxRounds) { _ in syncCodeReviewRuntimeConfig() }
-            .onChange(of: codeReviewAnalysisBackend) { _ in syncCodeReviewRuntimeConfig() }
-            .onChange(of: codeReviewExecutionBackend) { _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: swarmReviewSettings.codeReviewPartitions) { _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: swarmReviewSettings.codeReviewAnalysisOnly) { _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: swarmReviewSettings.codeReviewMaxRounds) { _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: swarmReviewSettings.codeReviewAnalysisBackend) { _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: swarmReviewSettings.codeReviewExecutionBackend) { _ in syncCodeReviewRuntimeConfig() }
     }
 }

@@ -193,7 +193,7 @@ extension ChatPanelView {
     @MainActor
     internal func resetReasoningMessageState(for conversationId: UUID?) {
         guard let conversationId else { return }
-        reasoningMessageIdByConversationAndGroup.removeValue(forKey: conversationId)
+        streaming.reasoningMessageIdByConversationAndGroup.removeValue(forKey: conversationId)
     }
 
     @MainActor
@@ -206,7 +206,7 @@ extension ChatPanelView {
         let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedOutput.isEmpty else { return }
 
-        var groupMap = reasoningMessageIdByConversationAndGroup[conversationId] ?? [:]
+        var groupMap = streaming.reasoningMessageIdByConversationAndGroup[conversationId] ?? [:]
         if let messageId = groupMap[groupId] {
             let existingContent = chatStore.conversation(for: conversationId)?
                 .messages
@@ -220,14 +220,14 @@ extension ChatPanelView {
                 persistImmediately: false
             )
             if conversationId == self.conversationId {
-                streamContentVersion &+= 1
+                streaming.streamContentVersion &+= 1
             }
             return
         }
 
         let messageId = UUID()
         groupMap[groupId] = messageId
-        reasoningMessageIdByConversationAndGroup[conversationId] = groupMap
+        streaming.reasoningMessageIdByConversationAndGroup[conversationId] = groupMap
 
         let thinkingMessage = ChatMessage(
             id: messageId,
@@ -249,7 +249,7 @@ extension ChatPanelView {
             chatStore.addMessage(thinkingMessage, to: conversationId)
         }
         if conversationId == self.conversationId {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 
@@ -278,10 +278,10 @@ extension ChatPanelView {
             assistantMessageId: newId,
             turnId: newId.uuidString
         )
-        codexLastReasoningLine = nil
+        streaming.codexLastReasoningLine = nil
 
         if conversationId == self.conversationId {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 

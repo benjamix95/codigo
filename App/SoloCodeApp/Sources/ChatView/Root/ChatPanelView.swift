@@ -3,6 +3,9 @@ import CoderEngine
 import SwiftUI
 
 struct ChatPanelView: View {
+
+    // MARK: - Environment Objects
+
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var workspaceStore: WorkspaceStore
@@ -19,149 +22,57 @@ struct ChatPanelView: View {
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
     @EnvironmentObject var browserTabManager: BrowserTabManager
     @EnvironmentObject var pipelineIntegrationService: PipelineIntegrationService
+
+    // MARK: - Injected (order matches call site)
+
     @Binding var selectedConversationId: UUID?
     let effectiveContext: EffectiveContext
     let windowChromeLeadingInset: CGFloat
-
-     var conversationId: UUID? { selectedConversationId }
-
-    /// Loading state only for the currently displayed thread (avoids showing loading for other threads).
-     var isLoadingForCurrentConversation: Bool {
-        chatStore.isTaskActive(for: conversationId)
-            || pipelineIntegrationService.isRunning(for: conversationId)
-            || (planFlowPhase == .building && activeBuildPlanConversationId == conversationId)
-    }
-
     @Binding var coderMode: CoderMode
-    @State var composerState = ChatPanelComposerViewState()
-    @AppStorage("codex_path")  var codexPath = ""
-    @AppStorage("codex_sandbox")  var codexSandbox = ""
-    @AppStorage("codex_session_full_access")  var codexSessionFullAccess = false
-    @AppStorage("codex_ask_for_approval")  var codexAskForApproval = "never"
-    @AppStorage("codex_model_override")  var codexModelOverride = ""
-    @AppStorage("codex_reasoning_effort")  var codexReasoningEffort = "low"
-    @AppStorage("codex_model_provider")  var codexModelProvider = ""
-    @AppStorage("codex_prefer_responses_wire_api")
-     var codexPreferResponsesWireAPI = false
-    @AppStorage("swarm_orchestrator")  var swarmOrchestrator = "auto"
-    @AppStorage("swarm_worker_backend")  var swarmWorkerBackend = "auto"
-    @AppStorage("swarm_provider_auto_migrated_v1")  var swarmProviderAutoMigrated = false
-    @AppStorage("swarm_enabled_roles")  var swarmEnabledRoles =
-        "explorer,coder,debugger,reviewer,testWriter"
-    @AppStorage("global_yolo")  var globalYolo = false
-    @AppStorage("code_review_partitions")  var codeReviewPartitions = 3
-    @AppStorage("code_review_analysis_only")  var codeReviewAnalysisOnly = false
-    @AppStorage("code_review_max_rounds")  var codeReviewMaxRounds = 3
-    @AppStorage("code_review_analysis_backend")  var codeReviewAnalysisBackend = "auto"
-    @AppStorage("code_review_execution_backend")  var codeReviewExecutionBackend = "auto"
-    @AppStorage("code_review_quick_commands_custom_json")
-     var codeReviewQuickCommandsCustomJSON = ""
-    @State  var pendingCodeReviewSessionConfigOverride: SessionConfig?
-    @AppStorage("openai_api_key")  var openaiApiKey = ""
-    @AppStorage("openai_model")  var openaiModel = "gpt-4o-mini"
-    @AppStorage("anthropic_api_key")  var anthropicApiKey = ""
-    @AppStorage("anthropic_model")  var anthropicModel = "claude-sonnet-4-6"
-    @AppStorage("google_api_key")  var googleApiKey = ""
-    @AppStorage("google_model")  var googleModel = "gemini-2.5-pro"
-    @AppStorage("openrouter_api_key")  var openrouterApiKey = ""
-    @AppStorage("openrouter_model")  var openrouterModel = "anthropic/claude-sonnet-4-6"
-    @State  var codexModels: [CodexModel] = []
-    @State  var geminiModels: [GeminiModel] = []
-    @State  var showSwarmHelp = false
-    @AppStorage("task_panel_enabled")  var taskPanelEnabled = false
-    @AppStorage("plan_mode_backend")  var planModeBackend = "codex"
-    @AppStorage("claude_path")  var claudePath = ""
-    @AppStorage("claude_model")  var claudeModel = "claude-sonnet-4-6"
-    @AppStorage("claude_allowed_tools")  var claudeAllowedTools = "Read,Edit,Bash,Write,Search,Task,TodoWrite,WebSearch,WebFetch"
-    @AppStorage("gemini_cli_path")  var geminiCliPath = ""
-    @AppStorage("gemini_model_override")  var geminiModelOverride = ""
-    @AppStorage("kilo_path")  var kiloPath = ""
-    @AppStorage("kilo_model")  var kiloModel = ""
-    @AppStorage("unified_tool_runtime_enabled")  var unifiedToolRuntimeEnabled = true
-    @AppStorage("agents_hard_block_enabled")  var agentsHardBlockEnabled = true
-    @AppStorage("mcp_edit_enforcement_enabled")  var mcpEditEnforcementEnabled = true
-    @AppStorage("web_search_provider")  var webSearchProvider = "duckduckgo"
-    @AppStorage("brave_search_api_key")  var braveSearchApiKey = ""
-    @AppStorage("tavily_api_key")  var tavilyApiKey = ""
-    @AppStorage("serper_api_key")  var serperApiKey = ""
-    @AppStorage("multi_cli_account_enabled")  var multiCLIAccountEnabled = false
-    @AppStorage("summarize_threshold")  var summarizeThreshold = 0.8
-    @AppStorage("summarize_keep_last")  var summarizeKeepLast = 6
-    @AppStorage("summarize_provider")  var summarizeProvider = "openai-api"
-    @AppStorage("context_scope_mode")  var contextScopeModeRaw = "auto"
-    @AppStorage("plan_panel_width")  var planPanelWidthStorage: Double = 320
-    @AppStorage("debug_panel_width")  var debugPanelWidthStorage: Double = 340
-    @AppStorage("swarm_panel_width")  var swarmPanelWidthStorage: Double = 360
-    @AppStorage("code_review_panel_width")  var codeReviewPanelWidthStorage: Double = 380
-    @AppStorage("git_panel_width")  var gitPanelWidthStorage: Double = 380
-    @AppStorage("auto_resize_side_panels")  var autoResizeSidePanels = false
-    @State var panelState = ChatPanelThreadViewState()
     @Binding var showPlanPanel: Bool
     @Binding var showDebugPanel: Bool
     @Binding var showSwarmPanel: Bool
     @Binding var showCodeReviewPanel: Bool
     @Binding var showBrowserPanel: Bool
     @ObservedObject var debugStore: DebugStore
+
+    // MARK: - Settings (DynamicProperty groups — replace 54 @AppStorage)
+
+    var providerSettings = ChatPanelProviderSettings()
+    var swarmReviewSettings = ChatPanelSwarmReviewSettings()
+    var uiSettings = ChatPanelUISettings()
+
+    // MARK: - State Containers (replace ~35 loose @State)
+
+    @State var streaming = ChatStreamingState()
+    @State var toolRuntime = ChatToolRuntimeState()
+    @State var conversationRuntime = ChatConversationRuntimeState()
+
+    // MARK: - Existing State Containers
+
+    @State var composerState = ChatPanelComposerViewState()
+    @State var panelState = ChatPanelThreadViewState()
     @State var planState = ChatPanelPlanViewState()
     @State var interactionState = ChatPanelInteractionViewState()
-    @StateObject  var voiceInputController = VoiceInputController()
-    @StateObject  var flowCoordinator = ConversationFlowCoordinator()
-    @StateObject  var networkMonitor = NetworkMonitor.shared
-    @State  var pendingTaskActivities: [TaskActivity] = []
-    @State  var pendingInstantGreps: [InstantGrepResult] = []
-    @State  var taskFlushTask: Task<Void, Never>?
-    @State  var autoScrollWorkItem: DispatchWorkItem?
-    @State  var lastAutoScrollTarget: AnyHashable?
-    @State  var lastAutoScrollAt: Date = .distantPast
-    @State  var fallbackTurnStartWorkItemsByConversation: [UUID: DispatchWorkItem] = [:]
-    @State  var streamContentVersion: Int = 0
-    @State  var activeTurnStateByConversation: [UUID: ChatTurnState] = [:]
-    @State  var renderSnapshotByConversation: [UUID: ChatTurnState] = [:]
-    @State  var collapsedArtifactsByTurn: [String: Set<String>] = [:]
-    @State  var pipelineEventSequenceByConversation: [UUID: Int] = [:]
-    @State  var streamingReasoningText: String?
-    @State  var streamingReasoningConversationId: UUID?
-    @State  var streamingReasoningBlocks: [ReasoningBlock] = []
-    @State  var streamingSegments: [MessageSegment] = []
-    @State  var streamingSegmentTurnIndex: Int = 0
-    @State  var reasoningMessageIdByConversationAndGroup: [UUID: [String: UUID]] = [:]
-    /// Last reasoning line from Codex (shown as streaming detail text only, never in thinking box)
-    @State  var codexLastReasoningLine: String?
-    /// Keep chat rendering linear (one assistant response bubble per turn)
-    /// and avoid segmented interleaving that causes jittery layout updates.
-     let sequentialStreamingLayoutEnabled = false
-     let separateCodexThinkingMessagesEnabled = false
-    /// When true, Codex CLI turns are split into separate assistant messages
-    /// so the chat reads linearly. Reasoning events are suppressed from the
-    /// thinking box and shown only as streaming status text.
-     let codexLinearChatEnabled = true
-    /// Pending streaming content waiting to be flushed to ChatStore.
-    @State  var pendingStreamContent: String?
-    @State  var pendingStreamConversationId: UUID?
-    @State  var streamThrottleTask: Task<Void, Never>?
-    /// Pending plan-streaming content while the flow is rendering in the panel.
-    @State  var pendingPlanStreamingContent: String?
-    @State  var pendingPlanStreamConversationId: UUID?
-    @State  var planStreamThrottleTask: Task<Void, Never>?
-    @State  var toolRuntimeSyncTask: Task<Void, Never>?
-    @State  var activeRunTaskByConversation: [UUID: Task<Void, Never>] = [:]
-    @State  var activeRunTokenByConversation: [UUID: UUID] = [:]
-    @State  var activeToolTraceTurnsByConversation: [UUID: ToolTraceTurnContext] = [:]
-    @State  var toolTraceNextSequenceByMessage: [UUID: Int] = [:]
-    @State  var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
-    @State  var toolTraceOperationalCountByMessage: [UUID: Int] = [:]
-    @State  var policyAckStateByMessage: [UUID: PolicyAckState] = [:]
-    @State  var toolStartRequirementsStateByMessage: [UUID: ToolStartRequirementsState] = [:]
-    /// Assistant message ids that already triggered a policy-ack violation.
-    @State  var policyAckFailedMessages: Set<UUID> = []
-    /// Events queued while waiting for policy_ack, keyed by assistant message id.
-    @State  var policyAckBlockedQueue: [UUID: [(type: String, payload: [String: String], providerId: String, conversationId: UUID?, shouldApplyPipelineArtifacts: Bool)]] = [:]
-    /// Per-conversation debug state snapshots (prevents cross-thread contamination).
-    @State  var debugStateByConversation: [UUID: DebugStore.SessionSnapshot] = [:]
-    /// Debug events received while another conversation is selected.
-    @State  var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
-    @State  var autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge] = [:]
-    @State  var didReceiveExplicitTodoByMessage: Set<UUID> = []
+
+    // MARK: - Remaining @State (not grouped)
+
+    @State var codexModels: [CodexModel] = []
+    @State var geminiModels: [GeminiModel] = []
+    @State var showSwarmHelp = false
+    @State var pendingCodeReviewSessionConfigOverride: SessionConfig?
+
+    // MARK: - State Objects
+
+    @StateObject var voiceInputController = VoiceInputController()
+    @StateObject var flowCoordinator = ConversationFlowCoordinator()
+    @StateObject var networkMonitor = NetworkMonitor.shared
+
+    // MARK: - Constants
+
+    let sequentialStreamingLayoutEnabled = false
+    let separateCodexThinkingMessagesEnabled = false
+    let codexLinearChatEnabled = true
     let streamThrottleInterval: TimeInterval = 0.020
     let planStreamThrottleInterval: TimeInterval = 0.066
     let taskActivityFlushInterval: TimeInterval = 0.1
@@ -169,4 +80,14 @@ struct ChatPanelView: View {
     let checkpointGitStore = ConversationCheckpointGitStore()
     let cliAccountsStore = CLIAccountsStore.shared
     let cliAccountRouter = CLIAccountRouter.shared
+
+    // MARK: - Computed
+
+    var conversationId: UUID? { selectedConversationId }
+
+    var isLoadingForCurrentConversation: Bool {
+        chatStore.isTaskActive(for: conversationId)
+            || pipelineIntegrationService.isRunning(for: conversationId)
+            || (planFlowPhase == .building && activeBuildPlanConversationId == conversationId)
+    }
 }

@@ -67,7 +67,7 @@ extension ChatPanelView {
             )
         }
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_create") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 
@@ -88,7 +88,7 @@ extension ChatPanelView {
             targetConversationId: targetId
         )
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_upsert") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
     @MainActor
@@ -120,7 +120,7 @@ extension ChatPanelView {
             )
         }
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_batch_update") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
     @MainActor
@@ -136,7 +136,7 @@ extension ChatPanelView {
             fallbackConversationId: fallbackConversationId
         )
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_reorder") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 
@@ -155,7 +155,7 @@ extension ChatPanelView {
             fallbackConversationId: fallbackConversationId
         )
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_step_dependency_set") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 
@@ -176,7 +176,7 @@ extension ChatPanelView {
             fallbackConversationId: fallbackConversationId
         )
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_set_walkthrough") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 
@@ -227,7 +227,7 @@ extension ChatPanelView {
             )
         }
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "plan_request_user_input") {
-            streamContentVersion &+= 1
+            streaming.streamContentVersion &+= 1
         }
     }
 }

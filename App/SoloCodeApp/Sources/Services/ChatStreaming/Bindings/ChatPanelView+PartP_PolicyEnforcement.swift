@@ -95,7 +95,7 @@ extension ChatPanelView {
         providerId: String,
         conversationId: UUID
     ) {
-        guard let state = policyAckStateByMessage[assistantMessageId],
+        guard let state = toolRuntime.policyAckStateByMessage[assistantMessageId],
               !state.isSatisfied else {
             return
         }
@@ -147,7 +147,7 @@ extension ChatPanelView {
             ) else {
                 return
             }
-            if policyAckStateByMessage[turn.assistantMessageId]?.acknowledgedHash == hash {
+            if toolRuntime.policyAckStateByMessage[turn.assistantMessageId]?.acknowledgedHash == hash {
                 continue
             }
 
@@ -195,7 +195,7 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return payload
         }
-        guard var state = policyAckStateByMessage[turn.assistantMessageId] else {
+        guard var state = toolRuntime.policyAckStateByMessage[turn.assistantMessageId] else {
             return payload
         }
 
@@ -207,17 +207,17 @@ extension ChatPanelView {
         if receivedHash == state.expectedHash {
             state.acknowledgedHash = receivedHash
             state.violationEmitted = false
-            policyAckFailedMessages.remove(turn.assistantMessageId)
+            toolRuntime.policyAckFailedMessages.remove(turn.assistantMessageId)
             enriched["status"] = "acknowledged"
             enriched["title"] = payload["title"] ?? "Policy acknowledged"
             enriched["detail"] = payload["detail"] ?? "Policy hash accepted"
         } else {
-            policyAckFailedMessages.insert(turn.assistantMessageId)
+            toolRuntime.policyAckFailedMessages.insert(turn.assistantMessageId)
             enriched["status"] = "invalid"
             enriched["title"] = payload["title"] ?? "Policy acknowledgment invalid"
             enriched["detail"] = payload["detail"] ?? "Expected hash \(state.expectedHash)"
         }
-        policyAckStateByMessage[turn.assistantMessageId] = state
+        toolRuntime.policyAckStateByMessage[turn.assistantMessageId] = state
         return enriched
     }
 
@@ -228,7 +228,7 @@ extension ChatPanelView {
         providerId: String,
         conversationId: UUID?
     ) -> Bool {
-        guard agentsHardBlockEnabled else { return false }
+        guard uiSettings.agentsHardBlockEnabled else { return false }
         if isSwarmPolicyAckExemptProvider(providerId) {
             return false
         }
@@ -239,7 +239,7 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return false
         }
-        guard var state = policyAckStateByMessage[turn.assistantMessageId] else {
+        guard var state = toolRuntime.policyAckStateByMessage[turn.assistantMessageId] else {
             return false
         }
         if state.isSatisfied { return false }
@@ -249,7 +249,7 @@ extension ChatPanelView {
         // ToolEnabledLLMProvider emits the ack synthetically, so this path mostly
         // protects against event reordering instead of representing a hard failure.
         state.violationEmitted = true
-        policyAckStateByMessage[turn.assistantMessageId] = state
+        toolRuntime.policyAckStateByMessage[turn.assistantMessageId] = state
         return true
     }
 
@@ -330,12 +330,12 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
-        var state = toolStartRequirementsStateByMessage[turn.assistantMessageId] ?? ToolStartRequirementsState()
+        var state = toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] ?? ToolStartRequirementsState()
         if isTodoLifecycleEvent(type: type, payload: payload) {
             state.didSeeTodoWrite = true
             state.violationEmitted = false
         }
-        toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
+        toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
     }
 
     @MainActor
@@ -345,14 +345,14 @@ extension ChatPanelView {
         providerId: String,
         conversationId: UUID?
     ) -> Bool {
-        guard agentsHardBlockEnabled else { return false }
+        guard uiSettings.agentsHardBlockEnabled else { return false }
         guard requiresTodoPlanStartPolicy(providerId: providerId, coderMode: coderMode) else {
             return false
         }
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return false
         }
-        var state = toolStartRequirementsStateByMessage[turn.assistantMessageId] ?? ToolStartRequirementsState()
+        var state = toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] ?? ToolStartRequirementsState()
         if let violation = todoPlanStartPolicyViolation(
             state: state,
             type: type,
@@ -360,7 +360,7 @@ extension ChatPanelView {
         ) {
             if !state.violationEmitted {
                 state.violationEmitted = true
-                toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
+                toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
                 recordTaskActivity(
                     type: "tool_validation_error",
                     payload: [
@@ -381,7 +381,7 @@ extension ChatPanelView {
             }
             return true
         }
-        toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
+        toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
         return false
     }
 
@@ -391,11 +391,11 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
-        guard policyAckStateByMessage[turn.assistantMessageId]?.isSatisfied == true else {
+        guard toolRuntime.policyAckStateByMessage[turn.assistantMessageId]?.isSatisfied == true else {
             return
         }
         let messageId = turn.assistantMessageId
-        guard let queued = policyAckBlockedQueue.removeValue(forKey: messageId), !queued.isEmpty else {
+        guard let queued = toolRuntime.policyAckBlockedQueue.removeValue(forKey: messageId), !queued.isEmpty else {
             return
         }
         for event in queued {
@@ -425,8 +425,8 @@ extension ChatPanelView {
             executionController.terminate(scope: scope)
         }
         applyFlowCoordinatorState(for: conversationId) { $0.interrupt() }
-        taskFlushTask?.cancel()
-        taskFlushTask = nil
+        conversationRuntime.taskFlushTask?.cancel()
+        conversationRuntime.taskFlushTask = nil
         flushPendingTaskActivities()
         if let conversationId {
             chatStore.setLastAssistantStreaming(false, in: conversationId)

@@ -96,7 +96,7 @@ extension ChatPanelView {
             openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
             activeSelection: nil,
             activeFilePath: openFilesStore.openFilePath,
-            scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
+            scopeMode: ContextScopeMode(rawValue: uiSettings.contextScopeModeRaw) ?? .auto
         )
 
         do {

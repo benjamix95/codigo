@@ -24,12 +24,12 @@ extension ChatPanelView {
 
     @MainActor
     internal func scheduleTaskActivityFlush() {
-        if taskFlushTask != nil { return }
-        taskFlushTask = Task { @MainActor in
+        if conversationRuntime.taskFlushTask != nil { return }
+        conversationRuntime.taskFlushTask = Task { @MainActor in
             let delay = UInt64(taskActivityFlushInterval * 1_000_000_000)
             try? await Task.sleep(nanoseconds: delay)
-            guard !Task.isCancelled else { taskFlushTask = nil; return }
-            taskFlushTask = nil
+            guard !Task.isCancelled else { conversationRuntime.taskFlushTask = nil; return }
+            conversationRuntime.taskFlushTask = nil
             flushPendingTaskActivities()
         }
     }
@@ -41,30 +41,30 @@ extension ChatPanelView {
 
     @MainActor
     internal func flushPendingTaskActivities(conversationId targetConversationId: UUID?) {
-        let backlogBefore = pendingTaskActivities.count + pendingInstantGreps.count
+        let backlogBefore = conversationRuntime.pendingTaskActivities.count + conversationRuntime.pendingInstantGreps.count
         guard backlogBefore > 0 else { return }
         logTaskBacklogIfNeeded(context: "flush_start")
 
         let activities: [TaskActivity]
         let greps: [InstantGrepResult]
         if let targetConversationId {
-            activities = pendingTaskActivities.filter {
+            activities = conversationRuntime.pendingTaskActivities.filter {
                 canonicalConversationScopeValue(
                     $0.payload["conversation_id"] ?? $0.payload["conversationId"]
                 ) == targetConversationId.uuidString.lowercased()
             }
-            greps = pendingInstantGreps.filter { $0.conversationId == targetConversationId }
-            pendingTaskActivities.removeAll {
+            greps = conversationRuntime.pendingInstantGreps.filter { $0.conversationId == targetConversationId }
+            conversationRuntime.pendingTaskActivities.removeAll {
                 canonicalConversationScopeValue(
                     $0.payload["conversation_id"] ?? $0.payload["conversationId"]
                 ) == targetConversationId.uuidString.lowercased()
             }
-            pendingInstantGreps.removeAll { $0.conversationId == targetConversationId }
+            conversationRuntime.pendingInstantGreps.removeAll { $0.conversationId == targetConversationId }
         } else {
-            activities = pendingTaskActivities
-            greps = pendingInstantGreps
-            pendingTaskActivities.removeAll(keepingCapacity: true)
-            pendingInstantGreps.removeAll(keepingCapacity: true)
+            activities = conversationRuntime.pendingTaskActivities
+            greps = conversationRuntime.pendingInstantGreps
+            conversationRuntime.pendingTaskActivities.removeAll(keepingCapacity: true)
+            conversationRuntime.pendingInstantGreps.removeAll(keepingCapacity: true)
         }
 
         for activity in activities {
@@ -95,7 +95,7 @@ extension ChatPanelView {
 
         updateSidebarTaskStatus()
 
-        let backlogAfter = pendingTaskActivities.count + pendingInstantGreps.count
+        let backlogAfter = conversationRuntime.pendingTaskActivities.count + conversationRuntime.pendingInstantGreps.count
         if backlogAfter > 0 {
             logTaskBacklogIfNeeded(context: "flush_reschedule")
             scheduleTaskActivityFlush()
@@ -104,17 +104,17 @@ extension ChatPanelView {
 
     @MainActor
     internal func logTaskBacklogIfNeeded(context: String) {
-        let backlog = pendingTaskActivities.count + pendingInstantGreps.count
+        let backlog = conversationRuntime.pendingTaskActivities.count + conversationRuntime.pendingInstantGreps.count
         guard backlog >= taskBacklogDiagnosticThreshold else { return }
         NSLog("[StreamDiag] task_backlog_high count=%d context=%@", backlog, context)
     }
 
     @MainActor
     internal func clearTaskActivityPipeline() {
-        taskFlushTask?.cancel()
-        taskFlushTask = nil
-        pendingTaskActivities.removeAll(keepingCapacity: true)
-        pendingInstantGreps.removeAll(keepingCapacity: true)
+        conversationRuntime.taskFlushTask?.cancel()
+        conversationRuntime.taskFlushTask = nil
+        conversationRuntime.pendingTaskActivities.removeAll(keepingCapacity: true)
+        conversationRuntime.pendingInstantGreps.removeAll(keepingCapacity: true)
         taskActivityStore.clear(preservingCodeReviewState: true)
     }
 
@@ -227,20 +227,20 @@ extension ChatPanelView {
             coderMode: coderMode,
             conversationId: conversationId,
             isAnyAgentProviderReady: isAnyAgentProviderReady,
-            codexModelOverride: $codexModelOverride,
-            codexReasoningEffort: $codexReasoningEffort,
-            codexSandbox: $codexSandbox,
-            geminiModelOverride: $geminiModelOverride,
-            swarmOrchestrator: $swarmOrchestrator,
-            taskPanelEnabled: $taskPanelEnabled,
+            codexModelOverride: providerSettings.$codexModelOverride,
+            codexReasoningEffort: providerSettings.$codexReasoningEffort,
+            codexSandbox: providerSettings.$codexSandbox,
+            geminiModelOverride: providerSettings.$geminiModelOverride,
+            swarmOrchestrator: swarmReviewSettings.$swarmOrchestrator,
+            taskPanelEnabled: uiSettings.$taskPanelEnabled,
             showSwarmHelp: $showSwarmHelp,
             inputText: $composerState.inputText,
-            planModeBackend: $planModeBackend,
-            swarmWorkerBackend: $swarmWorkerBackend,
-            openaiModel: $openaiModel,
-            claudeModel: $claudeModel,
-            openrouterModel: $openrouterModel,
-            kiloModel: $kiloModel,
+            planModeBackend: uiSettings.$planModeBackend,
+            swarmWorkerBackend: swarmReviewSettings.$swarmWorkerBackend,
+            openaiModel: providerSettings.$openaiModel,
+            claudeModel: providerSettings.$claudeModel,
+            openrouterModel: providerSettings.$openrouterModel,
+            kiloModel: providerSettings.$kiloModel,
             codexModels: codexModels,
             geminiModels: geminiModels,
             onSyncCodexProvider: syncCodexProvider,
@@ -292,20 +292,20 @@ extension ChatPanelView {
             coderMode: coderMode,
             conversationId: conversationId,
             isAnyAgentProviderReady: isAnyAgentProviderReady,
-            codexModelOverride: $codexModelOverride,
-            codexReasoningEffort: $codexReasoningEffort,
-            codexSandbox: $codexSandbox,
-            geminiModelOverride: $geminiModelOverride,
-            swarmOrchestrator: $swarmOrchestrator,
-            taskPanelEnabled: $taskPanelEnabled,
+            codexModelOverride: providerSettings.$codexModelOverride,
+            codexReasoningEffort: providerSettings.$codexReasoningEffort,
+            codexSandbox: providerSettings.$codexSandbox,
+            geminiModelOverride: providerSettings.$geminiModelOverride,
+            swarmOrchestrator: swarmReviewSettings.$swarmOrchestrator,
+            taskPanelEnabled: uiSettings.$taskPanelEnabled,
             showSwarmHelp: $showSwarmHelp,
             inputText: $composerState.inputText,
-            planModeBackend: $planModeBackend,
-            swarmWorkerBackend: $swarmWorkerBackend,
-            openaiModel: $openaiModel,
-            claudeModel: $claudeModel,
-            openrouterModel: $openrouterModel,
-            kiloModel: $kiloModel,
+            planModeBackend: uiSettings.$planModeBackend,
+            swarmWorkerBackend: swarmReviewSettings.$swarmWorkerBackend,
+            openaiModel: providerSettings.$openaiModel,
+            claudeModel: providerSettings.$claudeModel,
+            openrouterModel: providerSettings.$openrouterModel,
+            kiloModel: providerSettings.$kiloModel,
             codexModels: codexModels,
             geminiModels: geminiModels,
             onSyncCodexProvider: syncCodexProvider,
@@ -350,11 +350,11 @@ extension ChatPanelView {
         UsageFooterView(
             selectedConversationId: $selectedConversationId,
             effectiveContext: effectiveContext,
-            planModeBackend: planModeBackend,
-            swarmWorkerBackend: swarmWorkerBackend,
-            openaiModel: openaiModel,
-            claudeModel: claudeModel,
-            contextRefreshTick: streamContentVersion / 12
+            planModeBackend: uiSettings.planModeBackend,
+            swarmWorkerBackend: swarmReviewSettings.swarmWorkerBackend,
+            openaiModel: providerSettings.openaiModel,
+            claudeModel: providerSettings.claudeModel,
+            contextRefreshTick: streaming.streamContentVersion / 12
         )
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)

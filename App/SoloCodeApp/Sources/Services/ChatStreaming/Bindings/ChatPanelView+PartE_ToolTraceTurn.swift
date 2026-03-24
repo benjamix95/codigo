@@ -47,7 +47,7 @@ extension ChatPanelView {
     }
 
     internal func expectedPolicyAckHash() -> String? {
-        guard agentsHardBlockEnabled else { return nil }
+        guard uiSettings.agentsHardBlockEnabled else { return nil }
         let bundle = currentInstructionPolicyBundle()
         let hash = bundle.policyHash.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !hash.isEmpty else { return nil }
@@ -56,19 +56,19 @@ extension ChatPanelView {
 
     internal func initializePolicyAckStateIfNeeded(for assistantMessageId: UUID) {
         guard let expectedHash = expectedPolicyAckHash() else {
-            policyAckStateByMessage.removeValue(forKey: assistantMessageId)
-            policyAckFailedMessages.remove(assistantMessageId)
+            toolRuntime.policyAckStateByMessage.removeValue(forKey: assistantMessageId)
+            toolRuntime.policyAckFailedMessages.remove(assistantMessageId)
             return
         }
-        guard !policyAckFailedMessages.contains(assistantMessageId) else { return }
-        if policyAckStateByMessage[assistantMessageId] == nil {
-            policyAckStateByMessage[assistantMessageId] = PolicyAckState(expectedHash: expectedHash)
+        guard !toolRuntime.policyAckFailedMessages.contains(assistantMessageId) else { return }
+        if toolRuntime.policyAckStateByMessage[assistantMessageId] == nil {
+            toolRuntime.policyAckStateByMessage[assistantMessageId] = PolicyAckState(expectedHash: expectedHash)
         }
     }
 
     @MainActor
     internal func startToolTraceTurn(conversationId: UUID, assistantMessageId: UUID, providerId: String) {
-        if let previous = activeToolTraceTurnsByConversation[conversationId],
+        if let previous = toolRuntime.activeToolTraceTurnsByConversation[conversationId],
            previous.assistantMessageId != assistantMessageId {
             let previousEvents = toolTraceStore.events(
                 conversationId: previous.conversationId,
@@ -76,7 +76,7 @@ extension ChatPanelView {
             )
             let hasRunningOperations = previousEvents.contains { $0.isRunning }
             let rolloverOutcome: ToolTraceTurnOutcome = hasRunningOperations ? .aborted : .success
-            let previousPolicySatisfied = policyAckStateByMessage[previous.assistantMessageId]?.isSatisfied == true
+            let previousPolicySatisfied = toolRuntime.policyAckStateByMessage[previous.assistantMessageId]?.isSatisfied == true
             finalizeAutoTodoIfNeeded(
                 messageId: previous.assistantMessageId,
                 outcome: rolloverOutcome,
@@ -87,13 +87,13 @@ extension ChatPanelView {
                 conversationId: previous.conversationId,
                 assistantMessageId: previous.assistantMessageId
             )
-            toolTraceNextSequenceByMessage.removeValue(forKey: previous.assistantMessageId)
-            toolTraceOperationalSeenByMessage.removeValue(forKey: previous.assistantMessageId)
-            toolTraceOperationalCountByMessage.removeValue(forKey: previous.assistantMessageId)
-            policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
-            toolStartRequirementsStateByMessage.removeValue(forKey: previous.assistantMessageId)
+            toolRuntime.toolTraceNextSequenceByMessage.removeValue(forKey: previous.assistantMessageId)
+            toolRuntime.toolTraceOperationalSeenByMessage.removeValue(forKey: previous.assistantMessageId)
+            toolRuntime.toolTraceOperationalCountByMessage.removeValue(forKey: previous.assistantMessageId)
+            toolRuntime.policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
+            toolRuntime.toolStartRequirementsStateByMessage.removeValue(forKey: previous.assistantMessageId)
             // Flush any remaining blocked events before discarding the queue
-            if let remainingQueued = policyAckBlockedQueue.removeValue(forKey: previous.assistantMessageId), !remainingQueued.isEmpty {
+            if let remainingQueued = toolRuntime.policyAckBlockedQueue.removeValue(forKey: previous.assistantMessageId), !remainingQueued.isEmpty {
                 if previousPolicySatisfied {
                     for event in remainingQueued {
                         handleRawStreamEvent(
@@ -111,27 +111,27 @@ extension ChatPanelView {
                     )
                 }
             }
-            policyAckFailedMessages.remove(previous.assistantMessageId)
-            autoTodoRuntimeStateByMessage.removeValue(
+            toolRuntime.policyAckFailedMessages.remove(previous.assistantMessageId)
+            conversationRuntime.autoTodoRuntimeStateByMessage.removeValue(
                 forKey: previous.assistantMessageId.uuidString.lowercased()
             )
-            didReceiveExplicitTodoByMessage.remove(previous.assistantMessageId)
+            conversationRuntime.didReceiveExplicitTodoByMessage.remove(previous.assistantMessageId)
         }
         let turn = ToolTraceTurnContext(
             conversationId: conversationId,
             assistantMessageId: assistantMessageId,
             providerId: providerId
         )
-        activeToolTraceTurnsByConversation[conversationId] = turn
-        toolTraceNextSequenceByMessage[assistantMessageId] = 1
-        toolTraceOperationalSeenByMessage[assistantMessageId] = false
-        toolTraceOperationalCountByMessage[assistantMessageId] = 0
-        toolStartRequirementsStateByMessage[assistantMessageId] = ToolStartRequirementsState()
-        autoTodoRuntimeStateByMessage.removeValue(forKey: assistantMessageId.uuidString.lowercased())
-        didReceiveExplicitTodoByMessage.remove(assistantMessageId)
+        toolRuntime.activeToolTraceTurnsByConversation[conversationId] = turn
+        toolRuntime.toolTraceNextSequenceByMessage[assistantMessageId] = 1
+        toolRuntime.toolTraceOperationalSeenByMessage[assistantMessageId] = false
+        toolRuntime.toolTraceOperationalCountByMessage[assistantMessageId] = 0
+        toolRuntime.toolStartRequirementsStateByMessage[assistantMessageId] = ToolStartRequirementsState()
+        conversationRuntime.autoTodoRuntimeStateByMessage.removeValue(forKey: assistantMessageId.uuidString.lowercased())
+        conversationRuntime.didReceiveExplicitTodoByMessage.remove(assistantMessageId)
         if isSwarmPolicyAckExemptProvider(providerId) {
-            policyAckStateByMessage.removeValue(forKey: assistantMessageId)
-            policyAckFailedMessages.remove(assistantMessageId)
+            toolRuntime.policyAckStateByMessage.removeValue(forKey: assistantMessageId)
+            toolRuntime.policyAckFailedMessages.remove(assistantMessageId)
         } else {
             initializePolicyAckStateIfNeeded(for: assistantMessageId)
         }
@@ -147,16 +147,16 @@ extension ChatPanelView {
         let finalOutcome = outcome ?? toolTraceTurnOutcome(for: flowCoordinator.state)
 
         if let conversationId {
-            guard let active = activeToolTraceTurnsByConversation[conversationId] else { return }
+            guard let active = toolRuntime.activeToolTraceTurnsByConversation[conversationId] else { return }
             finalizeToolTraceTurn(active, outcome: finalOutcome)
-            activeToolTraceTurnsByConversation.removeValue(forKey: conversationId)
+            toolRuntime.activeToolTraceTurnsByConversation.removeValue(forKey: conversationId)
             return
         }
 
-        let activeTurns = Array(activeToolTraceTurnsByConversation.values)
+        let activeTurns = Array(toolRuntime.activeToolTraceTurnsByConversation.values)
         for active in activeTurns {
             finalizeToolTraceTurn(active, outcome: finalOutcome)
         }
-        activeToolTraceTurnsByConversation.removeAll()
+        toolRuntime.activeToolTraceTurnsByConversation.removeAll()
     }
 }

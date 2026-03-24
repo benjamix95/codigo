@@ -61,7 +61,7 @@ extension ChatPanelView {
                 }
             }
         )
-        .frame(width: CGFloat(planPanelWidthStorage))
+        .frame(width: CGFloat(uiSettings.planPanelWidthStorage))
     }
 
     @ViewBuilder
@@ -96,7 +96,7 @@ extension ChatPanelView {
                 }
             }
         )
-        .frame(width: CGFloat(debugPanelWidthStorage))
+        .frame(width: CGFloat(uiSettings.debugPanelWidthStorage))
     }
 
     @ViewBuilder
@@ -109,15 +109,15 @@ extension ChatPanelView {
             conversationId: conversationId,
             isTaskRunning: isLoadingForCurrentConversation,
             selectedSwarmId: $panelState.selectedSwarmId,
-            swarmOrchestrator: $swarmOrchestrator,
-            swarmWorkerBackend: $swarmWorkerBackend,
+            swarmOrchestrator: swarmReviewSettings.$swarmOrchestrator,
+            swarmWorkerBackend: swarmReviewSettings.$swarmWorkerBackend,
             onClose: {
                 showSwarmPanel = false
             },
             onOpenFile: { openFilesStore.openFile($0) },
             onSyncSwarmProvider: syncSwarmProvider
         )
-        .frame(width: CGFloat(swarmPanelWidthStorage))
+        .frame(width: CGFloat(uiSettings.swarmPanelWidthStorage))
     }
 
     internal var codeReviewPanelSidebar: some View {
@@ -143,7 +143,7 @@ extension ChatPanelView {
                 }
             }
         )
-        .frame(width: CGFloat(codeReviewPanelWidthStorage))
+        .frame(width: CGFloat(uiSettings.codeReviewPanelWidthStorage))
     }
 
     @ViewBuilder
@@ -160,7 +160,7 @@ extension ChatPanelView {
                         selectedSwarmId = swarmId
                     }
                 )
-                if taskPanelEnabled {
+                if uiSettings.taskPanelEnabled {
                     let hasScopedConcreteActivity = scopedTaskActivities(for: conversationId).contains {
                         TaskActivityStore.isConcreteVisibleEvent($0)
                     }

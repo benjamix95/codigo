@@ -97,10 +97,10 @@ extension ChatPanelView {
         if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: message.content) {
             return fromContent
         }
-        if let codexLine = codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId {
+        if let codexLine = streaming.codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId {
             return codexLine.count > 80 ? String(codexLine.prefix(77)) + "..." : codexLine
         }
-        if convId == streamingReasoningConversationId, let reasoning = streamingReasoningText, !reasoning.isEmpty {
+        if convId == streaming.streamingReasoningConversationId, let reasoning = streaming.streamingReasoningText, !reasoning.isEmpty {
             let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)
                 .last?
                 .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
