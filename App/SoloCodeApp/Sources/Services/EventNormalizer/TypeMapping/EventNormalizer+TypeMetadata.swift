@@ -183,13 +183,20 @@ extension EventNormalizer {
         return false
     }
 
+    /// Associates title with its swarm context without exposing raw internal IDs.
+    /// Uses the readable_name from the payload when available, never the raw swarm_id.
     static func withSwarmPrefix(_ title: String, payload: [String: String]) -> String {
-        guard let swarmId = SwarmMetadata.swarmId(from: payload) else {
+        guard SwarmMetadata.swarmId(from: payload) != nil else {
             return title
         }
-        if title.hasPrefix("Swarm \(swarmId)") {
-            return title
+        // Use readable_name if available, never raw swarm_id
+        if let readable = payload["readable_name"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !readable.isEmpty,
+           !title.lowercased().contains(readable.lowercased()) {
+            return "\(readable) • \(title)"
         }
-        return "Swarm \(swarmId) • \(title)"
+        // If title already contains meaningful context, return as-is
+        return title
     }
 }

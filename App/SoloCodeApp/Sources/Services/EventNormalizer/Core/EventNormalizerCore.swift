@@ -39,7 +39,7 @@ enum EventNormalizer {
         case "debug_panel", "debug_panel_update":
             kind = .errorDiagnostic
         case "activate_plan_mode", "activate_debug_mode": kind = .modeActivation
-        case "swarm_steps", "agent": kind = .swarmProgress
+        case "swarm_steps", "agent", "subagent_text": kind = .swarmProgress
         case "usage": kind = .usageUpdate
         case "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied", "error":
             kind = .errorDiagnostic
@@ -58,8 +58,30 @@ enum EventNormalizer {
     static func normalize(type: String, payload: [String: String], timestamp: Date = .now) -> [NormalizedEvent] {
         var events: [NormalizedEvent] = []
 
+        // Reasoning events from sub-agents should be forwarded as TaskActivity
+        // so they appear in the sub-agent chat transcript. Only skip reasoning
+        // for the main chat (no swarm_id).
         if type == "reasoning" {
-            return []
+            let hasSwarmId = SwarmMetadata.isSwarmEvent(payload)
+            if !hasSwarmId {
+                return []
+            }
+            // For sub-agent reasoning, create a TaskActivity with source=reasoning
+            var enrichedPayload = payload
+            enrichedPayload["source"] = "reasoning"
+            if enrichedPayload["text"] == nil, let output = enrichedPayload["output"] {
+                enrichedPayload["text"] = output
+            }
+            return [.taskActivity(TaskActivity(
+                type: "subagent_text",
+                title: "Thinking",
+                detail: enrichedPayload["text"] ?? enrichedPayload["output"] ?? "",
+                payload: enrichedPayload,
+                timestamp: timestamp,
+                phase: .thinking,
+                isRunning: true,
+                groupId: enrichedPayload["group_id"] ?? enrichedPayload["groupId"]
+            ))]
         }
 
         if type == "todo_write", let normalized = normalizeTodoWrite(payload: payload, timestamp: timestamp) {
