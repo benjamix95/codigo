@@ -81,24 +81,28 @@ extension MessageRow {
                 }
             }
             if isUser {
-                MarkdownContentView(
-                    content: message.content,
-                    context: context,
-                    onFileClicked: onFileClicked,
-                    textAlignment: .leading,
-                    isStreaming: false,
-                    aggressiveSanitization: false,
-                    fillWidth: false,
-                    normalizeDisplayLayout: false
-                )
-                .padding(.horizontal, 18)
-                .padding(.vertical, 13)
-                .background(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(DesignSystem.Colors.chatUserBubbleFill)
-                )
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: contentMaxWidth, alignment: .trailing)
+                if isEditingInline {
+                    inlineEditBubble
+                } else {
+                    MarkdownContentView(
+                        content: message.content,
+                        context: context,
+                        onFileClicked: onFileClicked,
+                        textAlignment: .leading,
+                        isStreaming: false,
+                        aggressiveSanitization: false,
+                        fillWidth: false,
+                        normalizeDisplayLayout: false
+                    )
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 13)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(DesignSystem.Colors.chatUserBubbleFill)
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: contentMaxWidth, alignment: .trailing)
+                }
                 if shouldShowCopyAction {
                     messageActionsRow()
                 }
@@ -204,17 +208,20 @@ extension MessageRow {
             .accessibilityLabel(didCopyMessage ? "Copied" : "Copy message")
             .animation(.easeOut(duration: 0.15), value: didCopyMessage)
 
-            if let onEdit {
-                Button(action: onEdit) {
-                    Image(systemName: "pencil")
+            if onEdit != nil {
+                Button {
+                    editText = message.content
+                    isEditingInline = true
+                } label: {
+                    Image(systemName: isEditingInline ? "xmark" : "pencil")
                         .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(isEditingInline ? DesignSystem.Colors.error : DesignSystem.Colors.textTertiary)
                         .frame(width: 24, height: 20)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Edit message")
-                .accessibilityLabel("Edit message")
+                .help(isEditingInline ? "Cancel edit" : "Edit message")
+                .accessibilityLabel(isEditingInline ? "Cancel edit" : "Edit message")
             }
 
             if let onReply {
@@ -264,6 +271,42 @@ extension MessageRow {
                         isHovered = false
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: - Inline Edit Bubble
+
+    private var inlineEditBubble: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            InlineEditTextView(
+                text: $editText,
+                onSubmit: {
+                    let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    isEditingInline = false
+                    onEdit?(trimmed)
+                },
+                onCancel: {
+                    isEditingInline = false
+                }
+            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(DesignSystem.Colors.chatUserBubbleFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(DesignSystem.Colors.info.opacity(0.4), lineWidth: 1.5)
+            )
+            .frame(maxWidth: contentMaxWidth, alignment: .trailing)
+
+            HStack(spacing: 8) {
+                Text("Enter to send · Esc to cancel")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.tertiary)
             }
         }
     }

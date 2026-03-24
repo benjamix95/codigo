@@ -179,9 +179,10 @@ extension ChatPanelView {
                             streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
                             onFileClicked: { openFilesStore.openFile($0) },
                             onRestoreCheckpoint: restoreAction,
-                            onEdit: {
-                                inputText = displayMessage.content
+                            onEdit: { editedText in
+                                inputText = editedText
                                 isInputFocused = true
+                                handleComposerSend()
                             },
                             onReply: replyAction,
                             onDelete: deleteAction,

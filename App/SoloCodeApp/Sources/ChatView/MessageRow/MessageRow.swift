@@ -16,7 +16,7 @@ struct MessageRow: View {
     var showStreamingBar: Bool = true
     let onFileClicked: (String) -> Void
     var onRestoreCheckpoint: (() -> Void)? = nil
-    var onEdit: (() -> Void)? = nil
+    var onEdit: ((String) -> Void)? = nil
     var onReply: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
     var canRewind: Bool = false
@@ -26,6 +26,8 @@ struct MessageRow: View {
     @State var isActionsHovered = false
     @State var didCopyMessage = false
     @State var hoverTask: Task<Void, Never>?
+    @State var isEditingInline = false
+    @State var editText = ""
     let userRowMaxWidth: CGFloat = 640
     let assistantRowMaxWidth: CGFloat = 860
     let userImageThumbWidth: CGFloat = 140

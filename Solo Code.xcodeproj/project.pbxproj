@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E16D17E1B9E5B6D30DD6F723 /* InlineEditTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858FCEE78646DD1DF8A0516B /* InlineEditTextView.swift */; };
 		A1699C3E7357A10985D30C49 /* InlineTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D9C04951F19D7420945A10 /* InlineTerminalView.swift */; };
 		00A74A4826F0322B5BCA6295 /* ProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754246B525167CF6186F2163 /* ProviderFactory.swift */; };
 		00E030CD663BDF7B8BBA6CBC /* MCPSharedState+PersistenceBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2BE5EE4607C2C0049476FA /* MCPSharedState+PersistenceBridge.swift */; };
@@ -2392,6 +2393,7 @@
 		57E1E156441CC29422D5B9C4 /* VerifiedFindingsProjectionBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsProjectionBuilderTests.swift; path = Tests/CoderEngineTests/VerifiedFindings/VerifiedFindingsProjectionBuilderTests.swift; sourceTree = "<group>"; };
 		57E951E7C0C368228CCBF87C /* UsageFooterContextProgressTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UsageFooterContextProgressTests.swift; path = Tests/SoloCodeAppTests/UsageFooterContextProgressTests.swift; sourceTree = "<group>"; };
 		57EA0A3B6DCC21DA71E12900 /* MessageRow+Content.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "MessageRow+Content.swift"; path = "App/SoloCodeApp/Sources/ChatView/MessageRow/MessageRow+Content.swift"; sourceTree = "<group>"; };
+		858FCEE78646DD1DF8A0516B /* InlineEditTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "InlineEditTextView.swift"; path = "App/SoloCodeApp/Sources/ChatView/MessageRow/InlineEditTextView.swift"; sourceTree = "<group>"; };
 		581C13B167818AE2441F10AC /* DeadLetterQueueTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DeadLetterQueueTests.swift; path = Tests/CoderEngineTests/Pipeline/EventBus/DeadLetterQueueTests.swift; sourceTree = "<group>"; };
 		58635A2A82C4C841484FBCC7 /* ProviderToolEventMapper+Routes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ProviderToolEventMapper+Routes.swift"; path = "Engine/CoderEngine/Sources/ProviderBackends/Shared/ProviderToolEventMapper/ProviderToolEventMapper+Routes.swift"; sourceTree = "<group>"; };
 		58AB23ED326DD57CE54932CD /* UnifiedToolRuntime+Validation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UnifiedToolRuntime+Validation.swift"; path = "Engine/CoderEngine/Sources/Tools/Runtime/UnifiedToolRuntime/Core/UnifiedToolRuntime+Validation.swift"; sourceTree = "<group>"; };
@@ -3656,6 +3658,7 @@
 				2C316807B8621A171C450012 /* ChatComposerView.swift */,
 				E0191BD510E99055DF05CA76 /* ComposerTextView.swift */,
 				57EA0A3B6DCC21DA71E12900 /* MessageRow+Content.swift */,
+				858FCEE78646DD1DF8A0516B /* InlineEditTextView.swift */,
 				07A753CC1C92FE361A736C2D /* MessageRow+ImageCache.swift */,
 				D93989217E6F24772E3B6D63 /* MessageRow+Indicators.swift */,
 				6E76C8DEACCFAC620135CD47 /* MessageRow+Thinking.swift */,
@@ -6595,6 +6598,7 @@
 				DB892A0B1CF1AAE9977D59FA /* ChatComposerView.swift in Sources */,
 				F198941CF81CC109C5E2C205 /* ComposerTextView.swift in Sources */,
 				C0414465916FB85940702FE8 /* MessageRow+Content.swift in Sources */,
+				E16D17E1B9E5B6D30DD6F723 /* InlineEditTextView.swift in Sources */,
 				D99B1ACFC5A74ED7D403778E /* MessageRow+ImageCache.swift in Sources */,
 				B171E36FD132B36B01FB80EE /* MessageRow+Indicators.swift in Sources */,
 				762A56295D680B6D6F17129D /* MessageRow+Thinking.swift in Sources */,
