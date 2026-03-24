@@ -4,85 +4,173 @@ import CoderEngine
 
 @MainActor
 final class DebugStore: ObservableObject {
-    @Published var phase: DebugFlowPhase = .idle
-    @Published var logs: [DebugLogEntry] = []
-    @Published var hypotheses: [DebugHypothesis] = []
-    @Published var breakpoints: [DebugBreakpoint] = []
-    @Published var streamingContent: String = ""
-    @Published var errorSummary: String = ""
-    @Published var clarificationQuestions: String = ""
-    @Published var resolutionSummary: String = ""
+    // MARK: - Grouped Published State (44 → 7 structs)
 
-    /// Debug markers inserted in files by the agent (tracked for cleanup)
-    @Published var debugMarkers: [DebugMarker] = []
+    @Published var flow = DebugFlowState()
+    @Published var markers = DebugMarkerState()
+    @Published var nativeInput = DebugNativeInputState()
+    @Published var session = DebugSessionState()
+    @Published var variables = DebugVariablesState()
+    @Published var filters = DebugFilterState()
+    @Published var reports = DebugReportState()
 
-    /// Cursor-style runtime logs collected from .solocode/debug.log
-    @Published var runtimeLogs: [RuntimeLogEntry] = []
+    // MARK: - Backward-compatible accessors: Flow
 
-    /// Instrumentation points the agent has inserted (richer than markers)
-    @Published var instrumentationPoints: [InstrumentationPoint] = []
+    var phase: DebugFlowPhase {
+        get { flow.phase }
+        set { flow.phase = newValue }
+    }
+    var logs: [DebugLogEntry] {
+        get { flow.logs }
+        set { flow.logs = newValue }
+    }
+    var hypotheses: [DebugHypothesis] {
+        get { flow.hypotheses }
+        set { flow.hypotheses = newValue }
+    }
+    var breakpoints: [DebugBreakpoint] {
+        get { flow.breakpoints }
+        set { flow.breakpoints = newValue }
+    }
+    var streamingContent: String {
+        get { flow.streamingContent }
+        set { flow.streamingContent = newValue }
+    }
+    var errorSummary: String {
+        get { flow.errorSummary }
+        set { flow.errorSummary = newValue }
+    }
+    var clarificationQuestions: String {
+        get { flow.clarificationQuestions }
+        set { flow.clarificationQuestions = newValue }
+    }
+    var resolutionSummary: String {
+        get { flow.resolutionSummary }
+        set { flow.resolutionSummary = newValue }
+    }
 
-    /// Native debugger session state (LLDB-backed)
-    @Published var nativeSession: NativeDebugSessionState = .idle
+    // MARK: - Backward-compatible accessors: Markers
 
-    /// Path esplicito del target usato per avviare la sessione native.
-    @Published var nativeTargetPathInput: String = ""
+    var debugMarkers: [DebugMarker] {
+        get { markers.debugMarkers }
+        set { markers.debugMarkers = newValue }
+    }
+    var runtimeLogs: [RuntimeLogEntry] {
+        get { markers.runtimeLogs }
+        set { markers.runtimeLogs = newValue }
+    }
+    var instrumentationPoints: [InstrumentationPoint] {
+        get { markers.instrumentationPoints }
+        set { markers.instrumentationPoints = newValue }
+    }
 
-    /// Argomenti CLI del target (separati da virgola o newline).
-    @Published var nativeArgumentsInput: String = ""
+    // MARK: - Backward-compatible accessors: Native Input
 
-    /// Comma-separated watch expressions used by native debugger.
-    @Published var nativeWatchExpressionsInput: String = ""
+    var nativeSession: NativeDebugSessionState {
+        get { nativeInput.nativeSession }
+        set { nativeInput.nativeSession = newValue }
+    }
+    var nativeTargetPathInput: String {
+        get { nativeInput.nativeTargetPathInput }
+        set { nativeInput.nativeTargetPathInput = newValue }
+    }
+    var nativeArgumentsInput: String {
+        get { nativeInput.nativeArgumentsInput }
+        set { nativeInput.nativeArgumentsInput = newValue }
+    }
+    var nativeWatchExpressionsInput: String {
+        get { nativeInput.nativeWatchExpressionsInput }
+        set { nativeInput.nativeWatchExpressionsInput = newValue }
+    }
+    var nativeBreakpointFilePathInput: String {
+        get { nativeInput.nativeBreakpointFilePathInput }
+        set { nativeInput.nativeBreakpointFilePathInput = newValue }
+    }
+    var nativeBreakpointLineInput: String {
+        get { nativeInput.nativeBreakpointLineInput }
+        set { nativeInput.nativeBreakpointLineInput = newValue }
+    }
+    var nativeBreakpointConditionInput: String {
+        get { nativeInput.nativeBreakpointConditionInput }
+        set { nativeInput.nativeBreakpointConditionInput = newValue }
+    }
 
-    /// Draft fields per aggiunta breakpoint dalla tab Native.
-    @Published var nativeBreakpointFilePathInput: String = ""
-    @Published var nativeBreakpointLineInput: String = ""
-    @Published var nativeBreakpointConditionInput: String = ""
+    // MARK: - Backward-compatible accessors: Session
 
-    /// Current reproduce run ID (groups runtime logs from a single reproduce)
-    @Published var currentRunId: String?
-    @Published var activeDebugSessionId: String?
-    @Published var debugWorkspacePath: String?
+    var currentRunId: String? {
+        get { session.currentRunId }
+        set { session.currentRunId = newValue }
+    }
+    var activeDebugSessionId: String? {
+        get { session.activeDebugSessionId }
+        set { session.activeDebugSessionId = newValue }
+    }
+    var debugWorkspacePath: String? {
+        get { session.debugWorkspacePath }
+        set { session.debugWorkspacePath = newValue }
+    }
+    var debugFlowDiagram: String {
+        get { session.debugFlowDiagram }
+        set { session.debugFlowDiagram = newValue }
+    }
+    var fixLoopIteration: Int {
+        get { session.fixLoopIteration }
+        set { session.fixLoopIteration = newValue }
+    }
+    var userConfirmedReproduce: Bool {
+        get { session.userConfirmedReproduce }
+        set { session.userConfirmedReproduce = newValue }
+    }
+    var awaitingDebugClean: Bool {
+        get { session.awaitingDebugClean }
+        set { session.awaitingDebugClean = newValue }
+    }
 
-    /// Mermaid diagram code for the debug flow (static or agent-generated)
-    @Published var debugFlowDiagram: String = ""
+    // MARK: - Backward-compatible accessors: Variables
 
-    /// How many times the fix loop has iterated (Hypothesize→Instrument→Observe→Verify→Fix)
-    @Published var fixLoopIteration: Int = 0
+    var selectedFrameResult: FrameSelectionResult? {
+        get { variables.selectedFrameResult }
+        set { variables.selectedFrameResult = newValue }
+    }
+    var localVariables: [NativeVariable] {
+        get { variables.localVariables }
+        set { variables.localVariables = newValue }
+    }
+    var globalVariables: [NativeVariable] {
+        get { variables.globalVariables }
+        set { variables.globalVariables = newValue }
+    }
+    var argumentVariables: [NativeVariable] {
+        get { variables.argumentVariables }
+        set { variables.argumentVariables = newValue }
+    }
+    var lastExpressionResult: ExpressionResult? {
+        get { variables.lastExpressionResult }
+        set { variables.lastExpressionResult = newValue }
+    }
+    var expressionHistory: [ExpressionResult] {
+        get { variables.expressionHistory }
+        set { variables.expressionHistory = newValue }
+    }
+    var expressionInput: String {
+        get { variables.expressionInput }
+        set { variables.expressionInput = newValue }
+    }
 
-    /// Whether the user confirmed they reproduced the bug (after reproduce phase)
-    @Published var userConfirmedReproduce = false
+    // MARK: - Backward-compatible accessors: Filters
 
-    /// While true, the panel is waiting for debug_clean completion before resolving.
-    @Published var awaitingDebugClean = false
-
-    // MARK: - Extended Debug State (Fase 1 — Debug Engine Hardening)
-
-    /// Risultato della selezione frame corrente.
-    @Published var selectedFrameResult: FrameSelectionResult?
-
-    /// Variabili locali del frame corrente.
-    @Published var localVariables: [NativeVariable] = []
-
-    /// Variabili globali/statiche.
-    @Published var globalVariables: [NativeVariable] = []
-
-    /// Argomenti del frame corrente.
-    @Published var argumentVariables: [NativeVariable] = []
-
-    /// Ultimo risultato di valutazione espressione.
-    @Published var lastExpressionResult: ExpressionResult?
-
-    /// Storico delle espressioni valutate con successo.
-    @Published var expressionHistory: [ExpressionResult] = []
-
-    /// Input per la REPL di expression evaluation.
-    @Published var expressionInput: String = ""
-
-    /// Filters for log panel
-    @Published var severityFilter: Set<DebugEntrySeverity> = Set(DebugEntrySeverity.allCases)
-    @Published var categoryFilter: String? = nil
-    @Published var searchQuery: String = ""
+    var severityFilter: Set<DebugEntrySeverity> {
+        get { filters.severityFilter }
+        set { filters.severityFilter = newValue }
+    }
+    var categoryFilter: String? {
+        get { filters.categoryFilter }
+        set { filters.categoryFilter = newValue }
+    }
+    var searchQuery: String {
+        get { filters.searchQuery }
+        set { filters.searchQuery = newValue }
+    }
 
     var filteredLogs: [DebugLogEntry] {
         logs.filter { entry in
@@ -107,32 +195,56 @@ final class DebugStore: ObservableObject {
 
     var pendingResolutionAfterClean: String?
 
-    /// Debug findings extracted from hypotheses and markers.
-    @Published var debugFindings: [DebugFinding] = []
+    // MARK: - Backward-compatible accessors: Reports
 
-    /// Whether the pipeline is awaiting user clarification before advancing.
-    @Published var isAwaitingUserClarification: Bool = false
-
-    /// Whether the pipeline is awaiting reproduce confirmation before advancing.
-    @Published var isAwaitingReproduceConfirmation: Bool = false
-
-    /// Whether the pipeline is awaiting fix confirmation before cleanup.
-    @Published var isAwaitingFixConfirmation: Bool = false
-
-    /// Warning: agent skipped questions (no hypotheses before fix phase).
-    @Published var skippedQuestionsWarning: Bool = false
-    @Published var lastTraceAnalysis: String = ""
-    @Published var lastSnapshotReport: String = ""
-    @Published var lastTimelineReport: String = ""
-    @Published var lastTestCheckReport: String = ""
-    @Published var lastSessionExport: String = ""
-
-    // MARK: - Log File Monitor
-
-    // MARK: - Real-Time Stream Logs
-
-    @Published var streamLogs: [DebugStreamLogEntry] = []
-    @Published var streamLogNewCount: Int = 0
+    var debugFindings: [DebugFinding] {
+        get { reports.debugFindings }
+        set { reports.debugFindings = newValue }
+    }
+    var isAwaitingUserClarification: Bool {
+        get { reports.isAwaitingUserClarification }
+        set { reports.isAwaitingUserClarification = newValue }
+    }
+    var isAwaitingReproduceConfirmation: Bool {
+        get { reports.isAwaitingReproduceConfirmation }
+        set { reports.isAwaitingReproduceConfirmation = newValue }
+    }
+    var isAwaitingFixConfirmation: Bool {
+        get { reports.isAwaitingFixConfirmation }
+        set { reports.isAwaitingFixConfirmation = newValue }
+    }
+    var skippedQuestionsWarning: Bool {
+        get { reports.skippedQuestionsWarning }
+        set { reports.skippedQuestionsWarning = newValue }
+    }
+    var lastTraceAnalysis: String {
+        get { reports.lastTraceAnalysis }
+        set { reports.lastTraceAnalysis = newValue }
+    }
+    var lastSnapshotReport: String {
+        get { reports.lastSnapshotReport }
+        set { reports.lastSnapshotReport = newValue }
+    }
+    var lastTimelineReport: String {
+        get { reports.lastTimelineReport }
+        set { reports.lastTimelineReport = newValue }
+    }
+    var lastTestCheckReport: String {
+        get { reports.lastTestCheckReport }
+        set { reports.lastTestCheckReport = newValue }
+    }
+    var lastSessionExport: String {
+        get { reports.lastSessionExport }
+        set { reports.lastSessionExport = newValue }
+    }
+    var streamLogs: [DebugStreamLogEntry] {
+        get { reports.streamLogs }
+        set { reports.streamLogs = newValue }
+    }
+    var streamLogNewCount: Int {
+        get { reports.streamLogNewCount }
+        set { reports.streamLogNewCount = newValue }
+    }
     var streamLogCancellable: AnyCancellable?
 
     var logFileMonitorSource: DispatchSourceFileSystemObject?

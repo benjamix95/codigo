@@ -5,31 +5,106 @@ import CoderEngine
 
 @MainActor
 final class TaskActivityStore: ObservableObject {
-    @Published var activities: [TaskActivity] = []
-    @Published var instantGreps: [InstantGrepResult] = []
-    @Published var envelopes: [NormalizedEventEnvelope] = []
-    @Published var activeOperationsCount: Int = 0
-    @Published var unseenLiveEventsCount: Int = 0
-    @Published var swarmCards: [String: SwarmLiveCardState] = [:]
-    @Published var swarmEventsReceivedCount: Int = 0
-    @Published var swarmEventsAssignedCount: Int = 0
-    @Published var swarmEventsFallbackCount: Int = 0
+    // MARK: - Grouped Published State (25 → 3 structs)
 
-    // Code review session data (structured, from CodeReviewSessionSnapshot)
-    @Published var codeReviewFindings: [CodeReviewFinding] = []
-    @Published var codeReviewEvents: [CodeReviewSessionEvent] = []
-    @Published var codeReviewPhase: ReviewSessionPhase = .idle
-    @Published var codeReviewStage: ReviewSessionStage = .idle
-    @Published var codeReviewFindingsByConversation: [String: [CodeReviewFinding]] = [:]
-    @Published var codeReviewEventsByConversation: [String: [CodeReviewSessionEvent]] = [:]
-    @Published var codeReviewPhaseByConversation: [String: ReviewSessionPhase] = [:]
-    @Published var codeReviewSnapshotsBySession: [String: CodeReviewSessionSnapshot] = [:]
-    @Published var codeReviewSessionIdsByConversation: [String: [String]] = [:]
-    @Published var selectedCodeReviewSessionIdByConversation: [String: String] = [:]
-    @Published var verifiedFindingsEnvelopesBySession: [String: VerifiedFindingsSessionEnvelope] = [:]
-    @Published var verifiedFindingsProjectionsByConversation: [String: VerifiedFindingsProjectionSnapshot] = [:]
-    @Published var reviewPanelDerivedStateBySession: [String: ReviewPanelDerivedState] = [:]
-    @Published var reviewPanelDerivedStateByConversation: [String: ReviewPanelDerivedState] = [:]
+    @Published var core = TaskActivityCoreState()
+    @Published var swarm = TaskActivitySwarmState()
+    @Published var codeReview = TaskActivityCodeReviewState()
+
+    // MARK: - Backward-compatible accessors
+
+    var activities: [TaskActivity] {
+        get { core.activities }
+        set { core.activities = newValue }
+    }
+    var instantGreps: [InstantGrepResult] {
+        get { core.instantGreps }
+        set { core.instantGreps = newValue }
+    }
+    var envelopes: [NormalizedEventEnvelope] {
+        get { core.envelopes }
+        set { core.envelopes = newValue }
+    }
+    var activeOperationsCount: Int {
+        get { core.activeOperationsCount }
+        set { core.activeOperationsCount = newValue }
+    }
+    var unseenLiveEventsCount: Int {
+        get { core.unseenLiveEventsCount }
+        set { core.unseenLiveEventsCount = newValue }
+    }
+    var swarmCards: [String: SwarmLiveCardState] {
+        get { swarm.swarmCards }
+        set { swarm.swarmCards = newValue }
+    }
+    var swarmEventsReceivedCount: Int {
+        get { swarm.swarmEventsReceivedCount }
+        set { swarm.swarmEventsReceivedCount = newValue }
+    }
+    var swarmEventsAssignedCount: Int {
+        get { swarm.swarmEventsAssignedCount }
+        set { swarm.swarmEventsAssignedCount = newValue }
+    }
+    var swarmEventsFallbackCount: Int {
+        get { swarm.swarmEventsFallbackCount }
+        set { swarm.swarmEventsFallbackCount = newValue }
+    }
+    var codeReviewFindings: [CodeReviewFinding] {
+        get { codeReview.codeReviewFindings }
+        set { codeReview.codeReviewFindings = newValue }
+    }
+    var codeReviewEvents: [CodeReviewSessionEvent] {
+        get { codeReview.codeReviewEvents }
+        set { codeReview.codeReviewEvents = newValue }
+    }
+    var codeReviewPhase: ReviewSessionPhase {
+        get { codeReview.codeReviewPhase }
+        set { codeReview.codeReviewPhase = newValue }
+    }
+    var codeReviewStage: ReviewSessionStage {
+        get { codeReview.codeReviewStage }
+        set { codeReview.codeReviewStage = newValue }
+    }
+    var codeReviewFindingsByConversation: [String: [CodeReviewFinding]] {
+        get { codeReview.codeReviewFindingsByConversation }
+        set { codeReview.codeReviewFindingsByConversation = newValue }
+    }
+    var codeReviewEventsByConversation: [String: [CodeReviewSessionEvent]] {
+        get { codeReview.codeReviewEventsByConversation }
+        set { codeReview.codeReviewEventsByConversation = newValue }
+    }
+    var codeReviewPhaseByConversation: [String: ReviewSessionPhase] {
+        get { codeReview.codeReviewPhaseByConversation }
+        set { codeReview.codeReviewPhaseByConversation = newValue }
+    }
+    var codeReviewSnapshotsBySession: [String: CodeReviewSessionSnapshot] {
+        get { codeReview.codeReviewSnapshotsBySession }
+        set { codeReview.codeReviewSnapshotsBySession = newValue }
+    }
+    var codeReviewSessionIdsByConversation: [String: [String]] {
+        get { codeReview.codeReviewSessionIdsByConversation }
+        set { codeReview.codeReviewSessionIdsByConversation = newValue }
+    }
+    var selectedCodeReviewSessionIdByConversation: [String: String] {
+        get { codeReview.selectedCodeReviewSessionIdByConversation }
+        set { codeReview.selectedCodeReviewSessionIdByConversation = newValue }
+    }
+    var verifiedFindingsEnvelopesBySession: [String: VerifiedFindingsSessionEnvelope] {
+        get { codeReview.verifiedFindingsEnvelopesBySession }
+        set { codeReview.verifiedFindingsEnvelopesBySession = newValue }
+    }
+    var verifiedFindingsProjectionsByConversation: [String: VerifiedFindingsProjectionSnapshot] {
+        get { codeReview.verifiedFindingsProjectionsByConversation }
+        set { codeReview.verifiedFindingsProjectionsByConversation = newValue }
+    }
+    var reviewPanelDerivedStateBySession: [String: ReviewPanelDerivedState] {
+        get { codeReview.reviewPanelDerivedStateBySession }
+        set { codeReview.reviewPanelDerivedStateBySession = newValue }
+    }
+    var reviewPanelDerivedStateByConversation: [String: ReviewPanelDerivedState] {
+        get { codeReview.reviewPanelDerivedStateByConversation }
+        set { codeReview.reviewPanelDerivedStateByConversation = newValue }
+    }
 
     let swarmLogger = Logger(subsystem: "com.solocode.app", category: "swarm")
     let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit
@@ -195,14 +270,23 @@ final class TaskActivityPersistenceBridge: @unchecked Sendable {
         }
     }
 
-    func flush() {
-        let group = DispatchGroup()
-        group.enter()
-        queue.async { [weak self] in
-            self?.flushPendingSnapshotsLocked()
-            group.leave()
+    /// Flush pending snapshots asynchronously. Safe to call from any context
+    /// including @MainActor — never blocks the calling thread.
+    func flush() async {
+        await withCheckedContinuation { continuation in
+            queue.async { [weak self] in
+                self?.flushPendingSnapshotsLocked()
+                continuation.resume()
+            }
         }
-        group.wait()
+    }
+
+    /// Synchronous flush for use only from background/test contexts.
+    /// Must NOT be called from the main thread — will deadlock if `queue` targets main.
+    func flushSync() {
+        queue.sync { [weak self] in
+            self?.flushPendingSnapshotsLocked()
+        }
     }
 
     private func scheduleFlushLocked() {

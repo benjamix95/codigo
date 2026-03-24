@@ -3,38 +3,117 @@ import CoderEngine
 
 @MainActor
 final class GitPanelStore: ObservableObject {
-    // MARK: - Published State
+    // MARK: - Grouped State (reduces @Published explosion)
+
     @Published var isOpen = false
+    @Published var repo = GitRepoState()
+    @Published var commitForm = GitCommitFormState()
+    @Published var branchForm = GitBranchFormState()
+    @Published var remote = GitRemoteState()
 
-    @Published var gitRoot: String?
-    @Published var currentBranch = "-"
-    @Published var branches: [GitBranch] = []
-    @Published var status: GitStatusSummary?
-    @Published var changedFiles: [GitChangedFile] = []
-    @Published var commitLog: [GitLogEntry] = []
-    @Published var isRefreshing = false
-    @Published var isBusy = false
-    @Published var error: String?
-    @Published var successMessage: String?
+    // MARK: - Backward-compatible accessors – Repo
 
-    // Commit form state
-    @Published var commitMessage = ""
-    @Published var includeUnstaged = false
-    @Published var nextStep: GitCommitNextStep = .commit
+    var gitRoot: String? {
+        get { repo.gitRoot }
+        set { repo.gitRoot = newValue }
+    }
+    var currentBranch: String {
+        get { repo.currentBranch }
+        set { repo.currentBranch = newValue }
+    }
+    var branches: [GitBranch] {
+        get { repo.branches }
+        set { repo.branches = newValue }
+    }
+    var status: GitStatusSummary? {
+        get { repo.status }
+        set { repo.status = newValue }
+    }
+    var changedFiles: [GitChangedFile] {
+        get { repo.changedFiles }
+        set { repo.changedFiles = newValue }
+    }
+    var commitLog: [GitLogEntry] {
+        get { repo.commitLog }
+        set { repo.commitLog = newValue }
+    }
+    var isRefreshing: Bool {
+        get { repo.isRefreshing }
+        set { repo.isRefreshing = newValue }
+    }
+    var isBusy: Bool {
+        get { repo.isBusy }
+        set { repo.isBusy = newValue }
+    }
+    var error: String? {
+        get { repo.error }
+        set { repo.error = newValue }
+    }
+    var successMessage: String? {
+        get { repo.successMessage }
+        set { repo.successMessage = newValue }
+    }
 
-    // Branch creation
-    @Published var showCreateBranch = false
-    @Published var newBranchName = ""
-    @Published var branchSearch = ""
+    // MARK: - Backward-compatible accessors – Commit Form
 
-    // Extended state
-    @Published var stashEntries: [GitStashEntry] = []
-    @Published var remoteBranches: [GitBranch] = []
-    @Published var aheadCount: Int = 0
-    @Published var behindCount: Int = 0
-    @Published var showDeleteBranchConfirm = false
-    @Published var branchToDelete: String?
-    @Published var stashMessage = ""
+    var commitMessage: String {
+        get { commitForm.commitMessage }
+        set { commitForm.commitMessage = newValue }
+    }
+    var includeUnstaged: Bool {
+        get { commitForm.includeUnstaged }
+        set { commitForm.includeUnstaged = newValue }
+    }
+    var nextStep: GitCommitNextStep {
+        get { commitForm.nextStep }
+        set { commitForm.nextStep = newValue }
+    }
+
+    // MARK: - Backward-compatible accessors – Branch Form
+
+    var showCreateBranch: Bool {
+        get { branchForm.showCreateBranch }
+        set { branchForm.showCreateBranch = newValue }
+    }
+    var newBranchName: String {
+        get { branchForm.newBranchName }
+        set { branchForm.newBranchName = newValue }
+    }
+    var branchSearch: String {
+        get { branchForm.branchSearch }
+        set { branchForm.branchSearch = newValue }
+    }
+
+    // MARK: - Backward-compatible accessors – Remote
+
+    var stashEntries: [GitStashEntry] {
+        get { remote.stashEntries }
+        set { remote.stashEntries = newValue }
+    }
+    var remoteBranches: [GitBranch] {
+        get { remote.remoteBranches }
+        set { remote.remoteBranches = newValue }
+    }
+    var aheadCount: Int {
+        get { remote.aheadCount }
+        set { remote.aheadCount = newValue }
+    }
+    var behindCount: Int {
+        get { remote.behindCount }
+        set { remote.behindCount = newValue }
+    }
+    var showDeleteBranchConfirm: Bool {
+        get { remote.showDeleteBranchConfirm }
+        set { remote.showDeleteBranchConfirm = newValue }
+    }
+    var branchToDelete: String? {
+        get { remote.branchToDelete }
+        set { remote.branchToDelete = newValue }
+    }
+    var stashMessage: String {
+        get { remote.stashMessage }
+        set { remote.stashMessage = newValue }
+    }
 
     let gitService = GitService()
     let commitMessageGenerator = GitCommitMessageGenerator()

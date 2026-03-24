@@ -4,18 +4,61 @@ import SwiftUI
 @MainActor
 final class ProviderUsageStore: ObservableObject {
     static let shared = ProviderUsageStore()
-    @Published var codexUsage: CodexUsage?
-    @Published var codexUsageMessage: String?
-    @Published var claudeUsage: ClaudeUsage?
-    @Published var claudeUsageMessage: String?
-    @Published var claudeUsageSourceLabel: String?
-    @Published var geminiUsage: GeminiCLIUsage?
-    @Published var geminiUsageMessage: String?
-    @Published var apiTokensIn: Int = 0
-    @Published var apiTokensOut: Int = 0
-    @Published var apiEstimatedCost: Double = 0
-    @Published var lastApiModel: String = ""
+    // MARK: - Grouped State (reduces @Published explosion)
+
+    @Published var provider = ProviderUsageSnapshot()
+    @Published var api = ApiUsageSnapshot()
     @Published var isRefreshing = false
+
+    // MARK: - Backward-compatible accessors – Provider
+
+    var codexUsage: CodexUsage? {
+        get { provider.codexUsage }
+        set { provider.codexUsage = newValue }
+    }
+    var codexUsageMessage: String? {
+        get { provider.codexUsageMessage }
+        set { provider.codexUsageMessage = newValue }
+    }
+    var claudeUsage: ClaudeUsage? {
+        get { provider.claudeUsage }
+        set { provider.claudeUsage = newValue }
+    }
+    var claudeUsageMessage: String? {
+        get { provider.claudeUsageMessage }
+        set { provider.claudeUsageMessage = newValue }
+    }
+    var claudeUsageSourceLabel: String? {
+        get { provider.claudeUsageSourceLabel }
+        set { provider.claudeUsageSourceLabel = newValue }
+    }
+    var geminiUsage: GeminiCLIUsage? {
+        get { provider.geminiUsage }
+        set { provider.geminiUsage = newValue }
+    }
+    var geminiUsageMessage: String? {
+        get { provider.geminiUsageMessage }
+        set { provider.geminiUsageMessage = newValue }
+    }
+
+    // MARK: - Backward-compatible accessors – API
+
+    var apiTokensIn: Int {
+        get { api.apiTokensIn }
+        set { api.apiTokensIn = newValue }
+    }
+    var apiTokensOut: Int {
+        get { api.apiTokensOut }
+        set { api.apiTokensOut = newValue }
+    }
+    var apiEstimatedCost: Double {
+        get { api.apiEstimatedCost }
+        set { api.apiEstimatedCost = newValue }
+    }
+    var lastApiModel: String {
+        get { api.lastApiModel }
+        set { api.lastApiModel = newValue }
+    }
     private let usageFetchTimeoutNs: UInt64 = 5_000_000_000
     private let minRefreshInterval: TimeInterval = 1.0
     private var lastFetchAtByProvider: [String: Date] = [:]

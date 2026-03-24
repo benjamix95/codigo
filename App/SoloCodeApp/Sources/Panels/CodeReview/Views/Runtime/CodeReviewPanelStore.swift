@@ -24,27 +24,75 @@ final class CodeReviewPanelStore: ObservableObject {
 
     lazy var coordinator = ReviewPanelCoordinator()
 
-    // MARK: - Tab & Navigation
+    // MARK: - Grouped State (reduces @Published explosion)
 
-    @Published var selectedTab: CodeReviewTab = .findings
-    @Published var selectedFindingId: String?
-    @Published var selectedHistoricalFindingId: String?
-    @Published var sessionBrowserExpanded: Bool = false
+    @Published var navigation = ReviewNavigationState()
+    @Published var runtime = ReviewRuntimeState()
+    @Published var chat = ReviewChatState()
+    @Published var git = ReviewGitState()
+    @Published var scope = ReviewScopeState()
+    @Published var history = ReviewHistoryState()
 
-    // MARK: - Execution State
+    // MARK: - Backward-compatible accessors – Navigation
 
-    @Published var isRunning: Bool = false
-    @Published var runStartedAt: Date?
-    @Published var frozenTimerText: String?
-    @Published var lastError: String?
+    var selectedTab: CodeReviewTab {
+        get { navigation.selectedTab }
+        set { navigation.selectedTab = newValue }
+    }
+    var selectedFindingId: String? {
+        get { navigation.selectedFindingId }
+        set { navigation.selectedFindingId = newValue }
+    }
+    var selectedHistoricalFindingId: String? {
+        get { navigation.selectedHistoricalFindingId }
+        set { navigation.selectedHistoricalFindingId = newValue }
+    }
+    var sessionBrowserExpanded: Bool {
+        get { navigation.sessionBrowserExpanded }
+        set { navigation.sessionBrowserExpanded = newValue }
+    }
 
-    // MARK: - Chat State
+    // MARK: - Backward-compatible accessors – Runtime
 
-    @Published var chatMessages: [ReviewPanelMessage] = []
-    @Published var isChatProcessing: Bool = false
-    @Published var chatStartedAt: Date?
-    @Published var chatThreads: [ReviewPanelChatThreadState] = []
-    @Published var activeChatThreadId: String?
+    var isRunning: Bool {
+        get { runtime.isRunning }
+        set { runtime.isRunning = newValue }
+    }
+    var runStartedAt: Date? {
+        get { runtime.runStartedAt }
+        set { runtime.runStartedAt = newValue }
+    }
+    var frozenTimerText: String? {
+        get { runtime.frozenTimerText }
+        set { runtime.frozenTimerText = newValue }
+    }
+    var lastError: String? {
+        get { runtime.lastError }
+        set { runtime.lastError = newValue }
+    }
+
+    // MARK: - Backward-compatible accessors – Chat
+
+    var chatMessages: [ReviewPanelMessage] {
+        get { chat.chatMessages }
+        set { chat.chatMessages = newValue }
+    }
+    var isChatProcessing: Bool {
+        get { chat.isChatProcessing }
+        set { chat.isChatProcessing = newValue }
+    }
+    var chatStartedAt: Date? {
+        get { chat.chatStartedAt }
+        set { chat.chatStartedAt = newValue }
+    }
+    var chatThreads: [ReviewPanelChatThreadState] {
+        get { chat.chatThreads }
+        set { chat.chatThreads = newValue }
+    }
+    var activeChatThreadId: String? {
+        get { chat.activeChatThreadId }
+        set { chat.activeChatThreadId = newValue }
+    }
 
     /// Maps activity message ID → response message ID for split bubbles.
     var responseMessageIds: [UUID: UUID] = [:]
@@ -52,36 +100,90 @@ final class CodeReviewPanelStore: ObservableObject {
     var isGitContextRefreshInFlight = false
     var isHistoryRefreshInFlight = false
 
-    // MARK: - Git Context
+    // MARK: - Backward-compatible accessors – Git
 
-    @Published var gitBranches: [GitBranch] = []
-    @Published var gitRemoteBranches: [GitBranch] = []
-    @Published var gitCommitLog: [GitLogEntry] = []
-    @Published var currentGitBranch: String = ""
-    @Published var isLoadingGit: Bool = false
+    var gitBranches: [GitBranch] {
+        get { git.gitBranches }
+        set { git.gitBranches = newValue }
+    }
+    var gitRemoteBranches: [GitBranch] {
+        get { git.gitRemoteBranches }
+        set { git.gitRemoteBranches = newValue }
+    }
+    var gitCommitLog: [GitLogEntry] {
+        get { git.gitCommitLog }
+        set { git.gitCommitLog = newValue }
+    }
+    var currentGitBranch: String {
+        get { git.currentGitBranch }
+        set { git.currentGitBranch = newValue }
+    }
+    var isLoadingGit: Bool {
+        get { git.isLoadingGit }
+        set { git.isLoadingGit = newValue }
+    }
 
-    // MARK: - Scope & Selection
+    // MARK: - Backward-compatible accessors – Scope
 
-    @Published var selectedBranch: GitBranch?
-    @Published var selectedCommits: Set<String> = []
-    @Published var scopeTarget: ReviewScopeTarget = .uncommitted
-    @Published var againstCommitRef: String = ""
-    @Published var selectedModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
-    @Published var selectedProviderOverrideId: String?
+    var selectedBranch: GitBranch? {
+        get { scope.selectedBranch }
+        set { scope.selectedBranch = newValue }
+    }
+    var selectedCommits: Set<String> {
+        get { scope.selectedCommits }
+        set { scope.selectedCommits = newValue }
+    }
+    var scopeTarget: ReviewScopeTarget {
+        get { scope.scopeTarget }
+        set { scope.scopeTarget = newValue }
+    }
+    var againstCommitRef: String {
+        get { scope.againstCommitRef }
+        set { scope.againstCommitRef = newValue }
+    }
+    var selectedModes: Set<CodeReviewPanelMode> {
+        get { scope.selectedModes }
+        set { scope.selectedModes = newValue }
+    }
+    var selectedProviderOverrideId: String? {
+        get { scope.selectedProviderOverrideId }
+        set { scope.selectedProviderOverrideId = newValue }
+    }
 
     // MARK: - Settings
 
     @Published var settings: ReviewPanelSettings
 
-    // MARK: - Session Tracking
+    // MARK: - Backward-compatible accessors – History
 
-    @Published var panelSessionId: String?
-    @Published var historyRecords: [HistoricalFindingRecord] = []
-    @Published var isHistoryLoading: Bool = false
-    @Published var historyLoadError: String?
-    @Published var historyStatusFilter: ReviewFindingHistoryStatusFilter = .resumeQueue
-    @Published var historyDomainFilter: ReviewFindingHistoryDomainFilter = .all
-    @Published var historySeverityFilter: ReviewFindingHistorySeverityFilter = .all
+    var panelSessionId: String? {
+        get { history.panelSessionId }
+        set { history.panelSessionId = newValue }
+    }
+    var historyRecords: [HistoricalFindingRecord] {
+        get { history.historyRecords }
+        set { history.historyRecords = newValue }
+    }
+    var isHistoryLoading: Bool {
+        get { history.isHistoryLoading }
+        set { history.isHistoryLoading = newValue }
+    }
+    var historyLoadError: String? {
+        get { history.historyLoadError }
+        set { history.historyLoadError = newValue }
+    }
+    var historyStatusFilter: ReviewFindingHistoryStatusFilter {
+        get { history.historyStatusFilter }
+        set { history.historyStatusFilter = newValue }
+    }
+    var historyDomainFilter: ReviewFindingHistoryDomainFilter {
+        get { history.historyDomainFilter }
+        set { history.historyDomainFilter = newValue }
+    }
+    var historySeverityFilter: ReviewFindingHistorySeverityFilter {
+        get { history.historySeverityFilter }
+        set { history.historySeverityFilter = newValue }
+    }
 
     // MARK: - Session Persistence
 
