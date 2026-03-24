@@ -17,7 +17,7 @@ extension UsageFooterView {
     }
 
     var worktreeToggleHelpText: String {
-        if isWorktreeActionInFlight {
+        if wt.isWorktreeActionInFlight {
             return "Operazione worktree in corso..."
         }
         if isCurrentlyInWorktree {
@@ -33,30 +33,30 @@ extension UsageFooterView {
     }
 
     var availableBranchNames: [String] {
-        availableLocalBranches.map(\.name)
+        wt.availableLocalBranches.map(\.name)
     }
 
     var worktreeSheetIsLoading: Bool {
-        if case .loading = worktreeSheetLoadState {
+        if case .loading = wt.worktreeSheetLoadState {
             return true
         }
         return false
     }
 
     var isWorktreeSheetReady: Bool {
-        if case .ready = worktreeSheetLoadState {
+        if case .ready = wt.worktreeSheetLoadState {
             return true
         }
         return false
     }
 
     var isWorktreeSheetSubmissionDisabled: Bool {
-        isWorktreeActionInFlight
+        wt.isWorktreeActionInFlight
             || worktreeSheetIsLoading
             || !isWorktreeSheetReady
-            || worktreeBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || worktreeBaseBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || worktreeMergeTargetDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || wt.worktreeBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || wt.worktreeBaseBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || wt.worktreeMergeTargetDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var worktreeFlowCoordinator: WorktreeFlowCoordinator {
@@ -64,39 +64,39 @@ extension UsageFooterView {
     }
 
     func clearWorktreeFeedback() {
-        worktreeStatusMessage = nil
-        worktreeErrorMessage = nil
+        wt.worktreeStatusMessage = nil
+        wt.worktreeErrorMessage = nil
     }
 
     func resetWorktreeSheetDrafts() {
-        availableLocalBranches = []
-        pendingWorktreeLocalRoot = nil
-        worktreeBranchDraft = ""
-        worktreeBaseBranchDraft = ""
-        worktreeMergeTargetDraft = ""
-        worktreeAutoMergeOnReturn = true
-        worktreeDeleteBranchAfterMerge = false
-        worktreeSheetLoadState = .idle
+        wt.availableLocalBranches = []
+        wt.pendingWorktreeLocalRoot = nil
+        wt.worktreeBranchDraft = ""
+        wt.worktreeBaseBranchDraft = ""
+        wt.worktreeMergeTargetDraft = ""
+        wt.worktreeAutoMergeOnReturn = true
+        wt.worktreeDeleteBranchAfterMerge = false
+        wt.worktreeSheetLoadState = .idle
     }
 
     func applyWorktreeSheetBootstrap(_ bootstrap: WorktreeSheetBootstrap) {
-        pendingWorktreeLocalRoot = bootstrap.localRootPath
-        availableLocalBranches = bootstrap.localBranches
-        worktreeBaseBranchDraft = bootstrap.suggestedBaseBranch
-        worktreeMergeTargetDraft = bootstrap.suggestedMergeTargetBranch
-        worktreeBranchDraft = bootstrap.suggestedWorktreeBranch
-        worktreeAutoMergeOnReturn = true
-        worktreeDeleteBranchAfterMerge = false
-        worktreeSheetLoadState = .ready
+        wt.pendingWorktreeLocalRoot = bootstrap.localRootPath
+        wt.availableLocalBranches = bootstrap.localBranches
+        wt.worktreeBaseBranchDraft = bootstrap.suggestedBaseBranch
+        wt.worktreeMergeTargetDraft = bootstrap.suggestedMergeTargetBranch
+        wt.worktreeBranchDraft = bootstrap.suggestedWorktreeBranch
+        wt.worktreeAutoMergeOnReturn = true
+        wt.worktreeDeleteBranchAfterMerge = false
+        wt.worktreeSheetLoadState = .ready
     }
 
     func cancelWorktreeSheetPreparation(resetSheetState: Bool) {
-        worktreeSheetTask?.cancel()
-        worktreeSheetTask = nil
+        wt.worktreeSheetTask?.cancel()
+        wt.worktreeSheetTask = nil
         if resetSheetState {
             resetWorktreeSheetDrafts()
         } else if worktreeSheetIsLoading {
-            worktreeSheetLoadState = .idle
+            wt.worktreeSheetLoadState = .idle
         }
     }
 

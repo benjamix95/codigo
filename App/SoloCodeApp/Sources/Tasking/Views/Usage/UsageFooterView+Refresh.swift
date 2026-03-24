@@ -4,8 +4,8 @@ import SwiftUI
 
 extension UsageFooterView {
     func scheduleRefresh() {
-        usageRefreshTask?.cancel()
-        usageRefreshTask = Task {
+        ctx.usageRefreshTask?.cancel()
+        ctx.usageRefreshTask = Task {
             try? await Task.sleep(nanoseconds: 800_000_000)
             guard !Task.isCancelled else { return }
             refreshUsage()
@@ -15,23 +15,23 @@ extension UsageFooterView {
     static let contextEstimateThrottleInterval: TimeInterval = 1.5
 
     func scheduleContextEstimateRefresh() {
-        contextEstimateWorkItem?.cancel()
-        contextEstimateGeneration += 1
-        let generation = contextEstimateGeneration
+        ctx.contextEstimateWorkItem?.cancel()
+        ctx.contextEstimateGeneration += 1
+        let generation = ctx.contextEstimateGeneration
 
-        let timeSinceLast = Date().timeIntervalSince(lastContextEstimateFireDate)
+        let timeSinceLast = Date().timeIntervalSince(ctx.lastContextEstimateFireDate)
         let delay: TimeInterval = max(
             0,
             Self.contextEstimateThrottleInterval - timeSinceLast
         )
         let workItem = DispatchWorkItem {
             Task { @MainActor in
-                guard generation == self.contextEstimateGeneration else { return }
+                guard generation == self.ctx.contextEstimateGeneration else { return }
                 self.runContextEstimateRefresh(generation: generation)
             }
         }
-        contextEstimateWorkItem = workItem
-        Self.contextEstimateQueue.asyncAfter(
+        ctx.contextEstimateWorkItem = workItem
+        UsageFooterContextState.estimateQueue.asyncAfter(
             deadline: .now() + delay,
             execute: workItem
         )
@@ -42,7 +42,7 @@ extension UsageFooterView {
         let model = effectiveContextModel
         let contextWindowSize = resolvedContextWindowSize(providerId: effectiveProviderId, model: model)
         guard let conversation = chatStore.conversation(for: selectedConversationId) else {
-            contextEstimateSnapshot = (0, contextWindowSize, 0)
+            ctx.contextEstimateSnapshot = (0, contextWindowSize, 0)
             return
         }
 
@@ -80,14 +80,14 @@ extension UsageFooterView {
                 lastInputTokens: realTokens
             )
             Task { @MainActor in
-                guard generation == self.contextEstimateGeneration else { return }
-                self.lastContextEstimateFireDate = Date()
-                self.contextEstimateSnapshot = (estimate.0, estimate.1, estimate.2)
+                guard generation == self.ctx.contextEstimateGeneration else { return }
+                self.ctx.lastContextEstimateFireDate = Date()
+                self.ctx.contextEstimateSnapshot = (estimate.0, estimate.1, estimate.2)
             }
         }
-        contextEstimateWorkItem?.cancel()
-        contextEstimateWorkItem = estimateWorkItem
-        Self.contextEstimateQueue.async(execute: estimateWorkItem)
+        ctx.contextEstimateWorkItem?.cancel()
+        ctx.contextEstimateWorkItem = estimateWorkItem
+        UsageFooterContextState.estimateQueue.async(execute: estimateWorkItem)
     }
 
     func refreshUsage() {

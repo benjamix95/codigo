@@ -181,7 +181,7 @@ extension UsageFooterView {
             )
         }
         .buttonStyle(.plain)
-        .disabled(isWorktreeToggleDisabled || isWorktreeActionInFlight)
+        .disabled(isWorktreeToggleDisabled || wt.isWorktreeActionInFlight)
         .help(worktreeToggleHelpText)
     }
 
@@ -193,13 +193,13 @@ extension UsageFooterView {
 
     @ViewBuilder
     var footerMessages: some View {
-        if let success = worktreeStatusMessage, !success.isEmpty {
+        if let success = wt.worktreeStatusMessage, !success.isEmpty {
             Text(success)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.success)
                 .lineLimit(1)
         }
-        if let err = worktreeErrorMessage, !err.isEmpty {
+        if let err = wt.worktreeErrorMessage, !err.isEmpty {
             Text(err)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.error)

@@ -4,13 +4,13 @@ import Foundation
 extension UsageFooterView {
     func handleWorktreeToggleTap() {
         clearWorktreeFeedback()
-        guard !isWorktreeActionInFlight else { return }
+        guard !wt.isWorktreeActionInFlight else { return }
         guard selectedConversationId != nil else {
-            worktreeErrorMessage = "Seleziona una conversazione prima di usare i worktree."
+            wt.worktreeErrorMessage = "Seleziona una conversazione prima di usare i worktree."
             return
         }
         guard resolvedGitRoot(from: effectiveContext.primaryPath) != nil else {
-            worktreeErrorMessage = "Nessun repository Git valido nel contesto corrente."
+            wt.worktreeErrorMessage = "Nessun repository Git valido nel contesto corrente."
             return
         }
 
@@ -23,7 +23,7 @@ extension UsageFooterView {
             return
         }
 
-        showWorktreeSheet = true
+        wt.showWorktreeSheet = true
         beginWorktreeSheetPreparation()
     }
 
@@ -32,19 +32,19 @@ extension UsageFooterView {
         cancelWorktreeSheetPreparation(resetSheetState: true)
 
         guard let localRoot = resolvedGitRoot(from: effectiveContext.primaryPath) else {
-            worktreeErrorMessage = "Apri un repository Git valido prima di creare un worktree."
-            showWorktreeSheet = false
+            wt.worktreeErrorMessage = "Apri un repository Git valido prima di creare un worktree."
+            wt.showWorktreeSheet = false
             return
         }
 
-        pendingWorktreeLocalRoot = localRoot
-        worktreeSheetLoadState = .loading
-        worktreeStatusMessage = "Caricamento branch locali..."
+        wt.pendingWorktreeLocalRoot = localRoot
+        wt.worktreeSheetLoadState = .loading
+        wt.worktreeStatusMessage = "Caricamento branch locali..."
 
-        worktreeSheetTask = Task { @MainActor in
+        wt.worktreeSheetTask = Task { @MainActor in
             defer {
-                worktreeStatusMessage = nil
-                worktreeSheetTask = nil
+                wt.worktreeStatusMessage = nil
+                wt.worktreeSheetTask = nil
             }
 
             do {
@@ -55,22 +55,22 @@ extension UsageFooterView {
                 applyWorktreeSheetBootstrap(bootstrap)
             } catch {
                 guard !Task.isCancelled else { return }
-                availableLocalBranches = []
-                worktreeSheetLoadState = .failed(error.localizedDescription)
-                worktreeErrorMessage = error.localizedDescription
+                wt.availableLocalBranches = []
+                wt.worktreeSheetLoadState = .failed(error.localizedDescription)
+                wt.worktreeErrorMessage = error.localizedDescription
             }
         }
     }
 
     func startWorktreeCreationFromSheet() {
         clearWorktreeFeedback()
-        guard !isWorktreeActionInFlight else { return }
+        guard !wt.isWorktreeActionInFlight else { return }
 
-        let branch = worktreeBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let mergeTarget = worktreeMergeTargetDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let baseBranch = worktreeBaseBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let branch = wt.worktreeBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mergeTarget = wt.worktreeMergeTargetDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseBranch = wt.worktreeBaseBranchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let localRoot = pendingWorktreeLocalRoot
+        let localRoot = wt.pendingWorktreeLocalRoot
         let worktreePath = suggestedWorktreePath(
             localRoot: localRoot ?? "",
             worktreeBranch: branch
@@ -85,21 +85,21 @@ extension UsageFooterView {
                 baseBranch: baseBranch,
                 mergeTargetBranch: mergeTarget,
                 worktreePath: worktreePath,
-                autoMergeOnReturn: worktreeAutoMergeOnReturn,
-                deleteBranchAfterMerge: worktreeDeleteBranchAfterMerge
+                autoMergeOnReturn: wt.worktreeAutoMergeOnReturn,
+                deleteBranchAfterMerge: wt.worktreeDeleteBranchAfterMerge
             )
         } catch {
-            worktreeErrorMessage = error.localizedDescription
+            wt.worktreeErrorMessage = error.localizedDescription
             return
         }
 
-        isWorktreeActionInFlight = true
-        worktreeStatusMessage = "Creazione worktree in corso..."
-        worktreeActionTask?.cancel()
-        worktreeActionTask = Task { @MainActor in
+        wt.isWorktreeActionInFlight = true
+        wt.worktreeStatusMessage = "Creazione worktree in corso..."
+        wt.worktreeActionTask?.cancel()
+        wt.worktreeActionTask = Task { @MainActor in
             defer {
-                isWorktreeActionInFlight = false
-                worktreeActionTask = nil
+                wt.isWorktreeActionInFlight = false
+                wt.worktreeActionTask = nil
             }
 
             do {
@@ -112,12 +112,12 @@ extension UsageFooterView {
                     worktreeSessionStore.upsert(session)
                 }
                 guard !Task.isCancelled else { return }
-                showWorktreeSheet = false
+                wt.showWorktreeSheet = false
                 cancelWorktreeSheetPreparation(resetSheetState: true)
-                worktreeStatusMessage = "Worktree attivo su \(outcome.session.worktreeBranch)."
+                wt.worktreeStatusMessage = "Worktree attivo su \(outcome.session.worktreeBranch)."
             } catch {
                 guard !Task.isCancelled else { return }
-                worktreeErrorMessage = error.localizedDescription
+                wt.worktreeErrorMessage = error.localizedDescription
             }
         }
     }

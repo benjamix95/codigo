@@ -33,31 +33,14 @@ struct UsageFooterView: View {
     let claudeModel: String
     let contextRefreshTick: Int
 
-    @State var usageRefreshTask: Task<Void, Never>?
-    @State var contextEstimateSnapshot: (tokens: Int, size: Int, pct: Double) = (0, 128_000, 0)
-    @State var contextEstimateWorkItem: DispatchWorkItem?
-    @State var contextEstimateGeneration: Int = 0
-    @State var lastContextEstimateFireDate: Date = .distantPast
+    // MARK: - Grouped State
+
+    @State var wt = UsageFooterWorktreeState()
+    @State var ctx = UsageFooterContextState()
+
     @State private var availableWidth: CGFloat = 980
     @State private var resolvedTier: FooterTier = .full
-    @State var showWorktreeSheet = false
-    @State var availableLocalBranches: [GitBranch] = []
-    @State var worktreeBranchDraft = ""
-    @State var worktreeBaseBranchDraft = ""
-    @State var worktreeMergeTargetDraft = ""
-    @State var worktreeAutoMergeOnReturn = true
-    @State var worktreeDeleteBranchAfterMerge = false
-    @State var pendingWorktreeLocalRoot: String?
-    @State var worktreeSheetLoadState: WorktreeSheetLoadState = .idle
-    @State var worktreeStatusMessage: String?
-    @State var worktreeErrorMessage: String?
-    @State var isWorktreeActionInFlight = false
-    @State var worktreeSheetTask: Task<Void, Never>?
-    @State var worktreeActionTask: Task<Void, Never>?
-    static let contextEstimateQueue = DispatchQueue(
-        label: "com.solocode.context-estimate",
-        qos: .utility
-    )
+
     let cliSecretsStore = CLIAccountSecretsStore()
 
     enum FooterTier {
@@ -73,8 +56,6 @@ struct UsageFooterView: View {
         providerRegistry.selectedProviderId
     }
 
-    /// Fingerprint combinato per tutti i valori che richiedono solo scheduleContextEstimateRefresh().
-    /// Sostituisce 5 onChange separati con uno solo.
     private var contextEstimateFingerprint: String {
         [
             effectiveContextModel,
@@ -109,7 +90,7 @@ struct UsageFooterView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .padding(.vertical, 2)
-        .sheet(isPresented: $showWorktreeSheet) {
+        .sheet(isPresented: $wt.showWorktreeSheet) {
             worktreeCreateSheet
         }
         .onAppear {
@@ -138,20 +119,20 @@ struct UsageFooterView: View {
         .onChange(of: cliAccountRouter.currentActiveAccountByProvider) { _ in
             scheduleRefresh()
         }
-        .onChange(of: showWorktreeSheet) { isPresented in
+        .onChange(of: wt.showWorktreeSheet) { isPresented in
             if !isPresented {
                 cancelWorktreeSheetPreparation(resetSheetState: true)
             }
         }
         .onDisappear {
-            usageRefreshTask?.cancel()
-            usageRefreshTask = nil
-            contextEstimateWorkItem?.cancel()
-            contextEstimateWorkItem = nil
-            worktreeSheetTask?.cancel()
-            worktreeSheetTask = nil
-            worktreeActionTask?.cancel()
-            worktreeActionTask = nil
+            ctx.usageRefreshTask?.cancel()
+            ctx.usageRefreshTask = nil
+            ctx.contextEstimateWorkItem?.cancel()
+            ctx.contextEstimateWorkItem = nil
+            wt.worktreeSheetTask?.cancel()
+            wt.worktreeSheetTask = nil
+            wt.worktreeActionTask?.cancel()
+            wt.worktreeActionTask = nil
         }
     }
 

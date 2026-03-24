@@ -16,9 +16,9 @@ extension UsageFooterView {
                 projectContextStore: projectContextStore,
                 workspaceStore: workspaceStore
             )
-            worktreeStatusMessage = "Passato al worktree \(session.worktreeBranch)."
+            wt.worktreeStatusMessage = "Passato al worktree \(session.worktreeBranch)."
         } catch {
-            worktreeErrorMessage = error.localizedDescription
+            wt.worktreeErrorMessage = error.localizedDescription
         }
     }
 
@@ -37,20 +37,20 @@ extension UsageFooterView {
                     projectContextStore: projectContextStore,
                     workspaceStore: workspaceStore
                 )
-                worktreeStatusMessage = "Rientro su Local completato."
+                wt.worktreeStatusMessage = "Rientro su Local completato."
             } catch {
-                worktreeErrorMessage = error.localizedDescription
+                wt.worktreeErrorMessage = error.localizedDescription
             }
             return
         }
 
-        isWorktreeActionInFlight = true
-        worktreeStatusMessage = "Auto-merge in corso..."
-        worktreeActionTask?.cancel()
-        worktreeActionTask = Task { @MainActor in
+        wt.isWorktreeActionInFlight = true
+        wt.worktreeStatusMessage = "Auto-merge in corso..."
+        wt.worktreeActionTask?.cancel()
+        wt.worktreeActionTask = Task { @MainActor in
             defer {
-                isWorktreeActionInFlight = false
-                worktreeActionTask = nil
+                wt.isWorktreeActionInFlight = false
+                wt.worktreeActionTask = nil
             }
             do {
                 let report = try await performAutoMergePipeline(session: session)
@@ -72,9 +72,9 @@ extension UsageFooterView {
                     updated.lastUpdatedAt = .now
                     worktreeSessionStore.upsert(updated)
                 }
-                worktreeStatusMessage = "Merge completato su \(report.mergeTargetBranch)."
+                wt.worktreeStatusMessage = "Merge completato su \(report.mergeTargetBranch)."
             } catch {
-                worktreeErrorMessage = error.localizedDescription
+                wt.worktreeErrorMessage = error.localizedDescription
             }
         }
     }

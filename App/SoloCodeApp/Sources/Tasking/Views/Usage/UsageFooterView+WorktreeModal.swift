@@ -8,7 +8,7 @@ extension UsageFooterView {
                     .font(.system(size: 20, weight: .bold))
                 Spacer()
                 Button {
-                    showWorktreeSheet = false
+                    wt.showWorktreeSheet = false
                     cancelWorktreeSheetPreparation(resetSheetState: true)
                 } label: {
                     Image(systemName: "xmark")
@@ -25,44 +25,44 @@ extension UsageFooterView {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Ramo del worktree")
                     .font(.system(size: 12, weight: .semibold))
-                TextField("solocode/feature-x", text: $worktreeBranchDraft)
+                TextField("solocode/feature-x", text: $wt.worktreeBranchDraft)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13, weight: .medium))
-                    .disabled(worktreeSheetIsLoading || isWorktreeActionInFlight)
+                    .disabled(worktreeSheetIsLoading || wt.isWorktreeActionInFlight)
             }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Branch base")
                     .font(.system(size: 12, weight: .semibold))
-                Picker("Branch base", selection: $worktreeBaseBranchDraft) {
+                Picker("Branch base", selection: $wt.worktreeBaseBranchDraft) {
                     ForEach(availableBranchNames, id: \.self) { name in
                         Text(name).tag(name)
                     }
                 }
                 .labelsHidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .disabled(worktreeSheetIsLoading || availableBranchNames.isEmpty || isWorktreeActionInFlight)
+                .disabled(worktreeSheetIsLoading || availableBranchNames.isEmpty || wt.isWorktreeActionInFlight)
             }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Branch target merge")
                     .font(.system(size: 12, weight: .semibold))
-                Picker("Branch target merge", selection: $worktreeMergeTargetDraft) {
+                Picker("Branch target merge", selection: $wt.worktreeMergeTargetDraft) {
                     ForEach(availableBranchNames, id: \.self) { name in
                         Text(name).tag(name)
                     }
                 }
                 .labelsHidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .disabled(worktreeSheetIsLoading || availableBranchNames.isEmpty || isWorktreeActionInFlight)
+                .disabled(worktreeSheetIsLoading || availableBranchNames.isEmpty || wt.isWorktreeActionInFlight)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Auto-merge al ritorno su Local", isOn: $worktreeAutoMergeOnReturn)
+                Toggle("Auto-merge al ritorno su Local", isOn: $wt.worktreeAutoMergeOnReturn)
                     .toggleStyle(.switch)
-                Toggle("Elimina branch dopo merge", isOn: $worktreeDeleteBranchAfterMerge)
+                Toggle("Elimina branch dopo merge", isOn: $wt.worktreeDeleteBranchAfterMerge)
                     .toggleStyle(.switch)
-                    .disabled(!worktreeAutoMergeOnReturn)
+                    .disabled(!wt.worktreeAutoMergeOnReturn)
             }
 
             HStack(spacing: 8) {
@@ -84,11 +84,11 @@ extension UsageFooterView {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
-            } else if let error = worktreeErrorMessage, !error.isEmpty {
+            } else if let error = wt.worktreeErrorMessage, !error.isEmpty {
                 Text(error)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.error)
-            } else if let status = worktreeStatusMessage, !status.isEmpty {
+            } else if let status = wt.worktreeStatusMessage, !status.isEmpty {
                 Text(status)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.success)
@@ -97,10 +97,10 @@ extension UsageFooterView {
             HStack(spacing: 10) {
                 Spacer()
                 Button("Annulla") {
-                    showWorktreeSheet = false
+                    wt.showWorktreeSheet = false
                     cancelWorktreeSheetPreparation(resetSheetState: true)
                 }
-                .disabled(isWorktreeActionInFlight)
+                .disabled(wt.isWorktreeActionInFlight)
                 Button("Continua") {
                     startWorktreeCreationFromSheet()
                 }

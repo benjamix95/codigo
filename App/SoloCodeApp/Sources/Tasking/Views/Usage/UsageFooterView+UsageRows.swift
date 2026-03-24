@@ -225,7 +225,7 @@ extension UsageFooterView {
     }
 
     var contextSection: some View {
-        let (tokens, size, pct) = contextEstimateSnapshot
+        let (tokens, size, pct) = ctx.contextEstimateSnapshot
         let isHighUsage = pct >= 0.7
         let isCritical = pct >= 0.9
         return HStack(spacing: 6) {
