@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1699C3E7357A10985D30C49 /* InlineTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D9C04951F19D7420945A10 /* InlineTerminalView.swift */; };
 		00A74A4826F0322B5BCA6295 /* ProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754246B525167CF6186F2163 /* ProviderFactory.swift */; };
 		00E030CD663BDF7B8BBA6CBC /* MCPSharedState+PersistenceBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2BE5EE4607C2C0049476FA /* MCPSharedState+PersistenceBridge.swift */; };
 		00F66ADC2748C656650B32DE /* UnifiedToolRuntime+SearchGlob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0614A4031057E442DEC58FFA /* UnifiedToolRuntime+SearchGlob.swift */; };
@@ -37,6 +38,7 @@
 		0500971DB5CA3BF4E255B8F2 /* PlanOptionsParser+QuestionParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F007E91ECD273532BF0C8ED /* PlanOptionsParser+QuestionParsing.swift */; };
 		050B31FE7A11623798858AE0 /* PlanOutputClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A821973457838491A36DBBF9 /* PlanOutputClassifierTests.swift */; };
 		053901BEC89887EF20B6DCC7 /* MessageToolTraceView+TraceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AFDE86A18A908AB00B8CCE8 /* MessageToolTraceView+TraceRow.swift */; };
+		B4D9C04951F19D7420945A10 /* InlineTerminalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "InlineTerminalView.swift"; path = "App/SoloCodeApp/Sources/Tasking/Views/MessageToolTrace/InlineTerminalView.swift"; sourceTree = "<group>"; };
 		053FEF6C8065E230143D637D /* ProviderHealthCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26298011D93FF4AA9E418E65 /* ProviderHealthCheckerTests.swift */; };
 		05443FDDFC84BE14CA9D589D /* ContentView+Layout+Panels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CB65FE0EB8D0580FB21F45 /* ContentView+Layout+Panels.swift */; };
 		055BCAFCFEAAB53CE72EC0AE /* SkillScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990880A90C1C523C1E47F7FB /* SkillScanner.swift */; };
@@ -105,7 +107,8 @@
 		0E2067383B535E8DA38BF5EB /* MCPSessionManager+RustLifecycleBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAF070D15D0A6103203A959 /* MCPSessionManager+RustLifecycleBatch.swift */; };
 		0E48A86E0B4D43EC6D53758F /* ChatStorePlansMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B030CBEB106D37828F1FD0C9 /* ChatStorePlansMutationTests.swift */; };
 		0E6B1C2D3E4F5061728394A5 /* ReviewPanelPromptSwiftFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E6B1C2D3E4F5061728394A6 /* ReviewPanelPromptSwiftFallback.swift */; };
-		0EAD47C71272E91B0CBA706F /* CoderEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 46381742512DC1744DF8995F /* CoderEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		0EAD47C71272E91B0CBA706F /* CoderEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 46381742512DC1744DF8995F /* CoderEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy,
+				RemoveHeadersOnCopy, ); }; };
 		0EC28A516C41BCA19E047EB0 /* StreamEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 845AB6F956ED8F7AA68FA1EC /* StreamEvent.swift */; };
 		0ED195A7449415C3D6F959AE /* PlanHistoryStore+Queries.swift in Sources */ = {isa = PBXBuildFile; fileRef = B788B02C2A5D3D6360B81CE8 /* PlanHistoryStore+Queries.swift */; };
 		0ED6C235350DB6DAF1D30B2D /* CoverageParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F888DF7A49CE0E6B5B4834E /* CoverageParser.swift */; };
@@ -6603,6 +6606,7 @@
 				571042592CE563059CDE75B7 /* MessageToolTraceView+Loaders.swift in Sources */,
 				BEF654CCA55BF21D3C1C1D60 /* MessageToolTraceView+State.swift in Sources */,
 				053901BEC89887EF20B6DCC7 /* MessageToolTraceView+TraceRow.swift in Sources */,
+				A1699C3E7357A10985D30C49 /* InlineTerminalView.swift in Sources */,
 				566924519DDCA9052B495154 /* MessageToolTraceView.swift in Sources */,
 				C52A83EB26F6F4DABF8B3964 /* LegacyLLMStreamAdapter.swift in Sources */,
 				21F7AFF8DE0F499E79A5E6C0 /* PipelineUIEventAdapter.swift in Sources */,

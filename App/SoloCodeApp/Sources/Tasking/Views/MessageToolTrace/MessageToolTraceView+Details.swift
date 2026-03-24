@@ -5,9 +5,23 @@ extension MessageToolTraceView {
 
     @ViewBuilder
     func expandedDetails(for event: ToolTraceEvent) -> some View {
+        let isBashLike = Self.isBashLikeEvent(event)
         VStack(alignment: .leading, spacing: 4) {
-            if let command = event.payload["command"], !command.isEmpty {
-                codeBlock(label: "Command", value: command)
+            // Bash/terminal events → inline terminal view
+            if isBashLike, let command = event.payload["command"], !command.isEmpty {
+                InlineTerminalView(
+                    command: command,
+                    output: event.payload["output"],
+                    stderr: event.payload["stderr"],
+                    exitCode: event.payload["exit_code"],
+                    cwd: event.payload["cwd"],
+                    isRunning: event.isRunning
+                )
+            } else {
+                // Non-bash: show command as code block
+                if let command = event.payload["command"], !command.isEmpty {
+                    codeBlock(label: "Command", value: command)
+                }
             }
             if let query = event.payload["query"], !query.isEmpty {
                 detailPill(label: "Query", value: query)
@@ -46,7 +60,8 @@ extension MessageToolTraceView {
             if let promptName = payloadValue(event.payload, keys: ["prompt_name", "promptName"]) {
                 detailPill(label: "Prompt", value: promptName)
             }
-            if let output = event.payload["output"], !output.isEmpty {
+            // Non-bash output (bash output is rendered inside InlineTerminalView)
+            if !isBashLike, let output = event.payload["output"], !output.isEmpty {
                 if output.hasPrefix("data:image/png;base64,") {
                     browserScreenshotBlock(base64: String(output.dropFirst("data:image/png;base64,".count)))
                 } else {
@@ -69,6 +84,15 @@ extension MessageToolTraceView {
                 detailPill(label: "Notes", value: notes)
             }
         }
+    }
+
+    private static func isBashLikeEvent(_ event: ToolTraceEvent) -> Bool {
+        let type = event.type.lowercased()
+        return type == "bash"
+            || type == "command_execution"
+            || type == "terminal"
+            || type == "shell"
+            || type.contains("bash")
     }
 
     // MARK: - UI Components
