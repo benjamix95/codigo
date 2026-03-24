@@ -83,11 +83,28 @@ extension GitService {
 
             var added = 0
             var removed = 0
-            if statusCode != "??" {
-                let stat = try runGit(["diff", "--numstat", "HEAD", "--", path], gitRoot: gitRoot)
+            if statusCode == "??" {
+                // Untracked file: count lines as all-added
+                let fullPath = (gitRoot as NSString).appendingPathComponent(path)
+                if let content = try? String(contentsOfFile: fullPath, encoding: .utf8) {
+                    added = content.components(separatedBy: .newlines).count
+                    if content.hasSuffix("\n") { added = max(0, added - 1) }
+                }
+            } else {
+                // Use --cached for staged files, plain diff for unstaged
+                var diffArgs = ["diff", "--numstat"]
+                if isStaged {
+                    diffArgs.append("--cached")
+                }
+                diffArgs.append(contentsOf: ["--", path])
+                let stat = try runGit(diffArgs, gitRoot: gitRoot)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !stat.isEmpty {
-                    let comps = stat.split(separator: "\t")
+                    // Take only the last non-empty line (in case of multi-line output)
+                    let lastLine = stat.components(separatedBy: .newlines)
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .last(where: { !$0.isEmpty }) ?? stat
+                    let comps = lastLine.split(separator: "\t")
                     if comps.count >= 2 {
                         added = Int(comps[0]) ?? 0
                         removed = Int(comps[1]) ?? 0
