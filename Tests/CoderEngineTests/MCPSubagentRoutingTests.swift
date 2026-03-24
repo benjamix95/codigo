@@ -40,11 +40,102 @@ final class MCPSubagentRoutingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("\"suggestions\""))
     }
 
+    func testPromptBuilderReviewerIncludesMandatoryMCPTools() {
+        let prompt = SubagentPromptBuilder.build(role: .reviewer, task: "review this")
+        let requiredTools = [
+            "coderide_review_start",
+            "coderide_bughunter_start",
+            "coderide_security_start",
+            "coderide_diagnostics",
+            "coderide_read_lints",
+            "coderide_review_status",
+            "coderide_review_findings",
+            "coderide_bughunter_findings",
+            "coderide_security_findings",
+            "coderide_review_diff_summary",
+            "coderide_audit_bug_nil_crash_paths",
+            "coderide_audit_bug_error_handling",
+            "coderide_audit_bug_concurrency",
+            "coderide_audit_bug_api_contracts",
+            "coderide_audit_bug_test_gaps",
+            "coderide_audit_security_secrets",
+            "coderide_audit_security_patterns",
+            "coderide_audit_correlate_findings",
+        ]
+        for tool in requiredTools {
+            XCTAssertTrue(
+                prompt.contains(tool),
+                "Reviewer prompt MUST reference MCP tool: \(tool)"
+            )
+        }
+        XCTAssertTrue(prompt.contains("MANDATORY"))
+        XCTAssertTrue(prompt.contains("Text-only"))
+    }
+
     func testPromptBuilderTestWriterIncludesRunAndFixLoopInstructions() {
         let prompt = SubagentPromptBuilder.build(role: .testWriter, task: "add tests")
-        XCTAssertTrue(prompt.contains("ALWAYS read existing test files first"))
-        XCTAssertTrue(prompt.contains("run the relevant test command"))
-        XCTAssertTrue(prompt.contains("If tests fail, fix and re-run"))
+        XCTAssertTrue(prompt.contains("Read ALL existing test files"))
+        XCTAssertTrue(prompt.contains("full test suite"))
+        XCTAssertTrue(prompt.contains("If tests fail, fix them and re-run"))
+    }
+
+    func testPromptBuilderTestWriterIncludesMandatoryMCPTools() {
+        let prompt = SubagentPromptBuilder.build(role: .testWriter, task: "add tests")
+        let requiredTools = [
+            "coderide_diagnostics",
+            "coderide_read_lints",
+            "coderide_audit_bug_test_gaps",
+            "coderide_audit_bug_test_impact",
+        ]
+        for tool in requiredTools {
+            XCTAssertTrue(
+                prompt.contains(tool),
+                "TestWriter prompt MUST reference MCP tool: \(tool)"
+            )
+        }
+        XCTAssertTrue(prompt.contains("MANDATORY"))
+        XCTAssertTrue(prompt.contains("execution is mandatory"))
+    }
+
+    func testPromptBuilderDocWriterIncludesMandatoryMCPTools() {
+        let prompt = SubagentPromptBuilder.build(role: .docWriter, task: "document changes")
+        let requiredTools = [
+            "coderide_review_findings",
+            "coderide_bughunter_findings",
+            "coderide_security_findings",
+            "coderide_review_diff_summary",
+            "coderide_diagnostics",
+            "coderide_read_lints",
+            "coderide_read",
+            "coderide_file_outline",
+            "coderide_write",
+            "coderide_create_file",
+        ]
+        for tool in requiredTools {
+            XCTAssertTrue(
+                prompt.contains(tool),
+                "DocWriter prompt MUST reference MCP tool: \(tool)"
+            )
+        }
+        XCTAssertTrue(prompt.contains("MANDATORY"))
+        XCTAssertTrue(prompt.contains("Text-only"))
+    }
+
+    func testPromptBuilderDocWriterIncludesStructuredOutputRequirement() {
+        let prompt = SubagentPromptBuilder.build(role: .docWriter, task: "document changes")
+        XCTAssertTrue(prompt.contains("\"docs_created\""))
+        XCTAssertTrue(prompt.contains("\"findings_documented\""))
+        XCTAssertTrue(prompt.contains("\"bugs_documented\""))
+        XCTAssertTrue(prompt.contains("\"tools_used\""))
+    }
+
+    func testPromptBuilderDocWriterPolicyIsNotReadOnly() {
+        let prompt = SubagentPromptBuilder.build(role: .docWriter, task: "document changes")
+        XCTAssertTrue(prompt.contains("DocWriter policy"))
+        XCTAssertFalse(
+            prompt.contains("READ-ONLY subagent"),
+            "DocWriter MUST NOT have READ-ONLY policy — it needs to write documentation files"
+        )
     }
 
     func testBackendResolverPrefersCodexForReadOnlyRole() {

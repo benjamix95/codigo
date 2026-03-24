@@ -4,6 +4,21 @@ import XCTest
 import Darwin
 
 final class InstructionPolicyBundleTests: XCTestCase {
+    func testRenderSkillCatalogLinesPrefersCodexSkillsAndSummarizesOthers() {
+        let lines = InstructionPolicyBundle.renderSkillCatalogLines(
+            preferredSkills: ["debugging", "testing", "task-todo"],
+            additionalSources: [("agents", 2), ("claude", 48)]
+        )
+
+        let rendered = lines.joined(separator: "\n")
+        XCTAssertTrue(rendered.contains("### Preferred local skills"))
+        XCTAssertTrue(rendered.contains("`debugging`, `testing`, `task-todo`"))
+        XCTAssertTrue(rendered.contains("### Additional skill catalogs"))
+        XCTAssertTrue(rendered.contains("agents: 2 additional skills available on demand"))
+        XCTAssertTrue(rendered.contains("claude: 48 additional skills available on demand"))
+        XCTAssertFalse(rendered.contains("agents: find-skills"))
+    }
+
     func testHashForPolicyIsDeterministic() {
         let text = "line1\nline2\nline3"
         let h1 = InstructionPolicyBundle.hashForPolicy(text)
@@ -46,26 +61,28 @@ final class InstructionPolicyBundleTests: XCTestCase {
     }
 
     func testInvalidateCacheForcesImmediatePolicyReload() throws {
-        let tmpRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+        let codexHome = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("instruction-policy-cache-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tmpRoot) }
+        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: codexHome) }
 
-        let agents = tmpRoot.appendingPathComponent("AGENTS.md")
+        let agents = codexHome.appendingPathComponent("AGENTS.md")
         try "version-one".write(to: agents, atomically: true, encoding: .utf8)
 
-        InstructionPolicyBundle.invalidateCache()
-        let first = InstructionPolicyBundle.load(workspacePaths: [tmpRoot.path])
-        XCTAssertTrue(first.policyText.contains("version-one"))
+        try withEnvironmentVariable("CODEX_HOME", value: codexHome.path) {
+            InstructionPolicyBundle.invalidateCache()
+            let first = InstructionPolicyBundle.load(workspacePaths: [])
+            XCTAssertTrue(first.policyText.contains("version-one"))
 
-        try "version-two".write(to: agents, atomically: true, encoding: .utf8)
-        let cachedSecond = InstructionPolicyBundle.load(workspacePaths: [tmpRoot.path])
-        XCTAssertEqual(cachedSecond.policyHash, first.policyHash)
+            try "version-two".write(to: agents, atomically: true, encoding: .utf8)
+            let cachedSecond = InstructionPolicyBundle.load(workspacePaths: [])
+            XCTAssertEqual(cachedSecond.policyHash, first.policyHash)
 
-        InstructionPolicyBundle.invalidateCache()
-        let reloaded = InstructionPolicyBundle.load(workspacePaths: [tmpRoot.path])
-        XCTAssertTrue(reloaded.policyText.contains("version-two"))
-        XCTAssertNotEqual(reloaded.policyHash, first.policyHash)
+            InstructionPolicyBundle.invalidateCache()
+            let reloaded = InstructionPolicyBundle.load(workspacePaths: [])
+            XCTAssertTrue(reloaded.policyText.contains("version-two"))
+            XCTAssertNotEqual(reloaded.policyHash, first.policyHash)
+        }
     }
 
     func testLoadIgnoresProjectPoliciesOutsideWorkspaceRoot() throws {

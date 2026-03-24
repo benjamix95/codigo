@@ -6,14 +6,18 @@ import Foundation
 enum ChatTurnInterleavedSegment: Identifiable {
     case text(id: String, content: String, sequence: Int)
     case reasoning(id: String, text: String, sequence: Int)
-    case toolTrace(id: String, events: [ToolTraceEvent], sequence: Int)
+    case toolEvent(id: String, event: ToolTraceEvent, sequence: Int)
+    case subagentLiveCard(id: String, card: SwarmLiveCardState, sequence: Int)
+    case subagentSnapshot(id: String, snapshot: SubagentCardSnapshot, sequence: Int)
     case artifact(id: String, block: PersistedChatTimelineBlock, sequence: Int)
 
     var id: String {
         switch self {
         case .text(let id, _, _): return "seg-text-\(id)"
         case .reasoning(let id, _, _): return "seg-reason-\(id)"
-        case .toolTrace(let id, _, _): return "seg-trace-\(id)"
+        case .toolEvent(let id, _, _): return "seg-trace-\(id)"
+        case .subagentLiveCard(let id, _, _): return "seg-live-subagent-\(id)"
+        case .subagentSnapshot(let id, _, _): return "seg-snapshot-subagent-\(id)"
         case .artifact(let id, _, _): return "seg-artifact-\(id)"
         }
     }
@@ -22,7 +26,9 @@ enum ChatTurnInterleavedSegment: Identifiable {
         switch self {
         case .text(_, _, let s): return s
         case .reasoning(_, _, let s): return s
-        case .toolTrace(_, _, let s): return s
+        case .toolEvent(_, _, let s): return s
+        case .subagentLiveCard(_, _, let s): return s
+        case .subagentSnapshot(_, _, let s): return s
         case .artifact(_, _, let s): return s
         }
     }

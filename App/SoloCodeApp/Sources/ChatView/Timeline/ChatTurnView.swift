@@ -26,6 +26,106 @@ enum ChatTurnTimelineOrdering {
     }
 }
 
+enum ChatTurnTimelineInterleaver {
+    static func segments(
+        blocks: [PersistedChatTimelineBlock],
+        traceEvents: [ToolTraceEvent],
+        liveSubagentCards: [SwarmLiveCardState] = [],
+        subagentSnapshots: [SubagentCardSnapshot] = []
+    ) -> [ChatTurnInterleavedSegment] {
+        var segments: [ChatTurnInterleavedSegment] = []
+
+        for block in blocks {
+            switch block.kind {
+            case .primaryText:
+                let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
+                segments.append(.text(id: block.id, content: block.text, sequence: block.sequence))
+            case .reasoning:
+                segments.append(.reasoning(id: block.id, text: block.text, sequence: block.sequence))
+            case .toolMarker:
+                // Placeholder only. Individual tool events are injected directly
+                // from their own sequence numbers so the chat reads linearly.
+                continue
+            default:
+                segments.append(.artifact(id: block.id, block: block, sequence: block.sequence))
+            }
+        }
+
+        for event in traceEvents {
+            segments.append(
+                .toolEvent(
+                    id: event.id.uuidString.lowercased(),
+                    event: event,
+                    sequence: event.sequence
+                )
+            )
+        }
+
+        let baseSequence = max(
+            blocks.map(\.sequence).max() ?? 0,
+            traceEvents.map(\.sequence).max() ?? 0
+        )
+
+        for (index, card) in liveSubagentCards.enumerated() {
+            segments.append(
+                .subagentLiveCard(
+                    id: card.swarmId.lowercased(),
+                    card: card,
+                    sequence: sequenceForSubagentCard(
+                        swarmId: card.swarmId,
+                        traceEvents: traceEvents,
+                        fallbackBase: baseSequence,
+                        offset: index
+                    )
+                )
+            )
+        }
+
+        for (index, snapshot) in subagentSnapshots.enumerated() {
+            segments.append(
+                .subagentSnapshot(
+                    id: snapshot.swarmId.lowercased(),
+                    snapshot: snapshot,
+                    sequence: sequenceForSubagentCard(
+                        swarmId: snapshot.swarmId,
+                        traceEvents: traceEvents,
+                        fallbackBase: baseSequence + liveSubagentCards.count,
+                        offset: index
+                    )
+                )
+            )
+        }
+
+        return segments.sorted { lhs, rhs in
+            if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
+            return lhs.id < rhs.id
+        }
+    }
+
+    private static func sequenceForSubagentCard(
+        swarmId: String,
+        traceEvents: [ToolTraceEvent],
+        fallbackBase: Int,
+        offset: Int
+    ) -> Int {
+        let normalizedSwarmId = swarmId
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let earliestMatch = traceEvents
+            .filter({
+                ($0.payload["swarm_id"] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased() == normalizedSwarmId
+            })
+            .map(\.sequence)
+            .min() {
+            return earliestMatch
+        }
+        return fallbackBase + offset + 1
+    }
+}
+
 struct ChatTurnView: View {
     let message: ChatMessage
     let context: ProjectContext?
@@ -81,83 +181,12 @@ struct ChatTurnView: View {
     /// Builds an interleaved timeline: text, reasoning, tool ops, artifacts
     /// sorted chronologically by sequence number.
     private var interleavedSegments: [ChatTurnInterleavedSegment] {
-        var segments: [ChatTurnInterleavedSegment] = []
-
-        // Collect toolMarker sequences so we can split tool trace events
-        // into groups that align with the Rust-assigned timeline order.
-        var toolMarkerSequences: [Int] = []
-
-        // 1. Add visible blocks (text, reasoning, artifacts)
-        for block in visibleBlocks {
-            switch block.kind {
-            case .primaryText:
-                let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { continue }
-                segments.append(.text(id: block.id, content: block.text, sequence: block.sequence))
-            case .reasoning:
-                segments.append(.reasoning(id: block.id, text: block.text, sequence: block.sequence))
-            case .toolMarker:
-                // Record marker sequence; the actual events are assigned below
-                toolMarkerSequences.append(block.sequence)
-            default:
-                segments.append(.artifact(id: block.id, block: block, sequence: block.sequence))
-            }
-        }
-
-        // 2. Assign tool trace events to marker slots.
-        // If we have toolMarker blocks, distribute events across them
-        // proportionally. Otherwise fall back to a single group.
-        if !inlineTraceEvents.isEmpty {
-            if toolMarkerSequences.isEmpty {
-                // No markers — single group with sequence 0
-                segments.append(.toolTrace(
-                    id: "trace-\(message.id)",
-                    events: inlineTraceEvents,
-                    sequence: inlineTraceEvents.first?.sequence ?? 0
-                ))
-            } else {
-                // Split events into groups by their sequence ranges.
-                // Events with sequence <= first marker go to first marker,
-                // events between marker N and marker N+1 go to marker N+1, etc.
-                let sortedMarkers = toolMarkerSequences.sorted()
-                var eventIndex = 0
-                for (markerIdx, markerSeq) in sortedMarkers.enumerated() {
-                    let nextMarkerSeq = markerIdx + 1 < sortedMarkers.count
-                        ? sortedMarkers[markerIdx + 1]
-                        : Int.max
-                    var groupEvents: [ToolTraceEvent] = []
-                    while eventIndex < inlineTraceEvents.count {
-                        let evt = inlineTraceEvents[eventIndex]
-                        if evt.sequence < nextMarkerSeq || markerIdx == sortedMarkers.count - 1 {
-                            groupEvents.append(evt)
-                            eventIndex += 1
-                        } else {
-                            break
-                        }
-                    }
-                    if !groupEvents.isEmpty {
-                        segments.append(.toolTrace(
-                            id: "trace-\(message.id)-\(markerIdx)",
-                            events: groupEvents,
-                            sequence: markerSeq
-                        ))
-                    }
-                }
-                // Any remaining events
-                if eventIndex < inlineTraceEvents.count {
-                    let remaining = Array(inlineTraceEvents[eventIndex...])
-                    let seq = sortedMarkers.last ?? 0
-                    segments.append(.toolTrace(
-                        id: "trace-\(message.id)-tail",
-                        events: remaining,
-                        sequence: seq + 1
-                    ))
-                }
-            }
-        }
-
-        // 3. Sort by sequence
-        return segments.sorted { $0.sequence < $1.sequence }
+        ChatTurnTimelineInterleaver.segments(
+            blocks: visibleBlocks,
+            traceEvents: inlineTraceEvents,
+            liveSubagentCards: liveSubagentCards,
+            subagentSnapshots: message.subagentCards ?? []
+        )
     }
 
     var body: some View {
@@ -193,13 +222,25 @@ struct ChatTurnView: View {
                         .frame(height: 0.5)
                         .padding(.vertical, 4)
 
-                case .toolTrace(_, let events, _):
-                    MessageToolTraceView(
-                        events: events,
+                case .toolEvent(_, let event, _):
+                    InlineToolTraceEventView(
+                        event: event,
                         workspaceHints: traceWorkspaceHints,
                         onOpenFile: onFileClicked
                     )
                     .frame(maxWidth: 800, alignment: .leading)
+
+                case .subagentLiveCard(_, let card, _):
+                    SubagentChatCardView(
+                        card: card,
+                        onOpenInPanel: { onOpenSubagentPanel(card.swarmId) },
+                        onStop: onStopSubagent
+                    )
+                    .padding(.horizontal, 2)
+
+                case .subagentSnapshot(_, let snapshot, _):
+                    SubagentSnapshotCardView(snapshot: snapshot)
+                        .padding(.horizontal, 2)
 
                 case .artifact(_, let block, _):
                     ArtifactCardView(
@@ -209,26 +250,6 @@ struct ChatTurnView: View {
                         onFileClicked: onFileClicked
                     )
                 }
-            }
-            // Subagent cards (live or snapshot)
-            if !liveSubagentCards.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(liveSubagentCards) { card in
-                        SubagentChatCardView(
-                            card: card,
-                            onOpenInPanel: { onOpenSubagentPanel(card.swarmId) },
-                            onStop: onStopSubagent
-                        )
-                    }
-                }
-                .padding(.horizontal, 2)
-            } else if let snapshots = message.subagentCards, !snapshots.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(snapshots) { snapshot in
-                        SubagentSnapshotCardView(snapshot: snapshot)
-                    }
-                }
-                .padding(.horizontal, 2)
             }
             if message.isStreaming && isActuallyLoading {
                 streamingFooter
@@ -323,5 +344,120 @@ struct ChatTurnView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct InlineToolTraceEventView: View {
+    let event: ToolTraceEvent
+    let workspaceHints: [String]
+    let onOpenFile: (String) -> Void
+
+    private var identity: MessageToolTraceToolIdentity {
+        MessageToolTraceToolIdentity.resolve(for: event)
+    }
+
+    private var compactDetail: String? {
+        let fileChange = ToolTraceFileChangeMapper.from(event: event)
+        if let fileChange {
+            let added = max(0, fileChange.added)
+            let removed = max(0, fileChange.removed)
+            if added > 0 || removed > 0 {
+                return "+\(added) -\(removed)"
+            }
+            return fileChange.path ?? fileChange.basename
+        }
+
+        let candidates = [
+            event.detail,
+            event.payload["command"],
+            event.payload["query"],
+            event.payload["path"],
+            event.payload["file"],
+            event.payload["tool"],
+            event.payload["mcp_tool"],
+            event.payload["mcpTool"],
+        ]
+
+        for candidate in candidates {
+            let text = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !text.isEmpty, text != event.title {
+                return String(text.prefix(140))
+            }
+        }
+        return nil
+    }
+
+    private var openPath: String? {
+        if let change = ToolTraceFileChangeMapper.from(event: event) {
+            return FileChangePreviewResolver.resolveOpenPath(
+                for: change,
+                workspaceHints: workspaceHints
+            )
+        }
+        let candidate = event.payload["path"] ?? event.payload["file"] ?? ""
+        guard !candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return candidate
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 7) {
+            Image(systemName: identity.symbolName)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(identity.tint)
+                .frame(width: 14, alignment: .center)
+
+            if let openPath {
+                Button {
+                    onOpenFile(openPath)
+                } label: {
+                    Text(event.title)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .textShimmer(active: event.isRunning)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(event.title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .textShimmer(active: event.isRunning)
+            }
+
+            if let compactDetail, !compactDetail.isEmpty {
+                Text(compactDetail)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            if event.isRunning {
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.6)
+                    .frame(width: 12, height: 12)
+            } else if MessageToolTraceView.isErrorType(event) {
+                Image(systemName: "xmark.octagon.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignSystem.Colors.error)
+            } else if MessageToolTraceView.isWarningType(event) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignSystem.Colors.warning)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignSystem.Colors.success.opacity(0.8))
+            }
+        }
+        .padding(.vertical, 3)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.18))
+        )
     }
 }

@@ -1,5 +1,52 @@
 import SwiftUI
 
+struct MessageToolTraceAutoPresentationState: Equatable {
+    var isExpanded: Bool
+    var didAutoCompactAfterCompletion: Bool
+    var userDidManuallyExpand: Bool
+    var userDidManuallyCollapseWhileRunning: Bool
+    var isCompactDiffExpanded: Bool
+    var isCompactDiffLoading: Bool
+}
+
+enum MessageToolTraceAutoPresentation {
+    static func reconcile(
+        current: MessageToolTraceAutoPresentationState,
+        hasRunningEvent: Bool,
+        hasOrderedEvents: Bool
+    ) -> MessageToolTraceAutoPresentationState {
+        if hasRunningEvent {
+            var updated = current
+            updated.didAutoCompactAfterCompletion = false
+            // Never auto-expand while running. Expansion is manual only.
+            return updated
+        }
+
+        guard hasOrderedEvents, !current.didAutoCompactAfterCompletion else {
+            return current
+        }
+
+        return MessageToolTraceAutoPresentationState(
+            isExpanded: false,
+            didAutoCompactAfterCompletion: true,
+            userDidManuallyExpand: false,
+            userDidManuallyCollapseWhileRunning: false,
+            isCompactDiffExpanded: false,
+            isCompactDiffLoading: false
+        )
+    }
+
+    static func shouldAutoExpandCompactDiff(
+        isTraceExpanded: Bool,
+        hasPreview: Bool
+    ) -> Bool {
+        // Keep file-change previews closed until the user explicitly expands them.
+        let _ = isTraceExpanded
+        let _ = hasPreview
+        return false
+    }
+}
+
 extension MessageToolTraceView {
     func collapseSupersededToolStates(_ input: [ToolTraceEvent]) -> [ToolTraceEvent] {
         ToolTraceEventCollapser.collapseSupersededToolStates(input)
@@ -66,7 +113,10 @@ extension MessageToolTraceView {
             await MainActor.run {
                 isCompactDiffLoading = false
                 let updatedChanges = currentDerived().fileChanges
-                if isExpanded, compactDiffPreview(fileChanges: updatedChanges) != nil {
+                if MessageToolTraceAutoPresentation.shouldAutoExpandCompactDiff(
+                    isTraceExpanded: isExpanded,
+                    hasPreview: compactDiffPreview(fileChanges: updatedChanges) != nil
+                ) {
                     withAnimation(.easeInOut(duration: 0.12)) {
                         isCompactDiffExpanded = true
                     }
@@ -76,27 +126,34 @@ extension MessageToolTraceView {
     }
 
     func syncAutoPresentationState(derived: DerivedState) {
-        let ordered = derived.orderedEvents
-        let running = derived.hasRunningEvent
-        if running {
-            didAutoCompactAfterCompletion = false
-            guard !isExpanded, !userDidManuallyCollapseWhileRunning else { return }
-            withAnimation(.easeOut(duration: 0.15)) {
-                isExpanded = true
-            }
-            return
-        }
-        guard !ordered.isEmpty else { return }
-        guard !didAutoCompactAfterCompletion else { return }
+        let current = MessageToolTraceAutoPresentationState(
+            isExpanded: isExpanded,
+            didAutoCompactAfterCompletion: didAutoCompactAfterCompletion,
+            userDidManuallyExpand: userDidManuallyExpand,
+            userDidManuallyCollapseWhileRunning: userDidManuallyCollapseWhileRunning,
+            isCompactDiffExpanded: isCompactDiffExpanded,
+            isCompactDiffLoading: isCompactDiffLoading
+        )
+        let next = MessageToolTraceAutoPresentation.reconcile(
+            current: current,
+            hasRunningEvent: derived.hasRunningEvent,
+            hasOrderedEvents: !derived.orderedEvents.isEmpty
+        )
+
+        didAutoCompactAfterCompletion = next.didAutoCompactAfterCompletion
+
+        guard next != current else { return }
+
         withAnimation(.easeOut(duration: 0.15)) {
-            isExpanded = false
-            expandedIds.removeAll()
-            expandedFileIds.removeAll()
-            isCompactDiffExpanded = false
+            isExpanded = next.isExpanded
+            isCompactDiffExpanded = next.isCompactDiffExpanded
+            if !next.isExpanded {
+                expandedIds.removeAll()
+                expandedFileIds.removeAll()
+            }
         }
-        isCompactDiffLoading = false
-        userDidManuallyExpand = false
-        userDidManuallyCollapseWhileRunning = false
-        didAutoCompactAfterCompletion = true
+        isCompactDiffLoading = next.isCompactDiffLoading
+        userDidManuallyExpand = next.userDidManuallyExpand
+        userDidManuallyCollapseWhileRunning = next.userDidManuallyCollapseWhileRunning
     }
 }
