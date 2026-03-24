@@ -44,10 +44,29 @@ extension AnthropicAPIProvider {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.timeoutInterval = timeoutSeconds
 
+        let circuitBreaker = await ProviderCircuitBreakerRegistry.shared.breaker(for: id)
+
         var currentAttempt = 1
         var bytes: URLSession.AsyncBytes?
         while currentAttempt <= maxRetries {
             try Task.checkCancellation()
+
+            let decision = await circuitBreaker.shouldAllow()
+            if case .reject(let retryAfter) = decision {
+                if currentAttempt < maxRetries {
+                    continuation.yield(.raw(type: "provider_retry", payload: [
+                        "provider": "anthropic",
+                        "attempt": "\(currentAttempt)",
+                        "max_attempts": "\(maxRetries)",
+                        "delay_ms": "\(Int(retryAfter * 1000))",
+                        "reason": "circuit_breaker_open",
+                    ]))
+                    try await Self.sleep(seconds: min(retryAfter, Self.maxRetryDelayTotalSeconds))
+                    currentAttempt += 1
+                    continue
+                }
+                throw CoderEngineError.apiError("Anthropic API circuit breaker open — provider unavailable")
+            }
 
             do {
                 let (attemptBytes, response) = try await session.bytes(for: request)
@@ -57,6 +76,7 @@ extension AnthropicAPIProvider {
                 }
                 let statusCode = httpResponse.statusCode
                 if (200...299).contains(statusCode) {
+                    await circuitBreaker.recordSuccess()
                     bytes = attemptBytes
                     break
                 }
@@ -64,6 +84,8 @@ extension AnthropicAPIProvider {
                 let errorBody = await Self.readErrorBody(from: attemptBytes)
                 let errorMessage = Self.extractErrorMessage(from: errorBody, statusCode: statusCode)
                 let retryAfter = Self.retryAfterSeconds(from: httpResponse)
+
+                await circuitBreaker.recordFailure()
 
                 if currentAttempt < maxRetries, Self.retryableHTTPStatusCodes.contains(statusCode) {
                     let delay = Self.retryDelay(
@@ -91,6 +113,8 @@ extension AnthropicAPIProvider {
                 if error is CancellationError {
                     throw error
                 }
+
+                await circuitBreaker.recordFailure()
 
                 if currentAttempt < maxRetries, Self.shouldRetryTransportError(for: error) {
                     let delay = Self.retryDelay(
@@ -122,16 +146,41 @@ extension AnthropicAPIProvider {
 
         continuation.yield(.started)
 
+        let decoder = JSONDecoder()
         var lastUsage: (Int, Int)?
         var toolIdByContentBlock: [Int: String] = [:]
         var toolNameByContentBlock: [Int: String] = [:]
         var toolArgsByContentBlock: [Int: String] = [:]
         var accumulatedThinking = ""
         var buffer = [UInt8]()
+        let maxSSEFrameBytes = 1_048_576 // 1 MB limite per frame SSE
+        var skipUntilNewline = false
 
         for try await byte in bytes {
+            // Dopo un overflow, scarta tutto fino al prossimo newline
+            // per evitare di contaminare il frame successivo.
+            if skipUntilNewline {
+                if byte == 10 { skipUntilNewline = false }
+                continue
+            }
+
             buffer.append(byte)
-            if byte != 10 { continue } // newline
+
+            // Protezione: frame senza newline non devono crescere oltre il limite
+            if buffer.count > maxSSEFrameBytes {
+                let droppedSize = buffer.count
+                buffer.removeAll()
+                skipUntilNewline = true
+                NSLog("[Anthropic SSE] Frame overflow: %d bytes exceeded %d limit — frame dropped", droppedSize, maxSSEFrameBytes)
+                continuation.yield(.raw(type: "sse_frame_overflow", payload: [
+                    "provider": "anthropic",
+                    "dropped_bytes": "\(droppedSize)",
+                    "limit_bytes": "\(maxSSEFrameBytes)",
+                ]))
+                continue
+            }
+
+            if byte != 10 { continue }
 
             let line = String(bytes: buffer, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -146,31 +195,25 @@ extension AnthropicAPIProvider {
             }
 
             guard let data = payload.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let type = json["type"] as? String else {
-                continue
-            }
+                  let event = try? decoder.decode(AnthropicSSEEvent.self, from: data)
+            else { continue }
 
-            switch type {
+            switch event.type {
             case "content_block_start":
-                guard let index = json["index"] as? Int,
-                      let block = json["content_block"] as? [String: Any] else { continue }
-                let blockType = block["type"] as? String ?? ""
-                if blockType == "thinking" {
+                guard let index = event.index,
+                      let block = event.contentBlock else { continue }
+                if block.type == "thinking" {
                     accumulatedThinking = ""
                     continue
                 }
-                guard blockType == "tool_use" else { continue }
+                guard block.type == "tool_use" else { continue }
 
-                let toolId = (block["id"] as? String) ?? "anthropic-\(index)"
-                let toolName = (block["name"] as? String) ?? ""
+                let toolId = block.id ?? "anthropic-\(index)"
+                let toolName = block.name ?? ""
                 toolIdByContentBlock[index] = toolId
                 toolNameByContentBlock[index] = toolName
 
-                if let input = block["input"],
-                   JSONSerialization.isValidJSONObject(input),
-                   let inputData = try? JSONSerialization.data(withJSONObject: input),
-                   let inputJson = String(data: inputData, encoding: .utf8) {
+                if let inputJson = block.input?.toJSONString(), !inputJson.isEmpty {
                     toolArgsByContentBlock[index] = inputJson
                     continuation.yield(.raw(type: "tool_call_suggested", payload: [
                         "id": toolId,
@@ -187,12 +230,12 @@ extension AnthropicAPIProvider {
                     ]))
                 }
             case "content_block_delta":
-                guard let index = json["index"] as? Int,
-                      let delta = json["delta"] as? [String: Any],
-                      let deltaType = delta["type"] as? String else { continue }
+                guard let index = event.index,
+                      let delta = event.delta,
+                      let deltaType = delta.type else { continue }
 
                 if deltaType == "thinking_delta",
-                   let thinkingChunk = delta["thinking"] as? String, !thinkingChunk.isEmpty {
+                   let thinkingChunk = delta.thinking, !thinkingChunk.isEmpty {
                     accumulatedThinking += thinkingChunk
                     let text = String(accumulatedThinking.prefix(6_000))
                     continuation.yield(.raw(type: "reasoning", payload: [
@@ -204,13 +247,13 @@ extension AnthropicAPIProvider {
                 }
 
                 if deltaType == "text_delta" {
-                    guard let text = delta["text"] as? String, !text.isEmpty else { continue }
+                    guard let text = delta.text, !text.isEmpty else { continue }
                     continuation.yield(.textDelta(text))
                     continue
                 }
 
                 if deltaType == "input_json_delta" {
-                    let fragment = (delta["partial_json"] as? String) ?? ""
+                    let fragment = delta.partialJson ?? ""
                     guard !fragment.isEmpty else { continue }
                     toolArgsByContentBlock[index, default: ""] += fragment
                     continuation.yield(.raw(type: "tool_call_suggested", payload: [
@@ -223,13 +266,13 @@ extension AnthropicAPIProvider {
                     continue
                 }
             case "message_delta":
-                if let usage = json["usage"] as? [String: Any],
-                   let inp = usage["input_tokens"] as? Int,
-                   let out = usage["output_tokens"] as? Int {
+                if let usage = event.usage,
+                   let inp = usage.inputTokens,
+                   let out = usage.outputTokens {
                     lastUsage = (inp, out)
                 }
             case "content_block_stop":
-                guard let index = json["index"] as? Int,
+                guard let index = event.index,
                       let toolId = toolIdByContentBlock[index],
                       let toolName = toolNameByContentBlock[index] else { continue }
                 continuation.yield(.raw(type: "tool_call_suggested", payload: [
@@ -247,8 +290,7 @@ extension AnthropicAPIProvider {
                     ]))
                 }
             case "error":
-                let errorPayload = json["error"] as? [String: Any]
-                let message = errorPayload?["message"] as? String ?? "Anthropic API error"
+                let message = event.error?.message ?? "Anthropic API error"
                 continuation.yield(.error(message))
             default:
                 continue

@@ -2,72 +2,8 @@ import Darwin
 import Foundation
 
 extension MCPSharedState {
-    final class EmergencyLockDescriptorReserve: @unchecked Sendable {
-        private let lock = NSLock()
-        private let reservePath: String
-        private let reserveFlags: Int32
-        private var descriptor: Int32
 
-        init(
-            reservePath: String = "/dev/null",
-            reserveFlags: Int32 = O_RDONLY
-        ) {
-            self.reservePath = reservePath
-            self.reserveFlags = reserveFlags
-            self.descriptor = open(reservePath, reserveFlags)
-        }
-
-        deinit {
-            closeDescriptorIfPresent()
-        }
-
-        func releaseDescriptor() -> Bool {
-            lock.lock()
-            let descriptor = self.descriptor
-            self.descriptor = -1
-            lock.unlock()
-
-            guard descriptor >= 0 else {
-                return false
-            }
-            close(descriptor)
-            return true
-        }
-
-        func replenishIfNeeded() {
-            lock.lock()
-            guard descriptor < 0 else {
-                lock.unlock()
-                return
-            }
-            descriptor = open(reservePath, reserveFlags)
-            lock.unlock()
-        }
-
-        private func closeDescriptorIfPresent() {
-            lock.lock()
-            let descriptor = self.descriptor
-            self.descriptor = -1
-            lock.unlock()
-
-            guard descriptor >= 0 else {
-                return
-            }
-            close(descriptor)
-        }
-    }
-
-    enum AdvisoryFileLockAcquisition {
-        case locked(Int32, EmergencyLockDescriptorReserve?)
-        case fallback(Int32)
-    }
-
-    private static let codeReviewFallbackLock = NSRecursiveLock()
-    private static let bugHunterFallbackLock = NSRecursiveLock()
-    private static let codeReviewEmergencyLockReserve =
-        EmergencyLockDescriptorReserve()
-    private static let bugHunterEmergencyLockReserve =
-        EmergencyLockDescriptorReserve()
+    // MARK: - Public Locking APIs
 
     static func withCodeReviewFileLock<T>(
         _ body: () -> T
@@ -77,7 +13,6 @@ extension MCPSharedState {
             lockURL: codeReviewDirectoryPath.appendingPathComponent(".lock"),
             createMode: S_IRUSR | S_IWUSR,
             fallbackLock: codeReviewFallbackLock,
-            emergencyReserve: codeReviewEmergencyLockReserve,
             ensureLockDirectory: {
                 ensureDirectory()
                 try? FileManager.default.createDirectory(
@@ -97,7 +32,6 @@ extension MCPSharedState {
             lockURL: bugHunterDirectoryPath.appendingPathComponent(".lock"),
             createMode: 0o644,
             fallbackLock: bugHunterFallbackLock,
-            emergencyReserve: bugHunterEmergencyLockReserve,
             ensureLockDirectory: {
                 ensureBugHunterDirectories()
             },
@@ -105,123 +39,101 @@ extension MCPSharedState {
         )
     }
 
+    // MARK: - Core Lock Implementation
+
+    /// Advisory file lock con fallback a NSRecursiveLock.
+    ///
+    /// Usa `flock()` per cross-process locking e `NSRecursiveLock`
+    /// per la serializzazione intra-processo. La NSRecursiveLock
+    /// gestisce nativamente la reentrancy senza bisogno di
+    /// Thread.threadDictionary.
     static func withAdvisoryFileLock<T>(
         label: String,
         lockURL: URL,
         createMode: mode_t,
         fallbackLock: NSRecursiveLock,
-        emergencyReserve: EmergencyLockDescriptorReserve? = nil,
         ensureLockDirectory: () -> Void,
-        acquireLock: (() -> AdvisoryFileLockAcquisition)? = nil,
+        acquireLock: (() -> AdvisoryFileLockResult)? = nil,
         body: () -> T
     ) -> T {
+        // NSRecursiveLock gestisce reentrancy e serializzazione intra-processo.
         fallbackLock.lock()
         defer { fallbackLock.unlock() }
 
-        let reentrancyKey = advisoryLockReentrancyKey(for: lockURL)
-        let reentrancyDepth = incrementAdvisoryLockReentrancy(for: reentrancyKey)
-        defer { decrementAdvisoryLockReentrancy(for: reentrancyKey) }
-
-        if reentrancyDepth > 1 {
-            return body()
-        }
-
-        let acquisition = acquireLock?() ?? acquireAdvisoryFileLock(
+        let result = acquireLock?() ?? acquireAdvisoryFileLock(
             lockURL: lockURL,
             createMode: createMode,
-            ensureLockDirectory: ensureLockDirectory,
-            emergencyReserve: emergencyReserve
+            ensureLockDirectory: ensureLockDirectory
         )
 
-        switch acquisition {
-        case .locked(let descriptor, let releasedReserve):
+        switch result {
+        case .locked(let descriptor):
             defer {
                 flock(descriptor, LOCK_UN)
                 close(descriptor)
-                releasedReserve?.replenishIfNeeded()
             }
             return body()
-        case .fallback(let err):
-            NSLog(
-                "[MCPSharedState] ⚠️ %@: advisory lock non acquisito su %@, errno: %d — fallback locale",
-                label, lockURL.path, err
-            )
+        case .fallback:
             ensureLockDirectory()
             return body()
         }
     }
+
+    // MARK: - Types
+
+    enum AdvisoryFileLockResult {
+        case locked(Int32)
+        case fallback
+    }
+
+    // MARK: - Private
+
+    private static let codeReviewFallbackLock = NSRecursiveLock()
+    private static let bugHunterFallbackLock = NSRecursiveLock()
+
+    /// Timeout massimo per acquisire il file lock cross-processo (secondi).
+    static var advisoryLockTimeout: TimeInterval = 10
 
     static func acquireAdvisoryFileLock(
         lockURL: URL,
         createMode: mode_t,
-        ensureLockDirectory: () -> Void,
-        emergencyReserve: EmergencyLockDescriptorReserve?
-    ) -> AdvisoryFileLockAcquisition {
-        var lastErr: Int32 = 0
+        ensureLockDirectory: () -> Void
+    ) -> AdvisoryFileLockResult {
+        let deadline = Date().addingTimeInterval(advisoryLockTimeout)
 
         for _ in 0..<2 {
             ensureLockDirectory()
-            var releasedReserve: EmergencyLockDescriptorReserve?
-            var descriptor = open(lockURL.path, O_CREAT | O_RDWR, createMode)
-            if descriptor < 0, shouldUseEmergencyReserve(errno) {
-                if emergencyReserve?.releaseDescriptor() == true {
-                    releasedReserve = emergencyReserve
-                    descriptor = open(lockURL.path, O_CREAT | O_RDWR, createMode)
-                }
-            }
+            let descriptor = open(lockURL.path, O_CREAT | O_RDWR, createMode)
             guard descriptor >= 0 else {
-                lastErr = errno
-                releasedReserve?.replenishIfNeeded()
-                if lastErr == ENOENT {
-                    continue
-                }
-                return .fallback(lastErr)
+                let err = errno
+                if err == ENOENT { continue }
+                return .fallback
             }
 
-            while true {
-                let lockResult = flock(descriptor, LOCK_EX)
+            while Date() < deadline {
+                let lockResult = flock(descriptor, LOCK_EX | LOCK_NB)
                 if lockResult == 0 {
-                    return .locked(descriptor, releasedReserve)
+                    return .locked(descriptor)
                 }
-
-                lastErr = errno
-                if lastErr == EINTR {
+                let err = errno
+                if err == EINTR { continue }
+                if err == EWOULDBLOCK || err == EAGAIN {
+                    Thread.sleep(forTimeInterval: 0.05)
                     continue
                 }
                 close(descriptor)
-                releasedReserve?.replenishIfNeeded()
-                if lastErr == ENOENT {
-                    break
-                }
-                return .fallback(lastErr)
+                if err == ENOENT { break }
+                return .fallback
             }
+
+            // Timeout raggiunto: rilascia il descriptor e usa fallback.
+            close(descriptor)
+            #if DEBUG
+            NSLog("[CrossProcessLock] Timeout acquiring advisory lock at %@", lockURL.path)
+            #endif
+            return .fallback
         }
 
-        return .fallback(lastErr)
-    }
-
-    private static func advisoryLockReentrancyKey(for lockURL: URL) -> String {
-        "mcp-shared-lock-\(lockURL.path)"
-    }
-
-    private static func incrementAdvisoryLockReentrancy(for key: String) -> Int {
-        let dictionary = Thread.current.threadDictionary
-        let nextValue = (dictionary[key] as? Int ?? 0) + 1
-        dictionary[key] = nextValue
-        return nextValue
-    }
-
-    private static func decrementAdvisoryLockReentrancy(for key: String) {
-        let dictionary = Thread.current.threadDictionary
-        let currentValue = dictionary[key] as? Int ?? 0
-        if currentValue <= 1 {
-            dictionary.removeObject(forKey: key)
-        } else {
-            dictionary[key] = currentValue - 1
-        }
-    }
-
-    private static func shouldUseEmergencyReserve(_ err: Int32) -> Bool {
-        err == EMFILE || err == ENFILE
+        return .fallback
     }
 }

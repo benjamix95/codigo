@@ -137,7 +137,7 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
                 )
             },
             acquireLock: {
-                .fallback(ENOENT)
+                .fallback
             },
             body: {
                 "ok"
@@ -148,14 +148,12 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: MCPSharedState.codeReviewDirectoryPath.path))
     }
 
-    func testEmergencyReserveReplenishesAfterSuccessfulLockUse() {
+    func testAdvisoryLockAcquiresAndReleasesCleanly() {
         let lockURL = MCPSharedState.codeReviewDirectoryPath.appendingPathComponent(".lock")
         try? FileManager.default.createDirectory(
             at: MCPSharedState.codeReviewDirectoryPath,
             withIntermediateDirectories: true
         )
-        let reserve = MCPSharedState.EmergencyLockDescriptorReserve()
-        XCTAssertTrue(reserve.releaseDescriptor())
 
         let descriptor = open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
         XCTAssertGreaterThanOrEqual(descriptor, 0)
@@ -165,7 +163,6 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
             lockURL: lockURL,
             createMode: S_IRUSR | S_IWUSR,
             fallbackLock: NSRecursiveLock(),
-            emergencyReserve: reserve,
             ensureLockDirectory: {
                 MCPSharedState.ensureDirectory()
                 try? FileManager.default.createDirectory(
@@ -174,7 +171,7 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
                 )
             },
             acquireLock: {
-                .locked(descriptor, reserve)
+                .locked(descriptor)
             },
             body: {
                 "ok"
@@ -182,7 +179,7 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
         )
 
         XCTAssertEqual(result, "ok")
-        XCTAssertTrue(reserve.releaseDescriptor())
+        close(descriptor)
     }
 
     func testWithAdvisoryFileLockDefaultReserveDoesNotLeakDescriptors() {
@@ -203,7 +200,7 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
                     )
                 },
                 acquireLock: {
-                    .fallback(ENOENT)
+                    .fallback
                 },
                 body: {
                     "ok"
@@ -246,7 +243,7 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
                         )
                     },
                     acquireLock: {
-                        .fallback(EMFILE)
+                        .fallback
                     },
                     body: {
                         let current = (try? String(contentsOf: counterURL, encoding: .utf8))
@@ -294,7 +291,7 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
                     )
                 },
                 acquireLock: {
-                    .fallback(EMFILE)
+                    .fallback
                 },
                 body: {
                     stateLock.lock()

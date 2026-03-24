@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public final class ManagedPostgresService {
@@ -6,20 +7,48 @@ public final class ManagedPostgresService {
     private let configurationOverride: ManagedPostgresConfiguration?
     private let queue = DispatchQueue(label: "CoderEngine.Persistence.ManagedPostgres")
     private var cachedHealth: PersistenceHealthSnapshot?
+    private var isBootstrapped = false
 
     public init(configuration: ManagedPostgresConfiguration? = nil) {
         self.configurationOverride = configuration
     }
 
     public func bootstrapIfNeeded() throws -> PersistenceHealthSnapshot {
-        try queue.sync {
+        #if DEBUG
+        dispatchPrecondition(condition: .notOnQueue(.main))
+        #endif
+        return try queue.sync {
+            // Fast path: se già bootstrappato, ritorna il risultato cachato.
+            if isBootstrapped, let cached = cachedHealth {
+                return cached
+            }
+
             let configuration = resolvedConfiguration()
             try validateBinaries()
             try PersistenceSupport.ensureDirectory(configuration.rootDirectory)
             try PersistenceSupport.ensureDirectory(configuration.socketDirectory)
-            if !FileManager.default.fileExists(
-                atPath: configuration.dataDirectory.appendingPathComponent("PG_VERSION").path
-            ) {
+
+            // Lock file cross-processo per evitare che due processi facciano initdb in parallelo.
+            let lockFilePath = configuration.rootDirectory.appendingPathComponent(".bootstrap.lock").path
+            let lockFd = open(lockFilePath, O_CREAT | O_RDWR, 0o644)
+            if lockFd >= 0 {
+                if !Self.flockWithTimeout(lockFd, timeout: 15) {
+                    close(lockFd)
+                    throw PersistenceBootstrapError.bootstrapFailed(
+                        "Timeout acquiring bootstrap lock after 15s — another process may hold it"
+                    )
+                }
+            }
+            defer {
+                if lockFd >= 0 {
+                    flock(lockFd, LOCK_UN)
+                    close(lockFd)
+                }
+            }
+
+            // Ricontrolla PG_VERSION sotto lock per evitare TOCTOU.
+            let pgVersionPath = configuration.dataDirectory.appendingPathComponent("PG_VERSION").path
+            if !FileManager.default.fileExists(atPath: pgVersionPath) {
                 try PersistenceSupport.ensureDirectory(configuration.dataDirectory.deletingLastPathComponent())
                 _ = try runProcess(
                     executable: configuration.initdbBinary,
@@ -67,6 +96,7 @@ public final class ManagedPostgresService {
                 lastError: nil
             )
             cachedHealth = health
+            isBootstrapped = true
             return health
         }
     }
@@ -80,6 +110,7 @@ public final class ManagedPostgresService {
                 arguments: ["-D", configuration.dataDirectory.path, "stop", "-m", "fast"]
             )
             cachedHealth = nil
+            isBootstrapped = false
         }
     }
 
@@ -174,5 +205,19 @@ public final class ManagedPostgresService {
 
     private func resolvedConfiguration() -> ManagedPostgresConfiguration {
         configurationOverride ?? .default
+    }
+
+    /// Non-blocking flock con retry e timeout. Previene deadlock se un altro processo
+    /// muore tenendo il lock.
+    static func flockWithTimeout(_ fd: Int32, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let result = flock(fd, LOCK_EX | LOCK_NB)
+            if result == 0 { return true }
+            let err = errno
+            if err != EWOULDBLOCK && err != EAGAIN { return false }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        return false
     }
 }

@@ -42,10 +42,30 @@ extension OpenAIAPIProvider {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.timeoutInterval = timeoutSeconds
 
+        let circuitBreaker = await ProviderCircuitBreakerRegistry.shared.breaker(for: id)
+
         var currentAttempt = 1
         var bytes: URLSession.AsyncBytes?
         while currentAttempt <= maxRetries {
             try Task.checkCancellation()
+
+            let decision = await circuitBreaker.shouldAllow()
+            if case .reject(let retryAfter) = decision {
+                if currentAttempt < maxRetries {
+                    yieldProviderRetry(
+                        continuation: continuation,
+                        provider: id,
+                        attempt: currentAttempt,
+                        maxAttempts: maxRetries,
+                        delaySeconds: retryAfter,
+                        reason: "circuit_breaker_open"
+                    )
+                    try await Self.sleep(seconds: min(retryAfter, Self.maxRetryDelayTotalSeconds))
+                    currentAttempt += 1
+                    continue
+                }
+                throw CoderEngineError.apiError("Provider circuit breaker open — \(id) unavailable")
+            }
 
             do {
                 let (attemptBytes, response) = try await session.bytes(for: request)
@@ -56,6 +76,7 @@ extension OpenAIAPIProvider {
 
                 let statusCode = httpResponse.statusCode
                 if (200...299).contains(statusCode) {
+                    await circuitBreaker.recordSuccess()
                     bytes = attemptBytes
                     break
                 }
@@ -74,6 +95,8 @@ extension OpenAIAPIProvider {
                 if includeTools && (statusCode == 400 || statusCode == 422) {
                     return errorBody
                 }
+
+                await circuitBreaker.recordFailure()
 
                 if currentAttempt < maxRetries, Self.retryableHTTPStatusCodes.contains(statusCode) {
                     let retryAfter = Self.retryAfterSeconds(from: httpResponse)
@@ -104,6 +127,8 @@ extension OpenAIAPIProvider {
                 if error is CancellationError {
                     throw error
                 }
+
+                await circuitBreaker.recordFailure()
 
                 if currentAttempt < maxRetries, Self.shouldRetryTransportError(for: error) {
                     let delay = Self.retryDelay(
@@ -136,14 +161,39 @@ extension OpenAIAPIProvider {
 
         continuation.yield(.started)
 
+        let decoder = JSONDecoder()
         var buffer = [UInt8]()
+        let maxSSEFrameBytes = 1_048_576 // 1 MB limite per frame SSE
+        var skipUntilNewline = false
         var didEmitUsage = false
         var toolArgsById: [String: String] = [:]
         var toolNameById: [String: String] = [:]
         var accumulatedReasoning = ""
 
         for try await byte in bytes {
+            // Dopo un overflow, scarta tutto fino al prossimo newline
+            // per evitare di contaminare il frame successivo.
+            if skipUntilNewline {
+                if byte == 10 { skipUntilNewline = false }
+                continue
+            }
+
             buffer.append(byte)
+
+            // Protezione: frame senza newline non devono crescere oltre il limite
+            if buffer.count > maxSSEFrameBytes {
+                let droppedSize = buffer.count
+                buffer.removeAll()
+                skipUntilNewline = true
+                NSLog("[OpenAI SSE] Frame overflow: %d bytes exceeded %d limit — frame dropped", droppedSize, maxSSEFrameBytes)
+                continuation.yield(.raw(type: "sse_frame_overflow", payload: [
+                    "provider": id,
+                    "dropped_bytes": "\(droppedSize)",
+                    "limit_bytes": "\(maxSSEFrameBytes)",
+                ]))
+                continue
+            }
+
             if byte == 10 {
                 let line =
                     String(bytes: buffer, encoding: .utf8)?
@@ -167,20 +217,19 @@ extension OpenAIAPIProvider {
                 }
 
                 guard let lineData = jsonStr.data(using: .utf8),
-                      let json = try? JSONSerialization.jsonObject(with: lineData)
-                          as? [String: Any]
+                      let chunk = try? decoder.decode(OpenAIChatChunk.self, from: lineData)
                 else {
                     continue
                 }
 
-                if let error = json["error"] as? [String: Any],
-                   let errorMessage = error["message"] as? String
-                {
+                if let error = chunk.error, let errorMessage = error.message {
                     continuation.yield(.error("API error: \(errorMessage)"))
                     continue
                 }
 
-                if let (inp, out) = Self.extractUsage(from: json) {
+                if let usage = chunk.usage,
+                   let inp = usage.resolvedInput,
+                   let out = usage.resolvedOutput {
                     continuation.yield(.raw(
                         type: "usage",
                         payload: [
@@ -191,13 +240,12 @@ extension OpenAIAPIProvider {
                     didEmitUsage = true
                 }
 
-                guard let choices = json["choices"] as? [[String: Any]],
-                      let first = choices.first else {
+                guard let first = chunk.choices?.first else {
                     continue
                 }
 
-                if let delta = first["delta"] as? [String: Any] {
-                    if let reasoningChunk = delta["reasoning_content"] as? String,
+                if let delta = first.delta {
+                    if let reasoningChunk = delta.reasoningContent,
                        !reasoningChunk.isEmpty
                     {
                         accumulatedReasoning += reasoningChunk
@@ -211,15 +259,15 @@ extension OpenAIAPIProvider {
                             ]))
                     }
 
-                    if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
+                    if let toolCalls = delta.toolCalls {
                         for toolCall in toolCalls {
-                            let fallbackIndex = (toolCall["index"] as? Int).map(String.init) ?? "0"
-                            let tcId = (toolCall["id"] as? String) ?? "idx-\(fallbackIndex)"
-                            if let function = toolCall["function"] as? [String: Any] {
-                                if let name = function["name"] as? String, !name.isEmpty {
+                            let fallbackIndex = toolCall.index.map(String.init) ?? "0"
+                            let tcId = toolCall.id ?? "idx-\(fallbackIndex)"
+                            if let function = toolCall.function {
+                                if let name = function.name, !name.isEmpty {
                                     toolNameById[tcId] = name
                                 }
-                                if let argsFragment = function["arguments"] as? String,
+                                if let argsFragment = function.arguments,
                                    !argsFragment.isEmpty
                                 {
                                     toolArgsById[tcId, default: ""] += argsFragment
@@ -237,14 +285,12 @@ extension OpenAIAPIProvider {
                         }
                     }
 
-                    if let textContent = delta["content"] as? String, !textContent.isEmpty {
+                    if let textContent = delta.content, !textContent.isEmpty {
                         continuation.yield(.textDelta(textContent))
                     }
                 }
 
-                if let finishReason = first["finish_reason"] as? String,
-                   finishReason == "tool_calls"
-                {
+                if first.finishReason == "tool_calls" {
                     for (tcId, args) in toolArgsById {
                         continuation.yield(.raw(
                             type: "tool_call_suggested",
