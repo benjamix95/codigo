@@ -219,6 +219,34 @@ public struct ProviderRouter: Sendable {
             return .success(result)
         }
 
+        // Fallback: rank healthy providers by partial capability match score
+        let partialCandidates = healthyProviders.sorted { a, b in
+            required.matchScore(for: a) > required.matchScore(for: b)
+        }.filter { required.matchScore(for: $0) > 0.0 }
+
+        if let result = rankAndSelect(
+            candidates: partialCandidates,
+            required: required,
+            reason: .fallbackReduced,
+            latencies: latencies,
+            costScores: costScores
+        ) {
+            NSLog("[ProviderRouter] No full capability match for role %@, using fallback provider %@ (score: %.2f)", "\(role)", result.provider.providerId, result.score)
+            return .success(result)
+        }
+
+        // Last resort: pick best healthy provider even with zero match
+        if let result = rankAndSelect(
+            candidates: healthyProviders,
+            required: required,
+            reason: .onlyAvailable,
+            latencies: latencies,
+            costScores: costScores
+        ) {
+            NSLog("[ProviderRouter] No capability match for role %@, using only available provider %@", "\(role)", result.provider.providerId)
+            return .success(result)
+        }
+
         return .failure(.noCapabilityMatch(role: role))
     }
 

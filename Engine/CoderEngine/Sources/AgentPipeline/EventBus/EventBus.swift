@@ -251,5 +251,13 @@ public actor EventBus: EventBusProtocol {
         idempotencyKeyOrder.removeAll { key in
             seenIdempotencyKeys[key] == nil
         }
+
+        // Hard cap: se dopo age-pruning siamo ancora sopra il limite,
+        // evinciamo i più vecchi fino all'80% della capacità.
+        let hardCapTarget = maxTrackedIdempotencyKeys * 4 / 5
+        while seenIdempotencyKeys.count > hardCapTarget {
+            guard !idempotencyKeyOrder.isEmpty else { break }
+            evictOldestTrackedIdempotencyKey()
+        }
     }
 }

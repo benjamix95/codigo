@@ -1,5 +1,7 @@
 import Foundation
 
+private let kDebugEventBufferLimit = 500
+
 extension PipelineIntegrationService {
     func registerDebugStore(
         _ debugStore: DebugStore,
@@ -62,11 +64,16 @@ extension PipelineIntegrationService {
     }
 
     private func bufferDebugEvent(_ event: NormalizedEvent, for conversationId: UUID) {
-        let limit = 500
         var pending = pendingDebugEventsByConversation[conversationId, default: []]
         pending.append(event)
-        if pending.count > limit {
-            pending.removeFirst(pending.count - limit)
+        if pending.count > kDebugEventBufferLimit {
+            let dropCount = pending.count - kDebugEventBufferLimit
+            NSLog(
+                "[PipelineIntegration] Debug event buffer overflow for conversation %@: dropping %d events",
+                conversationId.uuidString,
+                dropCount
+            )
+            pending.removeFirst(dropCount)
         }
         pendingDebugEventsByConversation[conversationId] = pending
     }

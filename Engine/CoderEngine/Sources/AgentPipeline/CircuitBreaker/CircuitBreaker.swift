@@ -41,7 +41,7 @@ public protocol CircuitBreakerDelegate: Sendable {
 /// 4. `open → half_open`: dopo cooldown_ms
 /// 5. `half_open`: un solo task come probe
 /// 6. probe success → `closed`; probe failure → `open` con cooldown raddoppiato
-///    (max 300_000ms)
+///    (max 60_000ms)
 ///
 /// Job con < 5 task: circuit breaker disabilitato (§17.3).
 public actor CircuitBreaker {
@@ -51,9 +51,10 @@ public actor CircuitBreaker {
     private let delegate: CircuitBreakerDelegate?
 
     public static let defaultCooldownMs = 30_000
-    public static let maxCooldownMs = 300_000
+    public static let maxCooldownMs = 60_000
     public static let minTasksForActivation = 5
     public static let maxProbeFailuresBeforeAbort = 3
+    public static let probeTimeoutMs = 15_000
 
     private(set) var totalTrips: Int = 0
     private(set) var totalRecoveries: Int = 0
@@ -113,8 +114,18 @@ public actor CircuitBreaker {
     }
 
     /// `true` se si può dispatchare un singolo probe task.
+    /// Se il probe ha superato `probeTimeoutMs`, tratta come fallimento
+    /// e torna in open per evitare stallo indefinito in half-open.
     public var canDispatchProbe: Bool {
-        internalState.state == .halfOpen
+        guard internalState.state == .halfOpen else { return false }
+        // Safety: se half-open dura troppo, il probe è appeso → fallback a open
+        if let trippedAt = internalState.trippedAt {
+            let elapsed = Date().timeIntervalSince(trippedAt) * 1000
+            if elapsed >= Double(Self.probeTimeoutMs) {
+                return false
+            }
+        }
+        return true
     }
 
     /// `true` se il CB è disabilitato (< 5 task).
@@ -237,6 +248,33 @@ public actor CircuitBreaker {
         if elapsed >= Double(internalState.cooldownMs) {
             internalState.state = .halfOpen
             return .cooldownExpired
+        }
+
+        return .noChange
+    }
+
+    /// Verifica se il probe in half-open è scaduto (§17.1 safety).
+    /// Se half-open dura più di `probeTimeoutMs`, tratta come fallimento
+    /// e transiziona back to open con cooldown raddoppiato.
+    public func checkProbeTimeout(now: Date = Date()) -> CircuitBreakerTransition {
+        guard internalState.state == .halfOpen,
+              let trippedAt = internalState.trippedAt
+        else {
+            return .noChange
+        }
+
+        let elapsed = now.timeIntervalSince(trippedAt) * 1000
+        if elapsed >= Double(Self.probeTimeoutMs) {
+            let newCooldown = min(
+                internalState.cooldownMs * 2,
+                Self.maxCooldownMs
+            )
+            internalState.state = .open
+            internalState.trippedAt = now
+            internalState.cooldownMs = newCooldown
+            internalState.probesSinceHalfOpen += 1
+            totalProbeAttempts += 1
+            return .probeFailed(newCooldownMs: newCooldown)
         }
 
         return .noChange

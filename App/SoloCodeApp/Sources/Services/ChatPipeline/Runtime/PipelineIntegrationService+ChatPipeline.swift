@@ -115,6 +115,7 @@ extension PipelineIntegrationService {
             plan: nil,
             output: nil
         )
+        let rustStartTime = CFAbsoluteTimeGetCurrent()
         guard let response = RustMainChatStoreAdapter.applyPipelineEvents(
             events,
             to: chatStore,
@@ -126,6 +127,10 @@ extension PipelineIntegrationService {
             collapsedArtifactsByTurn: [:],
             preserveLocalMessages: false
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
+            let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - rustStartTime) * 1000)
+            if elapsedMs > 100 {
+                NSLog("[PipelineIntegrationService] Rust batch boundary took %dms (>100ms threshold), events=%d", elapsedMs, events.count)
+            }
             if events.count == 1 {
                 return applyPipelineEventThroughRustBoundary(
                     events[0],
@@ -134,6 +139,10 @@ extension PipelineIntegrationService {
                 )
             }
             return false
+        }
+        let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - rustStartTime) * 1000)
+        if elapsedMs > 100 {
+            NSLog("[PipelineIntegrationService] Rust batch boundary took %dms (>100ms threshold), events=%d", elapsedMs, events.count)
         }
         runtime.chatTurnState = nextState
         return true
@@ -151,6 +160,7 @@ extension PipelineIntegrationService {
             plan: nil,
             output: nil
         )
+        let rustStartTime = CFAbsoluteTimeGetCurrent()
         guard let response = RustMainChatStoreAdapter.applyPipelineEvent(
             event,
             to: chatStore,
@@ -163,6 +173,10 @@ extension PipelineIntegrationService {
             preserveLocalMessages: false
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
             return false
+        }
+        let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - rustStartTime) * 1000)
+        if elapsedMs > 100 {
+            NSLog("[PipelineIntegrationService] Rust single-event boundary took %dms (>100ms threshold), kind=%@", elapsedMs, event.kind.rawValue)
         }
         runtime.chatTurnState = nextState
         return true
@@ -206,6 +220,19 @@ extension PipelineIntegrationService {
                     payload: mergedPayload,
                     timestamp: event.timestamp
                 )
+            case .reasoningDelta:
+                var mergedPayload = last.payload
+                mergedPayload["delta"] = (last.payload["delta"] ?? "") + (event.payload["delta"] ?? "")
+                coalesced[coalesced.count - 1] = ChatPipelineEvent(
+                    conversationId: last.conversationId,
+                    assistantMessageId: last.assistantMessageId,
+                    turnId: last.turnId,
+                    sequence: last.sequence,
+                    source: last.source,
+                    kind: last.kind,
+                    payload: mergedPayload,
+                    timestamp: event.timestamp
+                )
             default:
                 coalesced.append(event)
             }
@@ -224,7 +251,7 @@ extension PipelineIntegrationService {
               event.kind == previous.kind else { return false }
 
         switch event.kind {
-        case .textDelta, .textReplace:
+        case .textDelta, .textReplace, .reasoningDelta:
             return event.payload["stream_id"] == previous.payload["stream_id"]
                 && event.payload["task_id"] == previous.payload["task_id"]
         default:

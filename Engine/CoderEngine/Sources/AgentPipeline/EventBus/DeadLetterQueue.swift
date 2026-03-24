@@ -94,6 +94,8 @@ public actor DeadLetterQueue {
     private var entries: [DeadLetterEntry] = []
     private var alertHandler: DLQAlertHandler?
     private var alertsFired: Int = 0
+    private var lastAlertFiredAt: Date?
+    private let alertDebounceIntervalMs: Int = 5_000
 
     // MARK: - Metrics
 
@@ -120,6 +122,7 @@ public actor DeadLetterQueue {
         reason: DeadLetterReason
     ) async {
         if entries.count >= capacity {
+            NSLog("[DeadLetterQueue] evicting oldest entry (FIFO) – no severity field available for priority-based eviction. eventId=%@", entries.first?.event.eventId ?? "unknown")
             entries.removeFirst()
             totalEvicted += 1
         }
@@ -148,6 +151,12 @@ public actor DeadLetterQueue {
     }
 
     private func fireAlert() async {
+        let now = Date()
+        if let last = lastAlertFiredAt,
+           now.timeIntervalSince(last) * 1000 < Double(alertDebounceIntervalMs) {
+            return
+        }
+        lastAlertFiredAt = now
         alertsFired += 1
         let alert = DLQAlert(
             currentSize: entries.count,

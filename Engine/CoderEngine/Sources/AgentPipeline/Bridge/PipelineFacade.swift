@@ -15,17 +15,20 @@ public struct PipelineFacadeConfig: Sendable {
     public let completionTimeoutMs: Int
     public let maxDeliveryAttempts: Int
     public let dlqCapacity: Int
+    public let assemblyTimeoutMs: Int
 
     public init(
         tickIntervalMs: Int = 100,
         completionTimeoutMs: Int = 5000,
         maxDeliveryAttempts: Int = 3,
-        dlqCapacity: Int = 1000
+        dlqCapacity: Int = 1000,
+        assemblyTimeoutMs: Int = 30_000
     ) {
         self.tickIntervalMs = tickIntervalMs
         self.completionTimeoutMs = completionTimeoutMs
         self.maxDeliveryAttempts = maxDeliveryAttempts
         self.dlqCapacity = dlqCapacity
+        self.assemblyTimeoutMs = assemblyTimeoutMs
     }
 }
 
@@ -93,12 +96,29 @@ public actor PipelineFacade {
                     try await self.guardNotRunning(jobId: jobId)
                     try job.validate()
                     for t in tasks { try t.validate() }
-                    components = try await self.buildComponents(
-                        job: job,
-                        tasks: tasks,
-                        facadeConfig: facadeConfig,
-                        workerAdapter: workerAdapter
-                    )
+                    let timeoutNs = UInt64(facadeConfig.assemblyTimeoutMs) * 1_000_000
+                    components = try await withThrowingTaskGroup(of: PipelineComponents?.self) { group in
+                        group.addTask {
+                            try await self.buildComponents(
+                                job: job,
+                                tasks: tasks,
+                                facadeConfig: facadeConfig,
+                                workerAdapter: workerAdapter
+                            )
+                        }
+                        group.addTask {
+                            try await Task.sleep(nanoseconds: timeoutNs)
+                            return nil
+                        }
+                        for try await result in group {
+                            if let built = result {
+                                group.cancelAll()
+                                return built
+                            }
+                        }
+                        group.cancelAll()
+                        throw PipelineFacadeError.jobValidationFailed("Component assembly timed out after \(facadeConfig.assemblyTimeoutMs)ms")
+                    }
                 } catch {
                     await self.clearRunning(jobId: jobId)
                     let reason = self.failureReason(for: error)
@@ -166,6 +186,9 @@ public actor PipelineFacade {
         runningTask?.cancel()
         await runningOrchestrator?.stop()
         await runningWorkerPool?.shutdownAndWait()
+        if let task = runningTask {
+            await task.value
+        }
         runningJobId = nil
     }
 

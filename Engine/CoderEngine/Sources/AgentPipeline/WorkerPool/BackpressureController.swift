@@ -43,6 +43,8 @@ public actor BackpressureController {
     private var activeSignals: Set<BackpressureSignal> = []
     private var policies: [BackpressureSignal: BackpressurePolicy]
     private var signalHistory: [(signal: BackpressureSignal, activated: Bool, timestamp: Date)] = []
+    private let maxSignalHistorySize: Int = 1000
+    private let autoDeactivateTimeoutMs: Int = 300_000
 
     /// Quante volte è stato attivato backpressure in totale.
     private(set) var totalActivations: Int = 0
@@ -59,6 +61,7 @@ public actor BackpressureController {
         if isNew {
             totalActivations += 1
             signalHistory.append((signal, true, Date()))
+            trimSignalHistoryIfNeeded()
         }
     }
 
@@ -67,6 +70,7 @@ public actor BackpressureController {
         let removed = activeSignals.remove(signal)
         if removed != nil {
             signalHistory.append((signal, false, Date()))
+            trimSignalHistoryIfNeeded()
         }
     }
 
@@ -106,6 +110,39 @@ public actor BackpressureController {
     /// Effective max workers tenendo conto della backpressure.
     public func effectiveMaxWorkers(base: Int) -> Int {
         max(1, base - totalWorkerReduction)
+    }
+
+    // MARK: - History Maintenance
+
+    /// Mantiene signalHistory entro il limite massimo.
+    private func trimSignalHistoryIfNeeded() {
+        if signalHistory.count > maxSignalHistorySize {
+            let excess = signalHistory.count - maxSignalHistorySize
+            signalHistory.removeFirst(excess)
+        }
+    }
+
+    /// Disattiva segnali rimasti attivi oltre il timeout (segnali bloccati).
+    public func pruneStaleSignals() {
+        let now = Date()
+        let timeoutSeconds = Double(autoDeactivateTimeoutMs) / 1000.0
+        var staleSignals: [BackpressureSignal] = []
+
+        for signal in activeSignals {
+            // Trova l'ultima attivazione per questo segnale
+            if let lastActivation = signalHistory.last(where: { $0.signal == signal && $0.activated }) {
+                if now.timeIntervalSince(lastActivation.timestamp) > timeoutSeconds {
+                    staleSignals.append(signal)
+                }
+            }
+        }
+
+        for signal in staleSignals {
+            NSLog("[BackpressureController] auto-deactivating stale signal: %@", signal.rawValue)
+            activeSignals.remove(signal)
+            signalHistory.append((signal, false, now))
+            trimSignalHistoryIfNeeded()
+        }
     }
 
     // MARK: - Reset

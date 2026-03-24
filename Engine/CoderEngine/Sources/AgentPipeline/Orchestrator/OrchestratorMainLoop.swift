@@ -6,13 +6,16 @@ import Foundation
 public struct OrchestratorConfig: Sendable {
     public let tickIntervalMs: Int
     public let completionTimeoutMs: Int
+    public let lockTimeoutMs: Int
 
     public init(
         tickIntervalMs: Int = 100,
-        completionTimeoutMs: Int = 5000
+        completionTimeoutMs: Int = 5000,
+        lockTimeoutMs: Int = 10_000
     ) {
         self.tickIntervalMs = tickIntervalMs
         self.completionTimeoutMs = completionTimeoutMs
+        self.lockTimeoutMs = lockTimeoutMs
     }
 }
 
@@ -52,6 +55,7 @@ public actor OrchestratorMainLoop {
     private var isRunning = false
     var consecutiveFailures: Int = 0
     private(set) var tickCount: UInt64 = 0
+    private var taskStartTimes: [String: Date] = [:]
 
     public init(
         stateMachine: JobStateMachine,
@@ -128,8 +132,12 @@ public actor OrchestratorMainLoop {
         // 3. Collect risultati
         let results = await workerPool.collectResults()
         for result in results {
+            taskStartTimes.removeValue(forKey: result.taskId)
             await handleResult(result, job: job)
         }
+
+        // 3b. Enforce task-level timeout
+        await enforceTaskTimeouts(job: job)
 
         // 4. Check tutti i task terminali
         let allDone = await scheduler.allTasksTerminal
@@ -223,6 +231,34 @@ public actor OrchestratorMainLoop {
             } catch {
                 NSLog("[OrchestratorMainLoop] advanceToFinalized transition to %@ failed: %@", "\(target)", "\(error)")
                 break
+            }
+        }
+    }
+
+    /// Registra l'avvio di un task per il timeout tracking.
+    func trackTaskStart(_ taskId: String) {
+        taskStartTimes[taskId] = Date()
+    }
+
+    /// Controlla e marca come failed i task che superano il timeout individuale.
+    private func enforceTaskTimeouts(job: PipelineJob) async {
+        let taskCount = await scheduler.taskCount
+        guard taskCount > 0 else { return }
+        let perTaskTimeoutMs = max(job.jobTimeoutMs / taskCount, 30_000)
+        let now = Date()
+
+        for (taskId, startTime) in taskStartTimes {
+            let elapsedMs = Int(now.timeIntervalSince(startTime) * 1000)
+            if elapsedMs > perTaskTimeoutMs {
+                NSLog("[OrchestratorMainLoop] Task %@ exceeded per-task timeout (%dms > %dms)", taskId, elapsedMs, perTaskTimeoutMs)
+                await emitEvent(
+                    type: .taskFailed,
+                    jobId: job.jobId,
+                    taskId: taskId,
+                    payload: ["error": "Task timeout exceeded (\(elapsedMs)ms > \(perTaskTimeoutMs)ms)"]
+                )
+                await scheduler.updateTaskStatus(taskId, status: .failed)
+                taskStartTimes.removeValue(forKey: taskId)
             }
         }
     }

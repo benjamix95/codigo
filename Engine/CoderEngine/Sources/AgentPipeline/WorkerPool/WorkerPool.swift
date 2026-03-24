@@ -65,6 +65,7 @@ public actor WorkerPool {
     private var runningWorkerTasks: [String: Task<Void, Never>] = [:]
     private var pendingResults: [WorkerTaskResult] = []
     private let backpressure: BackpressureController?
+    private let taskTimeoutMs: UInt64 = 120_000
 
     public weak var delegate: WorkerPoolDelegate?
 
@@ -139,9 +140,36 @@ public actor WorkerPool {
         activeTasks.insert(taskId)
         totalDispatched += 1
 
+        let capturedTaskId = taskId
+        let capturedAgentName = agentName
+        let capturedAgentRole = agentRole
+        let capturedProviderId = providerId
+        let timeoutNs = taskTimeoutMs * 1_000_000
+
         let workerTask = Task { [weak self] in
-            let result = await work()
-            await self?.handleCompletion(result)
+            guard let self else {
+                NSLog("[WorkerPool] self deallocated before task %@ could run", capturedTaskId)
+                return
+            }
+
+            let result: WorkerTaskResult = await withTaskGroup(of: WorkerTaskResult.self) { group in
+                group.addTask { await work() }
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: timeoutNs)
+                    return WorkerTaskResult(
+                        taskId: capturedTaskId,
+                        agentName: capturedAgentName,
+                        agentRole: capturedAgentRole,
+                        success: false,
+                        error: "Worker task timed out after \(timeoutNs / 1_000_000)ms",
+                        providerId: capturedProviderId
+                    )
+                }
+                let first = await group.next()!
+                group.cancelAll()
+                return first
+            }
+            await self.handleCompletion(result)
         }
         runningWorkerTasks[taskId] = workerTask
     }
@@ -184,6 +212,18 @@ public actor WorkerPool {
         totalCompleted = 0
         totalFailed = 0
         isShutdown = false
+    }
+
+    // MARK: - Cancel All
+
+    /// Cancella tutti i task in esecuzione e libera gli slot.
+    public func cancelAll() {
+        for (taskId, task) in runningWorkerTasks {
+            NSLog("[WorkerPool] cancelAll: cancelling task %@", taskId)
+            task.cancel()
+        }
+        activeTasks.removeAll()
+        runningWorkerTasks.removeAll()
     }
 
     // MARK: - Private

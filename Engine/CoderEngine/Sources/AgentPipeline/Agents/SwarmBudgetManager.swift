@@ -12,6 +12,7 @@ public actor SwarmBudgetManager {
     private var activeByTaskAndRole: [String: [AgentRole: Int]] = [:]
     private var totalActive: Int = 0
     private var activeByProvider: [String: Int] = [:]
+    private var cachedMultipliers: [String: Double] = [:]
 
     // MARK: - Metrics
 
@@ -67,7 +68,13 @@ public actor SwarmBudgetManager {
         totalReservations += 1
 
         if config.adaptive {
-            let multiplier = adaptiveMultiplier(for: task)
+            let multiplier: Double
+            if let cached = cachedMultipliers[task.taskId] {
+                multiplier = cached
+            } else {
+                multiplier = adaptiveMultiplier(for: task)
+                cachedMultipliers[task.taskId] = multiplier
+            }
             if multiplier > 1.0 {
                 adaptiveScaleUpCount += 1
             } else if multiplier < 1.0 {
@@ -112,7 +119,7 @@ public actor SwarmBudgetManager {
             return base
         }
 
-        let multiplier = adaptiveMultiplier(for: task)
+        let multiplier = cachedMultipliers[task.taskId] ?? adaptiveMultiplier(for: task)
         return max(1, Int((Double(base) * multiplier).rounded()))
     }
 
@@ -147,6 +154,7 @@ public actor SwarmBudgetManager {
     public func reset() {
         activeByTaskAndRole.removeAll()
         activeByProvider.removeAll()
+        cachedMultipliers.removeAll()
         totalActive = 0
         totalReservations = 0
         totalRejections = 0

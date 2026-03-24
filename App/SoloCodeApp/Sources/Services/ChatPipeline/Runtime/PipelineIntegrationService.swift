@@ -113,6 +113,7 @@ final class PipelineIntegrationService: ObservableObject {
                     self.cancelCurrentJob(for: conversationId)
                     break
                 }
+                guard !Task.isCancelled else { break }
                 self.handleEvent(event, for: conversationId)
             }
             self.finalizeExecution(for: conversationId)
@@ -130,13 +131,16 @@ final class PipelineIntegrationService: ObservableObject {
         runtime.activeStreamTask?.cancel()
         runtime.activeStreamTask = nil
 
+        // Complete teardown synchronously first
+        self.completeTeardown(
+            runtime,
+            for: conversationId,
+            completionContext: self.completionContext(for: runtime, conversationId: conversationId)
+        )
+
+        // Then fire-and-forget facade cancel
         Task { @MainActor in
             await runtime.facade.cancel()
-            self.completeTeardown(
-                runtime,
-                for: conversationId,
-                completionContext: self.completionContext(for: runtime, conversationId: conversationId)
-            )
         }
         return true
     }

@@ -19,15 +19,27 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
     private let eventBus: EventBus
     private let jobId: String
     private let sequencer = SequenceGenerator()
+    private var isShutdown = false
 
     public init(eventBus: EventBus, jobId: String) {
         self.eventBus = eventBus
         self.jobId = jobId
     }
 
+    // MARK: - Lifecycle
+
+    /// Arresta il bridge: tutte le publish successive vengono ignorate.
+    public func shutdown() {
+        isShutdown = true
+    }
+
     // MARK: - Private Helpers
 
     private func publishOrLog(_ event: EventBusEvent, taskId: String) async {
+        guard !isShutdown else {
+            NSLog("[AgentWorkerEventBridge] publish skipped (bridge shutdown), eventType=%@, taskId=%@", "\(event.type)", taskId)
+            return
+        }
         do {
             try await eventBus.publish(event)
         } catch let error as EventBusError {
@@ -35,12 +47,12 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
             case .duplicateIdempotencyKey:
                 break
             case .busShutdown:
-                NSLog("[AgentWorkerEventBridge] publish skipped (bus shutdown), taskId=%@", taskId)
+                NSLog("[AgentWorkerEventBridge] publish skipped (bus shutdown), eventType=%@, taskId=%@", "\(event.type)", taskId)
             case .invalidEvent(let reason):
-                NSLog("[AgentWorkerEventBridge] publish failed (invalid event): %@, taskId=%@", reason, taskId)
+                NSLog("[AgentWorkerEventBridge] publish failed (invalid event): %@, eventType=%@, taskId=%@", reason, "\(event.type)", taskId)
             }
         } catch {
-            NSLog("[AgentWorkerEventBridge] publish failed: %@, taskId=%@", "\(error)", taskId)
+            NSLog("[AgentWorkerEventBridge] publish failed: %@, eventType=%@, taskId=%@", "\(error)", "\(event.type)", taskId)
         }
     }
 

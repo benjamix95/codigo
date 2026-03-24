@@ -105,6 +105,7 @@ public actor ProviderHealthChecker {
 
         if oldStatus != newStatus {
             totalStatusChanges += 1
+            NSLog("[ProviderHealthChecker] Provider %@ health changed: %@ -> %@", providerId, "\(oldStatus)", "\(newStatus)")
             await notificationDelegate?.onProviderHealthChanged(
                 providerId: providerId,
                 oldStatus: oldStatus,
@@ -194,11 +195,15 @@ public actor ProviderHealthChecker {
 
     // MARK: - Query
 
-    /// Stato corrente di un provider.
+    /// Stato corrente di un provider (restituisce copia value-type).
     public func state(
         for providerId: String
     ) -> ProviderHealthState? {
-        providerStates[providerId]
+        guard let snapshot = providerStates[providerId] else {
+            return nil
+        }
+        // ProviderHealthState è struct → copia implicita, sicura per letture concorrenti
+        return snapshot
     }
 
     /// Tutti gli stati dei provider.

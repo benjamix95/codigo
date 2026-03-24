@@ -25,6 +25,9 @@ public actor DagScheduler {
     private var readyTaskIDs: Set<String> = []
     private var statusCounts: [TaskStatus: Int] = [:]
     private let priorityCalculator: PriorityCalculator
+    private let maxRetryTimeoutMs: Int = 60_000
+    private let maxRetryCount: Int = 3
+    private var retryCountByTask: [String: Int] = [:]
 
     public init(priorityCalculator: PriorityCalculator = PriorityCalculator()) {
         self.priorityCalculator = priorityCalculator
@@ -65,8 +68,23 @@ public actor DagScheduler {
     }
 
     /// Incrementa i tentativi di un task e lo rimette in pending.
+    /// Se superato maxRetryCount, marca il task come .failed.
     public func scheduleRetry(_ taskId: String, delayMs: Int = 0) {
         guard var task = tasks[taskId] else { return }
+
+        retryCountByTask[taskId, default: 0] += 1
+        let retries = retryCountByTask[taskId, default: 0]
+
+        if retries > maxRetryCount {
+            NSLog("[DagScheduler] task %@ exceeded max retries (%d), marking failed", taskId, maxRetryCount)
+            adjustStatusCounts(from: task.status, to: .failed)
+            task.status = .failed
+            tasks[taskId] = task
+            refreshReadyState(for: taskId)
+            refreshDependents(of: taskId)
+            return
+        }
+
         task.attempts += 1
         adjustStatusCounts(from: task.status, to: .pending)
         task.status = .pending
@@ -205,6 +223,21 @@ public actor DagScheduler {
         }
     }
 
+    // MARK: - Timeout
+
+    /// Controlla task in attesa troppo a lungo e li marca come .failed.
+    public func timeoutStaleTasks(now: Date = Date()) {
+        let timeoutInterval = Double(maxRetryTimeoutMs) / 1000.0
+        for (taskId, task) in tasks {
+            guard task.status == .pending,
+                  let waitingSince = task.waitingSince else { continue }
+            if now.timeIntervalSince(waitingSince) > timeoutInterval {
+                NSLog("[DagScheduler] task %@ timed out (waiting since %@), marking failed", taskId, "\(waitingSince)")
+                updateTaskStatus(taskId, status: .failed)
+            }
+        }
+    }
+
     // MARK: - Reset
 
     public func reset() {
@@ -212,6 +245,7 @@ public actor DagScheduler {
         dependentsByTask.removeAll()
         readyTaskIDs.removeAll()
         statusCounts.removeAll()
+        retryCountByTask.removeAll()
     }
 
     // MARK: - Private

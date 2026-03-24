@@ -28,11 +28,25 @@ extension OrchestratorMainLoop {
             guard hasCapacity else { continue }
 
             let scope = LockScope(from: task)
-            let lockAcquired = await lockManager.acquire(
-                scope: scope,
-                taskId: task.taskId
-            )
+            let lockTimeoutMs = config.lockTimeoutMs
+            let capturedTaskId = task.taskId
+            let lockAcquired: Bool = await withTaskGroup(of: Bool.self) { group in
+                group.addTask {
+                    await self.lockManager.acquire(
+                        scope: scope,
+                        taskId: capturedTaskId
+                    )
+                }
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: UInt64(lockTimeoutMs) * 1_000_000)
+                    return false
+                }
+                let first = await group.next()!
+                group.cancelAll()
+                return first
+            }
             guard lockAcquired else {
+                NSLog("[OrchestratorMainLoop] Lock acquisition timed out for task %@ after %dms, skipping this tick", task.taskId, lockTimeoutMs)
                 await scheduler.markWaiting(task.taskId)
                 continue
             }
@@ -83,6 +97,7 @@ extension OrchestratorMainLoop {
                 continue
             }
 
+            trackTaskStart(taskId)
             await emitEvent(
                 type: .taskStarted,
                 jobId: jobId,

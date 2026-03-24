@@ -65,6 +65,9 @@ public actor EventDeliveryManager {
     /// Numero massimo di delivery attempt conservati in memoria.
     public let maxAttemptLogEntries: Int
 
+    /// Timeout in millisecondi per singola delivery.
+    public let deliveryTimeoutMs: UInt64
+
     // MARK: - State
 
     private var pendingRecords: [String: DeliveryRecord] = [:]
@@ -84,12 +87,14 @@ public actor EventDeliveryManager {
         baseDelayMs: UInt64 = 100,
         maxDelayMs: UInt64 = 5000,
         maxAttemptLogEntries: Int = 500,
+        deliveryTimeoutMs: UInt64 = 30_000,
         deadLetterQueue: DeadLetterQueue
     ) {
         self.maxAttempts = max(1, maxAttempts)
         self.baseDelayMs = baseDelayMs
         self.maxDelayMs = maxDelayMs
         self.maxAttemptLogEntries = max(1, maxAttemptLogEntries)
+        self.deliveryTimeoutMs = deliveryTimeoutMs
         self.deadLetterQueue = deadLetterQueue
     }
 
@@ -148,6 +153,36 @@ public actor EventDeliveryManager {
         }
     }
 
+    /// Wrappa attemptDelivery con un timeout per evitare handler bloccati.
+    private func deliverWithTimeout(
+        event: EventBusEvent,
+        to subscription: EventSubscription,
+        attemptNumber: Int
+    ) async -> Bool {
+        let timeoutNs = deliveryTimeoutMs * 1_000_000
+        do {
+            return try await withThrowingTaskGroup(of: Bool.self) { group in
+                group.addTask {
+                    await self.attemptDelivery(
+                        event: event,
+                        to: subscription,
+                        attemptNumber: attemptNumber
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: timeoutNs)
+                    return false
+                }
+                // Il primo a completare vince; l'altro viene cancellato.
+                let result = try await group.next() ?? false
+                group.cancelAll()
+                return result
+            }
+        } catch {
+            return false
+        }
+    }
+
     private func processDelivery(recordKey: String) async {
         defer { deliveryTasks.removeValue(forKey: recordKey) }
         guard var record = pendingRecords[recordKey] else { return }
@@ -162,7 +197,7 @@ public actor EventDeliveryManager {
             record.lastAttemptAt = Date()
             pendingRecords[recordKey] = record
 
-            let success = await attemptDelivery(
+            let success = await deliverWithTimeout(
                 event: record.event,
                 to: record.subscription,
                 attemptNumber: attemptNumber
@@ -207,11 +242,11 @@ public actor EventDeliveryManager {
 
     // MARK: - Backoff
 
-    /// Exponential backoff con jitter randomizzato (§5.11).
+    /// Exponential backoff con jitter deterministico (§5.11).
     /// `delay = min(base * 2^attempt + jitter, maxDelay)`
     func calculateBackoff(attempt: Int) -> UInt64 {
         let exponential = baseDelayMs * (1 << UInt64(attempt - 1))
-        let jitter = UInt64.random(in: 0...min(exponential, 500))
+        let jitter = UInt64((attempt * 37) % Int(min(exponential + 1, 500)))
         return min(exponential + jitter, maxDelayMs)
     }
 

@@ -1,6 +1,15 @@
 import CoderEngine
 import Foundation
 
+// MARK: - Raw Event Type Constants
+
+private enum RawEventType {
+    static let todoWrite = "todo_write"
+    static let planStep = "plan_step"
+    static let showTaskPanel = "show_task_panel"
+    static let assistantUpdate = "assistant_update"
+}
+
 extension PipelineIntegrationService {
 
     // MARK: - Raw Events
@@ -21,7 +30,7 @@ extension PipelineIntegrationService {
         )
         consumeRawPipelineArtifacts(rawType: rawType, payload: p.payload, for: conversationId)
 
-        if rawType == "todo_write" || p.payload.keys.contains(where: {
+        if rawType == RawEventType.todoWrite || p.payload.keys.contains(where: {
             $0.hasPrefix("todo_")
         }) {
             handleRawTodoWrite(p, for: conversationId)
@@ -31,9 +40,9 @@ extension PipelineIntegrationService {
                 normalizedEnvelope: normalizedEnvelope,
                 for: conversationId
             )
-        } else if rawType == "plan_step" {
+        } else if rawType == RawEventType.planStep {
             handleRawPlanStep(p, for: conversationId)
-        } else if rawType == "show_task_panel" {
+        } else if rawType == RawEventType.showTaskPanel {
             chatStore?.setTaskStatus(
                 p.payload["status"] ?? "Working...",
                 for: conversationId
@@ -51,7 +60,7 @@ extension PipelineIntegrationService {
         providerId: String,
         conversationId: UUID
     ) {
-        guard rawEvent.rawType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "assistant_update",
+        guard rawEvent.rawType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == RawEventType.assistantUpdate,
               let runtime = runtime(for: conversationId)
         else { return }
         let status = runtime.chatTurnState.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -106,10 +115,14 @@ extension PipelineIntegrationService {
 
     private func handleRawTodoWrite(_ p: RawEventPayload, for conversationId: UUID) {
         guard let todoStore, let runtime = runtime(for: conversationId) else { return }
-        let normalizedEvents = EventNormalizer.normalizeTodoWrite(
+        let normalizedResult = EventNormalizer.normalizeTodoWrite(
             payload: p.payload,
             timestamp: .now
-        ) ?? []
+        )
+        if normalizedResult == nil {
+            NSLog("[PipelineIntegration] normalizeTodoWrite returned nil for payload keys: %@", p.payload.keys.joined(separator: ", "))
+        }
+        let normalizedEvents = normalizedResult ?? []
         let parsedTodos = normalizedEvents.compactMap { event -> TodoWritePayload? in
             if case .todoWrite(let todo) = event {
                 return todo
@@ -140,6 +153,9 @@ extension PipelineIntegrationService {
                         linkedFiles: todo.files,
                         conversationId: planId
                     )
+                }
+                if !updated {
+                    NSLog("[PipelineIntegration] todo upsert failed for title: %@", todo.title)
                 }
                 if updated, todo.status == .done {
                     _ = todoStore.advanceNextCanonicalTodoIfNeeded(

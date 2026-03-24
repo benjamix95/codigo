@@ -118,10 +118,12 @@ final class PipelineConversationRuntime {
 
     @discardableResult
     func beginTeardownIfNeeded() -> Bool {
+        let oldState = teardownState
         switch teardownState {
         case .running:
             teardownState = .finalizing
             isRunning = false
+            NSLog("[PipelineRuntime] teardown %@ -> %@", "\(oldState)", "\(teardownState)")
             return true
         case .finalizing, .finished:
             return false
@@ -129,7 +131,10 @@ final class PipelineConversationRuntime {
     }
 
     func finishTeardown() {
+        guard teardownState == .finalizing else { return }
+        let oldState = teardownState
         teardownState = .finished
+        NSLog("[PipelineRuntime] teardown %@ -> %@", "\(oldState)", "\(teardownState)")
         activeStreamTask = nil
         isRunning = false
     }
