@@ -258,6 +258,46 @@ fn consume_line(
                     .unwrap_or_else(|| "(no type)".to_string());
                 eprintln!("[CLAUDE_DEBUG] message.content[{}] type={}", bi, block_type);
 
+                // Emit tool_finish from tool_result blocks in user messages.
+                // The result carries linesAdded/linesRemoved/output from the
+                // MCP server — we must surface them so the UI cards show +/-.
+                if block_type == "tool_result" && !is_assistant_message {
+                    if let Some(tool_use_id) = block.get("tool_use_id").and_then(string_value) {
+                        let mut result_payload = BTreeMap::new();
+                        result_payload.insert("id".to_string(), tool_use_id);
+                        result_payload.insert("type".to_string(), "tool_finish".to_string());
+                        // Extract text content from the result
+                        let result_text = block
+                            .get("content")
+                            .and_then(|c| {
+                                if let Some(s) = c.as_str() {
+                                    return Some(s.to_string());
+                                }
+                                if let Some(arr) = c.as_array() {
+                                    for item in arr {
+                                        if let Some(t) = item.get("text").and_then(|v| v.as_str()) {
+                                            return Some(t.to_string());
+                                        }
+                                    }
+                                }
+                                None
+                            })
+                            .unwrap_or_default();
+                        // Try to parse result_text as JSON to extract structured fields
+                        if let Ok(result_json) = serde_json::from_str::<serde_json::Value>(&result_text) {
+                            for (k, v) in flatten_string_map(&result_json) {
+                                result_payload.entry(k).or_insert(v);
+                            }
+                        } else if !result_text.is_empty() {
+                            result_payload.insert("output".to_string(), result_text);
+                        }
+                        eprintln!("[CLAUDE_DEBUG] >>> EMITTING tool_finish id={} keys={:?}",
+                            result_payload.get("id").cloned().unwrap_or_default(),
+                            result_payload.keys().cloned().collect::<Vec<_>>());
+                        emit_raw(session_id, "tool_finish", result_payload);
+                    }
+                }
+
                 if block_type == "text" && is_assistant_message {
                     // Skip final message text blocks if streaming already
                     // provided the text — avoids double-appending.

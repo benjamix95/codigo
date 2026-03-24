@@ -166,6 +166,29 @@ final class ToolTraceStore: ObservableObject {
         return (bytes?.intValue ?? 0) > 0
     }
 
+    /// Merge additional payload keys into the most recent event whose `payload["id"]`
+    /// matches the given `toolUseId`. Used to attach tool results (linesAdded, output, etc.)
+    /// to the card created by the initial tool_use event.
+    func mergeResultIntoLastEvent(
+        toolUseId: String,
+        conversationId: UUID,
+        assistantMessageId: UUID,
+        resultPayload: [String: String]
+    ) {
+        let key = TraceKey(conversationId: conversationId, assistantMessageId: assistantMessageId)
+        var events = loadIfNeeded(for: key)
+        guard let idx = events.lastIndex(where: { $0.payload["id"] == toolUseId }) else { return }
+        for (k, v) in resultPayload {
+            // Don't overwrite fields already set by the tool_use input
+            if events[idx].payload[k] == nil || events[idx].payload[k]?.isEmpty == true {
+                events[idx].payload[k] = v
+            }
+        }
+        events[idx].isRunning = false
+        objectWillChange.send()
+        cache[key] = events
+    }
+
     func finalizeTurn(conversationId _: UUID, assistantMessageId _: UUID) {
         // Intentionally no-op: traces are persisted incrementally on every append.
     }

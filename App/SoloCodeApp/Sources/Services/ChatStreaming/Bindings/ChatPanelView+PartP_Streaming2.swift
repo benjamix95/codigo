@@ -384,6 +384,19 @@ extension ChatPanelView {
         {
             mainChatTraceLog("assistant_update kept_internal chars=\(output.count)")
         }
+        // Handle tool_finish: merge result payload into the existing tool trace
+        // card so that linesAdded/linesRemoved/output appear in the inline card.
+        if t == "tool_finish", let toolUseId = p["id"], !toolUseId.isEmpty {
+            if let turn = resolveToolTraceTurn(conversationId: convId, providerId: pid) {
+                toolTraceStore.mergeResultIntoLastEvent(
+                    toolUseId: toolUseId,
+                    conversationId: turn.conversationId,
+                    assistantMessageId: turn.assistantMessageId,
+                    resultPayload: p
+                )
+            }
+            return  // Don't create a separate trace event for tool_finish
+        }
         // Log ALL raw event types to see what the pipeline receives
         if t != "reasoning" && t != "usage" {
             print("[ChatDebug] rawEvent type=\(t) keys=\(p.keys.sorted().joined(separator: ","))")
