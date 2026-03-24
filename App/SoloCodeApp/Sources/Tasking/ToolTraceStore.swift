@@ -178,9 +178,15 @@ final class ToolTraceStore: ObservableObject {
         let key = TraceKey(conversationId: conversationId, assistantMessageId: assistantMessageId)
         var events = loadIfNeeded(for: key)
         guard let idx = events.lastIndex(where: { $0.payload["id"] == toolUseId }) else { return }
+        // Result fields that should always overwrite the tool_use input values.
+        let alwaysOverwrite: Set<String> = [
+            "linesAdded", "linesRemoved", "additions", "deletions",
+            "output", "detail", "status", "stderr",
+        ]
         for (k, v) in resultPayload {
-            // Don't overwrite fields already set by the tool_use input
-            if events[idx].payload[k] == nil || events[idx].payload[k]?.isEmpty == true {
+            if alwaysOverwrite.contains(k) {
+                events[idx].payload[k] = v
+            } else if events[idx].payload[k] == nil || events[idx].payload[k]?.isEmpty == true {
                 events[idx].payload[k] = v
             }
         }

@@ -10,12 +10,11 @@ struct ChatTodoExecutionCardView: View {
     @State private var isExpanded = false
 
     private var orderedItems: [TodoItem] {
+        // Keep original insertion order: sort by planOrder then createdAt.
+        // Completed items stay in place (no status-based reordering).
         items.sorted { lhs, rhs in
             if lhs.planOrder != rhs.planOrder {
                 return (lhs.planOrder ?? .max) < (rhs.planOrder ?? .max)
-            }
-            if lhs.status.rank != rhs.status.rank {
-                return lhs.status.rank < rhs.status.rank
             }
             return lhs.createdAt < rhs.createdAt
         }
