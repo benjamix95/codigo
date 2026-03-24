@@ -234,6 +234,26 @@ final class ChatTodoVisibilityTests: XCTestCase {
         }
     }
 
+    func testTodoPlanStartPolicyAllowsReadOnlyShellInspectionWithoutTodo() {
+        let commands = [
+            "rg ChatPanelView App/SoloCodeApp/Sources",
+            "grep -n todo_write README.md",
+            "git diff --stat",
+            "ls -la",
+            "pwd",
+        ]
+
+        for command in commands {
+            let violation = todoPlanStartPolicyViolation(
+                state: ToolStartRequirementsState(),
+                type: "command_execution",
+                payload: ["command": command]
+            )
+
+            XCTAssertNil(violation, "Expected read-only command to bypass todo-first gating: \(command)")
+        }
+    }
+
     func testTodoPlanStartPolicyAllowsSkillDiscoveryWithoutTodo() {
         let violation = todoPlanStartPolicyViolation(
             state: ToolStartRequirementsState(),

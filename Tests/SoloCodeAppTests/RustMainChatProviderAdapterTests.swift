@@ -3,6 +3,58 @@ import CoderEngine
 @testable import CoderIDE
 
 final class RustMainChatProviderAdapterTests: XCTestCase {
+    func testRuntimeSessionConfigUsesLeanPromptForCodexProvider() {
+        let provider = makeProvider(
+            providerId: "codex-cli",
+            displayName: "Codex",
+            backend: .codexCli
+        )
+
+        let config = provider.runtimeSessionConfig(
+            prompt: "indaga il bug",
+            context: .minimal(),
+            attachments: nil
+        )
+
+        XCTAssertEqual(config.providerId, "codex-cli")
+        XCTAssertEqual(
+            config.systemPrompt,
+            """
+            You are Solo Code running with Codex in the main chat.
+
+            Keep the interaction direct, fast, and fluid.
+            - Start with one short user-facing update before the first tool call.
+            - Investigate first with read/search tools.
+            - For longer multi-step work, use the real todo tool only after the initial investigation.
+            - Do not create todos for trivial tasks that can be completed in 1-2 concrete operations.
+            - Do not emit inline CODERIDE markers in normal prose.
+            - Prefer direct execution over heavy orchestration.
+            - Use `subagent_*` only when workstreams are truly independent or when dedicated review/testing materially improves the result.
+            - Activate plan mode only for genuinely architectural or explicitly requested planning work.
+            - After code changes, verify with the lightest meaningful check available, then summarize outcome clearly.
+            - Follow AGENTS.md and workspace instructions, but do not let policy mechanics dominate the turn.
+            """
+        )
+        XCTAssertFalse(config.systemPrompt?.contains("MINIMUM 3 SUBAGENTS PER COMPLEX TASK") ?? false)
+    }
+
+    func testRuntimeSessionConfigKeepsStrictPromptForClaudeProvider() {
+        let provider = makeProvider(
+            providerId: "claude-cli",
+            displayName: "Claude",
+            backend: .claudeCli
+        )
+
+        let config = provider.runtimeSessionConfig(
+            prompt: "indaga il bug",
+            context: .minimal(),
+            attachments: nil
+        )
+
+        XCTAssertEqual(config.providerId, "claude-cli")
+        XCTAssertEqual(config.systemPrompt, SystemPrompts.taskCompletionStrict)
+    }
+
     func testRustTransportProviderCompletesWhenPollReturnsCompletedSnapshot() async throws {
         let responses = ResponseQueue([
             .init(
@@ -57,16 +109,21 @@ final class RustMainChatProviderAdapterTests: XCTestCase {
         }
     }
 
-    private func makeProvider(polls: ResponseQueue) -> MainChatRustTransportProvider {
+    private func makeProvider(
+        providerId: String = "codex-cli",
+        displayName: String = "Codex",
+        backend: MainChatProviderBackendBridge = .codexCli,
+        polls: ResponseQueue = ResponseQueue([])
+    ) -> MainChatRustTransportProvider {
         MainChatRustTransportProvider(
-            id: "codex-cli",
-            displayName: "Codex",
+            id: providerId,
+            displayName: displayName,
             attachmentCapabilities: .none,
             authenticated: true,
             config: MainChatProviderSessionConfigBridge(
-                providerId: "codex-cli",
-                displayName: "Codex",
-                backend: .codexCli,
+                providerId: providerId,
+                displayName: displayName,
+                backend: backend,
                 workspacePath: "/tmp",
                 workspacePaths: ["/tmp"],
                 prompt: "",

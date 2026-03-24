@@ -2,6 +2,7 @@ import Foundation
 
 enum ToolTraceVisibility {
     private static let hiddenIncludeTypes: Set<String> = [
+        "assistant_update",
         "turn_started",
         "turn_completed",
         "coderide_show_task_panel",
@@ -20,7 +21,6 @@ enum ToolTraceVisibility {
     ])
 
     private static let operationalTypes: Set<String> = [
-        "assistant_update",
         "bash",
         "command_execution",
         "debug_context",

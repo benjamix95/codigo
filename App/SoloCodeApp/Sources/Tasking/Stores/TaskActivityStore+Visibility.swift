@@ -22,7 +22,6 @@ extension TaskActivityStore {
     ]
 
     static let concreteTypes: Set<String> = [
-        "assistant_update",
         "agent",
         "bash",
         "command_execution",
@@ -157,6 +156,11 @@ extension TaskActivityStore {
 
     static func streamingStatusText(isPaused: Bool, activities: [TaskActivity]) -> String {
         if isPaused { return "Paused" }
+        if let latestAssistantUpdate = latestAssistantUpdate(in: activities),
+           latestAssistantUpdate.isRunning,
+           Date().timeIntervalSince(latestAssistantUpdate.timestamp) <= 1.5 {
+            return "Responding"
+        }
         guard let last = lastConcreteNonSwarmActivity(in: activities)
                 ?? lastConcreteVisibleActivity(in: activities) else {
             return "Thinking"
@@ -238,6 +242,11 @@ extension TaskActivityStore {
         activities: [TaskActivity],
         activeOperationsCount: Int
     ) -> String? {
+        if let assistantUpdate = assistantUpdateText(in: activities),
+           !assistantUpdate.isEmpty,
+           lastConcreteVisibleActivity(in: activities) == nil {
+            return assistantUpdate
+        }
         guard let last = lastConcreteVisibleActivity(in: activities) else { return nil }
         if activeOperationsCount > 1 {
             return "\(last.title) • \(activeOperationsCount) operations"
@@ -256,9 +265,7 @@ extension TaskActivityStore {
     }
 
     static func assistantUpdateText(in activities: [TaskActivity]) -> String? {
-        guard let latest = activities.last(where: {
-            normalizedEventType($0.type) == "assistant_update"
-        }) else {
+        guard let latest = latestAssistantUpdate(in: activities) else {
             return nil
         }
 
@@ -278,6 +285,12 @@ extension TaskActivityStore {
         type
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+    }
+
+    private static func latestAssistantUpdate(in activities: [TaskActivity]) -> TaskActivity? {
+        activities.last(where: {
+            normalizedEventType($0.type) == "assistant_update"
+        })
     }
 
     private static func isHiddenGenericType(_ normalizedType: String) -> Bool {

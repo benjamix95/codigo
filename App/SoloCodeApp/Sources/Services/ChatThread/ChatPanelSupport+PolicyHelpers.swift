@@ -232,14 +232,33 @@ func isTodoGatedCommandExecution(payload: [String: String]) -> Bool {
     }
 
     let lower = command.lowercased()
-    if lower.contains("cat ")
-        || lower.contains("sed -n")
-        || lower.contains("head ")
-        || lower.contains("tail ")
-        || lower.contains("less ")
-        || lower.contains("more ")
-        || lower.contains("awk ")
-    {
+    let readOnlyPrefixes = [
+        "cat ",
+        "sed -n",
+        "head ",
+        "tail ",
+        "less ",
+        "more ",
+        "awk ",
+        "rg ",
+        "grep ",
+        "find ",
+        "ls",
+        "pwd",
+        "wc ",
+        "which ",
+        "type ",
+        "file ",
+        "stat ",
+        "plutil ",
+        "readlink ",
+        "test ",
+        "git status",
+        "git diff",
+        "git show",
+        "git log",
+    ]
+    if readOnlyPrefixes.contains(where: { lower.hasPrefix($0) }) {
         return false
     }
 
