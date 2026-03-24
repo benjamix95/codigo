@@ -2,6 +2,12 @@ import AppKit
 import CoderEngine
 import Foundation
 
+extension Notification.Name {
+    static let soloCodeWillTerminateSaveDrafts = Notification.Name(
+        "com.solocode.saveDraftsBeforeTermination"
+    )
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var observers: [NSObjectProtocol] = []
     private static let savedStateFolderNames = [
@@ -27,6 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        NotificationCenter.default.post(
+            name: .soloCodeWillTerminateSaveDrafts,
+            object: nil
+        )
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers.removeAll()
     }

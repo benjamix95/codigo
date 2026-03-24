@@ -150,6 +150,15 @@ struct SoloCodeApp: App {
                 }
                 startCodeReviewCommandLoopIfNeeded()
                 startBugHunterCommandLoopIfNeeded()
+                NotificationCenter.default.addObserver(
+                    forName: .soloCodeWillTerminateSaveDrafts,
+                    object: nil,
+                    queue: .main
+                ) { [chatStore] _ in
+                    MainActor.assumeIsolated {
+                        chatStore.saveDraftsImmediately()
+                    }
+                }
             }
         }
     }

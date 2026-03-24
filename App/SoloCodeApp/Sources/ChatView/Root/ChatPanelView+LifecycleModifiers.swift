@@ -29,6 +29,7 @@ extension ChatPanelView {
                     } else {
                         chatStore.draftTexts[oldId] = inputText
                     }
+                    chatStore.saveDrafts()
                 }
                 inputText = chatStore.draftTexts[newId ?? UUID()] ?? ""
                 if ignoreNextConversationChangeReset {
@@ -69,6 +70,7 @@ extension ChatPanelView {
                 wireTodoPlanBidirectionalSync()
                 if let selectedConversationId {
                     bindRuntimeDebugProjection(for: selectedConversationId)
+                    inputText = chatStore.draftTexts[selectedConversationId] ?? ""
                 }
                 requestInitialComposerFocusIfNeeded()
             }
@@ -209,6 +211,7 @@ extension ChatPanelView {
                     } else {
                         chatStore.draftTexts[cid] = newValue
                     }
+                    chatStore.saveDrafts()
                 }
             }
             .onChangeCompat(of: chatStore.activeTaskConversationIds) { oldSet, newSet in

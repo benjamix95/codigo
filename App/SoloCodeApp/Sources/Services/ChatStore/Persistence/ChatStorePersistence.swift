@@ -3,6 +3,7 @@ import CoderEngine
 
 private let conversationsStorageKey = "CoderIDE.conversations"
 private let planBoardsStorageKey = "CoderIDE.planBoards"
+private let draftsStorageKey = "CoderIDE.draftTexts"
 
 private struct SendableUserDefaults: @unchecked Sendable {
     let value: UserDefaults
@@ -124,6 +125,48 @@ func savePlanBoards() {
             guard let data = try? JSONEncoder().encode(serialized) else { return }
             defaults.value.set(data, forKey: planBoardsStorageKey)
         }
+    }
+}
+
+// MARK: - Draft Persistence
+
+func loadDrafts() {
+    guard let data = userDefaults.data(forKey: draftsStorageKey) else { return }
+    guard let decoded = try? JSONDecoder().decode([String: String].self, from: data) else { return }
+    draftTexts = Dictionary(uniqueKeysWithValues: decoded.compactMap { key, value -> (UUID, String)? in
+        guard let uuid = UUID(uuidString: key) else { return nil }
+        return (uuid, value)
+    })
+}
+
+func saveDrafts() {
+    pendingDraftSaveTask?.cancel()
+    let snapshot = draftTexts
+    pendingDraftSaveTask = Task { [weak self] in
+        try? await Task.sleep(for: .milliseconds(500))
+        guard !Task.isCancelled, let self else { return }
+        let serialized = Dictionary(uniqueKeysWithValues: snapshot.map {
+            ($0.key.uuidString.lowercased(), $0.value)
+        })
+        let defaults = SendableUserDefaults(value: self.userDefaults)
+        Self.persistQueue.async {
+            guard let data = try? JSONEncoder().encode(serialized) else { return }
+            defaults.value.set(data, forKey: draftsStorageKey)
+        }
+    }
+}
+
+func saveDraftsImmediately() {
+    pendingDraftSaveTask?.cancel()
+    pendingDraftSaveTask = nil
+    let snapshot = draftTexts
+    let defaults = SendableUserDefaults(value: self.userDefaults)
+    Self.persistQueue.async {
+        let serialized = snapshot.reduce(into: [String: String]()) {
+            $0[$1.key.uuidString.lowercased()] = $1.value
+        }
+        guard let data = try? JSONEncoder().encode(serialized) else { return }
+        defaults.value.set(data, forKey: draftsStorageKey)
     }
 }
 

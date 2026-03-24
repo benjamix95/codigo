@@ -7,7 +7,7 @@ final class ChatStore: ObservableObject {
 @Published var activeTaskConversationIds: Set<UUID> = []
 @Published var taskStartDates: [UUID: Date] = [:]
 @Published var planBoards: [UUID: PlanBoard] = [:]
-/// In-memory draft text per conversation (not persisted).
+/// Draft text per conversation, persisted to UserDefaults.
 @Published var draftTexts: [UUID: String] = [:]
 /// Live status text per conversation (shown in sidebar thread rows).
 @Published var taskStatusTexts: [UUID: String] = [:]
@@ -17,6 +17,8 @@ let userDefaults: UserDefaults
 var pendingSaveTask: Task<Void, Never>?
 /// Debounce task for coalescing rapid `savePlanBoards()` calls.
 var pendingPlanSaveTask: Task<Void, Never>?
+/// Debounce task for coalescing rapid `saveDrafts()` calls.
+var pendingDraftSaveTask: Task<Void, Never>?
 /// Last shared-state signature per conversation to deduplicate plan snapshot writes.
 var planSharedSyncSignatureByConversation: [UUID: String] = [:]
 /// Guards against async load overwriting more recent saves.
@@ -86,6 +88,7 @@ init(userDefaults: UserDefaults = .standard) {
     self.userDefaults = userDefaults
     loadConversations()
     loadPlanBoards()
+    loadDrafts()
     ensureDefaultConversationIfNeeded()
 }
     static let asyncLoadThreshold = 100_000 // 100 KB

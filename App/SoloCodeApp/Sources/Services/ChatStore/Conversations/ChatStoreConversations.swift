@@ -103,6 +103,7 @@ extension ChatStore {
         }
         planSharedSyncSignatureByConversation.removeValue(forKey: id)
         draftTexts.removeValue(forKey: id)
+        saveDrafts()
         activeTaskConversationIds.remove(id)
         taskStartDates.removeValue(forKey: id)
         taskStatusTexts.removeValue(forKey: id)
