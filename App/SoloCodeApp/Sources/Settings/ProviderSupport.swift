@@ -38,7 +38,8 @@ enum ProviderSupport {
     /// Returns true when provider id identifies a registered, known, and authenticated agent/API provider.
     static func isHealthyAgentProvider(id: String?, registry: ProviderRegistry) -> Bool {
         guard let id, isAgentCompatibleProvider(id: id) else { return false }
-        return isRegisteredProvider(id: id, registry: registry)
+        guard let provider = registry.provider(for: id) else { return false }
+        return provider.isAuthenticated()
     }
 
     /// Deterministic first-available provider, honoring `preferred` if healthy.
