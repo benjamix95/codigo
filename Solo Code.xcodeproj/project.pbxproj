@@ -1548,6 +1548,10 @@
 		DC99F0072EEE9770EB18FCD3 /* DebugProjectionEventConsumerGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657EB909C5DE2FE3FCD35B9E /* DebugProjectionEventConsumerGateTests.swift */; };
 		DCE82A57706AC600746D68C8 /* MCPLifecycleRustBackend+Batch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3B2E64CAA14F8D2CCD6EDD /* MCPLifecycleRustBackend+Batch.swift */; };
 		DCE8E67972254E578B7E9F4B /* SSEBufferLimitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEC89815CF2ED1F08EFFB20 /* SSEBufferLimitTests.swift */; };
+		EE5566778899001122334455 /* SSELineParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1122334455667788990011 /* SSELineParserTests.swift */; };
+		FF6677889900112233445566 /* ProviderRetrySupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB2233445566778899001122 /* ProviderRetrySupportTests.swift */; };
+		A07788990011223344556677 /* EventDeliveryManagerConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3344556677889900112233 /* EventDeliveryManagerConcurrencyTests.swift */; };
+		B08899001122334455667788 /* WorkerPoolSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4455667788990011223344 /* WorkerPoolSafetyTests.swift */; };
 		DD57F6BEFA209438D6E634F4 /* PersistenceBootstrapIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFDEAD3CAD687C3AC20BC592 /* PersistenceBootstrapIntegrationTests.swift */; };
 		DD5FC6C4F256D8B5A33859EE /* CodeReviewPanelStoreState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBDC08E8228ED7F66A1F318A /* CodeReviewPanelStoreState.swift */; };
 		DD87DB060FF5A36FFEEDAF90 /* CodebaseIndex+WorkspaceIndexing.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF08D4657D169FDB1396D4A4 /* CodebaseIndex+WorkspaceIndexing.swift */; };
@@ -3484,6 +3488,10 @@
 		EED3B2E9FAA730094B89E42A /* SwarmProgressStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwarmProgressStore.swift; path = App/SoloCodeApp/Sources/Swarm/SwarmProgressStore.swift; sourceTree = "<group>"; };
 		EEE64120C2C8DB2D88F5B5BB /* GitService+Worktree.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "GitService+Worktree.swift"; path = "App/SoloCodeApp/Sources/Git/Services/GitService+Worktree.swift"; sourceTree = "<group>"; };
 		EEEC89815CF2ED1F08EFFB20 /* SSEBufferLimitTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSEBufferLimitTests.swift; path = Tests/CoderEngineTests/SSEBufferLimitTests.swift; sourceTree = "<group>"; };
+		AA1122334455667788990011 /* SSELineParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSELineParserTests.swift; path = Tests/CoderEngineTests/SSELineParserTests.swift; sourceTree = "<group>"; };
+		BB2233445566778899001122 /* ProviderRetrySupportTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProviderRetrySupportTests.swift; path = Tests/CoderEngineTests/ProviderRetrySupportTests.swift; sourceTree = "<group>"; };
+		CC3344556677889900112233 /* EventDeliveryManagerConcurrencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventDeliveryManagerConcurrencyTests.swift; path = Tests/CoderEngineTests/EventDeliveryManagerConcurrencyTests.swift; sourceTree = "<group>"; };
+		DD4455667788990011223344 /* WorkerPoolSafetyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorkerPoolSafetyTests.swift; path = Tests/CoderEngineTests/WorkerPoolSafetyTests.swift; sourceTree = "<group>"; };
 		EF064694144D7474F6C5A81C /* ValidationResults.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ValidationResults.swift; path = Engine/CoderEngine/Sources/Validation/Core/ValidationResults.swift; sourceTree = "<group>"; };
 		EF40AD33C0690980238D2B8C /* ToolSchemaCatalog+FileTools.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ToolSchemaCatalog+FileTools.swift"; path = "Engine/CoderEngine/Sources/Tools/Catalog/Entries/Core/ToolSchemaCatalog+FileTools.swift"; sourceTree = "<group>"; };
 		EF4C4CCC3370F722FFE9529A /* ChatStoreMessageModels+Pipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ChatStoreMessageModels+Pipeline.swift"; path = "App/SoloCodeApp/Sources/Services/ChatStore/Models/ChatStoreMessageModels+Pipeline.swift"; sourceTree = "<group>"; };
@@ -5427,6 +5435,10 @@
 				2F7795BD8B897D2B6F0243A5 /* OpenAISSEModelsTests.swift */,
 				1383DD26D695F04A0B1B2F4F /* CoderEngineErrorTests.swift */,
 				EEEC89815CF2ED1F08EFFB20 /* SSEBufferLimitTests.swift */,
+				AA1122334455667788990011 /* SSELineParserTests.swift */,
+				BB2233445566778899001122 /* ProviderRetrySupportTests.swift */,
+				CC3344556677889900112233 /* EventDeliveryManagerConcurrencyTests.swift */,
+				DD4455667788990011223344 /* WorkerPoolSafetyTests.swift */,
 				11B6A70FBE0E4DC753CBB8A0 /* ManagedPostgresBootstrapSafetyTests.swift */,
 				57BE2D0AB4A96F62DE43F576 /* MCPCrossProcessLockSimplifiedTests.swift */,
 			);
@@ -7458,6 +7470,10 @@
 				DCE8E67972254E578B7E9F4B /* SSEBufferLimitTests.swift in Sources */,
 				233D5AA40A3D419BF86EE8D0 /* ManagedPostgresBootstrapSafetyTests.swift in Sources */,
 				A7E754437B953CE7885C4F6C /* MCPCrossProcessLockSimplifiedTests.swift in Sources */,
+				EE5566778899001122334455 /* SSELineParserTests.swift in Sources */,
+				FF6677889900112233445566 /* ProviderRetrySupportTests.swift in Sources */,
+				A07788990011223344556677 /* EventDeliveryManagerConcurrencyTests.swift in Sources */,
+				B08899001122334455667788 /* WorkerPoolSafetyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
