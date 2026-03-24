@@ -50,6 +50,14 @@ extension MessageToolTraceView {
                             .controlSize(.mini)
                             .scaleEffect(0.6)
                             .frame(width: 12, height: 12)
+                        Text("AWAIT")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(
+                                Capsule().fill(DesignSystem.Colors.warning.opacity(0.75))
+                            )
                     } else {
                         if durationMs > 0 {
                             Text(formatDuration(durationMs))
