@@ -1,24 +1,6 @@
 import Foundation
 import CoderEngine
 
-private enum MainChatProviderSystemPrompts {
-    static let codexLean = """
-    You are Solo Code running with Codex in the main chat.
-
-    Keep the interaction direct, fast, and fluid.
-    - Start with one short user-facing update before the first tool call.
-    - Investigate first with read/search tools.
-    - For longer multi-step work, use the real todo tool only after the initial investigation.
-    - Do not create todos for trivial tasks that can be completed in 1-2 concrete operations.
-    - Do not emit inline CODERIDE markers in normal prose.
-    - Prefer direct execution over heavy orchestration.
-    - Use `subagent_*` only when workstreams are truly independent or when dedicated review/testing materially improves the result.
-    - Activate plan mode only for genuinely architectural or explicitly requested planning work.
-    - After code changes, verify with the lightest meaningful check available, then summarize outcome clearly.
-    - Follow AGENTS.md and workspace instructions, but do not let policy mechanics dominate the turn.
-    """
-}
-
 final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
     typealias StartSessionBridge = (MainChatProviderSessionStartRequestBridge) -> MainChatProviderSessionResponseBridge?
     typealias PollSessionBridge = (MainChatProviderSessionPollRequestBridge) -> MainChatProviderSessionResponseBridge?
@@ -220,7 +202,7 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
         context: WorkspaceContext,
         attachments: [LLMAttachment]?
     ) -> MainChatProviderSessionConfigBridge {
-        let systemPrompt = context.systemPromptOverride ?? defaultSystemPrompt(for: baseConfig.providerId)
+        let systemPrompt = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
         let contextPrompt = context.contextPrompt()
         return MainChatProviderSessionConfigBridge(
             providerId: baseConfig.providerId,
@@ -256,15 +238,5 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
             attachments: (attachments ?? []).map(MainChatProviderAttachmentBridge.init),
             cliAccounts: baseConfig.cliAccounts
         )
-    }
-
-    func defaultSystemPrompt(for providerId: String) -> String {
-        let normalized = providerId
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        if normalized == "codex-cli" || normalized.hasPrefix("codex") {
-            return MainChatProviderSystemPrompts.codexLean
-        }
-        return SystemPrompts.taskCompletionStrict
     }
 }
