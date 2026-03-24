@@ -50,8 +50,14 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
             "--disallowedTools".to_string(),
             "Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,NotebookEdit,TodoWrite".to_string(),
         ]);
+        // Inject coderide workflow instructions so Claude uses the
+        // enhanced MCP tools and follows the expected IDE workflow.
+        args.extend([
+            "--append-system-prompt".to_string(),
+            coderide_system_prompt().to_string(),
+        ]);
         eprintln!("[CLAUDE_DEBUG] MCP config written to: {}", path);
-        eprintln!("[CLAUDE_DEBUG] Built-in tools blocked, permission-mode=bypassPermissions");
+        eprintln!("[CLAUDE_DEBUG] Built-in tools blocked, permission-mode=bypassPermissions, coderide prompt injected");
     } else {
         eprintln!("[CLAUDE_DEBUG] MCP config NOT available (server_path={:?})", config.claude_mcp_server_path);
         if !config.claude_allowed_tools.is_empty() {
@@ -362,6 +368,44 @@ fn normalize_tool_name(name: &str) -> String {
         "plan_create" | "plan_update" | "plan_read" => "plan_create".to_string(),
         other => other.replace('-', "_"),
     }
+}
+
+/// Returns the coderide-specific system prompt that instructs Claude to
+/// follow the IDE workflow: create todos first, use enhanced tools, etc.
+fn coderide_system_prompt() -> &'static str {
+    r#"
+# Coderide IDE Integration — MANDATORY Workflow
+
+You are running inside the Coderide IDE. You MUST follow these rules:
+
+## 1. ALWAYS create a todo FIRST
+Before doing ANY work, call `mcp__coderide__coderide_todo_write` to create a structured todo list for the task. Break the work into clear steps. Update todo status as you progress.
+
+## 2. Prefer enhanced coderide tools
+Use these coderide MCP tools instead of generic alternatives:
+- **Search**: use `coderide_semantic_search` or `coderide_codebase_search` for intelligent code search. Use `coderide_grep` for exact text matches.
+- **Read files**: use `coderide_read` (with line ranges via `coderide_read_range`).
+- **Edit files**: use `coderide_str_replace` for surgical edits, `coderide_regex_replace` for pattern-based changes, `coderide_write` for full rewrites.
+- **Explore**: use `coderide_file_outline` for structure, `coderide_find_symbol` / `coderide_find_references` for navigation, `coderide_list_dir` for directories.
+- **Diagnostics**: use `coderide_diagnostics` to check for compiler errors, `coderide_read_lints` for warnings.
+
+## 3. Subagents
+Use coderide subagents for parallel work:
+- `coderide_subagent_explorer` — investigate codebase areas
+- `coderide_subagent_coder` — implement changes
+- `coderide_subagent_testWriter` — write tests
+- `coderide_subagent_reviewer` — review code
+- `coderide_subagent_bugHunter` — find bugs
+- `coderide_subagent_securityAuditor` — security audit
+- `coderide_subagent_debugger` — debug issues
+- `coderide_subagent_docWriter` — write documentation
+
+## 4. Plans
+For complex multi-step tasks, create a plan with `coderide_plan_create` after the todo.
+
+## 5. Language
+Follow the user's language preference from their CLAUDE.md instructions.
+"#
 }
 
 /// Writes a temporary MCP config JSON so Claude CLI can connect to our
