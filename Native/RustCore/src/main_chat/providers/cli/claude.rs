@@ -44,9 +44,11 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
         args.extend(["--permission-mode".to_string(), "bypassPermissions".to_string()]);
         // Block built-in tools that overlap with coderide MCP tools.
         // Claude will discover and use the MCP equivalents instead.
+        // NOTE: Bash is NOT blocked because subagents need it for
+        // command execution and there is no full MCP equivalent.
         args.extend([
             "--disallowedTools".to_string(),
-            "Read,Edit,Write,Bash,Glob,Grep,WebSearch,WebFetch,NotebookEdit,TodoWrite".to_string(),
+            "Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,NotebookEdit,TodoWrite".to_string(),
         ]);
         eprintln!("[CLAUDE_DEBUG] MCP config written to: {}", path);
         eprintln!("[CLAUDE_DEBUG] Built-in tools blocked, permission-mode=bypassPermissions");
@@ -341,9 +343,23 @@ fn consume_line(
 
 fn normalize_tool_name(name: &str) -> String {
     let lowered = name.trim().to_lowercase();
-    match lowered.as_str() {
+    // Strip MCP coderide prefix so the Swift UI mapper recognizes the
+    // tool name (e.g. "mcp__coderide__coderide_read" → "read").
+    let stripped = lowered
+        .strip_prefix("mcp__coderide__coderide_")
+        .unwrap_or(&lowered);
+    match stripped {
         "mermaidrender" => "mermaid_render".to_string(),
         "planrequestuserinput" => "plan_request_user_input".to_string(),
+        // Map coderide MCP tool names to the simple names the Swift
+        // ProviderToolEventMapper recognizes for card rendering.
+        "exec" => "bash".to_string(),
+        "file_outline" => "read".to_string(),
+        "list_dir" => "list_dir".to_string(),
+        "subagent_explorer" | "subagent_bughunter" | "subagent_securityauditor" => "agent".to_string(),
+        "policy_ack" => "policy_ack".to_string(),
+        "todo_write" | "todo_read" | "todo_update" => "todo_write".to_string(),
+        "plan_create" | "plan_update" | "plan_read" => "plan_create".to_string(),
         other => other.replace('-', "_"),
     }
 }
