@@ -29,7 +29,7 @@ final class ChatStoreRustBootstrapPolicyTests: XCTestCase {
         let input = "  Before [CODERIDE:todo_write|id=t1]\n"
         let sanitized = await ChatStore.stripCoderideMarkers(input)
 
-        XCTAssertEqual(sanitized, "Before [CODERIDE:todo_write|id=t1]")
+        XCTAssertEqual(sanitized, "Before")
     }
 
     func testOperationalThinkingExtractionReturnsNilWhenReviewCoreIsForcedOff() async {

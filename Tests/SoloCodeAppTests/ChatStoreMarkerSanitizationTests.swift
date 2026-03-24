@@ -265,7 +265,7 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         withSwiftReviewCoreFallback {
             XCTAssertEqual(
                 ChatStore.stripCoderideMarkers(input),
-                "Before [CODERIDE:read|path=Sources/A.swift] after"
+                "Before  after"
             )
         }
     }

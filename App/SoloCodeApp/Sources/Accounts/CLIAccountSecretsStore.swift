@@ -16,20 +16,24 @@ final class CLIAccountSecretsStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: key
         ]
-        let deleteStatus = SecItemDelete(query as CFDictionary)
-        if deleteStatus != errSecSuccess, deleteStatus != errSecItemNotFound {
-            logger.warning("Keychain delete failed for account \(key, privacy: .public): OSStatus \(deleteStatus)")
-        }
-
-        let add: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
+        let update: [String: Any] = [
             kSecValueData as String: data
         ]
-        let addStatus = SecItemAdd(add as CFDictionary, nil)
-        if addStatus != errSecSuccess {
-            logger.error("Keychain add failed for account \(key, privacy: .public): OSStatus \(addStatus)")
+
+        // Attempt atomic update first — avoids TOCTOU between delete + add.
+        let updateStatus = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+        if updateStatus == errSecSuccess { return }
+
+        if updateStatus == errSecItemNotFound {
+            // Item doesn't exist yet — add it.
+            var add = query
+            add[kSecValueData as String] = data
+            let addStatus = SecItemAdd(add as CFDictionary, nil)
+            if addStatus != errSecSuccess {
+                logger.error("Keychain add failed for account \(key, privacy: .public): OSStatus \(addStatus)")
+            }
+        } else {
+            logger.warning("Keychain update failed for account \(key, privacy: .public): OSStatus \(updateStatus)")
         }
     }
 

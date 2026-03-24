@@ -132,50 +132,38 @@ final class ReviewPanelFindingsHistoryTests: XCTestCase {
     }
 
     func testRefreshHistoricalFindingsReadsPersistedWorkspaceHistory() async throws {
-        resetPersistenceEnvironment()
-        enablePersistenceForTests()
-        defer { resetPersistenceEnvironment() }
-
         let stableDate = Date(timeIntervalSince1970: 1_700_000_000)
-        let persistenceStore = PostgresPersistenceStore(postgresService: .shared)
-        let snapshot = CodeReviewSessionSnapshot(
-            sessionId: "history-session",
-            conversationId: UUID(),
-            phase: .completed,
-            stage: .completed,
-            findings: [
-                CodeReviewFinding(
-                    id: "history-1",
-                    severity: .warning,
-                    category: .correctness,
-                    origin: .bugHunter,
+
+        let originalFetch = ReviewPanelHistoricalFindingsLoader.fetch
+        defer { ReviewPanelHistoricalFindingsLoader.fetch = originalFetch }
+
+        ReviewPanelHistoricalFindingsLoader.fetch = { _ in
+            [
+                HistoricalFindingRecord(
+                    findingId: "history-1",
+                    sessionId: "history-session",
+                    workspaceId: "/tmp/history-workspace",
+                    domain: .bug,
+                    severity: .medium,
+                    title: "Retry may emit terminal event twice",
+                    summary: "Verified with persisted history",
+                    status: .verified,
                     filePath: "Sources/History.swift",
-                    lineNumber: 18,
-                    message: "Retry may emit terminal event twice",
-                    status: .open,
-                    verificationReport: "Verified with persisted history",
-                    verifiedAt: stableDate,
-                    createdAt: stableDate
+                    lineStart: 18,
+                    sourceOrigin: "bugHunter",
+                    closedReason: nil,
+                    patchId: nil,
+                    patchApplyStatus: nil,
+                    revalidationReportId: nil,
+                    revalidationVerdict: nil,
+                    createdAt: stableDate,
+                    updatedAt: stableDate.addingTimeInterval(30),
+                    resolvedAt: nil,
+                    resumeEligible: true,
+                    timeline: []
                 )
-            ],
-            patches: [],
-            events: [
-                .findingAdded(findingId: "history-1", severity: "warning", filePath: "Sources/History.swift")
-            ],
-            config: .default,
-            scope: ReviewSessionScope(type: .workspace, files: ["Sources/History.swift"]),
-            workspacePath: "/tmp/history-workspace",
-            currentRound: 1,
-            activeWorkerCount: 0,
-            startedAt: stableDate,
-            completedAt: stableDate.addingTimeInterval(30),
-            analysisCompletedAt: stableDate.addingTimeInterval(5),
-            lastError: nil,
-            currentJobId: "job-history",
-            lastTestStatus: .passed,
-            lastUpdatedAt: stableDate.addingTimeInterval(30)
-        )
-        try persistenceStore.persistCodeReviewSnapshot(snapshot)
+            ]
+        }
 
         let store = makeStore(workspacePath: "/tmp/history-workspace")
         await store.refreshHistoricalFindings()

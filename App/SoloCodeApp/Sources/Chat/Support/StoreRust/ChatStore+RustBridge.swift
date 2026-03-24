@@ -127,10 +127,20 @@ extension ChatStore {
     private static var isRustMarkersRuntimeAvailable: Bool { ReviewCoreBridge.isEnabled }
 
     static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
-        guard isRustMarkersRuntimeAvailable else { return aggressive ? content.trimmingCharacters(in: .whitespacesAndNewlines) : content }
+        guard isRustMarkersRuntimeAvailable else { return swiftFallbackStripCoderideMarkers(content, aggressive: aggressive) }
         let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "strip_coderide_markers", text: content, aggressive: aggressive)
-        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else { return aggressive ? content.trimmingCharacters(in: .whitespacesAndNewlines) : content }
+        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else { return swiftFallbackStripCoderideMarkers(content, aggressive: aggressive) }
         return result
+    }
+
+    private static func swiftFallbackStripCoderideMarkers(_ content: String, aggressive: Bool) -> String {
+        let pattern = "\\[CODERIDE:[^\\]]*\\]"
+        let stripped = content.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if aggressive {
+            return stripped
+        }
+        return stripped
     }
 
     static func extractLastOperationalThinkingLine(from content: String) -> String? {

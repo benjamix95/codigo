@@ -172,9 +172,12 @@ extension ChatStore {
 
     func updatePreferredProvider(conversationId: UUID?, providerId: String?) {
         guard let id = conversationId else { return }
-        _ = applyRustStoreAction("set_preferred_provider") { request in
+        let applied = applyRustStoreAction("set_preferred_provider") { request in
             request.conversationId = id.uuidString.lowercased()
             request.providerId = providerId
+        }
+        if !applied, let index = conversations.firstIndex(where: { $0.id == id }) {
+            conversations[index].preferredProviderId = providerId
         }
         saveConversations()
     }
@@ -254,12 +257,15 @@ extension ChatStore {
 
     func setContext(conversationId: UUID?, contextId: UUID?) {
         guard let conversationId else { return }
-        _ = applyRustStoreAction("set_context") { request in
+        let applied = applyRustStoreAction("set_context") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.contextId = contextId?.uuidString.lowercased()
             request.workspaceId = contextId?.uuidString.lowercased()
             request.contextFolderPath = nil
             request.stringList = []
+        }
+        if !applied, let index = conversations.firstIndex(where: { $0.id == conversationId }) {
+            conversations[index].contextId = contextId
         }
         saveConversations()
     }

@@ -7,6 +7,8 @@ public enum OpenAIModelsFetcher {
     private static var cachedModels: [String]?
     private static var cacheDate: Date?
     private static let cacheTTL: TimeInterval = 300 // 5 minuti
+    /// In-flight fetch task to coalesce concurrent callers (thundering herd protection).
+    private static var inFlightTask: Task<[String], Never>?
 
     /// Fallback statico in caso di errore di rete
     public static let fallbackModels = [
@@ -42,27 +44,38 @@ public enum OpenAIModelsFetcher {
     /// Fetches models from the OpenAI API, filtered and sorted.
     /// Returns cached results if available within TTL.
     public static func fetchModels(apiKey: String) async -> [String] {
-        let cached: [String]? = lock.withLock {
+        // 1. Check cache
+        let (cached, existingTask): ([String]?, Task<[String], Never>?) = lock.withLock {
             if let c = cachedModels,
                let d = cacheDate,
-               Date().timeIntervalSince(d) < cacheTTL { return c }
-            return nil
+               Date().timeIntervalSince(d) < cacheTTL { return (c, nil) }
+            return (nil, inFlightTask)
         }
         if let cached { return cached }
 
+        // 2. Join existing in-flight fetch if present (thundering herd protection)
+        if let existingTask { return await existingTask.value }
+
         guard !apiKey.isEmpty else { return fallbackModels }
 
-        do {
-            let models = try await performFetch(apiKey: apiKey)
-            let filtered = filterAndSort(models)
-            lock.withLock {
-                cachedModels = filtered
-                cacheDate = Date()
+        // 3. Create a new fetch task and store it so concurrent callers coalesce
+        let task = Task<[String], Never> {
+            do {
+                let models = try await performFetch(apiKey: apiKey)
+                let filtered = filterAndSort(models)
+                lock.withLock {
+                    cachedModels = filtered
+                    cacheDate = Date()
+                    inFlightTask = nil
+                }
+                return filtered
+            } catch {
+                lock.withLock { inFlightTask = nil }
+                return fallbackModels
             }
-            return filtered
-        } catch {
-            return fallbackModels
         }
+        lock.withLock { inFlightTask = task }
+        return await task.value
     }
 
     /// Invalida la cache per forzare un nuovo fetch
@@ -70,6 +83,7 @@ public enum OpenAIModelsFetcher {
         lock.withLock {
             cachedModels = nil
             cacheDate = nil
+            inFlightTask = nil
         }
     }
 
