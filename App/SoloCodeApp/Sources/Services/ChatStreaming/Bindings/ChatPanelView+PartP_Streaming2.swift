@@ -401,7 +401,22 @@ extension ChatPanelView {
         if t != "reasoning" && t != "usage" {
             print("[ChatDebug] rawEvent type=\(t) keys=\(p.keys.sorted().joined(separator: ","))")
         }
-        recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
+        // Enrich file-change events with a diff preview when old_string/new_string
+        // are present (e.g. str_replace, edit). Claude CLI events bypass the
+        // ProviderToolEventMapper so we generate the diff inline.
+        var enrichedPayload = p
+        if enrichedPayload["diffPreview"] == nil,
+           let oldStr = p["old_string"], !oldStr.isEmpty {
+            let newStr = p["new_string"] ?? p["content"] ?? p["contents"] ?? ""
+            let oldLines = oldStr.components(separatedBy: .newlines)
+            let newLines = newStr.components(separatedBy: .newlines)
+            let commonPrefix = zip(oldLines, newLines).prefix(while: { $0 == $1 }).count
+            var diff = ["--- old", "+++ new"]
+            for line in oldLines.dropFirst(commonPrefix).prefix(80) { diff.append("-\(line)") }
+            for line in newLines.dropFirst(commonPrefix).prefix(80) { diff.append("+\(line)") }
+            enrichedPayload["diffPreview"] = String(diff.joined(separator: "\n").prefix(12_000))
+        }
+        recordTaskActivity(type: t, payload: enrichedPayload, providerId: pid, conversationId: convId)
     }
 
     @MainActor
