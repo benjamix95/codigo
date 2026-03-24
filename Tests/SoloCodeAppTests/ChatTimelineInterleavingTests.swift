@@ -122,16 +122,16 @@ final class ChatTimelineInterleavingTests: XCTestCase {
         XCTAssertEqual(markers[0].sequence, 1)
     }
 
-    func testInterleaverEmitsOneToolSegmentPerEvent() {
+    func testInterleaverKeepsDistinctCategoriesSeparated() {
         let blocks = [
             PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Hi", sequence: 0),
             PersistedChatTimelineBlock(id: "tool-marker-1", kind: .toolMarker, sequence: 1),
             PersistedChatTimelineBlock(id: "text-1", kind: .primaryText, text: "Bye", sequence: 4),
         ]
         let events = [
-            makeEvent(sequence: 1, title: "Read file"),
-            makeEvent(sequence: 2, title: "Search symbol"),
-            makeEvent(sequence: 3, title: "Write patch"),
+            makeEvent(sequence: 1, title: "Read file", tool: "read", path: "/tmp/A.swift"),
+            makeEvent(sequence: 2, title: "command_execution", type: "command_execution", command: "swift test"),
+            makeEvent(sequence: 3, title: "Write patch", tool: "write", path: "/tmp/B.swift"),
         ]
 
         let segments = ChatTurnTimelineInterleaver.segments(blocks: blocks, traceEvents: events)
@@ -140,8 +140,77 @@ final class ChatTimelineInterleavingTests: XCTestCase {
             return nil
         }
 
-        XCTAssertEqual(toolSegments.map(\.title), ["Read file", "Search symbol", "Write patch"])
+        XCTAssertEqual(toolSegments.map(\.title), ["Read file", "command_execution", "Write patch"])
         XCTAssertEqual(segments.map(\.sequence), [0, 1, 2, 3, 4])
+    }
+
+    func testInterleaverGroupsConsecutiveExplorationEvents() {
+        let blocks = [
+            PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Hi", sequence: 0),
+            PersistedChatTimelineBlock(id: "text-1", kind: .primaryText, text: "Bye", sequence: 4),
+        ]
+        let events = [
+            makeEvent(sequence: 1, title: "read", tool: "read", path: "/tmp/ChatTurnView.swift"),
+            makeEvent(sequence: 2, title: "read", tool: "read", path: "/tmp/MessageToolTraceView.swift"),
+            makeEvent(sequence: 3, title: "grep", tool: "grep", query: "ToolTraceEvent"),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(blocks: blocks, traceEvents: events)
+        let groups = segments.compactMap { segment -> ChatTurnToolEventGroup? in
+            if case .toolGroup(_, let group, _) = segment { return group }
+            return nil
+        }
+
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups[0].category, .exploration)
+        XCTAssertEqual(groups[0].events.count, 3)
+        XCTAssertEqual(segments.map(\.sequence), [0, 1, 4])
+    }
+
+    func testInterleaverDoesNotGroupAcrossNarrativeBoundary() {
+        let blocks = [
+            PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Hi", sequence: 0),
+            PersistedChatTimelineBlock(id: "text-1", kind: .primaryText, text: "Middle", sequence: 2),
+            PersistedChatTimelineBlock(id: "text-2", kind: .primaryText, text: "Bye", sequence: 4),
+        ]
+        let events = [
+            makeEvent(sequence: 1, title: "read", tool: "read", path: "/tmp/ChatTurnView.swift"),
+            makeEvent(sequence: 3, title: "read", tool: "read", path: "/tmp/ChatTurnInterleavedSegment.swift"),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(blocks: blocks, traceEvents: events)
+        let groupCount = segments.filter {
+            if case .toolGroup = $0 { return true }
+            return false
+        }.count
+        let eventCount = segments.filter {
+            if case .toolEvent = $0 { return true }
+            return false
+        }.count
+
+        XCTAssertEqual(groupCount, 0)
+        XCTAssertEqual(eventCount, 2)
+    }
+
+    func testInterleaverGroupsConsecutiveTerminalEvents() {
+        let blocks = [
+            PersistedChatTimelineBlock(id: "text-0", kind: .primaryText, text: "Hi", sequence: 0),
+            PersistedChatTimelineBlock(id: "text-1", kind: .primaryText, text: "Bye", sequence: 3),
+        ]
+        let events = [
+            makeEvent(sequence: 1, title: "command_execution", type: "command_execution", command: "xcodebuild test"),
+            makeEvent(sequence: 2, title: "command_execution", type: "command_execution", command: "swift test"),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(blocks: blocks, traceEvents: events)
+        let groups = segments.compactMap { segment -> ChatTurnToolEventGroup? in
+            if case .toolGroup(_, let group, _) = segment { return group }
+            return nil
+        }
+
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups[0].category, .terminal)
+        XCTAssertEqual(groups[0].events.count, 2)
     }
 
     func testInterleaverPlacesLiveSubagentCardInlineUsingMatchingSwarmSequence() {
@@ -177,8 +246,26 @@ final class ChatTimelineInterleavingTests: XCTestCase {
         XCTAssertEqual(liveCardSequences, [2])
     }
 
-    private func makeEvent(sequence: Int, title: String, swarmId: String? = nil) -> ToolTraceEvent {
-        var payload = ["mcp_tool": "read"]
+    private func makeEvent(
+        sequence: Int,
+        title: String,
+        type: String = "mcp_tool_call",
+        tool: String = "read",
+        path: String? = nil,
+        query: String? = nil,
+        command: String? = nil,
+        swarmId: String? = nil
+    ) -> ToolTraceEvent {
+        var payload = ["mcp_tool": tool]
+        if let path {
+            payload["path"] = path
+        }
+        if let query {
+            payload["query"] = query
+        }
+        if let command {
+            payload["command"] = command
+        }
         if let swarmId {
             payload["swarm_id"] = swarmId
         }
@@ -188,7 +275,7 @@ final class ChatTimelineInterleavingTests: XCTestCase {
             providerId: "codex-cli",
             conversationId: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
             assistantMessageId: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
-            type: "mcp_tool_call",
+            type: type,
             title: title,
             detail: nil,
             payload: payload,
