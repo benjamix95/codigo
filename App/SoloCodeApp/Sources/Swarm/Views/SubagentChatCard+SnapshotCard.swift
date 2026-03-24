@@ -60,10 +60,16 @@ struct SubagentSnapshotCardView: View {
         let previewText = snapshotPreviewText
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: statusIcon)
-                    .font(.system(size: 14))
-                    .foregroundStyle(statusIconColor)
-                    .frame(width: 18, alignment: .center)
+                Group {
+                    if snapshot.status == .running {
+                        SpinningDottedCircle()
+                    } else {
+                        Image(systemName: statusIcon)
+                            .font(.system(size: 14))
+                            .foregroundStyle(statusIconColor)
+                    }
+                }
+                .frame(width: 18, alignment: .center)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
