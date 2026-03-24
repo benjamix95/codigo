@@ -68,6 +68,16 @@ extension ChatPanelView {
             else {
                 return event
             }
+            // Check if the pasteboard has image/file data BEFORE consuming
+            // the event. If it only has text, let the event pass through so
+            // the standard Cmd+V paste works in the text editor.
+            let pb = NSPasteboard.general
+            let hasAttachableContent = pb.canReadItem(withDataConformingToTypes: [
+                "public.image", "public.file-url", "public.png", "public.jpeg", "public.tiff",
+            ])
+            guard hasAttachableContent else {
+                return event  // Let standard text paste through
+            }
             AttachmentIntakeService.attachmentsFromPasteboard { attachments in
                 guard !attachments.isEmpty else { return }
                 NotificationCenter.default.post(
@@ -76,10 +86,7 @@ extension ChatPanelView {
                     userInfo: ["attachments": attachments]
                 )
             }
-            // Return nil immediately to consume the Cmd+V so the text
-            // editor does not also paste text while we process attachments.
-            // If no attachments are found the completion is a no-op.
-            return nil
+            return nil  // Consume Cmd+V only for image/file attachments
         }
     }
     internal func isShiftTab(_ event: NSEvent) -> Bool {
