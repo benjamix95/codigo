@@ -5,14 +5,14 @@ import CoderEngine
 
 extension ContentView {
     private var titlebarChatInfo: WindowTitlebarChatInfo? {
-        guard selectedConversationId != nil else { return nil }
+        guard panelCoordinator.selectedConversationId != nil else { return nil }
         let context = effectiveContext(
-            for: selectedConversationId,
+            for: panelCoordinator.selectedConversationId,
             chatStore: chatStore,
             projectContextStore: projectContextStore,
-            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+            preferActiveContextForGlobalThread: panelCoordinator.preferActiveContextForGlobalThread
         )
-        let rawTitle = chatStore.conversation(for: selectedConversationId)?
+        let rawTitle = chatStore.conversation(for: panelCoordinator.selectedConversationId)?
             .title
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let title = rawTitle.isEmpty || rawTitle == "New conversation" ? "New thread" : rawTitle
@@ -32,8 +32,8 @@ extension ContentView {
     private var titlebarChatInfoFingerprint: String {
         let info = titlebarChatInfo
         return [
-            selectedConversationId?.uuidString ?? "nil",
-            showChatPanel ? "shown" : "hidden",
+            panelCoordinator.selectedConversationId?.uuidString ?? "nil",
+            panelCoordinator.showChatPanel ? "shown" : "hidden",
             info?.title ?? "",
             info?.projectName ?? "",
             info?.projectPath ?? "",
@@ -41,7 +41,7 @@ extension ContentView {
     }
 
     private func publishTitlebarChatInfo() {
-        WindowTitlebarChatAccessoryBridge.post(info: showChatPanel ? titlebarChatInfo : nil)
+        WindowTitlebarChatAccessoryBridge.post(info: panelCoordinator.showChatPanel ? titlebarChatInfo : nil)
     }
 
     func editorTopBar(ctx: EffectiveContext) -> some View {
@@ -95,17 +95,17 @@ extension ContentView {
                 compactToolbarButton(
                     icon: "terminal",
                     title: "Terminal",
-                    isActive: showTerminal
+                    isActive: panelCoordinator.showTerminal
                 ) {
-                    withAnimation(.snappy(duration: 0.2)) { showTerminal.toggle() }
+                    withAnimation(.snappy(duration: 0.2)) { panelCoordinator.showTerminal.toggle() }
                 }
                 compactToolbarButton(
                     icon: "globe",
                     title: "Browser",
-                    isActive: showBrowserPanel,
+                    isActive: panelCoordinator.showBrowserPanel,
                     tint: DesignSystem.Colors.browserColor
                 ) {
-                    withAnimation(.snappy(duration: 0.2)) { showBrowserPanel.toggle() }
+                    withAnimation(.snappy(duration: 0.2)) { panelCoordinator.showBrowserPanel.toggle() }
                 }
                 compactToolbarButton(
                     icon: "arrow.triangle.branch",
@@ -118,9 +118,9 @@ extension ContentView {
                 compactToolbarButton(
                     icon: "bubble.left.and.bubble.right",
                     title: "Chat",
-                    isActive: showChatPanel
+                    isActive: panelCoordinator.showChatPanel
                 ) {
-                    withAnimation(.snappy(duration: 0.2)) { showChatPanel.toggle() }
+                    withAnimation(.snappy(duration: 0.2)) { panelCoordinator.showChatPanel.toggle() }
                 }
                 compactToolbarButton(
                     icon: chatPanelPosition == "left" ? "sidebar.right" : "sidebar.left",
@@ -225,20 +225,20 @@ extension ContentView {
 
     var chatPanel: some View {
         ChatPanelView(
-            selectedConversationId: $selectedConversationId,
+            selectedConversationId: $panelCoordinator.selectedConversationId,
             effectiveContext: effectiveContext(
-                for: selectedConversationId,
+                for: panelCoordinator.selectedConversationId,
                 chatStore: chatStore,
                 projectContextStore: projectContextStore,
-                preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+                preferActiveContextForGlobalThread: panelCoordinator.preferActiveContextForGlobalThread
             ),
             windowChromeLeadingInset: chatPanelWindowChromeLeadingInset,
-            coderMode: $coderMode,
-            showPlanPanel: $showPlanPanel,
-            showDebugPanel: $showDebugPanel,
-            showSwarmPanel: $showSwarmPanel,
-            showCodeReviewPanel: $showCodeReviewPanel,
-            showBrowserPanel: $showBrowserPanel,
+            coderMode: $panelCoordinator.coderMode,
+            showPlanPanel: $panelCoordinator.showPlanPanel,
+            showDebugPanel: $panelCoordinator.showDebugPanel,
+            showSwarmPanel: $panelCoordinator.showSwarmPanel,
+            showCodeReviewPanel: $panelCoordinator.showCodeReviewPanel,
+            showBrowserPanel: $panelCoordinator.showBrowserPanel,
             debugStore: debugStore
         )
         .environmentObject(providerRegistry)
@@ -255,13 +255,13 @@ extension ContentView {
     }
 
     private var chatPanelWindowChromeLeadingInset: CGFloat {
-        switch coderMode {
+        switch panelCoordinator.coderMode {
         case .ide:
             return showIDEWorkbenchSidebar ? 0 : 58
         case .browser:
             return 58
         default:
-            return columnVisibility == .detailOnly ? 58 : 0
+            return panelCoordinator.columnVisibility == .detailOnly ? 58 : 0
         }
     }
 }

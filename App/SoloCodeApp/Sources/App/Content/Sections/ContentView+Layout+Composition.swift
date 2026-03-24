@@ -8,7 +8,7 @@ extension ContentView {
 
     @ViewBuilder
     private var detailBackground: some View {
-        switch coderMode {
+        switch panelCoordinator.coderMode {
         case .ide, .browser:
             ideBackdrop
         default:
@@ -30,11 +30,11 @@ extension ContentView {
     /// the custom sidebar.
     @ViewBuilder
     private var contentRoot: some View {
-        if coderMode == .ide || coderMode == .browser {
+        if panelCoordinator.coderMode == .ide || panelCoordinator.coderMode == .browser {
             configuredDetailContent
         } else {
             HStack(spacing: 0) {
-                if columnVisibility != .detailOnly {
+                if panelCoordinator.columnVisibility != .detailOnly {
                     configuredSidebar
                         .frame(width: 260)
                         .transition(.move(edge: .leading).combined(with: .opacity))
@@ -49,7 +49,7 @@ extension ContentView {
                 configuredDetailContent
                     .frame(maxWidth: .infinity)
             }
-            .animation(.snappy(duration: 0.2), value: columnVisibility)
+            .animation(.snappy(duration: 0.2), value: panelCoordinator.columnVisibility)
         }
     }
 
@@ -66,26 +66,26 @@ extension ContentView {
             workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
         }
         .fileImporter(
-            isPresented: $showFolderPicker,
+            isPresented: $panelCoordinator.showFolderPicker,
             allowedContentTypes: [.folder],
-            allowsMultipleSelection: pendingFolderPickerKind == .openProject,
+            allowsMultipleSelection: panelCoordinator.pendingFolderPickerKind == .openProject,
             onCompletion: handleUnifiedFolderSelection
         )
-        .onChange(of: isSelectingProjectFolders) { newValue in
+        .onChange(of: panelCoordinator.isSelectingProjectFolders) { newValue in
             guard newValue else { return }
-            isSelectingProjectFolders = false
-            pendingFolderPickerKind = .openProject
-            showFolderPicker = true
+            panelCoordinator.isSelectingProjectFolders = false
+            panelCoordinator.pendingFolderPickerKind = .openProject
+            panelCoordinator.showFolderPicker = true
             NSApp.activate(ignoringOtherApps: true)
         }
         .onReceive(NotificationCenter.default.publisher(for: .sidebarAddFolderToContext)) { notif in
             if let contextId = notif.userInfo?["contextId"] as? UUID {
-                pendingFolderPickerKind = .addFolderToContext(contextId)
-                showFolderPicker = true
+                panelCoordinator.pendingFolderPickerKind = .addFolderToContext(contextId)
+                panelCoordinator.showFolderPicker = true
                 NSApp.activate(ignoringOtherApps: true)
             }
         }
-        .sheet(isPresented: $showSettings) {
+        .sheet(isPresented: $panelCoordinator.showSettings) {
             SettingsView()
                 .environmentObject(providerRegistry)
                 .environmentObject(executionController)
@@ -93,44 +93,44 @@ extension ContentView {
                 .environmentObject(appUpdateCenter)
         }
         .onReceive(NotificationCenter.default.publisher(for: .coderOpenSettingsFromMenuBar)) { _ in
-            showSettings = true
+            panelCoordinator.showSettings = true
             NSApp.activate(ignoringOtherApps: true)
         }
         .onReceive(NotificationCenter.default.publisher(for: .providersDidRegister)) { _ in
-            syncThreadBoundProviderSelection(for: selectedConversationId)
+            syncThreadBoundProviderSelection(for: panelCoordinator.selectedConversationId)
         }
         .onReceive(appUpdateCenter.$availableUpdate.compactMap { $0 }) { update in
-            pendingAppUpdate = update
-            showAppUpdateAlert = true
+            panelCoordinator.pendingAppUpdate = update
+            panelCoordinator.showAppUpdateAlert = true
         }
         // NOTE: isSelectingProjectFolders onChange is handled above via unified folder picker
         .onReceive(NotificationCenter.default.publisher(for: BrowserTabManager.browserShouldOpenNotification)) { _ in
-            if !showBrowserPanel {
-                withAnimation(.snappy(duration: 0.2)) { showBrowserPanel = true }
+            if !panelCoordinator.showBrowserPanel {
+                withAnimation(.snappy(duration: 0.2)) { panelCoordinator.showBrowserPanel = true }
             }
         }
-        .onChange(of: showPlanPanel) { isOpen in
+        .onChange(of: panelCoordinator.showPlanPanel) { isOpen in
             guard isOpen else { return }
             DispatchQueue.main.async {
-                showDebugPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
+                panelCoordinator.showDebugPanel = false; panelCoordinator.showSwarmPanel = false; panelCoordinator.showCodeReviewPanel = false
             }
         }
-        .onChange(of: showDebugPanel) { isOpen in
+        .onChange(of: panelCoordinator.showDebugPanel) { isOpen in
             guard isOpen else { return }
             DispatchQueue.main.async {
-                showPlanPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
+                panelCoordinator.showPlanPanel = false; panelCoordinator.showSwarmPanel = false; panelCoordinator.showCodeReviewPanel = false
             }
         }
-        .onChange(of: showSwarmPanel) { isOpen in
+        .onChange(of: panelCoordinator.showSwarmPanel) { isOpen in
             guard isOpen else { return }
             DispatchQueue.main.async {
-                showPlanPanel = false; showDebugPanel = false; showCodeReviewPanel = false
+                panelCoordinator.showPlanPanel = false; panelCoordinator.showDebugPanel = false; panelCoordinator.showCodeReviewPanel = false
             }
         }
-        .onChange(of: showCodeReviewPanel) { isOpen in
+        .onChange(of: panelCoordinator.showCodeReviewPanel) { isOpen in
             guard isOpen else { return }
             DispatchQueue.main.async {
-                showPlanPanel = false; showDebugPanel = false; showSwarmPanel = false
+                panelCoordinator.showPlanPanel = false; panelCoordinator.showDebugPanel = false; panelCoordinator.showSwarmPanel = false
             }
         }
         .onChangeCompat(of: gitPanelStore.isOpen) { wasOpen, isOpen in
@@ -142,9 +142,9 @@ extension ContentView {
                 WindowResizeHelper.adjustWidth(by: -panelWidth, animate: false)
             }
         }
-        .onChange(of: coderMode) { newMode in
+        .onChange(of: panelCoordinator.coderMode) { newMode in
             withAnimation(.snappy(duration: 0.2)) {
-                columnVisibility = (newMode == .ide || newMode == .browser) ? .detailOnly : .all
+                panelCoordinator.columnVisibility = (newMode == .ide || newMode == .browser) ? .detailOnly : .all
             }
             // Re-apply window style after mode change to strip any sidebar toggle
             // that SwiftUI re-adds when columnVisibility changes, and clear the title.
@@ -163,14 +163,14 @@ extension ContentView {
         }
         .onChange(of: chatStore.conversations.map(\.id)) { conversationIds in
                 guard !conversationIds.isEmpty else {
-                    selectedConversationId = nil
+                    panelCoordinator.selectedConversationId = nil
                     return
                 }
-                if let selectedConversationId, conversationIds.contains(selectedConversationId) {
+                if let selectedConversationId = panelCoordinator.selectedConversationId, conversationIds.contains(selectedConversationId) {
                     return
                 }
                 let defaultContextId: UUID?
-                if preferActiveContextForGlobalThread {
+                if panelCoordinator.preferActiveContextForGlobalThread {
                     defaultContextId = projectContextStore.activeContextId
                 } else {
                     defaultContextId = nil
@@ -182,13 +182,13 @@ extension ContentView {
                         && conv.contextId == defaultContextId
                         && conv.contextFolderPath == folderScope
                 }?.id
-                selectedConversationId = preferred ?? conversationIds.first
+                panelCoordinator.selectedConversationId = preferred ?? conversationIds.first
             }
         .onChange(of: projectContextStore.activeContextId) { newContextId in
             guard let newContextId else { return }
             let ctx = projectContextStore.context(id: newContextId)
             let folderScope = (ctx?.folderPaths.count ?? 0) > 1 ? ctx?.activeFolderPath : nil
-            if let selectedId = selectedConversationId,
+            if let selectedId = panelCoordinator.selectedConversationId,
                let selected = chatStore.conversation(for: selectedId),
                !selected.isArchived,
                !chatStore.hasUserMessages(selected) {
@@ -198,24 +198,24 @@ extension ContentView {
                 }
                 return
             }
-            let conv = chatStore.conversation(for: selectedConversationId)
+            let conv = chatStore.conversation(for: panelCoordinator.selectedConversationId)
             guard conv?.contextId != newContextId else { return }
             if let lastId = projectContextStore.lastActiveConversationId(contextId: newContextId, folderPath: folderScope),
                let lastConv = chatStore.conversation(for: lastId),
                lastConv.contextId == newContextId,
                !lastConv.isArchived,
                chatStore.hasUserMessages(lastConv) {
-                selectedConversationId = lastId
+                panelCoordinator.selectedConversationId = lastId
             } else if let reusable = chatStore.reusableEmptyConversation(contextId: newContextId, contextFolderPath: folderScope) {
-                selectedConversationId = reusable.id
+                panelCoordinator.selectedConversationId = reusable.id
             } else {
-                selectedConversationId = chatStore.createConversation(contextId: newContextId, contextFolderPath: folderScope)
+                panelCoordinator.selectedConversationId = chatStore.createConversation(contextId: newContextId, contextFolderPath: folderScope)
             }
         }
         .alert(
             "Update Available",
-            isPresented: $showAppUpdateAlert,
-            presenting: pendingAppUpdate
+            isPresented: $panelCoordinator.showAppUpdateAlert,
+            presenting: panelCoordinator.pendingAppUpdate
         ) { update in
             if let downloadURL = update.downloadURL, !downloadURL.isEmpty {
                 Button("Download Now") { openExternalURL(downloadURL) }
@@ -235,10 +235,10 @@ extension ContentView {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(.all)
             SidebarView(
-                selectedConversationId: $selectedConversationId,
-                showSettings: $showSettings,
-                isSelectingProjectFolders: $isSelectingProjectFolders,
-                preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+                selectedConversationId: $panelCoordinator.selectedConversationId,
+                showSettings: $panelCoordinator.showSettings,
+                isSelectingProjectFolders: $panelCoordinator.isSelectingProjectFolders,
+                preferActiveContextForGlobalThread: panelCoordinator.preferActiveContextForGlobalThread
             )
         }
         .environmentObject(providerRegistry)
@@ -263,7 +263,7 @@ extension ContentView {
 
     @ViewBuilder
     private func configuredModeContent(detailWidth: CGFloat) -> some View {
-        switch coderMode {
+        switch panelCoordinator.coderMode {
         case .ide:
             ideModeContent(detailWidth: detailWidth)
         case .browser:

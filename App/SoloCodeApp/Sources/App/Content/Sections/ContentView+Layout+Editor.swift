@@ -63,11 +63,11 @@ extension ContentView {
     func configureInitialConversationSelection() {
         projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
         if WindowLaunchIntentStore.shared.consumeCleanWindowIntent() {
-            preferActiveContextForGlobalThread = false
+            panelCoordinator.preferActiveContextForGlobalThread = false
             if let reusable = chatStore.reusableEmptyConversation(contextId: nil, contextFolderPath: nil) {
-                selectedConversationId = reusable.id
+                panelCoordinator.selectedConversationId = reusable.id
             } else {
-                selectedConversationId = chatStore.createConversation(
+                panelCoordinator.selectedConversationId = chatStore.createConversation(
                     contextId: nil,
                     contextFolderPath: nil,
                     mode: nil
@@ -75,7 +75,7 @@ extension ContentView {
             }
             return
         }
-        guard selectedConversationId == nil else { return }
+        guard panelCoordinator.selectedConversationId == nil else { return }
         let defaultContextId = projectContextStore.activeContextId
         let ctx = projectContextStore.context(id: defaultContextId)
         let folderScope = (ctx?.folderPaths.count ?? 0) > 1 ? ctx?.activeFolderPath : nil
@@ -84,7 +84,7 @@ extension ContentView {
            let lastConv = chatStore.conversation(for: lastId),
            lastConv.contextId == contextId,
            !lastConv.isArchived {
-            selectedConversationId = lastId
+            panelCoordinator.selectedConversationId = lastId
         } else {
             let reusableConversation = chatStore.conversations.first { conv in
                 !conv.isArchived
@@ -95,7 +95,7 @@ extension ContentView {
                 contextId: defaultContextId,
                 contextFolderPath: folderScope
             )
-            selectedConversationId = reusableConversation?.id ?? chatStore.createConversation(
+            panelCoordinator.selectedConversationId = reusableConversation?.id ?? chatStore.createConversation(
                 contextId: defaultContextId,
                 contextFolderPath: folderScope,
                 mode: nil
@@ -104,7 +104,7 @@ extension ContentView {
     }
 
     func configureDefaultProviderSelection() {
-        syncThreadBoundProviderSelection(for: selectedConversationId)
+        syncThreadBoundProviderSelection(for: panelCoordinator.selectedConversationId)
     }
 
     var editorArea: some View {
@@ -113,10 +113,10 @@ extension ContentView {
 
     private var editorAreaView: some View {
         let ctx = effectiveContext(
-            for: selectedConversationId,
+            for: panelCoordinator.selectedConversationId,
             chatStore: chatStore,
             projectContextStore: projectContextStore,
-            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+            preferActiveContextForGlobalThread: panelCoordinator.preferActiveContextForGlobalThread
         )
 
         return VStack(spacing: 10) {
@@ -142,10 +142,10 @@ extension ContentView {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
-            if showTerminal {
+            if panelCoordinator.showTerminal {
                 TerminalPanelView(workingDirectory: ctx.primaryPath)
                     .environmentObject(terminalSessionStore)
-                    .frame(height: terminalHeight)
+                    .frame(height: panelCoordinator.terminalHeight)
                     .background(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.86))

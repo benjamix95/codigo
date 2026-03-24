@@ -11,8 +11,8 @@ extension ContentView {
     // MARK: - Unified Folder Picker
 
     func handleUnifiedFolderSelection(result: Result<[URL], Error>) {
-        let kind = pendingFolderPickerKind
-        pendingFolderPickerKind = .none
+        let kind = panelCoordinator.pendingFolderPickerKind
+        panelCoordinator.pendingFolderPickerKind = .none
 
         switch kind {
         case .openProject:
@@ -32,11 +32,11 @@ extension ContentView {
         guard let contextId = projectContextStore.createOrReuseSingleProject(paths: paths) else { return }
         projectContextStore.activeContextId = contextId
         projectContextStore.markAsRecentlyUsed(contextId: contextId)
-        preferActiveContextForGlobalThread = true
+        panelCoordinator.preferActiveContextForGlobalThread = true
         workspaceStore.syncActiveWorkspace(with: projectContextStore.context(id: contextId))
         let ctx = projectContextStore.context(id: contextId)
         let folderScope = (ctx?.folderPaths.count ?? 0) > 1 ? ctx?.activeFolderPath : nil
-        if let selectedId = selectedConversationId,
+        if let selectedId = panelCoordinator.selectedConversationId,
            let selected = chatStore.conversation(for: selectedId),
            !selected.isArchived,
            !chatStore.hasUserMessages(selected) {
@@ -44,19 +44,19 @@ extension ContentView {
                 chatStore.setContext(conversationId: selectedId, contextId: contextId)
                 chatStore.setContextFolder(conversationId: selectedId, folderPath: folderScope)
             }
-            selectedConversationId = selectedId
+            panelCoordinator.selectedConversationId = selectedId
         } else if let reusable = chatStore.reusableEmptyConversation(contextId: contextId, contextFolderPath: folderScope) {
-            selectedConversationId = reusable.id
+            panelCoordinator.selectedConversationId = reusable.id
         } else if let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
                   let lastConv = chatStore.conversation(for: lastId),
                   lastConv.contextId == contextId,
                   !lastConv.isArchived,
                   chatStore.hasUserMessages(lastConv) {
-            selectedConversationId = lastId
+            panelCoordinator.selectedConversationId = lastId
         } else {
-            selectedConversationId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
+            panelCoordinator.selectedConversationId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
         }
-        syncThreadBoundProviderSelection(for: selectedConversationId)
+        syncThreadBoundProviderSelection(for: panelCoordinator.selectedConversationId)
     }
 
     // MARK: - Add Folder to Context
@@ -74,7 +74,7 @@ extension ContentView {
         context.updatedAt = .now
         projectContextStore.upsert(context)
         workspaceStore.syncActiveWorkspace(with: context)
-        if let selectedId = selectedConversationId {
+        if let selectedId = panelCoordinator.selectedConversationId {
             let folderScope = context.folderPaths.count > 1 ? context.activeFolderPath : nil
             chatStore.setContextFolder(conversationId: selectedId, folderPath: folderScope)
         }

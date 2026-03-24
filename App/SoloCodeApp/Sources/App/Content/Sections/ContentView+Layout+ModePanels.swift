@@ -7,10 +7,10 @@ extension ContentView {
     @ViewBuilder
     func ideModeContent(detailWidth: CGFloat) -> some View {
         let ctx = effectiveContext(
-            for: selectedConversationId,
+            for: panelCoordinator.selectedConversationId,
             chatStore: chatStore,
             projectContextStore: projectContextStore,
-            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+            preferActiveContextForGlobalThread: panelCoordinator.preferActiveContextForGlobalThread
         )
         let chatIsLeft = chatPanelPosition == "left"
         let clampedChatW = ContentPanelWidthPolicy.clampedWidth(
@@ -31,7 +31,7 @@ extension ContentView {
             ideBackdrop
 
             HStack(spacing: 10) {
-                if showChatPanel && chatIsLeft {
+                if panelCoordinator.showChatPanel && chatIsLeft {
                     ideSurface(tint: DesignSystem.Colors.agentColor) {
                         chatPanel
                             .frame(width: clampedChatW)
@@ -45,7 +45,7 @@ extension ContentView {
                     showsSidebar: showIDEWorkbenchSidebar
                 )
 
-                if showBrowserPanel {
+                if panelCoordinator.showBrowserPanel {
                     browserResizeHandle(clampedWidth: clampedBrowserW, maxWidth: maxBrowserW)
                     ideSurface(tint: DesignSystem.Colors.browserColor) {
                         BrowserPanelView(tabManager: browserTabManager)
@@ -53,7 +53,7 @@ extension ContentView {
                     }
                 }
 
-                if showChatPanel && !chatIsLeft {
+                if panelCoordinator.showChatPanel && !chatIsLeft {
                     chatPanelTrailingResizeHandle(clampedWidth: clampedChatW, maxWidth: maxChatW)
                     ideSurface(tint: DesignSystem.Colors.agentColor) {
                         chatPanel
@@ -80,7 +80,7 @@ extension ContentView {
                 .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity)
                 .layoutPriority(1)
 
-            if showBrowserPanel {
+            if panelCoordinator.showBrowserPanel {
                 browserResizeHandle(clampedWidth: clampedBrowserW, maxWidth: maxBrowserW, leading: true)
                 BrowserPanelView(tabManager: browserTabManager)
                     .frame(width: clampedBrowserW)

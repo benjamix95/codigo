@@ -15,8 +15,8 @@ extension ContentView {
             HStack(spacing: 0) {
                 if showsSidebar {
                     ActivityBarView(
-                        selectedItem: $activeActivityItem,
-                        showSettings: $showSettings,
+                        selectedItem: $panelCoordinator.activeActivityItem,
+                        showSettings: $panelCoordinator.showSettings,
                         workspaceTitle: ctx.displayLabel
                     )
                     .frame(width: 84)
@@ -24,7 +24,7 @@ extension ContentView {
                     .padding(.vertical, 10)
                 }
 
-                if showsSidebar, let item = activeActivityItem, item != .settings {
+                if showsSidebar, let item = panelCoordinator.activeActivityItem, item != .settings {
                     Divider()
                         .overlay(DesignSystem.Colors.borderSubtle.opacity(0.8))
                         .padding(.vertical, 12)
@@ -63,7 +63,7 @@ extension ContentView {
                 .strokeBorder(DesignSystem.Colors.borderSubtle.opacity(0.7), lineWidth: 0.6)
         )
         .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
-        .animation(.smooth, value: activeActivityItem)
+        .animation(.smooth, value: panelCoordinator.activeActivityItem)
     }
 
     @ViewBuilder
