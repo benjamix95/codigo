@@ -80,11 +80,70 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
     }
 }
 
-/// CoderEngine errors.
+/// CoderEngine errors — tipizzati con contesto strutturato.
 public enum CoderEngineError: Error, Sendable {
     case notAuthenticated
     case apiError(String)
+    case httpError(ProviderHTTPError)
+    case transportError(ProviderTransportError)
+    case circuitBreakerOpen(providerId: String)
     case cliNotFound(String)
+    case cliExecutionFailed(CLIExecutionError)
+}
+
+/// Errore HTTP strutturato con contesto del provider.
+public struct ProviderHTTPError: Sendable, Equatable {
+    public let providerId: String
+    public let statusCode: Int
+    public let message: String
+    public let errorType: String?
+    public let retryAfterSeconds: TimeInterval?
+
+    public init(
+        providerId: String,
+        statusCode: Int,
+        message: String,
+        errorType: String? = nil,
+        retryAfterSeconds: TimeInterval? = nil
+    ) {
+        self.providerId = providerId
+        self.statusCode = statusCode
+        self.message = message
+        self.errorType = errorType
+        self.retryAfterSeconds = retryAfterSeconds
+    }
+
+    public var isAuthError: Bool { statusCode == 401 || statusCode == 403 }
+    public var isRateLimited: Bool { statusCode == 429 }
+    public var isServerError: Bool { (500...599).contains(statusCode) }
+}
+
+/// Errore di trasporto (rete) strutturato.
+public struct ProviderTransportError: Sendable {
+    public let providerId: String
+    public let underlyingError: Error
+    public let urlErrorCode: Int?
+
+    public init(providerId: String, underlyingError: Error) {
+        self.providerId = providerId
+        self.underlyingError = underlyingError
+        self.urlErrorCode = (underlyingError as? URLError)?.code.rawValue
+    }
+}
+
+/// Errore di esecuzione CLI strutturato.
+public struct CLIExecutionError: Sendable {
+    public let cliPath: String
+    public let exitCode: Int32
+    public let stderr: String
+    public let providerId: String
+
+    public init(cliPath: String, exitCode: Int32, stderr: String, providerId: String) {
+        self.cliPath = cliPath
+        self.exitCode = exitCode
+        self.stderr = stderr
+        self.providerId = providerId
+    }
 }
 
 extension CoderEngineError: LocalizedError {
@@ -94,8 +153,17 @@ extension CoderEngineError: LocalizedError {
             return "Provider is not authenticated"
         case .apiError(let message):
             return message
+        case .httpError(let error):
+            let prefix = error.errorType.map { "[\($0)] " } ?? ""
+            return "\(error.providerId) HTTP \(error.statusCode): \(prefix)\(error.message)"
+        case .transportError(let error):
+            return "\(error.providerId) transport error: \(error.underlyingError.localizedDescription)"
+        case .circuitBreakerOpen(let providerId):
+            return "\(providerId) circuit breaker open — provider temporarily unavailable"
         case .cliNotFound(let path):
             return "CLI not found: \(path)"
+        case .cliExecutionFailed(let error):
+            return "\(error.providerId) CLI exited \(error.exitCode): \(error.stderr.prefix(300))"
         }
     }
 }
