@@ -266,6 +266,7 @@ fn consume_line(
                         let mut result_payload = BTreeMap::new();
                         result_payload.insert("id".to_string(), tool_use_id);
                         result_payload.insert("type".to_string(), "tool_finish".to_string());
+                        result_payload.insert("status".to_string(), "completed".to_string());
                         // Extract text content from the result
                         let result_text = block
                             .get("content")
@@ -350,6 +351,9 @@ fn consume_line(
                             payload.entry(k).or_insert(v);
                         }
                     }
+                    // Mark tool as running so the UI shows a spinner until
+                    // the tool_finish event arrives with status=completed.
+                    payload.entry("status".to_string()).or_insert_with(|| "running".to_string());
                     let normalized = normalize_tool_name(&name);
                     eprintln!("[CLAUDE_DEBUG]   normalized tool name: {}", normalized);
                     emit_raw(session_id, &normalized, payload);

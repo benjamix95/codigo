@@ -50,10 +50,22 @@ extension MessageToolTraceView {
                             .controlSize(.mini)
                             .scaleEffect(0.6)
                             .frame(width: 12, height: 12)
-                    } else if durationMs > 0 {
-                        Text(formatDuration(durationMs))
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                    } else {
+                        if durationMs > 0 {
+                            Text(formatDuration(durationMs))
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                        }
+                        if !isError && !isWarning {
+                            Text("DONE")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(
+                                    Capsule().fill(DesignSystem.Colors.success.opacity(0.75))
+                                )
+                        }
                     }
 
                     if !compactMode {
