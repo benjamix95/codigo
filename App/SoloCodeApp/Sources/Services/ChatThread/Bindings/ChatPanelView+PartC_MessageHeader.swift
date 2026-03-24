@@ -260,19 +260,15 @@ extension ChatPanelView {
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleMessagesCountChange(proxy: proxy)
         }
-        .onChange(of: liveTraceEventCount) { _ in
-            guard isLoadingForCurrentConversation else { return }
-            handleLiveTraceEventsChange(proxy: proxy)
-        }
+        // NOTE: liveTraceEventCount and scopedTaskActivityCount onChange removed.
+        // These caused excessive re-renders (3-4 scroll passes per streaming event)
+        // leading to black screen flicker. The streamContentVersion onChange already
+        // handles auto-scrolling during streaming, which is sufficient.
         .onChange(of: planningState) { new in
             handlePlanningStateChange(new, proxy: proxy)
         }
         .onChangeCompat(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
-        }
-        .onChange(of: scopedTaskActivityCount) { _ in
-            guard isLoadingForCurrentConversation else { return }
-            handleTaskActivitiesChange(proxy: proxy)
         }
         .onDisappear {
             autoScrollWorkItem?.cancel()

@@ -266,6 +266,10 @@ extension ChatPanelView {
                                 interruptTask()
                             },
                             onReply: replyAction,
+                            onEdit: displayMessage.role == .user ? {
+                                inputText = displayMessage.content
+                                isInputFocused = true
+                            } : nil,
                             onDelete: deleteAction,
                             showTopDivider: needsDivider
                         )

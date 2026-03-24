@@ -105,6 +105,27 @@ final class ToolTraceStore: ObservableObject {
     /// Background queue for all disk I/O — keeps FileHandle operations off the main thread.
     private static let diskQueue = DispatchQueue(label: "com.solocode.tooltrace.disk", qos: .utility)
 
+    /// Throttle objectWillChange to avoid flooding SwiftUI with re-renders
+    /// during rapid streaming. Coalesces updates within 150ms windows.
+    private var changeThrottleTask: DispatchWorkItem?
+    private var lastChangeNotification: Date = .distantPast
+
+    private func throttledNotify() {
+        let now = Date()
+        if now.timeIntervalSince(lastChangeNotification) > 0.15 {
+            lastChangeNotification = now
+            throttledNotify()
+            return
+        }
+        changeThrottleTask?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.lastChangeNotification = Date()
+            self?.objectWillChange.send()
+        }
+        changeThrottleTask = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
     /// Blocks until all pending disk writes have completed. For test use.
     func flushDiskWrites() {
         Self.diskQueue.sync {}
@@ -127,7 +148,7 @@ final class ToolTraceStore: ObservableObject {
             if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
             return lhs.timestamp < rhs.timestamp
         }
-        objectWillChange.send()
+        throttledNotify()
         cache[key] = events
         // Encode on main thread (fast), dispatch write to background
         if let encoded = try? encoder.encode(event) {
@@ -191,7 +212,7 @@ final class ToolTraceStore: ObservableObject {
             }
         }
         events[idx].isRunning = false
-        objectWillChange.send()
+        throttledNotify()
         cache[key] = events
     }
 

@@ -180,7 +180,7 @@ extension ChatPanelView {
     ) {
         let now = Date()
         let sinceLastScroll = now.timeIntervalSince(lastAutoScrollAt)
-        if lastAutoScrollTarget == target, sinceLastScroll < 0.10 {
+        if lastAutoScrollTarget == target, sinceLastScroll < 0.20 {
             return
         }
         lastAutoScrollTarget = target

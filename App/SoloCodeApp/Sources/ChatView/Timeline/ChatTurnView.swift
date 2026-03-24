@@ -45,6 +45,7 @@ struct ChatTurnView: View {
     let onOpenSubagentPanel: (String) -> Void
     let onStopSubagent: () -> Void
     let onReply: (() -> Void)?
+    let onEdit: (() -> Void)?
     let onDelete: (() -> Void)?
     let showTopDivider: Bool
 
@@ -246,6 +247,16 @@ struct ChatTurnView: View {
                     .frame(width: 24, height: 20)
             }
             .buttonStyle(.plain)
+
+            if let onEdit {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 24, height: 20)
+                }
+                .buttonStyle(.plain)
+            }
 
             if let onReply {
                 Button(action: onReply) {
