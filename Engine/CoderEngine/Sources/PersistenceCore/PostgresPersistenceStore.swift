@@ -4,7 +4,8 @@ public final class PostgresPersistenceStore {
     public static let shared = PostgresPersistenceStore()
     static let readyReuseWindow: TimeInterval = 2.0
 
-    private let queue = DispatchQueue(label: "CoderEngine.Persistence.Store")
+    /// Concurrent queue: letture in parallelo, scritture con barrier.
+    private let queue = DispatchQueue(label: "CoderEngine.Persistence.Store", attributes: .concurrent)
     private let postgresService: ManagedPostgresService
     private var lastReadyAt: Date?
 
@@ -13,13 +14,13 @@ public final class PostgresPersistenceStore {
     }
 
     func resetCachedStateForTests() {
-        queue.sync {
+        queue.sync(flags: .barrier) {
             lastReadyAt = nil
         }
     }
 
     public func ensureReady() throws {
-        try queue.sync {
+        try queue.sync(flags: .barrier) {
             let now = Date()
             if Self.shouldReuseReadyState(lastReadyAt: lastReadyAt, now: now) {
                 return

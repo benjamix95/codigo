@@ -4,9 +4,19 @@ import FoundationNetworking
 #endif
 
 public enum ClaudeOnlineUsageFetcher {
+    /// Deduplicatore: richieste identiche in-flight vengono coalizzate.
+    private static let deduplicator = RequestDeduplicator<String, ClaudeUsage?>()
+
     public static func fetch(adminApiKey: String, now: Date = Date()) async -> ClaudeUsage? {
         let key = adminApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return nil }
+        return try? await deduplicator.deduplicated(key: "claude-usage-\(isoDateUTC(now))") {
+            await performFetch(adminApiKey: adminApiKey, now: now)
+        }
+    }
+
+    private static func performFetch(adminApiKey: String, now: Date) async -> ClaudeUsage? {
+        let key = adminApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard var components = URLComponents(
             string: "https://api.anthropic.com/v1/organizations/usage_report/claude_code"

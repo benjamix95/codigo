@@ -196,15 +196,8 @@ struct ChatTurnView: View {
 
     @State private var didCopyMessage = false
 
-    private var blocks: [PersistedChatTimelineBlock] { message.resolvedTimelineBlocks }
     private var visibleBlocks: [PersistedChatTimelineBlock] {
-        ChatTurnTimelineOrdering.visibleBlocks(from: blocks)
-    }
-    private var narrativeBlocks: [PersistedChatTimelineBlock] {
-        ChatTurnTimelineOrdering.narrativeBlocks(from: visibleBlocks)
-    }
-    private var detailBlocks: [PersistedChatTimelineBlock] {
-        ChatTurnTimelineOrdering.detailBlocks(from: visibleBlocks)
+        ChatTurnTimelineOrdering.visibleBlocks(from: message.resolvedTimelineBlocks)
     }
     private var todoItems: [TodoItem] {
         todoStore.displayTodosForChat(for: conversationId)

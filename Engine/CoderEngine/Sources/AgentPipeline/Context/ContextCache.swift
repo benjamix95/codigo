@@ -165,6 +165,7 @@ public actor ContextCache {
     /// Pulizia periodica: rimuove TTL expired + entry mai usate
     /// dopo `poisoningSuspectAgeMs` (§8.3).
     public func periodicCleanup() async {
+        guard !entries.isEmpty else { return }
         let now = Date()
         var toEvict: [(String, CacheEvictionReason)] = []
 

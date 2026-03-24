@@ -87,6 +87,13 @@ final class ContextCacheTests: XCTestCase {
 
     // MARK: - Periodic Cleanup
 
+    func testPeriodicCleanup_emptyCache_doesNotCrash() async {
+        let cache = ContextCache()
+        await cache.periodicCleanup()
+        let size = await cache.size()
+        XCTAssertEqual(size, 0)
+    }
+
     func testPeriodicCleanup_removesTTLExpired() async throws {
         let config = ContextCacheConfig(ttlMs: 50)
         let cache = ContextCache(config: config)

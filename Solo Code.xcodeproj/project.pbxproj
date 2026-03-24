@@ -132,6 +132,7 @@
 		13AB4F277A6B4211233646C3 /* ChatStoreMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54DA70B807FF7A920795F36B /* ChatStoreMigrationTests.swift */; };
 		13EA81D1AA5C928236F58D6A /* ClaudeConfigLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6E9F9D7FCBF3DC95E0D5C4 /* ClaudeConfigLoader.swift */; };
 		14036C16017A58928F51C1D8 /* CLIErrorClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A76C2F06587B478FFE61807 /* CLIErrorClassifier.swift */; };
+		E31DE00557354864A5B7AAD0 /* RequestDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197D8D52FC9A4BCEBF5C563C /* RequestDeduplicator.swift */; };
 		1417BE8F030FB0E9998E52C7 /* AgentNameAssignerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F7BDAC283F05DCF398E963 /* AgentNameAssignerTests.swift */; };
 		145F2CD90DDAEE1F83376AA6 /* BreadcrumbNavigationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F8A8E7DC434FDE2ECA79F8 /* BreadcrumbNavigationView.swift */; };
 		1468F0F2518556D777730412 /* PipelineEnumsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BC4514B90CCD297506892A3 /* PipelineEnumsTests.swift */; };
@@ -282,6 +283,8 @@
 		2A616A9691F0D0818FED1020 /* OpenAIAPIProvider+ChatStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4CF35771B08C0B023550ED /* OpenAIAPIProvider+ChatStream.swift */; };
 		2A85D4F980B4B81A79DAF6BA /* CoderIDEMCPServerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C757BE3E87D1731CC78481B /* CoderIDEMCPServerApp.swift */; };
 		2AE5016799702832AF8BC5B4 /* OpenAIAPIProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD6B59473263D3157E67D2CF /* OpenAIAPIProviderTests.swift */; };
+		20039AB9A9F746DD908756B4 /* CLIErrorClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FAC71A38BF46A8BBAB59B4 /* CLIErrorClassifierTests.swift */; };
+		43966AA48038488E8E7BD8F2 /* RequestDeduplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC1299AC4B44BA6814E3D4A /* RequestDeduplicatorTests.swift */; };
 		2B666A8EB4F74CCB2229FC1E /* ConversationFlowCoordinator+Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEFDADA6C529F412A8FFDB3 /* ConversationFlowCoordinator+Support.swift */; };
 		2B73AEEA1E05CE36E635EE79 /* MarkdownInlineAttributedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585B0AE261E280B155882B39 /* MarkdownInlineAttributedCache.swift */; };
 		2BE1C5EE1AB5F6A45FEFE69F /* SidebarThreadDiffBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5EA3EE417952CF6EAD4D5A8 /* SidebarThreadDiffBadge.swift */; };
@@ -2268,6 +2271,7 @@
 		3A495A871DEF329CE6CA16FE /* WorkspaceStorePathNormalizationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorkspaceStorePathNormalizationTests.swift; path = Tests/SoloCodeAppTests/WorkspaceStorePathNormalizationTests.swift; sourceTree = "<group>"; };
 		3A6DA332193F792F94F7A979 /* ChatTurnState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatTurnState.swift; path = App/SoloCodeApp/Sources/Services/ChatPipeline/Projection/Core/ChatTurnState.swift; sourceTree = "<group>"; };
 		3A76C2F06587B478FFE61807 /* CLIErrorClassifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIErrorClassifier.swift; path = Engine/CoderEngine/Sources/ProviderBackends/Shared/CLIErrorClassifier.swift; sourceTree = "<group>"; };
+		197D8D52FC9A4BCEBF5C563C /* RequestDeduplicator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RequestDeduplicator.swift; path = Engine/CoderEngine/Sources/ProviderBackends/Shared/RequestDeduplicator.swift; sourceTree = "<group>"; };
 		3B2422063AAA7E680D34D8E1 /* SymbolExtractor+Kotlin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SymbolExtractor+Kotlin.swift"; path = "Engine/CoderEngine/Sources/CodebaseIndex/Indexing/Languages/Secondary/SymbolExtractor+Kotlin.swift"; sourceTree = "<group>"; };
 		3B25F88A1A71C41D176BA727 /* MergeConflictPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MergeConflictPanel.swift; path = App/SoloCodeApp/Sources/Panels/Git/MergeConflictPanel.swift; sourceTree = "<group>"; };
 		3B2688595070099F8971FB85 /* WorktreeBranchNaming.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WorktreeBranchNaming.swift; path = App/SoloCodeApp/Sources/Git/Worktree/Services/WorktreeBranchNaming.swift; sourceTree = "<group>"; };
@@ -3306,6 +3310,8 @@
 		DD201BF6D15060DA8179DB6C /* EditorCommandDispatchStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorCommandDispatchStore.swift; path = App/SoloCodeApp/Sources/Editor/State/EditorCommandDispatchStore.swift; sourceTree = "<group>"; };
 		DD5CBF10D3A4E0590E181A8A /* GitCommitMessageGeneratorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GitCommitMessageGeneratorTests.swift; path = Tests/SoloCodeAppTests/GitCommitMessageGeneratorTests.swift; sourceTree = "<group>"; };
 		DD6B59473263D3157E67D2CF /* OpenAIAPIProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OpenAIAPIProviderTests.swift; path = Tests/CoderEngineTests/OpenAIAPIProviderTests.swift; sourceTree = "<group>"; };
+		23FAC71A38BF46A8BBAB59B4 /* CLIErrorClassifierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CLIErrorClassifierTests.swift; path = Tests/CoderEngineTests/CLIErrorClassifierTests.swift; sourceTree = "<group>"; };
+		FFC1299AC4B44BA6814E3D4A /* RequestDeduplicatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RequestDeduplicatorTests.swift; path = Tests/CoderEngineTests/RequestDeduplicatorTests.swift; sourceTree = "<group>"; };
 		DDEA3EF7460654D32CAFAD84 /* EventNormalizerLiveStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventNormalizerLiveStateTests.swift; path = Tests/SoloCodeAppTests/EventNormalizer/EventNormalizerLiveStateTests.swift; sourceTree = "<group>"; };
 		DDEDD991F01DB9F03377B148 /* SidebarSearchBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SidebarSearchBar.swift; path = App/SoloCodeApp/Sources/App/Sidebar/Sections/SidebarSearchBar.swift; sourceTree = "<group>"; };
 		DDF68B9271232EA08F069EA9 /* VerifiedFindingsSessionSyncService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifiedFindingsSessionSyncService.swift; path = Engine/CoderEngine/Sources/Infrastructure/ReviewCore/VerifiedFindings/Sync/VerifiedFindingsSessionSyncService.swift; sourceTree = "<group>"; };
@@ -4761,6 +4767,7 @@
 				0D4CF35771B08C0B023550ED /* OpenAIAPIProvider+ChatStream.swift */,
 				DAC68FF984172778D85CB507 /* OpenAIAPIProvider+ResponsesWebSocket.swift */,
 				3A76C2F06587B478FFE61807 /* CLIErrorClassifier.swift */,
+				197D8D52FC9A4BCEBF5C563C /* RequestDeduplicator.swift */,
 				1EF7FA89B70DD4206A6A2897 /* ProviderToolEventMapper+Helpers.swift */,
 				895ACBACE6EB101B159672E6 /* ProviderToolEventMapper+MapContext.swift */,
 				571162B0D9B4A914B1A22850 /* ProviderToolEventMapper+MapIO.swift */,
@@ -5185,6 +5192,8 @@
 				915A1F316AB109C3E556DD3C /* MCPSubagentPipelineTests.swift */,
 				EE45346A30999DDAF89B7B41 /* MCPSubagentRoutingTests.swift */,
 				DD6B59473263D3157E67D2CF /* OpenAIAPIProviderTests.swift */,
+				23FAC71A38BF46A8BBAB59B4 /* CLIErrorClassifierTests.swift */,
+				FFC1299AC4B44BA6814E3D4A /* RequestDeduplicatorTests.swift */,
 				C24823B7751DEE944694A3DD /* PathFinderTests.swift */,
 				51D825A3C2DAAB3461BB6254 /* MCPSharedStatePostgresFallbackTests.swift */,
 				CFDEAD3CAD687C3AC20BC592 /* PersistenceBootstrapIntegrationTests.swift */,
@@ -6188,6 +6197,7 @@
 				2A616A9691F0D0818FED1020 /* OpenAIAPIProvider+ChatStream.swift in Sources */,
 				1229FC3BEB31B9D49D326801 /* OpenAIAPIProvider+ResponsesWebSocket.swift in Sources */,
 				14036C16017A58928F51C1D8 /* CLIErrorClassifier.swift in Sources */,
+				E31DE00557354864A5B7AAD0 /* RequestDeduplicator.swift in Sources */,
 				F02D3E7916BE878CF7BB9CD3 /* ProviderToolEventMapper+Helpers.swift in Sources */,
 				FA7013BC9807486F67A560B8 /* ProviderToolEventMapper+MapContext.swift in Sources */,
 				74AEE59614FBBEBB32DAC7FD /* ProviderToolEventMapper+MapIO.swift in Sources */,
@@ -7176,6 +7186,8 @@
 				CF7DEF8CC0EB8B30D8053E8E /* MCPSubagentPipelineTests.swift in Sources */,
 				8445CCF82AA0D8B998AD1C6F /* MCPSubagentRoutingTests.swift in Sources */,
 				2AE5016799702832AF8BC5B4 /* OpenAIAPIProviderTests.swift in Sources */,
+				20039AB9A9F746DD908756B4 /* CLIErrorClassifierTests.swift in Sources */,
+				43966AA48038488E8E7BD8F2 /* RequestDeduplicatorTests.swift in Sources */,
 				77F396F5B7BD981DE2A2B320 /* PathFinderTests.swift in Sources */,
 				EFCAC4BDBDB0D435A3235C0C /* MCPSharedStatePostgresFallbackTests.swift in Sources */,
 				DD57F6BEFA209438D6E634F4 /* PersistenceBootstrapIntegrationTests.swift in Sources */,

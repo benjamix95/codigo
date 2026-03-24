@@ -24,10 +24,6 @@ struct SwarmProgressView: View {
         pipelineService.isRunning(for: conversationId)
     }
 
-    private var isLive: Bool {
-        isTaskRunning || isPipelineRunningForConversation
-    }
-
     private var progressMetrics: SwarmProgressMetrics {
         SwarmProgressMetrics(
             steps: scopedSteps,
@@ -44,57 +40,53 @@ struct SwarmProgressView: View {
             }
     }
 
-    private var activeSubagentCount: Int {
-        liveSwarmCards.filter { $0.status == .running }.count
-    }
-
-    private var stepCountLabel: String {
-        progressMetrics.progressLabel
-    }
-
-    private var activeAgentsLabel: String {
-        let count = activeSubagentCount
-        return count == 1 ? "1 active" : "\(count) active"
-    }
-
     var body: some View {
+        // Cache computed costosi una sola volta per render.
+        let cards = liveSwarmCards
+        let activeCount = cards.filter { $0.status == .running }.count
+        let steps = scopedSteps
+        let metrics = progressMetrics
+        let pipelineRunning = isPipelineRunningForConversation
+        let live = isTaskRunning || pipelineRunning
+        let agentsLabel = activeCount == 1 ? "1 active" : "\(activeCount) active"
+
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     swarmAntIcon
-                    Text(isPipelineRunningForConversation ? "TASK" : "SUBAGENT")
+                    Text(pipelineRunning ? "TASK" : "SUBAGENT")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .tracking(0.5)
-                        .textShimmer(active: isTaskRunning || isPipelineRunningForConversation)
+                        .textShimmer(active: live)
                 }
 
                 Spacer(minLength: 8)
 
                 Button {
-                    guard !liveSwarmCards.isEmpty else { return }
+                    guard !cards.isEmpty else { return }
                     withAnimation(.snappy(duration: 0.22)) {
                         showInlineLiveCards.toggle()
                     }
                 } label: {
                     metricPill(
                         icon: "bolt.fill",
-                        text: activeAgentsLabel,
-                        tint: activeSubagentCount > 0 ? DesignSystem.Colors.swarmColor : .secondary,
-                        isLive: isLive,
-                        accessorySymbol: liveSwarmCards.isEmpty ? nil : (showInlineLiveCards ? "chevron.up" : "chevron.down")
+                        text: agentsLabel,
+                        tint: activeCount > 0 ? DesignSystem.Colors.swarmColor : .secondary,
+                        isLive: live,
+                        accessorySymbol: cards.isEmpty ? nil : (showInlineLiveCards ? "chevron.up" : "chevron.down")
                     )
                 }
                 .buttonStyle(.plain)
                 .help("Show/hide live subagent cards")
-                .disabled(liveSwarmCards.isEmpty)
+                .disabled(cards.isEmpty)
 
-                if !progressMetrics.isInternalSingleTaskPhase {
+                if !metrics.isInternalSingleTaskPhase {
                     metricPill(
                         icon: "checklist",
-                        text: stepCountLabel,
-                        tint: progressMetrics.progressedSteps > 0 ? DesignSystem.Colors.swarmColor : .secondary,
-                        isLive: isLive
+                        text: metrics.progressLabel,
+                        tint: metrics.progressedSteps > 0 ? DesignSystem.Colors.swarmColor : .secondary,
+                        isLive: live
                     )
                 }
 
@@ -112,7 +104,7 @@ struct SwarmProgressView: View {
                 .buttonStyle(.plain)
                 .help(isExpanded ? "Collapse steps" : "Expand steps")
 
-                if isLive {
+                if live {
                     ProgressView()
                         .controlSize(.mini)
                         .tint(DesignSystem.Colors.swarmColor)
@@ -122,24 +114,24 @@ struct SwarmProgressView: View {
             .padding(.top, 10)
 
             if isExpanded {
-                if progressMetrics.totalSteps == 0 {
-                    Text(isPipelineRunningForConversation ? "Waiting for task steps…" : "Waiting for subagent steps…")
+                if metrics.totalSteps == 0 {
+                    Text(pipelineRunning ? "Waiting for task steps…" : "Waiting for subagent steps…")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 12)
                         .padding(.bottom, 10)
                 } else {
                     VStack(spacing: 6) {
-                        SwarmProgressSummarySection(metrics: progressMetrics)
+                        SwarmProgressSummarySection(metrics: metrics)
 
-                        if scopedSteps.isEmpty {
+                        if steps.isEmpty {
                             SwarmStepSyncPlaceholder()
                         } else {
-                            ForEach(Array(scopedSteps.enumerated()), id: \.element.id) { index, step in
+                            ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
                                 SwarmStepRow(
                                     step: step,
                                     index: index,
-                                    showsConnector: index < scopedSteps.count - 1
+                                    showsConnector: index < steps.count - 1
                                 )
                             }
                         }
@@ -149,7 +141,7 @@ struct SwarmProgressView: View {
                 }
             }
 
-            if showInlineLiveCards, !liveSwarmCards.isEmpty {
+            if showInlineLiveCards, !cards.isEmpty {
                 inlineLiveCardsSection
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
@@ -168,7 +160,7 @@ struct SwarmProgressView: View {
                 .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 1)
         }
         .overlay {
-            if isLive {
+            if live {
                 ActivityShimmerTrail()
                     .opacity(0.18)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -181,11 +173,10 @@ struct SwarmProgressView: View {
                 .frame(height: 0.5)
                 .offset(y: 8)
         }
-        // Keep the inline swarm strip centered in chat and prevent full-width expansion.
         .frame(maxWidth: inlineMaxWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.leading, 6)
-        .onChange(of: liveSwarmCards.count) { newValue in
+        .onChange(of: cards.count) { newValue in
             if newValue == 0 {
                 showInlineLiveCards = false
             }

@@ -15,14 +15,18 @@ public struct CLIErrorClassification: Sendable {
 }
 
 public enum CLIErrorClassifier {
+    // Regex pre-compilata una volta sola — evita ricompilazione ad ogni classify().
+    private static let retryAfterRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: "retry[- ]?after[: ]+([0-9]+)", options: .caseInsensitive)
+    }()
+
     public static func classify(providerId: String, message: String) -> CLIErrorClassification {
         let lower = message.lowercased()
         let isQuota = lower.contains("quota") || lower.contains("insufficient") || lower.contains("credit") || lower.contains("billing")
         let isRate = lower.contains("rate limit") || lower.contains("too many requests") || lower.contains("429")
 
         let retryAfter: Int? = {
-            let regex = try? NSRegularExpression(pattern: "retry[- ]?after[: ]+([0-9]+)", options: .caseInsensitive)
-            guard let regex,
+            guard let regex = retryAfterRegex,
                   let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
                   let range = Range(match.range(at: 1), in: lower) else { return nil }
             return Int(lower[range])

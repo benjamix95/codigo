@@ -73,6 +73,18 @@ struct UsageFooterView: View {
         providerRegistry.selectedProviderId
     }
 
+    /// Fingerprint combinato per tutti i valori che richiedono solo scheduleContextEstimateRefresh().
+    /// Sostituisce 5 onChange separati con uno solo.
+    private var contextEstimateFingerprint: String {
+        [
+            effectiveContextModel,
+            contextScopeModeRaw,
+            "\(contextRefreshTick)",
+            openFilesStore.openFilePath ?? "",
+            contextEstimateConversationSignature,
+        ].joined(separator: "|")
+    }
+
     var body: some View {
         let tier = footerTierFlags(for: resolvedTier)
 
@@ -110,11 +122,7 @@ struct UsageFooterView: View {
             scheduleRefresh()
             scheduleContextEstimateRefresh()
         }
-        .onChange(of: effectiveContextModel) { _ in scheduleContextEstimateRefresh() }
-        .onChange(of: contextScopeModeRaw) { _ in scheduleContextEstimateRefresh() }
-        .onChange(of: contextRefreshTick) { _ in scheduleContextEstimateRefresh() }
-        .onChange(of: openFilesStore.openFilePath) { _ in scheduleContextEstimateRefresh() }
-        .onChange(of: contextEstimateConversationSignature) { _ in scheduleContextEstimateRefresh() }
+        .onChange(of: contextEstimateFingerprint) { _ in scheduleContextEstimateRefresh() }
         .onChange(of: effectiveContext.primaryPath) { _ in
             scheduleRefresh()
             scheduleContextEstimateRefresh()
