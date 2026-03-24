@@ -212,6 +212,14 @@ extension ChatPanelView {
         return AnyHashable(chatScrollBottomAnchorId)
     }
 
+    /// Minimum interval between consecutive auto-scroll operations.
+    /// Previously 0.20s which was too low — multiple onChange handlers
+    /// (streamContentVersion, messagesCount, planningState, etc.) all
+    /// call this within milliseconds of each other, saturating the main
+    /// thread with overlapping scrollTo + layout passes. 0.35s is enough
+    /// to coalesce bursts while still feeling responsive.
+    private static let autoScrollMinInterval: TimeInterval = 0.35
+
     internal func scheduleAutoScroll(
         proxy: ScrollViewProxy,
         target: AnyHashable,
@@ -220,13 +228,13 @@ extension ChatPanelView {
     ) {
         let now = Date()
         let sinceLastScroll = now.timeIntervalSince(streaming.lastAutoScrollAt)
-        if streaming.lastAutoScrollTarget == target, sinceLastScroll < 0.20 {
+        if streaming.lastAutoScrollTarget == target, sinceLastScroll < Self.autoScrollMinInterval {
             return
         }
         streaming.lastAutoScrollTarget = target
         streaming.lastAutoScrollAt = now
         streaming.autoScrollWorkItem?.cancel()
-        let work = DispatchWorkItem {
+        let work = DispatchWorkItem { [showsSwarmViewOnly, chatStore, conversationId, chatScrollTopAnchorId, chatScrollBottomAnchorId] in
             guard NSApplication.shared.isActive else { return }
             guard !showsSwarmViewOnly else { return }
             let hasActiveConversation = chatStore.conversation(for: conversationId) != nil
@@ -240,13 +248,11 @@ extension ChatPanelView {
                 allowAnchorTargets: hasActiveConversation,
                 availableMessageIDs: availableMessageIDs
             ) else { return }
-            if animated {
-                withAnimation(.easeOut(duration: 0.14)) {
-                    proxy.scrollTo(target, anchor: .bottom)
-                }
-            } else {
-                proxy.scrollTo(target, anchor: .bottom)
-            }
+            // Never use withAnimation for auto-scroll during streaming.
+            // Animated scrollTo blocks the main thread layout pass and
+            // causes the UI to disappear (black screen) when multiple
+            // scroll operations overlap.
+            proxy.scrollTo(target, anchor: .bottom)
         }
         streaming.autoScrollWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)

@@ -148,16 +148,13 @@ extension ContentView {
             }
             // Re-apply window style after mode change to strip any sidebar toggle
             // that SwiftUI re-adds when columnVisibility changes, and clear the title.
-            DispatchQueue.main.async {
+            // NOTE: Previously this applied the style 6 times (immediate + 5 delays
+            // up to 2.0s). Each reapplication forces a full window redraw, causing
+            // the UI to disappear temporarily. A single delayed application after
+            // SwiftUI finishes its layout pass (0.3s) is sufficient.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 for window in NSApplication.shared.windows where window.canBecomeMain {
                     AppDelegate.applyMainWindowStyle(window)
-                }
-            }
-            for extraDelay in [0.3, 0.6, 1.0, 1.5, 2.0] {
-                DispatchQueue.main.asyncAfter(deadline: .now() + extraDelay) {
-                    for window in NSApplication.shared.windows where window.canBecomeMain {
-                        AppDelegate.applyMainWindowStyle(window)
-                    }
                 }
             }
         }

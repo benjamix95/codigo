@@ -63,7 +63,10 @@ struct MessageRow: View {
             }
         }
         .padding(.horizontal, 6)
-        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+        // Use a single frame instead of stacking two .frame() modifiers.
+        // Double frame + fixedSize forced SwiftUI to run two separate layout
+        // passes per rebuild. During streaming (many rebuilds per second),
+        // this doubled the layout computation for every visible message cell.
         .frame(maxWidth: rowMaxWidth, alignment: isUser ? .trailing : .leading)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())

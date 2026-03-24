@@ -29,13 +29,20 @@ extension ChatPanelView {
 
     internal func handleMessagesCountChange(proxy: ScrollViewProxy) {
         guard isFollowingLive else { return }
-        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, animated: true, delay: 0.05)
+        // Use a longer delay than streamContentVersion (0.04s) so that
+        // during streaming, the content version handler handles the scroll
+        // and this one gets coalesced by scheduleAutoScroll's throttle.
+        // Previously both fired within 10ms of each other with animation,
+        // causing duplicate layout passes.
+        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, delay: 0.12)
     }
 
     internal func handleLiveTraceEventsChange(proxy: ScrollViewProxy) {
         guard isLoadingForCurrentConversation, isFollowingLive else { return }
         if let target = liveScrollTarget() {
-            scheduleAutoScroll(proxy: proxy, target: target, delay: 0.05)
+            // Use a slightly longer delay to let streamContentVersion
+            // handle the primary scroll; this acts as a fallback.
+            scheduleAutoScroll(proxy: proxy, target: target, delay: 0.14)
         }
     }
 
@@ -60,16 +67,20 @@ extension ChatPanelView {
         let isActive = newSet.contains(cid)
         let wasActive = oldSet.contains(cid)
         if !wasActive && isActive {
-            DispatchQueue.main.async { isFollowingLive = true }
+            isFollowingLive = true
             if let target = liveScrollTarget() {
                 scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
             }
         } else if wasActive && !isActive {
             cancelFallbackTurnStartEvent()
-            DispatchQueue.main.async { isFollowingLive = true }
+            isFollowingLive = true
             if let target = latestMessageScrollTarget() {
-                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0.16)
+                // Previously scheduled two overlapping scrolls (0s + 0.16s) with
+                // animation. The double schedule raced with other handlers and
+                // contributed to main thread saturation. A single delayed scroll
+                // is sufficient — the 0.35s throttle in scheduleAutoScroll
+                // prevents rapid-fire duplicates.
+                scheduleAutoScroll(proxy: proxy, target: target, delay: 0.08)
             }
         }
     }

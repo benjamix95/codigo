@@ -5659,6 +5659,7 @@
 				LastUpgradeCheck = 1700;
 			};
 			buildConfigurationList = B63AB6E91DC88C35A88D1DD0 /* Build configuration list for PBXProject "Solo Code" */;
+			buildIndependentTargetsInParallel = YES;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;

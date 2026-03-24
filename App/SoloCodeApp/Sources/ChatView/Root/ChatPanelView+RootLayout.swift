@@ -118,10 +118,12 @@ extension ChatPanelView {
                 .frame(width: CGFloat(uiSettings.gitPanelWidthStorage))
             }
         }
-        .animation(.none, value: showPlanPanel)
-        .animation(.none, value: showDebugPanel)
-        .animation(.none, value: showSwarmPanel)
-        .animation(.none, value: showCodeReviewPanel)
-        .animation(.none, value: gitPanelStore.isOpen)
+        // Disable all implicit animations on the root HStack.
+        // Previously used 5 stacked .animation(.none, value:) modifiers,
+        // each tracking a separate state value. Even with .none, SwiftUI
+        // evaluates each modifier on every state change. A single
+        // .transaction modifier is more efficient — it unconditionally
+        // strips animations from all child transactions.
+        .transaction { $0.animation = nil }
     }
 }

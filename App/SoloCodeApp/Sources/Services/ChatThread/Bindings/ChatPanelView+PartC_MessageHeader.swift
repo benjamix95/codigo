@@ -134,10 +134,16 @@ extension ChatPanelView {
             GeometryReader { proxy in
                 Color.clear
                     .onAppear {
-                        DispatchQueue.main.async { chatHeaderWidth = proxy.size.width }
+                        chatHeaderWidth = proxy.size.width
                     }
                     .onChange(of: proxy.size.width) { newWidth in
-                        DispatchQueue.main.async { chatHeaderWidth = newWidth }
+                        // Only update state when the width changed by a meaningful amount.
+                        // Small sub-pixel differences during layout passes were creating
+                        // a feedback loop: GeometryReader update → state change → view
+                        // rebuild → GeometryReader fires again. A 4pt threshold breaks
+                        // the loop while still responding to real window resizes.
+                        guard abs(newWidth - chatHeaderWidth) > 4 else { return }
+                        chatHeaderWidth = newWidth
                     }
             }
         )
@@ -254,6 +260,13 @@ extension ChatPanelView {
         .padding(.horizontal, 24)
         .onChange(of: streaming.streamContentVersion) { _ in
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
+            // streamContentVersion is incremented from 17+ call sites during
+            // streaming. Without coalescing, each increment triggers a separate
+            // scheduleAutoScroll → layout pass → scrollTo chain, saturating the
+            // main thread and causing the UI to disappear (black screen).
+            // Coalesce rapid-fire increments by skipping versions that arrive
+            // within the auto-scroll throttle window (handled inside
+            // scheduleAutoScroll's minInterval guard).
             handleStreamContentVersionChange(proxy: proxy)
         }
         .onChange(of: chatStore.conversation(for: conversationId)?.messages.count) { _ in
