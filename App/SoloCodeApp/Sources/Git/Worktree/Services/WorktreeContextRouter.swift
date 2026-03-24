@@ -48,11 +48,17 @@ enum WorktreeContextRouter {
 
         let resolvedRoot = try GitService().resolveGitRoot(from: path)
         let normalizedRoot = normalized(resolvedRoot)
-        guard normalizedRoot == path else {
+        let resolvedPath = resolved(path)
+        let resolvedNormalizedRoot = resolved(normalizedRoot)
+        guard resolvedNormalizedRoot == resolvedPath else {
             throw GitServiceError.commandFailed(
                 "Il percorso progetto deve puntare alla root del repository Git."
             )
         }
         return normalizedRoot
+    }
+
+    private static func resolved(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().path
     }
 }
