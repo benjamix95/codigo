@@ -87,10 +87,12 @@ extension ChatPanelView {
             defer { isOptimizingPrompt = false }
             do {
                 let ctx = WorkspaceContext.minimal()
+                let modelDisplay = providerToUse.displayName
                 let optimized = try await PromptOptimizerService.optimize(
                     prompt: prompt,
                     using: providerToUse,
-                    context: ctx
+                    context: ctx,
+                    modelName: modelDisplay
                 )
                 guard !Task.isCancelled else { return }
                 optimizedPromptResult = optimized

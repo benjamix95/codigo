@@ -32,7 +32,23 @@ final class ProjectContextStore: ObservableObject {
     func load() {
         if let data = UserDefaults.standard.data(forKey: projectContextsKey),
            let decoded = try? JSONDecoder().decode([ProjectContext].self, from: data) {
-            contexts = decoded
+            // Deduplicate: keep only the most recently updated context
+            // when name + folderPaths are identical.
+            var seen: [String: Int] = [:]
+            var deduped: [ProjectContext] = []
+            for ctx in decoded {
+                let key = ctx.name + "|" + ctx.folderPaths.sorted().joined(separator: ";")
+                if let existingIdx = seen[key] {
+                    if ctx.updatedAt > deduped[existingIdx].updatedAt {
+                        deduped[existingIdx] = ctx
+                    }
+                } else {
+                    seen[key] = deduped.count
+                    deduped.append(ctx)
+                }
+            }
+            contexts = deduped
+            if deduped.count < decoded.count { save() }
         }
         if let idString = UserDefaults.standard.string(forKey: activeContextIdKey),
            let id = UUID(uuidString: idString),
@@ -42,8 +58,11 @@ final class ProjectContextStore: ObservableObject {
     }
 
     func save() {
-        if let data = try? JSONEncoder().encode(contexts) {
+        do {
+            let data = try JSONEncoder().encode(contexts)
             UserDefaults.standard.set(data, forKey: projectContextsKey)
+        } catch {
+            NSLog("[ProjectContextStore] save failed: %@", error.localizedDescription)
         }
         if let activeContextId {
             UserDefaults.standard.set(activeContextId.uuidString, forKey: activeContextIdKey)
@@ -61,7 +80,17 @@ final class ProjectContextStore: ObservableObject {
         if let idx = contexts.firstIndex(where: { $0.id == context.id }) {
             contexts[idx] = context
         } else {
-            contexts.append(context)
+            // Prevent duplicates: if another context has the same name AND
+            // identical folder paths, merge into the existing one instead.
+            if let dupIdx = contexts.firstIndex(where: {
+                $0.id != context.id
+                && $0.name == context.name
+                && Set($0.folderPaths) == Set(context.folderPaths)
+            }) {
+                contexts[dupIdx] = context
+            } else {
+                contexts.append(context)
+            }
         }
         save()
     }

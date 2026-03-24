@@ -7,14 +7,16 @@ extension SidebarView {
 
     var sidebarContent: some View {
         VStack(spacing: 0) {
-            // Fixed header: Search + New Thread
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+            // Fixed header: Search + New Thread + Skills + Rules
+            VStack(alignment: .leading, spacing: 6) {
                 SidebarSearchBar(query: $query)
                 SidebarNewThreadButton(onNewThread: { createThread(contextId: activeContext?.id) })
+                SidebarSkillsButton(showSkillsSheet: $showSkillsSheet)
+                SidebarRulesButton(showRulesSheet: $showRulesSheet)
             }
             .padding(.top, sidebarTopContentInset)
             .padding(.horizontal, DesignSystem.Sidebar.insetMD)
-            .padding(.bottom, DesignSystem.Spacing.sm)
+            .padding(.bottom, 12)
 
             // Scrollable thread list (primary content)
             ScrollView(.vertical, showsIndicators: false) {
@@ -30,6 +32,12 @@ extension SidebarView {
                 .padding(.horizontal, DesignSystem.Sidebar.insetMD)
 
             footer
+        }
+        .sheet(isPresented: $showSkillsSheet) {
+            ProjectSkillsSheet(projectRoot: activeContext?.activeFolderPath)
+        }
+        .sheet(isPresented: $showRulesSheet) {
+            SidebarRulesSheet(projectRoot: activeContext?.activeFolderPath)
         }
         .sheet(item: $contextToRename) { context in
             RenameContextSheet(context: context, onDismiss: { contextToRename = nil })

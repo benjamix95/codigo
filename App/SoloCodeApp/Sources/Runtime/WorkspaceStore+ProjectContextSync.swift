@@ -268,7 +268,13 @@ final class ConversationFlowCoordinator: ObservableObject {
                     case .started:
                         break
                     case .textDelta:
-                        if !hasSeenNarrativeEvent {
+                        // For non-Claude CLI providers (Codex, Kilo, API providers),
+                        // textDelta is always real text, not reasoning that arrives
+                        // before a narrative marker. Only route to reasoning for
+                        // Claude CLI which emits thinking blocks as textDelta before
+                        // the assistant_update event.
+                        let isClaudeCli = provider.id == "claude-cli"
+                        if !hasSeenNarrativeEvent && isClaudeCli {
                             pendingReasoningSnapshot += event.text
                             await MainActor.run {
                                 onRaw(
@@ -282,11 +288,13 @@ final class ConversationFlowCoordinator: ObservableObject {
                                 )
                             }
                         } else {
+                            hasSeenNarrativeEvent = true
                             renderedTextSnapshot += event.text
                             await MainActor.run { onText(renderedTextSnapshot) }
                         }
                     case .textReplace:
-                        if !hasSeenNarrativeEvent {
+                        let isClaudeCliReplace = provider.id == "claude-cli"
+                        if !hasSeenNarrativeEvent && isClaudeCliReplace {
                             pendingReasoningSnapshot = event.text
                             await MainActor.run {
                                 onRaw(
@@ -300,6 +308,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                                 )
                             }
                         } else {
+                            hasSeenNarrativeEvent = true
                             renderedTextSnapshot = event.text
                             await MainActor.run { onText(renderedTextSnapshot) }
                         }

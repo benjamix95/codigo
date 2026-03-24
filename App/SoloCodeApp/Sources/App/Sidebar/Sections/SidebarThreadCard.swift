@@ -24,17 +24,17 @@ extension SidebarView {
                     .padding(.trailing, DesignSystem.Spacing.xs)
             }
 
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+            VStack(alignment: .leading, spacing: 4) {
                 // Row 1: icon + title + mode badge
-                HStack(spacing: DesignSystem.Spacing.xs + 2) {
+                HStack(spacing: 6) {
                     threadLeadingIcon(conv: conv, isActive: isActive, hasDraft: hasDraft, selected: selected)
 
                     Text(conv.title)
-                        .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                        .font(.system(size: 12, weight: selected ? .semibold : .regular))
                         .lineLimit(1)
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
 
-                    Spacer(minLength: DesignSystem.Spacing.xs)
+                    Spacer(minLength: 4)
 
                     if let mode = conv.mode {
                         SidebarModeBadge(mode: mode)
@@ -42,7 +42,7 @@ extension SidebarView {
                 }
 
                 // Row 2: status/date + diff stats + progress
-                HStack(spacing: DesignSystem.Spacing.sm) {
+                HStack(spacing: 6) {
                     if isActive, let status = statusText, !status.isEmpty {
                         Text(status)
                             .font(.system(size: 10))
@@ -53,7 +53,7 @@ extension SidebarView {
                     } else {
                         Text(relativeDate(conv.createdAt, relativeTo: now))
                             .font(.system(size: 10))
-                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                            .foregroundStyle(DesignSystem.Colors.textQuaternary)
                     }
 
                     Spacer(minLength: 0)
@@ -71,12 +71,14 @@ extension SidebarView {
                     }
                 }
             }
-            .padding(.horizontal, selected ? DesignSystem.Spacing.sm - 2 : DesignSystem.Spacing.sm)
-            .padding(.vertical, DesignSystem.Spacing.sm)
+            .padding(.horizontal, selected ? 8 : 10)
+            .padding(.vertical, 8)
         }
-        .background(threadRowBackground(selected: selected, isActive: isActive))
-        .contentShape(Rectangle())
-        .hoverHighlight()
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(threadRowBackground(selected: selected, isActive: isActive))
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contextMenu { threadContextMenu(conv) }
         .simultaneousGesture(TapGesture().onEnded { selectConversation(conv) })
     }

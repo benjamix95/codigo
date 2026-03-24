@@ -135,7 +135,7 @@ extension ChatComposerView {
                 } else {
                     Image(systemName: "sparkles")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(canOptimize ? .yellow : .secondary.opacity(0.5))
+                        .foregroundStyle(canOptimize ? Color.primary.opacity(0.7) : Color.secondary.opacity(0.3))
                 }
             }
             .frame(width: isIDEStyle ? 28 : 32, height: isIDEStyle ? 28 : 32)

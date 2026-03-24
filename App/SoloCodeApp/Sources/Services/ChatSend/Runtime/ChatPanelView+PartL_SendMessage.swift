@@ -36,6 +36,11 @@ extension ChatPanelView {
         guard !text.isEmpty || !attachedComposerAttachments.isEmpty else {
             return
         }
+        // Clear composer immediately for snappy feel
+        let capturedAttachments = attachedComposerAttachments
+        inputText = ""
+        attachedComposerAttachments = []
+
         let reusableConversationId = chatStore.reusableEmptyConversation(
             contextId: effectiveContext.contextId,
             contextFolderPath: effectiveContext.context.flatMap {
@@ -203,7 +208,7 @@ extension ChatPanelView {
 
         let turnId = UUID()
         let attachmentBundle = buildAttachmentBundle(
-            attachments: attachedComposerAttachments,
+            attachments: capturedAttachments,
             workspaceURL: ctx.workspacePath,
             turnId: turnId,
             capabilities: effectiveRuntimeProvider.attachmentCapabilities
@@ -211,7 +216,6 @@ extension ChatPanelView {
         let imagePathsToStore = attachmentBundle.chat
             .filter { $0.kind == .image }
             .map(\.localPath)
-        inputText = ""
         let userVisibleText = displayedInput
         let contentToStore =
             userVisibleText.isEmpty ? (attachmentBundle.chat.isEmpty ? "" : "[Attached files]") : userVisibleText
@@ -291,7 +295,6 @@ extension ChatPanelView {
         swarmProgressStore.clear(conversationId: targetConversationId)
 
         let attachmentsToSend = attachmentBundle.llm.isEmpty ? nil : attachmentBundle.llm
-        attachedComposerAttachments = []
 
         let basePrompt = buildPrompt(userText: text, shouldRunPlanInline: shouldRunPlanInline)
         let prompt = attachmentBundle.fallbackPreamble.isEmpty

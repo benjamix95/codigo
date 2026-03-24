@@ -128,9 +128,11 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
             onError: { _ in }
         )
 
+        // The reasoning event is the first narrative marker, which triggers
+        // flushing the buffered mcp_tool_call. Then textDelta arrives as text.
         XCTAssertEqual(
             callbacks,
-            ["raw:reasoning", "text", "raw:mcp_tool_call"]
+            ["raw:reasoning", "raw:mcp_tool_call", "text"]
         )
     }
 

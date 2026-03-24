@@ -20,6 +20,8 @@ extension SettingsView {
                 claudeModel = "claude-sonnet-4-6"
             case "opus":
                 claudeModel = "claude-opus-4-6"
+            case "opus-1m":
+                claudeModel = "claude-opus-4-6[1m]"
             case "haiku":
                 claudeModel = "claude-haiku-4-5-20251001"
             default:

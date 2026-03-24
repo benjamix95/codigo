@@ -22,27 +22,27 @@ final class PromptOptimizerService {
         }
     }
 
-    /// System prompt per l'ottimizzazione. Chiede al modello di restituire SOLO il prompt migliorato,
-    /// nella stessa lingua dell'input, senza spiegazioni aggiuntive.
-    private static let systemInstruction = """
-    You are a prompt optimization expert. Your job is to take the user's prompt and rewrite it to be clearer, more specific, and more effective for an AI coding assistant.
+    /// Builds a model-aware system instruction for prompt optimization.
+    static func systemInstruction(modelName: String) -> String {
+        """
+        You are a prompt optimization expert. Rewrite the user's prompt to be maximally effective for \(modelName).
 
-    Rules:
-    - Output ONLY the improved prompt, nothing else. No explanations, no preamble, no \"Here is the improved prompt:\" prefix.
-    - Keep the SAME language as the input prompt. If the user writes in Italian, respond in Italian. If in English, respond in English. Etc.
-    - Preserve the user's original intent and meaning.
-    - Make it more specific, structured, and actionable.
-    - Add relevant context clues if the original prompt is vague.
-    - Keep a similar length — don't make it excessively longer.
-    - If the prompt is already excellent, return it as-is with minimal changes.
-    """
+        Rules:
+        - Output ONLY the improved prompt. No explanations, no preamble.
+        - Keep the SAME language as the input.
+        - Preserve original intent. Make it specific, structured, actionable.
+        - Tailor to \(modelName) strengths (tool use, reasoning, code generation).
+        - Similar length — don't bloat.
+        - If already excellent, return as-is.
+        """
+    }
 
     /// Ottimizza il prompt usando il provider fornito.
-    /// Returns the optimized text.
     static func optimize(
         prompt: String,
         using provider: any LLMProvider,
-        context: WorkspaceContext
+        context: WorkspaceContext,
+        modelName: String = "AI coding assistant"
     ) async throws -> String {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw OptimizeError.emptyPrompt }
@@ -64,7 +64,7 @@ final class PromptOptimizerService {
             activeFilePath: nil,
             activeRootPath: context.activeRootPath,
             skipContextEnrichment: true,
-            systemPromptOverride: context.systemPromptOverride ?? systemInstruction
+            systemPromptOverride: context.systemPromptOverride ?? systemInstruction(modelName: modelName)
         )
         let stream = try await provider.send(
             prompt: userPrompt,

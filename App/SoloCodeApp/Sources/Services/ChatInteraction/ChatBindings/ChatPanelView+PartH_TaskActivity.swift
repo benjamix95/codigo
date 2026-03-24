@@ -144,25 +144,6 @@ extension ChatPanelView {
     @ViewBuilder
     internal var composerArea: some View {
         VStack(spacing: 0) {
-            // Todo card attached above the composer, expands upward
-            if shouldShowPlanTodosInChat,
-               !todoStore.displayTodosForChat(for: conversationId).isEmpty
-            {
-                TodoCenterCardView(
-                    store: todoStore,
-                    conversationId: conversationId,
-                    traceEvents: [],
-                    microStatusText: nil,
-                    isStreaming: isLoadingForCurrentConversation,
-                    onReviewChanges: {
-                        gitPanelStore.isOpen = true
-                        gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-                    }
-                )
-                .frame(maxWidth: coderMode == .ide ? 760 : chatColumnMaxWidth)
-                .padding(.horizontal, coderMode == .ide ? 14 : 20)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
             ChatComposerView(
                 inputText: $inputText,
                 attachedAttachments: $attachedComposerAttachments,
@@ -210,7 +191,7 @@ extension ChatPanelView {
                 isOptimizingPrompt: isOptimizingPrompt
             )
         }
-        .frame(maxWidth: coderMode == .ide ? 760 : chatColumnMaxWidth)
+        .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, coderMode == .ide ? 14 : 20)
         .popover(isPresented: $showPromptOptimizerPopup, arrowEdge: .bottom) {

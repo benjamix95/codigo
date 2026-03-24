@@ -1,16 +1,13 @@
 import SwiftUI
 import CoderEngine
 
-/// Always-visible context area pinned above the footer.
-/// Shows the context name, an expandable list of folders (active one highlighted),
-/// and a menu for context-level actions.
+// MARK: - Context Strip (pinned above footer)
+
 extension SidebarView {
 
     var contextStrip: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Rectangle()
-                .fill(DesignSystem.Colors.borderSubtle)
-                .frame(height: 0.5)
+            Divider()
 
             if let context = activeContext {
                 contextStripContent(context)
@@ -20,139 +17,99 @@ extension SidebarView {
         }
     }
 
-    // MARK: - Active Context Header + Folder List
+    // MARK: - Active Context
 
     private func contextStripContent(_ context: ProjectContext) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 6) {
 
-            // Header row: icon + name + menu
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.accentColor.opacity(0.7))
+            // ── Project header ──────────────────────────
+            HStack(spacing: 8) {
+                Image(systemName: "externaldrive.fill.badge.checkmark")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
 
                 Text(context.name)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
+
+                indexBadge
 
                 Spacer()
 
                 contextStripMenu(context)
             }
-            .padding(.top, DesignSystem.Spacing.sm)
-            .padding(.bottom, context.folderPaths.isEmpty ? DesignSystem.Spacing.sm : DesignSystem.Spacing.xs)
 
-            // Folder list
+            // ── Folder list ─────────────────────────────
             if !context.folderPaths.isEmpty {
-                contextFolderList(context)
-                    .padding(.bottom, DesignSystem.Spacing.sm)
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(context.folderPaths, id: \.self) { folder in
+                        let isActive = context.activeFolderPath == folder
+                        let name = (folder as NSString).lastPathComponent
+
+                        FolderRow(
+                            folderName: name,
+                            isActive: isActive,
+                            canRemove: true,
+                            onTap: { switchActiveFolder(contextId: context.id, folder: folder, context: context) },
+                            onRemove: { removeFolderFromContext(contextId: context.id, folder: folder) },
+                            onReveal: { NSWorkspace.shared.open(URL(fileURLWithPath: folder)) }
+                        )
+                    }
+
+                    addFolderButton(contextId: context.id)
+                }
+            }
+        }
+        .padding(12)
+    }
+
+    // MARK: - Index Badge
+
+    private var indexBadge: some View {
+        Group {
+            if let progress = workspaceStore.indexProgress {
+                HStack(spacing: 3) {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .scaleEffect(0.5)
+                        .frame(width: 10, height: 10)
+                    Text(progress.percentText)
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                }
+                .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                .help("Indexing: \(progress.percentText)")
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignSystem.Colors.success.opacity(0.7))
+                    .help("Indexed 100% — codebase ready")
             }
         }
     }
 
-    // MARK: - Folder List (each folder is tappable)
+    // MARK: - Add Folder
 
-    private func contextFolderList(_ context: ProjectContext) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(context.folderPaths, id: \.self) { folder in
-                let isActive = context.activeFolderPath == folder
-                let folderName = (folder as NSString).lastPathComponent
+    private func addFolderButton(contextId: UUID) -> some View {
+        Button {
+            NotificationCenter.default.post(
+                name: .sidebarAddFolderToContext,
+                object: nil,
+                userInfo: ["contextId": contextId]
+            )
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
 
-                Button {
-                    switchActiveFolder(contextId: context.id, folder: folder, context: context)
-                } label: {
-                    HStack(spacing: DesignSystem.Spacing.xs + 2) {
-                        // Active indicator dot
-                        Circle()
-                            .fill(isActive ? Color.accentColor : Color.clear)
-                            .frame(width: 5, height: 5)
-
-                        Image(systemName: isActive ? "folder.fill" : "folder")
-                            .font(.system(size: 9.5, weight: .medium))
-                            .foregroundStyle(isActive ? Color.accentColor : DesignSystem.Colors.textTertiary)
-                            .frame(width: 12)
-
-                        Text(folderName)
-                            .font(.system(size: 10.5, weight: isActive ? .semibold : .regular))
-                            .foregroundStyle(isActive ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
-                            .lineLimit(1)
-
-                        Spacer()
-
-                        if isActive {
-                            Text("active")
-                                .font(.system(size: 8, weight: .medium, design: .rounded))
-                                .foregroundStyle(Color.accentColor.opacity(0.7))
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(
-                                    Capsule().fill(Color.accentColor.opacity(0.1))
-                                )
-                        }
-                    }
-                    .padding(.horizontal, DesignSystem.Spacing.sm)
-                    .padding(.vertical, DesignSystem.Spacing.xs)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignSystem.Sidebar.rowRadius)
-                            .fill(isActive ? Color.accentColor.opacity(0.08) : Color.clear)
-                    )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    Button {
-                        switchActiveFolder(contextId: context.id, folder: folder, context: context)
-                    } label: {
-                        Label("Set as Active", systemImage: "checkmark.circle")
-                    }
-                    .disabled(isActive)
-
-                    Button {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: folder))
-                    } label: {
-                        Label("Reveal in Finder", systemImage: "arrow.up.right.square")
-                    }
-
-                    if context.folderPaths.count > 1 {
-                        Divider()
-                        Button(role: .destructive) {
-                            removeFolderFromContext(contextId: context.id, folder: folder)
-                        } label: {
-                            Label("Remove Folder", systemImage: "minus.circle")
-                        }
-                    }
-                }
+                Text("Add Folder")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
             }
-
-            // Add folder button inline
-            Button {
-                NotificationCenter.default.post(
-                    name: .sidebarAddFolderToContext,
-                    object: nil,
-                    userInfo: ["contextId": context.id]
-                )
-            } label: {
-                HStack(spacing: DesignSystem.Spacing.xs + 2) {
-                    Circle()
-                        .fill(Color.clear)
-                        .frame(width: 5, height: 5)
-
-                    Image(systemName: "plus")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                        .frame(width: 12)
-
-                    Text("Add Folder")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-
-                    Spacer()
-                }
-                .padding(.horizontal, DesignSystem.Spacing.sm)
-                .padding(.vertical, DesignSystem.Spacing.xs)
-            }
-            .buttonStyle(.plain)
+            .padding(.leading, 4)
+            .padding(.vertical, 4)
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Folder Actions
@@ -220,10 +177,10 @@ extension SidebarView {
             }
             Button("Close Context") { clearConversationContext() }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 10, weight: .semibold))
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                .frame(width: 20, height: 20)
+                .contentShape(Circle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -234,17 +191,80 @@ extension SidebarView {
 
     private var contextStripEmpty: some View {
         Button { isSelectingProjectFolders = true } label: {
-            HStack(spacing: DesignSystem.Spacing.sm) {
+            HStack(spacing: 8) {
                 Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 11))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.accentColor.opacity(0.6))
                 Text("Open Project")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 Spacer()
             }
-            .padding(.vertical, DesignSystem.Spacing.sm)
+            .padding(12)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Folder Row
+
+private struct FolderRow: View {
+    let folderName: String
+    let isActive: Bool
+    let canRemove: Bool
+    let onTap: () -> Void
+    let onRemove: () -> Void
+    let onReveal: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                Image(systemName: isActive ? "folder.fill" : "folder")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isActive ? Color.accentColor : DesignSystem.Colors.textTertiary)
+                    .frame(width: 14)
+
+                Text(folderName)
+                    .font(.system(size: 11, weight: isActive ? .semibold : .regular))
+                    .foregroundStyle(isActive ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if isHovered && canRemove {
+                    Button(action: onRemove) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove from workspace")
+                    .transition(.opacity)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isActive
+                        ? Color.accentColor.opacity(0.1)
+                        : (isHovered ? Color.primary.opacity(0.04) : Color.clear))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) { isHovered = hovering }
+        }
+        .contextMenu {
+            Button(action: onTap) { Label("Set as Active", systemImage: "checkmark.circle") }
+                .disabled(isActive)
+            Button(action: onReveal) { Label("Reveal in Finder", systemImage: "arrow.up.right.square") }
+            if canRemove {
+                Divider()
+                Button(role: .destructive, action: onRemove) { Label("Remove", systemImage: "trash") }
+            }
+        }
     }
 }

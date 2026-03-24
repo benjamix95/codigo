@@ -18,6 +18,8 @@ struct SidebarView: View {
     @State var favoritesOnly = false
     @State var contextToRename: ProjectContext?
     @State var conversationToRename: Conversation?
+    @State var showSkillsSheet = false
+    @State var showRulesSheet = false
     @State private var sidebarComplexLayoutReady = false
 
     @AppStorage("context_scope_mode") var contextScopeModeRaw = "auto"

@@ -21,6 +21,7 @@ extension UsageFooterView {
         HStack(spacing: 6) {
             worktreeToggleButton
             gitButton(showBranch: showBranch)
+            modelContextLabel
             if shouldShowFooterUsageDivider(
                 showProviderUsage: showProviderUsage,
                 showContext: showContext,
@@ -54,6 +55,70 @@ extension UsageFooterView {
         }
         .buttonStyle(.plain)
         .help(gitPanelStore.gitRoot == nil ? "No Git repository" : "Open Git panel")
+    }
+
+    /// Shows a compact label with the context window size of the active model
+    /// (e.g. "1M", "200K", "128K") so the user always knows the token budget.
+    var modelContextLabel: some View {
+        let label = modelContextWindowLabel()
+        return Group {
+            if !label.isEmpty {
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        Color(nsColor: .controlBackgroundColor).opacity(0.55),
+                        in: Capsule()
+                    )
+                    .overlay(
+                        Capsule().strokeBorder(
+                            DesignSystem.Colors.borderSubtle,
+                            lineWidth: 0.8
+                        )
+                    )
+            }
+        }
+    }
+
+    /// Returns a human-readable context window label based on the current model.
+    private func modelContextWindowLabel() -> String {
+        let model = effectiveContextModel
+        // Models with 1M context
+        if model.contains("[1m]") || model.contains("gpt-4.5") || model.contains("gpt-5") {
+            return "1M"
+        }
+        // Claude Opus / Sonnet 200K
+        if model.contains("opus") || model.contains("sonnet") {
+            return "200K"
+        }
+        // Claude Haiku 200K
+        if model.contains("haiku") {
+            return "200K"
+        }
+        // Gemini models typically 1M
+        if model.contains("gemini") {
+            return "1M"
+        }
+        // GPT-4o 128K
+        if model.contains("gpt-4o") {
+            return "128K"
+        }
+        // GPT-4 / GPT-4 Turbo 128K
+        if model.contains("gpt-4") {
+            return "128K"
+        }
+        // o1, o3, o4-mini
+        if model.contains("o1") || model.contains("o3") || model.contains("o4") {
+            return "200K"
+        }
+        // Grok
+        if model.contains("grok") {
+            return "128K"
+        }
+        // Default
+        return "128K"
     }
 
     func gitButtonLabel(showBranch: Bool) -> some View {

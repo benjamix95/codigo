@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C52F092C9925452F8A13751D /* ProviderRegistryPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5950A462D6E2421985D6493E /* ProviderRegistryPersistenceTests.swift */; };
+		327D0D335E9648089C092A31 /* PlanHistoryStorePersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080F171F3D1E486D873EC0A4 /* PlanHistoryStorePersistenceTests.swift */; };
+		3726B33324F7408588157F10 /* SidebarRulesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41FFA87AC9424625BE6986F7 /* SidebarRulesSheet.swift */; };
+		35282AAFEDF4454A8A3D2D80 /* SidebarRulesButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F03AB6A118649BF973F1AE9 /* SidebarRulesButton.swift */; };
+		7FB8BE7CDD6F454085BCB21C /* ProjectSkillsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 442F8E602E6145A6A2038009 /* ProjectSkillsSheet.swift */; };
+		FCCC3A4FDDAD41DD8DDB210D /* SidebarSkillsButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77F759435888454A9268C6F4 /* SidebarSkillsButton.swift */; };
 		E16D17E1B9E5B6D30DD6F723 /* InlineEditTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858FCEE78646DD1DF8A0516B /* InlineEditTextView.swift */; };
 		A1699C3E7357A10985D30C49 /* InlineTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D9C04951F19D7420945A10 /* InlineTerminalView.swift */; };
 		00A74A4826F0322B5BCA6295 /* ProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754246B525167CF6186F2163 /* ProviderFactory.swift */; };
@@ -1819,6 +1825,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5950A462D6E2421985D6493E /* ProviderRegistryPersistenceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ProviderRegistryPersistenceTests.swift"; path = "Tests/SoloCodeAppTests/ProviderRegistryPersistenceTests.swift"; sourceTree = "<group>"; };
+		080F171F3D1E486D873EC0A4 /* PlanHistoryStorePersistenceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlanHistoryStorePersistenceTests.swift"; path = "Tests/SoloCodeAppTests/PlanHistoryStorePersistenceTests.swift"; sourceTree = "<group>"; };
+		41FFA87AC9424625BE6986F7 /* SidebarRulesSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SidebarRulesSheet.swift"; path = "App/SoloCodeApp/Sources/App/Sidebar/Sections/SidebarRulesSheet.swift"; sourceTree = "<group>"; };
+		5F03AB6A118649BF973F1AE9 /* SidebarRulesButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SidebarRulesButton.swift"; path = "App/SoloCodeApp/Sources/App/Sidebar/Sections/SidebarRulesButton.swift"; sourceTree = "<group>"; };
+		442F8E602E6145A6A2038009 /* ProjectSkillsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ProjectSkillsSheet.swift"; path = "App/SoloCodeApp/Sources/App/Sidebar/Sections/ProjectSkillsSheet.swift"; sourceTree = "<group>"; };
+		77F759435888454A9268C6F4 /* SidebarSkillsButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "SidebarSkillsButton.swift"; path = "App/SoloCodeApp/Sources/App/Sidebar/Sections/SidebarSkillsButton.swift"; sourceTree = "<group>"; };
 		0002E2835EFBB56FDCC8416B /* SkillExecutionPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SkillExecutionPolicy.swift; path = Engine/CoderEngine/Sources/Skills/SkillExecutionPolicy.swift; sourceTree = "<group>"; };
 		0016451E01F47A74DFD03218 /* PipelineIntegrationService+VerifiedFindingsReview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PipelineIntegrationService+VerifiedFindingsReview.swift"; path = "App/SoloCodeApp/Sources/Services/ChatPipeline/Runtime/PipelineIntegrationService+VerifiedFindingsReview.swift"; sourceTree = "<group>"; };
 		001E1464B5D1B6F84EBEEFF4 /* ReviewPatchWorkflowService+ApplyLifecycle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ReviewPatchWorkflowService+ApplyLifecycle.swift"; path = "App/SoloCodeApp/Sources/CodeReview/Services/ReviewPatchWorkflowService+ApplyLifecycle.swift"; sourceTree = "<group>"; };
@@ -6275,6 +6287,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C52F092C9925452F8A13751D /* ProviderRegistryPersistenceTests.swift in Sources */,
+				327D0D335E9648089C092A31 /* PlanHistoryStorePersistenceTests.swift in Sources */,
 				091EB7F6B9B81C8C1B2F4076 /* ActivityBarItemTests.swift in Sources */,
 				9785ACBEBAB4EB8E96F9AFDE /* AppBundleProjectStructureTests.swift in Sources */,
 				97A82647F03209C80A7D82BE /* AppDelegateWindowStyleTests.swift in Sources */,
@@ -6487,6 +6501,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3726B33324F7408588157F10 /* SidebarRulesSheet.swift in Sources */,
+				35282AAFEDF4454A8A3D2D80 /* SidebarRulesButton.swift in Sources */,
+				7FB8BE7CDD6F454085BCB21C /* ProjectSkillsSheet.swift in Sources */,
+				FCCC3A4FDDAD41DD8DDB210D /* SidebarSkillsButton.swift in Sources */,
 				8C8BA65C5001031B478A2BDA /* AccountUsageDashboardStore.swift in Sources */,
 				C7CD62CCA79393E87A4C554A /* CLIAccountAuthDetector+Detection.swift in Sources */,
 				280F8830C7EAD7C0FB3C62AF /* CLIAccountAuthDetector+Identity.swift in Sources */,

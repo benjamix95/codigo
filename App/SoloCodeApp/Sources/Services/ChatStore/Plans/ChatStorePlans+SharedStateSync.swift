@@ -37,7 +37,20 @@ extension ChatStore {
         }
         savePlanBoards()
         syncPlanBoardToSharedState(board, conversationId: conversationId)
+        // Notify PlanHistoryStore to re-write the .solocode/plan/ file
+        NotificationCenter.default.post(
+            name: .planBoardDidPersist,
+            object: nil,
+            userInfo: [
+                "conversationId": conversationId,
+                "board": board,
+            ]
+        )
     }
+}
+
+extension Notification.Name {
+    static let planBoardDidPersist = Notification.Name("planBoardDidPersist")
 }
 
 private extension ChatStore {

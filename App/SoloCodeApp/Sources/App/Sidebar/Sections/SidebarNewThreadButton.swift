@@ -7,8 +7,8 @@ struct SidebarNewThreadButton: View {
     var body: some View {
         Button(action: onNewThread) {
             HStack(spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: "plus")
-                    .font(.system(size: 11, weight: .semibold))
+                Image(systemName: "bubble.left.and.text.bubble.right")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 16)
 
@@ -28,7 +28,16 @@ struct SidebarNewThreadButton: View {
                             .fill(Color.white.opacity(0.06))
                     )
             }
-            .padding(.vertical, DesignSystem.Spacing.xs)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.12), lineWidth: 0.5)
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Create new thread")

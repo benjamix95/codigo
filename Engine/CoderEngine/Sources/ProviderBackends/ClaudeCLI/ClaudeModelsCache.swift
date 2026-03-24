@@ -19,6 +19,7 @@ public struct ClaudeModel: Sendable {
 public enum ClaudeModelsCache {
     private static let knownModels: [ClaudeModel] = [
         // Claude 4.6
+        ClaudeModel(slug: "claude-opus-4-6[1m]", displayName: "Opus 4.6 (1M)", shortName: "opus-1m"),
         ClaudeModel(slug: "claude-opus-4-6", displayName: "Opus 4.6", shortName: "opus"),
         ClaudeModel(slug: "claude-sonnet-4-6", displayName: "Sonnet 4.6", shortName: "sonnet"),
         // Claude 4

@@ -12,7 +12,7 @@ extension ChatPanelView {
     static let markdownExportContentType = UTType(filenameExtension: "md") ?? .plainText
 
     var topInteractiveInset: CGFloat { 7 }
-    var chatColumnMaxWidth: CGFloat { 960 }
+    var chatColumnMaxWidth: CGFloat { 720 }
     var chatScrollTopAnchorId: String { "chat-scroll-top-anchor" }
     var chatScrollBottomAnchorId: String { "chat-scroll-bottom-anchor" }
     var activeModeColor: Color { modeColor(for: coderMode) }

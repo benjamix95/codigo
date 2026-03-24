@@ -82,6 +82,23 @@ extension PlanHistoryStore {
         if trimmed.isEmpty {
             return "Plan"
         }
+        // Skip generic fallback titles
+        let generic = [
+            "operational plan in progress",
+            "plan in progress",
+            "plan",
+            "untitled plan",
+        ]
+        if generic.contains(trimmed.lowercased()) {
+            return "Plan — \(Self.compactTimestamp())"
+        }
         return String(trimmed.prefix(maxPlanTitleLength))
+    }
+
+    /// Compact timestamp for fallback titles (e.g. "2026-03-24 14:30")
+    static func compactTimestamp() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        return f.string(from: Date())
     }
 }

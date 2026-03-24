@@ -39,7 +39,11 @@ extension PlanHistoryStore {
         // Also write .md file to .solocode/plan/
         if let folderPath = contextFolderPath {
             let planDir = PlanHistoryStore.solocodePlanDirectory(for: folderPath)
-            try? FileManager.default.createDirectory(at: planDir, withIntermediateDirectories: true)
+            do {
+                try FileManager.default.createDirectory(at: planDir, withIntermediateDirectories: true)
+            } catch {
+                NSLog("[PlanHistoryStore] createDirectory failed: %@", error.localizedDescription)
+            }
             let safeName = sanitizeTitle(safeTitle)
                 .lowercased()
                 .components(separatedBy: CharacterSet.alphanumerics.inverted)
@@ -47,7 +51,11 @@ extension PlanHistoryStore {
                 .joined(separator: "_")
             let fileName = safeName.isEmpty ? "plan" : String(safeName.prefix(30))
             let fileURL = planDir.appendingPathComponent("\(fileName).md")
-            try? safeMarkdown.write(to: fileURL, atomically: true, encoding: .utf8)
+            do {
+                try safeMarkdown.write(to: fileURL, atomically: true, encoding: .utf8)
+            } catch {
+                NSLog("[PlanHistoryStore] write plan file failed: %@", error.localizedDescription)
+            }
         }
 
         return entry
@@ -115,5 +123,49 @@ extension PlanHistoryStore {
         entries[idx].sourceMessageId = sourceMessageId
         entries[idx].updatedAt = .now
         save()
+    }
+
+    /// Update the plan markdown (from manual edit or agent update) and
+    /// persist both the history entry AND the `.solocode/plan/` file.
+    func updateMarkdown(id: UUID, markdown: String) {
+        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
+        let capped = String(markdown.prefix(configuredMaxMarkdownLength))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        entries[idx].markdown = capped.isEmpty ? entries[idx].markdown : capped
+        entries[idx].updatedAt = .now
+        save()
+        writePlanFile(entry: entries[idx])
+    }
+
+    /// Update the plan title.
+    func updateTitle(id: UUID, title: String) {
+        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[idx].title = sanitizeTitle(title)
+        entries[idx].updatedAt = .now
+        save()
+        writePlanFile(entry: entries[idx])
+    }
+
+    /// Re-write the `.solocode/plan/{name}.md` file for the given entry.
+    func writePlanFile(entry: PlanHistoryEntry) {
+        guard let folderPath = entry.contextFolderPath else { return }
+        let planDir = PlanHistoryStore.solocodePlanDirectory(for: folderPath)
+        do {
+            try FileManager.default.createDirectory(at: planDir, withIntermediateDirectories: true)
+        } catch {
+            NSLog("[PlanHistoryStore] createDirectory failed: %@", error.localizedDescription)
+        }
+        let safeName = sanitizeTitle(entry.title)
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "_")
+        let fileName = safeName.isEmpty ? "plan" : String(safeName.prefix(30))
+        let fileURL = planDir.appendingPathComponent("\(fileName).md")
+        do {
+            try entry.markdown.write(to: fileURL, atomically: true, encoding: .utf8)
+        } catch {
+            NSLog("[PlanHistoryStore] write plan file failed: %@", error.localizedDescription)
+        }
     }
 }
