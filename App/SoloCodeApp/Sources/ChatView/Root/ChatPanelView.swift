@@ -33,18 +33,11 @@ struct ChatPanelView: View {
     }
 
     @Binding var coderMode: CoderMode
-    /// Composer-related state extracted into ObservableObject for isolation.
-    /// Access via computed aliases (inputText, isInputFocused, etc.)
-    /// defined in ChatPanelView+ComposerStateAliases.swift.
-    @StateObject  var composerState = ChatComposerUIState()
-    /// Stream/rendering state extracted into ObservableObject for isolation.
-    /// Access via computed aliases (streamContentVersion, isFollowingLive, etc.)
-    /// defined in ChatPanelView+StreamStateAliases.swift.
-    @StateObject  var streamState = ChatStreamUIState()
-    /// Debug UI state extracted into ObservableObject for isolation.
-    /// Access via computed aliases (debugToggleEnabled, pendingCodeReviewSessionConfigOverride)
-    /// defined in ChatPanelView+DebugStateAliases.swift.
-    @StateObject  var debugUIState = ChatDebugUIState()
+    @State  var inputText = ""
+    @State  var isInputFocused: Bool = false
+    @State  var didAutoFocusComposerOnLaunch: Bool = false
+    @State  var composerAutoFocusTask: Task<Void, Never>?
+    @State  var draftSaveTask: Task<Void, Never>?
     @AppStorage("codex_path")  var codexPath = ""
     @AppStorage("codex_sandbox")  var codexSandbox = ""
     @AppStorage("codex_session_full_access")  var codexSessionFullAccess = false
@@ -67,6 +60,7 @@ struct ChatPanelView: View {
     @AppStorage("code_review_execution_backend")  var codeReviewExecutionBackend = "auto"
     @AppStorage("code_review_quick_commands_custom_json")
      var codeReviewQuickCommandsCustomJSON = ""
+    @State  var pendingCodeReviewSessionConfigOverride: SessionConfig?
     @AppStorage("openai_api_key")  var openaiApiKey = ""
     @AppStorage("openai_model")  var openaiModel = "gpt-4o-mini"
     @AppStorage("anthropic_api_key")  var anthropicApiKey = ""
@@ -106,29 +100,61 @@ struct ChatPanelView: View {
     @AppStorage("git_panel_width")  var gitPanelWidthStorage: Double = 380
     @AppStorage("auto_resize_side_panels")  var autoResizeSidePanels = false
     @State  var planToggleEnabled = false
+    @State  var debugToggleEnabled = false
     @Binding var showPlanPanel: Bool
     @Binding var showDebugPanel: Bool
     @Binding var showSwarmPanel: Bool
     @Binding var showCodeReviewPanel: Bool
     @Binding var showBrowserPanel: Bool
     @State  var selectedSwarmId: String?
+    @State  var planPanelPresentationSource: PlanPanelPresentationSource = .manualDeepLink
     @ObservedObject var debugStore: DebugStore
-    /// Plan-related state extracted into ObservableObject for isolation.
-    /// Access via computed aliases (planFlowPhase, planningState, etc.)
-    /// defined in ChatPanelView+PlanStateAliases.swift.
-    @StateObject  var planState = ChatPlanUIState()
+    @State  var planningState: PlanningState = .idle
+    @State  var planFlowPhase: PlanFlowPhase = .idle
+    @State  var planAnalysisContext: String = ""
+    @State  var planUserRequest: String = ""
+    @State  var planClarificationAnswers: String = ""
+    @State  var planClarificationQuestionnaire: PlanClarificationQuestionnaire?
+    @State  var planClarificationCycles: Int = 0
+    @State  var planStreamingContent: String = ""
+    @State  var planStreamingContentByConversation: [UUID: String] = [:]
+    /// Incremented whenever plan_request_user_input emits a new clarification round.
+    @State  var planQuestionToolRequestEpoch: Int = 0
+    @State  var planShouldRunInline: Bool = false
+    @State  var activeBuildPlanConversationId: UUID?
+    @State  var activeBuildAgentConversationId: UUID?
+    @State  var suppressedEmptyBuildAssistantMessageIds: Set<UUID> = []
     @State  var isProviderReady = false
+    @State  var attachedComposerAttachments: [ComposerAttachment] = []
+    @State  var composerCodeReviewModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
+    @State  var isSelectingImage = false
+    @State  var isComposerDropTargeted = false
+    @State  var isConvertingHeic = false
+    @State  var pasteMonitor: Any?
     @State  var isSummarizing = false
     @State  var isRewinding = false
-
+    @State  var isPlanSummaryCollapsed = false
+    @State  var isPlanTabHovered = false
+    @State  var isPlanShortcutCycling = false
+    @State  var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
     @State  var threadUIStateByConversation: [UUID: ChatThreadUIState] = [:]
     @State  var isRestoringThreadUIState = false
     @State  var hasJustCompletedTask = false
     @State  var showRateLimitAlert = false
     @State  var rateLimitAlertText = ""
     @State  var didCopyAllChat = false
+    @State  var isFollowingLive = true
+    @State  var newEventsWhileDetached = 0
     @State  var chatHeaderWidth: CGFloat = 800
     @StateObject  var voiceInputController = VoiceInputController()
+    @State  var composerFrozenTimerState: ComposerFrozenTimerState?
+    @State  var composerTimerAutoHideTask: Task<Void, Never>?
+    @State  var composerTaskStartDate: Date?
+    @State  var lastTaskEndedByManualStop = false
+    @State  var isOptimizingPrompt = false
+    @State  var showPromptOptimizerPopup = false
+    @State  var optimizedPromptResult = ""
+    @State  var promptOptimizerTask: Task<Void, Never>?
     @State  var isAnyAgentProviderReady = false
     @State  var checkProviderAuthGeneration = 0
     @State  var userModeOverrideUntilConversationChange = false
@@ -140,6 +166,23 @@ struct ChatPanelView: View {
     @State  var pendingTaskActivities: [TaskActivity] = []
     @State  var pendingInstantGreps: [InstantGrepResult] = []
     @State  var taskFlushTask: Task<Void, Never>?
+    @State  var autoScrollWorkItem: DispatchWorkItem?
+    @State  var lastAutoScrollTarget: AnyHashable?
+    @State  var lastAutoScrollAt: Date = .distantPast
+    @State  var fallbackTurnStartWorkItemsByConversation: [UUID: DispatchWorkItem] = [:]
+    @State  var streamContentVersion: Int = 0
+    @State  var activeTurnStateByConversation: [UUID: ChatTurnState] = [:]
+    @State  var renderSnapshotByConversation: [UUID: ChatTurnState] = [:]
+    @State  var collapsedArtifactsByTurn: [String: Set<String>] = [:]
+    @State  var pipelineEventSequenceByConversation: [UUID: Int] = [:]
+    @State  var streamingReasoningText: String?
+    @State  var streamingReasoningConversationId: UUID?
+    @State  var streamingReasoningBlocks: [ReasoningBlock] = []
+    @State  var streamingSegments: [MessageSegment] = []
+    @State  var streamingSegmentTurnIndex: Int = 0
+    @State  var reasoningMessageIdByConversationAndGroup: [UUID: [String: UUID]] = [:]
+    /// Last reasoning line from Codex (shown as streaming detail text only, never in thinking box)
+    @State  var codexLastReasoningLine: String?
     /// Keep chat rendering linear (one assistant response bubble per turn)
     /// and avoid segmented interleaving that causes jittery layout updates.
      let sequentialStreamingLayoutEnabled = false
@@ -148,7 +191,14 @@ struct ChatPanelView: View {
     /// so the chat reads linearly. Reasoning events are suppressed from the
     /// thinking box and shown only as streaming status text.
      let codexLinearChatEnabled = true
-
+    /// Pending streaming content waiting to be flushed to ChatStore.
+    @State  var pendingStreamContent: String?
+    @State  var pendingStreamConversationId: UUID?
+    @State  var streamThrottleTask: Task<Void, Never>?
+    /// Pending plan-streaming content while the flow is rendering in the panel.
+    @State  var pendingPlanStreamingContent: String?
+    @State  var pendingPlanStreamConversationId: UUID?
+    @State  var planStreamThrottleTask: Task<Void, Never>?
     @State  var toolRuntimeSyncTask: Task<Void, Never>?
     @State  var activeRunTaskByConversation: [UUID: Task<Void, Never>] = [:]
     @State  var activeRunTokenByConversation: [UUID: UUID] = [:]

@@ -145,12 +145,12 @@ extension ChatPanelView {
     internal var composerArea: some View {
         VStack(spacing: 0) {
             ChatComposerView(
-                inputText: $composerState.inputText,
-                attachedAttachments: $composerState.attachedAttachments,
-                isSelectingImage: $composerState.isSelectingImage,
-                isComposerDropTargeted: $composerState.isDropTargeted,
-                isConvertingHeic: $composerState.isConvertingHeic,
-                isInputFocused: $composerState.isInputFocused,
+                inputText: $inputText,
+                attachedAttachments: $attachedComposerAttachments,
+                isSelectingImage: $isSelectingImage,
+                isComposerDropTargeted: $isComposerDropTargeted,
+                isConvertingHeic: $isConvertingHeic,
+                isInputFocused: $isInputFocused,
                 isProviderReady: isProviderReady,
                 isLoading: isLoadingForCurrentConversation,
                 planningState: planningState,
@@ -194,7 +194,7 @@ extension ChatPanelView {
         .frame(maxWidth: coderMode == .ide ? 760 : chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, coderMode == .ide ? 14 : 20)
-        .popover(isPresented: $composerState.showPromptOptimizerPopup, arrowEdge: .bottom) {
+        .popover(isPresented: $showPromptOptimizerPopup, arrowEdge: .bottom) {
             PromptOptimizerPopup(
                 originalPrompt: inputText,
                 optimizedPrompt: optimizedPromptResult,
@@ -234,7 +234,7 @@ extension ChatPanelView {
             swarmOrchestrator: $swarmOrchestrator,
             taskPanelEnabled: $taskPanelEnabled,
             showSwarmHelp: $showSwarmHelp,
-            inputText: $composerState.inputText,
+            inputText: $inputText,
             planModeBackend: $planModeBackend,
             swarmWorkerBackend: $swarmWorkerBackend,
             openaiModel: $openaiModel,
@@ -257,7 +257,7 @@ extension ChatPanelView {
                 .filter { $0.kind == .image }
                 .map(\.url),
             planToggleEnabled: $planToggleEnabled,
-            debugToggleEnabled: $debugUIState.toggleEnabled,
+            debugToggleEnabled: $debugToggleEnabled,
             swarmToggleEnabled: Binding(
                 get: { showSwarmPanel },
                 set: { newValue in
@@ -299,7 +299,7 @@ extension ChatPanelView {
             swarmOrchestrator: $swarmOrchestrator,
             taskPanelEnabled: $taskPanelEnabled,
             showSwarmHelp: $showSwarmHelp,
-            inputText: $composerState.inputText,
+            inputText: $inputText,
             planModeBackend: $planModeBackend,
             swarmWorkerBackend: $swarmWorkerBackend,
             openaiModel: $openaiModel,
@@ -322,7 +322,7 @@ extension ChatPanelView {
                 .filter { $0.kind == .image }
                 .map(\.url),
             planToggleEnabled: $planToggleEnabled,
-            debugToggleEnabled: $debugUIState.toggleEnabled,
+            debugToggleEnabled: $debugToggleEnabled,
             swarmToggleEnabled: Binding(
                 get: { showSwarmPanel },
                 set: { newValue in showSwarmPanel = newValue }
