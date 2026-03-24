@@ -70,7 +70,7 @@ extension SwarmPanelView {
 
     @ViewBuilder
     private func overviewCard(_ card: SwarmLiveCardState) -> some View {
-        let roleName = panelRoleDisplayName(from: card.swarmId)
+        let roleName = card.formattedTitle
 
         let subtitle: String = {
             if card.status == .running {

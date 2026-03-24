@@ -30,9 +30,7 @@ extension SwarmProgressView {
     }
 
     func inlineLiveCard(_ card: SwarmLiveCardState) -> some View {
-        let roleName = card.displayName.isEmpty
-            ? SubagentChatCardHelpers.roleDisplayName(from: card.swarmId)
-            : card.displayName
+        let roleName = card.formattedTitle
         let subtitle = inlineCardSubtitle(for: card)
 
         return VStack(alignment: .leading, spacing: 4) {

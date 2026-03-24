@@ -83,6 +83,8 @@ struct SubagentLiveEventContext: Sendable {
     let toolCallId: String
     let subagentId: String
     let agentName: String
+    /// Human-readable display name with spaces (e.g. "Auth Login Flow").
+    let readableName: String
     let taskSummary: String
     let backendProviderId: String
     let backendDisplayName: String
@@ -94,6 +96,7 @@ struct SubagentLiveEventContext: Sendable {
         toolCallId: String,
         subagentId: String,
         agentName: String,
+        readableName: String = "",
         taskSummary: String,
         backendProviderId: String,
         backendDisplayName: String,
@@ -104,6 +107,7 @@ struct SubagentLiveEventContext: Sendable {
         self.toolCallId = toolCallId
         self.subagentId = subagentId
         self.agentName = agentName
+        self.readableName = readableName.isEmpty ? agentName : readableName
         self.taskSummary = taskSummary
         self.backendProviderId = backendProviderId
         self.backendDisplayName = backendDisplayName
@@ -127,6 +131,7 @@ struct SubagentLiveEventContext: Sendable {
             "group_id": "swarm-\(subagentId)",
             "tool_call_id": toolCallId,
             "agent_name": agentName,
+            "readable_name": readableName,
             "task_summary": taskSummary,
             "role": role.rawValue,
             "status": status,

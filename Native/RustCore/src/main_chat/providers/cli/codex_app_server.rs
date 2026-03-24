@@ -404,7 +404,6 @@ fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
         .and_then(string_value)
         .unwrap_or_default();
     let is_completed = method == "item/completed";
-    let swarm_id = format!("swarm-codex-{}", session_id);
 
     // Derive a human-readable agent name from the tool or prompt
     let agent_label = if !tool.is_empty() {
@@ -422,11 +421,19 @@ fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
         "Sub Agent".to_string()
     };
 
+    // Extract role name from tool
+    let role_name = codex_subagent_role_name(&tool);
+    // Generate readable name from prompt
+    let readable = codex_readable_name(&prompt, &agent_label);
+    // Unique swarm_id per sub-agent — internal, never shown to user
+    let unique_key = if !id.is_empty() { &id } else { &new_thread };
+    let unique_swarm_id = codex_make_swarm_id(unique_key);
+
     let status = if is_completed { "completed" } else { "running" };
     let title = if is_completed {
         format!(
-            "Sub Agent {} — {}",
-            agent_label,
+            "{} — {}",
+            readable,
             if agent_status.is_empty() {
                 "completed"
             } else {
@@ -434,7 +441,7 @@ fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
             }
         )
     } else {
-        format!("Starting Sub Agent: {}", agent_label)
+        readable.clone()
     };
 
     let mut payload = BTreeMap::new();
@@ -448,9 +455,14 @@ fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
     );
     payload.insert("status".to_string(), status.to_string());
     payload.insert("agent_name".to_string(), agent_label);
+    payload.insert("readable_name".to_string(), readable);
+    payload.insert("role".to_string(), role_name);
     payload.insert("title".to_string(), title);
-    payload.insert("swarm_id".to_string(), swarm_id.clone());
-    payload.insert("group_id".to_string(), swarm_id);
+    payload.insert("swarm_id".to_string(), unique_swarm_id.clone());
+    payload.insert(
+        "group_id".to_string(),
+        format!("swarm-{}", unique_swarm_id),
+    );
     if !sender_thread.is_empty() {
         payload.insert("sender_thread_id".to_string(), sender_thread);
     }
@@ -458,15 +470,8 @@ fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
         payload.insert("thread_id".to_string(), new_thread);
     }
     if !prompt.is_empty() {
-        let text_preview = if prompt.len() > 200 {
-            let end = prompt
-                .char_indices()
-                .nth(200)
-                .map_or(prompt.len(), |(i, _)| i);
-            format!("{}…", &prompt[..end])
-        } else {
-            prompt
-        };
+        let text_preview = codex_truncate_str(&prompt, 500);
+        payload.insert("task_summary".to_string(), text_preview.clone());
         payload.insert("text".to_string(), text_preview.clone());
         payload.insert("description".to_string(), text_preview);
     }
@@ -475,7 +480,7 @@ fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
         "[CODEX_DEBUG] collabToolCall: method={} status={} agent={}",
         method,
         status,
-        payload.get("agent_name").cloned().unwrap_or_default()
+        payload.get("readable_name").cloned().unwrap_or_default()
     );
     emit_raw(session_id, "agent", payload);
 }
@@ -544,27 +549,38 @@ fn emit_mcp_events(session_id: &str, method: &str, item: &Value) {
             .strip_prefix("coderide_subagent_")
             .unwrap_or(&tool)
             .to_string();
+        let role_name = codex_subagent_role_name(&tool);
         let is_completed = payload.get("status").map(String::as_str) == Some("completed");
-        let swarm_id = format!("swarm-codex-{}", session_id);
+        // Unique swarm_id per sub-agent using tool_call_id
+        let call_id = payload
+            .get("id")
+            .or_else(|| payload.get("tool_call_id"))
+            .cloned()
+            .unwrap_or_else(|| session_id.to_string());
+        let unique_swarm_id = codex_make_swarm_id(&call_id);
+        // Derive readable name from task
+        let task_text = payload.get("task").cloned().unwrap_or_default();
+        let readable = codex_readable_name(&task_text, &agent_label);
         let mut agent_payload = payload.clone();
-        agent_payload.insert("agent_name".to_string(), agent_label.clone());
+        agent_payload.insert("agent_name".to_string(), agent_label);
+        agent_payload.insert("readable_name".to_string(), readable.clone());
+        agent_payload.insert("role".to_string(), role_name);
         agent_payload.insert(
             "title".to_string(),
             if is_completed {
-                format!("Sub Agent {} — completed", agent_label)
+                format!("{} — completed", readable)
             } else {
-                format!("Starting Sub Agent: {}", agent_label)
+                readable
             },
         );
-        agent_payload.insert("swarm_id".to_string(), swarm_id.clone());
-        agent_payload.insert("group_id".to_string(), swarm_id);
-        if let Some(task) = agent_payload.get("task").cloned() {
-            let text_preview = if task.len() > 200 {
-                let end = task.char_indices().nth(200).map_or(task.len(), |(i, _)| i);
-                format!("{}…", &task[..end])
-            } else {
-                task
-            };
+        agent_payload.insert("swarm_id".to_string(), unique_swarm_id.clone());
+        agent_payload.insert(
+            "group_id".to_string(),
+            format!("swarm-{}", unique_swarm_id),
+        );
+        if !task_text.is_empty() {
+            let text_preview = codex_truncate_str(&task_text, 500);
+            agent_payload.insert("task_summary".to_string(), text_preview.clone());
             agent_payload.insert("text".to_string(), text_preview);
         }
         emit_raw(session_id, "agent", agent_payload);
@@ -728,9 +744,88 @@ fn handle_response_id<'a>(value: &'a Value, expected_id: i64) -> Result<Option<&
     Ok(value.get("result"))
 }
 
+/// Generates a stable, unique swarm_id from an ID string.
+/// Internal only — never shown to the user.
+fn codex_make_swarm_id(id: &str) -> String {
+    let len = id.len();
+    let suffix = if len > 12 { &id[len - 12..] } else { id };
+    format!("sa-{}", suffix)
+}
+
+/// Truncates a string to max_chars, appending "…" if truncated.
+fn codex_truncate_str(s: &str, max_chars: usize) -> String {
+    if s.len() <= max_chars {
+        return s.to_string();
+    }
+    let end = s.char_indices().nth(max_chars).map_or(s.len(), |(i, _)| i);
+    format!("{}…", &s[..end])
+}
+
+/// Extracts role name from a Codex subagent tool name.
+fn codex_subagent_role_name(tool: &str) -> String {
+    let lower = tool.to_lowercase();
+    if let Some(suffix) = lower
+        .strip_prefix("coderide_subagent_")
+        .or_else(|| lower.strip_prefix("subagent_"))
+    {
+        suffix.to_string()
+    } else {
+        "agent".to_string()
+    }
+}
+
+/// Derives a readable display name from a task string for Codex sub-agents.
+fn codex_readable_name(task: &str, fallback: &str) -> String {
+    if task.is_empty() {
+        return capitalize_first(fallback);
+    }
+    let filler_words: std::collections::HashSet<&str> = [
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+        "i", "in", "into", "of", "on", "or", "the", "this", "to", "with",
+        "analyze", "check", "explore", "find", "inspect", "investigate",
+        "review", "search", "verify", "create", "implement", "write",
+        "build", "code", "debug", "fix", "test", "document",
+    ]
+    .iter()
+    .copied()
+    .collect();
+
+    let words: Vec<String> = task
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == ' ' { c } else { ' ' })
+        .collect::<String>()
+        .split_whitespace()
+        .filter(|w| !filler_words.contains(&w.to_lowercase().as_str()) && w.len() > 1)
+        .take(5)
+        .map(|w| capitalize_first(w))
+        .collect();
+
+    if words.is_empty() {
+        return capitalize_first(fallback);
+    }
+    let result = words.join(" ");
+    if result.len() > 60 {
+        result[..60].to_string()
+    } else {
+        result
+    }
+}
+
+/// Capitalizes the first character of a string.
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_operational_mcp_tool, ChildProcessGuard, CodexAgentMessageGate};
+    use super::{
+        capitalize_first, codex_make_swarm_id, codex_readable_name, codex_subagent_role_name,
+        codex_truncate_str, is_operational_mcp_tool, ChildProcessGuard, CodexAgentMessageGate,
+    };
     use std::process::Command;
 
     #[test]
@@ -791,5 +886,106 @@ mod tests {
         assert!(!is_operational_mcp_tool("coderide_policy_ack"));
         assert!(is_operational_mcp_tool("coderide_read"));
         assert!(is_operational_mcp_tool("coderide_todo_write"));
+    }
+
+    // -- codex_make_swarm_id --
+
+    #[test]
+    fn codex_make_swarm_id_uses_last_12_chars() {
+        let sid = codex_make_swarm_id("item_01AbCdEfGhIjKlMn");
+        // 22 chars total, last 12 = "CdEfGhIjKlMn"
+        assert_eq!(sid, "sa-CdEfGhIjKlMn");
+    }
+
+    #[test]
+    fn codex_make_swarm_id_short_id_intact() {
+        assert_eq!(codex_make_swarm_id("short"), "sa-short");
+    }
+
+    #[test]
+    fn codex_make_swarm_id_deterministic() {
+        let id = "thread_abc123def456";
+        assert_eq!(codex_make_swarm_id(id), codex_make_swarm_id(id));
+    }
+
+    #[test]
+    fn codex_make_swarm_id_unique_for_different_ids() {
+        assert_ne!(
+            codex_make_swarm_id("thread_AAAAAAAAAAAA"),
+            codex_make_swarm_id("thread_BBBBBBBBBBBB")
+        );
+    }
+
+    // -- codex_subagent_role_name --
+
+    #[test]
+    fn codex_role_name_extracts_from_coderide_prefix() {
+        assert_eq!(
+            codex_subagent_role_name("coderide_subagent_explorer"),
+            "explorer"
+        );
+        assert_eq!(codex_subagent_role_name("subagent_coder"), "coder");
+    }
+
+    #[test]
+    fn codex_role_name_fallback_for_unknown() {
+        assert_eq!(codex_subagent_role_name("read"), "agent");
+    }
+
+    // -- codex_readable_name --
+
+    #[test]
+    fn codex_readable_name_extracts_words() {
+        let name = codex_readable_name(
+            "Analyze the database connection pooling",
+            "Explorer",
+        );
+        assert!(!name.is_empty());
+        assert!(name.contains(' '), "Should have spaces: {}", name);
+    }
+
+    #[test]
+    fn codex_readable_name_caps_at_5_words() {
+        let name = codex_readable_name(
+            "one two three four five six seven eight",
+            "Fallback",
+        );
+        assert!(name.split_whitespace().count() <= 5);
+    }
+
+    #[test]
+    fn codex_readable_name_empty_task_uses_fallback() {
+        assert_eq!(codex_readable_name("", "Coder"), "Coder");
+    }
+
+    #[test]
+    fn codex_readable_name_max_60_chars() {
+        let long = "Longword ".repeat(20);
+        let name = codex_readable_name(&long, "X");
+        assert!(name.len() <= 60, "Too long: {}", name.len());
+    }
+
+    // -- capitalize_first --
+
+    #[test]
+    fn capitalize_first_works() {
+        assert_eq!(capitalize_first("explorer"), "Explorer");
+        assert_eq!(capitalize_first(""), "");
+        assert_eq!(capitalize_first("A"), "A");
+    }
+
+    // -- codex_truncate_str --
+
+    #[test]
+    fn codex_truncate_short_unchanged() {
+        assert_eq!(codex_truncate_str("ciao", 10), "ciao");
+    }
+
+    #[test]
+    fn codex_truncate_long_truncated() {
+        let long = "a".repeat(600);
+        let result = codex_truncate_str(&long, 500);
+        assert!(result.ends_with('…'));
+        assert!(result.len() <= 504);
     }
 }

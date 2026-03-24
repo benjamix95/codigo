@@ -34,16 +34,41 @@ enum SwarmLiveReducer {
         if owner.hasPrefix("queued-") { return }
 
         var card = cards[owner] ?? SwarmLiveCardState(swarmId: owner)
-        if let agentName = activity.payload["agent_name"]?
+        // Prefer readable_name for display, fallback to agent_name.
+        // NEVER use raw swarm_id (owner) as display name.
+        if let readableName = activity.payload["readable_name"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
-           !agentName.isEmpty {
+           !readableName.isEmpty {
+            card.displayName = readableName
+        } else if card.displayName.isEmpty,
+                  let agentName = activity.payload["agent_name"]?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !agentName.isEmpty {
             card.displayName = agentName
         } else if card.displayName.isEmpty,
                   let displayName = bestDisplayName(for: activity),
                   !displayName.isEmpty {
             card.displayName = displayName
         } else if card.displayName.isEmpty {
-            card.displayName = owner
+            card.displayName = "Sub Agent"
+        }
+        // Populate roleType from event payload
+        if card.roleType.isEmpty,
+           let role = activity.payload["role"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !role.isEmpty {
+            card.roleType = role
+        }
+        // Populate taskPrompt from event payload and inject as first transcript entry
+        if card.taskPrompt.isEmpty,
+           let task = activity.payload["task_summary"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !task.isEmpty {
+            card.taskPrompt = task
+            // Inject the task prompt as the FIRST entry in the chat transcript
+            if let promptEntry = SubagentTranscriptEntry.userPrompt(task, timestamp: activity.timestamp) {
+                card.transcript.insert(promptEntry, at: 0)
+            }
         }
         let dedupeKey = dedupeKey(for: activity, owner: owner)
         var ownerKeys = dedupeKeys[owner] ?? Set<String>()
@@ -238,9 +263,28 @@ enum SwarmLiveReducer {
     }
 
     private static func transcriptEntry(for activity: TaskActivity) -> SubagentTranscriptEntry? {
-        if activity.type == "subagent_text",
-           let text = activity.payload["text"] {
-            return SubagentTranscriptEntry.assistantText(text, timestamp: activity.timestamp)
+        // Reasoning/thinking text
+        if activity.type == "subagent_text" || activity.type == "reasoning" {
+            let source = (activity.payload["source"] ?? "").lowercased()
+            if let text = activity.payload["text"] {
+                if source == "reasoning" || activity.type == "reasoning"
+                    || activity.phase == .thinking {
+                    return SubagentTranscriptEntry.reasoning(text, timestamp: activity.timestamp)
+                }
+                return SubagentTranscriptEntry.assistantText(text, timestamp: activity.timestamp)
+            }
+        }
+        // Completion result
+        let detail = (activity.detail ?? activity.payload["detail"] ?? "").lowercased()
+        let status = (activity.payload["status"] ?? "").lowercased()
+        if activity.type == "agent" && (detail == "completed" || status == "completed") {
+            let resultText = activity.payload["output"]
+                ?? activity.payload["summary"]
+                ?? activity.title
+            return SubagentTranscriptEntry.result(
+                resultText,
+                timestamp: activity.timestamp
+            )
         }
         return SubagentTranscriptEntry.activity(activity)
     }
@@ -277,6 +321,13 @@ enum SwarmLiveReducer {
         guard !text.isEmpty, text.lowercased() != activity.type.lowercased() else {
             return nil
         }
+        let lower = text.lowercased()
+        // Never use raw IDs or technical strings as display names
+        if lower.hasPrefix("sa-") || lower.hasPrefix("swarm-") || lower.hasPrefix("swarm ") { return nil }
+        if lower.contains("toolu_") { return nil }
+        if lower.hasPrefix("mcp__") || lower.contains("__coderide__") { return nil }
+        if lower.hasPrefix("subagent_") { return nil }
+        if lower == "started" || lower == "running" || lower == "completed" { return nil }
         return text
     }
 

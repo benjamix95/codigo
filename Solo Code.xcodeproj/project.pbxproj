@@ -1216,6 +1216,13 @@
 		B857D8116C62F5B401D939E9 /* SidebarRenameSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8948F7D5AC249A043AC7C7F2 /* SidebarRenameSheets.swift */; };
 		B8E343E43815DCB6A15A8BC2 /* TaskActivityPanel+Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B379397FD37097DF4D926C3 /* TaskActivityPanel+Formatters.swift */; };
 		B914937B960170B196C866B4 /* SubagentChatCardHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8FE3AEF4833220073F62B46 /* SubagentChatCardHelpers.swift */; };
+		B5C7C84625ED96B3FED2615F /* SubagentChatCustomBubbles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 861AE3BF1EE6442AB89A79B7 /* SubagentChatCustomBubbles.swift */; };
+		BA71277DDC8E11FDC8282312 /* SubagentChatSegmentBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E471413DECEAC5C66C35CCB /* SubagentChatSegmentBuilder.swift */; };
+		A05401C4F73CC6BF3693B049 /* SubagentChatSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 270B4F17D68A9EF3EBC12469 /* SubagentChatSegment.swift */; };
+		2F34CB444D8EC8C3F1F04554 /* SubagentIdentityReadableNameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96A1DCC81D8A4BF02F08470 /* SubagentIdentityReadableNameTests.swift */; };
+		1178299A66D171BAE318E454 /* SubagentChatTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 076A1660A02E184456463728 /* SubagentChatTranscriptTests.swift */; };
+		4FF2B8A3700DA724B970690A /* SubagentChatSegmentBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED443B4DF9AE150E6629B67B /* SubagentChatSegmentBuilderTests.swift */; };
+		AB68CD012F773F664B8E81E2 /* SubagentChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21DC11546418DF84E56EC86B /* SubagentChatView.swift */; };
 		B92D5E4B0D1BF6A3000278BD /* ChatBackgroundExecutionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C448783626790D04E1F31FDD /* ChatBackgroundExecutionStateTests.swift */; };
 		B95B6C6C3EA322778936222A /* MCPSharedState+CrossProcessLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086D39357BBFF85B9CE98EBD /* MCPSharedState+CrossProcessLock.swift */; };
 		B96BD10AD853F1D5BFB1F2BC /* PlanShortcutAndCommandTests+CommandParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8487DE0B5BFFB2E143FF6E65 /* PlanShortcutAndCommandTests+CommandParsing.swift */; };
@@ -3120,6 +3127,13 @@
 		C8CD8637E45406BE5D06A056 /* DebugPanelView+RuntimeLogs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugPanelView+RuntimeLogs.swift"; path = "App/SoloCodeApp/Sources/Panels/DebugPanel/DebugPanelView+RuntimeLogs.swift"; sourceTree = "<group>"; };
 		D7F84A2E6B19C53087DE41F6 /* DebugPanelView+StreamLogs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "DebugPanelView+StreamLogs.swift"; path = "App/SoloCodeApp/Sources/Panels/DebugPanel/DebugPanelView+StreamLogs.swift"; sourceTree = "<group>"; };
 		C8FE3AEF4833220073F62B46 /* SubagentChatCardHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatCardHelpers.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatCardHelpers.swift; sourceTree = "<group>"; };
+		861AE3BF1EE6442AB89A79B7 /* SubagentChatCustomBubbles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatCustomBubbles.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatCustomBubbles.swift; sourceTree = "<group>"; };
+		3E471413DECEAC5C66C35CCB /* SubagentChatSegmentBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatSegmentBuilder.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatSegmentBuilder.swift; sourceTree = "<group>"; };
+		270B4F17D68A9EF3EBC12469 /* SubagentChatSegment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatSegment.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatSegment.swift; sourceTree = "<group>"; };
+		A96A1DCC81D8A4BF02F08470 /* SubagentIdentityReadableNameTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentIdentityReadableNameTests.swift; path = Tests/CoderEngineTests/SubagentIdentityReadableNameTests.swift; sourceTree = "<group>"; };
+		076A1660A02E184456463728 /* SubagentChatTranscriptTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatTranscriptTests.swift; path = Tests/SoloCodeAppTests/SubagentChatTranscriptTests.swift; sourceTree = "<group>"; };
+		ED443B4DF9AE150E6629B67B /* SubagentChatSegmentBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatSegmentBuilderTests.swift; path = Tests/SoloCodeAppTests/SubagentChatSegmentBuilderTests.swift; sourceTree = "<group>"; };
+		21DC11546418DF84E56EC86B /* SubagentChatView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SubagentChatView.swift; path = App/SoloCodeApp/Sources/Swarm/Views/SubagentChatView.swift; sourceTree = "<group>"; };
 		C90B5F5D75778D11A9E1B3BF /* browser-bridge.js */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; name = "browser-bridge.js"; path = "App/SoloCodeApp/Resources/browser-bridge.js"; sourceTree = "<group>"; };
 		C914E6AFEE549F9AEB0BC426 /* EditorSplitStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorSplitStore.swift; path = App/SoloCodeApp/Sources/Editor/State/EditorSplitStore.swift; sourceTree = "<group>"; };
 		C93143A4C33AD76D6EB88223 /* PipelineIntegrationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipelineIntegrationServiceTests.swift; path = Tests/SoloCodeAppTests/PipelineIntegrationServiceTests.swift; sourceTree = "<group>"; };
@@ -4237,6 +4251,10 @@
 				C4350F2E951F40BD23276F09 /* SubagentChatCard+Snapshot.swift */,
 				D053218B945022CA002BD036 /* SubagentChatCard+SnapshotCard.swift */,
 				C8FE3AEF4833220073F62B46 /* SubagentChatCardHelpers.swift */,
+				861AE3BF1EE6442AB89A79B7 /* SubagentChatCustomBubbles.swift */,
+				3E471413DECEAC5C66C35CCB /* SubagentChatSegmentBuilder.swift */,
+				270B4F17D68A9EF3EBC12469 /* SubagentChatSegment.swift */,
+				21DC11546418DF84E56EC86B /* SubagentChatView.swift */,
 				EAC9E30BBA8761C1C3847089 /* SwarmProgressSummarySection.swift */,
 				01F4EE65BA88DD3D040F334D /* SwarmStepRow.swift */,
 				A536F2BD49CC8728F410F487 /* ToolTraceFileChange+Parser.swift */,
@@ -4848,6 +4866,8 @@
 				94C5D58B689ACD43C36D6AB2 /* CLIProfileProvisionerTests.swift */,
 				91D4986BD71C00B42ED0A8BC /* RustMainChatAutoTodoBoundaryTests.swift */,
 				C448783626790D04E1F31FDD /* ChatBackgroundExecutionStateTests.swift */,
+				076A1660A02E184456463728 /* SubagentChatTranscriptTests.swift */,
+				ED443B4DF9AE150E6629B67B /* SubagentChatSegmentBuilderTests.swift */,
 				CDE0B9219231A0893753E7E1 /* ChatBackgroundStyleTests.swift */,
 				26F852F6D844FF4015DD33C3 /* ChatPanelAutoTodoTracePayloadTests.swift */,
 				14DE1494A49C65B06971028E /* ChatPanelBuildBehaviorTests.swift */,
@@ -5161,6 +5181,7 @@
 				DC2D4E2C91CC6DC075355115 /* SemanticSearchBenchmarkTests.swift */,
 				7CD5987D8A6FFD9B0793ABBE /* SkillExecutionPolicyTests.swift */,
 				C19881369AED8212D819AC14 /* SubagentRoleTests.swift */,
+				A96A1DCC81D8A4BF02F08470 /* SubagentIdentityReadableNameTests.swift */,
 				6ADCE73F751A063795411270 /* SystemPromptsTests.swift */,
 				4318C1AA6E9EDF724EAC2953 /* TestProjectDetectorTests.swift */,
 				08B89D2426B9F8C824ECC6CE /* ToolEnabledLLMProviderMCPWarmupTests.swift */,
@@ -6180,6 +6201,7 @@
 				FB19CBEAFBB4E9D0F4D7A37D /* SemanticSearchBenchmarkTests.swift in Sources */,
 				113127201599617DD26F738F /* SkillExecutionPolicyTests.swift in Sources */,
 				A5906A56D28BD1AEBD99AFC9 /* SubagentRoleTests.swift in Sources */,
+				2F34CB444D8EC8C3F1F04554 /* SubagentIdentityReadableNameTests.swift in Sources */,
 				357AB156C2BB4AE7151A3F58 /* SystemPromptsTests.swift in Sources */,
 				CB77B2FE3A4BB284A4D1D8EF /* TestProjectDetectorTests.swift in Sources */,
 				597AA3CD7F95B5AEACDB7BA8 /* ToolEnabledLLMProviderMCPWarmupTests.swift in Sources */,
@@ -6306,6 +6328,8 @@
 				1EB5B202BF98A423E6D9B315 /* CLIProfileProvisionerTests.swift in Sources */,
 				9C706D3F16D0C54F2DBE7888 /* RustMainChatAutoTodoBoundaryTests.swift in Sources */,
 				B92D5E4B0D1BF6A3000278BD /* ChatBackgroundExecutionStateTests.swift in Sources */,
+				1178299A66D171BAE318E454 /* SubagentChatTranscriptTests.swift in Sources */,
+				4FF2B8A3700DA724B970690A /* SubagentChatSegmentBuilderTests.swift in Sources */,
 				25C2BCBBC3606B6AB3B97E87 /* ChatBackgroundStyleTests.swift in Sources */,
 				947CB14212CA4F4837DF88A7 /* ChatPanelAutoTodoTracePayloadTests.swift in Sources */,
 				6152745A1BE524CA9065C46B /* ChatPanelBuildBehaviorTests.swift in Sources */,
@@ -7155,6 +7179,10 @@
 				D9AA3433F9680B71FCE2F384 /* SubagentChatCard+Snapshot.swift in Sources */,
 				9FD4254B3C7E419BC36560CC /* SubagentChatCard+SnapshotCard.swift in Sources */,
 				B914937B960170B196C866B4 /* SubagentChatCardHelpers.swift in Sources */,
+				B5C7C84625ED96B3FED2615F /* SubagentChatCustomBubbles.swift in Sources */,
+				BA71277DDC8E11FDC8282312 /* SubagentChatSegmentBuilder.swift in Sources */,
+				A05401C4F73CC6BF3693B049 /* SubagentChatSegment.swift in Sources */,
+				AB68CD012F773F664B8E81E2 /* SubagentChatView.swift in Sources */,
 				B0865D25C65DE139EAF69C82 /* SwarmProgressSummarySection.swift in Sources */,
 				90292BF511C3B9A56CF4DB62 /* SwarmStepRow.swift in Sources */,
 				D9F6F15D17CD0227CECF4259 /* ToolTraceFileChange+Parser.swift in Sources */,

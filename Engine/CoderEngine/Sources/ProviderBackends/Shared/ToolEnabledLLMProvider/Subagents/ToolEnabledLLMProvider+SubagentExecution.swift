@@ -71,6 +71,7 @@ extension ToolEnabledLLMProvider {
             toolCallId: toolCallId,
             subagentId: subagentId,
             agentName: identity.agentName,
+            readableName: identity.readableName,
             taskSummary: identity.taskSummary,
             backendProviderId: subagentBase.id,
             backendDisplayName: subagentBase.displayName,

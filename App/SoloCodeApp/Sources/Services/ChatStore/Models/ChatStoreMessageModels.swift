@@ -20,6 +20,8 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
     let warningCount: Int?
     let resultPreview: String?
     let transcript: [SubagentTranscriptEntry]?
+    let taskPrompt: String?
+    let roleType: String?
 
     init(
         swarmId: String,
@@ -30,7 +32,9 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
         errorCount: Int,
         warningCount: Int?,
         resultPreview: String?,
-        transcript: [SubagentTranscriptEntry]?
+        transcript: [SubagentTranscriptEntry]?,
+        taskPrompt: String? = nil,
+        roleType: String? = nil
     ) {
         self.swarmId = swarmId
         self.status = status
@@ -41,19 +45,23 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
         self.warningCount = warningCount
         self.resultPreview = resultPreview
         self.transcript = transcript
+        self.taskPrompt = taskPrompt
+        self.roleType = roleType
     }
 
     init(from card: SwarmLiveCardState) {
         self.init(
             swarmId: card.swarmId,
             status: card.status,
-            title: card.displayName.isEmpty ? card.currentStepTitle : card.displayName,
+            title: card.formattedTitle,
             detail: card.currentDetail,
             summary: card.summary,
             errorCount: card.errorCount,
             warningCount: card.warningCount,
             resultPreview: Self.extractPreview(transcript: card.transcript, liveText: card.liveText),
-            transcript: card.transcript.isEmpty ? nil : card.transcript
+            transcript: card.transcript.isEmpty ? nil : card.transcript,
+            taskPrompt: card.taskPrompt.isEmpty ? nil : card.taskPrompt,
+            roleType: card.roleType.isEmpty ? nil : card.roleType
         )
     }
 

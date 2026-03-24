@@ -4,15 +4,19 @@ public struct SubagentExecutionIdentity: Sendable, Equatable {
     public let swarmId: String
     public let agentName: String
     public let taskSummary: String
+    /// Human-readable display name with spaces (e.g. "Auth Login Flow").
+    public let readableName: String
 
     public init(
         swarmId: String,
         agentName: String,
-        taskSummary: String
+        taskSummary: String,
+        readableName: String = ""
     ) {
         self.swarmId = swarmId
         self.agentName = agentName
         self.taskSummary = taskSummary
+        self.readableName = readableName.isEmpty ? agentName : readableName
     }
 }
 
@@ -35,11 +39,13 @@ public enum SubagentExecutionIdentityBuilder {
         } else {
             agentName = baseName
         }
+        let readable = readableDisplayName(from: task, role: role)
 
         return SubagentExecutionIdentity(
             swarmId: agentName,
             agentName: agentName,
-            taskSummary: taskSummary(from: task)
+            taskSummary: taskSummary(from: task),
+            readableName: readable.isEmpty ? role.displayName : readable
         )
     }
 
@@ -47,6 +53,31 @@ public enum SubagentExecutionIdentityBuilder {
         let label = deriveTaskLabel(from: task, role: role)
         guard !label.isEmpty else { return role.displayName }
         return "\(role.displayName)-\(label)"
+    }
+
+    /// Derives a human-readable display name from the task (space-separated words).
+    public static func readableDisplayName(
+        from task: String,
+        role: SubagentRole? = nil
+    ) -> String {
+        let cleaned = task
+            .replacingOccurrences(of: #"`([^`]*)`"#, with: "$1", options: .regularExpression)
+            .replacingOccurrences(of: #"\[[^\]]+\]\([^)]+\)"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"[>*_#\-\+\[\]\(\)\{\}:]"#, with: " ", options: .regularExpression)
+
+        let roleSpecificNoise = leadingNoiseWords(for: role)
+        let words = cleaned
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { word in
+                let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return false }
+                let lower = trimmed.lowercased()
+                return !fillerWords.contains(lower) && !roleSpecificNoise.contains(lower)
+            }
+            .prefix(5)
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+        let joined = words.joined(separator: " ")
+        return String(joined.prefix(60))
     }
 
     public static func deriveTaskLabel(
@@ -72,7 +103,7 @@ public enum SubagentExecutionIdentityBuilder {
         return String(words.joined().prefix(48))
     }
 
-    public static func taskSummary(from task: String, maxLength: Int = 120) -> String {
+    public static func taskSummary(from task: String, maxLength: Int = 500) -> String {
         let compact = task
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)

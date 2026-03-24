@@ -67,17 +67,42 @@ extension SubagentChatCardView {
     }
 
     @ViewBuilder
+    var taskPromptSection: some View {
+        let prompt = card.taskPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !prompt.isEmpty {
+            Divider().opacity(0.08).padding(.horizontal, 12)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("TASK")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.6)
+                Text(prompt)
+                    .font(.system(size: 10.5, weight: .regular))
+                    .foregroundStyle(.secondary.opacity(0.7))
+                    .lineLimit(isExpanded ? nil : 2)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+        }
+    }
+
+    @ViewBuilder
     var compactSnapshotSection: some View {
-        if !isExpanded, let preview = compactPreviewText {
-            Divider().opacity(0.1).padding(.horizontal, 12)
-            Text(preview)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(.secondary.opacity(0.55))
-                .lineLimit(3)
-                .truncationMode(.tail)
-                .textSelection(.enabled)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+        if !isExpanded {
+            taskPromptSection
+            if let preview = compactPreviewText {
+                Divider().opacity(0.1).padding(.horizontal, 12)
+                Text(preview)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary.opacity(0.55))
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+            }
         }
     }
 
@@ -85,71 +110,13 @@ extension SubagentChatCardView {
     var expandedSnapshotSection: some View {
         if isExpanded {
             Divider().opacity(0.15).padding(.horizontal, 12)
-
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        if !card.transcript.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(card.transcript.suffix(60)) { entry in
-                                    transcriptRow(entry)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                        } else {
-                            if !card.liveText.isEmpty {
-                                Text(card.liveText.suffix(4000))
-                                    .font(.system(size: 11, weight: .regular))
-                                    .foregroundStyle(.primary.opacity(0.7))
-                                    .textSelection(.enabled)
-                                    .textShimmer(active: card.status == .running)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                            }
-
-                            if !allEvents.isEmpty {
-                                if !card.liveText.isEmpty {
-                                    Divider().opacity(0.08).padding(.horizontal, 12)
-                                }
-
-                                VStack(alignment: .leading, spacing: 3) {
-                                    ForEach(allEvents) { activity in
-                                        eventRow(activity)
-                                    }
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                            }
-                        }
-
-                        Color.clear.frame(height: 1).id("bottom-anchor")
-                    }
-                }
-                .frame(maxHeight: 280)
-                .onChange(of: card.recentEvents.count) { _ in
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo("bottom-anchor", anchor: .bottom)
-                    }
-                }
-                .onChange(of: card.liveText.count) { _ in
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo("bottom-anchor", anchor: .bottom)
-                    }
-                }
-                .onChange(of: card.transcript.count) { _ in
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo("bottom-anchor", anchor: .bottom)
-                    }
-                }
-            }
+            SubagentChatView(card: card, isFollowingLive: card.status == .running)
+                .frame(maxHeight: 320)
         }
     }
 
     var title: String {
-        card.displayName.isEmpty
-            ? SubagentChatCardHelpers.roleDisplayName(from: card.swarmId)
-            : card.displayName
+        card.formattedTitle
     }
 
     var subtitle: String {
@@ -224,82 +191,6 @@ extension SubagentChatCardView {
         }
     }
 
-    var allEvents: [TaskActivity] {
-        card.recentEvents.suffix(40).map { $0 }
-    }
-
-    @ViewBuilder
-    func eventRow(_ activity: TaskActivity) -> some View {
-        let isLast = activity.id == allEvents.last?.id
-        HStack(spacing: 6) {
-            Image(systemName: eventIcon(for: activity))
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(
-                    activity.isRunning
-                        ? phaseColor(for: activity)
-                        : .secondary.opacity(0.5)
-                )
-                .frame(width: 14, alignment: .center)
-
-            Text(activity.title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(activity.isRunning ? Color.primary.opacity(0.8) : Color.secondary.opacity(0.7))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .textShimmer(active: activity.isRunning && isLast)
-        }
-        .padding(.vertical, 2)
-    }
-
-    @ViewBuilder
-    func transcriptRow(_ entry: SubagentTranscriptEntry) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: entry.kind == .assistantText ? "text.bubble" : "gearshape.fill")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(entry.isRunning ? DesignSystem.Colors.swarmColor : .secondary.opacity(0.5))
-                .frame(width: 14, alignment: .center)
-
-            VStack(alignment: .leading, spacing: 2) {
-                if entry.kind == .activity, !entry.title.isEmpty {
-                    Text(entry.title)
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(.secondary.opacity(0.72))
-                }
-                Text(entry.detail)
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.primary.opacity(0.75))
-                    .textSelection(.enabled)
-                    .textShimmer(active: entry.isRunning)
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    func phaseColor(for activity: TaskActivity) -> Color {
-        switch activity.phase {
-        case .executing: return DesignSystem.Colors.warning
-        case .editing: return DesignSystem.Colors.info
-        case .searching: return DesignSystem.Colors.swarmColor
-        case .planning: return DesignSystem.Colors.planColor
-        case .thinking: return DesignSystem.Colors.swarmColor
-        }
-    }
-
-    func eventIcon(for activity: TaskActivity) -> String {
-        switch activity.type {
-        case "command_execution", "bash": return "terminal.fill"
-        case "file_change", "edit": return "pencil"
-        case "mcp_tool_call": return "wrench.and.screwdriver.fill"
-        case "web_search", "web_search_started", "web_search_completed": return "magnifyingglass"
-        case "web_fetch", "web_fetch_started", "web_fetch_completed": return "globe"
-        case "read_batch_started", "read_batch_completed": return "doc.on.doc"
-        case "todo_write", "todo_read": return "checklist"
-        case "agent": return "person.circle.fill"
-        case "subagent_text": return "text.bubble"
-        case "reasoning": return "brain"
-        default: return "gearshape.fill"
-        }
-    }
 
     func liveRunningSubtitle() -> String? {
         let liveDriven = SubagentChatCardHelpers.runningSubtitle(

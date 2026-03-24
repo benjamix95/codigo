@@ -7,9 +7,15 @@ struct SubagentSnapshotCardView: View {
     @State private var isHovered = false
 
     var title: String {
-        snapshot.title.isEmpty
-            ? SubagentChatCardHelpers.roleDisplayName(from: snapshot.swarmId)
-            : snapshot.title
+        if snapshot.title.isEmpty {
+            return SubagentChatCardHelpers.roleDisplayName(from: snapshot.swarmId)
+        }
+        // Show "DisplayName - RoleType" if role info is available in swarmId
+        let role = SubagentChatCardHelpers.roleDisplayName(from: snapshot.swarmId)
+        if role != "Subagent" && !snapshot.title.lowercased().contains(role.lowercased()) {
+            return "\(snapshot.title) - \(role)"
+        }
+        return snapshot.title
     }
 
     var subtitle: String {
@@ -90,6 +96,25 @@ struct SubagentSnapshotCardView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
+
+            // Task prompt section
+            if let prompt = snapshot.taskPrompt, !prompt.isEmpty {
+                Divider().opacity(0.08).padding(.horizontal, 12)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("TASK")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                        .tracking(0.6)
+                    Text(prompt)
+                        .font(.system(size: 10.5, weight: .regular))
+                        .foregroundStyle(.secondary.opacity(0.7))
+                        .lineLimit(isExpanded ? nil : 2)
+                        .truncationMode(.tail)
+                        .textSelection(.enabled)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+            }
 
             if let preview = previewText, !preview.isEmpty {
                 if !isExpanded {
