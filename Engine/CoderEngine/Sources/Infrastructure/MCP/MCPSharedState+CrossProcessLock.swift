@@ -142,16 +142,12 @@ extension MCPSharedState {
             }
             return body()
         case .fallback(let err):
-            if acquireLock != nil {
-                print(
-                    "[MCPSharedState] ⚠️ \(label): test fallback locale per \(lockURL.path), errno: \(err)"
-                )
-                ensureLockDirectory()
-                return body()
-            }
-            fatalError(
-                "\(label): impossibile acquisire un advisory lock crash-safe su \(lockURL.path), errno: \(err)"
+            NSLog(
+                "[MCPSharedState] ⚠️ %@: advisory lock non acquisito su %@, errno: %d — fallback locale",
+                label, lockURL.path, err
             )
+            ensureLockDirectory()
+            return body()
         }
     }
 

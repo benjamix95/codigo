@@ -223,14 +223,12 @@ extension ProviderToolEventMapper {
                 options: [.caseInsensitive])
         } catch {
             assertionFailure("Invalid hardcoded regex – \(error)")
-            do { return try NSRegularExpression(pattern: "", options: []) }
-            catch {
-                assertionFailure("Empty regex pattern failed unexpectedly: \(error)")
-                guard let fallback = try? NSRegularExpression(pattern: "", options: []) else {
-                    fatalError("NSRegularExpression cannot compile empty pattern")
-                }
-                return fallback
+            // Fallback: return a regex that never matches instead of crashing.
+            if let empty = try? NSRegularExpression(pattern: "$^", options: []) {
+                return empty
             }
+            // Last resort: empty pattern (always compiles on Apple platforms).
+            return (try? NSRegularExpression(pattern: "", options: [])) ?? NSRegularExpression()
         }
     }()
 
