@@ -112,26 +112,20 @@ enum RustMainChatStoreAdapter {
     @MainActor
     static func uiState(
         from store: ChatStore,
-        runtimeSnapshot: MainChatRuntimeSnapshotBridge?,
-        selectedConversationId: UUID?,
-        draftText: String,
-        planPanelVisible: Bool,
-        followLive: Bool,
-        collapsedArtifactsByTurn: [String: Set<String>],
-        autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge] = [:]
+        context: MainChatUIBridgeContext
     ) -> MainChatUIStateBridge {
         MainChatUIStateBridge(
             storeSnapshot: snapshot(from: store),
-            runtimeSnapshot: runtimeSnapshot,
+            runtimeSnapshot: context.runtimeSnapshot,
             taskRuntimeState: taskRuntimeState(from: store),
-            selectedConversationId: selectedConversationId?.uuidString.lowercased(),
-            draftText: draftText,
-            planPanelVisible: planPanelVisible,
-            followLive: followLive,
-            collapsedArtifactIdsByTurn: Dictionary(uniqueKeysWithValues: collapsedArtifactsByTurn.map {
+            selectedConversationId: context.selectedConversationId?.uuidString.lowercased(),
+            draftText: context.draftText,
+            planPanelVisible: context.planPanelVisible,
+            followLive: context.followLive,
+            collapsedArtifactIdsByTurn: Dictionary(uniqueKeysWithValues: context.collapsedArtifactsByTurn.map {
                 ($0.key, Array($0.value).sorted())
             }),
-            autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage
+            autoTodoRuntimeStateByMessage: context.autoTodoRuntimeStateByMessage
         )
     }
 
@@ -171,29 +165,13 @@ enum RustMainChatStoreAdapter {
     static func applyPipelineEvent(
         _ event: ChatPipelineEvent,
         to store: ChatStore,
-        runtimeSnapshot: MainChatRuntimeSnapshotBridge,
-        selectedConversationId: UUID?,
-        draftText: String,
-        planPanelVisible: Bool,
-        followLive: Bool,
-        collapsedArtifactsByTurn: [String: Set<String>],
-        autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge] = [:],
+        context: MainChatUIBridgeContext,
         preserveLocalMessages: Bool = false
     ) -> MainChatUIIntentResponseBridge? {
         let request = MainChatUIIntentRequestBridge(
-            schemaVersion: 1,
             intent: "pipeline_apply_event",
-            state: uiState(
-                from: store,
-                runtimeSnapshot: runtimeSnapshot,
-                selectedConversationId: selectedConversationId,
-                draftText: draftText,
-                planPanelVisible: planPanelVisible,
-                followLive: followLive,
-                collapsedArtifactsByTurn: collapsedArtifactsByTurn,
-                autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage
-            ),
-            conversationId: event.conversationId.uuidString.lowercased(),
+            state: uiState(from: store, context: context),
+            conversationId: event.conversationId,
             turnId: event.turnId,
             artifactId: nil,
             text: nil,
@@ -212,30 +190,14 @@ enum RustMainChatStoreAdapter {
     static func applyPipelineEvents(
         _ events: [ChatPipelineEvent],
         to store: ChatStore,
-        runtimeSnapshot: MainChatRuntimeSnapshotBridge,
-        selectedConversationId: UUID?,
-        draftText: String,
-        planPanelVisible: Bool,
-        followLive: Bool,
-        collapsedArtifactsByTurn: [String: Set<String>],
-        autoTodoRuntimeStateByMessage: [String: MainChatUIAutoTodoRuntimeStateBridge] = [:],
+        context: MainChatUIBridgeContext,
         preserveLocalMessages: Bool = false
     ) -> MainChatUIIntentResponseBridge? {
         guard let first = events.first else { return nil }
         let request = MainChatUIIntentRequestBridge(
-            schemaVersion: 1,
             intent: "pipeline_apply_events",
-            state: uiState(
-                from: store,
-                runtimeSnapshot: runtimeSnapshot,
-                selectedConversationId: selectedConversationId,
-                draftText: draftText,
-                planPanelVisible: planPanelVisible,
-                followLive: followLive,
-                collapsedArtifactsByTurn: collapsedArtifactsByTurn,
-                autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage
-            ),
-            conversationId: first.conversationId.uuidString.lowercased(),
+            state: uiState(from: store, context: context),
+            conversationId: first.conversationId,
             turnId: first.turnId,
             artifactId: nil,
             text: nil,

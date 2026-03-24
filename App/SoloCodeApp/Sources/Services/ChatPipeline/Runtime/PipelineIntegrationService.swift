@@ -20,6 +20,59 @@ struct PipelineCompletionContext {
 /// Service che collega la pipeline al layer UI di CoderIDE.
 /// Consuma `PipelineUIEvent` e aggiorna ChatStore, TaskActivityStore,
 /// SwarmProgressStore, TodoStore.
+private final class PipelineIntegrationDependencyBindings {
+    weak var chatStore: ChatStore?
+    weak var taskActivityStore: TaskActivityStore?
+    weak var swarmProgressStore: SwarmProgressStore?
+    weak var todoStore: TodoStore?
+    weak var executionController: ExecutionController?
+
+    func configure(
+        chatStore: ChatStore,
+        taskActivityStore: TaskActivityStore,
+        swarmProgressStore: SwarmProgressStore,
+        todoStore: TodoStore,
+        executionController: ExecutionController
+    ) {
+        self.chatStore = chatStore
+        self.taskActivityStore = taskActivityStore
+        self.swarmProgressStore = swarmProgressStore
+        self.todoStore = todoStore
+        self.executionController = executionController
+    }
+
+    private func resolve<T>(
+        _ value: T?,
+        name: StaticString
+    ) -> T? {
+        guard let value else {
+            NSLog("[PipelineIntegrationService] Missing dependency: %@", String(describing: name))
+            return nil
+        }
+        return value
+    }
+
+    func resolvedChatStore() -> ChatStore? {
+        resolve(chatStore, name: "ChatStore")
+    }
+
+    func resolvedTaskActivityStore() -> TaskActivityStore? {
+        resolve(taskActivityStore, name: "TaskActivityStore")
+    }
+
+    func resolvedSwarmProgressStore() -> SwarmProgressStore? {
+        resolve(swarmProgressStore, name: "SwarmProgressStore")
+    }
+
+    func resolvedTodoStore() -> TodoStore? {
+        resolve(todoStore, name: "TodoStore")
+    }
+
+    func resolvedExecutionController() -> ExecutionController? {
+        resolve(executionController, name: "ExecutionController")
+    }
+}
+
 @MainActor
 final class PipelineIntegrationService: ObservableObject {
 
@@ -29,11 +82,12 @@ final class PipelineIntegrationService: ObservableObject {
 
     // MARK: - Dependencies
 
-    weak var chatStore: ChatStore?
-    weak var taskActivityStore: TaskActivityStore?
-    weak var swarmProgressStore: SwarmProgressStore?
-    weak var todoStore: TodoStore?
-    weak var executionController: ExecutionController?
+    private let dependencyBindings = PipelineIntegrationDependencyBindings()
+    var chatStore: ChatStore? { dependencyBindings.resolvedChatStore() }
+    var taskActivityStore: TaskActivityStore? { dependencyBindings.resolvedTaskActivityStore() }
+    var swarmProgressStore: SwarmProgressStore? { dependencyBindings.resolvedSwarmProgressStore() }
+    var todoStore: TodoStore? { dependencyBindings.resolvedTodoStore() }
+    var executionController: ExecutionController? { dependencyBindings.resolvedExecutionController() }
 
     // MARK: - Internal State
 
@@ -58,11 +112,13 @@ final class PipelineIntegrationService: ObservableObject {
         todoStore: TodoStore,
         executionController: ExecutionController
     ) {
-        self.chatStore = chatStore
-        self.taskActivityStore = taskActivityStore
-        self.swarmProgressStore = swarmProgressStore
-        self.todoStore = todoStore
-        self.executionController = executionController
+        dependencyBindings.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
     }
 
     // MARK: - Execute Job

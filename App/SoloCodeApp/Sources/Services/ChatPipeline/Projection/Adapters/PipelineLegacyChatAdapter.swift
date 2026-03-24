@@ -217,13 +217,11 @@ extension ChatPanelView {
         guard let response = RustMainChatStoreAdapter.applyPipelineEvent(
             event,
             to: chatStore,
-            runtimeSnapshot: runtimeSnapshot,
-            selectedConversationId: event.conversationId,
-            draftText: inputText,
-            planPanelVisible: showPlanPanel,
-            followLive: isFollowingLive,
-            collapsedArtifactsByTurn: collapsedArtifactsByTurn,
-            autoTodoRuntimeStateByMessage: autoTodoRuntimeStateByMessage,
+            context: currentMainChatUIBridgeContext(
+                conversationId: event.conversationId,
+                runtimeSnapshot: runtimeSnapshot,
+                includeAutoTodoRuntimeState: true
+            ),
             preserveLocalMessages: false
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
             return nil

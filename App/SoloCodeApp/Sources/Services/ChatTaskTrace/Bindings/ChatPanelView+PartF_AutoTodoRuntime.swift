@@ -5,6 +5,27 @@ import UniformTypeIdentifiers
 
 extension ChatPanelView {
     @MainActor
+    internal func currentMainChatUIBridgeContext(
+        conversationId targetConversationId: UUID?,
+        runtimeSnapshot: MainChatRuntimeSnapshotBridge? = nil,
+        preferPlanRuntime: Bool = false,
+        includeAutoTodoRuntimeState: Bool = false
+    ) -> MainChatUIBridgeContext {
+        MainChatUIBridgeContext(
+            runtimeSnapshot: runtimeSnapshot
+                ?? resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime),
+            selectedConversationId: targetConversationId ?? conversationId,
+            draftText: inputText,
+            planPanelVisible: showPlanPanel,
+            followLive: isFollowingLive,
+            collapsedArtifactsByTurn: collapsedArtifactsByTurn,
+            autoTodoRuntimeStateByMessage: includeAutoTodoRuntimeState
+                ? autoTodoRuntimeStateByMessage
+                : [:]
+        )
+    }
+
+    @MainActor
     internal func resolvedMainChatRuntimeSnapshot(
         preferPlanRuntime: Bool = false
     ) -> MainChatRuntimeSnapshotBridge? {
@@ -25,16 +46,12 @@ extension ChatPanelView {
     ) -> MainChatUIStateBridge {
         RustMainChatStoreAdapter.uiState(
             from: chatStore,
-            runtimeSnapshot: runtimeSnapshot
-                ?? resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime),
-            selectedConversationId: targetConversationId ?? conversationId,
-            draftText: inputText,
-            planPanelVisible: showPlanPanel,
-            followLive: isFollowingLive,
-            collapsedArtifactsByTurn: collapsedArtifactsByTurn,
-            autoTodoRuntimeStateByMessage: includeAutoTodoRuntimeState
-                ? autoTodoRuntimeStateByMessage
-                : [:]
+            context: currentMainChatUIBridgeContext(
+                conversationId: targetConversationId,
+                runtimeSnapshot: runtimeSnapshot,
+                preferPlanRuntime: preferPlanRuntime,
+                includeAutoTodoRuntimeState: includeAutoTodoRuntimeState
+            )
         )
     }
 
@@ -58,7 +75,6 @@ extension ChatPanelView {
             _, new in new
         }
         let request = MainChatUIIntentRequestBridge(
-            schemaVersion: 1,
             intent: intent,
             state: currentMainChatUIState(
                 conversationId: targetConversationId,
@@ -66,7 +82,7 @@ extension ChatPanelView {
                 preferPlanRuntime: preferPlanRuntime,
                 includeAutoTodoRuntimeState: includeAutoTodoRuntimeState
             ),
-            conversationId: (targetConversationId ?? conversationId)?.uuidString.lowercased(),
+            conversationId: targetConversationId ?? conversationId,
             turnId: turnId,
             artifactId: artifactId,
             text: text,

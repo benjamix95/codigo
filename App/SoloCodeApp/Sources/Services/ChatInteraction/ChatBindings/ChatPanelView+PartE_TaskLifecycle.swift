@@ -3,6 +3,28 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldRecordFallbackTurnStartEvent(
+    isTaskActive: Bool,
+    scopedActivityCount: Int
+) -> Bool {
+    isTaskActive && scopedActivityCount == 0
+}
+
+func shouldNotifyTaskCompletion(outcome: ToolTraceTurnOutcome?) -> Bool {
+    outcome == .success
+}
+
+@MainActor
+func buildTaskCompletionNotificationPayload(
+    conversation: Conversation?,
+    outcome: ToolTraceTurnOutcome?,
+    formatter: TaskCompletionNotificationFormatter = .default
+) -> TaskCompletionNotificationPayload? {
+    guard shouldNotifyTaskCompletion(outcome: outcome) else { return nil }
+    guard let conversation else { return nil }
+    return TaskCompletionNotificationPayload.build(from: conversation, formatter: formatter)
+}
+
 extension ChatPanelView {
     internal func finalChatActionButton(
         icon: String,
@@ -103,6 +125,24 @@ extension ChatPanelView {
 
     internal var scopedTaskActivityCount: Int {
         scopedTaskActivities(for: conversationId).count
+    }
+
+    @MainActor
+    internal func notifyTaskCompletionIfNeeded(
+        conversationId: UUID?,
+        outcome: ToolTraceTurnOutcome?
+    ) {
+        guard let conversationId else { return }
+        guard let payload = buildTaskCompletionNotificationPayload(
+            conversation: chatStore.conversation(for: conversationId),
+            outcome: outcome
+        ) else {
+            return
+        }
+
+        Task {
+            await TaskCompletionNotificationService.shared.deliver(payload: payload)
+        }
     }
 
     @ViewBuilder

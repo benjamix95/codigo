@@ -116,15 +116,14 @@ extension PipelineIntegrationService {
             output: nil
         )
         let rustStartTime = CFAbsoluteTimeGetCurrent()
+        let bridgeContext = MainChatUIBridgeContext.pipeline(
+            runtimeSnapshot: runtimeSnapshot,
+            conversationId: runtime.conversationId
+        )
         guard let response = RustMainChatStoreAdapter.applyPipelineEvents(
             events,
             to: chatStore,
-            runtimeSnapshot: runtimeSnapshot,
-            selectedConversationId: runtime.conversationId,
-            draftText: "",
-            planPanelVisible: false,
-            followLive: true,
-            collapsedArtifactsByTurn: [:],
+            context: bridgeContext,
             preserveLocalMessages: false
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
             let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - rustStartTime) * 1000)
@@ -161,15 +160,14 @@ extension PipelineIntegrationService {
             output: nil
         )
         let rustStartTime = CFAbsoluteTimeGetCurrent()
+        let bridgeContext = MainChatUIBridgeContext.pipeline(
+            runtimeSnapshot: runtimeSnapshot,
+            conversationId: runtime.conversationId
+        )
         guard let response = RustMainChatStoreAdapter.applyPipelineEvent(
             event,
             to: chatStore,
-            runtimeSnapshot: runtimeSnapshot,
-            selectedConversationId: runtime.conversationId,
-            draftText: "",
-            planPanelVisible: false,
-            followLive: true,
-            collapsedArtifactsByTurn: [:],
+            context: bridgeContext,
             preserveLocalMessages: false
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
             return false
