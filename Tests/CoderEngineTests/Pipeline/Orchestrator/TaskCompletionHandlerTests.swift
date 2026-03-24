@@ -104,31 +104,23 @@ final class TaskCompletionHandlerTests: XCTestCase {
         }
     }
 
-    func testTestWriterPassAlwaysSchedulesDocWriter() {
+    func testTestWriterPassTransitionsToValidation() {
         let result = makeResult(role: .testWriter)
         let task = makeTask()
         let action = handler.handleSuccess(
             result: result, task: task, testsPass: true
         )
-        XCTAssertEqual(
-            action,
-            .scheduleNextAgent(taskId: "T1", role: .docWriter),
-            "TestWriter pass MUST always schedule DocWriter"
-        )
+        XCTAssertEqual(action, .transitionToValidation(taskId: "T1"))
     }
 
-    func testTestWriterPassSchedulesDocWriterRegardlessOfFlag() {
+    func testTestWriterPassWithDocWriter() {
         let result = makeResult(role: .testWriter)
         let task = makeTask()
         let action = handler.handleSuccess(
             result: result, task: task,
-            testsPass: true, shouldInvokeDocWriter: false
+            testsPass: true, shouldInvokeDocWriter: true
         )
-        XCTAssertEqual(
-            action,
-            .scheduleNextAgent(taskId: "T1", role: .docWriter),
-            "DocWriter MUST be scheduled even when shouldInvokeDocWriter is false"
-        )
+        XCTAssertEqual(action, .scheduleNextAgent(taskId: "T1", role: .docWriter))
     }
 
     func testTestWriterFailSchedulesFix() {

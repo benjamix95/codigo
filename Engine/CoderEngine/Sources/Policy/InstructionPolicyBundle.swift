@@ -36,10 +36,8 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         }
 
         let sections = collectPolicySections(workspacePaths: workspacePaths)
-        let skillCatalog = collectSkillCatalogSummary()
-        guard !sections.isEmpty
-                || !skillCatalog.preferredSkills.isEmpty
-                || !skillCatalog.additionalSources.isEmpty else {
+        let skills = collectSkillCatalog()
+        guard !sections.isEmpty || !skills.isEmpty else {
             let empty = InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
             storeCachedBundle(empty, for: cacheKey)
             return empty
@@ -53,12 +51,12 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
             lines.append(section.content)
             lines.append("```")
         }
-        let skillLines = renderSkillCatalogLines(
-            preferredSkills: skillCatalog.preferredSkills,
-            additionalSources: skillCatalog.additionalSources
-        )
-        if !skillLines.isEmpty {
-            lines.append(contentsOf: skillLines)
+        if !skills.isEmpty {
+            lines.append("### Detected local skills")
+            lines.append("Invoke with the `skill` tool: skill=<name>, task=<what to do>. Example: skill=doc task=\"create user guide.docx\"")
+            for skill in skills {
+                lines.append("- \(skill)")
+            }
         }
         let policyBody = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !policyBody.isEmpty else {
@@ -177,10 +175,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         return sections
     }
 
-    private static func collectSkillCatalogSummary() -> (
-        preferredSkills: [String],
-        additionalSources: [(label: String, count: Int)]
-    ) {
+    private static func collectSkillCatalog() -> [String] {
         let home = NSHomeDirectory()
         let roots: [(label: String, path: String)] = [
             ("codex", "\(home)/.codex/skills"),
@@ -188,42 +183,16 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
             ("claude", "\(home)/.claude/skills"),
         ]
 
-        var preferredSkills: [String] = []
-        var additionalSources: [(label: String, count: Int)] = []
+        var entries: [String] = []
         for root in roots {
             let names = listDirectoryEntries(root.path)
                 .filter { !$0.hasPrefix(".") }
                 .sorted()
-            if root.label == "codex" {
-                preferredSkills = names
-            } else if !names.isEmpty {
-                additionalSources.append((label: root.label, count: names.count))
+            for name in names {
+                entries.append("\(root.label): \(name)")
             }
         }
-        return (preferredSkills: preferredSkills, additionalSources: additionalSources)
-    }
-
-    static func renderSkillCatalogLines(
-        preferredSkills: [String],
-        additionalSources: [(label: String, count: Int)]
-    ) -> [String] {
-        guard !preferredSkills.isEmpty || !additionalSources.isEmpty else { return [] }
-
-        var lines: [String] = []
-        if !preferredSkills.isEmpty {
-            lines.append("### Preferred local skills")
-            lines.append("Use these by default with the `skill` tool when the task matches.")
-            lines.append("Invoke with `skill=<name> task=\"<what to do>\"`.")
-            lines.append(preferredSkills.map { "`\($0)`" }.joined(separator: ", "))
-        }
-        if !additionalSources.isEmpty {
-            lines.append("### Additional skill catalogs")
-            lines.append("Explore these only when the preferred local skills are not enough:")
-            for source in additionalSources where source.count > 0 {
-                lines.append("- \(source.label): \(source.count) additional skills available on demand")
-            }
-        }
-        return lines
+        return entries
     }
 
     private static func firstProjectFile(named fileName: String, workspacePaths: [String]) -> String? {

@@ -4,21 +4,6 @@ import XCTest
 import Darwin
 
 final class InstructionPolicyBundleTests: XCTestCase {
-    func testRenderSkillCatalogLinesPrefersCodexSkillsAndSummarizesOthers() {
-        let lines = InstructionPolicyBundle.renderSkillCatalogLines(
-            preferredSkills: ["debugging", "testing", "task-todo"],
-            additionalSources: [("agents", 2), ("claude", 48)]
-        )
-
-        let rendered = lines.joined(separator: "\n")
-        XCTAssertTrue(rendered.contains("### Preferred local skills"))
-        XCTAssertTrue(rendered.contains("`debugging`, `testing`, `task-todo`"))
-        XCTAssertTrue(rendered.contains("### Additional skill catalogs"))
-        XCTAssertTrue(rendered.contains("agents: 2 additional skills available on demand"))
-        XCTAssertTrue(rendered.contains("claude: 48 additional skills available on demand"))
-        XCTAssertFalse(rendered.contains("agents: find-skills"))
-    }
-
     func testHashForPolicyIsDeterministic() {
         let text = "line1\nline2\nline3"
         let h1 = InstructionPolicyBundle.hashForPolicy(text)

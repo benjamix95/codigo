@@ -105,11 +105,8 @@ extension AgentWorkerAdapter {
             """
         case .docWriter:
             return """
-            Document ALL changes, findings, and results from the pipeline execution.
-            Use `coderide_review_findings`, `coderide_bughunter_findings`, `coderide_security_findings` \
-            to collect real data from automated scans.
-            Use `coderide_write` to persist documentation files.
-            Include "documentation complete" in your summary when done.
+            Update documentation to reflect the changes made.
+            Include "documentation needed" in your summary if docs are required.
             """
         case .securityAuditor:
             return """

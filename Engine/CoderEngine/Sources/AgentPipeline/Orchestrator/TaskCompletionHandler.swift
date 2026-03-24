@@ -83,8 +83,10 @@ public struct TaskCompletionHandler: Sendable {
                     taskId: task.taskId,
                     reason: "Tests failed"
                 )
-            } else {
+            } else if shouldInvokeDocWriter {
                 baseAction = .scheduleNextAgent(taskId: task.taskId, role: .docWriter)
+            } else {
+                baseAction = .transitionToValidation(taskId: task.taskId)
             }
 
         case .docWriter:
