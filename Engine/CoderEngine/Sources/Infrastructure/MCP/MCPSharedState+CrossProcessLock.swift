@@ -131,9 +131,10 @@ extension MCPSharedState {
         createMode: mode_t,
         ensureLockDirectory: () -> Void
     ) -> AdvisoryFileLockResult {
+        let lockStartTime = CFAbsoluteTimeGetCurrent()
         #if DEBUG
         if Thread.isMainThread {
-            NSLog("[CrossProcessLock] WARNING: acquireAdvisoryFileLock called on main thread — this will block the UI for up to %.0fs. Move to background thread.", advisoryLockTimeout)
+            NSLog("[CrossProcessLock] WARNING: acquireAdvisoryFileLock called on main thread — this will block the UI for up to %.0fs. Move to background thread. caller=%@", advisoryLockTimeout, Thread.callStackSymbols.prefix(8).joined(separator: "\n"))
         }
         #endif
         let deadline = Date().addingTimeInterval(advisoryLockTimeout)
@@ -150,6 +151,10 @@ extension MCPSharedState {
             while Date() < deadline {
                 let lockResult = flock(descriptor, LOCK_EX | LOCK_NB)
                 if lockResult == 0 {
+                    let lockElapsed = (CFAbsoluteTimeGetCurrent() - lockStartTime) * 1000
+                    if lockElapsed > 5 && Thread.isMainThread {
+                        NSLog("[CrossProcessLock] MAIN-STALL: lock acquired after %.0fms on main thread", lockElapsed)
+                    }
                     return .locked(descriptor)
                 }
                 let err = errno

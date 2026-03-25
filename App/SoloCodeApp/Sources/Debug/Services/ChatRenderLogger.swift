@@ -34,10 +34,6 @@ enum ChatRenderLogger {
     // MARK: - Public API
 
     /// Log a render event. Automatically throttled per `label`.
-    ///
-    /// - Parameters:
-    ///   - label: Short identifier for the call site, e.g. `"ChatPanelView.rootLayout"`.
-    ///   - detail: Optional extra context (message id, count, etc.).
     static func logRender(_ label: String, detail: String? = nil) {
         guard isEnabled else { return }
         let now = CFAbsoluteTimeGetCurrent()
@@ -60,8 +56,7 @@ enum ChatRenderLogger {
         }
     }
 
-    /// Log an onChange trigger. NOT throttled — these are already
-    /// infrequent compared to body evaluations.
+    /// Log an onChange trigger. NOT throttled.
     static func logOnChange(_ label: String, detail: String? = nil) {
         guard isEnabled else { return }
         if let detail {
@@ -71,14 +66,38 @@ enum ChatRenderLogger {
         }
     }
 
-    /// Log a reason why a view's Equatable check returned `false`
-    /// (i.e., the view will be re-rendered).
+    /// Log a reason why a view's Equatable check returned `false`.
     static func logEquatableMiss(_ label: String, reason: String) {
         guard isEnabled else { return }
         os_log(.debug, log: log, "[EQ-MISS] %{public}@ — %{public}@", label, reason)
     }
 
-    /// Reset the throttle map (useful when conversation changes).
+    /// Log a timed operation (body evaluation, layout pass, etc.).
+    /// Call `startTiming()`, do work, then call `endTiming()`.
+    static func startTiming(_ label: String) -> CFAbsoluteTime {
+        CFAbsoluteTimeGetCurrent()
+    }
+
+    /// End a timed operation and log if it exceeded the threshold.
+    /// - Parameters:
+    ///   - label: The operation name.
+    ///   - start: Value returned by `startTiming`.
+    ///   - thresholdMs: Only log if elapsed time exceeds this (default 2ms).
+    static func endTiming(_ label: String, start: CFAbsoluteTime, thresholdMs: Double = 2.0) {
+        guard isEnabled else { return }
+        let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000.0
+        if elapsed >= thresholdMs {
+            os_log(.debug, log: log, "[SLOW] %{public}@ — %.1fms", label, elapsed)
+        }
+    }
+
+    /// Log a main thread stall (e.g., file lock, sync I/O).
+    static func logMainThreadStall(_ label: String, durationMs: Double) {
+        guard isEnabled else { return }
+        os_log(.error, log: log, "[MAIN-STALL] %{public}@ — %.0fms blocked", label, durationMs)
+    }
+
+    /// Reset the throttle map.
     static func resetThrottles() {
         os_unfair_lock_lock(&lock)
         lastLogTime.removeAll()

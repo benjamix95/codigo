@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 extension ChatPanelView {
     internal func messagesStack(for conv: Conversation) -> some View {
+        let _t0 = ChatRenderLogger.startTiming("messagesStack")
         let convId = conv.id
         let messages = conv.messages
         let _ = ChatRenderLogger.logRender(
@@ -38,6 +39,7 @@ extension ChatPanelView {
         // SwiftUI dependency on toolTraceStore.objectWillChange, preventing
         // cascade re-renders on every tool trace append.
         let precomputedTraceEvents = snapshotTraceEvents
+        let _ = ChatRenderLogger.endTiming("messagesStack.setup", start: _t0)
         return LazyVStack(alignment: .leading, spacing: 28) {
             Color.clear
                 .frame(height: 1)

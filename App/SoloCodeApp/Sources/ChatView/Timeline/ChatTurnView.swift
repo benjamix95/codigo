@@ -140,15 +140,23 @@ struct ChatTurnView: View, Equatable {
     // MARK: - Interleaved Timeline Segments
 
     private var interleavedSegments: [ChatTurnInterleavedSegment] {
-        ChatTurnTimelineInterleaver.segments(
+        let t0 = ChatRenderLogger.startTiming("interleave")
+        let result = ChatTurnTimelineInterleaver.segments(
             blocks: visibleBlocks,
             traceEvents: inlineTraceEvents,
             liveSubagentCards: liveSubagentCards,
             subagentSnapshots: message.subagentCards ?? []
         )
+        ChatRenderLogger.endTiming(
+            "interleave(\(message.id.uuidString.prefix(8)))",
+            start: t0,
+            thresholdMs: 1.0
+        )
+        return result
     }
 
     var body: some View {
+        let _ = ChatRenderLogger.startTiming("ChatTurnView.body")
         let _ = ChatRenderLogger.logRender(
             "ChatTurnView.body",
             detail: "msgId=\(message.id.uuidString.prefix(8)) streaming=\(message.isStreaming) loading=\(isActuallyLoading) traces=\(traceEvents.count) segments=\(interleavedSegments.count)"
