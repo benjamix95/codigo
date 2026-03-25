@@ -94,6 +94,10 @@ extension ChatPanelView {
 
     @ViewBuilder
     internal var chatMessagesAreaContent: some View {
+        let _ = ChatRenderLogger.logRender(
+            "chatMessagesAreaContent",
+            detail: "hasSnapshot=\(messagesConversationSnapshot != nil) snapshotMsgCount=\(messagesConversationSnapshot?.messages.count ?? -1)"
+        )
         // Read from the cached snapshot instead of chatStore directly.
         // This avoids registering a SwiftUI dependency on
         // chatStore.objectWillChange in the body evaluation path,
@@ -117,6 +121,10 @@ extension ChatPanelView {
     /// Call this whenever the conversation data may have changed.
     internal func refreshMessagesSnapshot() {
         let fresh = chatStore.conversation(for: conversationId)
+        ChatRenderLogger.logOnChange(
+            "refreshMessagesSnapshot",
+            detail: "freshCount=\(fresh?.messages.count ?? -1) snapshotCount=\(messagesConversationSnapshot?.messages.count ?? -1)"
+        )
         // Only update if actually different to avoid triggering
         // unnecessary @State writes (which cause re-renders).
         let snapshotId = messagesConversationSnapshot?.id

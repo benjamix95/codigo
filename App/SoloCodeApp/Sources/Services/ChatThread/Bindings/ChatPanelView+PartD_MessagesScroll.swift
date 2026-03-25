@@ -204,12 +204,16 @@ extension ChatPanelView {
                         ? streamingStatusText(for: displayMessage) : ""
                     let resolvedStreamingDetailText: String? = shouldComputeStreamingText
                         ? streamingDetailText(for: displayMessage, conversationId: conversationId) : nil
+                    // Only the active streaming turn should receive
+                    // isActuallyLoading=true. For all others, pass false
+                    // to prevent EQ-MISS when the global loading state changes.
+                    let cellIsLoading = isActiveStreamingAssistant && isLoadingForCurrentConversation
                     if displayMessage.role == .user {
                         MessageRow(
                             message: displayMessage,
                             context: effectiveContext.context,
                             modeColor: activeModeColor,
-                            isActuallyLoading: isLoadingForCurrentConversation,
+                            isActuallyLoading: cellIsLoading,
                             streamingStatusText: resolvedStreamingStatusText,
                             streamingDetailText: resolvedStreamingDetailText,
                             onFileClicked: { openFilesStore.openFile($0) },
@@ -284,7 +288,7 @@ extension ChatPanelView {
                             message: displayMessage,
                             context: effectiveContext.context,
                             modeColor: activeModeColor,
-                            isActuallyLoading: isLoadingForCurrentConversation,
+                            isActuallyLoading: cellIsLoading,
                             streamingStatusText: resolvedStreamingStatusText,
                             streamingDetailText: resolvedStreamingDetailText,
                             traceEvents: traceEvents,

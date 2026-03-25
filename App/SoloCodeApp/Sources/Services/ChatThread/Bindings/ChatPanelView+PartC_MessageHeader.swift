@@ -281,13 +281,11 @@ extension ChatPanelView {
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleStreamContentVersionChange(proxy: proxy)
         }
-        .onChange(of: chatStore.conversation(for: conversationId)?.messages.count) { newCount in
+        .onChange(of: messagesConversationSnapshot?.messages.count) { newCount in
             ChatRenderLogger.logOnChange(
                 "messages.count",
                 detail: "count=\(newCount ?? 0) followLive=\(isFollowingLive) loading=\(isLoadingForCurrentConversation)"
             )
-            // Message added/removed — refresh snapshot.
-            refreshMessagesSnapshot()
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleMessagesCountChange(proxy: proxy)
         }
