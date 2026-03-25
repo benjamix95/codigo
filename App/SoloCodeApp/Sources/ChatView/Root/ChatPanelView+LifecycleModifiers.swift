@@ -200,6 +200,8 @@ extension ChatPanelView {
             }
             .onChange(of: inputText) { newValue in
                 guard let cid = conversationId else { return }
+                // Skip draft persistence while voice dictation is writing live partial text.
+                guard voicePrefixText == nil else { return }
                 draftSaveTask?.cancel()
                 draftSaveTask = Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 350_000_000)
@@ -213,6 +215,12 @@ extension ChatPanelView {
                     }
                     chatStore.saveDrafts()
                 }
+            }
+            .onChange(of: voiceInputController.transcript) { newTranscript in
+                guard let prefix = voicePrefixText else { return }
+                let sep = prefix.isEmpty ? "" : (prefix.hasSuffix(" ") ? "" : " ")
+                let partial = newTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+                inputText = partial.isEmpty ? prefix : prefix + sep + partial
             }
             .onChangeCompat(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
                 guard let cid = conversationId else { return }

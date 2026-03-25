@@ -169,6 +169,7 @@ extension ChatPanelView {
                 showPlanRequestIndicator: showPlanRequestIndicator,
                 controlsRow: AnyView(composerControlsRow),
                 voiceState: voiceInputController.state,
+                voiceTranscript: voiceInputController.transcript,
                 onSend: { handleComposerSend() },
                 onApplyQuickCommand: { text in
                     handleComposerQuickCommand(text, runImmediately: false)

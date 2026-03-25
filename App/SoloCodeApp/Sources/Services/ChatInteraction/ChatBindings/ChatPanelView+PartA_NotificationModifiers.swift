@@ -31,6 +31,10 @@ extension ChatPanelView {
                 scrollState.autoScrollWorkItem?.cancel()
                 composerTimerAutoHideTask?.cancel()
                 composerTimerAutoHideTask = nil
+                if let savedPrefix = voicePrefixText {
+                    inputText = savedPrefix
+                    voicePrefixText = nil
+                }
                 voiceInputController.cancel()
                 flushPendingTaskActivities()
                 removePasteMonitor()

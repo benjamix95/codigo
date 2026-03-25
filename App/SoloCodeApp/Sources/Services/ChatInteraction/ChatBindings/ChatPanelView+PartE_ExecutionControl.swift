@@ -113,14 +113,12 @@ extension ChatPanelView {
         }
         switch voiceInputController.state {
         case .idle, .failed:
-            voiceInputController.start { transcript in
-                let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return }
-                if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    inputText = trimmed
-                } else {
-                    inputText = inputText + (inputText.hasSuffix(" ") ? "" : " ") + trimmed
-                }
+            // Save pre-existing text so we can prepend it to live partial results.
+            voicePrefixText = inputText
+            voiceInputController.start { [self] _ in
+                // Final transcript already written to inputText by the live observer;
+                // just clean up voice state.
+                voicePrefixText = nil
                 isInputFocused = true
             }
         case .listening:

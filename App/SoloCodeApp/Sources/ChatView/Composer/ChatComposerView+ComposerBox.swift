@@ -254,7 +254,12 @@ extension ChatComposerView {
         case .requestingPermission:
             voiceStatusBadge(icon: "lock.open.fill", text: "Requesting microphone/speech permissions...", color: .secondary)
         case .listening:
-            voiceStatusBadge(icon: "waveform", text: "Listening... click the microphone to stop", color: DesignSystem.Colors.info)
+            let trimmed = voiceTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                voiceStatusBadge(icon: "waveform", text: "Listening... click the microphone to stop", color: DesignSystem.Colors.info)
+            } else {
+                voiceStatusBadge(icon: "waveform", text: "Listening... \"\(trimmed.suffix(60))\"", color: DesignSystem.Colors.info)
+            }
         case .transcribing:
             voiceStatusBadge(icon: "waveform.badge.magnifyingglass", text: "Transcribing...", color: .secondary)
         case .failed:

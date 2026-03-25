@@ -73,6 +73,7 @@ final class ComposerRuntimeTimerTests: XCTestCase {
             showPlanRequestIndicator: false,
             controlsRow: AnyView(EmptyView()),
             voiceState: .idle,
+            voiceTranscript: "",
             onSend: {},
             onApplyQuickCommand: { _ in },
             onToggleReviewMode: { _ in },

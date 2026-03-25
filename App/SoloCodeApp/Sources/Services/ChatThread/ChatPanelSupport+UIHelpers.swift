@@ -273,6 +273,8 @@ struct ChatPanelComposerViewState {
     var showPromptOptimizerPopup = false
     var optimizedPromptResult = ""
     var promptOptimizerTask: Task<Void, Never>?
+    /// Text that was in the composer before voice dictation started; used to restore on cancel.
+    var voicePrefixText: String?
 }
 
 struct ChatPanelPlanViewState {
@@ -420,6 +422,11 @@ extension ChatPanelView {
     var promptOptimizerTask: Task<Void, Never>? {
         get { composerState.promptOptimizerTask }
         nonmutating set { composerState.promptOptimizerTask = newValue }
+    }
+
+    var voicePrefixText: String? {
+        get { composerState.voicePrefixText }
+        nonmutating set { composerState.voicePrefixText = newValue }
     }
 
     var planningState: PlanningState {

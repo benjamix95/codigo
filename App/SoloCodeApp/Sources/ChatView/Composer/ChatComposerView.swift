@@ -60,6 +60,7 @@ struct ChatComposerView: View {
     let showPlanRequestIndicator: Bool
     let controlsRow: AnyView
     let voiceState: VoiceInputController.State
+    let voiceTranscript: String
 
     let onSend: () -> Void
     let onApplyQuickCommand: (String) -> Void
