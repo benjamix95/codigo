@@ -94,25 +94,33 @@ extension ChatPanelView {
 
     @ViewBuilder
     internal var chatMessagesAreaContent: some View {
-        let _ = ChatRenderLogger.logRender(
-            "chatMessagesAreaContent",
-            detail: "hasSnapshot=\(messagesConversationSnapshot != nil) snapshotMsgCount=\(messagesConversationSnapshot?.messages.count ?? -1)"
-        )
-        // Read from the cached snapshot instead of chatStore directly.
-        // This avoids registering a SwiftUI dependency on
-        // chatStore.objectWillChange in the body evaluation path,
-        // preventing ~24 idle re-renders at startup from unrelated
-        // ObservableObject changes (provider registry, workspace, etc.).
-        if let conv = messagesConversationSnapshot {
-            messagesStack(for: conv)
-        } else {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                Color.clear
-                    .frame(height: 1)
-                    .id(chatScrollTopAnchorId)
-                Color.clear
-                    .frame(height: 1)
-                    .id(chatScrollBottomAnchorId)
+        // Wrap in ChatMessagesBarrierView (Equatable) so SwiftUI can
+        // skip body re-evaluation when the fingerprint hasn't changed.
+        // Without this, parent body invalidations (from 14+ EnvironmentObjects)
+        // cascade into messagesStack even when no data changed.
+        ChatMessagesBarrierView(
+            fingerprint: ChatMessagesBarrierView.Fingerprint(
+                conversationId: messagesConversationSnapshot?.id,
+                messageCount: messagesConversationSnapshot?.messages.count ?? 0,
+                lastMessageId: messagesConversationSnapshot?.messages.last?.id,
+                lastMessageContentLength: messagesConversationSnapshot?.messages.last?.content.count ?? 0,
+                lastMessageIsStreaming: messagesConversationSnapshot?.messages.last?.isStreaming ?? false,
+                lastMessageBlocksCount: messagesConversationSnapshot?.messages.last?.blocks?.count ?? 0,
+                isLoading: snapshotIsLoading,
+                traceEventsTotalCount: snapshotTraceEvents.values.reduce(0) { $0 + $1.count }
+            )
+        ) {
+            if let conv = messagesConversationSnapshot {
+                messagesStack(for: conv)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    Color.clear
+                        .frame(height: 1)
+                        .id(chatScrollTopAnchorId)
+                    Color.clear
+                        .frame(height: 1)
+                        .id(chatScrollBottomAnchorId)
+                }
             }
         }
     }
