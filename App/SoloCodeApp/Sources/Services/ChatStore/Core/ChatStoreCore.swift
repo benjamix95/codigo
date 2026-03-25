@@ -3,7 +3,65 @@ import CoderEngine
 
 @MainActor
 final class ChatStore: ObservableObject {
-@Published var conversations: [Conversation] = []
+
+// MARK: - Conversations (throttled during streaming)
+
+/// Backing storage for `conversations`. Mutations go through the computed
+/// property below which calls `conversationsDidChange()` to throttle
+/// SwiftUI notifications during streaming. This replaces the previous
+/// `@Published var conversations` which fired `objectWillChange` on
+/// every single token append — causing a full view hierarchy rebuild
+/// per streaming chunk.
+private var _conversations: [Conversation] = []
+
+var conversations: [Conversation] {
+    get { _conversations }
+    set {
+        _conversations = newValue
+        conversationsDidChange()
+    }
+}
+
+// MARK: - Throttle (conversations only)
+
+/// Coalesces rapid `objectWillChange` notifications from conversation
+/// mutations during streaming. Pattern copied from ToolTraceStore.
+/// Outside of streaming, notifications fire immediately.
+private var conversationChangeThrottleTask: DispatchWorkItem?
+private var lastConversationChangeNotification: Date = .distantPast
+
+private func conversationsDidChange() {
+    let now = Date()
+    let elapsed = now.timeIntervalSince(lastConversationChangeNotification)
+    // During streaming (active tasks), throttle to max 1 notification per 150ms.
+    // Outside streaming, notify immediately for responsive UI updates.
+    if !isLoading || elapsed > 0.15 {
+        lastConversationChangeNotification = now
+        conversationChangeThrottleTask?.cancel()
+        conversationChangeThrottleTask = nil
+        objectWillChange.send()
+        return
+    }
+    conversationChangeThrottleTask?.cancel()
+    let work = DispatchWorkItem { [weak self] in
+        self?.lastConversationChangeNotification = Date()
+        self?.objectWillChange.send()
+    }
+    conversationChangeThrottleTask = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+}
+
+/// Forces an immediate `objectWillChange` notification, bypassing throttle.
+/// Call this when streaming ends to ensure the final state is rendered.
+func flushConversationChangeNotification() {
+    conversationChangeThrottleTask?.cancel()
+    conversationChangeThrottleTask = nil
+    lastConversationChangeNotification = Date()
+    objectWillChange.send()
+}
+
+// MARK: - Other @Published properties (not throttled — rare mutations)
+
 @Published var activeTaskConversationIds: Set<UUID> = []
 @Published var taskStartDates: [UUID: Date] = [:]
 @Published var planBoards: [UUID: PlanBoard] = [:]
