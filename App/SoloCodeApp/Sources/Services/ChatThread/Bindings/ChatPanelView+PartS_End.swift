@@ -113,16 +113,15 @@ extension ChatPanelView {
 
     internal func scopedTaskActivities(for targetConversationId: UUID?) -> [TaskActivity] {
         guard let targetConversationId else { return taskActivityStore.activities }
-        // Pre-compute the lowercased UUID once instead of calling
-        // canonicalConversationScope (which parses UUID + lowercases)
-        // for every activity in the array. Also check both payload keys
-        // inline to avoid the double-parse in the helper function.
-        let expected = targetConversationId.uuidString.lowercased()
+        // Pre-compute the lowercased UUID once. Use caseInsensitiveCompare
+        // instead of .lowercased() per activity to avoid allocating a new
+        // String for every activity in the filter loop.
+        let expected = targetConversationId.uuidString
         return taskActivityStore.activities.filter { activity in
             let raw = activity.payload["conversation_id"]
                 ?? activity.payload["conversationId"]
                 ?? ""
-            return raw.lowercased() == expected
+            return raw.caseInsensitiveCompare(expected) == .orderedSame
         }
     }
 

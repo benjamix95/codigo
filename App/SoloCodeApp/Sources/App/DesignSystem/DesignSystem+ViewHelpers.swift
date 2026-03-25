@@ -153,7 +153,14 @@ struct PanelResizeHandle: View {
                             dragStartWidth = panelWidth
                         }
                         let delta = leadingEdge ? -value.translation.width : value.translation.width
-                        panelWidth = min(max(dragStartWidth + delta, minWidth), maxWidth)
+                        let newWidth = min(max(dragStartWidth + delta, minWidth), maxWidth)
+                        // Only update binding when width changes by at least 2pt.
+                        // During drag, onChanged fires at 60+ FPS. Each setter
+                        // call writes to @AppStorage (UserDefaults) and triggers
+                        // view invalidation. A 2pt threshold reduces updates
+                        // to ~30 per second which is visually indistinguishable.
+                        guard abs(newWidth - panelWidth) >= 2 else { return }
+                        panelWidth = newWidth
                     }
                     .onEnded { _ in
                         isDragging = false

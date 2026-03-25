@@ -37,8 +37,14 @@ extension ChatStore {
             return fallbackAssistantMutationIndex(in: conversations[conversationIndex])
         }()
         guard let targetIndex else { return }
-        conversations[conversationIndex].messages[targetIndex].content = content
-        conversations[conversationIndex].messages[targetIndex].primaryTextSnapshot = content
+        // Assign both fields in a single array mutation to avoid triggering
+        // @Published objectWillChange twice. Each separate `conversations[i]`
+        // write triggers COW + @Published notification → two full hierarchy
+        // rebuilds for what is logically one update.
+        var msg = conversations[conversationIndex].messages[targetIndex]
+        msg.content = content
+        msg.primaryTextSnapshot = content
+        conversations[conversationIndex].messages[targetIndex] = msg
     }
 
     @MainActor
