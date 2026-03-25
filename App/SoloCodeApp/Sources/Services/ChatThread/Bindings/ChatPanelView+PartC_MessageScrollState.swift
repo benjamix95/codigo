@@ -94,7 +94,12 @@ extension ChatPanelView {
 
     @ViewBuilder
     internal var chatMessagesAreaContent: some View {
-        if let conv = chatStore.conversation(for: conversationId) {
+        // Read from the cached snapshot instead of chatStore directly.
+        // This avoids registering a SwiftUI dependency on
+        // chatStore.objectWillChange in the body evaluation path,
+        // preventing ~24 idle re-renders at startup from unrelated
+        // ObservableObject changes (provider registry, workspace, etc.).
+        if let conv = messagesConversationSnapshot {
             messagesStack(for: conv)
         } else {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -105,6 +110,33 @@ extension ChatPanelView {
                     .frame(height: 1)
                     .id(chatScrollBottomAnchorId)
             }
+        }
+    }
+
+    /// Refresh the messages conversation snapshot from chatStore.
+    /// Call this whenever the conversation data may have changed.
+    internal func refreshMessagesSnapshot() {
+        let fresh = chatStore.conversation(for: conversationId)
+        // Only update if actually different to avoid triggering
+        // unnecessary @State writes (which cause re-renders).
+        let snapshotId = messagesConversationSnapshot?.id
+        let freshId = fresh?.id
+        let snapshotCount = messagesConversationSnapshot?.messages.count ?? -1
+        let freshCount = fresh?.messages.count ?? -1
+        let snapshotLastContent = messagesConversationSnapshot?.messages.last?.content.count ?? -1
+        let freshLastContent = fresh?.messages.last?.content.count ?? -1
+        let snapshotLastStreaming = messagesConversationSnapshot?.messages.last?.isStreaming ?? false
+        let freshLastStreaming = fresh?.messages.last?.isStreaming ?? false
+        let snapshotLastBlocks = messagesConversationSnapshot?.messages.last?.blocks?.count ?? -1
+        let freshLastBlocks = fresh?.messages.last?.blocks?.count ?? -1
+
+        if snapshotId != freshId
+            || snapshotCount != freshCount
+            || snapshotLastContent != freshLastContent
+            || snapshotLastStreaming != freshLastStreaming
+            || snapshotLastBlocks != freshLastBlocks
+        {
+            messagesConversationSnapshot = fresh
         }
     }
 }

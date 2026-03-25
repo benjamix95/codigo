@@ -56,6 +56,14 @@ struct ChatPanelView: View {
     @State var planState = ChatPanelPlanViewState()
     @State var interactionState = ChatPanelInteractionViewState()
 
+    // MARK: - Messages Snapshot (breaks chatStore dependency in body)
+
+    /// Cached conversation snapshot for the messages list. Updated only
+    /// when messages actually change (count, content, streaming state),
+    /// not on every `chatStore.objectWillChange`. This breaks the direct
+    /// dependency chain that caused ~24 idle re-renders at startup.
+    @State var messagesConversationSnapshot: Conversation?
+
     // MARK: - Remaining @State (not grouped)
 
     @State var codexModels: [CodexModel] = []

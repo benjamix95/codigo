@@ -263,11 +263,21 @@ extension ChatPanelView {
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 24)
+        .onAppear {
+            // Populate the initial snapshot so messagesStack can render.
+            refreshMessagesSnapshot()
+        }
+        .onChange(of: conversationId) { _ in
+            // Conversation switched — refresh immediately.
+            refreshMessagesSnapshot()
+        }
         .onChange(of: streaming.streamContentVersion) { newVersion in
             ChatRenderLogger.logOnChange(
                 "streamContentVersion",
                 detail: "v=\(newVersion) followLive=\(isFollowingLive) loading=\(isLoadingForCurrentConversation)"
             )
+            // Refresh the snapshot on every stream content update.
+            refreshMessagesSnapshot()
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleStreamContentVersionChange(proxy: proxy)
         }
@@ -276,6 +286,8 @@ extension ChatPanelView {
                 "messages.count",
                 detail: "count=\(newCount ?? 0) followLive=\(isFollowingLive) loading=\(isLoadingForCurrentConversation)"
             )
+            // Message added/removed — refresh snapshot.
+            refreshMessagesSnapshot()
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleMessagesCountChange(proxy: proxy)
         }
@@ -292,6 +304,8 @@ extension ChatPanelView {
                 "activeTaskConversationIds",
                 detail: "old=\(oldSet.count) new=\(newSet.count)"
             )
+            // Task started/ended may change isStreaming on messages.
+            refreshMessagesSnapshot()
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
         }
         .onDisappear { }
