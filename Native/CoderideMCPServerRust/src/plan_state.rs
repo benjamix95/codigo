@@ -514,7 +514,7 @@ fn parse_steps(value: Option<&Value>) -> Result<Vec<PlanStep>, String> {
         .iter()
         .enumerate()
         .map(|(index, item)| PlanStep {
-            id: string_value(item, "id").unwrap_or_else(|| format!("{}", index + 1)),
+            id: string_value(item, "id").unwrap_or_else(|| next_id("step")),
             title: string_value(item, "title")
                 .unwrap_or_else(|| format!("Step {}", index + 1)),
             description: string_value(item, "description")

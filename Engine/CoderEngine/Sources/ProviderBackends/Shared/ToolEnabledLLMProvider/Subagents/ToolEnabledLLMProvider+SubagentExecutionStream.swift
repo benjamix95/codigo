@@ -193,9 +193,11 @@ extension ToolEnabledLLMProvider {
                 }
             }
 
-            group.addTask {
-                try await Task.sleep(nanoseconds: 300_000_000_000)
-                throw SubagentTimeoutError()
+            group.addTask { [role] in
+                let timeoutSeconds = SubagentCLIConfig.timeout(for: role)
+                let timeoutNanos = UInt64(timeoutSeconds) * 1_000_000_000
+                try await Task.sleep(nanoseconds: timeoutNanos)
+                throw SubagentTimeoutError(role: role, timeoutSeconds: Int(timeoutSeconds))
             }
 
             try await group.next()
@@ -211,6 +213,13 @@ extension ToolEnabledLLMProvider {
             )
         }
 
-        return String(fullTextParts.joined().prefix(Self.subagentOutputLimit(for: role)))
+        let joined = fullTextParts.joined()
+        let limit = Self.subagentOutputLimit(for: role)
+        if joined.count > limit {
+            SubagentPipelineLogger.log(
+                "Subagent \(liveContext.agentName) output truncated: \(joined.count) chars → \(limit) chars"
+            )
+        }
+        return String(joined.prefix(limit))
     }
 }

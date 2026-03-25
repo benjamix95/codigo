@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Command;
 
+const DEFAULT_TIMEOUT_SECONDS: &str = "30";
+
 pub fn handle(
     name: &str,
     _workspace: &Path,
@@ -24,8 +26,9 @@ fn web_fetch(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     if !url.contains("://") {
         url = format!("https://{url}");
     }
+    let timeout = timeout_arg(arguments);
     match Command::new("curl")
-        .args(["-LfsSL", "--max-time", "20", url.as_str()])
+        .args(["-LfsSL", "--max-time", &timeout, url.as_str()])
         .output()
     {
         Ok(output) if output.status.success() => {
@@ -33,7 +36,15 @@ fn web_fetch(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             CallToolResult::text(text.chars().take(12_000).collect::<String>())
         }
         Ok(output) => {
-            CallToolResult::error(String::from_utf8_lossy(&output.stderr).trim().to_string())
+            let code = output.status.code().unwrap_or(-1);
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if code == 28 {
+                CallToolResult::error(format!("Request timed out after {timeout}s"))
+            } else if stderr.is_empty() {
+                CallToolResult::error(format!("curl failed with exit code {code}"))
+            } else {
+                CallToolResult::error(stderr)
+            }
         }
         Err(error) => CallToolResult::error(error.to_string()),
     }
@@ -46,8 +57,9 @@ fn web_search(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     }
     let encoded = query.replace(' ', "+");
     let url = format!("https://duckduckgo.com/html/?q={encoded}");
+    let timeout = timeout_arg(arguments);
     match Command::new("curl")
-        .args(["-LfsSL", "--max-time", "20", url.as_str()])
+        .args(["-LfsSL", "--max-time", &timeout, url.as_str()])
         .output()
     {
         Ok(output) if output.status.success() => {
@@ -71,7 +83,15 @@ fn web_search(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             }
         }
         Ok(output) => {
-            CallToolResult::error(String::from_utf8_lossy(&output.stderr).trim().to_string())
+            let code = output.status.code().unwrap_or(-1);
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if code == 28 {
+                CallToolResult::error(format!("Search timed out after {timeout}s"))
+            } else if stderr.is_empty() {
+                CallToolResult::error(format!("curl failed with exit code {code}"))
+            } else {
+                CallToolResult::error(stderr)
+            }
         }
         Err(error) => CallToolResult::error(error.to_string()),
     }
@@ -90,8 +110,12 @@ fn strip_tags(input: &str) -> String {
     }
     output
         .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&nbsp;", " ")
 }
 
 fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
@@ -101,4 +125,16 @@ fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
         .unwrap_or_default()
         .trim()
         .to_string()
+}
+
+fn timeout_arg(arguments: &BTreeMap<String, Value>) -> String {
+    let raw = arguments
+        .get("timeout")
+        .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+        .unwrap_or(0);
+    if raw > 0 && raw <= 120 {
+        raw.to_string()
+    } else {
+        DEFAULT_TIMEOUT_SECONDS.to_string()
+    }
 }

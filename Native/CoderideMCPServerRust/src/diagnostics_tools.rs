@@ -62,19 +62,44 @@ fn semantic_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
 }
 
 fn shell_text(command: &str, args: &[&str], cwd: &Path) -> CallToolResult {
-    match Command::new(command).args(args).current_dir(cwd).output() {
-        Ok(output) if output.status.success() || output.status.code() == Some(1) => {
+    // Wrap in `timeout` (coreutils / macOS gtimeout fallback) to prevent hangs.
+    let timeout_cmd = if Command::new("timeout").arg("--version").output().is_ok() {
+        "timeout"
+    } else {
+        // macOS: try gtimeout from coreutils, otherwise run without timeout.
+        "gtimeout"
+    };
+    let has_timeout = Command::new(timeout_cmd).arg("--version").output().is_ok();
+
+    let output = if has_timeout {
+        let mut full_args = vec!["120", command];
+        full_args.extend(args.iter());
+        Command::new(timeout_cmd)
+            .args(&full_args)
+            .current_dir(cwd)
+            .output()
+    } else {
+        Command::new(command).args(args).current_dir(cwd).output()
+    };
+
+    match output {
+        Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            let text = if stdout.is_empty() { stderr } else { stdout };
-            if text.is_empty() {
-                CallToolResult::text("No results.")
-            } else {
-                CallToolResult::text(text)
+            // Exit code 124 = timeout killed the process.
+            if output.status.code() == Some(124) {
+                return CallToolResult::error(format!("{command} timed out after 120s"));
             }
-        }
-        Ok(output) => {
-            CallToolResult::error(String::from_utf8_lossy(&output.stderr).trim().to_string())
+            if output.status.success() || output.status.code() == Some(1) {
+                let text = if stdout.is_empty() { stderr } else { stdout };
+                if text.is_empty() {
+                    CallToolResult::text("No results.")
+                } else {
+                    CallToolResult::text(text)
+                }
+            } else {
+                CallToolResult::error(if stderr.is_empty() { stdout } else { stderr })
+            }
         }
         Err(error) => CallToolResult::error(error.to_string()),
     }
