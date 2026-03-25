@@ -10,8 +10,12 @@ extension UnifiedToolRuntime {
     ) async -> ([HybridSourceHit], String?) {
         var hits: [HybridSourceHit] = []
         if let index {
-            hits.append(contentsOf: await collectSemanticIndexHits(request: request, index: index))
-            hits.append(contentsOf: await collectSymbolIndexHits(request: request, index: index))
+            async let semanticHits = collectSemanticIndexHits(request: request, index: index)
+            async let vectorHits = collectVectorIndexHits(request: request, index: index)
+            async let symbolHits = collectSymbolIndexHits(request: request, index: index)
+            hits.append(contentsOf: await semanticHits)
+            hits.append(contentsOf: await vectorHits)
+            hits.append(contentsOf: await symbolHits)
         }
         let (grepHits, grepSkipReason) = await collectGrepFallbackHits(request: request)
         hits.append(contentsOf: grepHits)

@@ -7,7 +7,8 @@ extension UnifiedToolRuntime {
         grepFallbackSkippedReason: String?
     ) -> ([HybridScoredResult], HybridSearchDiagnostics) {
         let weights: [HybridSearchSource: Double] = [
-            .semanticIndex: 1.0,
+            .semanticIndex: 0.8,
+            .vectorIndex: 1.2,
             .symbolIndex: 0.8,
             .grepFallback: 0.45,
         ]
@@ -38,7 +39,13 @@ extension UnifiedToolRuntime {
             let rrfScore = weight / (rrfK + Double(hit.rank))
             let confidence = max(0.05, hit.sourceConfidence)
             let contribution = rrfScore * confidence
-            let qualityNudge = (hit.source == .semanticIndex ? 0.008 : 0.004) * confidence
+            let qualityNudge: Double = {
+                switch hit.source {
+                case .vectorIndex: return 0.010 * confidence
+                case .semanticIndex: return 0.008 * confidence
+                default: return 0.004 * confidence
+                }
+            }()
 
             if var current = accumulators[hit.key] {
                 dedupedCount += 1

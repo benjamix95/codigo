@@ -1,7 +1,7 @@
 import Foundation
 
 public enum PersistenceSchema {
-    public static let version = 2
+    public static let version = 3
 
     public static func migrationSQL() -> String {
         [
@@ -13,6 +13,7 @@ public enum PersistenceSchema {
             projectionSQL,
             archiveSQL,
             seedSQL,
+            vectorSearchSQL,
         ].joined(separator: "\n\n")
     }
 }

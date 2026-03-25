@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
 mod cli_account_routing;
+pub mod embedding;
 mod ffi;
 mod main_chat;
+pub mod trigram;
 mod plan_state;
 pub mod review_audit;
 mod review_chat;

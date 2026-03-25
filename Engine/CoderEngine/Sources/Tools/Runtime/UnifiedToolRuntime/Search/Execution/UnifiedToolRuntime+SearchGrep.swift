@@ -103,6 +103,33 @@ extension UnifiedToolRuntime {
         var searchError = ""
         var usedFallback = false
 
+        // Trigram pre-filter: if the trigram index is available, use it
+        // to narrow down candidate files before running ripgrep.
+        if let codebaseIndex, ProcessInfo.processInfo.environment["SOLOCODE_ENABLE_TRIGRAM_INDEX"] == "1" {
+            let trigramResult = await codebaseIndex.trigramSearch(
+                pattern: query,
+                maxResults: maxMatchesPerScope,
+                caseSensitive: caseSensitive
+            )
+            if let result = trigramResult, !result.matches.isEmpty {
+                let formatted = formatTrigramAsGrepOutput(
+                    result: result,
+                    outputMode: outputMode,
+                    query: query,
+                    maxContext: maxContext
+                )
+                let elapsedMs = Int(Date().timeIntervalSince(startDate) * 1000)
+                let count = result.matches.count
+                return ToolResult(ok: true, payload: [
+                    "title": "Grep \(query) (trigram: \(count) hits, \(result.elapsedUs/1000)ms)",
+                    "output": formatted,
+                    "query": query,
+                    "pathScope": rawScope.isEmpty ? "." : rawScope,
+                    "matchCount": "\(count)",
+                ], durationMs: elapsedMs)
+            }
+        }
+
         // Primary: ripgrep — when multiple scopes (roots), search each; cwd uses first scope
         let rgCwd = scopes.first ?? primaryWorkspace
         var rgArgs = ["/usr/bin/env", "rg", "-n", "--no-heading", "--max-count", "\(maxMatchesPerScope)"]
@@ -233,4 +260,29 @@ extension UnifiedToolRuntime {
         ], durationMs: durationMs)
     }
 
+    /// Format trigram search results in ripgrep-compatible output.
+    private func formatTrigramAsGrepOutput(
+        result: TrigramSearchResult,
+        outputMode: String,
+        query: String,
+        maxContext: Int
+    ) -> String {
+        switch outputMode {
+        case "files_only":
+            let files = Set(result.matches.map(\.filePath))
+            return files.sorted().joined(separator: "\n")
+        case "count":
+            var counts: [String: Int] = [:]
+            for match in result.matches {
+                counts[match.filePath, default: 0] += 1
+            }
+            return counts.sorted(by: { $0.key < $1.key })
+                .map { "\($0.key):\($0.value)" }
+                .joined(separator: "\n")
+        default:
+            return result.matches.map { hit in
+                "\(hit.filePath):\(hit.line):\(hit.snippet)"
+            }.joined(separator: "\n")
+        }
+    }
 }

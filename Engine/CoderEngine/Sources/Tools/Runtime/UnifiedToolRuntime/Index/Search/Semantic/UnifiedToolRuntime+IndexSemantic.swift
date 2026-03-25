@@ -106,6 +106,8 @@ extension UnifiedToolRuntime {
         switch source {
         case .semanticIndex:
             return "semantic_index"
+        case .vectorIndex:
+            return "vector_index"
         case .symbolIndex:
             return "symbol_index"
         case .grepFallback:
@@ -117,6 +119,8 @@ extension UnifiedToolRuntime {
         switch source {
         case .semanticIndex:
             return "semantic index"
+        case .vectorIndex:
+            return "vector index"
         case .symbolIndex:
             return "symbol index"
         case .grepFallback:

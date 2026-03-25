@@ -3,6 +3,7 @@ import Foundation
 extension UnifiedToolRuntime {
     enum HybridSearchSource: String, CaseIterable, Sendable {
         case semanticIndex = "semantic"
+        case vectorIndex = "vector"
         case symbolIndex = "symbol"
         case grepFallback = "grep"
     }

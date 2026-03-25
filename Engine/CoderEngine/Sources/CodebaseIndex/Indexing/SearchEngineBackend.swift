@@ -3,6 +3,8 @@ import Foundation
 public enum SearchEngineBackendKind: String, Codable, Sendable, Equatable {
     case swift
     case rust
+    case vector
+    case hybrid
 }
 
 public struct SearchQueryInput: Codable, Sendable, Equatable {
@@ -90,21 +92,59 @@ public protocol SearchEngineBackend: Sendable {
         query: SearchQueryInput,
         snapshot: SemanticIndexSearchSnapshot
     ) -> SearchEngineBackendResponse
+
+    /// Vector-based semantic search (optional — default returns empty).
+    func vectorSearch(
+        queryEmbedding: [Float],
+        limit: Int,
+        threshold: Double
+    ) async -> [SearchHitOutput]
+
+    /// Whether this backend supports vector similarity search.
+    var supportsVectorSearch: Bool { get }
+}
+
+// Default implementations for backward compatibility.
+public extension SearchEngineBackend {
+    func vectorSearch(
+        queryEmbedding: [Float],
+        limit: Int,
+        threshold: Double
+    ) async -> [SearchHitOutput] { [] }
+
+    var supportsVectorSearch: Bool { false }
 }
 
 enum SearchEngineBackendFactory {
-    static func makeFromEnvironment() -> any SearchEngineBackend {
+    static func makeFromEnvironment(
+        embeddingService: EmbeddingService? = nil,
+        store: PostgresPersistenceStore? = nil
+    ) -> any SearchEngineBackend {
         let raw = ProcessInfo.processInfo.environment["SOLOCODE_SEMANTIC_SEARCH_BACKEND"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        switch raw {
-        case SearchEngineBackendKind.swift.rawValue:
-            return SwiftSearchEngineBackend()
-        case SearchEngineBackendKind.rust.rawValue:
-            return RustSearchEngineBackend()
-        default:
-            return RustSearchEngineBackend()
+
+        let vectorEnabled = ProcessInfo.processInfo.environment["SOLOCODE_ENABLE_VECTOR_SEARCH"] == "1"
+
+        let lexicalBackend: any SearchEngineBackend = {
+            switch raw {
+            case SearchEngineBackendKind.swift.rawValue:
+                return SwiftSearchEngineBackend()
+            default:
+                return RustSearchEngineBackend()
+            }
+        }()
+
+        if vectorEnabled, let embeddingService, let store {
+            let vectorBackend = VectorSearchEngineBackend(store: store)
+            return HybridSearchEngineBackend(
+                lexicalBackend: lexicalBackend,
+                vectorBackend: vectorBackend,
+                embeddingService: embeddingService
+            )
         }
+
+        return lexicalBackend
     }
 }
 
