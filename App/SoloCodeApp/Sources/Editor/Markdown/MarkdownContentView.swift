@@ -1,6 +1,46 @@
 import Foundation
 import SwiftUI
 
+// MARK: - MarkdownSettings Environment
+
+/// Aggregates font preferences for markdown rendering.
+/// Injected once at the chat panel root via `MarkdownSettingsProvider`,
+/// replacing 4 separate `@AppStorage` reads per MarkdownContentView instance.
+struct MarkdownSettings: Equatable {
+    var sansFontFamily: String = FontPreferences.defaultSansFamily
+    var sansFontSize: Double = FontPreferences.defaultSansSize
+    var codeFontFamily: String = FontPreferences.defaultCodeFamily
+    var codeFontSize: Double = FontPreferences.defaultCodeSize
+}
+
+private struct MarkdownSettingsKey: EnvironmentKey {
+    static let defaultValue = MarkdownSettings()
+}
+
+extension EnvironmentValues {
+    var markdownSettings: MarkdownSettings {
+        get { self[MarkdownSettingsKey.self] }
+        set { self[MarkdownSettingsKey.self] = newValue }
+    }
+}
+
+/// Reads @AppStorage values once and injects as MarkdownSettings environment.
+struct MarkdownSettingsProvider: ViewModifier {
+    @AppStorage("ui_sans_font_family") private var sansFontFamily = FontPreferences.defaultSansFamily
+    @AppStorage("ui_sans_font_size") private var sansFontSize = FontPreferences.defaultSansSize
+    @AppStorage("ui_code_font_family") private var codeFontFamily = FontPreferences.defaultCodeFamily
+    @AppStorage("ui_code_font_size") private var codeFontSize = FontPreferences.defaultCodeSize
+
+    func body(content: Content) -> some View {
+        content.environment(\.markdownSettings, MarkdownSettings(
+            sansFontFamily: sansFontFamily,
+            sansFontSize: sansFontSize,
+            codeFontFamily: codeFontFamily,
+            codeFontSize: codeFontSize
+        ))
+    }
+}
+
 private enum MarkdownDisplayContentCache {
     static let cache: NSCache<NSString, NSString> = {
         let c = NSCache<NSString, NSString>()
@@ -66,11 +106,16 @@ struct MarkdownContentView: View {
     }
 
     @Environment(\.colorScheme) var colorScheme
-    @AppStorage("ui_sans_font_family") var uiSansFontFamily = FontPreferences.defaultSansFamily
-    @AppStorage("ui_sans_font_size") var uiSansFontSize = FontPreferences.defaultSansSize
-    @AppStorage("ui_code_font_family") var uiCodeFontFamily = FontPreferences.defaultCodeFamily
-    @AppStorage("ui_code_font_size") var uiCodeFontSize = FontPreferences.defaultCodeSize
+    @Environment(\.markdownSettings) var markdownSettings
     @State var cachedBlocks: [MarkdownBlock]?
+
+    // MARK: - Backward-compatible accessors
+    // These forward to markdownSettings so extension files can keep
+    // using the short names without changes to every call site.
+    var uiSansFontFamily: String { markdownSettings.sansFontFamily }
+    var uiSansFontSize: Double { markdownSettings.sansFontSize }
+    var uiCodeFontFamily: String { markdownSettings.codeFontFamily }
+    var uiCodeFontSize: Double { markdownSettings.codeFontSize }
 
     // MARK: - Body
 

@@ -246,6 +246,11 @@ extension ChatPanelView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Inject markdown font settings once at the messages area root.
+        // All child MarkdownContentView instances read these via
+        // @Environment(\.markdownSettings) instead of 4 separate
+        // @AppStorage reads each (eliminates N×4 UserDefaults accesses).
+        .modifier(MarkdownSettingsProvider())
     }
 
     @ViewBuilder
