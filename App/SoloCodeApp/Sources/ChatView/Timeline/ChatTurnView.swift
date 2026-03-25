@@ -1,7 +1,24 @@
 import AppKit
 import SwiftUI
 
-struct ChatTurnView: View {
+// MARK: - ChatTurnAction
+
+/// Actions that ChatTurnView can dispatch to its parent.
+/// Replaces 7 separate closure parameters, enabling Equatable
+/// conformance on ChatTurnView (closures are not Equatable).
+enum ChatTurnAction: Equatable {
+    case fileClicked(String)
+    case reviewChanges
+    case openSubagentPanel(String)
+    case stopSubagent
+    case reply
+    case edit
+    case delete
+}
+
+// MARK: - ChatTurnView
+
+struct ChatTurnView: View, Equatable {
     let message: ChatMessage
     let context: ProjectContext?
     let modeColor: Color
@@ -12,25 +29,36 @@ struct ChatTurnView: View {
     let inlineActivities: [TaskActivity]
     let supervisorActivities: [TaskActivity]
     let liveSubagentCards: [SwarmLiveCardState]
-    @ObservedObject var todoStore: TodoStore
+    let todoItems: [TodoItem]
     let conversationId: UUID
     let shouldShowTodo: Bool
-    let onFileClicked: (String) -> Void
-    let onReviewChanges: () -> Void
-    let onOpenSubagentPanel: (String) -> Void
-    let onStopSubagent: () -> Void
-    let onReply: (() -> Void)?
-    let onEdit: (() -> Void)?
-    let onDelete: (() -> Void)?
+    let canEdit: Bool
+    let canDelete: Bool
+    let onAction: (ChatTurnAction) -> Void
     let showTopDivider: Bool
+
+    static func == (lhs: ChatTurnView, rhs: ChatTurnView) -> Bool {
+        lhs.message.id == rhs.message.id
+            && lhs.message.content == rhs.message.content
+            && lhs.message.isStreaming == rhs.message.isStreaming
+            && lhs.isActuallyLoading == rhs.isActuallyLoading
+            && lhs.streamingStatusText == rhs.streamingStatusText
+            && lhs.streamingDetailText == rhs.streamingDetailText
+            && lhs.traceEvents.count == rhs.traceEvents.count
+            && lhs.inlineActivities.count == rhs.inlineActivities.count
+            && lhs.liveSubagentCards.count == rhs.liveSubagentCards.count
+            && lhs.todoItems.count == rhs.todoItems.count
+            && lhs.conversationId == rhs.conversationId
+            && lhs.shouldShowTodo == rhs.shouldShowTodo
+            && lhs.canEdit == rhs.canEdit
+            && lhs.canDelete == rhs.canDelete
+            && lhs.showTopDivider == rhs.showTopDivider
+    }
 
     @State private var didCopyMessage = false
 
     private var visibleBlocks: [PersistedChatTimelineBlock] {
         ChatTurnTimelineOrdering.visibleBlocks(from: message.resolvedTimelineBlocks)
-    }
-    private var todoItems: [TodoItem] {
-        todoStore.displayTodosForChat(for: conversationId)
     }
     private var inlineTraceEvents: [ToolTraceEvent] {
         let filtered = traceEvents
@@ -101,7 +129,7 @@ struct ChatTurnView: View {
             MarkdownContentView(
                 content: content,
                 context: context,
-                onFileClicked: onFileClicked,
+                onFileClicked: { onAction(.fileClicked($0)) },
                 textAlignment: .leading,
                 isStreaming: message.isStreaming && isActuallyLoading
             )
@@ -122,7 +150,7 @@ struct ChatTurnView: View {
             InlineToolTraceEventView(
                 event: event,
                 workspaceHints: traceWorkspaceHints,
-                onOpenFile: onFileClicked
+                onOpenFile: { onAction(.fileClicked($0)) }
             )
             .frame(maxWidth: 800, alignment: .leading)
 
@@ -130,15 +158,15 @@ struct ChatTurnView: View {
             InlineToolTraceGroupView(
                 group: group,
                 workspaceHints: traceWorkspaceHints,
-                onOpenFile: onFileClicked
+                onOpenFile: { onAction(.fileClicked($0)) }
             )
             .frame(maxWidth: 800, alignment: .leading)
 
         case .subagentLiveCard(_, let card, _):
             SubagentChatCardView(
                 card: card,
-                onOpenInPanel: { onOpenSubagentPanel(card.swarmId) },
-                onStop: onStopSubagent
+                onOpenInPanel: { onAction(.openSubagentPanel(card.swarmId)) },
+                onStop: { onAction(.stopSubagent) }
             )
             .padding(.horizontal, 2)
 
@@ -151,7 +179,7 @@ struct ChatTurnView: View {
                 block: block,
                 accentColor: modeColor,
                 context: context,
-                onFileClicked: onFileClicked
+                onFileClicked: { onAction(.fileClicked($0)) }
             )
         }
     }
@@ -214,8 +242,8 @@ struct ChatTurnView: View {
             }
             .buttonStyle(.plain)
 
-            if let onEdit {
-                Button(action: onEdit) {
+            if canEdit {
+                Button { onAction(.edit) } label: {
                     Image(systemName: "pencil")
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundStyle(.tertiary)
@@ -224,18 +252,16 @@ struct ChatTurnView: View {
                 .buttonStyle(.plain)
             }
 
-            if let onReply {
-                Button(action: onReply) {
-                    Image(systemName: "arrowshape.turn.up.left")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 24, height: 20)
-                }
-                .buttonStyle(.plain)
+            Button { onAction(.reply) } label: {
+                Image(systemName: "arrowshape.turn.up.left")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 24, height: 20)
             }
+            .buttonStyle(.plain)
 
-            if let onDelete {
-                Button(action: onDelete) {
+            if canDelete {
+                Button { onAction(.delete) } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundStyle(.tertiary)

@@ -256,28 +256,34 @@ extension ChatPanelView {
                             inlineActivities: liveInlineActivities,
                             supervisorActivities: liveSupervisorActivities,
                             liveSubagentCards: liveSubagentCards,
-                            todoStore: todoStore,
+                            todoItems: shouldShowTodoCardInTurn
+                                ? todoStore.displayTodosForChat(for: conversationId) : [],
                             conversationId: conversationId,
                             shouldShowTodo: shouldShowTodoCardInTurn,
-                            onFileClicked: { openFilesStore.openFile($0) },
-                            onReviewChanges: {
-                                gitPanelStore.isOpen = true
-                                gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                            canEdit: displayMessage.role == .user,
+                            canDelete: deleteAction != nil,
+                            onAction: { action in
+                                switch action {
+                                case .fileClicked(let path):
+                                    openFilesStore.openFile(path)
+                                case .reviewChanges:
+                                    gitPanelStore.isOpen = true
+                                    gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                                case .openSubagentPanel(let swarmId):
+                                    selectedSwarmId = swarmId
+                                    showSwarmPanel = true
+                                case .stopSubagent:
+                                    lastTaskEndedByManualStop = true
+                                    interruptTask()
+                                case .reply:
+                                    replyAction?()
+                                case .edit:
+                                    inputText = displayMessage.content
+                                    isInputFocused = true
+                                case .delete:
+                                    deleteAction?()
+                                }
                             },
-                            onOpenSubagentPanel: { swarmId in
-                                selectedSwarmId = swarmId
-                                showSwarmPanel = true
-                            },
-                            onStopSubagent: {
-                                lastTaskEndedByManualStop = true
-                                interruptTask()
-                            },
-                            onReply: replyAction,
-                            onEdit: displayMessage.role == .user ? {
-                                inputText = displayMessage.content
-                                isInputFocused = true
-                            } : nil,
-                            onDelete: deleteAction,
                             showTopDivider: needsDivider
                         )
                     }
