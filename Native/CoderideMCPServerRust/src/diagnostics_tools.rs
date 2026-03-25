@@ -2,7 +2,9 @@ use app_core_protocol::mcp::CallToolResult;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
 
 pub fn handle(
     name: &str,
@@ -79,7 +81,8 @@ fn shell_text(command: &str, args: &[&str], cwd: &Path) -> CallToolResult {
             .current_dir(cwd)
             .output()
     } else {
-        Command::new(command).args(args).current_dir(cwd).output()
+        // Fallback: native Rust timeout via child.wait_with_output + thread.
+        run_with_native_timeout(command, args, cwd, 120)
     };
 
     match output {
@@ -112,4 +115,43 @@ fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
         .unwrap_or_default()
         .trim()
         .to_string()
+}
+
+/// Native Rust timeout: spawn child, wait on a thread, kill if exceeded.
+fn run_with_native_timeout(
+    command: &str,
+    args: &[&str],
+    cwd: &Path,
+    timeout_secs: u64,
+) -> std::io::Result<Output> {
+    let mut child = Command::new(command)
+        .args(args)
+        .current_dir(cwd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    let timeout = std::time::Duration::from_secs(timeout_secs);
+    let start = std::time::Instant::now();
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => return child.wait_with_output(),
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    // Kill and synthesize exit code 124 (same as coreutils timeout).
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Ok(Output {
+                        status: std::process::ExitStatus::from_raw(124 << 8),
+                        stdout: Vec::new(),
+                        stderr: format!("{command} timed out after {timeout_secs}s")
+                            .into_bytes(),
+                    });
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            Err(e) => return Err(e),
+        }
+    }
 }

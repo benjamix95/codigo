@@ -3,6 +3,7 @@ mod catalog;
 mod debug_tools;
 mod diagnostics_tools;
 mod edit_tools;
+mod file_lock;
 mod file_tools;
 mod handlers;
 mod ide_tools;

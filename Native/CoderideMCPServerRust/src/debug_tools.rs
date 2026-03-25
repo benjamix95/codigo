@@ -129,7 +129,7 @@ fn debug_set_phase(arguments: &BTreeMap<String, Value>) -> CallToolResult {
         Some("system".to_string()),
         None,
     );
-    let _ = write_store(&store);
+    persist_store(&store);
     text_with_structured(
         format!("OK — debug phase set to {phase}"),
         json!({ "tool": "debug_set_phase", "phase": phase }),
@@ -171,7 +171,7 @@ fn debug_resolve(arguments: &BTreeMap<String, Value>) -> CallToolResult {
         Some("system".to_string()),
         None,
     );
-    let _ = write_store(&store);
+    persist_store(&store);
     text_with_structured(
         "OK — debug session resolved".to_string(),
         json!({ "tool": "debug_resolve", "summary": summary }),
@@ -197,7 +197,7 @@ fn debug_log(arguments: &BTreeMap<String, Value>) -> CallToolResult {
         last.run_id = run_id.clone();
         last.data = data.clone();
     }
-    let _ = write_store(&store);
+    persist_store(&store);
 
     text_with_structured(
         "OK — debug log entry recorded".to_string(),
@@ -268,7 +268,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                 Some("system".to_string()),
                 None,
             );
-            let _ = write_store(&store);
+            persist_store(&store);
             text_with_structured(
                 "OK — debug session started".to_string(),
                 json!({
@@ -295,7 +295,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                 .resolved_summary
                 .clone()
                 .unwrap_or_else(|| "Debug session ended".to_string());
-            let _ = write_store(&store);
+            persist_store(&store);
             text_with_structured(
                 "OK — debug session ended".to_string(),
                 json!({
@@ -308,7 +308,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
             )
         }
         "clear" => {
-            let _ = write_store(&DebugStore::default());
+            persist_store(&DebugStore::default());
             text_with_structured(
                 "OK — debug session cleared".to_string(),
                 json!({ "tool": "debug_session", "action": "clear" }),
@@ -398,7 +398,7 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
                 Some("debug".to_string()),
                 Some(id.clone()),
             );
-            let _ = write_store(&store);
+            persist_store(&store);
             text_with_structured(
                 "OK — debug hypothesis proposed".to_string(),
                 json!({
@@ -453,7 +453,7 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
                 Some("debug".to_string()),
                 Some(resolved_id.clone()),
             );
-            let _ = write_store(&store);
+            persist_store(&store);
             text_with_structured(
                 "OK — debug hypothesis updated".to_string(),
                 json!({
@@ -527,7 +527,7 @@ fn debug_snapshot(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             let snapshot = build_snapshot(&store, &label);
             store.snapshots.retain(|item| item.label != label);
             store.snapshots.push(snapshot.clone());
-            let _ = write_store(&store);
+            persist_store(&store);
             text_with_structured(
                 format!("Snapshot '{}' captured", label),
                 json!({
@@ -733,7 +733,7 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     if exit_code == 0 {
         store.failing_test_filters.clear();
     }
-    let _ = write_store(&store);
+    persist_store(&store);
 
     let output = format!(
         "Xcode tests {}: {} passed, {} failed\nschemes: {}\n{}",
@@ -1240,7 +1240,17 @@ fn write_store(store: &DebugStore) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let data = serde_json::to_vec_pretty(store).map_err(|error| error.to_string())?;
-    fs::write(path, data).map_err(|error| error.to_string())
+    // Atomic write: temp file + rename to prevent partial writes.
+    let tmp_path = path.with_extension("json.tmp");
+    fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
+    fs::rename(&tmp_path, &path).map_err(|error| error.to_string())
+}
+
+/// Wrapper che logga l'errore se write_store fallisce, senza silenziarlo.
+fn persist_store(store: &DebugStore) {
+    if let Err(e) = write_store(store) {
+        eprintln!("[debug_tools] persist_store failed: {e}");
+    }
 }
 
 fn debug_store_path() -> PathBuf {

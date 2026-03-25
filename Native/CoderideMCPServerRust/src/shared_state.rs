@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::file_lock::{with_file_lock, LockMode};
+
 pub fn read_todos_text() -> String {
     let todos = read_todos();
     if todos.is_empty() {
@@ -101,9 +103,13 @@ pub fn write_todos(arguments: &BTreeMap<String, Value>) -> Result<String, String
         "linkedFiles": arguments.get("linkedFiles").cloned().unwrap_or_else(|| Value::Array(vec![])),
         "source": "rust-mcp",
     });
-    let mut existing = read_todos();
-    existing.push(item);
-    write_json_array(existing)?;
+    // Protect read-modify-write with exclusive file lock to prevent
+    // cross-process TOCTOU race (Swift app + Rust MCP server).
+    with_file_lock(&todos_file_path(), LockMode::Exclusive, || {
+        let mut existing = read_todos();
+        existing.push(item.clone());
+        write_json_array(existing)
+    })?;
     Ok("OK — todo list updated".to_string())
 }
 
