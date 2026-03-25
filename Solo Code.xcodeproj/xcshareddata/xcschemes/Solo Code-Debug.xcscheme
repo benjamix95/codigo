@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "28F3FC36735BC96F76F30200"
+               BlueprintIdentifier = "507DC6C743EE26AF930E03A9"
                BuildableName = "Solo Code.app"
                BlueprintName = "Solo Code"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "7D8A06928C34FAAC3D3701BA"
+               BlueprintIdentifier = "36C618BEC51BE6B4DD25A6F5"
                BuildableName = "SoloCodeAppTests.xctest"
                BlueprintName = "SoloCodeAppTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -42,7 +42,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B79B2F223562095190FB03BC"
+               BlueprintIdentifier = "33D94119C77A8E695FB15BDD"
                BuildableName = "CoderEngineTests.xctest"
                BlueprintName = "CoderEngineTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -56,7 +56,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4C01D5A3907B37827AC45241"
+               BlueprintIdentifier = "6553505F66A5608BE328D64C"
                BuildableName = "SoloCodeIntegrationTests.xctest"
                BlueprintName = "SoloCodeIntegrationTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -72,7 +72,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "28F3FC36735BC96F76F30200"
+            BlueprintIdentifier = "507DC6C743EE26AF930E03A9"
             BuildableName = "Solo Code.app"
             BlueprintName = "Solo Code"
             ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -83,7 +83,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "7D8A06928C34FAAC3D3701BA"
+               BlueprintIdentifier = "36C618BEC51BE6B4DD25A6F5"
                BuildableName = "SoloCodeAppTests.xctest"
                BlueprintName = "SoloCodeAppTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -93,7 +93,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B79B2F223562095190FB03BC"
+               BlueprintIdentifier = "33D94119C77A8E695FB15BDD"
                BuildableName = "CoderEngineTests.xctest"
                BlueprintName = "CoderEngineTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -103,7 +103,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4C01D5A3907B37827AC45241"
+               BlueprintIdentifier = "6553505F66A5608BE328D64C"
                BuildableName = "SoloCodeIntegrationTests.xctest"
                BlueprintName = "SoloCodeIntegrationTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -123,7 +123,7 @@ fi
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
-                     BlueprintIdentifier = "28F3FC36735BC96F76F30200"
+                     BlueprintIdentifier = "507DC6C743EE26AF930E03A9"
                      BuildableName = "Solo Code.app"
                      BlueprintName = "Solo Code"
                      ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -147,7 +147,7 @@ fi
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "28F3FC36735BC96F76F30200"
+            BlueprintIdentifier = "507DC6C743EE26AF930E03A9"
             BuildableName = "Solo Code.app"
             BlueprintName = "Solo Code"
             ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -164,7 +164,7 @@ fi
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "28F3FC36735BC96F76F30200"
+            BlueprintIdentifier = "507DC6C743EE26AF930E03A9"
             BuildableName = "Solo Code.app"
             BlueprintName = "Solo Code"
             ReferencedContainer = "container:Solo Code.xcodeproj">

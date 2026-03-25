@@ -1,7 +1,7 @@
 {
   "configurations": [
     {
-      "id": "9677C101-6237-4010-82EB-B8F364CB74BF",
+      "id": "1C7DA35B-3A8D-41F8-A103-1D5232C9B29B",
       "name": "Default",
       "options": {
       }
@@ -14,21 +14,21 @@
     {
       "target": {
         "containerPath": "container:Solo Code.xcodeproj",
-        "identifier": "7D8A06928C34FAAC3D3701BA",
+        "identifier": "36C618BEC51BE6B4DD25A6F5",
         "name": "SoloCodeAppTests"
       }
     },
     {
       "target": {
         "containerPath": "container:Solo Code.xcodeproj",
-        "identifier": "B79B2F223562095190FB03BC",
+        "identifier": "33D94119C77A8E695FB15BDD",
         "name": "CoderEngineTests"
       }
     },
     {
       "target": {
         "containerPath": "container:Solo Code.xcodeproj",
-        "identifier": "4C01D5A3907B37827AC45241",
+        "identifier": "6553505F66A5608BE328D64C",
         "name": "SoloCodeIntegrationTests"
       }
     }

@@ -18,13 +18,22 @@ APP_TESTS = 'SoloCodeAppTests'
 ENGINE_TESTS = 'CoderEngineTests'
 INTEGRATION_TESTS = 'SoloCodeIntegrationTests'
 
-def add_sources(project, group, target, root_path)
-  Dir.glob(File.join(root_path, '**/*.swift')).sort.each do |path|
-    rel = path.sub("#{ROOT}/", '')
-    ref = group.find_file_by_path(rel) || group.new_file(rel)
-    target.source_build_phase.add_file_reference(ref, true)
-  end
+# ---------------------------------------------------------------------------
+# Synchronized folder helpers (Xcode 16+ PBXFileSystemSynchronizedRootGroup)
+# ---------------------------------------------------------------------------
+
+def add_synced_folder(project, parent_group, targets, relative_path)
+  grp = project.new(Xcodeproj::Project::Object::PBXFileSystemSynchronizedRootGroup)
+  grp.path = relative_path
+  grp.source_tree = '<group>'
+  parent_group.children << grp
+  Array(targets).each { |t| t.file_system_synchronized_groups << grp }
+  grp
 end
+
+# ---------------------------------------------------------------------------
+# Resource helpers (unchanged — resources are explicit, not synced)
+# ---------------------------------------------------------------------------
 
 def add_resources(project, group, target)
   %w[
@@ -39,6 +48,10 @@ def add_resources(project, group, target)
     target.resources_build_phase.add_file_reference(ref, true)
   end
 end
+
+# ---------------------------------------------------------------------------
+# Package helpers (unchanged)
+# ---------------------------------------------------------------------------
 
 def add_remote_package(project, url, minimum_version)
   ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
@@ -58,6 +71,10 @@ def link_package_product(project, target, package_ref, product_name)
   target.frameworks_build_phase.files << build_file
 end
 
+# ---------------------------------------------------------------------------
+# Build configuration helpers (unchanged)
+# ---------------------------------------------------------------------------
+
 def assign_xcconfig(project, target, path)
   ref = project.files.find { |f| f.path == path } || project.main_group.new_file(path)
   target.build_configurations.each { |cfg| cfg.base_configuration_reference = ref }
@@ -74,6 +91,10 @@ def add_embed_frameworks_phase(project, target, frameworks)
   end
 end
 
+# ---------------------------------------------------------------------------
+# Scheme helpers (unchanged)
+# ---------------------------------------------------------------------------
+
 def add_test_bootstrap_pre_action(scheme, build_target)
   action = Xcodeproj::XCScheme::ExecutionAction.new(nil, :shell_script)
   content = Xcodeproj::XCScheme::ShellScriptActionContent.new
@@ -89,6 +110,10 @@ def add_test_bootstrap_pre_action(scheme, build_target)
   scheme.test_action.add_pre_action(action)
 end
 
+# ---------------------------------------------------------------------------
+# Build phase helpers (unchanged)
+# ---------------------------------------------------------------------------
+
 def add_rust_review_core_phase(target)
   phase = target.new_shell_script_build_phase('Build Rust Review Core')
   phase.shell_path = '/bin/sh'
@@ -102,12 +127,16 @@ def add_rust_review_core_phase(target)
   phase.show_env_vars_in_log = '0'
 end
 
+# ===========================================================================
+# Project generation
+# ===========================================================================
+
 FileUtils.rm_rf(PROJECT_PATH)
 FileUtils.rm_rf(WORKSPACE_PATH)
 FileUtils.mkdir_p(File.dirname(TESTPLAN_PATH))
 
 project = Xcodeproj::Project.new(PROJECT_PATH)
-project.root_object.attributes['LastUpgradeCheck'] = '1700'
+project.root_object.attributes['LastUpgradeCheck'] = '1600'
 
 main = project.main_group
 app_group = main.find_subpath('App', true)
@@ -117,6 +146,8 @@ tests_group = main.find_subpath('Tests', true)
 config_group = main.find_subpath('Config', true)
 scripts_group = main.find_subpath('Scripts', true)
 
+# --- Targets ---------------------------------------------------------------
+
 app_target = project.new_target(:application, APP_TARGET, :osx, '13.0')
 engine_target = project.new_target(:framework, ENGINE_TARGET, :osx, '13.0')
 helper_framework_target = project.new_target(:framework, HELPER_FRAMEWORK_TARGET, :osx, '13.0')
@@ -125,6 +156,8 @@ app_tests_target = project.new_target(:unit_test_bundle, APP_TESTS, :osx, '13.0'
 engine_tests_target = project.new_target(:unit_test_bundle, ENGINE_TESTS, :osx, '13.0')
 integration_tests_target = project.new_target(:unit_test_bundle, INTEGRATION_TESTS, :osx, '13.0')
 
+# --- xcconfig assignments --------------------------------------------------
+
 assign_xcconfig(project, app_target, 'Config/xcconfigs/App.xcconfig')
 assign_xcconfig(project, engine_target, 'Config/xcconfigs/Framework.xcconfig')
 assign_xcconfig(project, helper_framework_target, 'Config/xcconfigs/Framework.xcconfig')
@@ -132,6 +165,8 @@ assign_xcconfig(project, helper_executable_target, 'Config/xcconfigs/Tool.xcconf
 [app_tests_target, engine_tests_target, integration_tests_target].each do |target|
   assign_xcconfig(project, target, 'Config/xcconfigs/Tests.xcconfig')
 end
+
+# --- Per-target build settings ----------------------------------------------
 
 app_tests_target.build_configurations.each do |cfg|
   cfg.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.solocode.tests.app'
@@ -156,15 +191,31 @@ helper_executable_target.build_configurations.each do |cfg|
   cfg.build_settings['EXECUTABLE_NAME'] = 'coderide-mcp-server'
 end
 
-add_sources(project, app_group, app_target, File.join(ROOT, 'App/SoloCodeApp/Sources'))
-add_sources(project, engine_group, engine_target, File.join(ROOT, 'Engine/CoderEngine/Sources'))
-add_sources(project, tools_group, helper_framework_target, File.join(ROOT, 'Tools/CoderIDEMCPServer/Sources'))
-add_sources(project, tools_group, helper_executable_target, File.join(ROOT, 'Tools/CoderIDEMCPServer/Sources'))
-add_sources(project, tools_group, helper_executable_target, File.join(ROOT, 'Tools/CoderIDEMCPServerExecutable/Sources'))
-add_sources(project, tests_group, app_tests_target, File.join(ROOT, 'Tests/SoloCodeAppTests'))
-add_sources(project, tests_group, engine_tests_target, File.join(ROOT, 'Tests/CoderEngineTests'))
-add_sources(project, tests_group, integration_tests_target, File.join(ROOT, 'Tests/SoloCodeIntegrationTests'))
+# --- Synchronized source folders (Xcode 16+) -------------------------------
+# Instead of enumerating every .swift file individually (PBXBuildFile),
+# we point each target at its source folder. Xcode syncs automatically.
+
+add_synced_folder(project, app_group, app_target,
+                  'App/SoloCodeApp/Sources')
+add_synced_folder(project, engine_group, engine_target,
+                  'Engine/CoderEngine/Sources')
+# Both framework and executable compile the shared MCP server sources
+add_synced_folder(project, tools_group, [helper_framework_target, helper_executable_target],
+                  'Tools/CoderIDEMCPServer/Sources')
+add_synced_folder(project, tools_group, helper_executable_target,
+                  'Tools/CoderIDEMCPServerExecutable/Sources')
+add_synced_folder(project, tests_group, app_tests_target,
+                  'Tests/SoloCodeAppTests')
+add_synced_folder(project, tests_group, engine_tests_target,
+                  'Tests/CoderEngineTests')
+add_synced_folder(project, tests_group, integration_tests_target,
+                  'Tests/SoloCodeIntegrationTests')
+
+# --- Resources (explicit, not synced) ---------------------------------------
+
 add_resources(project, app_group, app_target)
+
+# --- SPM packages -----------------------------------------------------------
 
 swift_term_pkg = add_remote_package(project, 'https://github.com/migueldeicaza/SwiftTerm.git', '1.2.0')
 mcp_pkg = add_remote_package(project, 'https://github.com/modelcontextprotocol/swift-sdk.git', '0.10.0')
@@ -175,6 +226,8 @@ link_package_product(project, helper_framework_target, mcp_pkg, 'MCP')
 link_package_product(project, helper_executable_target, mcp_pkg, 'MCP')
 link_package_product(project, engine_target, logging_pkg, 'Logging')
 link_package_product(project, engine_tests_target, mcp_pkg, 'MCP')
+
+# --- Target dependencies & framework linking --------------------------------
 
 app_target.add_dependency(engine_target)
 app_target.frameworks_build_phase.add_file_reference(engine_target.product_reference, true)
@@ -194,6 +247,8 @@ integration_tests_target.add_dependency(engine_target)
 engine_tests_target.frameworks_build_phase.add_file_reference(engine_target.product_reference, true)
 engine_tests_target.frameworks_build_phase.add_file_reference(helper_framework_target.product_reference, true)
 
+# --- Embed phases -----------------------------------------------------------
+
 add_embed_frameworks_phase(project, app_target, [engine_target, helper_framework_target])
 add_embed_frameworks_phase(project, engine_tests_target, [engine_target, helper_framework_target])
 add_rust_review_core_phase(app_target)
@@ -203,6 +258,8 @@ embed_helper.dst_subfolder_spec = Xcodeproj::Constants::COPY_FILES_BUILD_PHASE_D
 helper_build = project.new(Xcodeproj::Project::Object::PBXBuildFile)
 helper_build.file_ref = helper_executable_target.product_reference
 embed_helper.files << helper_build
+
+# --- Schemes ----------------------------------------------------------------
 
 scheme = Xcodeproj::XCScheme.new
 scheme.configure_with_targets(app_target, app_tests_target, launch_target: true)
@@ -228,6 +285,8 @@ integration_scheme.configure_with_targets(app_target, integration_tests_target, 
 add_test_bootstrap_pre_action(integration_scheme, app_target)
 integration_scheme.save_as(PROJECT_PATH, 'Solo Code-IntegrationTests', true)
 
+# --- Workspace --------------------------------------------------------------
+
 FileUtils.mkdir_p(WORKSPACE_PATH)
 File.write(File.join(WORKSPACE_PATH, 'contents.xcworkspacedata'), <<~XML)
   <?xml version="1.0" encoding="UTF-8"?>
@@ -235,6 +294,8 @@ File.write(File.join(WORKSPACE_PATH, 'contents.xcworkspacedata'), <<~XML)
     <FileRef location = "group:#{PROJECT_NAME}.xcodeproj"></FileRef>
   </Workspace>
 XML
+
+# --- Test plan --------------------------------------------------------------
 
 test_plan = {
   'configurations' => [{ 'id' => SecureRandom.uuid.upcase, 'name' => 'Default', 'options' => {} }],
@@ -250,4 +311,16 @@ test_plan = {
 }
 File.write(TESTPLAN_PATH, JSON.pretty_generate(test_plan))
 
+# --- Save & patch objectVersion ---------------------------------------------
+
 project.save
+
+# Patch objectVersion to 77 (required for PBXFileSystemSynchronizedRootGroup)
+pbxproj_path = File.join(PROJECT_PATH, 'project.pbxproj')
+content = File.read(pbxproj_path)
+content.sub!(/objectVersion = \d+;/, 'objectVersion = 77;')
+File.write(pbxproj_path, content)
+
+puts "Generated #{PROJECT_NAME}.xcodeproj with Xcode 16 synchronized folders"
+puts "  objectVersion: 77"
+puts "  pbxproj lines: #{content.lines.count}"
