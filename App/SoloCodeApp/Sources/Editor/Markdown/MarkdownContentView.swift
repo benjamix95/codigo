@@ -42,12 +42,16 @@ struct MarkdownSettingsProvider: ViewModifier {
 }
 
 private enum MarkdownDisplayContentCache {
-    static let cache: NSCache<NSString, NSString> = {
-        let c = NSCache<NSString, NSString>()
-        c.countLimit = 512
-        c.totalCostLimit = 16 * 1024 * 1024
-        return c
-    }()
+    private final class SendableCache: @unchecked Sendable {
+        let underlying: NSCache<NSString, NSString> = {
+            let c = NSCache<NSString, NSString>()
+            c.countLimit = 512
+            c.totalCostLimit = 16 * 1024 * 1024
+            return c
+        }()
+    }
+    private static let holder = SendableCache()
+    static var cache: NSCache<NSString, NSString> { holder.underlying }
 
     static func key(content: String, isStreaming: Bool, aggressive: Bool, normalizeLayout: Bool) -> NSString {
         var hasher = Hasher()
@@ -120,6 +124,10 @@ struct MarkdownContentView: View {
     // MARK: - Body
 
     var body: some View {
+        let _ = ChatRenderLogger.logRender(
+            "MarkdownContentView",
+            detail: "streaming=\(isStreaming) len=\(content.count)"
+        )
         contentBody
     }
 }

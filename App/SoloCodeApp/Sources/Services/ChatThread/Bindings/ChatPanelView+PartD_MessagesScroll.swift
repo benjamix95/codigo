@@ -7,6 +7,10 @@ extension ChatPanelView {
     internal func messagesStack(for conv: Conversation) -> some View {
         let convId = conv.id
         let messages = conv.messages
+        let _ = ChatRenderLogger.logRender(
+            "messagesStack",
+            detail: "convId=\(convId.uuidString.prefix(8)) msgCount=\(messages.count)"
+        )
         let lastMsg = messages.last
         let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
         let latestVisibleAssistantMessageId = messages.last(where: {
@@ -108,6 +112,10 @@ extension ChatPanelView {
             ? { chatStore.removeMessage(messageId: message.id, in: conversationId) }
             : nil
 
+        let _ = ChatRenderLogger.logRender(
+            "chatMessageCell",
+            detail: "msgId=\(message.id.uuidString.prefix(8)) role=\(message.role.rawValue) idx=\(index) streaming=\(message.isStreaming)"
+        )
         if shouldHideBuildKickoffMessage(message, in: conversationId) {
             EmptyView()
                 .id(message.id)

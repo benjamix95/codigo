@@ -3,10 +3,45 @@ import SwiftUI
 extension MarkdownContentView {
     // MARK: - Body
 
+    /// Whether the current content contains block-level markdown that
+    /// requires the full parser (headings, fenced code, lists, tables).
+    private var hasBlockLevelMarkdown: Bool {
+        let text = displayContent
+        // Quick scan — avoid full parsing when content is plain inline text.
+        if text.contains("```") { return true }
+        let lines = text.components(separatedBy: "\n")
+        for line in lines.prefix(200) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("# ") || trimmed.hasPrefix("## ")
+                || trimmed.hasPrefix("### ") || trimmed.hasPrefix("#### ") { return true }
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") { return true }
+            if let dot = trimmed.firstIndex(of: "."), dot > trimmed.startIndex,
+               trimmed[trimmed.startIndex..<dot].allSatisfy(\.isNumber),
+               dot < trimmed.index(before: trimmed.endIndex),
+               trimmed[trimmed.index(after: dot)] == " " { return true }
+            if trimmed.hasPrefix("> ") { return true }
+            if trimmed.hasPrefix("|") && trimmed.hasSuffix("|") { return true }
+        }
+        return false
+    }
+
     @ViewBuilder
     var contentBody: some View {
-        if isStreaming {
+        if isStreaming && !hasBlockLevelMarkdown {
+            let _ = ChatRenderLogger.logRender(
+                "Markdown.streamingInline",
+                detail: "len=\(content.count)"
+            )
+            // Fast path: inline-only content during streaming.
             streamingBody
+        } else if isStreaming {
+            let _ = ChatRenderLogger.logRender(
+                "Markdown.streamingFull",
+                detail: "len=\(content.count) blocks=\(cachedBlocks?.count ?? -1)"
+            )
+            // Streaming with block-level markdown: use full parser
+            // so headings, code blocks, lists render in real time.
+            streamingFullMarkdownBody
         } else {
             fullMarkdownBody
         }
@@ -78,6 +113,38 @@ extension MarkdownContentView {
         Self.lastStreamingAttributedLength = length
         Self.lastStreamingAttributedResult = result
         return result
+    }
+
+    // MARK: - Streaming Full Markdown Body
+
+    /// Block-level rendering during streaming. Uses the same parser as
+    /// `fullMarkdownBody` but appends a blinking cursor after the last block.
+    var streamingFullMarkdownBody: some View {
+        let blocks = cachedBlocks ?? parseBlocks()
+        return VStack(alignment: .leading, spacing: 0) {
+            if blocks.isEmpty {
+                StreamingCursorView()
+            } else {
+                ForEach(Array(blocks.enumerated()), id: \.offset) { idx, block in
+                    blockView(for: block, prevBlock: idx > 0 ? blocks[idx - 1] : nil)
+                }
+                // Streaming cursor after the last block
+                HStack(spacing: 0) {
+                    Text(" \u{258C}")
+                        .font(FontPreferences.resolveSansFont(size: bodyFont, family: uiSansFontFamily))
+                        .foregroundColor(textPrimary.opacity(0.45))
+                    Spacer()
+                }
+            }
+        }
+        .frame(maxWidth: fillWidth ? .infinity : nil, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            if cachedBlocks == nil { cachedBlocks = parseBlocks() }
+        }
+        .onChange(of: content) { _ in
+            cachedBlocks = parseBlocks()
+        }
     }
 
     // MARK: - Full Markdown Body (block-level)

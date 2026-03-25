@@ -37,22 +37,70 @@ struct ChatTurnView: View, Equatable {
     let onAction: (ChatTurnAction) -> Void
     let showTopDivider: Bool
 
-    static func == (lhs: ChatTurnView, rhs: ChatTurnView) -> Bool {
-        lhs.message.id == rhs.message.id
-            && lhs.message.content == rhs.message.content
-            && lhs.message.isStreaming == rhs.message.isStreaming
-            && lhs.isActuallyLoading == rhs.isActuallyLoading
-            && lhs.streamingStatusText == rhs.streamingStatusText
-            && lhs.streamingDetailText == rhs.streamingDetailText
-            && lhs.traceEvents.count == rhs.traceEvents.count
-            && lhs.inlineActivities.count == rhs.inlineActivities.count
-            && lhs.liveSubagentCards.count == rhs.liveSubagentCards.count
-            && lhs.todoItems.count == rhs.todoItems.count
-            && lhs.conversationId == rhs.conversationId
-            && lhs.shouldShowTodo == rhs.shouldShowTodo
-            && lhs.canEdit == rhs.canEdit
-            && lhs.canDelete == rhs.canDelete
-            && lhs.showTopDivider == rhs.showTopDivider
+    nonisolated static func == (lhs: ChatTurnView, rhs: ChatTurnView) -> Bool {
+        // Log which field caused the Equatable miss (re-render).
+        let msgId = lhs.message.id.uuidString.prefix(8)
+        if lhs.message.id != rhs.message.id {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] message.id changed")
+            return false
+        }
+        if lhs.message.content != rhs.message.content {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] content changed (len \(lhs.message.content.count)→\(rhs.message.content.count))")
+            return false
+        }
+        if lhs.message.isStreaming != rhs.message.isStreaming {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] isStreaming \(lhs.message.isStreaming)→\(rhs.message.isStreaming)")
+            return false
+        }
+        if lhs.isActuallyLoading != rhs.isActuallyLoading {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] isActuallyLoading \(lhs.isActuallyLoading)→\(rhs.isActuallyLoading)")
+            return false
+        }
+        if lhs.streamingStatusText != rhs.streamingStatusText {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] streamingStatusText changed")
+            return false
+        }
+        if lhs.streamingDetailText != rhs.streamingDetailText {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] streamingDetailText changed")
+            return false
+        }
+        if lhs.traceEvents.count != rhs.traceEvents.count {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] traceEvents.count \(lhs.traceEvents.count)→\(rhs.traceEvents.count)")
+            return false
+        }
+        if lhs.inlineActivities.count != rhs.inlineActivities.count {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] inlineActivities.count \(lhs.inlineActivities.count)→\(rhs.inlineActivities.count)")
+            return false
+        }
+        if lhs.liveSubagentCards.count != rhs.liveSubagentCards.count {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] liveSubagentCards.count \(lhs.liveSubagentCards.count)→\(rhs.liveSubagentCards.count)")
+            return false
+        }
+        if lhs.todoItems.count != rhs.todoItems.count {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] todoItems.count \(lhs.todoItems.count)→\(rhs.todoItems.count)")
+            return false
+        }
+        if lhs.conversationId != rhs.conversationId {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] conversationId changed")
+            return false
+        }
+        if lhs.shouldShowTodo != rhs.shouldShowTodo {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] shouldShowTodo changed")
+            return false
+        }
+        if lhs.canEdit != rhs.canEdit {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] canEdit changed")
+            return false
+        }
+        if lhs.canDelete != rhs.canDelete {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] canDelete changed")
+            return false
+        }
+        if lhs.showTopDivider != rhs.showTopDivider {
+            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] showTopDivider changed")
+            return false
+        }
+        return true
     }
 
     @State private var didCopyMessage = false
@@ -101,6 +149,10 @@ struct ChatTurnView: View, Equatable {
     }
 
     var body: some View {
+        let _ = ChatRenderLogger.logRender(
+            "ChatTurnView.body",
+            detail: "msgId=\(message.id.uuidString.prefix(8)) streaming=\(message.isStreaming) loading=\(isActuallyLoading) traces=\(traceEvents.count) segments=\(interleavedSegments.count)"
+        )
         VStack(alignment: .leading, spacing: 10) {
             if showTopDivider {
                 Rectangle()
@@ -275,7 +327,7 @@ struct ChatTurnView: View, Equatable {
 
     // MARK: - Tool Group Categorization
 
-    static func toolGroupCategory(for event: ToolTraceEvent) -> ChatTurnToolEventGroupCategory? {
+    nonisolated static func toolGroupCategory(for event: ToolTraceEvent) -> ChatTurnToolEventGroupCategory? {
         let type = event.type
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()

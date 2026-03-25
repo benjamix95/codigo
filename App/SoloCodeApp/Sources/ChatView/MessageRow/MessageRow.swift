@@ -47,6 +47,10 @@ struct MessageRow: View {
     var shouldShowCopyAction: Bool { Self.shouldShowCopyAction(for: message) }
 
     var body: some View {
+        let _ = ChatRenderLogger.logRender(
+            "MessageRow.body",
+            detail: "msgId=\(message.id.uuidString.prefix(8)) role=\(message.role.rawValue) streaming=\(message.isStreaming) editing=\(isEditingInline)"
+        )
         VStack(alignment: isUser ? .trailing : .leading, spacing: 0) {
             if showTopDivider {
                 messageDivider()
