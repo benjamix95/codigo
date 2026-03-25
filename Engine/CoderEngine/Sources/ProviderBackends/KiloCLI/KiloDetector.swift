@@ -56,8 +56,11 @@ public enum KiloDetector {
         }
 
         cacheLock.lock()
-        cliCache[kiloPath] = (result, Date())
-        cacheLock.unlock()
+        defer { cacheLock.unlock() }
+        // Double-check: se un altro thread ha già scritto durante l'operazione, non sovrascrivere
+        if cliCache[kiloPath] == nil {
+            cliCache[kiloPath] = (result, Date())
+        }
         return result
     }
 

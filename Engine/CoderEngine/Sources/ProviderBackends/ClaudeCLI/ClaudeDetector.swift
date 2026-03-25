@@ -97,13 +97,18 @@ public enum ClaudeDetector {
             try process.run()
             let result = waitForExit(process, timeout: 5) == 0
             cacheLock.lock()
-            cliAvailableCache[claudePath] = (result, Date())
-            cacheLock.unlock()
+            defer { cacheLock.unlock() }
+            // Double-check: se un altro thread ha già scritto, non sovrascrivere
+            if cliAvailableCache[claudePath] == nil {
+                cliAvailableCache[claudePath] = (result, Date())
+            }
             return result
         } catch {
             cacheLock.lock()
-            cliAvailableCache[claudePath] = (false, Date())
-            cacheLock.unlock()
+            defer { cacheLock.unlock() }
+            if cliAvailableCache[claudePath] == nil {
+                cliAvailableCache[claudePath] = (false, Date())
+            }
             return false
         }
     }
@@ -138,8 +143,11 @@ public enum ClaudeDetector {
         }
 
         cacheLock.lock()
-        authStatusCache[claudePath] = (result, Date())
-        cacheLock.unlock()
+        defer { cacheLock.unlock() }
+        // Double-check: se un altro thread ha già scritto, non sovrascrivere
+        if authStatusCache[claudePath] == nil {
+            authStatusCache[claudePath] = (result, Date())
+        }
         return result
     }
 
