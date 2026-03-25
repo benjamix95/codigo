@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.setActivationPolicy(.regular)
         disableWindowRestorationLoop()
         logRustRuntimeStatus()
+        MCPSharedState.ensureDirectory()
 
         installWindowStyleObservers()
 

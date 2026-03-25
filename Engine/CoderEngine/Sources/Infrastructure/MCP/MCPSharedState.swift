@@ -336,10 +336,15 @@ public enum MCPSharedState {
         return nil
     }
 
-    static func ensureDirectory() {
+    public static func ensureDirectory() {
+        let fm = FileManager.default
         let dir = sharedDirectory
-        if !FileManager.default.fileExists(atPath: dir.path) {
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: dir.path) {
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        let codeReviewDir = codeReviewDirectoryPath
+        if !fm.fileExists(atPath: codeReviewDir.path) {
+            try? fm.createDirectory(at: codeReviewDir, withIntermediateDirectories: true)
         }
     }
 }
