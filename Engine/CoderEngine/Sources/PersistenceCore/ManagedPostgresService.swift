@@ -14,9 +14,9 @@ public final class ManagedPostgresService {
     }
 
     public func bootstrapIfNeeded() throws -> PersistenceHealthSnapshot {
-        #if DEBUG
-        dispatchPrecondition(condition: .notOnQueue(.main))
-        #endif
+        // NOTE: questa funzione è thread-safe (serializzata via queue.sync su coda custom).
+        // Può essere chiamata da qualsiasi thread, incluso il main thread.
+        // Evitare chiamate frequenti dal main thread per non bloccare la UI.
         return try queue.sync {
             // Fast path: se già bootstrappato, ritorna il risultato cachato.
             if isBootstrapped, let cached = cachedHealth {
@@ -24,6 +24,22 @@ public final class ManagedPostgresService {
             }
 
             let configuration = resolvedConfiguration()
+
+            // Se i binary non esistono, tenta l'installazione automatica
+            // della catena: Homebrew → PostgreSQL.
+            if !FileManager.default.isExecutableFile(atPath: configuration.postgresBinary) {
+                guard HomebrewInstaller.ensureInstalled() else {
+                    throw PersistenceBootstrapError.bootstrapFailed(
+                        "Homebrew installation failed — cannot provision PostgreSQL"
+                    )
+                }
+                guard PostgresInstaller.ensureInstalled() else {
+                    throw PersistenceBootstrapError.bootstrapFailed(
+                        "PostgreSQL installation failed"
+                    )
+                }
+            }
+
             try validateBinaries()
             try PersistenceSupport.ensureDirectory(configuration.rootDirectory)
             try PersistenceSupport.ensureDirectory(configuration.socketDirectory)
