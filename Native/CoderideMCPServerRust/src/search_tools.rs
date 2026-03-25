@@ -301,19 +301,29 @@ fn glob_like_match(path: &str, pattern: &str) -> bool {
     if !pattern.contains('*') {
         return path.contains(pattern);
     }
-    let parts = pattern
-        .split('*')
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>();
-    if parts.is_empty() {
-        return true;
+    // Split on '*' keeping empty segments for prefix/suffix anchoring.
+    let parts: Vec<&str> = pattern.split('*').collect();
+    if parts.iter().all(|p| p.is_empty()) {
+        return true; // pattern is all wildcards
     }
+    let must_start = !pattern.starts_with('*');
+    let must_end = !pattern.ends_with('*');
+
     let mut cursor = 0usize;
-    for part in parts {
+    for (index, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            continue;
+        }
         let Some(position) = path[cursor..].find(part) else {
             return false;
         };
+        if must_start && index == 0 && position != 0 {
+            return false;
+        }
         cursor += position + part.len();
+    }
+    if must_end && cursor != path.len() {
+        return false;
     }
     true
 }

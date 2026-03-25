@@ -5,7 +5,10 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static DEBUG_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -428,7 +431,7 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             if !string_arg(arguments, "description").is_empty() {
                 existing.description = string_arg(arguments, "description");
             }
-            if !existing.root_cause_type.is_empty() || !string_arg(arguments, "root_cause_type").is_empty() {
+            if !string_arg(arguments, "root_cause_type").is_empty() {
                 existing.root_cause_type = string_arg(arguments, "root_cause_type");
             }
             if !parse_csv(string_arg(arguments, "related_files")).is_empty() {
@@ -833,12 +836,12 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
         vec![resolve_path(workspace, &raw_path)]
     };
     let type_patterns: Vec<&str> = match clean_type.as_str() {
-        "markers" => vec!["DEBUG[marker]"],
-        "logs" => vec!["DEBUG[log]", "DEBUG[instrument-log]"],
-        "asserts" => vec!["DEBUG[assert]", "DEBUG[instrument-assert]", "DEBUG[instrument-conditional]"],
-        "timing" => vec!["DEBUG[timing]", "DEBUG[instrument-timing]"],
-        "variables" => vec!["DEBUG[variable]", "DEBUG[instrument-variable]"],
-        _ => vec!["DEBUG"],
+        "markers" => vec!["[DEBUG:marker]"],
+        "logs" => vec!["[DEBUG:log]", "[DEBUG:instrument-log]"],
+        "asserts" => vec!["[DEBUG:assert]", "[DEBUG:instrument-assert]", "[DEBUG:instrument-conditional]"],
+        "timing" => vec!["[DEBUG:timing]", "[DEBUG:instrument-timing]"],
+        "variables" => vec!["[DEBUG:variable]", "[DEBUG:instrument-variable]"],
+        _ => vec!["[DEBUG:"],
     };
 
     let mut cleaned = 0usize;
@@ -1295,7 +1298,8 @@ fn now_string() -> String {
 }
 
 fn generate_id(prefix: &str) -> String {
-    format!("{prefix}-{}", now_string())
+    let seq = DEBUG_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{prefix}-{}-{:04x}", now_string(), seq)
 }
 
 fn short_id(value: &str) -> String {

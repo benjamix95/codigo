@@ -41,7 +41,7 @@ public struct TaskCompletionHandler: Sendable {
         maxRetryAttempts: Int = 3,
         retryBaseDelayMs: Int = 1000,
         retryMaxDelayMs: Int = 30_000,
-        jitterSeed: UInt64 = 42
+        jitterSeed: UInt64 = UInt64(Date().timeIntervalSince1970.bitPattern &>> 16)
     ) {
         self.maxRetryAttempts = maxRetryAttempts
         self.retryBaseDelayMs = retryBaseDelayMs

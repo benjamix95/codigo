@@ -71,9 +71,15 @@ actor SubagentLiveState {
 }
 
 actor SubagentEventRecorder {
+    private static let maxEvents = 10_000
     private var events: [StreamEvent] = []
+    private var evictedCount = 0
 
     func append(_ event: StreamEvent) {
+        if events.count >= Self.maxEvents {
+            events.removeFirst()
+            evictedCount += 1
+        }
         events.append(event)
     }
 

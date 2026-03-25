@@ -660,7 +660,7 @@ fn plan_state_file_path() -> PathBuf {
 }
 
 fn iso_now() -> String {
-    next_id("ts")
+    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
 fn next_id(prefix: &str) -> String {

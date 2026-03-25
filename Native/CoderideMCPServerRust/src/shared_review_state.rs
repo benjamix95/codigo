@@ -241,10 +241,25 @@ fn date_field(value: &Value, key: &str) -> Option<f64> {
 
 fn chrono_like_to_unix(text: &str) -> Option<f64> {
     if text.is_empty() {
-        None
-    } else {
-        Some(0.0)
+        return None;
     }
+    // Fast path: RFC 3339 covers most ISO 8601 strings we produce.
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(text) {
+        return Some(dt.timestamp() as f64 + dt.timestamp_subsec_nanos() as f64 / 1e9);
+    }
+    // Fallback: naive formats (assume UTC when no timezone present).
+    for fmt in &[
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S%.f",
+    ] {
+        if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(text, fmt) {
+            return Some(dt.and_utc().timestamp() as f64 + dt.and_utc().timestamp_subsec_nanos() as f64 / 1e9);
+        }
+    }
+    // Last resort: raw f64 (already a Unix timestamp).
+    text.parse::<f64>().ok()
 }
 
 fn stable_hash(input: &str) -> u32 {

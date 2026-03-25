@@ -288,10 +288,7 @@ extension ChatPanelView {
         .onChangeCompat(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
         }
-        .onDisappear {
-            scrollState.autoScrollWorkItem?.cancel()
-            scrollState.autoScrollWorkItem = nil
-        }
+        .onDisappear { }
     }
 
     internal var stickyTodoItems: [TodoItem] {
