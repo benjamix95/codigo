@@ -1,4 +1,5 @@
 use app_core_protocol::mcp::{CallToolResult, ToolContent};
+use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
@@ -141,7 +142,11 @@ fn regex_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
         Ok(content) => content,
         Err(error) => return CallToolResult::error(error.to_string()),
     };
-    let replaced = content.replace(&pattern, &replacement);
+    let re = match Regex::new(&pattern) {
+        Ok(re) => re,
+        Err(error) => return CallToolResult::error(format!("invalid regex: {error}")),
+    };
+    let replaced = re.replace_all(&content, replacement.as_str()).to_string();
     if replaced == content {
         return CallToolResult::error(format!("pattern not found in {}", path.display()));
     }
@@ -170,12 +175,34 @@ fn success_with_structured(text: String, structured: Value) -> CallToolResult {
 }
 
 fn resolve_path(workspace: &Path, input: String) -> PathBuf {
-    let path = Path::new(input.trim());
-    if path.is_absolute() {
+    let trimmed = input.trim().to_string();
+    let path = Path::new(&trimmed);
+    let resolved = if path.is_absolute() {
         path.to_path_buf()
     } else {
         workspace.join(path)
+    };
+    // Canonicalize what exists, then verify prefix.
+    // For new files, canonicalize the parent and check that.
+    let check_path = if resolved.exists() {
+        resolved.canonicalize().unwrap_or(resolved.clone())
+    } else if let Some(parent) = resolved.parent() {
+        if parent.exists() {
+            parent
+                .canonicalize()
+                .map(|p| p.join(resolved.file_name().unwrap_or_default()))
+                .unwrap_or(resolved.clone())
+        } else {
+            resolved.clone()
+        }
+    } else {
+        resolved.clone()
+    };
+    let workspace_canonical = workspace.canonicalize().unwrap_or(workspace.to_path_buf());
+    if !check_path.starts_with(&workspace_canonical) {
+        return PathBuf::new(); // empty path → triggers "path is required" error
     }
+    resolved
 }
 
 fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {

@@ -50,12 +50,32 @@ fn list_dir(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolRe
 }
 
 fn resolve_path(workspace: &Path, input: String) -> PathBuf {
-    let path = Path::new(input.trim());
-    if path.is_absolute() {
+    let trimmed = input.trim().to_string();
+    let path = Path::new(&trimmed);
+    let resolved = if path.is_absolute() {
         path.to_path_buf()
     } else {
         workspace.join(path)
+    };
+    let check_path = if resolved.exists() {
+        resolved.canonicalize().unwrap_or(resolved.clone())
+    } else if let Some(parent) = resolved.parent() {
+        if parent.exists() {
+            parent
+                .canonicalize()
+                .map(|p| p.join(resolved.file_name().unwrap_or_default()))
+                .unwrap_or(resolved.clone())
+        } else {
+            resolved.clone()
+        }
+    } else {
+        resolved.clone()
+    };
+    let workspace_canonical = workspace.canonicalize().unwrap_or(workspace.to_path_buf());
+    if !check_path.starts_with(&workspace_canonical) {
+        return PathBuf::new();
     }
+    resolved
 }
 
 fn int_arg(arguments: &BTreeMap<String, Value>, key: &str) -> Option<i64> {

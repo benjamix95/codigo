@@ -244,7 +244,10 @@ public actor OrchestratorMainLoop {
     private func enforceTaskTimeouts(job: PipelineJob) async {
         let taskCount = await scheduler.taskCount
         guard taskCount > 0 else { return }
-        let perTaskTimeoutMs = max(job.jobTimeoutMs / taskCount, 30_000)
+        // Per-task timeout must not exceed the remaining job budget.
+        // Use jobTimeoutMs as upper bound; divide by taskCount for fairness,
+        // with a floor of 30s for individual task viability.
+        let perTaskTimeoutMs = min(job.jobTimeoutMs, max(job.jobTimeoutMs / taskCount, 30_000))
         let now = Date()
 
         for (taskId, startTime) in taskStartTimes {

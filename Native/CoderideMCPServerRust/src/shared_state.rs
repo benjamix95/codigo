@@ -2,6 +2,8 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn read_todos_text() -> String {
     let todos = read_todos();
@@ -90,7 +92,7 @@ pub fn write_todos(arguments: &BTreeMap<String, Value>) -> Result<String, String
     }
 
     let item = json!({
-        "id": format!("rust-{}", uuid_like_seed(&title_raw)),
+        "id": format!("rust-{}", unique_id()),
         "title": title_raw,
         "status": normalize_status(&string_argument(arguments, "status")),
         "priority": normalize_priority(&string_argument(arguments, "priority")),
@@ -99,7 +101,9 @@ pub fn write_todos(arguments: &BTreeMap<String, Value>) -> Result<String, String
         "linkedFiles": arguments.get("linkedFiles").cloned().unwrap_or_else(|| Value::Array(vec![])),
         "source": "rust-mcp",
     });
-    write_json_array(vec![item])?;
+    let mut existing = read_todos();
+    existing.push(item);
+    write_json_array(existing)?;
     Ok("OK — todo list updated".to_string())
 }
 
@@ -109,7 +113,10 @@ fn write_json_array(items: Vec<Value>) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let data = serde_json::to_vec_pretty(&items).map_err(|error| error.to_string())?;
-    fs::write(path, data).map_err(|error| error.to_string())
+    // Atomic write: write to temp file then rename to avoid partial writes and races.
+    let tmp_path = path.with_extension("json.tmp");
+    fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
+    fs::rename(&tmp_path, &path).map_err(|error| error.to_string())
 }
 
 fn read_todos() -> Vec<Value> {
@@ -161,11 +168,13 @@ fn string_argument(arguments: &BTreeMap<String, Value>, key: &str) -> String {
         .to_string()
 }
 
-fn uuid_like_seed(title: &str) -> String {
-    let mut hash: u64 = 1469598103934665603;
-    for byte in title.as_bytes() {
-        hash ^= *byte as u64;
-        hash = hash.wrapping_mul(1099511628211);
-    }
-    format!("{hash:016x}")
+static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn unique_id() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64;
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{nanos:016x}-{seq:04x}")
 }

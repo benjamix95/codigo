@@ -46,6 +46,10 @@ extension OrchestratorMainLoop {
                 return first
             }
             guard lockAcquired else {
+                // Safety: if the lock-acquire task completed after the timeout
+                // won the race, the lock may have been acquired anyway.
+                // Release defensively to prevent lock leaks.
+                await lockManager.release(taskId: capturedTaskId)
                 NSLog("[OrchestratorMainLoop] Lock acquisition timed out for task %@ after %dms, skipping this tick", task.taskId, lockTimeoutMs)
                 await scheduler.markWaiting(task.taskId)
                 continue
