@@ -122,9 +122,9 @@ private extension CodebaseIndexSettingsSection {
     var vectorSearchGroup: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Vector Search (beta)", isOn: $indexConfig.vectorSearchEnabled)
+                Toggle("Vector Search", isOn: $indexConfig.vectorSearchEnabled)
                     .toggleStyle(.switch)
-                settingsHintBox("Enable pgvector-based semantic search using local CoreML embeddings (all-MiniLM-L6-v2, 384 dim). Requires pgvector installed via Homebrew. Everything runs locally — no data leaves your machine.")
+                settingsHintBox("Semantic search using local CoreML embeddings. Everything runs locally — no data leaves your machine.")
             }
         }
     }
@@ -132,9 +132,9 @@ private extension CodebaseIndexSettingsSection {
     var trigramIndexGroup: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Instant Grep Index (beta)", isOn: $indexConfig.trigramIndexEnabled)
+                Toggle("Instant Grep Index", isOn: $indexConfig.trigramIndexEnabled)
                     .toggleStyle(.switch)
-                settingsHintBox("Build a trigram inverted index for instant grep searches. Drops search time from seconds to milliseconds on large codebases. Index is built in the background via Rust.")
+                settingsHintBox("Trigram inverted index for instant grep. Drops search time from seconds to milliseconds on large codebases.")
             }
         }
     }

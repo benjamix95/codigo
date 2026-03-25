@@ -26,6 +26,8 @@ public final class PostgresPersistenceStore {
                 return
             }
             _ = try postgresService.bootstrapIfNeeded()
+            // Auto-install pgvector if not present (before migration runs CREATE EXTENSION).
+            PgVectorInstaller.ensureInstalled()
             let currentVersion = try schemaVersion()
             if currentVersion < PersistenceSchema.version {
                 _ = try postgresService.runPSQL(

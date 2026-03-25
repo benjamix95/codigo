@@ -105,6 +105,6 @@ struct SettingsIndexConfig: DynamicProperty {
     @AppStorage("codebase_index_excluded_paths") var codebaseIndexExcludedPaths = ""
     @AppStorage("codebase_index_respect_gitignore") var codebaseIndexRespectGitignore = true
     @AppStorage("codebase_index_excluded_file_patterns") var codebaseIndexExcludedFilePatterns = ""
-    @AppStorage("vector_search_enabled") var vectorSearchEnabled = false
-    @AppStorage("trigram_index_enabled") var trigramIndexEnabled = false
+    @AppStorage("vector_search_enabled") var vectorSearchEnabled = true
+    @AppStorage("trigram_index_enabled") var trigramIndexEnabled = true
 }
