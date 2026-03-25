@@ -1,5 +1,6 @@
 import AppKit
 import CoderEngine
+import Darwin
 import Foundation
 
 extension Notification.Name {
@@ -16,6 +17,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Ignore SIGHUP: when the user presses Stop, the child CLI process
+        // is terminated and the system may deliver SIGHUP to the parent app
+        // (e.g. when a pipe-connected subprocess exits). Without this, the
+        // signal interrupts an in-flight Dictionary operation causing a crash
+        // in Swift stdlib's hashProbe. Same pattern as SIGPIPE in MCPTransportFactory.
+        signal(SIGHUP, SIG_IGN)
+
         NSApplication.shared.setActivationPolicy(.regular)
         disableWindowRestorationLoop()
         logRustRuntimeStatus()
