@@ -33,6 +33,11 @@ extension ChatPanelView {
             return autoCodeReviewRequest.prefersCodeReviewRuntimeProvider ? true : nil
         }()
         if forcePlanInline { planToggleEnabled = true }
+        // Stop voice recording if active so the current partial text is kept.
+        if voiceInputController.state == .listening {
+            voiceInputController.stop()
+            voicePrefixText = nil
+        }
         guard !text.isEmpty || !attachedComposerAttachments.isEmpty else {
             return
         }
