@@ -7,150 +7,150 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0072BB456ED992246AC0CE57 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A82FA4DB344A37CD8F812274 /* Cocoa.framework */; };
-		01E6FC213F41EF46A8B7A6AB /* CoderEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */; };
-		0E0FF4158E7157C01B197CFD /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A82FA4DB344A37CD8F812274 /* Cocoa.framework */; };
-		293F7F407374B8AA6D54FDFE /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A82FA4DB344A37CD8F812274 /* Cocoa.framework */; };
-		2BAD635D9756A25DFD90191A /* CoderIDEMCPServerExecutable in Embed Helper */ = {isa = PBXBuildFile; fileRef = 2B5E0623FD64959DD5EDA0ED /* CoderIDEMCPServerExecutable */; };
-		3E37D8BF9FEB903DC4DEAD4C /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = CC94051BFCA6864D4E301D3A /* MCP */; };
-		439CADC1FE204D5341A908A1 /* CoderIDEMCPServer.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3A3986F7EACF41BF7888E341 /* CoderIDEMCPServer.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		474122738A14CA82F7231461 /* CoderEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		4E3EDA677E48B1CF9418AD23 /* browser-bridge.js in Resources */ = {isa = PBXBuildFile; fileRef = A2AEC964260221742332422A /* browser-bridge.js */; };
-		532BD1F50B26CB113063F139 /* CoderEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */; };
-		7386A3A8FA08062ED9856941 /* SoloCode.icns in Resources */ = {isa = PBXBuildFile; fileRef = 8E387366A40B6CBE6EBE8732 /* SoloCode.icns */; };
-		7DC6089FD5F78E072F6136FC /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A82FA4DB344A37CD8F812274 /* Cocoa.framework */; };
-		81733564DAB9D0B68B5A4DDE /* CoderEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */; };
-		8EBEB640018C7AED2E1B96EE /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = E34F070AAE12D86F5A7ECC0D /* MCP */; };
-		9299BF7CD2B8B979C841BCAC /* CoderEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		92C946494B98C47DD1062BC7 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 1ED7FDD665ABD34417B51137 /* Fonts */; };
-		A31A71F26E129C71BDEDFAA7 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A82FA4DB344A37CD8F812274 /* Cocoa.framework */; };
-		A4E5CA4A3B923A133608BBB6 /* AppLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = 98EA040DF4B43A0D97DBB91D /* AppLogo.png */; };
-		A52E832B70C702ED243A8686 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A82FA4DB344A37CD8F812274 /* Cocoa.framework */; };
-		AFAA85B3D856027B5271DAE8 /* CoderEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */; };
-		B48198DEE7786C1685F32212 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 4C85F2D83D683AE8941AEEC4 /* SwiftTerm */; };
-		C0D2701BCBAE25D2917A453D /* CoderIDEMCPServer.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3A3986F7EACF41BF7888E341 /* CoderIDEMCPServer.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		C23DF06455D642D77AB44358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0245FDB02ADABFE07F3489BC /* Assets.xcassets */; };
-		D0D5F8BC7D0A89CA6B22BF99 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A82FA4DB344A37CD8F812274 /* Cocoa.framework */; };
-		D0DA8A0648A8AD2ACC53ED6C /* CoderIDEMCPServer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A3986F7EACF41BF7888E341 /* CoderIDEMCPServer.framework */; };
-		D19323A40C6B625D4B430143 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = B784E3FB74F22DB7E47631C7 /* Logging */; };
-		DEBD47C6ACBDB6EAD8AC8BA8 /* monaco in Resources */ = {isa = PBXBuildFile; fileRef = CF2AE4786EED6FCA69A17AB9 /* monaco */; };
-		F1529CC2FA02D97BED28BA87 /* CoderIDEMCPServer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A3986F7EACF41BF7888E341 /* CoderIDEMCPServer.framework */; };
-		F976C40D904B3021A1484D6F /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = A67E5CF17CCA65FF706213C4 /* MCP */; };
-		FA2487F93F0717E285D60831 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 5502599DB57915A06EBE166E /* MCP */; };
+		0334692C484176CADC0361A5 /* CoderIDEMCPServer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9AECE97BD011FAF88D8EA9B /* CoderIDEMCPServer.framework */; };
+		0DAAA40977EE43D367A143A2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9CF7B024E63900B08E2FAA60 /* Assets.xcassets */; };
+		15F16E2A6A9A7E60B9F2F89E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EE2AF91D1269EDAB6963916 /* Cocoa.framework */; };
+		16394F082C03F98F425DCCFD /* CoderIDEMCPServer.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9AECE97BD011FAF88D8EA9B /* CoderIDEMCPServer.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		294BB657E722ECC97F514DAC /* CoderEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 1347B89701EF84A226A41FDF /* CoderEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		2FC993822729507697FECAF4 /* CoderEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 1347B89701EF84A226A41FDF /* CoderEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		3FEF12EA9B5FCA5011C3F0DB /* CoderEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1347B89701EF84A226A41FDF /* CoderEngine.framework */; };
+		417BF4EB0EB5F1ABBAE3D319 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EE2AF91D1269EDAB6963916 /* Cocoa.framework */; };
+		4A7068DE78BFA2508E2E4160 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EE2AF91D1269EDAB6963916 /* Cocoa.framework */; };
+		4C919E50C93C5B26775E7F28 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 1D373E9120DC259F9CF5FFA4 /* Fonts */; };
+		59B23FC3C5A9235EBC4EA1FB /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 04D8506A2D04E3DBA93CE8D5 /* Logging */; };
+		69A80EB5860D5F638187207D /* CoderIDEMCPServer.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9AECE97BD011FAF88D8EA9B /* CoderIDEMCPServer.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		75BEC830ADBB47D89F445242 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EE2AF91D1269EDAB6963916 /* Cocoa.framework */; };
+		93649C3437703A8C77C9FA26 /* CoderEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1347B89701EF84A226A41FDF /* CoderEngine.framework */; };
+		93F0793FEBCED52EB0634420 /* CoderIDEMCPServer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9AECE97BD011FAF88D8EA9B /* CoderIDEMCPServer.framework */; };
+		9AD112813DC3CA88A133EDEF /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EE2AF91D1269EDAB6963916 /* Cocoa.framework */; };
+		A4153D8EEB56CA875F87C85A /* CoderEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1347B89701EF84A226A41FDF /* CoderEngine.framework */; };
+		BEE3B7C8F2E4C26F144A2221 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 64554696CD6DC6500BB5AD9E /* MCP */; };
+		C98A2C64E2718174A78A3DCF /* CoderEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1347B89701EF84A226A41FDF /* CoderEngine.framework */; };
+		CD45ADDD9C43C26F5F09F793 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 6B96872E0F1EDFDA52105396 /* MCP */; };
+		D08BCBC72D172C0BE7DD982F /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 8A5064AA47230D088C3836E8 /* SwiftTerm */; };
+		D6F7DE3407DF51BA11B66722 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 5466A1DE6ECFE4B6FAC6CF16 /* MCP */; };
+		D9D214869D4742481F79458B /* CoderIDEMCPServerExecutable in Embed Helper */ = {isa = PBXBuildFile; fileRef = D641206288BC585BAEBE19D5 /* CoderIDEMCPServerExecutable */; };
+		DFFC61F8E4456ACF56B6053F /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EE2AF91D1269EDAB6963916 /* Cocoa.framework */; };
+		E9A1E546C66355B4A2090C67 /* browser-bridge.js in Resources */ = {isa = PBXBuildFile; fileRef = 8F00380F02098672D2A02EF9 /* browser-bridge.js */; };
+		EB4CB18FD50D9EA904DEE146 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 88D4D622E7ABB701B136EFF5 /* MCP */; };
+		F259E41A71FAE76ED5D9C450 /* AppLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = 0585770B3B3087FEBA47AB04 /* AppLogo.png */; };
+		F2CE6EC39D1FD564EE1A0E08 /* SoloCode.icns in Resources */ = {isa = PBXBuildFile; fileRef = EFD0E50D121E8F84F154F05A /* SoloCode.icns */; };
+		F8FE7DD3CED79FE7C344F832 /* monaco in Resources */ = {isa = PBXBuildFile; fileRef = 23DDB2E373D086A64B10DF62 /* monaco */; };
+		FEC6D8444B40BC37F8775D86 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EE2AF91D1269EDAB6963916 /* Cocoa.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		14E5D51077460F83BC19620C /* PBXContainerItemProxy */ = {
+		4098476A4EE1C49A0D85FCFD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 1A79CD1D463EE8CD8C74D94E;
+			remoteGlobalIDString = 55EE155411832EABE05EE16E;
+			remoteInfo = CoderEngine;
+		};
+		546F009B74A357E62A9FB620 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 55EE155411832EABE05EE16E;
+			remoteInfo = CoderEngine;
+		};
+		56AC47FDD532EB809ABADA4E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 55EE155411832EABE05EE16E;
+			remoteInfo = CoderEngine;
+		};
+		81D4AFC942BE80D77151A83B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 55EE155411832EABE05EE16E;
+			remoteInfo = CoderEngine;
+		};
+		84E39E42A5F757A162FF3D64 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B35D5B9362186609978A1F2A;
 			remoteInfo = CoderIDEMCPServerExecutable;
 		};
-		2A0D11D34F3064B228225248 /* PBXContainerItemProxy */ = {
+		915EB095F44F31A31C49EA55 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 34484BF87146C904BCF60414;
-			remoteInfo = CoderIDEMCPServer;
-		};
-		328B01D60737DC18C248D019 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 507DC6C743EE26AF930E03A9;
+			remoteGlobalIDString = AF26E3A87625FF77925DBF93;
 			remoteInfo = "Solo Code";
 		};
-		3735B4987D125A2544D4E115 /* PBXContainerItemProxy */ = {
+		A7848FE69F19E4BADBF5629C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 34484BF87146C904BCF60414;
+			remoteGlobalIDString = D061CBA82DEB5C49EDD5994C;
 			remoteInfo = CoderIDEMCPServer;
 		};
-		62A2258F175AF9ED99AB73F3 /* PBXContainerItemProxy */ = {
+		AD5A812A888D9CA15896B106 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 9459BFB5C02A6CA9861A7298;
-			remoteInfo = CoderEngine;
-		};
-		82D92201201ACCFC62FEB3D4 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 9459BFB5C02A6CA9861A7298;
-			remoteInfo = CoderEngine;
-		};
-		A0CBC2BB3A0E9CEAF05D3F1E /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 507DC6C743EE26AF930E03A9;
+			remoteGlobalIDString = AF26E3A87625FF77925DBF93;
 			remoteInfo = "Solo Code";
 		};
-		A42604F6E1F7946BB53B3F4D /* PBXContainerItemProxy */ = {
+		B18CA6571E93A39DA09CA897 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 9459BFB5C02A6CA9861A7298;
-			remoteInfo = CoderEngine;
-		};
-		B35DC093C2B37AE0F09FBB20 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 9459BFB5C02A6CA9861A7298;
-			remoteInfo = CoderEngine;
-		};
-		B493B5AED49414632171AF58 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 34484BF87146C904BCF60414;
+			remoteGlobalIDString = D061CBA82DEB5C49EDD5994C;
 			remoteInfo = CoderIDEMCPServer;
 		};
-		C72DEA2929F5F81199309119 /* PBXContainerItemProxy */ = {
+		F4968B7A696C9F35A1874771 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 208DD1926DF7E94EC1C00EB5 /* Project object */;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 9459BFB5C02A6CA9861A7298;
+			remoteGlobalIDString = D061CBA82DEB5C49EDD5994C;
+			remoteInfo = CoderIDEMCPServer;
+		};
+		F97020CCA3DEC1A1A3C08C37 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 689B5E59D1FF71D289DA51BB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 55EE155411832EABE05EE16E;
 			remoteInfo = CoderEngine;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		25DA6FC2E92DA270415002BD /* Embed Frameworks */ = {
+		969C977FE59A787117E672DE /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				9299BF7CD2B8B979C841BCAC /* CoderEngine.framework in Embed Frameworks */,
-				C0D2701BCBAE25D2917A453D /* CoderIDEMCPServer.framework in Embed Frameworks */,
+				2FC993822729507697FECAF4 /* CoderEngine.framework in Embed Frameworks */,
+				69A80EB5860D5F638187207D /* CoderIDEMCPServer.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3D662A679AE7127A54BEC419 /* Embed Helper */ = {
+		9C5FF402DF86C453EEDF34BA /* Embed Helper */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
-				2BAD635D9756A25DFD90191A /* CoderIDEMCPServerExecutable in Embed Helper */,
+				D9D214869D4742481F79458B /* CoderIDEMCPServerExecutable in Embed Helper */,
 			);
 			name = "Embed Helper";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4019D6997AF59797F851D065 /* Embed Frameworks */ = {
+		CF3DF13427441C8A4D130AB5 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				474122738A14CA82F7231461 /* CoderEngine.framework in Embed Frameworks */,
-				439CADC1FE204D5341A908A1 /* CoderIDEMCPServer.framework in Embed Frameworks */,
+				294BB657E722ECC97F514DAC /* CoderEngine.framework in Embed Frameworks */,
+				16394F082C03F98F425DCCFD /* CoderIDEMCPServer.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -158,264 +158,264 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0245FDB02ADABFE07F3489BC /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = App/SoloCodeApp/Resources/Assets.xcassets; sourceTree = "<group>"; };
-		1ED7FDD665ABD34417B51137 /* Fonts */ = {isa = PBXFileReference; includeInIndex = 1; name = Fonts; path = App/SoloCodeApp/Resources/Fonts; sourceTree = "<group>"; };
-		22B2E8A29EB5FA46EF3C81FE /* SoloCodeAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SoloCodeAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		2B5E0623FD64959DD5EDA0ED /* CoderIDEMCPServerExecutable */ = {isa = PBXFileReference; includeInIndex = 0; path = CoderIDEMCPServerExecutable; sourceTree = BUILT_PRODUCTS_DIR; };
-		3A3986F7EACF41BF7888E341 /* CoderIDEMCPServer.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CoderIDEMCPServer.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		6AD7FE691E45FF066A02D65D /* Framework.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Framework.xcconfig; path = Config/xcconfigs/Framework.xcconfig; sourceTree = "<group>"; };
-		750BB7AF56A654F2D8F8B5CF /* Tests.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Tests.xcconfig; path = Config/xcconfigs/Tests.xcconfig; sourceTree = "<group>"; };
-		8E387366A40B6CBE6EBE8732 /* SoloCode.icns */ = {isa = PBXFileReference; includeInIndex = 1; name = SoloCode.icns; path = App/SoloCodeApp/Resources/SoloCode.icns; sourceTree = "<group>"; };
-		965F5214B256484EC36F4D2E /* App.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = App.xcconfig; path = Config/xcconfigs/App.xcconfig; sourceTree = "<group>"; };
-		98EA040DF4B43A0D97DBB91D /* AppLogo.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = AppLogo.png; path = App/SoloCodeApp/Resources/AppLogo.png; sourceTree = "<group>"; };
-		990CCD6DF1B0F6AA520981CD /* Solo Code.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Solo Code.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		A2AEC964260221742332422A /* browser-bridge.js */ = {isa = PBXFileReference; includeInIndex = 1; name = "browser-bridge.js"; path = "App/SoloCodeApp/Resources/browser-bridge.js"; sourceTree = "<group>"; };
-		A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CoderEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		A82FA4DB344A37CD8F812274 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
-		AB25ACCA0E987D4E821F6147 /* CoderEngineTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoderEngineTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		C1039B1EBD83EA49E1FBEC50 /* SoloCodeIntegrationTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SoloCodeIntegrationTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		CF2AE4786EED6FCA69A17AB9 /* monaco */ = {isa = PBXFileReference; includeInIndex = 1; name = monaco; path = App/SoloCodeApp/Resources/monaco; sourceTree = "<group>"; };
-		E02EF9DB7236141C235AD814 /* Tool.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Tool.xcconfig; path = Config/xcconfigs/Tool.xcconfig; sourceTree = "<group>"; };
+		0585770B3B3087FEBA47AB04 /* AppLogo.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = AppLogo.png; path = App/SoloCodeApp/Resources/AppLogo.png; sourceTree = "<group>"; };
+		0D952014889F351F918EF632 /* SoloCodeIntegrationTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SoloCodeIntegrationTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1347B89701EF84A226A41FDF /* CoderEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CoderEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		1D373E9120DC259F9CF5FFA4 /* Fonts */ = {isa = PBXFileReference; includeInIndex = 1; name = Fonts; path = App/SoloCodeApp/Resources/Fonts; sourceTree = "<group>"; };
+		1E37356BA8FD3563912E0334 /* CoderEngineTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoderEngineTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1EE2AF91D1269EDAB6963916 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		23DDB2E373D086A64B10DF62 /* monaco */ = {isa = PBXFileReference; includeInIndex = 1; name = monaco; path = App/SoloCodeApp/Resources/monaco; sourceTree = "<group>"; };
+		5F660F7A9A19B4894C17A736 /* Tool.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Tool.xcconfig; path = Config/xcconfigs/Tool.xcconfig; sourceTree = "<group>"; };
+		639B72827CDD0D5E494F7236 /* App.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = App.xcconfig; path = Config/xcconfigs/App.xcconfig; sourceTree = "<group>"; };
+		8F00380F02098672D2A02EF9 /* browser-bridge.js */ = {isa = PBXFileReference; includeInIndex = 1; name = "browser-bridge.js"; path = "App/SoloCodeApp/Resources/browser-bridge.js"; sourceTree = "<group>"; };
+		9CF7B024E63900B08E2FAA60 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = App/SoloCodeApp/Resources/Assets.xcassets; sourceTree = "<group>"; };
+		B65354C3BA30FE21E6326558 /* Tests.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Tests.xcconfig; path = Config/xcconfigs/Tests.xcconfig; sourceTree = "<group>"; };
+		B9AECE97BD011FAF88D8EA9B /* CoderIDEMCPServer.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CoderIDEMCPServer.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		D641206288BC585BAEBE19D5 /* CoderIDEMCPServerExecutable */ = {isa = PBXFileReference; includeInIndex = 0; path = CoderIDEMCPServerExecutable; sourceTree = BUILT_PRODUCTS_DIR; };
+		E05C6823990AA9F6B78AF38C /* SoloCodeAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SoloCodeAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E93EF75CA26DB098C081C353 /* Framework.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Framework.xcconfig; path = Config/xcconfigs/Framework.xcconfig; sourceTree = "<group>"; };
+		EFD0E50D121E8F84F154F05A /* SoloCode.icns */ = {isa = PBXFileReference; includeInIndex = 1; name = SoloCode.icns; path = App/SoloCodeApp/Resources/SoloCode.icns; sourceTree = "<group>"; };
+		FB16ACD5460CAE2B486A38E6 /* Solo Code.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Solo Code.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		17D84813D09D9F461056E102 /* Tests/SoloCodeIntegrationTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			path = Tests/SoloCodeIntegrationTests;
-			sourceTree = "<group>";
-		};
-		1F46E4A97FDDB14159B80061 /* Tools/CoderIDEMCPServerExecutable/Sources */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			path = Tools/CoderIDEMCPServerExecutable/Sources;
-			sourceTree = "<group>";
-		};
-		43CD8DDFFFDCA15A891F4A53 /* App/SoloCodeApp/Sources */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			path = App/SoloCodeApp/Sources;
-			sourceTree = "<group>";
-		};
-		4F908AB82FAD2D37384A6AFB /* Tests/SoloCodeAppTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			path = Tests/SoloCodeAppTests;
-			sourceTree = "<group>";
-		};
-		81A8469538B199C7D7300C8C /* Tests/CoderEngineTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			path = Tests/CoderEngineTests;
-			sourceTree = "<group>";
-		};
-		C09587672B66BBF7D2F15628 /* Engine/CoderEngine/Sources */ = {
+		422B2011428A8E9BD4F80580 /* Engine/CoderEngine/Sources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 			);
 			path = Engine/CoderEngine/Sources;
 			sourceTree = "<group>";
 		};
-		C96DAFE9C7D36658908E1525 /* Tools/CoderIDEMCPServer/Sources */ = {
+		671BE051FDE1641D6A4D05FA /* Tests/SoloCodeIntegrationTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = Tests/SoloCodeIntegrationTests;
+			sourceTree = "<group>";
+		};
+		7B51DF6CFAFAB87892B31981 /* Tests/CoderEngineTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = Tests/CoderEngineTests;
+			sourceTree = "<group>";
+		};
+		BAD8DDD3A939E39EEFBB3CAB /* Tools/CoderIDEMCPServerExecutable/Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = Tools/CoderIDEMCPServerExecutable/Sources;
+			sourceTree = "<group>";
+		};
+		C84082BE65955CD4DB795E15 /* Tools/CoderIDEMCPServer/Sources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 			);
 			path = Tools/CoderIDEMCPServer/Sources;
 			sourceTree = "<group>";
 		};
+		F51D301ED26BA717013208C6 /* App/SoloCodeApp/Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = App/SoloCodeApp/Sources;
+			sourceTree = "<group>";
+		};
+		F85E57CE11500794995A8279 /* Tests/SoloCodeAppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = Tests/SoloCodeAppTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		81839CF10EEC9374AA203A5E /* Frameworks */ = {
+		01043439E85ED5D24FE3A7A0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				293F7F407374B8AA6D54FDFE /* Cocoa.framework in Frameworks */,
+				75BEC830ADBB47D89F445242 /* Cocoa.framework in Frameworks */,
+				CD45ADDD9C43C26F5F09F793 /* MCP in Frameworks */,
+				C98A2C64E2718174A78A3DCF /* CoderEngine.framework in Frameworks */,
+				0334692C484176CADC0361A5 /* CoderIDEMCPServer.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AE94012E2B116FFCFCD5CE06 /* Frameworks */ = {
+		4D122E1A9AB3A04658B08974 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7DC6089FD5F78E072F6136FC /* Cocoa.framework in Frameworks */,
-				8EBEB640018C7AED2E1B96EE /* MCP in Frameworks */,
-				AFAA85B3D856027B5271DAE8 /* CoderEngine.framework in Frameworks */,
-				D0DA8A0648A8AD2ACC53ED6C /* CoderIDEMCPServer.framework in Frameworks */,
+				4A7068DE78BFA2508E2E4160 /* Cocoa.framework in Frameworks */,
+				D08BCBC72D172C0BE7DD982F /* SwiftTerm in Frameworks */,
+				A4153D8EEB56CA875F87C85A /* CoderEngine.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		CCA9D356FCB3DF76B838E119 /* Frameworks */ = {
+		5E6BD59062D02AC42256B6A2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0072BB456ED992246AC0CE57 /* Cocoa.framework in Frameworks */,
-				B48198DEE7786C1685F32212 /* SwiftTerm in Frameworks */,
-				01E6FC213F41EF46A8B7A6AB /* CoderEngine.framework in Frameworks */,
+				15F16E2A6A9A7E60B9F2F89E /* Cocoa.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F3F9BB7E46F4B6D67B0F1667 /* Frameworks */ = {
+		74851C23D1E9D2AF88B33535 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D0D5F8BC7D0A89CA6B22BF99 /* Cocoa.framework in Frameworks */,
+				DFFC61F8E4456ACF56B6053F /* Cocoa.framework in Frameworks */,
+				EB4CB18FD50D9EA904DEE146 /* MCP in Frameworks */,
+				59B23FC3C5A9235EBC4EA1FB /* Logging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F801C39CC705D3D608D4505B /* Frameworks */ = {
+		9594E7554DA835F635D05AF9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0E0FF4158E7157C01B197CFD /* Cocoa.framework in Frameworks */,
-				FA2487F93F0717E285D60831 /* MCP in Frameworks */,
-				81733564DAB9D0B68B5A4DDE /* CoderEngine.framework in Frameworks */,
+				9AD112813DC3CA88A133EDEF /* Cocoa.framework in Frameworks */,
+				D6F7DE3407DF51BA11B66722 /* MCP in Frameworks */,
+				3FEF12EA9B5FCA5011C3F0DB /* CoderEngine.framework in Frameworks */,
+				93F0793FEBCED52EB0634420 /* CoderIDEMCPServer.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		FC7C8181F0DB8621C3BF79F0 /* Frameworks */ = {
+		A19FC43B26138C77E3102BC3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A31A71F26E129C71BDEDFAA7 /* Cocoa.framework in Frameworks */,
-				F976C40D904B3021A1484D6F /* MCP in Frameworks */,
-				532BD1F50B26CB113063F139 /* CoderEngine.framework in Frameworks */,
-				F1529CC2FA02D97BED28BA87 /* CoderIDEMCPServer.framework in Frameworks */,
+				FEC6D8444B40BC37F8775D86 /* Cocoa.framework in Frameworks */,
+				BEE3B7C8F2E4C26F144A2221 /* MCP in Frameworks */,
+				93649C3437703A8C77C9FA26 /* CoderEngine.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		FDCFC3BC2183C435C37B086F /* Frameworks */ = {
+		F00D4999F13631CB57F51022 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A52E832B70C702ED243A8686 /* Cocoa.framework in Frameworks */,
-				3E37D8BF9FEB903DC4DEAD4C /* MCP in Frameworks */,
-				D19323A40C6B625D4B430143 /* Logging in Frameworks */,
+				417BF4EB0EB5F1ABBAE3D319 /* Cocoa.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		3C41FE5C2C5C32D8E5CE8121 /* App */ = {
-			isa = PBXGroup;
-			children = (
-				43CD8DDFFFDCA15A891F4A53 /* App/SoloCodeApp/Sources */,
-				0245FDB02ADABFE07F3489BC /* Assets.xcassets */,
-				98EA040DF4B43A0D97DBB91D /* AppLogo.png */,
-				8E387366A40B6CBE6EBE8732 /* SoloCode.icns */,
-				A2AEC964260221742332422A /* browser-bridge.js */,
-				1ED7FDD665ABD34417B51137 /* Fonts */,
-				CF2AE4786EED6FCA69A17AB9 /* monaco */,
-			);
-			name = App;
-			sourceTree = "<group>";
-		};
-		487AB484C62D1827142E54DC /* OS X */ = {
-			isa = PBXGroup;
-			children = (
-				A82FA4DB344A37CD8F812274 /* Cocoa.framework */,
-			);
-			name = "OS X";
-			sourceTree = "<group>";
-		};
-		496DE0A8C784675BA0AE9526 /* Tests */ = {
-			isa = PBXGroup;
-			children = (
-				4F908AB82FAD2D37384A6AFB /* Tests/SoloCodeAppTests */,
-				81A8469538B199C7D7300C8C /* Tests/CoderEngineTests */,
-				17D84813D09D9F461056E102 /* Tests/SoloCodeIntegrationTests */,
-			);
-			name = Tests;
-			sourceTree = "<group>";
-		};
-		67857AA712C60798E720CF5C /* Tools */ = {
-			isa = PBXGroup;
-			children = (
-				C96DAFE9C7D36658908E1525 /* Tools/CoderIDEMCPServer/Sources */,
-				1F46E4A97FDDB14159B80061 /* Tools/CoderIDEMCPServerExecutable/Sources */,
-			);
-			name = Tools;
-			sourceTree = "<group>";
-		};
-		71FEDF9942B31572E33E0896 = {
-			isa = PBXGroup;
-			children = (
-				AD537AFC66DB166276FD9116 /* Products */,
-				B2555F7A86199D436875265C /* Frameworks */,
-				3C41FE5C2C5C32D8E5CE8121 /* App */,
-				79D0E6CF928B50DB707F5032 /* Engine */,
-				67857AA712C60798E720CF5C /* Tools */,
-				496DE0A8C784675BA0AE9526 /* Tests */,
-				B5286BFF2BE501C123B91C16 /* Config */,
-				A8B958A623ECC22C7FD6A653 /* Scripts */,
-				965F5214B256484EC36F4D2E /* App.xcconfig */,
-				6AD7FE691E45FF066A02D65D /* Framework.xcconfig */,
-				E02EF9DB7236141C235AD814 /* Tool.xcconfig */,
-				750BB7AF56A654F2D8F8B5CF /* Tests.xcconfig */,
-			);
-			sourceTree = "<group>";
-		};
-		79D0E6CF928B50DB707F5032 /* Engine */ = {
-			isa = PBXGroup;
-			children = (
-				C09587672B66BBF7D2F15628 /* Engine/CoderEngine/Sources */,
-			);
-			name = Engine;
-			sourceTree = "<group>";
-		};
-		A8B958A623ECC22C7FD6A653 /* Scripts */ = {
+		109BA4B4E3CE7EC8C42E987F /* Scripts */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			name = Scripts;
 			sourceTree = "<group>";
 		};
-		AD537AFC66DB166276FD9116 /* Products */ = {
+		1747180617E10D2956FFC981 /* OS X */ = {
 			isa = PBXGroup;
 			children = (
-				990CCD6DF1B0F6AA520981CD /* Solo Code.app */,
-				A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */,
-				3A3986F7EACF41BF7888E341 /* CoderIDEMCPServer.framework */,
-				2B5E0623FD64959DD5EDA0ED /* CoderIDEMCPServerExecutable */,
-				22B2E8A29EB5FA46EF3C81FE /* SoloCodeAppTests.xctest */,
-				AB25ACCA0E987D4E821F6147 /* CoderEngineTests.xctest */,
-				C1039B1EBD83EA49E1FBEC50 /* SoloCodeIntegrationTests.xctest */,
+				1EE2AF91D1269EDAB6963916 /* Cocoa.framework */,
 			);
-			name = Products;
+			name = "OS X";
 			sourceTree = "<group>";
 		};
-		B2555F7A86199D436875265C /* Frameworks */ = {
+		47C37A3383CC61B603F13CD1 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				487AB484C62D1827142E54DC /* OS X */,
+				1747180617E10D2956FFC981 /* OS X */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		B5286BFF2BE501C123B91C16 /* Config */ = {
+		5A2CD69E8FEE51A2A7ABF8F7 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F51D301ED26BA717013208C6 /* App/SoloCodeApp/Sources */,
+				9CF7B024E63900B08E2FAA60 /* Assets.xcassets */,
+				0585770B3B3087FEBA47AB04 /* AppLogo.png */,
+				EFD0E50D121E8F84F154F05A /* SoloCode.icns */,
+				8F00380F02098672D2A02EF9 /* browser-bridge.js */,
+				1D373E9120DC259F9CF5FFA4 /* Fonts */,
+				23DDB2E373D086A64B10DF62 /* monaco */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		62A1D4E713D4050A72D0E28C = {
+			isa = PBXGroup;
+			children = (
+				FF71EEFE88389A4B730B6F04 /* Products */,
+				47C37A3383CC61B603F13CD1 /* Frameworks */,
+				5A2CD69E8FEE51A2A7ABF8F7 /* App */,
+				A2B057DD6F85552552488360 /* Engine */,
+				853028FDDA987FB7E16F06E9 /* Tools */,
+				A016473D76E74F9CB257DF5C /* Tests */,
+				B0A782DD7B619C110B26C48B /* Config */,
+				109BA4B4E3CE7EC8C42E987F /* Scripts */,
+				639B72827CDD0D5E494F7236 /* App.xcconfig */,
+				E93EF75CA26DB098C081C353 /* Framework.xcconfig */,
+				5F660F7A9A19B4894C17A736 /* Tool.xcconfig */,
+				B65354C3BA30FE21E6326558 /* Tests.xcconfig */,
+			);
+			sourceTree = "<group>";
+		};
+		853028FDDA987FB7E16F06E9 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				C84082BE65955CD4DB795E15 /* Tools/CoderIDEMCPServer/Sources */,
+				BAD8DDD3A939E39EEFBB3CAB /* Tools/CoderIDEMCPServerExecutable/Sources */,
+			);
+			name = Tools;
+			sourceTree = "<group>";
+		};
+		A016473D76E74F9CB257DF5C /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				F85E57CE11500794995A8279 /* Tests/SoloCodeAppTests */,
+				7B51DF6CFAFAB87892B31981 /* Tests/CoderEngineTests */,
+				671BE051FDE1641D6A4D05FA /* Tests/SoloCodeIntegrationTests */,
+			);
+			name = Tests;
+			sourceTree = "<group>";
+		};
+		A2B057DD6F85552552488360 /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				422B2011428A8E9BD4F80580 /* Engine/CoderEngine/Sources */,
+			);
+			name = Engine;
+			sourceTree = "<group>";
+		};
+		B0A782DD7B619C110B26C48B /* Config */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			name = Config;
 			sourceTree = "<group>";
 		};
+		FF71EEFE88389A4B730B6F04 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FB16ACD5460CAE2B486A38E6 /* Solo Code.app */,
+				1347B89701EF84A226A41FDF /* CoderEngine.framework */,
+				B9AECE97BD011FAF88D8EA9B /* CoderIDEMCPServer.framework */,
+				D641206288BC585BAEBE19D5 /* CoderIDEMCPServerExecutable */,
+				E05C6823990AA9F6B78AF38C /* SoloCodeAppTests.xctest */,
+				1E37356BA8FD3563912E0334 /* CoderEngineTests.xctest */,
+				0D952014889F351F918EF632 /* SoloCodeIntegrationTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
-		968A9A58F0FF64174855F4ED /* Headers */ = {
+		163222B35B0662D2E1B8C17A /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C8C15B9E99D3E090F442C8D8 /* Headers */ = {
+		D9D9B196FD912FF0419D7E85 /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -425,189 +425,190 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		1A79CD1D463EE8CD8C74D94E /* CoderIDEMCPServerExecutable */ = {
+		0AF291728365782309EE8892 /* CoderEngineTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A3621C6A9DBEBE27EDB2EE50 /* Build configuration list for PBXNativeTarget "CoderIDEMCPServerExecutable" */;
+			buildConfigurationList = EFABE923F3AF33F00091511B /* Build configuration list for PBXNativeTarget "CoderEngineTests" */;
 			buildPhases = (
-				743302125FA5564D16E574A5 /* Sources */,
-				AE94012E2B116FFCFCD5CE06 /* Frameworks */,
+				9A08D8D397118D61BCA2C1B8 /* Sources */,
+				9594E7554DA835F635D05AF9 /* Frameworks */,
+				93AF8ED9AA5A1F25BDA4B894 /* Resources */,
+				CF3DF13427441C8A4D130AB5 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				2E7CD7755CDDB5ACC3CDAAC0 /* PBXTargetDependency */,
-				0741FE5BFD886326512CE560 /* PBXTargetDependency */,
+				C07FFD1105C1AD8C6848454A /* PBXTargetDependency */,
+				A223BF5BD21F5D992BEB53B7 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				C96DAFE9C7D36658908E1525 /* Tools/CoderIDEMCPServer/Sources */,
-				1F46E4A97FDDB14159B80061 /* Tools/CoderIDEMCPServerExecutable/Sources */,
-			);
-			name = CoderIDEMCPServerExecutable;
-			packageProductDependencies = (
-				E34F070AAE12D86F5A7ECC0D /* MCP */,
-			);
-			productName = CoderIDEMCPServerExecutable;
-			productReference = 2B5E0623FD64959DD5EDA0ED /* CoderIDEMCPServerExecutable */;
-			productType = "com.apple.product-type.tool";
-		};
-		33D94119C77A8E695FB15BDD /* CoderEngineTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 46F79776513DFBED2BC518CE /* Build configuration list for PBXNativeTarget "CoderEngineTests" */;
-			buildPhases = (
-				ED24DE563D199D94CCB0334F /* Sources */,
-				FC7C8181F0DB8621C3BF79F0 /* Frameworks */,
-				FC02F6445A4E55E6289E27B2 /* Resources */,
-				4019D6997AF59797F851D065 /* Embed Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				CABAFCF3A7EC9B41E1CE9A55 /* PBXTargetDependency */,
-				0B41DADECE8EBC191205B67C /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				81A8469538B199C7D7300C8C /* Tests/CoderEngineTests */,
+				7B51DF6CFAFAB87892B31981 /* Tests/CoderEngineTests */,
 			);
 			name = CoderEngineTests;
 			packageProductDependencies = (
-				A67E5CF17CCA65FF706213C4 /* MCP */,
+				5466A1DE6ECFE4B6FAC6CF16 /* MCP */,
 			);
 			productName = CoderEngineTests;
-			productReference = AB25ACCA0E987D4E821F6147 /* CoderEngineTests.xctest */;
+			productReference = 1E37356BA8FD3563912E0334 /* CoderEngineTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		34484BF87146C904BCF60414 /* CoderIDEMCPServer */ = {
+		36577AA11656471F6C4E334A /* SoloCodeIntegrationTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C457BB8D208272EC5461A115 /* Build configuration list for PBXNativeTarget "CoderIDEMCPServer" */;
+			buildConfigurationList = C8A5E055FFC149687F7DD152 /* Build configuration list for PBXNativeTarget "SoloCodeIntegrationTests" */;
 			buildPhases = (
-				968A9A58F0FF64174855F4ED /* Headers */,
-				3D5063C0B65C58D9E129C819 /* Sources */,
-				F801C39CC705D3D608D4505B /* Frameworks */,
-				65A79FCEC43641D532764AEA /* Resources */,
+				63476F4A721AAB7136752E65 /* Sources */,
+				5E6BD59062D02AC42256B6A2 /* Frameworks */,
+				42820663BF16521AD21558DD /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				AAABCB6DC9F9064C447FF588 /* PBXTargetDependency */,
+				2C61FEEE868C0B0C59D756CE /* PBXTargetDependency */,
+				B6FE99DFF5E3B9061DAFBACC /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				C96DAFE9C7D36658908E1525 /* Tools/CoderIDEMCPServer/Sources */,
-			);
-			name = CoderIDEMCPServer;
-			packageProductDependencies = (
-				5502599DB57915A06EBE166E /* MCP */,
-			);
-			productName = CoderIDEMCPServer;
-			productReference = 3A3986F7EACF41BF7888E341 /* CoderIDEMCPServer.framework */;
-			productType = "com.apple.product-type.framework";
-		};
-		36C618BEC51BE6B4DD25A6F5 /* SoloCodeAppTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 3B128E67D51002087EB219CB /* Build configuration list for PBXNativeTarget "SoloCodeAppTests" */;
-			buildPhases = (
-				E2D6F5A2E2BACF46146721EF /* Sources */,
-				81839CF10EEC9374AA203A5E /* Frameworks */,
-				BE61799D809DE7BA5C55EFD7 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				7E8BC889094F28AEB5E32EA9 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				4F908AB82FAD2D37384A6AFB /* Tests/SoloCodeAppTests */,
-			);
-			name = SoloCodeAppTests;
-			productName = SoloCodeAppTests;
-			productReference = 22B2E8A29EB5FA46EF3C81FE /* SoloCodeAppTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		507DC6C743EE26AF930E03A9 /* Solo Code */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = BC6FBAC69E122D5D24387E4F /* Build configuration list for PBXNativeTarget "Solo Code" */;
-			buildPhases = (
-				BCC0B88E11EF5B67EE3087BD /* Sources */,
-				CCA9D356FCB3DF76B838E119 /* Frameworks */,
-				E74B90733D05C1738F4595CA /* Resources */,
-				25DA6FC2E92DA270415002BD /* Embed Frameworks */,
-				B8916EE6F6C575C05EF3EA77 /* Build Rust Review Core */,
-				3D662A679AE7127A54BEC419 /* Embed Helper */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				B568CC85173148E36337A7BF /* PBXTargetDependency */,
-				DE039D3BA49EE4710AE70B12 /* PBXTargetDependency */,
-				5E94797A2A5B6DEDA8C67308 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				43CD8DDFFFDCA15A891F4A53 /* App/SoloCodeApp/Sources */,
-			);
-			name = "Solo Code";
-			packageProductDependencies = (
-				4C85F2D83D683AE8941AEEC4 /* SwiftTerm */,
-			);
-			productName = "Solo Code";
-			productReference = 990CCD6DF1B0F6AA520981CD /* Solo Code.app */;
-			productType = "com.apple.product-type.application";
-		};
-		6553505F66A5608BE328D64C /* SoloCodeIntegrationTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F9A039C2EB28130EE54BCA83 /* Build configuration list for PBXNativeTarget "SoloCodeIntegrationTests" */;
-			buildPhases = (
-				758F22316CBBC95B11D93329 /* Sources */,
-				F3F9BB7E46F4B6D67B0F1667 /* Frameworks */,
-				5C2D26B9BCB2ED1EB1AA3CB1 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				7301768A141C51B4513BD3B9 /* PBXTargetDependency */,
-				4A5DE5C56FC7807550568C50 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				17D84813D09D9F461056E102 /* Tests/SoloCodeIntegrationTests */,
+				671BE051FDE1641D6A4D05FA /* Tests/SoloCodeIntegrationTests */,
 			);
 			name = SoloCodeIntegrationTests;
 			productName = SoloCodeIntegrationTests;
-			productReference = C1039B1EBD83EA49E1FBEC50 /* SoloCodeIntegrationTests.xctest */;
+			productReference = 0D952014889F351F918EF632 /* SoloCodeIntegrationTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		9459BFB5C02A6CA9861A7298 /* CoderEngine */ = {
+		55EE155411832EABE05EE16E /* CoderEngine */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D68E86585E26FD63B807EF27 /* Build configuration list for PBXNativeTarget "CoderEngine" */;
+			buildConfigurationList = D54CB7956FCF726B574E79E2 /* Build configuration list for PBXNativeTarget "CoderEngine" */;
 			buildPhases = (
-				C8C15B9E99D3E090F442C8D8 /* Headers */,
-				5087922CCA7469CAA39D3327 /* Sources */,
-				FDCFC3BC2183C435C37B086F /* Frameworks */,
-				1BB536481AE8366A7D93BFA8 /* Resources */,
+				D9D9B196FD912FF0419D7E85 /* Headers */,
+				4D10303066223DFD0C5E4A62 /* Sources */,
+				74851C23D1E9D2AF88B33535 /* Frameworks */,
+				E5CC7D12EFA48571835E1202 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				C09587672B66BBF7D2F15628 /* Engine/CoderEngine/Sources */,
+				422B2011428A8E9BD4F80580 /* Engine/CoderEngine/Sources */,
 			);
 			name = CoderEngine;
 			packageProductDependencies = (
-				CC94051BFCA6864D4E301D3A /* MCP */,
-				B784E3FB74F22DB7E47631C7 /* Logging */,
+				88D4D622E7ABB701B136EFF5 /* MCP */,
+				04D8506A2D04E3DBA93CE8D5 /* Logging */,
 			);
 			productName = CoderEngine;
-			productReference = A55DEB09E286C803CBD11BA8 /* CoderEngine.framework */;
+			productReference = 1347B89701EF84A226A41FDF /* CoderEngine.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		7CCC0314A5035256300684CC /* SoloCodeAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 469A6365E8CE766E136A0348 /* Build configuration list for PBXNativeTarget "SoloCodeAppTests" */;
+			buildPhases = (
+				39AF8FC16FFAA7392B51E3D5 /* Sources */,
+				F00D4999F13631CB57F51022 /* Frameworks */,
+				50BE88D548F8173224B0DCD9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C843DA44E752B2EA029F474E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F85E57CE11500794995A8279 /* Tests/SoloCodeAppTests */,
+			);
+			name = SoloCodeAppTests;
+			productName = SoloCodeAppTests;
+			productReference = E05C6823990AA9F6B78AF38C /* SoloCodeAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		AF26E3A87625FF77925DBF93 /* Solo Code */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 900D603A8F4E892DEA129657 /* Build configuration list for PBXNativeTarget "Solo Code" */;
+			buildPhases = (
+				8744F19F1E078E8073EACBE4 /* Sources */,
+				4D122E1A9AB3A04658B08974 /* Frameworks */,
+				FB8CD0766E9160CACC1AB0EA /* Resources */,
+				969C977FE59A787117E672DE /* Embed Frameworks */,
+				848DD7B553C4B6867E8BDE97 /* Build Rust Review Core */,
+				9C5FF402DF86C453EEDF34BA /* Embed Helper */,
+				1134599FF553C31B8818E894 /* Strip xattr before codesign */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5886278F6E58EF9BF43156CC /* PBXTargetDependency */,
+				D7A93E40E7480602B44DF21C /* PBXTargetDependency */,
+				C761242F2AAABFB9D22868F3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F51D301ED26BA717013208C6 /* App/SoloCodeApp/Sources */,
+			);
+			name = "Solo Code";
+			packageProductDependencies = (
+				8A5064AA47230D088C3836E8 /* SwiftTerm */,
+			);
+			productName = "Solo Code";
+			productReference = FB16ACD5460CAE2B486A38E6 /* Solo Code.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B35D5B9362186609978A1F2A /* CoderIDEMCPServerExecutable */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 53FF519E0E31741F039F9E5D /* Build configuration list for PBXNativeTarget "CoderIDEMCPServerExecutable" */;
+			buildPhases = (
+				B59262FC970A127471916B40 /* Sources */,
+				01043439E85ED5D24FE3A7A0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				60DDF52FC04644A6E82DF9C8 /* PBXTargetDependency */,
+				C215A1F26727E0616E9234CD /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C84082BE65955CD4DB795E15 /* Tools/CoderIDEMCPServer/Sources */,
+				BAD8DDD3A939E39EEFBB3CAB /* Tools/CoderIDEMCPServerExecutable/Sources */,
+			);
+			name = CoderIDEMCPServerExecutable;
+			packageProductDependencies = (
+				6B96872E0F1EDFDA52105396 /* MCP */,
+			);
+			productName = CoderIDEMCPServerExecutable;
+			productReference = D641206288BC585BAEBE19D5 /* CoderIDEMCPServerExecutable */;
+			productType = "com.apple.product-type.tool";
+		};
+		D061CBA82DEB5C49EDD5994C /* CoderIDEMCPServer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D3C08571AF210D87B97B40E0 /* Build configuration list for PBXNativeTarget "CoderIDEMCPServer" */;
+			buildPhases = (
+				163222B35B0662D2E1B8C17A /* Headers */,
+				141358DD1CE66FDB24C024B0 /* Sources */,
+				A19FC43B26138C77E3102BC3 /* Frameworks */,
+				BCFB962B9E8BFD66DEABD9BB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3F3BDB8FB3B2AD8C33199168 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C84082BE65955CD4DB795E15 /* Tools/CoderIDEMCPServer/Sources */,
+			);
+			name = CoderIDEMCPServer;
+			packageProductDependencies = (
+				64554696CD6DC6500BB5AD9E /* MCP */,
+			);
+			productName = CoderIDEMCPServer;
+			productReference = B9AECE97BD011FAF88D8EA9B /* CoderIDEMCPServer.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		208DD1926DF7E94EC1C00EB5 /* Project object */ = {
+		689B5E59D1FF71D289DA51BB /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
 			};
-			buildConfigurationList = 0AC16A1383F0227C38B55387 /* Build configuration list for PBXProject "Solo Code" */;
+			buildConfigurationList = 786EFFDB9A7AA4BFB549825F /* Build configuration list for PBXProject "Solo Code" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -615,83 +616,104 @@
 				en,
 				Base,
 			);
-			mainGroup = 71FEDF9942B31572E33E0896;
+			mainGroup = 62A1D4E713D4050A72D0E28C;
 			minimizedProjectReferenceProxies = 0;
 			packageReferences = (
-				6461091B7834E11959B3E36C /* XCRemoteSwiftPackageReference "SwiftTerm" */,
-				616BA8F5D50F8484285210ED /* XCRemoteSwiftPackageReference "swift-sdk" */,
-				2C0EDAB38CCDC7BC859D6267 /* XCRemoteSwiftPackageReference "swift-log" */,
+				BA4BA653C64054C5EE25DA03 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				1F3C767BE4CB189CF6DF6BF3 /* XCLocalSwiftPackageReference "mcp-swift-sdk" */,
+				765C971BC9BFE5AD33115893 /* XCRemoteSwiftPackageReference "swift-log" */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = AD537AFC66DB166276FD9116 /* Products */;
+			productRefGroup = FF71EEFE88389A4B730B6F04 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				507DC6C743EE26AF930E03A9 /* Solo Code */,
-				9459BFB5C02A6CA9861A7298 /* CoderEngine */,
-				34484BF87146C904BCF60414 /* CoderIDEMCPServer */,
-				1A79CD1D463EE8CD8C74D94E /* CoderIDEMCPServerExecutable */,
-				36C618BEC51BE6B4DD25A6F5 /* SoloCodeAppTests */,
-				33D94119C77A8E695FB15BDD /* CoderEngineTests */,
-				6553505F66A5608BE328D64C /* SoloCodeIntegrationTests */,
+				AF26E3A87625FF77925DBF93 /* Solo Code */,
+				55EE155411832EABE05EE16E /* CoderEngine */,
+				D061CBA82DEB5C49EDD5994C /* CoderIDEMCPServer */,
+				B35D5B9362186609978A1F2A /* CoderIDEMCPServerExecutable */,
+				7CCC0314A5035256300684CC /* SoloCodeAppTests */,
+				0AF291728365782309EE8892 /* CoderEngineTests */,
+				36577AA11656471F6C4E334A /* SoloCodeIntegrationTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		1BB536481AE8366A7D93BFA8 /* Resources */ = {
+		42820663BF16521AD21558DD /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5C2D26B9BCB2ED1EB1AA3CB1 /* Resources */ = {
+		50BE88D548F8173224B0DCD9 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		65A79FCEC43641D532764AEA /* Resources */ = {
+		93AF8ED9AA5A1F25BDA4B894 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BE61799D809DE7BA5C55EFD7 /* Resources */ = {
+		BCFB962B9E8BFD66DEABD9BB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E74B90733D05C1738F4595CA /* Resources */ = {
+		E5CC7D12EFA48571835E1202 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C23DF06455D642D77AB44358 /* Assets.xcassets in Resources */,
-				A4E5CA4A3B923A133608BBB6 /* AppLogo.png in Resources */,
-				7386A3A8FA08062ED9856941 /* SoloCode.icns in Resources */,
-				4E3EDA677E48B1CF9418AD23 /* browser-bridge.js in Resources */,
-				92C946494B98C47DD1062BC7 /* Fonts in Resources */,
-				DEBD47C6ACBDB6EAD8AC8BA8 /* monaco in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		FC02F6445A4E55E6289E27B2 /* Resources */ = {
+		FB8CD0766E9160CACC1AB0EA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0DAAA40977EE43D367A143A2 /* Assets.xcassets in Resources */,
+				F259E41A71FAE76ED5D9C450 /* AppLogo.png in Resources */,
+				F2CE6EC39D1FD564EE1A0E08 /* SoloCode.icns in Resources */,
+				E9A1E546C66355B4A2090C67 /* browser-bridge.js in Resources */,
+				4C919E50C93C5B26775E7F28 /* Fonts in Resources */,
+				F8FE7DD3CED79FE7C344F832 /* monaco in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		B8916EE6F6C575C05EF3EA77 /* Build Rust Review Core */ = {
+		1134599FF553C31B8818E894 /* Strip xattr before codesign */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Strip xattr before codesign";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Strip com.apple.provenance and resource forks from the app bundle\n# that would cause codesign to fail.\nxattr -cr \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" 2>/dev/null || true\n";
+			showEnvVarsInLog = 0;
+		};
+		848DD7B553C4B6867E8BDE97 /* Build Rust Review Core */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -712,49 +734,49 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		3D5063C0B65C58D9E129C819 /* Sources */ = {
+		141358DD1CE66FDB24C024B0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5087922CCA7469CAA39D3327 /* Sources */ = {
+		39AF8FC16FFAA7392B51E3D5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		743302125FA5564D16E574A5 /* Sources */ = {
+		4D10303066223DFD0C5E4A62 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		758F22316CBBC95B11D93329 /* Sources */ = {
+		63476F4A721AAB7136752E65 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BCC0B88E11EF5B67EE3087BD /* Sources */ = {
+		8744F19F1E078E8073EACBE4 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E2D6F5A2E2BACF46146721EF /* Sources */ = {
+		9A08D8D397118D61BCA2C1B8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		ED24DE563D199D94CCB0334F /* Sources */ = {
+		B59262FC970A127471916B40 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -764,102 +786,91 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		0741FE5BFD886326512CE560 /* PBXTargetDependency */ = {
+		2C61FEEE868C0B0C59D756CE /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			name = CoderIDEMCPServer;
-			target = 34484BF87146C904BCF60414 /* CoderIDEMCPServer */;
-			targetProxy = B493B5AED49414632171AF58 /* PBXContainerItemProxy */;
+			name = "Solo Code";
+			target = AF26E3A87625FF77925DBF93 /* Solo Code */;
+			targetProxy = AD5A812A888D9CA15896B106 /* PBXContainerItemProxy */;
 		};
-		0B41DADECE8EBC191205B67C /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = CoderIDEMCPServer;
-			target = 34484BF87146C904BCF60414 /* CoderIDEMCPServer */;
-			targetProxy = 2A0D11D34F3064B228225248 /* PBXContainerItemProxy */;
-		};
-		2E7CD7755CDDB5ACC3CDAAC0 /* PBXTargetDependency */ = {
+		3F3BDB8FB3B2AD8C33199168 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = CoderEngine;
-			target = 9459BFB5C02A6CA9861A7298 /* CoderEngine */;
-			targetProxy = A42604F6E1F7946BB53B3F4D /* PBXContainerItemProxy */;
+			target = 55EE155411832EABE05EE16E /* CoderEngine */;
+			targetProxy = 4098476A4EE1C49A0D85FCFD /* PBXContainerItemProxy */;
 		};
-		4A5DE5C56FC7807550568C50 /* PBXTargetDependency */ = {
+		5886278F6E58EF9BF43156CC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = CoderEngine;
-			target = 9459BFB5C02A6CA9861A7298 /* CoderEngine */;
-			targetProxy = 62A2258F175AF9ED99AB73F3 /* PBXContainerItemProxy */;
+			target = 55EE155411832EABE05EE16E /* CoderEngine */;
+			targetProxy = F97020CCA3DEC1A1A3C08C37 /* PBXContainerItemProxy */;
 		};
-		5E94797A2A5B6DEDA8C67308 /* PBXTargetDependency */ = {
+		60DDF52FC04644A6E82DF9C8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CoderEngine;
+			target = 55EE155411832EABE05EE16E /* CoderEngine */;
+			targetProxy = 56AC47FDD532EB809ABADA4E /* PBXContainerItemProxy */;
+		};
+		A223BF5BD21F5D992BEB53B7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CoderIDEMCPServer;
+			target = D061CBA82DEB5C49EDD5994C /* CoderIDEMCPServer */;
+			targetProxy = F4968B7A696C9F35A1874771 /* PBXContainerItemProxy */;
+		};
+		B6FE99DFF5E3B9061DAFBACC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CoderEngine;
+			target = 55EE155411832EABE05EE16E /* CoderEngine */;
+			targetProxy = 546F009B74A357E62A9FB620 /* PBXContainerItemProxy */;
+		};
+		C07FFD1105C1AD8C6848454A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CoderEngine;
+			target = 55EE155411832EABE05EE16E /* CoderEngine */;
+			targetProxy = 81D4AFC942BE80D77151A83B /* PBXContainerItemProxy */;
+		};
+		C215A1F26727E0616E9234CD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CoderIDEMCPServer;
+			target = D061CBA82DEB5C49EDD5994C /* CoderIDEMCPServer */;
+			targetProxy = A7848FE69F19E4BADBF5629C /* PBXContainerItemProxy */;
+		};
+		C761242F2AAABFB9D22868F3 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = CoderIDEMCPServerExecutable;
-			target = 1A79CD1D463EE8CD8C74D94E /* CoderIDEMCPServerExecutable */;
-			targetProxy = 14E5D51077460F83BC19620C /* PBXContainerItemProxy */;
+			target = B35D5B9362186609978A1F2A /* CoderIDEMCPServerExecutable */;
+			targetProxy = 84E39E42A5F757A162FF3D64 /* PBXContainerItemProxy */;
 		};
-		7301768A141C51B4513BD3B9 /* PBXTargetDependency */ = {
+		C843DA44E752B2EA029F474E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = "Solo Code";
-			target = 507DC6C743EE26AF930E03A9 /* Solo Code */;
-			targetProxy = 328B01D60737DC18C248D019 /* PBXContainerItemProxy */;
+			target = AF26E3A87625FF77925DBF93 /* Solo Code */;
+			targetProxy = 915EB095F44F31A31C49EA55 /* PBXContainerItemProxy */;
 		};
-		7E8BC889094F28AEB5E32EA9 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = "Solo Code";
-			target = 507DC6C743EE26AF930E03A9 /* Solo Code */;
-			targetProxy = A0CBC2BB3A0E9CEAF05D3F1E /* PBXContainerItemProxy */;
-		};
-		AAABCB6DC9F9064C447FF588 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = CoderEngine;
-			target = 9459BFB5C02A6CA9861A7298 /* CoderEngine */;
-			targetProxy = C72DEA2929F5F81199309119 /* PBXContainerItemProxy */;
-		};
-		B568CC85173148E36337A7BF /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = CoderEngine;
-			target = 9459BFB5C02A6CA9861A7298 /* CoderEngine */;
-			targetProxy = 82D92201201ACCFC62FEB3D4 /* PBXContainerItemProxy */;
-		};
-		CABAFCF3A7EC9B41E1CE9A55 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = CoderEngine;
-			target = 9459BFB5C02A6CA9861A7298 /* CoderEngine */;
-			targetProxy = B35DC093C2B37AE0F09FBB20 /* PBXContainerItemProxy */;
-		};
-		DE039D3BA49EE4710AE70B12 /* PBXTargetDependency */ = {
+		D7A93E40E7480602B44DF21C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = CoderIDEMCPServer;
-			target = 34484BF87146C904BCF60414 /* CoderIDEMCPServer */;
-			targetProxy = 3735B4987D125A2544D4E115 /* PBXContainerItemProxy */;
+			target = D061CBA82DEB5C49EDD5994C /* CoderIDEMCPServer */;
+			targetProxy = B18CA6571E93A39DA09CA897 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		1E95ED9F3FF0B6A4EC4C70EC /* Debug */ = {
+		072FA84F8867F930B4D447B0 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 750BB7AF56A654F2D8F8B5CF /* Tests.xcconfig */;
+			baseConfigurationReference = 639B72827CDD0D5E494F7236 /* App.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.app;
-				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Solo Code.app/Contents/MacOS/Solo Code";
-			};
-			name = Debug;
-		};
-		4777ECDFF8D66E68047B146F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = E02EF9DB7236141C235AD814 /* Tool.xcconfig */;
-			buildSettings = {
-				EXECUTABLE_NAME = "coderide-mcp-server";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver;
-				PRODUCT_MODULE_NAME = CoderIDEMCPServerExecutable;
-				PRODUCT_NAME = "coderide-mcp-server";
 				SDKROOT = macosx;
 			};
 			name = Debug;
 		};
-		4D56AC4013A8A1B921A08B24 /* Debug */ = {
+		1A1A3C542AA2D252C69B22B7 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 6AD7FE691E45FF066A02D65D /* Framework.xcconfig */;
+			baseConfigurationReference = E93EF75CA26DB098C081C353 /* Framework.xcconfig */;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -880,7 +891,166 @@
 			};
 			name = Debug;
 		};
-		54F38162AD0E148C3DAFA838 /* Debug */ = {
+		440FC17056043EF8370E4095 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B65354C3BA30FE21E6326558 /* Tests.xcconfig */;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.app;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Solo Code.app/Contents/MacOS/Solo Code";
+			};
+			name = Debug;
+		};
+		4E130E43E6F0818DA7F0F90A /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B65354C3BA30FE21E6326558 /* Tests.xcconfig */;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.engine;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		64ABE6B3FA841D3793A3ED70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B65354C3BA30FE21E6326558 /* Tests.xcconfig */;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.engine;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		6FA5C6BA2E007CC3CB8DE8A9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5F660F7A9A19B4894C17A736 /* Tool.xcconfig */;
+			buildSettings = {
+				EXECUTABLE_NAME = "coderide-mcp-server";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver;
+				PRODUCT_MODULE_NAME = CoderIDEMCPServerExecutable;
+				PRODUCT_NAME = "coderide-mcp-server";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		73991FD7D6D3B16E566206DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7AD5F783AB5625C9C86C5EC3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 639B72827CDD0D5E494F7236 /* App.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		883B9F74F78A4725762096DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E93EF75CA26DB098C081C353 /* Framework.xcconfig */;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver.framework;
+				PRODUCT_MODULE_NAME = CoderIDEMCPServer;
+				PRODUCT_NAME = CoderIDEMCPServer;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
+		89F9C4AAA9BBEAE4180CB554 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5F660F7A9A19B4894C17A736 /* Tool.xcconfig */;
+			buildSettings = {
+				EXECUTABLE_NAME = "coderide-mcp-server";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver;
+				PRODUCT_MODULE_NAME = CoderIDEMCPServerExecutable;
+				PRODUCT_NAME = "coderide-mcp-server";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		B1936DB7464FFBC4B38F9430 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B65354C3BA30FE21E6326558 /* Tests.xcconfig */;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.integration;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Solo Code.app/Contents/MacOS/Solo Code";
+			};
+			name = Debug;
+		};
+		B565D8E1612401B21F049795 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -937,36 +1107,14 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		5983C6B389EE4F3ECB4F1838 /* Release */ = {
+		CD14F8D9A12A2ABB48181989 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E02EF9DB7236141C235AD814 /* Tool.xcconfig */;
-			buildSettings = {
-				EXECUTABLE_NAME = "coderide-mcp-server";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver;
-				PRODUCT_MODULE_NAME = CoderIDEMCPServerExecutable;
-				PRODUCT_NAME = "coderide-mcp-server";
-				SDKROOT = macosx;
-			};
-			name = Release;
-		};
-		5D32EB17C9D44603B516213A /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 750BB7AF56A654F2D8F8B5CF /* Tests.xcconfig */;
-			buildSettings = {
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.engine;
-				SDKROOT = macosx;
-			};
-			name = Release;
-		};
-		6F71B130B910DD2A5A83AA9A /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 750BB7AF56A654F2D8F8B5CF /* Tests.xcconfig */;
+			baseConfigurationReference = B65354C3BA30FE21E6326558 /* Tests.xcconfig */;
 			buildSettings = {
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.integration;
@@ -975,45 +1123,9 @@
 			};
 			name = Release;
 		};
-		70CF623B14F618272401098E /* Release */ = {
+		D046B2BBEFBC116E17D09613 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 6AD7FE691E45FF066A02D65D /* Framework.xcconfig */;
-			buildSettings = {
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEFINES_MODULE = YES;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.coderidemcpserver.framework;
-				PRODUCT_MODULE_NAME = CoderIDEMCPServer;
-				PRODUCT_NAME = CoderIDEMCPServer;
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-			};
-			name = Release;
-		};
-		737FF3365D40BE4226840E3A /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 965F5214B256484EC36F4D2E /* App.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				SDKROOT = macosx;
-			};
-			name = Debug;
-		};
-		8734BDCFFDD251BC5B4A7778 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 6AD7FE691E45FF066A02D65D /* Framework.xcconfig */;
+			baseConfigurationReference = E93EF75CA26DB098C081C353 /* Framework.xcconfig */;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1032,9 +1144,30 @@
 			};
 			name = Debug;
 		};
-		9CE911F1C99CCC06D09E356A /* Release */ = {
+		DF1E5744E6A55B81515ABCBA /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 750BB7AF56A654F2D8F8B5CF /* Tests.xcconfig */;
+			baseConfigurationReference = E93EF75CA26DB098C081C353 /* Framework.xcconfig */;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
+		E7C35CA4BFCE67C0137EFA47 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B65354C3BA30FE21E6326558 /* Tests.xcconfig */;
 			buildSettings = {
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.app;
@@ -1043,194 +1176,92 @@
 			};
 			name = Release;
 		};
-		BFF509E35814998B92CEF1D6 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		D06DDEADBF29062DEB403423 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 750BB7AF56A654F2D8F8B5CF /* Tests.xcconfig */;
-			buildSettings = {
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.integration;
-				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Solo Code.app/Contents/MacOS/Solo Code";
-			};
-			name = Debug;
-		};
-		DB71DDCF721796BB0FF33ED3 /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 6AD7FE691E45FF066A02D65D /* Framework.xcconfig */;
-			buildSettings = {
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEFINES_MODULE = YES;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-			};
-			name = Release;
-		};
-		E6A70D9C6115A5D04A90C59B /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 965F5214B256484EC36F4D2E /* App.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				COMBINE_HIDPI_IMAGES = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				SDKROOT = macosx;
-			};
-			name = Release;
-		};
-		EF23499C55A1AC7B8238E728 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 750BB7AF56A654F2D8F8B5CF /* Tests.xcconfig */;
-			buildSettings = {
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.solocode.tests.engine;
-				SDKROOT = macosx;
-			};
-			name = Debug;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		0AC16A1383F0227C38B55387 /* Build configuration list for PBXProject "Solo Code" */ = {
+		469A6365E8CE766E136A0348 /* Build configuration list for PBXNativeTarget "SoloCodeAppTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				54F38162AD0E148C3DAFA838 /* Debug */,
-				BFF509E35814998B92CEF1D6 /* Release */,
+				E7C35CA4BFCE67C0137EFA47 /* Release */,
+				440FC17056043EF8370E4095 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		3B128E67D51002087EB219CB /* Build configuration list for PBXNativeTarget "SoloCodeAppTests" */ = {
+		53FF519E0E31741F039F9E5D /* Build configuration list for PBXNativeTarget "CoderIDEMCPServerExecutable" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				9CE911F1C99CCC06D09E356A /* Release */,
-				1E95ED9F3FF0B6A4EC4C70EC /* Debug */,
+				6FA5C6BA2E007CC3CB8DE8A9 /* Release */,
+				89F9C4AAA9BBEAE4180CB554 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		46F79776513DFBED2BC518CE /* Build configuration list for PBXNativeTarget "CoderEngineTests" */ = {
+		786EFFDB9A7AA4BFB549825F /* Build configuration list for PBXProject "Solo Code" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				5D32EB17C9D44603B516213A /* Release */,
-				EF23499C55A1AC7B8238E728 /* Debug */,
+				B565D8E1612401B21F049795 /* Debug */,
+				73991FD7D6D3B16E566206DF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A3621C6A9DBEBE27EDB2EE50 /* Build configuration list for PBXNativeTarget "CoderIDEMCPServerExecutable" */ = {
+		900D603A8F4E892DEA129657 /* Build configuration list for PBXNativeTarget "Solo Code" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				5983C6B389EE4F3ECB4F1838 /* Release */,
-				4777ECDFF8D66E68047B146F /* Debug */,
+				7AD5F783AB5625C9C86C5EC3 /* Release */,
+				072FA84F8867F930B4D447B0 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BC6FBAC69E122D5D24387E4F /* Build configuration list for PBXNativeTarget "Solo Code" */ = {
+		C8A5E055FFC149687F7DD152 /* Build configuration list for PBXNativeTarget "SoloCodeIntegrationTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E6A70D9C6115A5D04A90C59B /* Release */,
-				737FF3365D40BE4226840E3A /* Debug */,
+				CD14F8D9A12A2ABB48181989 /* Release */,
+				B1936DB7464FFBC4B38F9430 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C457BB8D208272EC5461A115 /* Build configuration list for PBXNativeTarget "CoderIDEMCPServer" */ = {
+		D3C08571AF210D87B97B40E0 /* Build configuration list for PBXNativeTarget "CoderIDEMCPServer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				70CF623B14F618272401098E /* Release */,
-				4D56AC4013A8A1B921A08B24 /* Debug */,
+				883B9F74F78A4725762096DF /* Release */,
+				1A1A3C542AA2D252C69B22B7 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D68E86585E26FD63B807EF27 /* Build configuration list for PBXNativeTarget "CoderEngine" */ = {
+		D54CB7956FCF726B574E79E2 /* Build configuration list for PBXNativeTarget "CoderEngine" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				DB71DDCF721796BB0FF33ED3 /* Release */,
-				8734BDCFFDD251BC5B4A7778 /* Debug */,
+				DF1E5744E6A55B81515ABCBA /* Release */,
+				D046B2BBEFBC116E17D09613 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		F9A039C2EB28130EE54BCA83 /* Build configuration list for PBXNativeTarget "SoloCodeIntegrationTests" */ = {
+		EFABE923F3AF33F00091511B /* Build configuration list for PBXNativeTarget "CoderEngineTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				6F71B130B910DD2A5A83AA9A /* Release */,
-				D06DDEADBF29062DEB403423 /* Debug */,
+				4E130E43E6F0818DA7F0F90A /* Release */,
+				64ABE6B3FA841D3793A3ED70 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		1F3C767BE4CB189CF6DF6BF3 /* XCLocalSwiftPackageReference "mcp-swift-sdk" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "Packages/mcp-swift-sdk";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
-		2C0EDAB38CCDC7BC859D6267 /* XCRemoteSwiftPackageReference "swift-log" */ = {
+		765C971BC9BFE5AD33115893 /* XCRemoteSwiftPackageReference "swift-log" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-log.git";
 			requirement = {
@@ -1238,15 +1269,7 @@
 				minimumVersion = 1.10.1;
 			};
 		};
-		616BA8F5D50F8484285210ED /* XCRemoteSwiftPackageReference "swift-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/modelcontextprotocol/swift-sdk.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.10.0;
-			};
-		};
-		6461091B7834E11959B3E36C /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+		BA4BA653C64054C5EE25DA03 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm.git";
 			requirement = {
@@ -1257,37 +1280,37 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		4C85F2D83D683AE8941AEEC4 /* SwiftTerm */ = {
+		04D8506A2D04E3DBA93CE8D5 /* Logging */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 6461091B7834E11959B3E36C /* XCRemoteSwiftPackageReference "SwiftTerm" */;
-			productName = SwiftTerm;
-		};
-		5502599DB57915A06EBE166E /* MCP */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 616BA8F5D50F8484285210ED /* XCRemoteSwiftPackageReference "swift-sdk" */;
-			productName = MCP;
-		};
-		A67E5CF17CCA65FF706213C4 /* MCP */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 616BA8F5D50F8484285210ED /* XCRemoteSwiftPackageReference "swift-sdk" */;
-			productName = MCP;
-		};
-		B784E3FB74F22DB7E47631C7 /* Logging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 2C0EDAB38CCDC7BC859D6267 /* XCRemoteSwiftPackageReference "swift-log" */;
+			package = 765C971BC9BFE5AD33115893 /* XCRemoteSwiftPackageReference "swift-log" */;
 			productName = Logging;
 		};
-		CC94051BFCA6864D4E301D3A /* MCP */ = {
+		5466A1DE6ECFE4B6FAC6CF16 /* MCP */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 616BA8F5D50F8484285210ED /* XCRemoteSwiftPackageReference "swift-sdk" */;
+			package = 1F3C767BE4CB189CF6DF6BF3 /* XCLocalSwiftPackageReference "mcp-swift-sdk" */;
 			productName = MCP;
 		};
-		E34F070AAE12D86F5A7ECC0D /* MCP */ = {
+		64554696CD6DC6500BB5AD9E /* MCP */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 616BA8F5D50F8484285210ED /* XCRemoteSwiftPackageReference "swift-sdk" */;
+			package = 1F3C767BE4CB189CF6DF6BF3 /* XCLocalSwiftPackageReference "mcp-swift-sdk" */;
 			productName = MCP;
+		};
+		6B96872E0F1EDFDA52105396 /* MCP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1F3C767BE4CB189CF6DF6BF3 /* XCLocalSwiftPackageReference "mcp-swift-sdk" */;
+			productName = MCP;
+		};
+		88D4D622E7ABB701B136EFF5 /* MCP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1F3C767BE4CB189CF6DF6BF3 /* XCLocalSwiftPackageReference "mcp-swift-sdk" */;
+			productName = MCP;
+		};
+		8A5064AA47230D088C3836E8 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BA4BA653C64054C5EE25DA03 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 208DD1926DF7E94EC1C00EB5 /* Project object */;
+	rootObject = 689B5E59D1FF71D289DA51BB /* Project object */;
 }

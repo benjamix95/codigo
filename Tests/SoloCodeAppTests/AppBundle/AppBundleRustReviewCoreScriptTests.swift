@@ -3,7 +3,7 @@ import Testing
 
 struct AppBundleRustReviewCoreScriptTests {
     @Test
-    func validateAppBundleFailsWhenRustReviewCoreDylibIsMissing() throws {
+    func validateAppBundleFailsWhenRequiredRustBinaryIsMissing() throws {
         let root = repoRootURL()
         let scriptURL = root
             .appendingPathComponent("scripts", isDirectory: true)
@@ -12,12 +12,13 @@ struct AppBundleRustReviewCoreScriptTests {
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
         let appURL = tempRoot.appendingPathComponent("Solo Code.app", isDirectory: true)
-        try createMinimalAppBundle(at: appURL, includeRustReviewCore: false)
+        // Create bundle with only main executable — missing coderide-mcp-server-rust
+        try createMinimalAppBundle(at: appURL, includeRustBinaries: false)
 
         let result = try runBashScript(scriptURL, arguments: [appURL.path])
 
         #expect(result.status == 67)
-        #expect(result.stderr.contains("solocode_rust/libsolocode_rust_core.dylib"))
+        #expect(result.stderr.contains("missing required runtime artifact"))
     }
 
     @Test
@@ -55,29 +56,28 @@ struct AppBundleRustReviewCoreScriptTests {
 
     private func createMinimalAppBundle(
         at appURL: URL,
-        includeRustReviewCore: Bool
+        includeRustBinaries: Bool = true
     ) throws {
         let fileManager = FileManager.default
-        let requiredFiles = [
+        var files = [
             "Contents/MacOS/Solo Code",
-            "Contents/MacOS/coderide-mcp-server-rust",
-            "Contents/MacOS/mcp-lifecycle-backend-rust",
             "Contents/Frameworks/CoderEngine.framework/CoderEngine",
             "Contents/Frameworks/CoderIDEMCPServer.framework/CoderIDEMCPServer",
         ]
-        let rustCorePath = "Contents/MacOS/solocode_rust/libsolocode_rust_core.dylib"
+        if includeRustBinaries {
+            files += [
+                "Contents/MacOS/coderide-mcp-server-rust",
+                "Contents/MacOS/mcp-lifecycle-backend-rust",
+            ]
+        }
 
-        for relativePath in requiredFiles + (includeRustReviewCore ? [rustCorePath] : []) {
+        for relativePath in files {
             let fileURL = appURL.appendingPathComponent(relativePath)
             try fileManager.createDirectory(
                 at: fileURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            #if os(macOS)
             let created = fileManager.createFile(atPath: fileURL.path, contents: Data())
-            #else
-            let created = fileManager.createFile(atPath: fileURL.path, contents: Data())
-            #endif
             #expect(created)
         }
     }

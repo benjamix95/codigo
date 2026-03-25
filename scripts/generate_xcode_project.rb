@@ -53,10 +53,22 @@ end
 # Package helpers (unchanged)
 # ---------------------------------------------------------------------------
 
-def add_remote_package(project, url, minimum_version)
+def add_remote_package(project, url, minimum_version, kind: 'upToNextMajorVersion')
   ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
   ref.repositoryURL = url
-  ref.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => minimum_version }
+  case kind
+  when 'exact'
+    ref.requirement = { 'kind' => 'exactVersion', 'version' => minimum_version }
+  else
+    ref.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => minimum_version }
+  end
+  project.root_object.package_references << ref
+  ref
+end
+
+def add_local_package(project, relative_path)
+  ref = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
+  ref.relative_path = relative_path
   project.root_object.package_references << ref
   ref
 end
@@ -125,6 +137,21 @@ def add_rust_review_core_phase(target)
     fi
   SH
   phase.show_env_vars_in_log = '0'
+  # Mark as intentionally running every build (Cargo manages its own cache).
+  # This suppresses the "will be run during every build" warning in Xcode 16+.
+  phase.always_out_of_date = '1'
+end
+
+def add_strip_xattr_phase(target)
+  phase = target.new_shell_script_build_phase('Strip xattr before codesign')
+  phase.shell_path = '/bin/sh'
+  phase.shell_script = <<~SH
+    # Strip com.apple.provenance and resource forks from the app bundle
+    # that would cause codesign to fail.
+    xattr -cr "${TARGET_BUILD_DIR}/${WRAPPER_NAME}" 2>/dev/null || true
+  SH
+  phase.show_env_vars_in_log = '0'
+  phase.always_out_of_date = '1'
 end
 
 # ===========================================================================
@@ -137,6 +164,12 @@ FileUtils.mkdir_p(File.dirname(TESTPLAN_PATH))
 
 project = Xcodeproj::Project.new(PROJECT_PATH)
 project.root_object.attributes['LastUpgradeCheck'] = '1600'
+
+# Project-level build settings — these propagate to SPM-resolved package targets
+# which do NOT inherit from our xcconfig files.
+project.build_configurations.each do |cfg|
+  cfg.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+end
 
 main = project.main_group
 app_group = main.find_subpath('App', true)
@@ -218,7 +251,9 @@ add_resources(project, app_group, app_target)
 # --- SPM packages -----------------------------------------------------------
 
 swift_term_pkg = add_remote_package(project, 'https://github.com/migueldeicaza/SwiftTerm.git', '1.2.0')
-mcp_pkg = add_remote_package(project, 'https://github.com/modelcontextprotocol/swift-sdk.git', '0.10.0')
+# Local patched copy of MCP SDK 0.10.1 — fixes data-race errors in
+# NetworkTransport.swift (nonisolated(unsafe) on continuation guards).
+mcp_pkg = add_local_package(project, 'Packages/mcp-swift-sdk')
 logging_pkg = add_remote_package(project, 'https://github.com/apple/swift-log.git', '1.10.1')
 link_package_product(project, app_target, swift_term_pkg, 'SwiftTerm')
 link_package_product(project, engine_target, mcp_pkg, 'MCP')
@@ -258,6 +293,10 @@ embed_helper.dst_subfolder_spec = Xcodeproj::Constants::COPY_FILES_BUILD_PHASE_D
 helper_build = project.new(Xcodeproj::Project::Object::PBXBuildFile)
 helper_build.file_ref = helper_executable_target.product_reference
 embed_helper.files << helper_build
+
+# Strip xattr on the app bundle AFTER Rust artifacts and embedded binaries
+# are in place, but BEFORE Xcode runs codesign.
+add_strip_xattr_phase(app_target)
 
 # --- Schemes ----------------------------------------------------------------
 

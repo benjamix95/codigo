@@ -124,7 +124,8 @@ struct AppBundleProjectStructureTests {
 
         #expect(pbxproj.contains("Build Rust Review Core"))
         #expect(pbxproj.contains("SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR"))
-        #expect(validationScript.contains("Contents/MacOS/solocode_rust/libsolocode_rust_core.dylib"))
+        // Validation script checks for Rust MCP binaries in Contents/MacOS
+        #expect(validationScript.contains("Contents/MacOS/coderide-mcp-server-rust"))
     }
 
     @Test

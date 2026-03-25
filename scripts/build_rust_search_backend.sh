@@ -28,6 +28,9 @@ copy_artifact() {
   rm -f "$tmp_path"
   cp "$src" "$tmp_path"
 
+  # Strip resource forks and com.apple.provenance that break codesign
+  xattr -cr "$tmp_path" 2>/dev/null || true
+
   if [[ "$dest_name" == *".dylib" ]]; then
     if ! codesign --force --sign - "$tmp_path" >/dev/null 2>&1; then
       rm -f "$tmp_path"

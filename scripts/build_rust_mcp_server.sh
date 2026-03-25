@@ -39,10 +39,13 @@ fi
 TEST_OUT_DIR="${SOLOCODE_RUST_MCP_TEST_OUT_DIR:-$ROOT_DIR/.build/rust-mcp-server/$TARGET_PROFILE}"
 mkdir -p "$TEST_OUT_DIR"
 cp "$SRC" "$TEST_OUT_DIR/coderide-mcp-server-rust"
+# Strip resource forks and com.apple.provenance that break codesign
+xattr -cr "$TEST_OUT_DIR/coderide-mcp-server-rust" 2>/dev/null || true
 
 if [[ -n "${SOLOCODE_MCP_SERVER_BUNDLE_DIR:-}" ]]; then
   mkdir -p "$SOLOCODE_MCP_SERVER_BUNDLE_DIR"
   cp "$SRC" "$SOLOCODE_MCP_SERVER_BUNDLE_DIR/coderide-mcp-server-rust"
+  xattr -cr "$SOLOCODE_MCP_SERVER_BUNDLE_DIR/coderide-mcp-server-rust" 2>/dev/null || true
   chmod +x "$SOLOCODE_MCP_SERVER_BUNDLE_DIR/coderide-mcp-server-rust"
 fi
 

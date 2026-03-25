@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "9459BFB5C02A6CA9861A7298"
+               BlueprintIdentifier = "55EE155411832EABE05EE16E"
                BuildableName = "CoderEngine.framework"
                BlueprintName = "CoderEngine"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "33D94119C77A8E695FB15BDD"
+               BlueprintIdentifier = "0AF291728365782309EE8892"
                BuildableName = "CoderEngineTests.xctest"
                BlueprintName = "CoderEngineTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -42,7 +42,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "34484BF87146C904BCF60414"
+               BlueprintIdentifier = "D061CBA82DEB5C49EDD5994C"
                BuildableName = "CoderIDEMCPServer.framework"
                BlueprintName = "CoderIDEMCPServer"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -60,7 +60,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "33D94119C77A8E695FB15BDD"
+               BlueprintIdentifier = "0AF291728365782309EE8892"
                BuildableName = "CoderEngineTests.xctest"
                BlueprintName = "CoderEngineTests"
                ReferencedContainer = "container:Solo Code.xcodeproj">
@@ -80,7 +80,7 @@ fi
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
-                     BlueprintIdentifier = "9459BFB5C02A6CA9861A7298"
+                     BlueprintIdentifier = "55EE155411832EABE05EE16E"
                      BuildableName = "CoderEngine.framework"
                      BlueprintName = "CoderEngine"
                      ReferencedContainer = "container:Solo Code.xcodeproj">

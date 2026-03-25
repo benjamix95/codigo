@@ -40,13 +40,17 @@ fi
 TEST_OUT_DIR="${SOLOCODE_RUST_MCP_LIFECYCLE_TEST_OUT_DIR:-$ROOT_DIR/.build/rust-mcp-lifecycle/$TARGET_PROFILE}"
 mkdir -p "$TEST_OUT_DIR"
 cp "$SRC" "$TEST_OUT_DIR/mcp-lifecycle-backend-rust"
+# Strip resource forks and com.apple.provenance that break codesign
+xattr -cr "$TEST_OUT_DIR/mcp-lifecycle-backend-rust" 2>/dev/null || true
 if [[ -x "$FAKE_SRC" ]]; then
   cp "$FAKE_SRC" "$TEST_OUT_DIR/fake-mcp-server"
+  xattr -cr "$TEST_OUT_DIR/fake-mcp-server" 2>/dev/null || true
 fi
 
 if [[ -n "${SOLOCODE_MCP_SERVER_BUNDLE_DIR:-}" ]]; then
   mkdir -p "$SOLOCODE_MCP_SERVER_BUNDLE_DIR"
   cp "$SRC" "$SOLOCODE_MCP_SERVER_BUNDLE_DIR/mcp-lifecycle-backend-rust"
+  xattr -cr "$SOLOCODE_MCP_SERVER_BUNDLE_DIR/mcp-lifecycle-backend-rust" 2>/dev/null || true
   chmod +x "$SOLOCODE_MCP_SERVER_BUNDLE_DIR/mcp-lifecycle-backend-rust"
 fi
 

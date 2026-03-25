@@ -1,6 +1,11 @@
 import Foundation
 struct SubagentTimeoutError: LocalizedError {
-    var errorDescription: String? { "Subagent execution timed out after 5 minutes" }
+    let role: SubagentRole
+    let timeoutSeconds: Int
+
+    var errorDescription: String? {
+        "Subagent '\(role.rawValue)' timed out after \(timeoutSeconds) seconds"
+    }
 }
 
 struct SubagentNoMeaningfulEventError: LocalizedError {
@@ -32,13 +37,18 @@ actor SubagentExecutionLimiter {
         await withCheckedContinuation { continuation in
             waiters.append(continuation)
         }
-        running += 1
+        // Slot already transferred by release() — do NOT increment here.
+        // The release() that resumed us kept `running` unchanged,
+        // transferring its slot directly to avoid a counting gap.
     }
 
     func release() {
         if !waiters.isEmpty {
             let next = waiters.removeFirst()
-            running -= 1
+            // Transfer the slot directly to the waiter without
+            // decrementing `running`. This prevents a race where
+            // another acquire() slips in between decrement and
+            // the waiter's continuation resuming.
             next.resume()
             return
         }
