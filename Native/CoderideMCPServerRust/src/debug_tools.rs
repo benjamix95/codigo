@@ -359,7 +359,12 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
 fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let mut store = read_store();
     let action = string_arg(arguments, "action").to_lowercase();
-    let confidence = string_arg(arguments, "confidence").parse::<i64>().unwrap_or(50).clamp(0, 100);
+    let confidence_raw = string_arg(arguments, "confidence");
+    let confidence_parsed = if confidence_raw.is_empty() {
+        None
+    } else {
+        Some(confidence_raw.parse::<i64>().unwrap_or(50).clamp(0, 100))
+    };
     let root_cause_type = string_arg(arguments, "root_cause_type");
     let related_files = parse_csv(string_arg(arguments, "related_files"));
     let related_tests = parse_csv(string_arg(arguments, "related_tests"));
@@ -378,7 +383,7 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
                 title: title.clone(),
                 status: status.clone(),
                 description: string_arg(arguments, "description"),
-                confidence,
+                confidence: confidence_parsed.unwrap_or(50),
                 root_cause_type,
                 related_files,
                 related_tests,
@@ -408,7 +413,7 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
                     "hypothesis_title": title,
                     "description": hypothesis.description,
                     "hypothesis_status": status,
-                    "confidence": confidence,
+                    "confidence": hypothesis.confidence,
                     "root_cause_type": hypothesis.root_cause_type,
                     "related_files": hypothesis.related_files.join(","),
                     "related_tests": hypothesis.related_tests.join(","),
@@ -427,7 +432,9 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             };
             let next_status = non_empty(string_arg(arguments, "status")).unwrap_or_else(|| existing.status.clone());
             existing.status = next_status.clone();
-            existing.confidence = confidence;
+            if let Some(c) = confidence_parsed {
+                existing.confidence = c;
+            }
             if !string_arg(arguments, "description").is_empty() {
                 existing.description = string_arg(arguments, "description");
             }
@@ -1178,6 +1185,11 @@ fn detect_error_type(error_text: &str) -> String {
     }
 }
 
+/// Max file size to consider for debug file collection (1 MB).
+const MAX_DEBUG_FILE_SIZE: u64 = 1_048_576;
+/// Max total files to collect to avoid runaway traversal.
+const MAX_DEBUG_FILES: usize = 500;
+
 fn collect_debug_files(workspace: &Path) -> Vec<PathBuf> {
     let mut matches = Vec::new();
     let mut stack = vec![workspace.to_path_buf()];
@@ -1186,11 +1198,22 @@ fn collect_debug_files(workspace: &Path) -> Vec<PathBuf> {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
+                // Skip hidden dirs and common large dirs
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name.starts_with('.') || name == "node_modules" || name == "target" || name == "build" {
+                    continue;
+                }
                 stack.push(path);
                 continue;
             }
-            if fs::read_to_string(&path).is_ok() {
-                matches.push(path);
+            // Check file size via metadata instead of reading full content
+            if let Ok(meta) = path.metadata() {
+                if meta.len() <= MAX_DEBUG_FILE_SIZE {
+                    matches.push(path);
+                }
+            }
+            if matches.len() >= MAX_DEBUG_FILES {
+                return matches;
             }
         }
     }
