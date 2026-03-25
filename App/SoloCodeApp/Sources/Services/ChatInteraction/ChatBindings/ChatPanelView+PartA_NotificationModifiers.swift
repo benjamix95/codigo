@@ -28,7 +28,7 @@ extension ChatPanelView {
                 streaming.planStreamThrottleTask?.cancel()
                 streaming.planStreamThrottleTask = nil
                 cancelFallbackTurnStartEvent()
-                streaming.autoScrollWorkItem?.cancel()
+                scrollState.autoScrollWorkItem?.cancel()
                 composerTimerAutoHideTask?.cancel()
                 composerTimerAutoHideTask = nil
                 voiceInputController.cancel()

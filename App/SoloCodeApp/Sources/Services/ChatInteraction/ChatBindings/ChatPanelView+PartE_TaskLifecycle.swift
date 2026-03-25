@@ -227,13 +227,13 @@ extension ChatPanelView {
         delay: TimeInterval = 0.08
     ) {
         let now = Date()
-        let sinceLastScroll = now.timeIntervalSince(streaming.lastAutoScrollAt)
-        if streaming.lastAutoScrollTarget == target, sinceLastScroll < Self.autoScrollMinInterval {
+        let sinceLastScroll = now.timeIntervalSince(scrollState.lastAutoScrollAt)
+        if scrollState.lastAutoScrollTarget == target, sinceLastScroll < Self.autoScrollMinInterval {
             return
         }
-        streaming.lastAutoScrollTarget = target
-        streaming.lastAutoScrollAt = now
-        streaming.autoScrollWorkItem?.cancel()
+        scrollState.lastAutoScrollTarget = target
+        scrollState.lastAutoScrollAt = now
+        scrollState.autoScrollWorkItem?.cancel()
         let work = DispatchWorkItem { [showsSwarmViewOnly, chatStore, conversationId, chatScrollTopAnchorId, chatScrollBottomAnchorId] in
             guard NSApplication.shared.isActive else { return }
             guard !showsSwarmViewOnly else { return }
@@ -254,7 +254,7 @@ extension ChatPanelView {
             // scroll operations overlap.
             proxy.scrollTo(target, anchor: .bottom)
         }
-        streaming.autoScrollWorkItem = work
+        scrollState.autoScrollWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 

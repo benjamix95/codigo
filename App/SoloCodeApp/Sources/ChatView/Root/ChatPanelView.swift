@@ -45,6 +45,7 @@ struct ChatPanelView: View {
     // MARK: - State Containers (replace ~35 loose @State)
 
     @State var streaming = ChatStreamingState()
+    @State var scrollState = ChatScrollState()
     @State var toolRuntime = ChatToolRuntimeState()
     @State var conversationRuntime = ChatConversationRuntimeState()
 

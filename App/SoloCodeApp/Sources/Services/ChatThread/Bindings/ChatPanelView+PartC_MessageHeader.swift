@@ -289,8 +289,8 @@ extension ChatPanelView {
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
         }
         .onDisappear {
-            streaming.autoScrollWorkItem?.cancel()
-            streaming.autoScrollWorkItem = nil
+            scrollState.autoScrollWorkItem?.cancel()
+            scrollState.autoScrollWorkItem = nil
         }
     }
 

@@ -3,8 +3,11 @@ import SwiftUI
 
 // MARK: - ChatStreamingState
 
-/// Groups all streaming, reasoning, and scroll-related @State properties
-/// that were previously loose on ChatPanelView.
+/// Groups streaming, reasoning, and content-version @State properties.
+/// Auto-scroll state was extracted into `ChatScrollState` (below)
+/// because it changes on every scroll event during streaming, and
+/// bundling it here caused the entire struct to be re-observed on
+/// every scroll — invalidating views that only care about content.
 struct ChatStreamingState {
 
     // MARK: - Stream Throttle
@@ -32,9 +35,16 @@ struct ChatStreamingState {
     var streamingSegmentTurnIndex: Int = 0
     var codexLastReasoningLine: String?
     var reasoningMessageIdByConversationAndGroup: [UUID: [String: UUID]] = [:]
+}
 
-    // MARK: - Auto-Scroll
+// MARK: - ChatScrollState
 
+/// Auto-scroll state extracted from ChatStreamingState.
+/// These 3 fields change on every `scheduleAutoScroll` call during
+/// streaming. Keeping them in a separate @State prevents scroll
+/// updates from invalidating views that observe streaming content
+/// or reasoning state.
+struct ChatScrollState {
     var autoScrollWorkItem: DispatchWorkItem?
     var lastAutoScrollTarget: AnyHashable?
     var lastAutoScrollAt: Date = .distantPast
