@@ -173,13 +173,35 @@ extension MCPSharedState {
         return []
     }
 
+    /// Max age for completed/failed commands before pruning (24 hours).
+    private static let maxCompletedCommandAge: TimeInterval = 86_400
+    /// Max total commands to keep in the queue.
+    private static let maxCommandQueueSize = 200
+
+    private static func prunedCommands(_ commands: [MCPSharedBugHunterCommand]) -> [MCPSharedBugHunterCommand] {
+        let now = Date()
+        var pruned = commands.filter { cmd in
+            let isTerminal = cmd.status == .completed || cmd.status == .failed
+            if isTerminal, now.timeIntervalSince(cmd.updatedAt) > maxCompletedCommandAge {
+                return false
+            }
+            return true
+        }
+        if pruned.count > maxCommandQueueSize {
+            pruned.sort { $0.updatedAt > $1.updatedAt }
+            pruned = Array(pruned.prefix(maxCommandQueueSize))
+        }
+        return pruned
+    }
+
     private static func writeBugHunterCommandsUnsafe(_ commands: [MCPSharedBugHunterCommand]) {
         ensureBugHunterDirectories()
+        let cleaned = prunedCommands(commands)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = ReviewPersistenceRustAdapter.encodeBugHunterCommands(commands)
-            ?? (try? encoder.encode(commands)) else {
+        guard let data = ReviewPersistenceRustAdapter.encodeBugHunterCommands(cleaned)
+            ?? (try? encoder.encode(cleaned)) else {
             bugHunterCommandsLogger.error("Failed to encode BugHunter commands")
             return
         }

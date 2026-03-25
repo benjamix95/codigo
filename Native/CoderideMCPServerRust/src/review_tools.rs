@@ -395,7 +395,7 @@ fn finding_map(item: &Value, is_candidate: bool) -> Option<HashMap<String, Strin
             map.insert("possible_duplicate_of".to_string(), joined);
         }
     }
-    let _ = message;
+    map.insert("message".to_string(), message);
     Some(map)
 }
 

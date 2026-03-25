@@ -1,3 +1,4 @@
+use crate::file_lock::{with_file_lock, LockMode};
 use serde_json::Value;
 use solocode_rust_core::review_mcp::models::{
     BugHunterSnapshotRecord, CommandRecord, PatchRecord, ReviewSnapshotRecord,
@@ -210,10 +211,16 @@ fn write_json<T: serde::Serialize + ?Sized>(path: &Path, value: &T) -> Result<()
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let data = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
-    // Atomic write: temp file + rename to prevent partial writes.
-    let tmp_path = path.with_extension("json.tmp");
-    fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
-    fs::rename(&tmp_path, path).map_err(|error| error.to_string())
+    let lock_result = with_file_lock(path, LockMode::Exclusive, || {
+        // Atomic write: temp file + rename to prevent partial writes.
+        let tmp_path = path.with_extension("json.tmp");
+        fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
+        fs::rename(&tmp_path, path).map_err(|error| error.to_string())
+    });
+    match lock_result {
+        Ok(inner) => Ok(inner),
+        Err(e) => Err(e),
+    }
 }
 
 fn string_field(value: &Value, key: &str) -> Option<String> {

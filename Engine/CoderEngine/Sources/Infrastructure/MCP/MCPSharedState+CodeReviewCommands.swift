@@ -288,7 +288,29 @@ extension MCPSharedState {
         return (try? decoder.decode([MCPSharedCodeReviewCommand].self, from: data)) ?? []
     }
 
+    /// Max age for completed/failed commands before pruning (24 hours).
+    private static let maxCompletedReviewCommandAge: TimeInterval = 86_400
+    /// Max total commands to keep in the queue.
+    private static let maxReviewCommandQueueSize = 200
+
+    private static func _prunedReviewCommands(_ commands: [MCPSharedCodeReviewCommand]) -> [MCPSharedCodeReviewCommand] {
+        let now = Date()
+        var pruned = commands.filter { cmd in
+            let isTerminal = cmd.status == .completed || cmd.status == .failed
+            if isTerminal, now.timeIntervalSince(cmd.updatedAt) > maxCompletedReviewCommandAge {
+                return false
+            }
+            return true
+        }
+        if pruned.count > maxReviewCommandQueueSize {
+            pruned.sort { $0.updatedAt > $1.updatedAt }
+            pruned = Array(pruned.prefix(maxReviewCommandQueueSize))
+        }
+        return pruned
+    }
+
     private static func _writeCodeReviewCommandsUnsafe(_ commands: [MCPSharedCodeReviewCommand]) {
+        let cleaned = _prunedReviewCommands(commands)
         let directories = [codeReviewDirectoryPath]
         for directory in directories where !FileManager.default.fileExists(atPath: directory.path) {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -296,8 +318,8 @@ extension MCPSharedState {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = ReviewPersistenceRustAdapter.encodeReviewCommands(commands)
-            ?? (try? encoder.encode(commands)) else {
+        guard let data = ReviewPersistenceRustAdapter.encodeReviewCommands(cleaned)
+            ?? (try? encoder.encode(cleaned)) else {
             print("[MCPSharedState] ⚠️ Failed to encode code review commands")
             return
         }
