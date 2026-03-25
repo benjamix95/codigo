@@ -117,27 +117,27 @@ final class AnthropicAPIProviderTests: XCTestCase {
 
     func testRetryableTransportErrorForTimeout() {
         let error = URLError(.timedOut)
-        XCTAssertTrue(AnthropicAPIProvider.isRetryableTransportError(error))
+        XCTAssertTrue(AnthropicAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testRetryableTransportErrorForConnectionLost() {
         let error = URLError(.networkConnectionLost)
-        XCTAssertTrue(AnthropicAPIProvider.isRetryableTransportError(error))
+        XCTAssertTrue(AnthropicAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testRetryableTransportErrorForDNSFailure() {
         let error = URLError(.dnsLookupFailed)
-        XCTAssertTrue(AnthropicAPIProvider.isRetryableTransportError(error))
+        XCTAssertTrue(AnthropicAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testNonRetryableTransportError() {
         let error = URLError(.badURL)
-        XCTAssertFalse(AnthropicAPIProvider.isRetryableTransportError(error))
+        XCTAssertFalse(AnthropicAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testNonRetryableCustomError() {
         struct CustomError: Error {}
-        XCTAssertFalse(AnthropicAPIProvider.isRetryableTransportError(CustomError()))
+        XCTAssertFalse(AnthropicAPIProvider.shouldRetryTransportError(for:CustomError()))
     }
 
     // MARK: - Exponential Backoff

@@ -133,32 +133,32 @@ final class OpenAIAPIProviderTests: XCTestCase {
 
     func testRetryableTransportErrorForTimeout() {
         let error = URLError(.timedOut)
-        XCTAssertTrue(OpenAIAPIProvider.isRetryableTransportError(error))
+        XCTAssertTrue(OpenAIAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testRetryableTransportErrorForConnectionLost() {
         let error = URLError(.networkConnectionLost)
-        XCTAssertTrue(OpenAIAPIProvider.isRetryableTransportError(error))
+        XCTAssertTrue(OpenAIAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testRetryableTransportErrorForNotConnected() {
         let error = URLError(.notConnectedToInternet)
-        XCTAssertTrue(OpenAIAPIProvider.isRetryableTransportError(error))
+        XCTAssertTrue(OpenAIAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testNonRetryableTransportError() {
         let error = URLError(.badURL)
-        XCTAssertFalse(OpenAIAPIProvider.isRetryableTransportError(error))
+        XCTAssertFalse(OpenAIAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testNonRetryableCancellation() {
         let error = URLError(.cancelled)
-        XCTAssertFalse(OpenAIAPIProvider.isRetryableTransportError(error))
+        XCTAssertFalse(OpenAIAPIProvider.shouldRetryTransportError(for:error))
     }
 
     func testNonRetryableCustomError() {
         struct CustomError: Error {}
-        XCTAssertFalse(OpenAIAPIProvider.isRetryableTransportError(CustomError()))
+        XCTAssertFalse(OpenAIAPIProvider.shouldRetryTransportError(for:CustomError()))
     }
 
     // MARK: - Exponential Backoff

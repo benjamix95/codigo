@@ -49,6 +49,18 @@ extension OpenAIAPIProvider {
         )
     }
 
+    static func exponentialBackoffSeconds(
+        attempt: Int,
+        initialDelay: TimeInterval,
+        maxDelay: TimeInterval
+    ) -> TimeInterval {
+        ProviderRetrySupport.exponentialBackoffSeconds(
+            attempt: attempt,
+            initialDelay: initialDelay,
+            maxDelay: maxDelay
+        )
+    }
+
     static func sleep(seconds: TimeInterval) async throws {
         try await ProviderRetrySupport.sleep(seconds: seconds)
     }

@@ -40,12 +40,12 @@ final class WorkerPoolSafetyTests: XCTestCase {
         try? await pool.dispatch(
             taskId: "t1",
             agentName: "agent",
-            agentRole: .worker
+            agentRole: .coder
         ) {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             return WorkerTaskResult(
                 taskId: "t1", agentName: "agent",
-                agentRole: .worker, success: true
+                agentRole: .coder, success: true
             )
         }
 
@@ -61,12 +61,12 @@ final class WorkerPoolSafetyTests: XCTestCase {
         try? await pool.dispatch(
             taskId: "t1",
             agentName: "agent",
-            agentRole: .worker
+            agentRole: .coder
         ) {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             return WorkerTaskResult(
                 taskId: "t1", agentName: "agent",
-                agentRole: .worker, success: true
+                agentRole: .coder, success: true
             )
         }
 
@@ -74,11 +74,11 @@ final class WorkerPoolSafetyTests: XCTestCase {
             try await pool.dispatch(
                 taskId: "t2",
                 agentName: "agent",
-                agentRole: .worker
+                agentRole: .coder
             ) {
                 WorkerTaskResult(
                     taskId: "t2", agentName: "agent",
-                    agentRole: .worker, success: true
+                    agentRole: .coder, success: true
                 )
             }
             XCTFail("Should throw atCapacity")
@@ -99,12 +99,12 @@ final class WorkerPoolSafetyTests: XCTestCase {
         try? await pool.dispatch(
             taskId: "t1",
             agentName: "agent",
-            agentRole: .worker
+            agentRole: .coder
         ) {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             return WorkerTaskResult(
                 taskId: "t1", agentName: "agent",
-                agentRole: .worker, success: true
+                agentRole: .coder, success: true
             )
         }
 
@@ -112,11 +112,11 @@ final class WorkerPoolSafetyTests: XCTestCase {
             try await pool.dispatch(
                 taskId: "t1",
                 agentName: "agent",
-                agentRole: .worker
+                agentRole: .coder
             ) {
                 WorkerTaskResult(
                     taskId: "t1", agentName: "agent",
-                    agentRole: .worker, success: true
+                    agentRole: .coder, success: true
                 )
             }
             XCTFail("Should throw taskAlreadyRunning")
@@ -139,11 +139,11 @@ final class WorkerPoolSafetyTests: XCTestCase {
             try await pool.dispatch(
                 taskId: "t1",
                 agentName: "agent",
-                agentRole: .worker
+                agentRole: .coder
             ) {
                 WorkerTaskResult(
                     taskId: "t1", agentName: "agent",
-                    agentRole: .worker, success: true
+                    agentRole: .coder, success: true
                 )
             }
             XCTFail("Should throw poolShutdown")
@@ -160,12 +160,12 @@ final class WorkerPoolSafetyTests: XCTestCase {
         try? await pool.dispatch(
             taskId: "t1",
             agentName: "agent",
-            agentRole: .worker
+            agentRole: .coder
         ) {
             try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
             return WorkerTaskResult(
                 taskId: "t1", agentName: "agent",
-                agentRole: .worker, success: true
+                agentRole: .coder, success: true
             )
         }
 
@@ -184,11 +184,11 @@ final class WorkerPoolSafetyTests: XCTestCase {
         try? await pool.dispatch(
             taskId: "t1",
             agentName: "agent",
-            agentRole: .worker
+            agentRole: .coder
         ) {
             WorkerTaskResult(
                 taskId: "t1", agentName: "agent",
-                agentRole: .worker, success: true
+                agentRole: .coder, success: true
             )
         }
 
@@ -206,11 +206,11 @@ final class WorkerPoolSafetyTests: XCTestCase {
         try? await pool.dispatch(
             taskId: "t1",
             agentName: "agent",
-            agentRole: .worker
+            agentRole: .coder
         ) {
             WorkerTaskResult(
                 taskId: "t1", agentName: "agent",
-                agentRole: .worker, success: true
+                agentRole: .coder, success: true
             )
         }
 
@@ -232,12 +232,12 @@ final class WorkerPoolSafetyTests: XCTestCase {
             try? await pool.dispatch(
                 taskId: "t\(i)",
                 agentName: "agent",
-                agentRole: .worker
+                agentRole: .coder
             ) {
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
                 return WorkerTaskResult(
                     taskId: "t\(i)", agentName: "agent",
-                    agentRole: .worker, success: false,
+                    agentRole: .coder, success: false,
                     error: "cancelled"
                 )
             }
@@ -257,11 +257,11 @@ final class WorkerPoolSafetyTests: XCTestCase {
         try? await pool.dispatch(
             taskId: "t1",
             agentName: "agent",
-            agentRole: .worker
+            agentRole: .coder
         ) {
             WorkerTaskResult(
                 taskId: "t1", agentName: "agent",
-                agentRole: .worker, success: true
+                agentRole: .coder, success: true
             )
         }
 

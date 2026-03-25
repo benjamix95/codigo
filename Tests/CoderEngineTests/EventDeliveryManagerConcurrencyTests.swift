@@ -7,16 +7,17 @@ final class EventDeliveryManagerConcurrencyTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeDLQ() -> DeadLetterQueue {
-        DeadLetterQueue(maxSize: 100)
+        DeadLetterQueue(capacity: 100)
     }
 
     private func makeEvent(id: String = UUID().uuidString) -> EventBusEvent {
         EventBusEvent(
             eventId: id,
-            type: "test",
-            source: "test",
+            jobId: "job-test",
+            type: .taskCompleted,
             payload: [:],
-            timestamp: Date()
+            timestamp: Date(),
+            idempotencyKey: id
         )
     }
 
@@ -24,7 +25,11 @@ final class EventDeliveryManagerConcurrencyTests: XCTestCase {
         id: String = UUID().uuidString,
         handler: @escaping @Sendable (EventBusEvent) async throws -> Void = { _ in }
     ) -> EventSubscription {
-        EventSubscription(id: id, eventType: "test", handler: handler)
+        EventSubscription(
+            id: id,
+            filter: EventSubscriptionFilter(eventTypes: [.taskCompleted]),
+            handler: handler
+        )
     }
 
     // MARK: - Concurrency Limit
