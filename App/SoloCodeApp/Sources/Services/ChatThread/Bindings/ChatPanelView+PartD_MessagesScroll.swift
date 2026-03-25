@@ -34,6 +34,22 @@ extension ChatPanelView {
         let messageIndexById: [UUID: Int] = Dictionary(
             uniqueKeysWithValues: messages.enumerated().map { ($0.element.id, $0.offset) }
         )
+        // Pre-compute trace events for all assistant messages ONCE here,
+        // outside the ForEach. This prevents each chatMessageCell from
+        // independently accessing toolTraceStore.events() which would
+        // register N separate SwiftUI dependencies on the same
+        // ObservableObject, causing all N cells to re-evaluate on every
+        // single tool trace append.
+        let precomputedTraceEvents: [UUID: [ToolTraceEvent]] = {
+            var map: [UUID: [ToolTraceEvent]] = [:]
+            for msg in messages where msg.role == .assistant {
+                map[msg.id] = toolTraceStore.events(
+                    conversationId: convId,
+                    assistantMessageId: msg.id
+                )
+            }
+            return map
+        }()
         return LazyVStack(alignment: .leading, spacing: 28) {
             Color.clear
                 .frame(height: 1)
@@ -45,7 +61,8 @@ extension ChatPanelView {
                     index: index,
                     lastMsg: lastMsg,
                     todoCardAssistantMessageId: todoCardAssistantMessageId,
-                    conversationId: convId
+                    conversationId: convId,
+                    precomputedTraceEvents: precomputedTraceEvents[message.id] ?? []
                 )
             }
             if shouldShowInlinePlanSummaryInChat,
@@ -92,7 +109,8 @@ extension ChatPanelView {
         index: Int,
         lastMsg: ChatMessage?,
         todoCardAssistantMessageId: UUID?,
-        conversationId: UUID
+        conversationId: UUID,
+        precomputedTraceEvents: [ToolTraceEvent] = []
     ) -> some View {
         let isLast = message.id == lastMsg?.id
         let isLastAssistant = lastMsg?.role == .assistant && isLast
@@ -165,26 +183,35 @@ extension ChatPanelView {
                     let displayMessage = suppressPlanArtifacts
                         ? chatDisplayMessage(from: message, conversationId: conversationId)
                         : message
+                    let isActiveStreamingAssistant = isLastAssistant && isLoadingForCurrentConversation
                     let shouldHideStreamingBarOnPreviousAssistant =
                         message.role == .assistant
                         && !isLastAssistant
                         && lastMsg?.role == .assistant
                         && (lastMsg?.isStreaming ?? false)
                         && isLoadingForCurrentConversation
-                    let traceEvents = message.role == .assistant
-                        ? toolTraceStore.events(
-                            conversationId: conversationId,
-                            assistantMessageId: message.id
-                        )
-                        : []
+                    // Use pre-computed trace events from the parent scope.
+                    // This avoids accessing toolTraceStore inside the ForEach
+                    // body, which would register per-cell SwiftUI dependencies.
+                    let traceEvents = precomputedTraceEvents
+                    // Only compute streaming status/detail for the active
+                    // streaming turn. For all other messages, use stable
+                    // empty values to avoid accessing taskActivityStore
+                    // (which would cause SwiftUI dependency tracking and
+                    // re-render all cells on every activity change).
+                    let shouldComputeStreamingText = isActiveStreamingAssistant && !shouldHideStreamingBarOnPreviousAssistant
+                    let resolvedStreamingStatusText = shouldComputeStreamingText
+                        ? streamingStatusText(for: displayMessage) : ""
+                    let resolvedStreamingDetailText: String? = shouldComputeStreamingText
+                        ? streamingDetailText(for: displayMessage, conversationId: conversationId) : nil
                     if displayMessage.role == .user {
                         MessageRow(
                             message: displayMessage,
                             context: effectiveContext.context,
                             modeColor: activeModeColor,
                             isActuallyLoading: isLoadingForCurrentConversation,
-                            streamingStatusText: shouldHideStreamingBarOnPreviousAssistant ? "" : streamingStatusText(for: displayMessage),
-                            streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
+                            streamingStatusText: resolvedStreamingStatusText,
+                            streamingDetailText: resolvedStreamingDetailText,
                             onFileClicked: { openFilesStore.openFile($0) },
                             onRestoreCheckpoint: restoreAction,
                             onEdit: { editedText in
@@ -258,8 +285,8 @@ extension ChatPanelView {
                             context: effectiveContext.context,
                             modeColor: activeModeColor,
                             isActuallyLoading: isLoadingForCurrentConversation,
-                            streamingStatusText: shouldHideStreamingBarOnPreviousAssistant ? "" : streamingStatusText(for: displayMessage),
-                            streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
+                            streamingStatusText: resolvedStreamingStatusText,
+                            streamingDetailText: resolvedStreamingDetailText,
                             traceEvents: traceEvents,
                             inlineActivities: liveInlineActivities,
                             supervisorActivities: liveSupervisorActivities,
