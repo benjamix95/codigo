@@ -14,7 +14,9 @@ public actor MCPLifecycleRustBackend {
         }
     }
 
-    private var managedProcess: ManagedProcess?
+    // nonisolated(unsafe) to allow cleanup from deinit which is nonisolated.
+    // At deallocation time no other references to the actor exist, so this is safe.
+    private nonisolated(unsafe) var managedProcess: ManagedProcess?
     private var nextRequestID: UInt64 = 1
     private let binaryOverrideURL: URL?
     private let encoder = JSONEncoder()
@@ -272,7 +274,7 @@ public actor MCPLifecycleRustBackend {
         }
     }
 
-    private func terminateBackendProcess() {
+    private nonisolated func terminateBackendProcess() {
         guard let managedProcess else { return }
         try? managedProcess.stdin.close()
         try? managedProcess.stdout.close()
@@ -280,6 +282,5 @@ public actor MCPLifecycleRustBackend {
             managedProcess.process.terminate()
             managedProcess.process.waitUntilExit()
         }
-        self.managedProcess = nil
     }
 }

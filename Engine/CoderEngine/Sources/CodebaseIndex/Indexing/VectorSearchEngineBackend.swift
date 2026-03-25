@@ -12,7 +12,7 @@ public struct VectorSearchEngineBackend: SearchEngineBackend {
     public let kind: SearchEngineBackendKind = .vector
     public let supportsVectorSearch: Bool = true
 
-    private let store: PostgresPersistenceStore
+    private nonisolated(unsafe) let store: PostgresPersistenceStore
 
     public init(store: PostgresPersistenceStore = .shared) {
         self.store = store

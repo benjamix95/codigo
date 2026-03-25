@@ -276,11 +276,12 @@ final class ConversationFlowCoordinator: ObservableObject {
                         let isClaudeCli = provider.id == "claude-cli"
                         if !hasSeenNarrativeEvent && isClaudeCli {
                             pendingReasoningSnapshot += event.text
+                            let reasoningCopy = pendingReasoningSnapshot
                             await MainActor.run {
                                 onRaw(
                                     "reasoning",
                                     [
-                                        "output": pendingReasoningSnapshot,
+                                        "output": reasoningCopy,
                                         "title": "Thinking",
                                         "group_id": "reasoning-stream",
                                     ],
@@ -290,17 +291,19 @@ final class ConversationFlowCoordinator: ObservableObject {
                         } else {
                             hasSeenNarrativeEvent = true
                             renderedTextSnapshot += event.text
-                            await MainActor.run { onText(renderedTextSnapshot) }
+                            let textCopy = renderedTextSnapshot
+                            await MainActor.run { onText(textCopy) }
                         }
                     case .textReplace:
                         let isClaudeCliReplace = provider.id == "claude-cli"
                         if !hasSeenNarrativeEvent && isClaudeCliReplace {
                             pendingReasoningSnapshot = event.text
+                            let reasoningCopy = pendingReasoningSnapshot
                             await MainActor.run {
                                 onRaw(
                                     "reasoning",
                                     [
-                                        "output": pendingReasoningSnapshot,
+                                        "output": reasoningCopy,
                                         "title": "Thinking",
                                         "group_id": "reasoning-stream",
                                     ],
@@ -310,7 +313,8 @@ final class ConversationFlowCoordinator: ObservableObject {
                         } else {
                             hasSeenNarrativeEvent = true
                             renderedTextSnapshot = event.text
-                            await MainActor.run { onText(renderedTextSnapshot) }
+                            let textCopy = renderedTextSnapshot
+                            await MainActor.run { onText(textCopy) }
                         }
                         if !bufferedRawEvents.isEmpty {
                             let pending = bufferedRawEvents

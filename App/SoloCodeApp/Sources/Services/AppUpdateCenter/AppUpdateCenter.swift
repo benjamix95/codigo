@@ -6,7 +6,7 @@ import SwiftUI
 final class AppUpdateCenter: ObservableObject {
     // MARK: - Configuration
 
-    static let defaultManifestURL = "https://raw.githubusercontent.com/benjamix95/solocode/main/docs/update/manifest.json"
+    nonisolated static let defaultManifestURL = "https://raw.githubusercontent.com/benjamix95/solocode/main/docs/update/manifest.json"
     static let checkInterval: TimeInterval = 60 * 60 * 24
 
     @Published var state: UpdateState = .idle
