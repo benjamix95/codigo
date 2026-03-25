@@ -11,7 +11,7 @@ extension MCPSharedState {
         withAdvisoryFileLock(
             label: "CodeReviewLock",
             lockURL: codeReviewDirectoryPath.appendingPathComponent(".lock"),
-            createMode: S_IRUSR | S_IWUSR,
+            createMode: 0o644,
             fallbackLock: codeReviewFallbackLock,
             ensureLockDirectory: {
                 ensureDirectory()

@@ -114,7 +114,7 @@ pub fn input_schema_for(name: &str) -> Value {
         ),
         "coderide_debug_timeline" => object_schema(&[("filter", "string"), ("time_range", "string"), ("hypothesis_id", "string"), ("format", "string")], &[]),
         "coderide_debug_snapshot" => object_schema(&[("action", "string"), ("label", "string"), ("compare_with", "string")], &["action"]),
-        "coderide_debug_test_check" => object_schema(&[("scope", "string"), ("path", "string"), ("filter", "string"), ("hypothesis_id", "string"), ("timeout_ms", "string")], &[]),
+        "coderide_debug_test_check" => object_schema(&[("scope", "string"), ("path", "string"), ("filter", "string"), ("hypothesis_id", "string"), ("timeout_ms", "string")], &["scope"]),
         "coderide_activate_plan_mode" | "coderide_activate_debug_mode" => object_schema(&[("reason", "string")], &[]),
         "coderide_show_swarm_panel" => object_schema(&[("swarm_id", "string")], &[]),
         "coderide_policy_ack" => object_schema(&[("hash", "string")], &["hash"]),

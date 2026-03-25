@@ -5,6 +5,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::file_lock::{with_file_lock, LockMode};
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanDocument {
@@ -47,31 +49,34 @@ pub fn create_snapshot(arguments: &BTreeMap<String, Value>) -> Result<String, St
     if goal.is_empty() {
         return Err("Error: 'goal' parameter is required".to_string());
     }
-    let mut document = read_document();
-    let conversation_id = resolve_or_create_snapshot_conversation_id(arguments, &document)?;
     let steps = parse_steps(arguments.get("steps"))?;
     let chosen_path = non_empty(string_arg(arguments, "chosen_path"))
         .or_else(|| non_empty(string_arg(arguments, "chosenPath")));
-    let now = iso_now();
-    let snapshot = PlanSnapshot {
-        snapshot_id: next_id("snapshot"),
-        conversation_id: conversation_id.clone(),
-        goal,
-        chosen_path,
-        steps,
-        walkthrough_markdown: None,
-        summary: None,
-        outcome: None,
-        created_at: now.clone(),
-        updated_at: now,
-    };
-    document.latest_conversation_id = Some(conversation_id.clone());
-    document
-        .snapshots_by_conversation
-        .entry(conversation_id)
-        .or_default()
-        .push(snapshot);
-    write_document(&document)?;
+    // Protect read-modify-write with exclusive file lock.
+    with_file_lock(&plan_state_file_path(), LockMode::Exclusive, || {
+        let mut document = read_document();
+        let conversation_id = resolve_or_create_snapshot_conversation_id(arguments, &document)?;
+        let now = iso_now();
+        let snapshot = PlanSnapshot {
+            snapshot_id: next_id("snapshot"),
+            conversation_id: conversation_id.clone(),
+            goal: goal.clone(),
+            chosen_path: chosen_path.clone(),
+            steps: steps.clone(),
+            walkthrough_markdown: None,
+            summary: None,
+            outcome: None,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+        document.latest_conversation_id = Some(conversation_id.clone());
+        document
+            .snapshots_by_conversation
+            .entry(conversation_id)
+            .or_default()
+            .push(snapshot);
+        write_document(&document)
+    })?;
     Ok("OK — plan snapshot created".to_string())
 }
 
@@ -439,17 +444,20 @@ fn mutate_latest_snapshot<F>(conversation_id: &str, mutate: F) -> Result<(), Str
 where
     F: FnOnce(&mut PlanSnapshot),
 {
-    let mut document = read_document();
-    let history = document
-        .snapshots_by_conversation
-        .get_mut(conversation_id)
-        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
-    let snapshot = history
-        .last_mut()
-        .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
-    mutate(snapshot);
-    snapshot.updated_at = iso_now();
-    write_document(&document)
+    // Protect read-modify-write with exclusive file lock.
+    with_file_lock(&plan_state_file_path(), LockMode::Exclusive, || {
+        let mut document = read_document();
+        let history = document
+            .snapshots_by_conversation
+            .get_mut(conversation_id)
+            .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
+        let snapshot = history
+            .last_mut()
+            .ok_or_else(|| "Error: unable to resolve target plan snapshot".to_string())?;
+        mutate(snapshot);
+        snapshot.updated_at = iso_now();
+        write_document(&document)
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -646,7 +654,10 @@ fn write_document(document: &PlanDocument) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let data = serde_json::to_vec_pretty(document).map_err(|error| error.to_string())?;
-    fs::write(path, data).map_err(|error| error.to_string())
+    // Atomic write: temp file + rename.
+    let tmp_path = path.with_extension("json.tmp");
+    fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
+    fs::rename(&tmp_path, &path).map_err(|error| error.to_string())
 }
 
 fn plan_state_file_path() -> PathBuf {

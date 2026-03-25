@@ -263,18 +263,19 @@ extension ChatPanelView {
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 24)
-        .onChange(of: streaming.streamContentVersion) { _ in
+        .onChange(of: streaming.streamContentVersion) { newVersion in
+            ChatRenderLogger.logOnChange(
+                "streamContentVersion",
+                detail: "v=\(newVersion) followLive=\(isFollowingLive) loading=\(isLoadingForCurrentConversation)"
+            )
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
-            // streamContentVersion is incremented from 17+ call sites during
-            // streaming. Without coalescing, each increment triggers a separate
-            // scheduleAutoScroll → layout pass → scrollTo chain, saturating the
-            // main thread and causing the UI to disappear (black screen).
-            // Coalesce rapid-fire increments by skipping versions that arrive
-            // within the auto-scroll throttle window (handled inside
-            // scheduleAutoScroll's minInterval guard).
             handleStreamContentVersionChange(proxy: proxy)
         }
-        .onChange(of: chatStore.conversation(for: conversationId)?.messages.count) { _ in
+        .onChange(of: chatStore.conversation(for: conversationId)?.messages.count) { newCount in
+            ChatRenderLogger.logOnChange(
+                "messages.count",
+                detail: "count=\(newCount ?? 0) followLive=\(isFollowingLive) loading=\(isLoadingForCurrentConversation)"
+            )
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleMessagesCountChange(proxy: proxy)
         }
@@ -283,9 +284,14 @@ extension ChatPanelView {
         // leading to black screen flicker. The streamContentVersion onChange already
         // handles auto-scrolling during streaming, which is sufficient.
         .onChange(of: planningState) { new in
+            ChatRenderLogger.logOnChange("planningState", detail: "\(new)")
             handlePlanningStateChange(new, proxy: proxy)
         }
         .onChangeCompat(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
+            ChatRenderLogger.logOnChange(
+                "activeTaskConversationIds",
+                detail: "old=\(oldSet.count) new=\(newSet.count)"
+            )
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
         }
         .onDisappear { }

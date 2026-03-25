@@ -11,22 +11,60 @@ enum ChatTurnTimelineInterleaver {
     ) -> [ChatTurnInterleavedSegment] {
         var segments: [ChatTurnInterleavedSegment] = []
 
+        // Collect toolMarker sequences from Rust pipeline.
+        // These mark where tool invocations occurred in the text stream.
+        let toolMarkerSequences = blocks
+            .filter { $0.kind == .toolMarker }
+            .map(\.sequence)
+            .sorted()
+
+        let collapsedTraceEvents = ToolTraceEventCollapser.collapseSupersededToolStates(traceEvents)
+
+        // Detect the "single monolithic text block" case:
+        // one primaryText at sequence 0, no other text blocks, and tool events exist.
+        let textBlocks = blocks.filter { $0.kind == .primaryText && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let hasToolEvents = !collapsedTraceEvents.isEmpty
+        let isSingleMonolithicText = textBlocks.count == 1
+            && textBlocks[0].sequence == 0
+            && hasToolEvents
+            && toolMarkerSequences.isEmpty
+
+        let maxToolSequence = collapsedTraceEvents.map(\.sequence).max() ?? 0
+
+        ChatRenderLogger.logRender(
+            "Interleaver.segments",
+            detail: "blocks=\(blocks.count) textBlocks=\(textBlocks.count) tools=\(collapsedTraceEvents.count) markers=\(toolMarkerSequences.count) monolithic=\(isSingleMonolithicText)"
+        )
+
         for block in blocks {
             switch block.kind {
             case .primaryText:
                 let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { continue }
-                segments.append(.text(id: block.id, content: block.text, sequence: block.sequence))
+                // When we have a single text block at sequence 0 and tool events
+                // exist but no toolMarkers (pipeline didn't track tool segments),
+                // place text AFTER the last tool event. This is the common case:
+                // LLM uses tools then writes a summary/response.
+                let effectiveSequence: Int
+                if isSingleMonolithicText {
+                    effectiveSequence = maxToolSequence + 1
+                } else {
+                    effectiveSequence = block.sequence
+                }
+                segments.append(.text(id: block.id, content: block.text, sequence: effectiveSequence))
             case .reasoning:
                 segments.append(.reasoning(id: block.id, text: block.text, sequence: block.sequence))
             case .toolMarker:
+                // toolMarkers are placeholders from Rust — their sequence is used
+                // by the sorted output to position tool events relative to text.
+                // We don't render them directly; tool events from ToolTraceStore
+                // carry their own sequences that align with these markers.
                 continue
             default:
                 segments.append(.artifact(id: block.id, block: block, sequence: block.sequence))
             }
         }
 
-        let collapsedTraceEvents = ToolTraceEventCollapser.collapseSupersededToolStates(traceEvents)
         for event in collapsedTraceEvents {
             segments.append(
                 .toolEvent(

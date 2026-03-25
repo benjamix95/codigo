@@ -210,7 +210,10 @@ fn write_json<T: serde::Serialize + ?Sized>(path: &Path, value: &T) -> Result<()
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let data = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
-    fs::write(path, data).map_err(|error| error.to_string())
+    // Atomic write: temp file + rename to prevent partial writes.
+    let tmp_path = path.with_extension("json.tmp");
+    fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
+    fs::rename(&tmp_path, path).map_err(|error| error.to_string())
 }
 
 fn string_field(value: &Value, key: &str) -> Option<String> {

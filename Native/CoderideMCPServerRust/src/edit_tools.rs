@@ -5,6 +5,13 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Atomic write: write to temp file then rename, preventing partial writes.
+fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
+    let tmp_path = path.with_extension("solocode-tmp");
+    fs::write(&tmp_path, content)?;
+    fs::rename(&tmp_path, path)
+}
+
 pub fn handle(
     name: &str,
     workspace: &Path,
@@ -36,7 +43,7 @@ fn create_file(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
             return CallToolResult::error(error.to_string());
         }
     }
-    if let Err(error) = fs::write(&path, &content) {
+    if let Err(error) = atomic_write(&path, &content) {
         return CallToolResult::error(error.to_string());
     }
     let line_count = count_lines(&content);
@@ -61,7 +68,7 @@ fn write_file(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     }
     let content = string_arg(arguments, "content");
     let old_content = fs::read_to_string(&path).unwrap_or_default();
-    if let Err(error) = fs::write(&path, &content) {
+    if let Err(error) = atomic_write(&path, &content) {
         return CallToolResult::error(error.to_string());
     }
     let added = count_lines(&content).saturating_sub(count_lines(&old_content));
@@ -106,7 +113,7 @@ fn str_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
     }
     let line_number = line_number_for(&content, &old_string).unwrap_or(1);
     let new_content = content.replacen(&old_string, &new_string, 1);
-    if let Err(error) = fs::write(&path, &new_content) {
+    if let Err(error) = atomic_write(&path, &new_content) {
         return CallToolResult::error(error.to_string());
     }
     success_with_structured(
@@ -150,7 +157,7 @@ fn regex_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
     if replaced == content {
         return CallToolResult::error(format!("pattern not found in {}", path.display()));
     }
-    if let Err(error) = fs::write(&path, &replaced) {
+    if let Err(error) = atomic_write(&path, &replaced) {
         return CallToolResult::error(error.to_string());
     }
     success_with_structured(
