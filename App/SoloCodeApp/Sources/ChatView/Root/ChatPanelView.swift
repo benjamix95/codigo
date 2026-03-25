@@ -64,6 +64,15 @@ struct ChatPanelView: View {
     /// dependency chain that caused ~24 idle re-renders at startup.
     @State var messagesConversationSnapshot: Conversation?
 
+    /// Pre-computed trace events per assistant message. Updated alongside
+    /// the conversation snapshot to avoid accessing toolTraceStore in the
+    /// body evaluation path (which would register SwiftUI dependencies).
+    @State var snapshotTraceEvents: [UUID: [ToolTraceEvent]] = [:]
+
+    /// Whether a task is currently active for the snapshot conversation.
+    /// Cached to avoid reading chatStore/pipelineIntegrationService in body.
+    @State var snapshotIsLoading: Bool = false
+
     // MARK: - Remaining @State (not grouped)
 
     @State var codexModels: [CodexModel] = []

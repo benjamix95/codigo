@@ -16,13 +16,12 @@ extension ChatPanelView {
         let latestVisibleAssistantMessageId = messages.last(where: {
             $0.role == .assistant && !shouldHideBuildKickoffMessage($0, in: convId)
         })?.id
+        // Use snapshotTraceEvents (@State) instead of toolTraceStore
+        // (ObservableObject) to avoid registering SwiftUI dependencies.
         let latestAssistantMessageIdWithTrace = messages.last(where: { message in
             guard message.role == .assistant else { return false }
             guard !shouldHideBuildKickoffMessage(message, in: convId) else { return false }
-            return toolTraceStore.hasTrace(
-                conversationId: convId,
-                assistantMessageId: message.id
-            )
+            return !(snapshotTraceEvents[message.id]?.isEmpty ?? true)
         })?.id
         let todoCardAssistantMessageId = resolveTodoCardAssistantMessageId(
             messages: messages,
@@ -34,22 +33,11 @@ extension ChatPanelView {
         let messageIndexById: [UUID: Int] = Dictionary(
             uniqueKeysWithValues: messages.enumerated().map { ($0.element.id, $0.offset) }
         )
-        // Pre-compute trace events for all assistant messages ONCE here,
-        // outside the ForEach. This prevents each chatMessageCell from
-        // independently accessing toolTraceStore.events() which would
-        // register N separate SwiftUI dependencies on the same
-        // ObservableObject, causing all N cells to re-evaluate on every
-        // single tool trace append.
-        let precomputedTraceEvents: [UUID: [ToolTraceEvent]] = {
-            var map: [UUID: [ToolTraceEvent]] = [:]
-            for msg in messages where msg.role == .assistant {
-                map[msg.id] = toolTraceStore.events(
-                    conversationId: convId,
-                    assistantMessageId: msg.id
-                )
-            }
-            return map
-        }()
+        // Use snapshotTraceEvents (@State, updated by refreshMessagesSnapshot)
+        // instead of reading toolTraceStore here. This avoids registering a
+        // SwiftUI dependency on toolTraceStore.objectWillChange, preventing
+        // cascade re-renders on every tool trace append.
+        let precomputedTraceEvents = snapshotTraceEvents
         return LazyVStack(alignment: .leading, spacing: 28) {
             Color.clear
                 .frame(height: 1)
@@ -183,13 +171,13 @@ extension ChatPanelView {
                     let displayMessage = suppressPlanArtifacts
                         ? chatDisplayMessage(from: message, conversationId: conversationId)
                         : message
-                    let isActiveStreamingAssistant = isLastAssistant && isLoadingForCurrentConversation
+                    let isActiveStreamingAssistant = isLastAssistant && snapshotIsLoading
                     let shouldHideStreamingBarOnPreviousAssistant =
                         message.role == .assistant
                         && !isLastAssistant
                         && lastMsg?.role == .assistant
                         && (lastMsg?.isStreaming ?? false)
-                        && isLoadingForCurrentConversation
+                        && snapshotIsLoading
                     // Use pre-computed trace events from the parent scope.
                     // This avoids accessing toolTraceStore inside the ForEach
                     // body, which would register per-cell SwiftUI dependencies.
@@ -207,7 +195,7 @@ extension ChatPanelView {
                     // Only the active streaming turn should receive
                     // isActuallyLoading=true. For all others, pass false
                     // to prevent EQ-MISS when the global loading state changes.
-                    let cellIsLoading = isActiveStreamingAssistant && isLoadingForCurrentConversation
+                    let cellIsLoading = isActiveStreamingAssistant && snapshotIsLoading
                     if displayMessage.role == .user {
                         MessageRow(
                             message: displayMessage,
@@ -238,7 +226,7 @@ extension ChatPanelView {
                             && !todoStore.displayTodosForChat(for: conversationId).isEmpty
                             && message.id == todoCardAssistantMessageId
                         let liveInlineActivities: [TaskActivity] = {
-                            guard isLastAssistant, isLoadingForCurrentConversation else { return [] }
+                            guard isLastAssistant, snapshotIsLoading else { return [] }
                             return scopedTaskActivities(for: conversationId).filter { activity in
                                 guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }
                                 if SwarmMetadata.isSupervisorEvent(activity.payload) {
@@ -265,7 +253,7 @@ extension ChatPanelView {
                             }
                         }()
                         let liveSupervisorActivities: [TaskActivity] = {
-                            guard isLastAssistant, isLoadingForCurrentConversation else { return [] }
+                            guard isLastAssistant, snapshotIsLoading else { return [] }
                             let scoped = scopedTaskActivities(for: conversationId)
                             let hasWorkerCards = !taskActivityStore.swarmCardStates(for: conversationId).isEmpty
                             guard hasWorkerCards else { return [] }
@@ -279,7 +267,7 @@ extension ChatPanelView {
                             }
                         }()
                         let liveSubagentCards: [SwarmLiveCardState] = {
-                            guard isLastAssistant, isLoadingForCurrentConversation else { return [] }
+                            guard isLastAssistant, snapshotIsLoading else { return [] }
                             return visibleSwarmCardsForChat(
                                 from: taskActivityStore.swarmCardStates(for: conversationId)
                             )

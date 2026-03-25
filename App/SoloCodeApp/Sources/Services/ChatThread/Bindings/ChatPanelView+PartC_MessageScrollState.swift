@@ -117,18 +117,39 @@ extension ChatPanelView {
         }
     }
 
-    /// Refresh the messages conversation snapshot from chatStore.
-    /// Call this whenever the conversation data may have changed.
+    /// Refresh all snapshot state from ObservableObjects.
+    /// This is the ONLY place where chatStore, toolTraceStore, and
+    /// pipelineIntegrationService should be read for the messages list.
+    /// All body evaluation paths read from @State snapshots only.
     internal func refreshMessagesSnapshot() {
         let fresh = chatStore.conversation(for: conversationId)
-        ChatRenderLogger.logOnChange(
-            "refreshMessagesSnapshot",
-            detail: "freshCount=\(fresh?.messages.count ?? -1) snapshotCount=\(messagesConversationSnapshot?.messages.count ?? -1)"
-        )
-        // Only update if actually different to avoid triggering
-        // unnecessary @State writes (which cause re-renders).
-        let snapshotId = messagesConversationSnapshot?.id
-        let freshId = fresh?.id
+
+        // Always update loading state.
+        let freshLoading = chatStore.isTaskActive(for: conversationId)
+            || pipelineIntegrationService.isRunning(for: conversationId)
+        if snapshotIsLoading != freshLoading {
+            snapshotIsLoading = freshLoading
+        }
+
+        // Update trace events for all assistant messages.
+        if let convId = conversationId ?? fresh?.id {
+            var newTraceMap: [UUID: [ToolTraceEvent]] = [:]
+            for msg in (fresh?.messages ?? []) where msg.role == .assistant {
+                newTraceMap[msg.id] = toolTraceStore.events(
+                    conversationId: convId,
+                    assistantMessageId: msg.id
+                )
+            }
+            // Only write if counts changed (avoid unnecessary @State writes).
+            let countsChanged = newTraceMap.contains { key, events in
+                snapshotTraceEvents[key]?.count != events.count
+            } || newTraceMap.count != snapshotTraceEvents.count
+            if countsChanged {
+                snapshotTraceEvents = newTraceMap
+            }
+        }
+
+        // Only update conversation if actually different.
         let snapshotCount = messagesConversationSnapshot?.messages.count ?? -1
         let freshCount = fresh?.messages.count ?? -1
         let snapshotLastContent = messagesConversationSnapshot?.messages.last?.content.count ?? -1
@@ -138,7 +159,7 @@ extension ChatPanelView {
         let snapshotLastBlocks = messagesConversationSnapshot?.messages.last?.blocks?.count ?? -1
         let freshLastBlocks = fresh?.messages.last?.blocks?.count ?? -1
 
-        if snapshotId != freshId
+        if messagesConversationSnapshot?.id != fresh?.id
             || snapshotCount != freshCount
             || snapshotLastContent != freshLastContent
             || snapshotLastStreaming != freshLastStreaming
