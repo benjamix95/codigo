@@ -10,7 +10,6 @@ extension ClaudeCLIProvider {
         }
 
         // Smart fallback: infer event type from payload keys instead of always using command_execution
-        let normalizedTool = ProviderToolEventMapper.normalizeToolIdentifier(name)
         let hasPath = firstString(in: input, keys: ["path", "file_path", "file", "target_path"]) != nil
         let hasCommand = firstString(in: input, keys: ["command", "command_line", "cmd"]) != nil
         let hasQuery = firstString(in: input, keys: ["query", "pattern", "search", "needle"]) != nil

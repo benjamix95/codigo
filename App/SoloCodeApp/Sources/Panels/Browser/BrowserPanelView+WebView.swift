@@ -128,7 +128,7 @@ struct BrowserWebView: NSViewRepresentable {
             }
         }
 
-        func webView(_ wv: WKWebView, decidePolicyFor nav: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
             decisionHandler(.allow)
         }
     }

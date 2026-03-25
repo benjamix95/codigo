@@ -55,8 +55,8 @@ struct InlineEditTextView: NSViewRepresentable {
             }
         }
 
-        func handleReturn() { parent.onSubmit() }
-        func handleCancel() { parent.onCancel() }
+        @MainActor func handleReturn() { parent.onSubmit() }
+        @MainActor func handleCancel() { parent.onCancel() }
     }
 }
 

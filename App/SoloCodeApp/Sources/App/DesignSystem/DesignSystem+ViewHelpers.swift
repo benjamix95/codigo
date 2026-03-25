@@ -174,7 +174,7 @@ struct PanelResizeHandle: View {
 enum WindowResizeHelper {
     /// Expands or shrinks the window width by `delta` points, keeping the left edge fixed.
     /// Positive delta = wider, negative = narrower. Respects screen bounds.
-    static func adjustWidth(by delta: CGFloat, animate: Bool? = nil) {
+    @MainActor static func adjustWidth(by delta: CGFloat, animate: Bool? = nil) {
         guard let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first(where: { $0.canBecomeMain }) else { return }
         guard let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
         var frame = window.frame

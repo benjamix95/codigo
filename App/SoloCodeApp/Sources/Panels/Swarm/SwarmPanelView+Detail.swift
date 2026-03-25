@@ -4,7 +4,6 @@ extension SwarmPanelView {
     // MARK: - Detail View
 
     func detailView(for card: SwarmLiveCardState) -> some View {
-        let cardAccent = panelStatusAccent(for: card.status)
         let name = card.formattedTitle
         let backend = backendLabel(for: card)
 

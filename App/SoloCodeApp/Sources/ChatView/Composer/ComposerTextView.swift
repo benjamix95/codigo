@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-enum ComposerTextViewFocusCoordinator {
+@MainActor enum ComposerTextViewFocusCoordinator {
     static func applyDeferredFocusChange(shouldFocus: Bool, textView: NSTextView) {
         if shouldFocus {
             textView.window?.makeFirstResponder(textView)
@@ -11,7 +11,7 @@ enum ComposerTextViewFocusCoordinator {
     }
 }
 
-enum ComposerTextViewUpdateCoordinator {
+@MainActor enum ComposerTextViewUpdateCoordinator {
     static func applyViewState(
         parent: ComposerTextView,
         coordinator: ComposerTextView.Coordinator
@@ -26,10 +26,12 @@ enum ComposerTextViewUpdateCoordinator {
             if coordinator.parent.text != nextText {
                 coordinator.parent.text = nextText
             }
-            coordinator.updateHeight(
-                minHeight: coordinator.parent.minHeight,
-                maxHeight: coordinator.parent.maxHeight
-            )
+            MainActor.assumeIsolated {
+                coordinator.updateHeight(
+                    minHeight: coordinator.parent.minHeight,
+                    maxHeight: coordinator.parent.maxHeight
+                )
+            }
         }
         textView.onFocusChange = { isFocused in
             if coordinator.parent.isFocused != isFocused {
@@ -101,7 +103,9 @@ struct ComposerTextView: NSViewRepresentable {
         Coordinator(parent: self)
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    /// Il Coordinator vive interamente su MainActor (SwiftUI + AppKit callback).
+    /// NSObject impedisce l'inferenza automatica di Sendable.
+    final class Coordinator: NSObject, NSTextViewDelegate, @unchecked Sendable {
         var parent: ComposerTextView
         weak var scrollView: NSScrollView?
         weak var textView: ComposerNativeNSTextView?
@@ -128,15 +132,15 @@ struct ComposerTextView: NSViewRepresentable {
             }
         }
 
-        func updateHeight(minHeight: CGFloat, maxHeight: CGFloat) {
+        @MainActor func updateHeight(minHeight: CGFloat, maxHeight: CGFloat) {
             guard let scrollView, let textView else { return }
             guard let textContainer = textView.textContainer else { return }
             let fitting = textView.layoutManager?.usedRect(for: textContainer).height ?? minHeight
             let nextHeight = max(minHeight, min(maxHeight, fitting + 8))
             if abs(scrollView.frame.height - nextHeight) > 0.5 {
-                scrollView.constraints
-                    .filter { $0.firstAttribute == .height }
-                    .forEach { scrollView.removeConstraint($0) }
+                for c in scrollView.constraints where c.firstAttribute == .height {
+                    scrollView.removeConstraint(c)
+                }
                 scrollView.heightAnchor.constraint(equalToConstant: nextHeight).isActive = true
             }
             scrollView.hasVerticalScroller = fitting + 8 > maxHeight

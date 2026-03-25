@@ -13,14 +13,15 @@ extension AppDelegate {
         return menu
     }
 
-    @objc private func openNewWindowFromDock(_ sender: Any?) {
+    @MainActor @objc private func openNewWindowFromDock(_ sender: Any?) {
         if triggerMainMenuNewWindowAction() {
             return
         }
-        _ = NSApplication.shared.sendAction(#selector(NSApplication.newWindowForTab(_:)), to: nil, from: sender)
+        // Avoid sending non-Sendable `sender` across isolation — pass nil instead
+        _ = NSApplication.shared.sendAction(#selector(NSApplication.newWindowForTab(_:)), to: nil, from: nil)
     }
 
-    private func triggerMainMenuNewWindowAction() -> Bool {
+    @MainActor private func triggerMainMenuNewWindowAction() -> Bool {
         guard let mainMenu = NSApplication.shared.mainMenu,
               let newWindowItem = findNewWindowMenuItem(in: mainMenu),
               let action = newWindowItem.action
@@ -28,7 +29,8 @@ extension AppDelegate {
             return false
         }
 
-        return NSApplication.shared.sendAction(action, to: newWindowItem.target, from: newWindowItem)
+        // sendAction con target nil: AppKit usa la responder chain per trovare il target.
+        return NSApplication.shared.sendAction(action, to: nil, from: nil)
     }
 
     private func findNewWindowMenuItem(in menu: NSMenu) -> NSMenuItem? {

@@ -179,7 +179,7 @@ extension MessageToolTraceView {
         return ".../" + last2
     }
 
-    static func isErrorType(_ event: ToolTraceEvent) -> Bool {
+    nonisolated static func isErrorType(_ event: ToolTraceEvent) -> Bool {
         let type = event.type.lowercased()
         let status = (event.payload["status"] ?? "").lowercased()
         if Self.hardErrorTypes.contains(type) || type.contains("error") {
@@ -188,7 +188,7 @@ extension MessageToolTraceView {
         return status == "error" || status == "fatal"
     }
 
-    static func isWarningType(_ event: ToolTraceEvent) -> Bool {
+    nonisolated static func isWarningType(_ event: ToolTraceEvent) -> Bool {
         guard !isErrorType(event) else { return false }
         let type = event.type.lowercased()
         let status = (event.payload["status"] ?? "").lowercased()

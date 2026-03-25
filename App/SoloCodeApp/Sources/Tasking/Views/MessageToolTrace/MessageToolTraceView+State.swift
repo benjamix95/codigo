@@ -193,7 +193,7 @@ extension MessageToolTraceView {
         }
     }
 
-    static let hardErrorTypes: Set<String> = [
+    nonisolated(unsafe) static let hardErrorTypes: Set<String> = [
         "error",
         "permission_denied",
         "tool_execution_error",

@@ -132,7 +132,7 @@ public actor EventDeliveryManager {
     private func startDeliveryTask(for recordKey: String) {
         deliveryTasks[recordKey] = Task { [recordKey] in
             await self.processDelivery(recordKey: recordKey)
-            await self.drainWaitingQueue()
+            self.drainWaitingQueue()
         }
     }
 

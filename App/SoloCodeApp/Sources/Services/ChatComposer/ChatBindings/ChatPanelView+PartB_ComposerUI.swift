@@ -78,10 +78,11 @@ extension ChatPanelView {
             guard hasAttachableContent else {
                 return event  // Let standard text paste through
             }
+            let notificationName = Self.attachmentPastedNotification
             AttachmentIntakeService.attachmentsFromPasteboard { attachments in
                 guard !attachments.isEmpty else { return }
                 NotificationCenter.default.post(
-                    name: Self.attachmentPastedNotification,
+                    name: notificationName,
                     object: nil,
                     userInfo: ["attachments": attachments]
                 )
