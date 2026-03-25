@@ -73,6 +73,10 @@ struct ChatPanelView: View {
     /// Cached to avoid reading chatStore/pipelineIntegrationService in body.
     @State var snapshotIsLoading: Bool = false
 
+    /// Timestamp of last trace events refresh. Used to throttle trace
+    /// snapshot updates to max 4/sec during streaming.
+    @State var lastTraceRefreshTime: CFAbsoluteTime = 0
+
     // MARK: - Remaining @State (not grouped)
 
     @State var codexModels: [CodexModel] = []

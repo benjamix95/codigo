@@ -125,10 +125,8 @@ extension ChatPanelView {
         }
     }
 
-    /// Refresh all snapshot state from ObservableObjects.
-    /// This is the ONLY place where chatStore, toolTraceStore, and
-    /// pipelineIntegrationService should be read for the messages list.
-    /// All body evaluation paths read from @State snapshots only.
+    /// Refresh conversation and loading snapshot from ObservableObjects.
+    /// Called on every streamContentVersion change and messages.count change.
     internal func refreshMessagesSnapshot() {
         let fresh = chatStore.conversation(for: conversationId)
 
@@ -137,24 +135,6 @@ extension ChatPanelView {
             || pipelineIntegrationService.isRunning(for: conversationId)
         if snapshotIsLoading != freshLoading {
             snapshotIsLoading = freshLoading
-        }
-
-        // Update trace events for all assistant messages.
-        if let convId = conversationId ?? fresh?.id {
-            var newTraceMap: [UUID: [ToolTraceEvent]] = [:]
-            for msg in (fresh?.messages ?? []) where msg.role == .assistant {
-                newTraceMap[msg.id] = toolTraceStore.events(
-                    conversationId: convId,
-                    assistantMessageId: msg.id
-                )
-            }
-            // Only write if counts changed (avoid unnecessary @State writes).
-            let countsChanged = newTraceMap.contains { key, events in
-                snapshotTraceEvents[key]?.count != events.count
-            } || newTraceMap.count != snapshotTraceEvents.count
-            if countsChanged {
-                snapshotTraceEvents = newTraceMap
-            }
         }
 
         // Only update conversation if actually different.
@@ -174,6 +154,37 @@ extension ChatPanelView {
             || snapshotLastBlocks != freshLastBlocks
         {
             messagesConversationSnapshot = fresh
+        }
+
+        // Throttle trace events refresh: only update at most every 250ms.
+        // This prevents the barrier fingerprint from changing on every
+        // streamContentVersion increment (215+ per session), which was
+        // causing ~710 EQ-MISS. Text deltas are the most frequent
+        // streamContentVersion source but don't affect trace events.
+        let now = CFAbsoluteTimeGetCurrent()
+        let elapsed = now - lastTraceRefreshTime
+        if elapsed >= 0.25 || !snapshotIsLoading {
+            refreshTraceEventsSnapshot(fresh: fresh)
+            lastTraceRefreshTime = now
+        }
+    }
+
+    /// Refresh trace events snapshot. Separated from main refresh
+    /// so it can be throttled independently.
+    private func refreshTraceEventsSnapshot(fresh: Conversation?) {
+        guard let convId = conversationId ?? fresh?.id else { return }
+        var newTraceMap: [UUID: [ToolTraceEvent]] = [:]
+        for msg in (fresh?.messages ?? []) where msg.role == .assistant {
+            newTraceMap[msg.id] = toolTraceStore.events(
+                conversationId: convId,
+                assistantMessageId: msg.id
+            )
+        }
+        let countsChanged = newTraceMap.contains { key, events in
+            snapshotTraceEvents[key]?.count != events.count
+        } || newTraceMap.count != snapshotTraceEvents.count
+        if countsChanged {
+            snapshotTraceEvents = newTraceMap
         }
     }
 }
