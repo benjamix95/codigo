@@ -199,12 +199,14 @@ extension SemanticIndex {
 
         let encodings: [String.Encoding] = [
             .utf8,
+            // Try single-byte encodings before multi-byte ones.
+            // UTF-16 can falsely decode Latin-1 bytes as garbled CJK characters.
+            .isoLatin1,
+            .windowsCP1252,
             .utf16,
             .utf16LittleEndian,
             .utf16BigEndian,
             .utf32,
-            .isoLatin1,
-            .windowsCP1252,
         ]
         for encoding in encodings {
             if let text = String(data: data, encoding: encoding) {

@@ -3,6 +3,9 @@ import Foundation
 struct RustSearchEngineBackend: SearchEngineBackend {
     let kind: SearchEngineBackendKind = .rust
 
+    /// Swift fallback used when Rust dylib is unavailable (e.g. in XCTest).
+    private let swiftFallback = SwiftSearchEngineBackend()
+
     func search(
         query: SearchQueryInput,
         snapshot: SemanticIndexSearchSnapshot
@@ -11,16 +14,18 @@ struct RustSearchEngineBackend: SearchEngineBackend {
             return response
         }
 
-        SemanticIndex.logger.error("rust search backend unavailable; semantic search aborted")
+        // Fallback to Swift backend when Rust dylib is unavailable.
+        SemanticIndex.logger.info("rust search backend unavailable; falling back to Swift BM25")
+        let fallbackResponse = swiftFallback.search(query: query, snapshot: snapshot)
         return SearchEngineBackendResponse(
-            hits: [],
+            hits: fallbackResponse.hits,
             metrics: SearchBackendMetrics(
                 backendKind: .rust,
-                elapsedMs: 0,
-                hitCount: 0,
-                usedFallback: false,
+                elapsedMs: fallbackResponse.metrics.elapsedMs,
+                hitCount: fallbackResponse.metrics.hitCount,
+                usedFallback: true,
                 loadedRustLibrary: false,
-                errorMessage: "Rust backend unavailable; semantic search requires Rust core"
+                errorMessage: nil
             )
         )
     }

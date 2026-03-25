@@ -225,23 +225,29 @@ extension SemanticIndexTests {
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
+        // Latin-1 content with enough weight to pass minChunkWeight (50 non-whitespace chars).
+        // "class TokenLatin1Provider { func provide() -> String { return \"caf\u{00E9}\" } }"
+        let latin1String = "class TokenLatin1Provider {\n    func provide() -> String {\n        return \"caf\u{00E9}\"\n    }\n}\n"
+        let latin1Data = latin1String.data(using: .isoLatin1)!
         let fileURL = tmpDir.appendingPathComponent("Latin1.swift")
-        let latin1Data = Data([0x54, 0x6F, 0x6B, 0x65, 0x6E, 0x4C, 0x61, 0x74, 0x69, 0x6E, 0x31, 0x20, 0x3D, 0x20, 0xE9])
         try latin1Data.write(to: fileURL, options: .atomic)
 
         let indexed = IndexedFile(
             relativePath: "Latin1.swift",
             absolutePath: fileURL.path,
             language: .swift,
-            symbols: [],
+            symbols: [
+                IndexedSymbol(name: "TokenLatin1Provider", kind: .class, filePath: "Latin1.swift", line: 1, endLine: 5, language: .swift),
+                IndexedSymbol(name: "provide", kind: .method, filePath: "Latin1.swift", line: 2, endLine: 4, containerName: "TokenLatin1Provider", language: .swift),
+            ],
             imports: [],
-            lineCount: 1,
+            lineCount: 5,
             size: UInt64(latin1Data.count)
         )
         let index = SemanticIndex()
         await index.buildIndex(indexedFiles: [indexed], workspaceRoot: tmpDir)
 
-        let results = await index.search(query: "TokenLatin1", numResults: 5)
+        let results = await index.search(query: "TokenLatin1Provider", numResults: 5)
         XCTAssertFalse(results.isEmpty)
     }
 
