@@ -63,28 +63,10 @@ extension SidebarView {
         .padding(12)
     }
 
-    // MARK: - Index Badge
+    // MARK: - Index Badge (circular progress)
 
     private var indexBadge: some View {
-        Group {
-            if let progress = workspaceStore.indexProgress {
-                HStack(spacing: 3) {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .scaleEffect(0.5)
-                        .frame(width: 10, height: 10)
-                    Text(progress.percentText)
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                }
-                .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                .help("Indexing: \(progress.percentText)")
-            } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(DesignSystem.Colors.success.opacity(0.7))
-                    .help("Indexed 100% — codebase ready")
-            }
-        }
+        IndexCircleBadge(progress: workspaceStore.indexProgress)
     }
 
     // MARK: - Add Folder

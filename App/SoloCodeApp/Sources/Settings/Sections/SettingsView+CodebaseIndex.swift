@@ -84,28 +84,41 @@ private extension CodebaseIndexSettingsSection {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 settingsFieldLabel("Index status")
-                if let progress = workspaceStore.indexProgress {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Indexing... \(progress.current)/\(progress.total) files (\(progress.percentText))")
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(.secondary)
+
+                HStack(spacing: 12) {
+                    // Circular progress badge (same component as sidebar).
+                    IndexCircleBadge(progress: workspaceStore.indexProgress)
+                        .frame(width: 32, height: 32)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let progress = workspaceStore.indexProgress {
+                            Text("Indexing \(progress.percentText)")
+                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.primary)
+                            Text("\(progress.current)/\(progress.total) files")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(indexStatusText)
+                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.primary)
+                            if !indexStatsText.isEmpty {
+                                Text(indexStatsText)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
                     }
+
+                    Spacer()
+                }
+
+                if let progress = workspaceStore.indexProgress {
                     ProgressView(value: progress.fraction)
                         .progressViewStyle(.linear)
-                } else {
-                    Text(indexStatusText)
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .tint(.accentColor)
                 }
-                if !indexStatsText.isEmpty && workspaceStore.indexProgress == nil {
-                    Text(indexStatsText)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+
                 Button("Reindex") {
                     Task {
                         indexStatusText = "Reindexing..."
