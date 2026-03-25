@@ -287,4 +287,25 @@ extension SemanticIndexTests {
         let tokens = SemanticIndex.tokenizeStatic("auth authentication login auth")
         XCTAssertEqual(tokens.count, Set(tokens).count, "Token expansion should deduplicate noisy synonym cycles")
     }
+
+    // MARK: - allChunks()
+
+    func testAllChunksReturnsAllIndexedChunks() async {
+        let (files, tmpDir) = makeTestIndexedFiles()
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let index = SemanticIndex()
+        await index.buildIndex(indexedFiles: files, workspaceRoot: tmpDir)
+
+        let status = await index.status()
+        let allChunks = await index.allChunks()
+        XCTAssertEqual(allChunks.count, status.totalChunks, "allChunks() should return same count as status.totalChunks")
+        XCTAssertGreaterThan(allChunks.count, 0)
+    }
+
+    func testAllChunksEmptyOnFreshIndex() async {
+        let index = SemanticIndex()
+        let allChunks = await index.allChunks()
+        XCTAssertTrue(allChunks.isEmpty)
+    }
 }

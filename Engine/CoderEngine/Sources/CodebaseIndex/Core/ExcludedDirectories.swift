@@ -16,14 +16,33 @@ public enum ExcludedDirectories {
         // Python
         "__pycache__", ".pytest_cache", ".mypy_cache",
         "venv", ".venv", "env", ".env",
+        ".tox", ".eggs", "*.egg-info",
+        "site-packages",
+        // Ruby
+        "bundle", ".bundle",
+        // PHP
+        "vendor",
+        // Rust
+        "target",
+        // Go
+        "go_modules",
+        // Java/Kotlin
+        ".m2", ".mvn",
+        // .NET
+        "packages", "bin", "obj",
         // iOS/macOS
         "Pods", "Carthage",
         // IDE
         ".idea", ".vscode", ".vs",
-        // Other
-        "vendor", "target",
+        // Docker
+        ".docker",
+        // Terraform
+        ".terraform", ".terragrunt-cache",
+        // Misc
         "coverage", ".nyc_output",
-        ".terraform",
+        ".parcel-cache", ".turbo",
+        "bower_components",
+        ".pnpm-store",
     ]
 
     /// Ripgrep `--glob` exclusion arguments for the default set.

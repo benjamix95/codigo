@@ -11,7 +11,7 @@ extension CodebaseIndex {
     /// Lazily-created embedding service.
     /// Returns nil if vector search is disabled or model unavailable.
     public var embeddingServiceIfAvailable: EmbeddingService? {
-        guard ProcessInfo.processInfo.environment["SOLOCODE_ENABLE_VECTOR_SEARCH"] == "1" else {
+        guard IndexFeatureFlags.vectorSearchEnabled else {
             return nil
         }
         return _embeddingService
@@ -68,7 +68,7 @@ extension CodebaseIndex {
 
     /// Remove embeddings for files that were deleted or re-indexed.
     func removeEmbeddingsForFile(_ filePath: String) {
-        guard ProcessInfo.processInfo.environment["SOLOCODE_ENABLE_VECTOR_SEARCH"] == "1" else {
+        guard IndexFeatureFlags.vectorSearchEnabled else {
             return
         }
         do {

@@ -101,6 +101,38 @@ public final class ManagedPostgresService {
         }
     }
 
+    // MARK: - Database Size & Cleanup
+
+    /// Returns the total size of the Postgres data directory in bytes.
+    public func dataDirSizeBytes() -> UInt64 {
+        let configuration = resolvedConfiguration()
+        let dataPath = configuration.dataDirectory.path
+        guard FileManager.default.fileExists(atPath: dataPath) else { return 0 }
+        let enumerator = FileManager.default.enumerator(
+            at: configuration.dataDirectory,
+            includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+        var total: UInt64 = 0
+        while let url = enumerator?.nextObject() as? URL {
+            guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+                  values.isRegularFile == true,
+                  let size = values.fileSize else { continue }
+            total += UInt64(size)
+        }
+        return total
+    }
+
+    /// Stops Postgres and removes the entire data directory.
+    public func deleteDatabase() throws {
+        try shutdownIfRunning()
+        let configuration = resolvedConfiguration()
+        let root = configuration.rootDirectory
+        if FileManager.default.fileExists(atPath: root.path) {
+            try FileManager.default.removeItem(at: root)
+        }
+    }
+
     public func shutdownIfRunning() throws {
         queue.sync {
             let configuration = resolvedConfiguration()

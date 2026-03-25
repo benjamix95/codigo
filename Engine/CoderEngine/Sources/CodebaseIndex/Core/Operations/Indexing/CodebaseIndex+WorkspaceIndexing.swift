@@ -39,7 +39,10 @@ extension CodebaseIndex {
             && !isGitignored($0.relativePath, isDirectory: false)
         }
         let filesToIndex = Array(sourceFiles.prefix(Self.maxFiles))
-        let indexingProgressTotal = max(1, filesToIndex.count + 1) // + semantic phase
+        // Progress phases: files + semantic BM25 + vector embedding
+        let vectorEnabled = IndexFeatureFlags.vectorSearchEnabled
+        let extraPhases = vectorEnabled ? 2 : 1 // semantic + optional embedding
+        let indexingProgressTotal = max(1, filesToIndex.count + extraPhases)
         _indexingProgress = (current: 0, total: indexingProgressTotal)
 
         // Parallelize symbol extraction: SymbolExtractor.indexFile is a
@@ -113,6 +116,21 @@ extension CodebaseIndex {
                 }
             } else {
                 await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot)
+            }
+        }
+        // 5. Vector embedding pipeline (if enabled)
+        if vectorEnabled {
+            let semanticChunks = await semanticIndex.allChunks()
+            if !semanticChunks.isEmpty {
+                await generateEmbeddingsForChunks(semanticChunks)
+                // Poll embedding progress until complete
+                while await isEmbeddingActive {
+                    let embProgress = await embeddingProgress
+                    let embPhaseStart = indexingProgressTotal - 1
+                    let embCurrent = embPhaseStart + Int(embProgress * 1.0)
+                    _indexingProgress = (current: min(embCurrent, indexingProgressTotal - 1), total: indexingProgressTotal)
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
             }
         }
         _indexingProgress = (current: indexingProgressTotal, total: indexingProgressTotal)

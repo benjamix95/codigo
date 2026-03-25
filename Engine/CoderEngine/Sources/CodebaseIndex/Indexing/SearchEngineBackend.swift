@@ -124,7 +124,7 @@ enum SearchEngineBackendFactory {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        let vectorEnabled = ProcessInfo.processInfo.environment["SOLOCODE_ENABLE_VECTOR_SEARCH"] == "1"
+        let vectorEnabled = IndexFeatureFlags.vectorSearchEnabled
 
         let lexicalBackend: any SearchEngineBackend = {
             switch raw {

@@ -46,6 +46,11 @@ extension SemanticIndex {
         )
     }
 
+    /// All chunks currently in the index (for vector embedding pipeline).
+    public func allChunks() -> [SemanticChunk] {
+        Array(chunks.values)
+    }
+
     // MARK: - Tokenization
 
     func tokenize(_ text: String) -> [String] {

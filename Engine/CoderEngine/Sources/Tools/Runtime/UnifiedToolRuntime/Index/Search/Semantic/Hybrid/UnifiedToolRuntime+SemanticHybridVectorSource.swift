@@ -12,7 +12,7 @@ extension UnifiedToolRuntime {
         index: CodebaseIndex
     ) async -> [HybridSourceHit] {
         // Check feature flag.
-        guard ProcessInfo.processInfo.environment["SOLOCODE_ENABLE_VECTOR_SEARCH"] == "1" else {
+        guard IndexFeatureFlags.vectorSearchEnabled else {
             return []
         }
 

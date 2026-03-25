@@ -11,6 +11,8 @@ struct CodebaseIndexSettingsSection: View {
     @State private var indexStatusText: String = "Loading..."
     @State private var indexStatsText: String = ""
     @State private var statusRefreshTask: Task<Void, Never>?
+    @State private var dbSizeText: String = "Calculating..."
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -18,6 +20,7 @@ struct CodebaseIndexSettingsSection: View {
 
             automaticIndexingGroup
             indexStatusGroup
+            databaseStorageGroup
             vectorSearchGroup
             trigramIndexGroup
             excludedPathsGroup
@@ -33,11 +36,13 @@ struct CodebaseIndexSettingsSection: View {
         }
         .onAppear {
             Task { await refreshIndexStatus() }
+            refreshDbSize()
             statusRefreshTask = Task {
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
                     guard !Task.isCancelled else { break }
                     await refreshIndexStatus()
+                    refreshDbSize()
                 }
             }
         }
@@ -65,6 +70,17 @@ struct CodebaseIndexSettingsSection: View {
         if info.totalSourceFiles > 0 { stats.append("\(info.totalSourceFiles) sources") }
         if info.totalSymbols > 0 { stats.append("\(info.totalSymbols) symbols") }
         indexStatsText = stats.joined(separator: " · ")
+    }
+
+    private func refreshDbSize() {
+        let bytes = ManagedPostgresService.shared.dataDirSizeBytes()
+        dbSizeText = Self.formattedSize(bytes)
+    }
+
+    static func formattedSize(_ bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 }
 
@@ -132,12 +148,51 @@ private extension CodebaseIndexSettingsSection {
         }
     }
 
+    var databaseStorageGroup: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                settingsFieldLabel("Database storage")
+
+                HStack {
+                    Image(systemName: "internaldrive")
+                        .foregroundStyle(.secondary)
+                    Text(dbSizeText)
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    Spacer()
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("Delete Index", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(workspaceStore.indexProgress != nil)
+                }
+
+                settingsHintBox("Vector database stored in ~/Library/Application Support/CoderIDE/postgres. Deleting removes all indexed data — it will be rebuilt on next indexing.")
+            }
+        }
+        .alert("Delete vector database?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task.detached(priority: .userInitiated) {
+                    try? ManagedPostgresService.shared.deleteDatabase()
+                    await MainActor.run {
+                        dbSizeText = "0 bytes"
+                    }
+                }
+            }
+        } message: {
+            Text("This will stop Postgres, delete all indexed data, and free disk space. The index will be rebuilt automatically on next workspace open.")
+        }
+    }
+
     var vectorSearchGroup: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle("Vector Search", isOn: $indexConfig.vectorSearchEnabled)
                     .toggleStyle(.switch)
-                settingsHintBox("Semantic search using local CoreML embeddings. Everything runs locally — no data leaves your machine.")
+                settingsHintBox("Semantic code search powered by local embeddings. Everything runs on-device — no data leaves your machine.")
             }
         }
     }

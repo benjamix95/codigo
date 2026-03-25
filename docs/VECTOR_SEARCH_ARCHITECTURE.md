@@ -251,15 +251,20 @@ Query grep ricevuta
 
 ## 5. Feature Flags
 
-| Flag ambiente | Default | Effetto |
-|---------------|---------|---------|
-| `SOLOCODE_ENABLE_VECTOR_SEARCH` | `0` (OFF) | Abilita pgvector + CoreML embedding pipeline |
-| `SOLOCODE_ENABLE_TRIGRAM_INDEX` | `0` (OFF) | Abilita trigram instant grep |
-| `SOLOCODE_SEMANTIC_SEARCH_BACKEND` | `rust` | Backend BM25: `swift` o `rust` |
+I flag sono gestiti da `IndexFeatureFlags` che legge da UserDefaults (Settings UI).
+Le env var funzionano come override per test/CI.
+
+| UserDefaults key | Env override | Default | Effetto |
+|-----------------|-------------|---------|---------|
+| `vector_search_enabled` | `SOLOCODE_ENABLE_VECTOR_SEARCH` | `true` (ON) | pgvector + CoreML embedding pipeline |
+| `trigram_index_enabled` | `SOLOCODE_ENABLE_TRIGRAM_INDEX` | `true` (ON) | Trigram instant grep |
+| — | `SOLOCODE_SEMANTIC_SEARCH_BACKEND` | `rust` | Backend BM25: `swift` o `rust` |
+
+**Priorità**: env var > UserDefaults > default hardcoded.
 
 ### Degradazione graceful
 
-- Se pgvector non installato → tabella non creata, vector search disabilitato, BM25 funziona
+- Se pgvector non installato → auto-install via Homebrew, poi retry
 - Se CoreML model non trovato → Rust fallback, poi hash pseudo-embedding
 - Se trigram index non pronto → grep standard via ripgrep
 - Se Rust dylib non caricato → Swift BM25 backend
