@@ -131,6 +131,11 @@ extension MCPSharedState {
         createMode: mode_t,
         ensureLockDirectory: () -> Void
     ) -> AdvisoryFileLockResult {
+        #if DEBUG
+        if Thread.isMainThread {
+            NSLog("[CrossProcessLock] WARNING: acquireAdvisoryFileLock called on main thread — this will block the UI for up to %.0fs. Move to background thread.", advisoryLockTimeout)
+        }
+        #endif
         let deadline = Date().addingTimeInterval(advisoryLockTimeout)
 
         for _ in 0..<2 {

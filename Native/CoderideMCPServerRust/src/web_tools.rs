@@ -130,7 +130,11 @@ fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
 fn timeout_arg(arguments: &BTreeMap<String, Value>) -> String {
     let raw = arguments
         .get("timeout")
-        .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+        .and_then(|v| {
+            v.as_i64()
+                .or_else(|| v.as_f64().map(|f| f as i64))
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        })
         .unwrap_or(0);
     if raw > 0 && raw <= 120 {
         raw.to_string()

@@ -205,7 +205,13 @@ fn resolve_path(workspace: &Path, input: String) -> PathBuf {
     } else {
         resolved.clone()
     };
-    let workspace_canonical = workspace.canonicalize().unwrap_or(workspace.to_path_buf());
+    let workspace_canonical = match workspace.canonicalize() {
+        Ok(c) => c,
+        Err(_) => {
+            eprintln!("[edit_tools] WARNING: cannot canonicalize workspace {:?} — rejecting path for safety", workspace);
+            return PathBuf::new();
+        }
+    };
     if !check_path.starts_with(&workspace_canonical) {
         return PathBuf::new(); // empty path → triggers "path is required" error
     }
