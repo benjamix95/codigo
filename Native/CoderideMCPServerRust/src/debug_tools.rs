@@ -872,7 +872,9 @@ fn debug_clean(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
         if file_cleaned > 0 {
             touched += 1;
             if !dry_run {
-                let _ = write_lines(&file, &kept);
+                if let Err(e) = write_lines(&file, &kept) {
+                    eprintln!("[debug_tools] WARNING: failed to write cleaned file {}: {e}", file.display());
+                }
             }
         }
     }

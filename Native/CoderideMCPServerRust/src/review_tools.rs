@@ -9,6 +9,8 @@ use solocode_rust_core::review_mcp::{
 };
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn handle(
     name: &str,
@@ -72,7 +74,10 @@ fn handle_review(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolRes
             payload: args.clone(),
         };
         let queued = enqueue_review_command(request);
-        let _ = state::write_review_commands(&queued.commands);
+        if let Err(e) = state::write_review_commands(&queued.commands) {
+            eprintln!("[review_tools] CRITICAL: failed to persist review commands: {e}");
+            return CallToolResult::error(format!("Failed to queue review command: {e}"));
+        }
     }
     CallToolResult::text(response.message)
 }
@@ -114,7 +119,10 @@ fn handle_security(name: &str, arguments: &BTreeMap<String, Value>) -> CallToolR
             payload: security_payload(name, &args),
         };
         let queued = enqueue_review_command(request);
-        let _ = state::write_review_commands(&queued.commands);
+        if let Err(e) = state::write_review_commands(&queued.commands) {
+            eprintln!("[review_tools] CRITICAL: failed to persist security commands: {e}");
+            return CallToolResult::error(format!("Failed to queue security command: {e}"));
+        }
     }
     CallToolResult::text(response.message)
 }
@@ -144,7 +152,10 @@ fn handle_bughunter(name: &str, arguments: &BTreeMap<String, Value>) -> CallTool
             payload: args.clone(),
         };
         let queued = enqueue_bughunter_command(request);
-        let _ = state::write_bughunter_commands(&queued.commands);
+        if let Err(e) = state::write_bughunter_commands(&queued.commands) {
+            eprintln!("[review_tools] CRITICAL: failed to persist bughunter start: {e}");
+            return CallToolResult::error(format!("Failed to queue bughunter start: {e}"));
+        }
         return CallToolResult::text(format!(
             "OK — bugHunter start queued (run_id={}, source_kind={})",
             run_id,
@@ -179,7 +190,10 @@ fn handle_bughunter(name: &str, arguments: &BTreeMap<String, Value>) -> CallTool
             payload: args.clone(),
         };
         let queued = enqueue_bughunter_command(request);
-        let _ = state::write_bughunter_commands(&queued.commands);
+        if let Err(e) = state::write_bughunter_commands(&queued.commands) {
+            eprintln!("[review_tools] CRITICAL: failed to persist bughunter command: {e}");
+            return CallToolResult::error(format!("Failed to queue bughunter command: {e}"));
+        }
     }
     CallToolResult::text(response.message)
 }
@@ -768,8 +782,15 @@ fn security_payload(name: &str, args: &HashMap<String, String>) -> HashMap<Strin
     payload
 }
 
+static UUID_COUNTER: AtomicU64 = AtomicU64::new(0);
+
 fn uuid_like() -> String {
-    format!("{:x}", state::reference_seconds_now().to_bits())
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64;
+    let seq = UUID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{:016x}-{:04x}", nanos, seq)
 }
 
 fn as_string_args(arguments: &BTreeMap<String, Value>) -> HashMap<String, String> {

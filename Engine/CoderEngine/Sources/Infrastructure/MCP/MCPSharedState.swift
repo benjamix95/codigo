@@ -26,8 +26,20 @@ public enum MCPSharedState {
     /// Serial queue per garantire atomicità delle operazioni read-modify-write su disco.
     static let fileAccessQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.FileAccess")
 
-    private static let legacyWarningQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.LegacyWarnings")
-    private static var legacyWarningKeys: Set<String> = []
+    /// Thread-safe tracker per chiavi di warning già emesse. Lock e stato co-locati.
+    private static let legacyWarnings = LegacyWarningTracker()
+
+    private final class LegacyWarningTracker: @unchecked Sendable {
+        private let queue = DispatchQueue(label: "CoderEngine.MCPSharedState.LegacyWarnings")
+        private var emittedKeys: Set<String> = []
+
+        /// Returns true se la key è stata inserita per la prima volta (= non era già presente).
+        func insertIfNew(_ key: String) -> Bool {
+            queue.sync {
+                emittedKeys.insert(key).inserted
+            }
+        }
+    }
 
     // MARK: - Todos
 
@@ -35,7 +47,9 @@ public enum MCPSharedState {
     /// Thread-safe: serialized through `fileAccessQueue` to prevent concurrent read/write races.
     public static func writeTodos(_ items: [[String: Any]]) {
         fileAccessQueue.sync {
-            _writeTodosUnsafe(items)
+            withTodosAdvisoryLock {
+                _writeTodosUnsafe(items)
+            }
         }
     }
 
@@ -74,7 +88,9 @@ public enum MCPSharedState {
     /// Thread-safe: serialized through `fileAccessQueue` to prevent torn reads during concurrent writes.
     public static func readTodos() -> [[String: Any]] {
         fileAccessQueue.sync {
-            _readTodosUnsafe()
+            withTodosAdvisoryLock {
+                _readTodosUnsafe()
+            }
         }
     }
 
@@ -100,6 +116,7 @@ public enum MCPSharedState {
         sourceServer: String? = nil
     ) {
         fileAccessQueue.sync {
+            withTodosAdvisoryLock {
             var todos = _readTodosUnsafe()
             let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalizedTitle.isEmpty else { return }
@@ -135,12 +152,14 @@ public enum MCPSharedState {
                 todos.append(item)
             }
             _writeTodosUnsafe(todos)
+            }
         }
     }
 
     /// Batch-write todos from the MCP server (full replacement of todos_json).
     public static func batchWriteTodosFromMCP(_ todosArray: [[String: Any]]) {
         fileAccessQueue.sync {
+            withTodosAdvisoryLock {
             var existing = _readTodosUnsafe()
             for todoItem in todosArray {
                 guard var canonicalItem = canonicalTodo(todoItem, defaultSource: "agent") else { continue }
@@ -172,6 +191,7 @@ public enum MCPSharedState {
                 existing.append(canonicalItem)
             }
             _writeTodosUnsafe(canonicalizedTodos(existing, defaultSource: "agent"))
+            }
         }
     }
 
@@ -270,9 +290,7 @@ public enum MCPSharedState {
     }
 
     private static func logLegacyWarningOnce(key: String, message: String) {
-        legacyWarningQueue.sync {
-            guard !legacyWarningKeys.contains(key) else { return }
-            legacyWarningKeys.insert(key)
+        if legacyWarnings.insertIfNew(key) {
             print(message)
         }
     }

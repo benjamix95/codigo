@@ -5,13 +5,28 @@ extension MCPSharedState {
 
     // MARK: - Public Locking APIs
 
+    static func withTodosAdvisoryLock<T>(
+        _ body: () -> T
+    ) -> T {
+        withAdvisoryFileLock(
+            label: "TodosLock",
+            lockURL: sharedDirectory.appendingPathComponent("todos.lock"),
+            createMode: 0o600,
+            fallbackLock: todosFallbackLock,
+            ensureLockDirectory: {
+                ensureDirectory()
+            },
+            body: body
+        )
+    }
+
     static func withCodeReviewFileLock<T>(
         _ body: () -> T
     ) -> T {
         withAdvisoryFileLock(
             label: "CodeReviewLock",
             lockURL: codeReviewDirectoryPath.appendingPathComponent(".lock"),
-            createMode: 0o644,
+            createMode: 0o600,
             fallbackLock: codeReviewFallbackLock,
             ensureLockDirectory: {
                 ensureDirectory()
@@ -30,7 +45,7 @@ extension MCPSharedState {
         withAdvisoryFileLock(
             label: "BugHunterLock",
             lockURL: bugHunterDirectoryPath.appendingPathComponent(".lock"),
-            createMode: 0o644,
+            createMode: 0o600,
             fallbackLock: bugHunterFallbackLock,
             ensureLockDirectory: {
                 ensureBugHunterDirectories()
@@ -88,11 +103,28 @@ extension MCPSharedState {
 
     // MARK: - Private
 
+    private static let todosFallbackLock = NSRecursiveLock()
     private static let codeReviewFallbackLock = NSRecursiveLock()
     private static let bugHunterFallbackLock = NSRecursiveLock()
 
-    /// Timeout massimo per acquisire il file lock cross-processo (secondi).
-    static var advisoryLockTimeout: TimeInterval = 10
+    /// Timeout thread-safe per acquisire il file lock cross-processo.
+    private static let _lockTimeout = LockedValue<TimeInterval>(initial: 10)
+
+    static var advisoryLockTimeout: TimeInterval {
+        get { _lockTimeout.value }
+        set { _lockTimeout.value = newValue }
+    }
+
+    /// Valore generico protetto da lock. Lock e stato co-locati.
+    private final class LockedValue<T: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _value: T
+        init(initial: T) { _value = initial }
+        var value: T {
+            get { lock.lock(); defer { lock.unlock() }; return _value }
+            set { lock.lock(); defer { lock.unlock() }; _value = newValue }
+        }
+    }
 
     static func acquireAdvisoryFileLock(
         lockURL: URL,
@@ -128,9 +160,7 @@ extension MCPSharedState {
 
             // Timeout raggiunto: rilascia il descriptor e usa fallback.
             close(descriptor)
-            #if DEBUG
-            NSLog("[CrossProcessLock] Timeout acquiring advisory lock at %@", lockURL.path)
-            #endif
+            NSLog("[CrossProcessLock] WARNING: Timeout acquiring advisory lock at %@ — proceeding with intra-process lock only. Cross-process data corruption is possible.", lockURL.path)
             return .fallback
         }
 

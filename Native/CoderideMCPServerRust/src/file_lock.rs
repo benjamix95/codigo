@@ -15,7 +15,7 @@ pub enum LockMode {
 /// adiacente al path dato. Il lock viene rilasciato automaticamente
 /// quando il `File` handle esce dallo scope (drop).
 ///
-/// Se il lock non può essere acquisito entro ~10 secondi, ritorna errore.
+/// Se il lock non può essere acquisito entro ~30 secondi, ritorna errore.
 pub fn with_file_lock<T, F>(path: &Path, mode: LockMode, body: F) -> Result<T, String>
 where
     F: FnOnce() -> Result<T, String>,
@@ -53,7 +53,7 @@ fn acquire_flock(file: &File, mode: LockMode) -> Result<(), String> {
         LockMode::Exclusive => libc::LOCK_EX | libc::LOCK_NB,
     };
 
-    let deadline = Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = Instant::now() + std::time::Duration::from_secs(30);
 
     loop {
         let ret = unsafe { libc::flock(fd, op) };
@@ -67,7 +67,7 @@ fn acquire_flock(file: &File, mode: LockMode) -> Result<(), String> {
         }
 
         if Instant::now() >= deadline {
-            return Err("flock: timeout after 10s".to_string());
+            return Err("flock: timeout after 30s".to_string());
         }
 
         std::thread::sleep(std::time::Duration::from_millis(50));
