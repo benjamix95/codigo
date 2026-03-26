@@ -52,6 +52,13 @@ final class ExcludedDirectoriesTests: XCTestCase {
         XCTAssertTrue(ExcludedDirectories.defaultSet.contains("bower_components"))
     }
 
+    func testDefaultSetContainsExportAndToolingDirs() {
+        XCTAssertTrue(ExcludedDirectories.defaultSet.contains("output"))
+        XCTAssertTrue(ExcludedDirectories.defaultSet.contains("jspm_packages"))
+        XCTAssertTrue(ExcludedDirectories.defaultSet.contains("zig-cache"))
+        XCTAssertTrue(ExcludedDirectories.defaultSet.contains("_build"))
+    }
+
     func testRipgrepGlobArgsGeneratesExclusionFlags() {
         let args = ExcludedDirectories.ripgrepGlobArgs
         // Should have pairs of --glob + pattern
