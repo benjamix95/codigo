@@ -675,6 +675,66 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.first { $0.id == runtimeId }?.status, .pending)
     }
 
+    func testDisplayTodosForChatHidesGlobalUnscopedWhenAnotherConversationHasScoped() {
+        let store = makeStore()
+        let convA = UUID()
+        let convB = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Scoped task",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: convA
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Orphan unscoped",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+
+        let titlesA = Set(store.displayTodosForChat(for: convA).map(\.title))
+        let titlesB = Set(store.displayTodosForChat(for: convB).map(\.title))
+
+        XCTAssertEqual(titlesA, Set(["Scoped task", "Orphan unscoped"]))
+        XCTAssertTrue(titlesB.isEmpty)
+    }
+
+    func testAdvanceNextUnscopedQueueNotBlockedByOpenCanonicalPlanElsewhere() {
+        let store = makeStore()
+        let planConv = UUID()
+        store.upsertCanonicalPlanTodos(["Open plan step"], conversationId: planConv)
+
+        let firstUnscoped = UUID()
+        let secondUnscoped = UUID()
+        store.upsertFromAgent(
+            id: firstUnscoped,
+            title: "Unscoped A",
+            status: .inProgress,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        store.upsertFromAgent(
+            id: secondUnscoped,
+            title: "Unscoped B",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        store.setStatus(id: firstUnscoped, status: .done)
+        XCTAssertTrue(store.advanceNextRuntimeTodoIfNeeded(conversationId: nil))
+        XCTAssertEqual(store.todos.first { $0.id == secondUnscoped }?.status, .inProgress)
+    }
+
     func testPlanConversationIdAfterUpsertFindsRowMergedByTitle() {
         let store = makeStore()
         let conversationId = UUID()
@@ -805,6 +865,31 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.userVisibleTodos.map(\.title), ["Real task"])
         XCTAssertEqual(store.displayTodosForChat(for: conversationId).map(\.title), ["Real task"])
         XCTAssertEqual(store.openTodosCount, 1)
+    }
+
+    func testClearTodosCanOptionallyRemoveLegacyUnscopedAgentRuntime() {
+        let store = makeStore()
+        let conv = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Scoped",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conv
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Nil scope agent",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        store.clearTodos(forConversationId: conv, alsoRemoveLegacyUnscopedAgentRuntime: true)
+        XCTAssertTrue(store.todos.isEmpty)
     }
 
     func testClearDoesNotFireCanonicalCallback() {

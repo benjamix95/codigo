@@ -18,10 +18,6 @@ extension TodoStore {
             let unscoped = runtimeVisible.filter { $0.planConversationId == nil }
             pool = scoped.isEmpty ? unscoped : scoped + unscoped
         } else {
-            let blocksUnscopedAdvance = userVisibleTodos.contains {
-                $0.isPlanCanonical && $0.status != .done
-            }
-            if blocksUnscopedAdvance { return false }
             pool = runtimeVisible.filter { $0.planConversationId == nil }
         }
 
