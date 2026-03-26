@@ -309,6 +309,11 @@ private struct ReviewCoreAuditRequest: Encodable {
     let toolName: String
     let scopeFiles: [String]
     let workspacePath: String
+    var profile: String? = nil
+    var file: String? = nil
+    var message: String? = nil
+    var line: String? = nil
+    var evidence: String? = nil
 }
 
 private struct ReviewCoreAuditBridgeResponse: Decodable {

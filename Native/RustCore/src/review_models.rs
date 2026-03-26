@@ -102,6 +102,16 @@ pub struct ReviewAuditRequest {
     pub tool_name: String,
     pub scope_files: Vec<String>,
     pub workspace_path: String,
+    #[serde(default)]
+    pub profile: Option<String>,
+    #[serde(default)]
+    pub file: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
+    #[serde(default)]
+    pub line: Option<String>,
+    #[serde(default)]
+    pub evidence: Option<String>,
 }
 
 #[derive(Deserialize)]

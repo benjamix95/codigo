@@ -1,5 +1,5 @@
 use super::common::{encode_raw, with_raw_json_input, BACKEND_VERSION};
-use crate::review_audit::run_audit;
+use crate::review_audit::{run_audit, AuditParams};
 use crate::review_chat::merge_chat_findings;
 use crate::review_finalize::{select_auto_prepare_targets, select_patch_finalization_targets};
 use crate::review_history::{derive_historical_findings_from_snapshot, derive_history_live_state};
@@ -124,10 +124,12 @@ pub extern "C" fn review_core_run_audit(input: *const c_char) -> *mut c_char {
                 "schemaVersion must be 1",
             ));
         }
+        let params = AuditParams::from(&request);
         match run_audit(
             &request.tool_name,
             request.scope_files,
             &request.workspace_path,
+            params,
         ) {
             Ok(result) => encode_raw(&ReviewCoreAuditResponse::success(result)),
             Err(message) if message == "unsupported_tool" => {

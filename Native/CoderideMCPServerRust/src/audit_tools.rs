@@ -1,6 +1,6 @@
 use app_core_protocol::mcp::CallToolResult;
 use serde_json::Value;
-use solocode_rust_core::review_audit::run_audit;
+use solocode_rust_core::review_audit::{run_audit, AuditParams};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -13,8 +13,20 @@ pub fn handle(
         return None;
     }
     let tool_name = name.trim_start_matches("coderide_");
-    let scope_files = parse_scope_files(arguments);
-    let result = run_audit(tool_name, scope_files, &workspace.display().to_string());
+    let mut scope_files = parse_scope_files(arguments);
+    if scope_files.is_empty() {
+        let p = string_arg(arguments, "path");
+        if !p.is_empty() {
+            scope_files.push(p);
+        }
+    }
+    let params = parse_audit_params(arguments);
+    let result = run_audit(
+        tool_name,
+        scope_files,
+        &workspace.display().to_string(),
+        params,
+    );
     Some(match result {
         Ok(value) => CallToolResult::text(
             serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string()),
@@ -24,6 +36,32 @@ pub fn handle(
         }
         Err(message) => CallToolResult::error(message),
     })
+}
+
+fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
+    arguments
+        .get(key)
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
+}
+
+fn parse_audit_params(arguments: &BTreeMap<String, Value>) -> AuditParams {
+    fn opt_str(args: &BTreeMap<String, Value>, key: &str) -> Option<String> {
+        let s = string_arg(args, key);
+        if s.is_empty() {
+            None
+        } else {
+            Some(s)
+        }
+    }
+    AuditParams {
+        profile: opt_str(arguments, "profile"),
+        explain_file: opt_str(arguments, "file"),
+        explain_message: opt_str(arguments, "message"),
+        explain_line: opt_str(arguments, "line"),
+        explain_evidence: opt_str(arguments, "evidence"),
+    }
 }
 
 fn parse_scope_files(arguments: &BTreeMap<String, Value>) -> Vec<String> {

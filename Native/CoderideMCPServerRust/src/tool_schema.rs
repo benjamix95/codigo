@@ -1,6 +1,21 @@
 use serde_json::{json, Map, Value};
 
 pub fn input_schema_for(name: &str) -> Value {
+    if name.starts_with("coderide_audit_") {
+        return object_schema(
+            &[
+                ("scope_files", "string"),
+                ("scopeFiles", "string"),
+                ("path", "string"),
+                ("profile", "string"),
+                ("file", "string"),
+                ("message", "string"),
+                ("line", "string"),
+                ("evidence", "string"),
+            ],
+            &[],
+        );
+    }
     match name {
         "coderide_read" => object_schema(&[("path", "string")], &["path"]),
         "coderide_list_dir" => object_schema(&[("path", "string")], &["path"]),
