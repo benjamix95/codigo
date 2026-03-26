@@ -104,6 +104,7 @@ extension CodebaseIndex {
 
     /// Clear all index state and reset status to idle.
     public func clear() async {
+        let workspacePathsForCacheRemoval = currentWorkspacePaths
         fileTrees.removeAll()
         indexedFiles.removeAll()
         symbolsByName.removeAll()
@@ -128,6 +129,11 @@ extension CodebaseIndex {
         indexDurationMs = 0
         lastFullIndexAt = nil
         _status = .idle
+        if !workspacePathsForCacheRemoval.isEmpty {
+            let primaryCacheURL = Self.cacheDirectory(for: workspacePathsForCacheRemoval)
+                .appendingPathComponent(Self.primarySymbolCacheFileName)
+            try? FileManager.default.removeItem(at: primaryCacheURL)
+        }
         await semanticIndex.clear()
     }
 

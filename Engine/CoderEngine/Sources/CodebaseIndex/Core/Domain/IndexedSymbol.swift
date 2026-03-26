@@ -3,7 +3,7 @@ import Foundation
 // MARK: - IndexedSymbol
 
 /// Simbolo estratto e indicizzato dal codice sorgente
-public struct IndexedSymbol: Sendable, Identifiable, Hashable {
+public struct IndexedSymbol: Sendable, Identifiable, Hashable, Codable {
     /// ID univoco (filePath:line:name)
     public let id: String
 

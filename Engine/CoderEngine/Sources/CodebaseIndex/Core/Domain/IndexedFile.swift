@@ -3,7 +3,7 @@ import Foundation
 // MARK: - IndexedFile
 
 /// Risultato dell'indicizzazione di un singolo file
-public struct IndexedFile: Sendable {
+public struct IndexedFile: Sendable, Codable {
     /// Path relativo del file
     public let relativePath: String
 

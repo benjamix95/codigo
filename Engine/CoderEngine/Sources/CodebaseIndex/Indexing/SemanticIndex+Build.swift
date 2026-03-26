@@ -12,7 +12,8 @@ extension SemanticIndex {
     public func buildIndex(
         indexedFiles: [IndexedFile],
         workspaceRoot: URL,
-        contentCache: [String: String] = [:]
+        contentCache: [String: String] = [:],
+        onIndexedFileBatchComplete: (@Sendable (Int, Int) async -> Void)? = nil
     ) async {
         Self.logger.info("buildIndex: starting for \(indexedFiles.count) files")
 
@@ -73,6 +74,7 @@ extension SemanticIndex {
             for (relativePath, fileChunks) in batchResults {
                 addChunks(fileChunks, forFile: relativePath)
             }
+            await onIndexedFileBatchComplete?(batchEnd, indexedFiles.count)
         }
 
         evictIfNeeded()
