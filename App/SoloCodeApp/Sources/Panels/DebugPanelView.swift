@@ -11,6 +11,10 @@ struct DebugPanelView: View {
     let onStop: () -> Void
     let onProceed: () -> Void
     let onFixed: () -> Void
+    let onSubmitDebugClarification: (String) -> Void
+
+    @State var clarificationSelectedLetter: String?
+    @State var clarificationCustomNotes: String = ""
 
     @State var expandedLogId: UUID?
     @State var expandedRuntimeLogId: String?
@@ -61,6 +65,16 @@ struct DebugPanelView: View {
         )
         .frame(minWidth: 420, idealWidth: 500, maxWidth: 560)
         .animation(.smooth, value: debugStore.phase)
+        .onChange(of: debugStore.clarificationQuestions) { _ in
+            clarificationSelectedLetter = nil
+            clarificationCustomNotes = ""
+        }
+        .onChange(of: debugStore.isAwaitingUserClarification) { waiting in
+            if !waiting {
+                clarificationSelectedLetter = nil
+                clarificationCustomNotes = ""
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .soloCodeDebugEventBufferDropped)) { note in
             guard let cid = note.userInfo?[DebugPipelineBufferNotificationUserInfoKey.conversationId] as? UUID,
                   cid == conversationId

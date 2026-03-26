@@ -23,44 +23,52 @@ extension DebugPanelView {
     // MARK: - Question Cards
 
     var questionCards: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(accent.opacity(0.1))
-                        .frame(width: 26, height: 26)
-                    Image(systemName: "questionmark.bubble.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(accent)
-                }
+        Group {
+            if debugStore.isAwaitingUserClarification {
+                clarificationResponseCard(
+                    parsed: DebugClarificationPromptParser.parse(debugStore.clarificationQuestions)
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(accent.opacity(0.1))
+                                .frame(width: 26, height: 26)
+                            Image(systemName: "questionmark.bubble.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(accent)
+                        }
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Agent needs your input")
-                        .font(.system(size: 12, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Agent needs your input")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            Text(phaseClarificationSubtitle)
+                                .font(.system(size: 10))
+                                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        }
+                    }
+
+                    Text(debugStore.clarificationQuestions)
+                        .font(.system(size: 11.5))
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Text(phaseClarificationSubtitle)
-                        .font(.system(size: 10))
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.primary.opacity(0.03))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(accent.opacity(0.12), lineWidth: 0.5)
+                        )
                 }
+                .padding(12)
+                .background(accent.opacity(0.03))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-
-            Text(debugStore.clarificationQuestions)
-                .font(.system(size: 11.5))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.primary.opacity(0.03))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(accent.opacity(0.12), lineWidth: 0.5)
-                )
         }
-        .padding(12)
-        .background(accent.opacity(0.03))
-        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     var phaseClarificationSubtitle: String {
