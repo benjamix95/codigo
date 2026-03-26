@@ -223,7 +223,7 @@ Interventi già integrati nel codice rispetto ai finding originari:
 
 Restano aree di attenzione (non chiuse al 100%):
 
-- Due percorsi di ingresso eventi (routing diretto vs `PipelineIntegrationService`) — da monitorare.
+- ~~Due percorsi di ingresso~~ (2026-03-26): `routeDebugEvent` usa solo `applyOrBufferDebugEvent`; `persistDebugState` è nel `applyEffects` della registrazione store.
 - Overflow buffer con trim: possibile perdita di eventi a **bassa** priorità.
 - `debug_trace_analyze` ancora euristico (Swift e Rust).
 - Test E2E end-to-end sulla suite debug avanzata da espandere.

@@ -4,12 +4,13 @@ extension ChatPanelView {
     @MainActor
     internal func bindRuntimeDebugProjection(for conversationId: UUID?) {
         guard let conversationId else { return }
-         pipelineIntegrationService.registerDebugStore(
+        pipelineIntegrationService.registerDebugStore(
             debugStore,
             for: conversationId,
             reactivateProjection: false,
             applyEffects: { effects in
                 applyDebugProjectionEffects(effects)
+                persistDebugState(for: conversationId)
             }
         )
         persistDebugState(for: conversationId)

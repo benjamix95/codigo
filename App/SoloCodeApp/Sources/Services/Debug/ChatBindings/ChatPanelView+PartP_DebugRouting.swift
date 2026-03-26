@@ -4,32 +4,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
+    /// Un solo percorso: `PipelineIntegrationService` applica o bufferizza sempre.
+    /// `persistDebugState` è innescato da `applyEffects` registrato in `bindRuntimeDebugProjection`.
     @MainActor
     internal func routeDebugEvent(
         _ event: NormalizedEvent,
         payload: [String: String],
         eventConversationId: UUID?
     ) {
-        if shouldHandleDebugStoreEvent(payload: payload, eventConversationId: eventConversationId) {
-            if let eventConversationId,
-               pipelineIntegrationService.isDebugProjectionSuppressed(for: eventConversationId) {
-                pipelineIntegrationService.applyOrBufferDebugEvent(event, for: eventConversationId)
-                return
-            }
-            applyDebugEventToActiveStore(event)
-            persistDebugState(for: selectedConversationId)
-            return
-        }
         guard !SwarmMetadata.isSwarmEvent(payload), let eventConversationId else {
             return
         }
         pipelineIntegrationService.applyOrBufferDebugEvent(event, for: eventConversationId)
-    }
-
-    @MainActor
-    internal func applyDebugEventToActiveStore(_ event: NormalizedEvent) {
-        let effects = DebugProjectionEventConsumer.apply(event, to: debugStore)
-        applyDebugProjectionEffects(effects)
     }
 
     @MainActor
@@ -49,21 +35,6 @@ extension ChatPanelView {
         } else {
             debugStore.resetSession()
         }
-    }
-
-    @MainActor
-    internal func shouldHandleDebugStoreEvent(payload: [String: String], eventConversationId: UUID?) -> Bool {
-        if SwarmMetadata.isSwarmEvent(payload) {
-            return false
-        }
-        guard let selectedConversationId else {
-            return false
-        }
-        guard let eventConversationId else {
-            NSLog("[DebugRouting] Discarding unscoped debug event (nil conversationId)")
-            return false
-        }
-        return eventConversationId == selectedConversationId
     }
 
     @MainActor
