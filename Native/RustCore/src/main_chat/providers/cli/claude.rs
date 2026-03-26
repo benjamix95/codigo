@@ -64,10 +64,10 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
             "--append-system-prompt".to_string(),
             coderide_system_prompt().to_string(),
         ]);
-        eprintln!("[CLAUDE_DEBUG] MCP config written to: {}", path);
-        eprintln!("[CLAUDE_DEBUG] Built-in tools blocked, permission-mode=bypassPermissions, coderide prompt injected");
+        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] MCP config written to: {}", path);
+        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] Built-in tools blocked, permission-mode=bypassPermissions, coderide prompt injected");
     } else {
-        eprintln!(
+        crate::provider_stderr_eprintln!(
             "[CLAUDE_DEBUG] MCP config NOT available (server_path={:?})",
             config.claude_mcp_server_path
         );
@@ -81,8 +81,8 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
     }
 
     // Log the full command for debugging
-    eprintln!("[CLAUDE_DEBUG] executable={}", executable);
-    eprintln!(
+    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] executable={}", executable);
+    crate::provider_stderr_eprintln!(
         "[CLAUDE_DEBUG] args (excluding prompt): {:?}",
         args.iter()
             .enumerate()
@@ -90,7 +90,7 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
             .map(|(_, a)| a.clone())
             .collect::<Vec<_>>()
     );
-    eprintln!("[CLAUDE_DEBUG] workspace={}", config.workspace_path);
+    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] workspace={}", config.workspace_path);
 
     let mut environment = std::env::vars().collect::<BTreeMap<_, _>>();
     if let Some(account) = account {
@@ -146,10 +146,10 @@ fn consume_line(
     } else {
         line
     };
-    eprintln!("[CLAUDE_DEBUG] line#{}: {}", line_number, truncated);
+    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] line#{}: {}", line_number, truncated);
 
     let payloads = parse_jsonl_line(line);
-    eprintln!(
+    crate::provider_stderr_eprintln!(
         "[CLAUDE_DEBUG] line#{}: parsed {} JSON payloads",
         line_number,
         payloads.len()
@@ -162,7 +162,7 @@ fn consume_line(
             .map(|o| o.keys().cloned().collect())
             .unwrap_or_default();
         let event_type = string_value(&json["type"]).unwrap_or_else(|| "(no type)".to_string());
-        eprintln!(
+        crate::provider_stderr_eprintln!(
             "[CLAUDE_DEBUG] line#{} payload#{}: type={}, keys={:?}",
             line_number, idx, event_type, top_keys
         );
@@ -172,7 +172,7 @@ fn consume_line(
         // tool trace turns before any tool events arrive.
         if !*emitted_turn_started {
             *emitted_turn_started = true;
-            eprintln!("[CLAUDE_DEBUG] >>> EMITTING turn_started");
+            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] >>> EMITTING turn_started");
             emit_raw(session_id, "turn_started", BTreeMap::new());
         }
         if let Some(usage) = json.get("usage").and_then(|value| value.as_object()) {
@@ -193,31 +193,31 @@ fn consume_line(
             }
             payload.insert("model".to_string(), "claude-cli".to_string());
             if payload.contains_key("input_tokens") && payload.contains_key("output_tokens") {
-                eprintln!("[CLAUDE_DEBUG] >>> EMITTING usage: {:?}", payload);
+                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] >>> EMITTING usage: {:?}", payload);
                 emit_raw(session_id, "usage", payload);
             }
         }
         if event_type == "result" {
-            eprintln!(
+            crate::provider_stderr_eprintln!(
                 "[CLAUDE_DEBUG] GOT result event. received_stream_text={}",
                 *received_stream_text
             );
             if let Some(result_text) = string_value(&json["result"]) {
-                eprintln!("[CLAUDE_DEBUG] result text length={}", result_text.len());
+                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] result text length={}", result_text.len());
             }
             // Skip result text when streaming already provided it —
             // the result event contains the full combined text
             // (reasoning + response) which would duplicate content.
             if !*received_stream_text {
                 if let Some(result) = string_value(&json["result"]) {
-                    eprintln!(
+                    crate::provider_stderr_eprintln!(
                         "[CLAUDE_DEBUG] >>> EMITTING text_delta from result (len={})",
                         result.len()
                     );
                     emit_text_delta(session_id, &result);
                 }
             } else {
-                eprintln!("[CLAUDE_DEBUG] SKIPPING result text (already streamed)");
+                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] SKIPPING result text (already streamed)");
             }
             continue;
         }
@@ -228,7 +228,7 @@ fn consume_line(
                     .get("type")
                     .and_then(|v| v.as_str())
                     .unwrap_or("?");
-                eprintln!(
+                crate::provider_stderr_eprintln!(
                     "[CLAUDE_DEBUG] stream_event inner type={}",
                     event_type_inner
                 );
@@ -238,12 +238,12 @@ fn consume_line(
                         .get("type")
                         .and_then(string_value)
                         .unwrap_or_else(|| "(no delta type)".to_string());
-                    eprintln!("[CLAUDE_DEBUG] delta type={}", delta_type);
+                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] delta type={}", delta_type);
 
                     if delta_type == "thinking_delta" {
                         if let Some(thinking) = delta.get("thinking").and_then(string_value) {
                             *received_stream_reasoning = true;
-                            eprintln!(
+                            crate::provider_stderr_eprintln!(
                                 "[CLAUDE_DEBUG] >>> EMITTING reasoning delta (len={})",
                                 thinking.len()
                             );
@@ -257,28 +257,28 @@ fn consume_line(
                                 ]),
                             );
                         } else {
-                            eprintln!("[CLAUDE_DEBUG] thinking_delta but no 'thinking' field!");
+                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] thinking_delta but no 'thinking' field!");
                         }
                     }
                     if delta_type == "text_delta" {
                         if let Some(text) = delta.get("text").and_then(string_value) {
                             *received_stream_text = true;
-                            eprintln!(
+                            crate::provider_stderr_eprintln!(
                                 "[CLAUDE_DEBUG] >>> EMITTING text_delta (len={})",
                                 text.len()
                             );
                             emit_text_delta(session_id, &text);
                         } else {
-                            eprintln!("[CLAUDE_DEBUG] text_delta but no 'text' field!");
+                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] text_delta but no 'text' field!");
                         }
                     }
                     if delta_type != "thinking_delta" && delta_type != "text_delta" {
-                        eprintln!("[CLAUDE_DEBUG] UNHANDLED delta type: {}", delta_type);
+                        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] UNHANDLED delta type: {}", delta_type);
                         let delta_keys: Vec<String> = delta.keys().cloned().collect();
-                        eprintln!("[CLAUDE_DEBUG]   delta keys: {:?}", delta_keys);
+                        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   delta keys: {:?}", delta_keys);
                     }
                 } else {
-                    eprintln!(
+                    crate::provider_stderr_eprintln!(
                         "[CLAUDE_DEBUG] stream_event has no delta object. event keys: {:?}",
                         event_obj
                             .as_object()
@@ -286,7 +286,7 @@ fn consume_line(
                     );
                 }
             } else {
-                eprintln!("[CLAUDE_DEBUG] stream_event but no 'event' field!");
+                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] stream_event but no 'event' field!");
             }
             continue;
         }
@@ -299,13 +299,13 @@ fn consume_line(
             .and_then(|value| value.get("content"))
             .and_then(|value| value.as_array())
         {
-            eprintln!(
+            crate::provider_stderr_eprintln!(
                 "[CLAUDE_DEBUG] message.content has {} blocks (is_assistant={})",
                 content.len(),
                 is_assistant_message
             );
             if !is_assistant_message {
-                eprintln!(
+                crate::provider_stderr_eprintln!(
                     "[CLAUDE_DEBUG] SKIPPING non-assistant message content (type={})",
                     event_type
                 );
@@ -315,7 +315,7 @@ fn consume_line(
                     .get("type")
                     .and_then(string_value)
                     .unwrap_or_else(|| "(no type)".to_string());
-                eprintln!("[CLAUDE_DEBUG] message.content[{}] type={}", bi, block_type);
+                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] message.content[{}] type={}", bi, block_type);
 
                 // Emit tool_finish from tool_result blocks in user messages.
                 // The result carries linesAdded/linesRemoved/output from the
@@ -353,7 +353,7 @@ fn consume_line(
                         } else if !result_text.is_empty() {
                             result_payload.insert("output".to_string(), result_text);
                         }
-                        eprintln!(
+                        crate::provider_stderr_eprintln!(
                             "[CLAUDE_DEBUG] >>> EMITTING tool_finish id={} keys={:?}",
                             result_payload.get("id").cloned().unwrap_or_default(),
                             result_payload.keys().cloned().collect::<Vec<_>>()
@@ -367,11 +367,11 @@ fn consume_line(
                     // provided the text — avoids double-appending.
                     if !*received_stream_text {
                         if let Some(text) = block.get("text").and_then(string_value) {
-                            eprintln!("[CLAUDE_DEBUG] >>> EMITTING text_delta from message.content (len={})", text.len());
+                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] >>> EMITTING text_delta from message.content (len={})", text.len());
                             emit_text_delta(session_id, &text);
                         }
                     } else {
-                        eprintln!(
+                        crate::provider_stderr_eprintln!(
                             "[CLAUDE_DEBUG] SKIPPING message.content text (already streamed)"
                         );
                     }
@@ -385,7 +385,7 @@ fn consume_line(
                             .and_then(string_value)
                             .or_else(|| block.get("text").and_then(string_value))
                         {
-                            eprintln!("[CLAUDE_DEBUG] >>> EMITTING reasoning from message.content (len={})", thinking.len());
+                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] >>> EMITTING reasoning from message.content (len={})", thinking.len());
                             emit_raw(
                                 session_id,
                                 "reasoning",
@@ -397,14 +397,14 @@ fn consume_line(
                             );
                         }
                     } else {
-                        eprintln!(
+                        crate::provider_stderr_eprintln!(
                             "[CLAUDE_DEBUG] SKIPPING message.content thinking (already streamed)"
                         );
                     }
                 }
                 if block_type == "tool_use" && is_assistant_message {
                     let name = block.get("name").and_then(string_value).unwrap_or_default();
-                    eprintln!("[CLAUDE_DEBUG] >>> EMITTING tool_use name={}", name);
+                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] >>> EMITTING tool_use name={}", name);
                     let mut payload = flatten_string_map(block);
                     // Merge nested `input` fields into the top-level payload
                     // so tool parameters (command, path, file_path, etc.)
@@ -414,7 +414,7 @@ fn consume_line(
                             .as_object()
                             .map(|o| o.keys().cloned().collect())
                             .unwrap_or_default();
-                        eprintln!("[CLAUDE_DEBUG]   tool input keys: {:?}", input_keys);
+                        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   tool input keys: {:?}", input_keys);
                         for (k, v) in flatten_string_map(input) {
                             payload.entry(k).or_insert(v);
                         }
@@ -425,7 +425,7 @@ fn consume_line(
                         .entry("status".to_string())
                         .or_insert_with(|| "running".to_string());
                     let normalized = normalize_tool_name(&name);
-                    eprintln!("[CLAUDE_DEBUG]   normalized tool name: {}", normalized);
+                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   normalized tool name: {}", normalized);
 
                     // For subagent tools, inject swarm metadata so
                     // SwarmLiveReducer creates visible subagent cards.
@@ -456,7 +456,7 @@ fn consume_line(
                     emit_raw(session_id, &normalized, payload);
                 }
                 if block_type != "text" && block_type != "thinking" && block_type != "tool_use" {
-                    eprintln!(
+                    crate::provider_stderr_eprintln!(
                         "[CLAUDE_DEBUG] UNHANDLED message.content block type: {}",
                         block_type
                     );
@@ -475,13 +475,13 @@ fn consume_line(
                 // Log ALL fields
                 if let Some(obj) = json.as_object() {
                     let keys: Vec<String> = obj.keys().cloned().collect();
-                    eprintln!("[CLAUDE_DEBUG] task_started ALL keys: {:?}", keys);
+                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_started ALL keys: {:?}", keys);
                 }
                 let tool_use_id = json.get("tool_use_id").and_then(string_value).unwrap_or_default();
                 let task_id = json.get("task_id").and_then(string_value).unwrap_or_default();
                 let description = json.get("description").and_then(string_value).unwrap_or_default();
                 let prompt = json.get("prompt").and_then(string_value).unwrap_or_default();
-                eprintln!("[CLAUDE_DEBUG] task_started: id={} desc={}", task_id, description);
+                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_started: id={} desc={}", task_id, description);
                 if !tool_use_id.is_empty() {
                     let sid = make_swarm_id(&tool_use_id);
                     let readable = subagent_readable_name(&prompt, &description);
@@ -504,11 +504,11 @@ fn consume_line(
                 // Log ALL fields in task_progress so we can see what Claude sends
                 if let Some(obj) = json.as_object() {
                     let keys: Vec<String> = obj.keys().cloned().collect();
-                    eprintln!("[CLAUDE_DEBUG] task_progress ALL keys: {:?}", keys);
+                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_progress ALL keys: {:?}", keys);
                     for (k, v) in obj {
                         if let Some(s) = string_value(v) {
                             let preview = clip_utf8_prefix(&s, 200);
-                            eprintln!("[CLAUDE_DEBUG]   task_progress.{} = {}", k, preview);
+                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   task_progress.{} = {}", k, preview);
                         }
                     }
                 }
@@ -582,18 +582,18 @@ fn consume_line(
                 // Log ALL fields
                 if let Some(obj) = json.as_object() {
                     let keys: Vec<String> = obj.keys().cloned().collect();
-                    eprintln!("[CLAUDE_DEBUG] task_notification ALL keys: {:?}", keys);
+                    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_notification ALL keys: {:?}", keys);
                     for (k, v) in obj {
                         if let Some(s) = string_value(v) {
                             let preview = clip_utf8_prefix(&s, 300);
-                            eprintln!("[CLAUDE_DEBUG]   task_notification.{} = {}", k, preview);
+                            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG]   task_notification.{} = {}", k, preview);
                         }
                     }
                 }
                 let status = json.get("status").and_then(string_value).unwrap_or_default();
                 let tool_use_id = json.get("tool_use_id").and_then(string_value).unwrap_or_default();
                 let summary = json.get("summary").and_then(string_value).unwrap_or_default();
-                eprintln!("[CLAUDE_DEBUG] task_notification: status={} id={} summary={}", status, tool_use_id, summary);
+                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] task_notification: status={} id={} summary={}", status, tool_use_id, summary);
                 if status == "completed" || status == "failed" {
                     let sid = make_swarm_id(&tool_use_id);
                     // Emit the summary as assistant text so it appears in the chat
@@ -625,7 +625,7 @@ fn consume_line(
             // Log unhandled system subtypes
             if subtype != "task_started" && subtype != "task_progress" && subtype != "task_notification"
                 && !subtype.is_empty() {
-                eprintln!("[CLAUDE_DEBUG] UNHANDLED system subtype: {} keys: {:?}",
+                crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] UNHANDLED system subtype: {} keys: {:?}",
                     subtype,
                     json.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>())
                 );
@@ -637,7 +637,7 @@ fn consume_line(
             && event_type != "(no type)"
             && event_type != "system"
         {
-            eprintln!(
+            crate::provider_stderr_eprintln!(
                 "[CLAUDE_DEBUG] UNHANDLED top-level event type: {}",
                 event_type
             );
@@ -650,7 +650,7 @@ fn consume_line(
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
         {
-            eprintln!("[CLAUDE_DEBUG] ERROR: {}", error);
+            crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] ERROR: {}", error);
             if error.to_lowercase().contains("rate limit") || error.to_lowercase().contains("quota")
             {
                 if failover_to_next_cli_account(session_id, "claude", &error)? {
@@ -861,17 +861,17 @@ Follow the user's language preference from their CLAUDE.md instructions.
 fn write_mcp_config(config: &MainChatProviderSessionConfig) -> Option<String> {
     let server_path = config.claude_mcp_server_path.as_deref()?.trim();
     if server_path.is_empty() {
-        eprintln!("[CLAUDE_DEBUG] write_mcp_config: server_path is empty");
+        crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] write_mcp_config: server_path is empty");
         return None;
     }
     if !std::path::Path::new(server_path).exists() {
-        eprintln!(
+        crate::provider_stderr_eprintln!(
             "[CLAUDE_DEBUG] write_mcp_config: server_path does not exist: {}",
             server_path
         );
         return None;
     }
-    eprintln!(
+    crate::provider_stderr_eprintln!(
         "[CLAUDE_DEBUG] write_mcp_config: using server at {}",
         server_path
     );
@@ -889,11 +889,11 @@ fn write_mcp_config(config: &MainChatProviderSessionConfig) -> Option<String> {
     std::fs::create_dir_all(&tmp_dir).ok()?;
     let config_path = tmp_dir.join("mcp-config.json");
     std::fs::write(&config_path, &config_json).ok()?;
-    eprintln!(
+    crate::provider_stderr_eprintln!(
         "[CLAUDE_DEBUG] write_mcp_config: wrote config to {}",
         config_path.display()
     );
-    eprintln!("[CLAUDE_DEBUG] write_mcp_config: content={}", config_json);
+    crate::provider_stderr_eprintln!("[CLAUDE_DEBUG] write_mcp_config: content={}", config_json);
     Some(config_path.to_string_lossy().into_owned())
 }
 

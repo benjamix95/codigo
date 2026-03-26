@@ -6,6 +6,7 @@ mod models;
 mod parsing;
 mod router;
 mod runtime_transport;
+mod safe_stderr;
 mod session;
 #[cfg(test)]
 mod session_tests;

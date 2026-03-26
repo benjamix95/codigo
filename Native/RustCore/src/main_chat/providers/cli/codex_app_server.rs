@@ -21,7 +21,7 @@ fn rust_codex_trace_enabled() -> bool {
 
 fn rust_codex_trace(message: impl AsRef<str>) {
     if rust_codex_trace_enabled() {
-        eprintln!("[RustCodexTrace] {}", message.as_ref());
+        crate::provider_stderr_eprintln!("[RustCodexTrace] {}", message.as_ref());
     }
 }
 
@@ -476,7 +476,7 @@ fn emit_collab_tool_call(session_id: &str, method: &str, item: &Value) {
         payload.insert("description".to_string(), text_preview);
     }
 
-    eprintln!(
+    crate::provider_stderr_eprintln!(
         "[CODEX_DEBUG] collabToolCall: method={} status={} agent={}",
         method,
         status,
