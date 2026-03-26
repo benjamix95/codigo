@@ -2,7 +2,15 @@ import Foundation
 
 extension TodoStore {
     /// Avanza il prossimo todo **runtime** (non canonical) quando il modello marca un passo come `done`.
-    /// Usato quando non esiste un piano canonico per la conversazione — vedi log `canonIdHead` vuoto con todo in overlay.
+    ///
+    /// **Quando passare `conversationId`:**
+    /// - Quasi sempre: usa l’ID della chat attiva / dell’evento (`todo_write`, patch Rust, pipeline). La pool è
+    ///   allineata a `displayTodosForChat` (stessa semantica delle card).
+    ///
+    /// **`conversationId == nil` (globale):**
+    /// - Solo per una coda **legacy** senza ancoraggio: righe con `planConversationId == nil` **e**
+    ///   `lastTouchedConversationId == nil`. I todo “touchati” da un thread non vanno avanzati da qui:
+    ///   usa sempre la conversazione effettiva (`effectiveRuntimeQueueConversationId`).
     @discardableResult
     func advanceNextRuntimeTodoIfNeeded(conversationId: UUID?) -> Bool {
         let runtimeVisible = userVisibleTodos.filter { item in

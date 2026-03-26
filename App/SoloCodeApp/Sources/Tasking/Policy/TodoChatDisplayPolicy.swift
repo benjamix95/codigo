@@ -1,6 +1,7 @@
 import Foundation
 
 /// Regole condivise tra card chat, composer e filtri (es. review auto-todo) per evitare drift.
+/// L’insieme `itemAppearsInChat` coincide con `TodoStore.displayTodosForChat` (filtrato per `conversationId` non nil).
 enum TodoChatDisplayPolicy {
     /// Allinea a `TodoStore.displayTodosForChat`: stesso insieme di todo visibili per `conversationId`.
     static func itemAppearsInChat(_ item: TodoItem, conversationId: UUID, visibleTodos: [TodoItem]) -> Bool {
