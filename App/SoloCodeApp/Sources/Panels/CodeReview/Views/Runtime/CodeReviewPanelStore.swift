@@ -91,6 +91,10 @@ final class CodeReviewPanelStore: ObservableObject {
     var isGitContextRefreshInFlight = false
     var isHistoryRefreshInFlight = false
 
+    /// Buffer per coalescing `textDelta` prima del reducer Rust (meno round-trip FFI).
+    var reviewPanelStreamDeltaCoalesceBuffers: [UUID: String] = [:]
+    var reviewPanelStreamDeltaCoalesceTasks: [UUID: Task<Void, Never>] = [:]
+
     // MARK: - Backward-compatible accessors – Git
 
     var gitBranches: [GitBranch] {

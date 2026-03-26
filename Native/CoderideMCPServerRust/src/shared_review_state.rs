@@ -159,6 +159,16 @@ pub fn reference_seconds(unix_seconds: f64) -> f64 {
     unix_seconds - 978_307_200.0
 }
 
+/// Ordinamento stabile per “sessione più recente” (evita confronto lessicografico su stringhe data).
+pub fn json_recency_rank(value: &Value) -> (u64, i64) {
+    let secs = date_field(value, "lastUpdatedAt")
+        .or_else(|| date_field(value, "updatedAt"))
+        .unwrap_or(0.0);
+    let nanos = (secs * 1e9).clamp(0.0, u64::MAX as f64) as u64;
+    let seq = int_field(value, "mutationSequence").unwrap_or(0);
+    (nanos, seq)
+}
+
 pub fn shared_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home)

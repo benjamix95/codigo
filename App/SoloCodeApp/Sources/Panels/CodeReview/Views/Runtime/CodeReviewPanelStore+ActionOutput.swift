@@ -43,6 +43,21 @@ extension CodeReviewPanelStore {
         event: StreamEvent,
         runtime: ReviewPanelActionOutputRuntime = .run
     ) {
+        switch event {
+        case .textDelta(let delta):
+            coalesceReviewPanelTextDelta(activityId: id, runtime: runtime, delta: delta)
+        default:
+            flushReviewPanelStreamDeltas(activityId: id, runtime: runtime)
+            applyReviewPanelStreamReduce(id: id, event: event, runtime: runtime)
+        }
+    }
+
+    /// Chiamata FFI immediata al reducer panel (dopo eventuale flush dei delta coalesciati).
+    func applyReviewPanelStreamReduce(
+        id: UUID,
+        event: StreamEvent,
+        runtime: ReviewPanelActionOutputRuntime
+    ) {
         if case .raw(let type, let payload) = event {
             ingestRawReviewActivity(type: type, payload: payload)
             syncTodoIfNeeded(type: type, payload: payload)
@@ -86,7 +101,8 @@ extension CodeReviewPanelStore {
         runtime: ReviewPanelActionOutputRuntime = .run,
         fallbackContent: String? = nil
     ) -> ReviewPanelRuntimeOutcome? {
-        _ = runtime
+        flushReviewPanelStreamDeltas(activityId: id, runtime: runtime)
+        resetReviewPanelStreamCoalescer(for: id)
         return applyPanelChatFinish(
             assistantId: id,
             fallbackContent: fallbackContent,
@@ -103,7 +119,8 @@ extension CodeReviewPanelStore {
         runtime: ReviewPanelActionOutputRuntime = .run,
         wasCancelled: Bool = false
     ) -> ReviewPanelRuntimeOutcome? {
-        _ = runtime
+        flushReviewPanelStreamDeltas(activityId: id, runtime: runtime)
+        resetReviewPanelStreamCoalescer(for: id)
         return applyPanelChatFinish(
             assistantId: wasCancelled ? nil : id,
             fallbackContent: nil,

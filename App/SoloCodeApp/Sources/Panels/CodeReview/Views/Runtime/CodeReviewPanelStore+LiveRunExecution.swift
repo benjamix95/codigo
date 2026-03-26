@@ -89,7 +89,9 @@ extension CodeReviewPanelStore {
             conversationId: conversationId,
             selectedTabOnStart: .findings,
             selectedTabOnFinish: .findings,
-            onEvent: { _ in },
+            onEvent: { [weak self] event in
+                self?.handlePanelReviewStreamEvent(event)
+            },
             onComplete: { _ in },
             onError: { _ in }
         )

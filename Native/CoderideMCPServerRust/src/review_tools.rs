@@ -198,8 +198,23 @@ fn handle_bughunter(name: &str, arguments: &BTreeMap<String, Value>) -> CallTool
     CallToolResult::text(response.message)
 }
 
+fn load_review_snapshots_for_mcp_request(args: &HashMap<String, String>) -> Vec<Value> {
+    let sid = args
+        .get("session_id")
+        .or_else(|| args.get("sessionId"))
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    if let Some(session_id) = sid {
+        if let Some(snapshot) = state::read_review_snapshot(&session_id) {
+            return vec![snapshot];
+        }
+    }
+    state::read_review_snapshots()
+}
+
 fn build_review_request(name: &str, args: &HashMap<String, String>) -> ReviewMCPToolRequest {
-    let review_snapshots = state::read_review_snapshots();
+    let review_snapshots = load_review_snapshots_for_mcp_request(args);
     let bughunter_snapshots = state::read_bughunter_snapshots();
     let active_review = resolve_active_review_snapshot(&review_snapshots, args);
     let active_bughunter = resolve_active_bughunter_snapshot(&bughunter_snapshots, args);
@@ -260,22 +275,12 @@ fn resolve_active_review_snapshot(
     snapshots
         .iter()
         .filter(|snapshot| snapshot.get("phase").and_then(Value::as_str) != Some("completed"))
-        .max_by_key(|snapshot| {
-            snapshot
-                .get("lastUpdatedAt")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-        })
+        .max_by_key(|snapshot| state::json_recency_rank(snapshot))
         .cloned()
         .or_else(|| {
             snapshots
                 .iter()
-                .max_by_key(|snapshot| {
-                    snapshot
-                        .get("lastUpdatedAt")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                })
+                .max_by_key(|snapshot| state::json_recency_rank(snapshot))
                 .cloned()
         })
 }
@@ -292,12 +297,7 @@ fn resolve_active_bughunter_snapshot(
     }
     snapshots
         .iter()
-        .max_by_key(|snapshot| {
-            snapshot
-                .get("lastUpdatedAt")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-        })
+        .max_by_key(|snapshot| state::json_recency_rank(snapshot))
         .cloned()
 }
 
@@ -542,6 +542,20 @@ fn bughunter_status_payload_from_review(_snapshots: &[Value]) -> Option<HashMap<
     None
 }
 
+/// Limite risposta MCP per evitare tool result enormi su patch grandi.
+const REVIEW_MCP_PREVIEW_PATCH_MAX_DIFF_BYTES: usize = 48 * 1024;
+
+fn clamp_utf8_prefix<'a>(s: &'a str, max_bytes: usize) -> (&'a str, bool) {
+    if s.len() <= max_bytes {
+        return (s, false);
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    (&s[..end], true)
+}
+
 fn preview_patch(args: &HashMap<String, String>) -> CallToolResult {
     let session_id = args
         .get("session_id")
@@ -588,11 +602,22 @@ fn preview_patch(args: &HashMap<String, String>) -> CallToolResult {
                 .unwrap_or("n/a")
         ),
         "diff_preview:".to_string(),
-        patch
-            .get("diffPreview")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string(),
+        {
+            let raw = patch
+                .get("diffPreview")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let (prefix, truncated) = clamp_utf8_prefix(raw, REVIEW_MCP_PREVIEW_PATCH_MAX_DIFF_BYTES);
+            let mut out = prefix.to_string();
+            if truncated {
+                out.push_str(&format!(
+                    "\n... [diff_preview truncated: {} of {} bytes shown]",
+                    prefix.len(),
+                    raw.len()
+                ));
+            }
+            out
+        },
     ];
     CallToolResult::text(lines.join("\n"))
 }
@@ -639,7 +664,7 @@ fn diff_summary(args: &HashMap<String, String>) -> CallToolResult {
         }
     }
 
-    let snapshots = state::read_review_snapshots();
+    let snapshots = load_review_snapshots_for_mcp_request(args);
     let Some(snapshot) = resolve_active_review_snapshot(&snapshots, args) else {
         return CallToolResult::error("Error: unable to load the requested review session");
     };
