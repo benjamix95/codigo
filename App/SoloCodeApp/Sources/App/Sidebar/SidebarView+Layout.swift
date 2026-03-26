@@ -35,6 +35,7 @@ extension SidebarView {
         }
         .sheet(isPresented: $showSkillsSheet) {
             ProjectSkillsSheet(projectRoot: activeContext?.activeFolderPath)
+                .environmentObject(providerRegistry)
         }
         .sheet(isPresented: $showRulesSheet) {
             SidebarRulesSheet(projectRoot: activeContext?.activeFolderPath)

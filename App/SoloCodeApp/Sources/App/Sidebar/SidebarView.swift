@@ -2,6 +2,7 @@ import SwiftUI
 import CoderEngine
 
 struct SidebarView: View {
+    @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var workspaceStore: WorkspaceStore
     @EnvironmentObject var projectContextStore: ProjectContextStore
