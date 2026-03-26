@@ -22,6 +22,10 @@ mod todo_tools;
 mod tool_json_schema;
 mod tool_schema;
 mod tool_schema_verified_workflows;
+mod tool_schema_workflow_bughunter;
+mod tool_schema_workflow_review;
+mod tool_schema_workflow_security;
+mod tool_schema_workflow_shared;
 mod web_tools;
 
 use server::{run_stdio_server, ServerConfig};

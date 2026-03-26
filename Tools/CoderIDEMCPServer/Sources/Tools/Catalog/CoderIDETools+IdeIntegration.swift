@@ -76,54 +76,9 @@ extension CoderIDETools {
             annotations: .init(title: "Render Mermaid Diagram", readOnlyHint: false)
         ),
 
-        // --- IDE Integration (Debug Panel / Mode Activation / Swarm) ---
-        Tool(
-            name: "coderide_debug_set_phase",
-            description: "Set the debug panel phase in a strongly-typed way.",
-            inputSchema: .object([
-                "type": "object",
-                "properties": .object([
-                    "phase": .object([
-                        "type": "string",
-                        "description": "Debug phase: describing, reproducing, fixing, instrumenting, verifying, resolved"
-                    ]),
-                    "detail": .object(["type": "string", "description": "Optional human-readable context for this phase transition"]),
-                ]),
-                "required": .array([.string("phase")]),
-            ]),
-            annotations: .init(title: "Debug Set Phase", readOnlyHint: false)
-        ),
-        Tool(
-            name: "coderide_debug_request_user",
-            description: "Request explicit user interaction during debugging.",
-            inputSchema: .object([
-                "type": "object",
-                "properties": .object([
-                    "kind": .object([
-                        "type": "string",
-                        "description": "Request kind: question, reproduce, or fix_confirmation"
-                    ]),
-                    "prompt": .object([
-                        "type": "string",
-                        "description": "Prompt shown to the user"
-                    ]),
-                ]),
-                "required": .array([.string("kind"), .string("prompt")]),
-            ]),
-            annotations: .init(title: "Debug Request User", readOnlyHint: false)
-        ),
-        Tool(
-            name: "coderide_debug_resolve",
-            description: "Resolve the active debug session with a summary.",
-            inputSchema: .object([
-                "type": "object",
-                "properties": .object([
-                    "summary": .object(["type": "string", "description": "Resolution summary"]),
-                ]),
-                "required": .array([.string("summary")]),
-            ]),
-            annotations: .init(title: "Debug Resolve", readOnlyHint: false)
-        ),
+        // coderide_debug_set_phase / request_user / resolve: definiti in `CoderIDETools+Debug.swift` (evita duplicati in `all`).
+
+        // --- IDE Integration (policy / modes / swarm) ---
         Tool(
             name: "coderide_policy_ack",
             description: "Acknowledge a mandatory instruction policy hash before performing tool operations.",

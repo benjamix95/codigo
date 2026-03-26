@@ -19,6 +19,8 @@ enum PromptToolsPolicy {
       • Progress tracking → TodoWrite (mandatory for multi-step tasks)
     - ALWAYS read a file before editing it — never edit blind.
     - If the tool schema exposes prefixed aliases (e.g. `coderide_read`, `coderide_grep`, `coderide_semantic_search`), treat them as equivalent canonical tools and prefer them over Bash.
+    - **CoderIDE MCP (server Rust):** when connected, the function-calling schema lists tools as `coderide_*` (e.g. `coderide_read`, `coderide_plan_create`, `coderide_review_start`). Use those **exact** names from the live tool list for this session. Unprefixed names (`read`, `grep`, `todo_write`) may appear in other runtimes but are not guaranteed here.
+    - **Runtime-dependent tools** (`parallel_apply`, `batch_read`, `git_status`, `TodoWrite`, `attempt_completion`, etc.) are only valid if they appear in the current session schema. If they are absent, use the closest `coderide_*` equivalent (e.g. `coderide_str_replace`, `coderide_git_diff`, `coderide_todo_write`) when present.
     - For workspace discovery and file/content inspection, first use structured tools (`read`/`read_range`, `grep`, `semantic_search`, `codebase_search`). Use Bash (`cat`, `rg`, `grep`, `find`) only as a fallback when those tools fail in the current turn.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.
     - Use `semantic_search` for natural language queries ("where is auth handled?", "error handling flow"). It combines index, grep, and file name matching with semantic scoring.

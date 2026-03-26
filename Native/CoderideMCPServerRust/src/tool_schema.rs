@@ -1,4 +1,4 @@
-use crate::tool_json_schema::object_schema;
+use crate::tool_json_schema::{object_from_props, object_schema, SchemaProp};
 use crate::tool_schema_verified_workflows::verified_workflow_schema;
 use serde_json::Value;
 
@@ -34,19 +34,29 @@ pub fn input_schema_for(name: &str) -> Value {
             ],
             &["path"],
         ),
-        "coderide_glob" => object_schema(&[("pattern", "string"), ("path", "string")], &["pattern"]),
-        "coderide_grep" => object_schema(
+        "coderide_glob" => object_from_props(
             &[
-                ("query", "string"),
-                ("pattern", "string"),
-                ("pathScope", "string"),
-                ("path", "string"),
-                ("fileType", "string"),
-                ("glob", "string"),
-                ("context_lines", "integer"),
-                ("case_sensitive", "boolean"),
-                ("multiline", "boolean"),
-                ("output_mode", "string"),
+                SchemaProp::with_desc("pattern", "Glob pattern (e.g. **/*.swift)."),
+                SchemaProp::with_desc("path", "Optional base directory."),
+            ],
+            &["pattern"],
+        ),
+        "coderide_grep" => object_from_props(
+            &[
+                SchemaProp::with_desc("query", "Regex or literal search (alias: pattern)."),
+                SchemaProp::with_desc("pattern", "Alias of query."),
+                SchemaProp::with_desc("pathScope", "Directory or file scope."),
+                SchemaProp::with_desc("path", "Alias of pathScope."),
+                SchemaProp::with_desc("fileType", "Extension filter e.g. swift, py."),
+                SchemaProp::with_desc("glob", "Glob filter for paths."),
+                SchemaProp::with_enum(
+                    "output_mode",
+                    "content (default), files_only, or count.",
+                    &["content", "files_only", "count"],
+                ),
+                SchemaProp::typed("context_lines", "integer", "Lines of context around matches (max 10)."),
+                SchemaProp::typed("case_sensitive", "boolean", "Case-sensitive regex when true."),
+                SchemaProp::typed("multiline", "boolean", "Multiline regex mode when true."),
             ],
             &[],
         ),
@@ -110,13 +120,16 @@ pub fn input_schema_for(name: &str) -> Value {
             ],
             &[],
         ),
-        "coderide_plan_create" => object_schema(
+        "coderide_plan_create" => object_from_props(
             &[
-                ("goal", "string"),
-                ("steps", "string"),
-                ("chosen_path", "string"),
-                ("conversation_id", "string"),
-                ("replace_existing", "string"),
+                SchemaProp::with_desc("goal", "Plan title / primary objective (required)."),
+                SchemaProp::with_desc(
+                    "steps",
+                    "JSON array string of steps (id, title, status, linked_files, …).",
+                ),
+                SchemaProp::with_desc("chosen_path", "Optional selected approach markdown."),
+                SchemaProp::with_desc("conversation_id", "Conversation UUID."),
+                SchemaProp::with_desc("replace_existing", "String true/false; replace current plan."),
             ],
             &["goal"],
         ),
@@ -284,5 +297,29 @@ pub fn input_schema_for(name: &str) -> Value {
         "coderide_run_tests" => object_schema(&[("filter", "string"), ("scheme", "string")], &[]),
         "coderide_export_debug_bundle" => object_schema(&[("workspace_roots", "string")], &[]),
         _ => object_schema(&[], &[]),
+    }
+}
+
+#[cfg(test)]
+mod catalog_input_schema_tests {
+    use super::input_schema_for;
+
+    /// Tool che possono esporre `properties: {}`.
+    const EMPTY_INPUT_SCHEMA_ALLOWLIST: &[&str] = &["coderide_todo_read", "coderide_show_task_panel"];
+
+    #[test]
+    fn every_catalog_tool_has_non_empty_properties_unless_allowlisted() {
+        let raw = include_str!("tool_names.txt");
+        for line in raw.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            if EMPTY_INPUT_SCHEMA_ALLOWLIST.contains(&line) {
+                continue;
+            }
+            let schema = input_schema_for(line);
+            let props = schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+                .unwrap_or_else(|| panic!("{line}: missing properties object"));
+            assert!(!props.is_empty(), "{line}: input_schema has empty properties");
+        }
     }
 }

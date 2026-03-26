@@ -1,6 +1,9 @@
 import Foundation
 import MCP
 
+/// Debug panel tools (`coderide_debug_*`, fasi tipizzate in `CoderIDETools+IdeIntegration.swift`): **non** sono nel
+/// catalogo Rust `Native/CoderideMCPServerRust/src/tool_names.txt` (116 tool). Restano solo
+/// in Swift per allowlist/host; il server MCP Rust espone un sottoinsieme diverso.
 extension CoderIDETools {
     static let debugTools: [Tool] = [
         // --- Debug Tools ---
