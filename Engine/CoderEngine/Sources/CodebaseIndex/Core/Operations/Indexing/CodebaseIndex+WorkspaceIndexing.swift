@@ -21,6 +21,8 @@ extension CodebaseIndex {
         respectGitignore: Bool = true
     ) async -> IndexResult {
         var transaction = beginIndexingTransaction(operationName: "indexWorkspace")
+        // Consente a `status` / UI di vedere `.indexing` prima del blocco sincrono (albero file, ecc.).
+        await Task.yield()
         let startTime = transaction.startedAt
         Self.logger.info("indexWorkspace: starting full index for \(paths.map(\.path).joined(separator: ", "), privacy: .public)")
         defer { finishIndexingTransaction(transaction) }

@@ -4,6 +4,7 @@ extension CodebaseIndex {
     /// Incremental indexing: re-indexes only modified files.
     public func incrementalUpdate() async -> IndexResult {
         var transaction = beginIndexingTransaction(operationName: "incrementalUpdate")
+        await Task.yield()
         let startTime = transaction.startedAt
         Self.logger.info("incrementalUpdate: starting")
         defer { finishIndexingTransaction(transaction) }

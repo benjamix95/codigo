@@ -101,19 +101,18 @@ final class WorkspaceStore: ObservableObject {
         let gitignore = isRespectGitignoreEnabled
         let index = codebaseIndex
 
-        DispatchQueue.main.async { [weak self] in
-            guard self?.indexingEpoch == activeToken else { return }
-            self?.indexBadgeState = WorkspaceIndexBadgeState(
-                progress: nil,
-                status: .indexing,
-                hasWorkspacePaths: true,
-                indexingEnabled: true
-            )
-        }
+        // Subito sul main (siamo già @MainActor): evita un frame vuoto prima che parta il task in background.
+        indexBadgeState = WorkspaceIndexBadgeState(
+            progress: nil,
+            status: .indexing,
+            hasWorkspacePaths: true,
+            indexingEnabled: true
+        )
 
         startProgressPolling(activeToken: activeToken)
 
-        indexingTask = Task(priority: .utility) { [weak self] in
+        // Priorità > .utility così l’indicizzazione non resta in fondo alla coda sotto carico CPU/UI.
+        indexingTask = Task(priority: .userInitiated) { [weak self] in
             defer {
                 Task { @MainActor [weak self] in
                     guard self?.indexingEpoch == activeToken else { return }
