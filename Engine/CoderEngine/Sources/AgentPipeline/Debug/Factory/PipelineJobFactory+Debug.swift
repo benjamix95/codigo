@@ -276,13 +276,15 @@ extension PipelineJobFactory {
                 priority: 82,
                 dependsOn: [nativeStartId]
             )
-            let nativeSyncWatchesId = appendStage(
-                .nativeSyncWatches,
-                title: "Sync Native Watches",
-                taskType: .bugfix,
-                priority: 80,
-                dependsOn: [nativeSyncBreakpointsId].compactMap { $0 }
-            )
+            let nativeSyncWatchesId: String? = request.watchExpressions.isEmpty
+                ? nil
+                : appendStage(
+                    .nativeSyncWatches,
+                    title: "Sync Native Watches",
+                    taskType: .bugfix,
+                    priority: 80,
+                    dependsOn: [nativeSyncBreakpointsId].compactMap { $0 }
+                )
             nativeSyncDeps = [nativeSyncBreakpointsId, nativeSyncWatchesId].compactMap { $0 }
         }
         let reproduceDeps: [String] = nativeSyncDeps.isEmpty

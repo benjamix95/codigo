@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import CoderEngine
 
@@ -36,12 +37,21 @@ struct EffectiveContext {
     var primaryPath: String? { folderPaths.first }
     var activeRootPath: String? { context?.activeFolderPath ?? folderPaths.first }
 
-    /// Chiave stabile per onChange (NDJSON diagnostica, senza esporre path grezzi alla UI).
+    /// Chiave stabile per onChange (NDJSON): stessa canonicalizzazione di `AgentDebugSessionNDJSONLog`.
     var agentDebugLogConfigurationKey: String {
-        folderPaths.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        folderPaths
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+            .map { Self.canonicalFolderPathForDebugKey($0) }
             .sorted()
             .joined(separator: "\u{1e}")
+    }
+
+    private static func canonicalFolderPathForDebugKey(_ path: String) -> String {
+        URL(fileURLWithPath: path, isDirectory: true)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path
     }
 
     var displayLabel: String {

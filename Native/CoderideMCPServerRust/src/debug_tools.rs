@@ -1317,7 +1317,7 @@ fn save_store_to_disk(path: &Path, store: &DebugStore) -> Result<(), String> {
 }
 
 fn with_store_read<T>(workspace: &Path, f: impl FnOnce(&DebugStore) -> T) -> T {
-    let _guard = DEBUG_STORE_IO.lock().unwrap();
+    let _guard = DEBUG_STORE_IO.lock().unwrap_or_else(|e| e.into_inner());
     let path = debug_store_path(workspace);
     let store = load_store_from_disk(&path);
     f(&store)
@@ -1328,16 +1328,23 @@ fn store_try_mut(
     workspace: &Path,
     f: impl FnOnce(&mut DebugStore) -> Result<CallToolResult, CallToolResult>,
 ) -> CallToolResult {
-    let _guard = DEBUG_STORE_IO.lock().unwrap();
+    let _guard = DEBUG_STORE_IO.lock().unwrap_or_else(|e| e.into_inner());
     let path = debug_store_path(workspace);
     let mut store = load_store_from_disk(&path);
     match f(&mut store) {
-        Ok(res) => {
-            if let Err(e) = save_store_to_disk(&path, &store) {
+        Ok(res) => match save_store_to_disk(&path, &store) {
+            Ok(()) => res,
+            Err(e) => {
                 eprintln!("[debug_tools] persist failed: {e}");
+                error_result(
+                    format!("Debug state could not be saved: {e}"),
+                    json!({
+                        "error_code": "persist_failed",
+                        "detail": e,
+                    }),
+                )
             }
-            res
-        }
+        },
         Err(err) => err,
     }
 }
