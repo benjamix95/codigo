@@ -213,6 +213,66 @@ extension ChatPanelView {
             }
         }
 
+        let hasActivePlanBuildTask = activeBuildAgentConversationId.map {
+            chatStore.isTaskActive(for: $0)
+        } ?? false
+        let hasResumablePlanState: Bool = {
+            let scopedCanonicalTodos = todoStore.canonicalTodos(for: targetConversationId)
+            guard !scopedCanonicalTodos.isEmpty else { return false }
+            let hasBuildChoiceForConversation: Bool = {
+                guard let chosen = chatStore.planBoard(for: targetConversationId)?
+                    .chosenPath?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                    !chosen.isEmpty
+                else {
+                    return false
+                }
+                return PlanOptionsParser.hasRequiredTodoHeader(chosen)
+                    && !PlanOptionsParser.extractTodosFromOptionText(chosen).isEmpty
+            }()
+            guard hasBuildChoiceForConversation else { return false }
+
+            let doneCount = scopedCanonicalTodos.filter { $0.status == .done }.count
+            let hasInProgress = scopedCanonicalTodos.contains { $0.status == .inProgress }
+            return hasInProgress || (doneCount > 0 && doneCount < scopedCanonicalTodos.count)
+        }()
+        let shouldClearPlanCanonicalTodos = shouldClearPlanCanonicalTodosOnNewTurn(
+            phase: planFlowPhase,
+            hasActivePlanBuildTask: hasActivePlanBuildTask,
+            hasResumablePlanState: hasResumablePlanState
+        )
+
+        if shouldOfferDeterministicDebugIntakePipeline(
+            isPlanModeRequested: isPlanModeRequested,
+            targetConversationId: targetConversationId,
+            userText: text,
+            hasComposerAttachments: !capturedAttachments.isEmpty
+        ) {
+            todoStore.clearAgentTodos(
+                conversationId: targetConversationId,
+                includePlanCanonical: shouldClearPlanCanonicalTodos
+            )
+            scheduleFallbackTurnStartEvent(
+                conversationId: targetConversationId,
+                providerId: effectiveRuntimeProvider.id
+            )
+            swarmProgressStore.clear(conversationId: targetConversationId)
+            let normalizedSummary = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !normalizedSummary.isEmpty {
+                debugStore.errorSummary = normalizedSummary
+                if executeDebugPipelineIntent(.startSession(summary: normalizedSummary)),
+                   let conv = chatStore.conversation(for: targetConversationId), let ctxId = conv.contextId
+                {
+                    projectContextStore.setLastActiveConversation(
+                        contextId: ctxId,
+                        folderPath: conv.contextFolderPath,
+                        conversationId: conv.id
+                    )
+                    return
+                }
+            }
+        }
+
         let turnId = UUID()
         let attachmentBundle = buildAttachmentBundle(
             attachments: capturedAttachments,
@@ -263,34 +323,6 @@ extension ChatPanelView {
         ) {
             clearTaskActivityPipeline()
         }
-        let hasActivePlanBuildTask = activeBuildAgentConversationId.map {
-            chatStore.isTaskActive(for: $0)
-        } ?? false
-        let hasResumablePlanState: Bool = {
-            let scopedCanonicalTodos = todoStore.canonicalTodos(for: targetConversationId)
-            guard !scopedCanonicalTodos.isEmpty else { return false }
-            let hasBuildChoiceForConversation: Bool = {
-                guard let chosen = chatStore.planBoard(for: targetConversationId)?
-                    .chosenPath?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                    !chosen.isEmpty
-                else {
-                    return false
-                }
-                return PlanOptionsParser.hasRequiredTodoHeader(chosen)
-                    && !PlanOptionsParser.extractTodosFromOptionText(chosen).isEmpty
-            }()
-            guard hasBuildChoiceForConversation else { return false }
-
-            let doneCount = scopedCanonicalTodos.filter { $0.status == .done }.count
-            let hasInProgress = scopedCanonicalTodos.contains { $0.status == .inProgress }
-            return hasInProgress || (doneCount > 0 && doneCount < scopedCanonicalTodos.count)
-        }()
-        let shouldClearPlanCanonicalTodos = shouldClearPlanCanonicalTodosOnNewTurn(
-            phase: planFlowPhase,
-            hasActivePlanBuildTask: hasActivePlanBuildTask,
-            hasResumablePlanState: hasResumablePlanState
-        )
         todoStore.clearAgentTodos(
             conversationId: targetConversationId,
             includePlanCanonical: shouldClearPlanCanonicalTodos
