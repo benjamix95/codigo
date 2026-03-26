@@ -1,7 +1,9 @@
 import Foundation
 
-/// Testo model-facing allineato a [`tool_descriptions.json`](../../../../Native/CoderideMCPServerRust/src/tool_descriptions.json).
-/// Aggiornare il blob quando si modifica il JSON Rust (stesso contenuto).
+// AUTO-GENERATED — non modificare manualmente. Sorgente: Native/CoderideMCPServerRust/src/tool_descriptions.json
+// Rigenerare: python3 scripts/sync_tool_descriptions_swift.py
+// (anche in build Xcode: fase «Sync tool_descriptions Swift» sul target CoderIDEMCPServer.)
+
 enum RustSyncedToolDescriptions {
     /// `mcpName` coincide con `Tool.name` (es. `coderide_read`).
     static func text(mcpName: String, fallback: String) -> String {

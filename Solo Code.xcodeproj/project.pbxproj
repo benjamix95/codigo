@@ -536,6 +536,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = D3C08571AF210D87B97B40E0 /* Build configuration list for PBXNativeTarget "CoderIDEMCPServer" */;
 			buildPhases = (
+				B4E8C1F29A3D5607E1BC94F2 /* Sync tool_descriptions Swift */,
 				163222B35B0662D2E1B8C17A /* Headers */,
 				141358DD1CE66FDB24C024B0 /* Sources */,
 				A19FC43B26138C77E3102BC3 /* Frameworks */,
@@ -685,6 +686,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if [ -n \"$SRCROOT\" ] && [ -f \"$SRCROOT/scripts/build_rust_search_backend.sh\" ]; then\n  CONFIGURATION=\"${CONFIGURATION}\"   SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Contents/MacOS/solocode_rust\"     \"$SRCROOT/scripts/build_rust_search_backend.sh\"\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+		B4E8C1F29A3D5607E1BC94F2 /* Sync tool_descriptions Swift */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Native/CoderideMCPServerRust/src/tool_descriptions.json",
+				"$(SRCROOT)/scripts/sync_tool_descriptions_swift.py",
+			);
+			name = "Sync tool_descriptions Swift";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Tools/CoderIDEMCPServer/Sources/Tools/Catalog/CoderIDETools+RustSyncedDescriptions.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "cd \"$SRCROOT\" && python3 scripts/sync_tool_descriptions_swift.py\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
