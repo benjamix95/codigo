@@ -80,6 +80,13 @@ extension TodoStore {
         alsoRemoveLegacyUnscopedAgentRuntime: Bool = false
     ) {
         todos.removeAll { $0.planConversationId == conversationId }
+        todos.removeAll { item in
+            item.source == .agent
+                && !item.isPlanCanonical
+                && !item.isOperationalPlaceholder
+                && item.planConversationId == nil
+                && item.lastTouchedConversationId == conversationId
+        }
         if alsoRemoveLegacyUnscopedAgentRuntime {
             todos.removeAll { item in
                 item.source == .agent

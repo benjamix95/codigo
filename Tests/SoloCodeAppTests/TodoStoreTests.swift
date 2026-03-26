@@ -705,6 +705,73 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertTrue(titlesB.isEmpty)
     }
 
+    func testDisplayTodosForChatFiltersAgentUnscopedByLastTouch() {
+        let store = makeStore()
+        let convA = UUID()
+        let convB = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Touch A only",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        guard let idx = store.todos.firstIndex(where: { $0.title == "Touch A only" }) else {
+            XCTFail("expected todo")
+            return
+        }
+        store.todos[idx].lastTouchedConversationId = convA
+        store.saveTodos()
+
+        let titlesA = Set(store.displayTodosForChat(for: convA).map(\.title))
+        let titlesB = Set(store.displayTodosForChat(for: convB).map(\.title))
+        XCTAssertTrue(titlesA.contains("Touch A only"))
+        XCTAssertFalse(titlesB.contains("Touch A only"))
+    }
+
+    func testUpsertFromAgentSetsLastTouchedConversationIdWhenConversationProvided() {
+        let store = makeStore()
+        let conv = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Scoped touch",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conv
+        )
+        let row = store.todos.first { $0.title == "Scoped touch" }
+        XCTAssertEqual(row?.planConversationId, conv)
+        XCTAssertEqual(row?.lastTouchedConversationId, conv)
+    }
+
+    func testClearTodosRemovesAgentRuntimeWithLastTouchOnly() {
+        let store = makeStore()
+        let conv = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Touch only clear",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        guard let idx = store.todos.firstIndex(where: { $0.title == "Touch only clear" }) else {
+            XCTFail("expected todo")
+            return
+        }
+        store.todos[idx].lastTouchedConversationId = conv
+        store.todos[idx].planConversationId = nil
+        store.saveTodos()
+
+        store.clearTodos(forConversationId: conv, alsoRemoveLegacyUnscopedAgentRuntime: false)
+        XCTAssertTrue(store.todos.filter { $0.title == "Touch only clear" }.isEmpty)
+    }
+
     func testAdvanceNextUnscopedQueueNotBlockedByOpenCanonicalPlanElsewhere() {
         let store = makeStore()
         let planConv = UUID()

@@ -45,6 +45,13 @@ extension TodoStore {
             if let activeForm, !activeForm.isEmpty { todos[idx].activeForm = activeForm }
         }
 
+        func applyRuntimeConversationTouch(at idx: Int) {
+            guard !todos[idx].isPlanCanonical else { return }
+            if let conversationId {
+                todos[idx].lastTouchedConversationId = conversationId
+            }
+        }
+
         if let id, let idx = todos.firstIndex(where: { $0.id == id }) {
             todos[idx].title = normalizedTitle
             if let status { todos[idx].status = status }
@@ -57,6 +64,7 @@ extension TodoStore {
             if let conversationId, !todos[idx].isPlanCanonical {
                 todos[idx].planConversationId = conversationId
             }
+            applyRuntimeConversationTouch(at: idx)
             todos[idx].updatedAt = .now
             saveTodos()
             return
@@ -78,6 +86,7 @@ extension TodoStore {
             if let conversationId, !todos[idx].isPlanCanonical {
                 todos[idx].planConversationId = conversationId
             }
+            applyRuntimeConversationTouch(at: idx)
             todos[idx].updatedAt = .now
             saveTodos()
             return
@@ -96,6 +105,7 @@ extension TodoStore {
             if let conversationId, !todos[idx].isPlanCanonical {
                 todos[idx].planConversationId = conversationId
             }
+            applyRuntimeConversationTouch(at: idx)
             todos[idx].updatedAt = .now
             saveTodos()
             return
@@ -111,6 +121,7 @@ extension TodoStore {
             notes: notes ?? "",
             linkedFiles: linkedFiles,
             planConversationId: conversationId,
+            lastTouchedConversationId: conversationId,
             activeForm: activeForm ?? ""
         )
         todos.append(newTodo)

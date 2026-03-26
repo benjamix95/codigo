@@ -14,9 +14,9 @@ extension TodoStore {
             // Solo i passi canonici ancora non completati devono bloccare la coda runtime;
             // i canonical `done` restano in store ma non devono congelare l’auto-avanzamento.
             if hasIncompleteCanonicalPlanWork(for: conversationId) { return false }
-            let scoped = runtimeVisible.filter { $0.planConversationId == conversationId }
-            let unscoped = runtimeVisible.filter { $0.planConversationId == nil }
-            pool = scoped.isEmpty ? unscoped : scoped + unscoped
+            pool = displayTodosForChat(for: conversationId).filter {
+                !$0.isPlanCanonical && !$0.isOperationalPlaceholder
+            }
         } else {
             pool = runtimeVisible.filter { $0.planConversationId == nil }
         }

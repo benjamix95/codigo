@@ -175,6 +175,10 @@ func todoConversationScopeFilter(
         if let scopedConversationId = todo.planConversationId {
             return scopedConversationId == conversationId
         }
+        if todo.source == .agent, !todo.isPlanCanonical, !todo.isOperationalPlaceholder,
+           let touch = todo.lastTouchedConversationId {
+            return touch == conversationId
+        }
         // Legacy fallback: keep unscoped todos visible when no scoped todo exists yet.
         return !hasScoped
     }

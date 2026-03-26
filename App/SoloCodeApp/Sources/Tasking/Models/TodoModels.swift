@@ -86,6 +86,9 @@ struct TodoItem: Identifiable, Codable {
     var planOrder: Int?
     /// Conversation that owns this canonical plan todo.
     var planConversationId: UUID?
+    /// Ultima conversazione che ha toccato un todo **runtime** agent ancora senza `planConversationId`
+    /// (coda legacy / unscoped). Riduce la condivisione globale tra thread.
+    var lastTouchedConversationId: UUID?
     /// Present-tense label shown during execution (e.g. "Fixing bug").
     var activeForm: String
 
@@ -103,6 +106,7 @@ struct TodoItem: Identifiable, Codable {
         isPlanCanonical: Bool = false,
         planOrder: Int? = nil,
         planConversationId: UUID? = nil,
+        lastTouchedConversationId: UUID? = nil,
         activeForm: String = ""
     ) {
         self.id = id
@@ -118,11 +122,12 @@ struct TodoItem: Identifiable, Codable {
         self.isPlanCanonical = isPlanCanonical
         self.planOrder = planOrder
         self.planConversationId = planConversationId
+        self.lastTouchedConversationId = lastTouchedConversationId
         self.activeForm = activeForm
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, completed, status, priority, source, isOperationalPlaceholder, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, planOrder, planConversationId, activeForm
+        case id, title, completed, status, priority, source, isOperationalPlaceholder, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, planOrder, planConversationId, lastTouchedConversationId, activeForm
     }
 
     init(from decoder: Decoder) throws {
@@ -161,6 +166,16 @@ struct TodoItem: Identifiable, Codable {
         } else {
             planConversationId = nil
         }
+        if let parsedTouch = try? container.decode(UUID.self, forKey: .lastTouchedConversationId) {
+            lastTouchedConversationId = parsedTouch
+        } else if let legacyTouch = try? container.decode(String.self, forKey: .lastTouchedConversationId),
+                  let parsed = UUID(
+                      uuidString: legacyTouch.trimmingCharacters(in: .whitespacesAndNewlines)
+                  ) {
+            lastTouchedConversationId = parsed
+        } else {
+            lastTouchedConversationId = nil
+        }
         activeForm = (try? container.decode(String.self, forKey: .activeForm)) ?? ""
     }
 
@@ -179,6 +194,7 @@ struct TodoItem: Identifiable, Codable {
         try container.encode(isPlanCanonical, forKey: .isPlanCanonical)
         try container.encodeIfPresent(planOrder, forKey: .planOrder)
         try container.encodeIfPresent(planConversationId, forKey: .planConversationId)
+        try container.encodeIfPresent(lastTouchedConversationId, forKey: .lastTouchedConversationId)
         try container.encode(activeForm, forKey: .activeForm)
     }
 }

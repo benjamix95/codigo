@@ -76,7 +76,9 @@ extension TodoStore {
         }
 
         let scoped = visible.filter { $0.planConversationId == conversationId }
-        let legacyUnscoped = visible.filter { $0.planConversationId == nil }
+        let legacyUnscoped = visible.filter {
+            $0.planConversationId == nil && includeInChatLegacyUnscopedBucket($0, conversationId: conversationId)
+        }
         if !scoped.isEmpty {
             return sortedCanonicalFirstTodos(scoped + legacyUnscoped)
         }
@@ -109,11 +111,29 @@ extension TodoStore {
         guard let conversationId else {
             return { !$0.isPlanCanonical }
         }
-        // Strict scoping: only show runtime todos that belong to this conversation.
-        // No legacy fallback — unscoped todos from other conversations stay hidden.
         return { item in
             guard !item.isPlanCanonical, !item.isOperationalPlaceholder else { return false }
-            return item.planConversationId == conversationId
+            if item.planConversationId == conversationId { return true }
+            if item.planConversationId == nil, item.source == .agent {
+                if let touch = item.lastTouchedConversationId {
+                    return touch == conversationId
+                }
+                return true
+            }
+            return false
         }
+    }
+}
+
+private extension TodoStore {
+    /// Inclusione nel bucket `planConversationId == nil` per una chat (display / merge legacy).
+    func includeInChatLegacyUnscopedBucket(_ item: TodoItem, conversationId: UUID) -> Bool {
+        if item.source == .agent, !item.isPlanCanonical, !item.isOperationalPlaceholder {
+            if let touch = item.lastTouchedConversationId {
+                return touch == conversationId
+            }
+            return true
+        }
+        return true
     }
 }
