@@ -163,14 +163,30 @@ final class WorkspaceStore: ObservableObject {
         let index = codebaseIndex
         progressPollingTask = Task { [weak self] in
             while !Task.isCancelled {
-                guard self?.indexingEpoch == activeToken else { break }
+                let epochOk = await MainActor.run { [weak self] in
+                    guard let self else { return false }
+                    return self.indexingEpoch == activeToken
+                }
+                guard epochOk else { break }
+
                 let info = await index.status()
                 guard !Task.isCancelled else { break }
+
                 await MainActor.run { [weak self] in
                     guard let self, self.indexingEpoch == activeToken else { return }
                     self.applyIndexStatus(info)
                 }
-                if info.status != .indexing { break }
+
+                // Non usare solo `info.status == .indexing`: all’avvio `indexWorkspace` può non aver
+                // ancora chiamato `beginIndexingTransaction`, quindi lo stato attore è ancora .idle/.ready
+                // e il loop terminerebbe subito (la sidebar resterebbe ferma finché non si apre Settings).
+                let shouldContinue = await MainActor.run { [weak self] in
+                    guard let self, self.indexingEpoch == activeToken else { return false }
+                    if self.indexingTask != nil { return true }
+                    return info.status == .indexing
+                }
+                guard shouldContinue else { break }
+
                 try? await Task.sleep(nanoseconds: 300_000_000)
             }
         }
