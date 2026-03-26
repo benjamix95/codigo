@@ -24,14 +24,33 @@ extension ReviewPipelineJobState {
         default:
             raw = fallbackPhaseRingProgress()
         }
-        return min(100, max(0, raw))
+        let clamped = min(100, max(0, raw))
+        #if DEBUG
+        ReviewPanelDebugNDJSON.emitThrottled(
+            key: "phaseRing",
+            minInterval: 0.4,
+            hypothesisId: "H_ring_zero",
+            location: "ReviewPipelineJobState+PhaseRingProgress.displayProgressPercent",
+            message: "phase_ring",
+            data: [
+                "phase": phase,
+                "pct": clamped,
+                "toolsCompleted": toolsCompleted,
+                "toolsRunning": toolsRunning,
+                "toolsTotal": toolsTotal,
+                "candidateCount": candidateCount,
+                "toolStatuses": tools.map { String(describing: $0.status) }.joined(separator: ","),
+            ]
+        )
+        #endif
+        return clamped
     }
 
     var displayProgressText: String { "\(displayProgressPercent)%" }
 
     // MARK: - Tool row (granularità > soli toolsCompleted / toolsTotal)
 
-    /// Peso 0…1 per tool: completato 1, in esecuzione ~0.42, pending 0 — poi 0…100.
+    /// Peso 0…1: solo **completati** contano; `running` non gonifica l’anello prima del lavoro effettivo.
     private func toolExecutionWeightedPercent() -> Int? {
         guard !tools.isEmpty else { return nil }
         var sum = 0.0
@@ -39,9 +58,7 @@ extension ReviewPipelineJobState {
             switch tool.status {
             case .completed:
                 sum += 1.0
-            case .running:
-                sum += 0.42
-            case .pending:
+            case .running, .pending:
                 sum += 0.0
             }
         }
@@ -57,7 +74,7 @@ extension ReviewPipelineJobState {
         }
         let t = max(toolsTotal, 1)
         var fromCounts = toolsCompleted * 100 / t
-        if toolsRunning > 0, toolsCompleted < t {
+        if toolsRunning > 0, toolsCompleted > 0, toolsCompleted < t {
             let runningShare = min(55, (toolsRunning * 100) / max(t * 2, 1))
             fromCounts = min(100, fromCounts + runningShare)
         } else {
@@ -74,7 +91,10 @@ extension ReviewPipelineJobState {
     }
 
     private func discoveryPhaseRingProgress() -> Int {
-        let candidateHint = candidateCount > 0 ? min(30 + candidateCount * 4, 92) : 0
+        let candidateHint =
+            toolsCompleted > 0 && candidateCount > 0
+                ? min(30 + candidateCount * 4, 92)
+                : 0
         return mergedToolProgress(discoveryBoost: candidateHint)
     }
 

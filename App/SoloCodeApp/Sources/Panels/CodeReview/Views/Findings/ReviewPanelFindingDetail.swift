@@ -121,6 +121,8 @@ struct ReviewPanelFindingDetail: View {
 
 struct ReviewPipelineJobCard: View {
     let state: ReviewPipelineJobState
+    /// Profondità scansione scelta dall’utente (Fast / Standard / Pro). Distinta dai nomi bundle tool.
+    var scanDepth: ReviewScanDepth? = nil
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.35, paused: state.isTerminal)) { _ in
@@ -265,6 +267,14 @@ struct ReviewPipelineJobCard: View {
                     .foregroundStyle(.tertiary)
                     .tracking(0.8)
                 Spacer()
+                if let depth = scanDepth {
+                    Text(depth.displayName.uppercased())
+                        .font(.system(size: 7.5, weight: .bold))
+                        .foregroundStyle(DesignSystem.Colors.reviewColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(DesignSystem.Colors.reviewColor.opacity(0.12), in: Capsule())
+                }
                 if !state.bundleModes.isEmpty {
                     Text(state.bundleModes.joined(separator: " + "))
                         .font(.system(size: 8, weight: .medium))

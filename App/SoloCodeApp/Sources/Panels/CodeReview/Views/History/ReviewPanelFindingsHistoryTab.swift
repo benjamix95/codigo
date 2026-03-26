@@ -60,6 +60,7 @@ struct ReviewPanelFindingsHistoryTab: View {
                 if let liveState {
                     ReviewPanelHistoricalLiveBoard(
                         state: liveState,
+                        scanDepth: store.reviewScanDepth,
                         onOpenFileAtLocation: onOpenFileAtLocation
                     )
                     .id(store.historyLiveRefreshKey)
@@ -208,10 +209,12 @@ struct ReviewPanelFindingsHistoryTab: View {
         }
     }
 
+    @ViewBuilder
     private func historyRow(
         _ record: HistoricalFindingRecord,
         showResumeBadge: Bool
     ) -> some View {
+        let liveAccent = store.historyRowLiveAccent(for: record)
         Button {
             store.selectHistoricalFinding(record.id)
         } label: {
@@ -257,11 +260,23 @@ struct ReviewPanelFindingsHistoryTab: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.28))
+                    .fill(
+                        Color(nsColor: .controlBackgroundColor).opacity(
+                            liveAccent == nil ? 0.28 : 0.34
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(
+                        (liveAccent ?? .clear).opacity(liveAccent == nil ? 0 : 0.55),
+                        lineWidth: liveAccent == nil ? 0 : 1.6
+                    )
             )
         }
         .buttonStyle(.plain)
     }
+
 
     private func badge(_ title: String, color: Color) -> some View {
         Text(title)

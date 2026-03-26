@@ -43,12 +43,13 @@ struct ReviewHistoricalLiveBoardState: Equatable {
 
 struct ReviewPanelHistoricalLiveBoard: View {
     let state: ReviewHistoricalLiveBoardState
+    let scanDepth: ReviewScanDepth?
     let onOpenFileAtLocation: (String, Int?) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            ReviewPipelineJobCard(state: state.pipeline)
+            ReviewPipelineJobCard(state: state.pipeline, scanDepth: scanDepth)
             if !state.files.isEmpty {
                 filesSection
             }

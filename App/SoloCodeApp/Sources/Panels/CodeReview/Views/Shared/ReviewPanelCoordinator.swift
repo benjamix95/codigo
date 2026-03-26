@@ -101,6 +101,17 @@ final class ReviewPanelCoordinator {
         if Task.isCancelled || streamError != nil { return snapshot }
         var snap = snapshot
         guard snap.phase.isActive else { return snap }
+        #if DEBUG
+        ReviewPanelDebugNDJSON.emit(
+            hypothesisId: "H_await_terminal",
+            location: "ReviewPanelCoordinator.awaitTerminalSessionSnapshotIfNeeded",
+            message: "poll_start",
+            data: [
+                "sessionId": snap.sessionId,
+                "phase": String(describing: snap.phase),
+            ]
+        )
+        #endif
         let pollNs: UInt64 = 200_000_000
         let maxWaitNs: UInt64 = 3_600 * 1_000_000_000
         var waited: UInt64 = 0
@@ -109,6 +120,18 @@ final class ReviewPanelCoordinator {
             waited += pollNs
             snap = await sessionState.snapshot()
         }
+        #if DEBUG
+        ReviewPanelDebugNDJSON.emit(
+            hypothesisId: "H_await_terminal",
+            location: "ReviewPanelCoordinator.awaitTerminalSessionSnapshotIfNeeded",
+            message: "poll_end",
+            data: [
+                "sessionId": snap.sessionId,
+                "phase": String(describing: snap.phase),
+                "waitedMs": Int(waited / 1_000_000),
+            ]
+        )
+        #endif
         return snap
     }
 

@@ -75,6 +75,21 @@ extension TaskActivityStore {
             groupId: "code-review"
         )
         addActivity(activity)
+        #if DEBUG
+        ReviewPanelDebugNDJSON.emitThrottled(
+            key: "ingestCodeReview",
+            minInterval: 0.22,
+            hypothesisId: "H_ingest_snapshot",
+            location: "TaskActivityStore+CodeReview.ingestCodeReviewSnapshot",
+            message: "ingested",
+            data: [
+                "sessionId": resolvedSnapshot.sessionId,
+                "phase": String(describing: resolvedSnapshot.phase),
+                "mutationSequence": Int(resolvedSnapshot.mutationSequence),
+                "findings": resolvedSnapshot.findings.count,
+            ]
+        )
+        #endif
     }
 
     func codeReviewSnapshots(for conversationId: UUID?) -> [CodeReviewSessionSnapshot] {

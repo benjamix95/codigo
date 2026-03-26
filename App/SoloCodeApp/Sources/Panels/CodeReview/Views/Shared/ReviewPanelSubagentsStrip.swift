@@ -8,10 +8,11 @@ struct ReviewPanelSubagentsStrip: View {
     private var cards: [SwarmLiveCardState] { store.reviewSubagentLiveCards }
 
     var body: some View {
-        if cards.isEmpty {
-            EmptyView()
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            if cards.isEmpty && store.isRunning {
+                Divider().opacity(0.2)
+                runningPlaceholderStrip
+            } else if !cards.isEmpty {
                 Divider().opacity(0.2)
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -52,12 +53,69 @@ struct ReviewPanelSubagentsStrip: View {
                     }
                 }
             }
-            .onChange(of: cards.map(\.swarmId)) { ids in
-                if let id = expandedSwarmId, !ids.contains(id) {
-                    expandedSwarmId = nil
-                }
+        }
+        .onAppear {
+            logStripSnapshot("appear")
+        }
+        .onChange(of: cards.count) { _ in
+            logStripSnapshot("cards_count_change")
+        }
+        .onChange(of: store.isRunning) { _ in
+            logStripSnapshot("isRunning_toggle")
+        }
+        .onChange(of: cards.map(\.swarmId)) { ids in
+            if let id = expandedSwarmId, !ids.contains(id) {
+                expandedSwarmId = nil
             }
         }
+    }
+
+    private var runningPlaceholderStrip: some View {
+        HStack(spacing: 8) {
+            SpinningDottedCircle()
+                .frame(width: 14, height: 14)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Live activity")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.85))
+                Text("Subagent in avvio… i dettagli compaiono appena lo stream pubblica le card.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(store.accent.opacity(0.22), lineWidth: 1)
+        )
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+    }
+
+    private func logStripSnapshot(_ reason: String) {
+        #if DEBUG
+        ReviewPanelDebugNDJSON.emitThrottled(
+            key: "subagentStrip",
+            minInterval: 0.45,
+            hypothesisId: "H_strip_live",
+            location: "ReviewPanelSubagentsStrip",
+            message: "strip_state",
+            data: [
+                "reason": reason,
+                "isRunning": store.isRunning,
+                "cardCount": cards.count,
+                "scanDepth": store.reviewScanDepth.rawValue,
+            ]
+        )
+        #endif
     }
 
     @ViewBuilder

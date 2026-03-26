@@ -107,6 +107,18 @@ extension CodeReviewPanelStore {
         let context = buildWorkspaceContext()
         let reportScope = scopeTarget
         let reportDepth = reviewScanDepth
+        #if DEBUG
+        ReviewPanelDebugNDJSON.emit(
+            hypothesisId: "H_run_start",
+            location: "CodeReviewPanelStore+LiveRunExecution.startReview",
+            message: "panel_review_launch",
+            data: [
+                "scanDepth": reviewScanDepth.rawValue,
+                "sessionId": sessionId,
+                "modeLabels": modes.map(\.rawValue).sorted().joined(separator: ","),
+            ]
+        )
+        #endif
         runPanelReview(
             provider: provider,
             prompt: prompt,

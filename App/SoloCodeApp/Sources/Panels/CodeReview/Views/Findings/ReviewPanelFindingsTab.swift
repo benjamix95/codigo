@@ -67,7 +67,8 @@ struct ReviewPanelFindingsTab: View {
                             modes: store.selectedModes,
                             scanDepth: store.reviewScanDepth
                         )
-                    )
+                    ),
+                    scanDepth: store.reviewScanDepth
                 )
                 .padding(.horizontal, 10)
             }
