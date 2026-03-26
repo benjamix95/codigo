@@ -47,27 +47,7 @@ func resolveComposerTodoItems(
     guard let conversationId else {
         return []
     }
-
-    let visibleTodos = todoStore.userVisibleTodos
-    let canonicalTodos = todoStore.canonicalTodos(for: conversationId)
-    if !canonicalTodos.isEmpty {
-        return canonicalTodos
-    }
-
-    let scopedVisibleTodos = visibleTodos
-        .filter { $0.planConversationId == conversationId }
-        .sorted { lhs, rhs in
-            if lhs.isPlanCanonical != rhs.isPlanCanonical { return lhs.isPlanCanonical }
-            if lhs.isPlanCanonical, rhs.isPlanCanonical {
-                let lhsOrder = lhs.planOrder ?? Int.max
-                let rhsOrder = rhs.planOrder ?? Int.max
-                if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
-            }
-            if lhs.priority.rank != rhs.priority.rank { return lhs.priority.rank < rhs.priority.rank }
-            return lhs.createdAt < rhs.createdAt
-        }
-
-    return scopedVisibleTodos
+    return todoStore.displayTodosForChat(for: conversationId)
 }
 
 extension ChatPanelView {

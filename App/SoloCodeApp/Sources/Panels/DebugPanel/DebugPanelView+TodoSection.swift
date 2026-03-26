@@ -2,23 +2,14 @@ import SwiftUI
 
 extension DebugPanelView {
     func debugTodoCard(_ items: [TodoItem]) -> some View {
-        let ordered = items.sorted { lhs, rhs in
-            if lhs.planOrder != rhs.planOrder {
-                return (lhs.planOrder ?? .max) < (rhs.planOrder ?? .max)
-            }
-            if lhs.status.rank != rhs.status.rank {
-                return lhs.status.rank < rhs.status.rank
-            }
-            return lhs.createdAt < rhs.createdAt
-        }
-        let doneCount = ordered.filter { $0.status == .done }.count
+        let doneCount = items.filter { $0.status == .done }.count
 
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "checklist")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(accent)
-                Text("\(doneCount) / \(ordered.count) tasks")
+                Text("\(doneCount) / \(items.count) tasks")
                     .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .contentTransition(.numericText())
@@ -30,7 +21,7 @@ extension DebugPanelView {
             Divider().overlay(Color.primary.opacity(0.06))
 
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(ordered.enumerated()), id: \.element.id) { index, todo in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, todo in
                     HStack(alignment: .top, spacing: 8) {
                         debugTodoStatusIcon(todo.status)
                             .padding(.top, 1)

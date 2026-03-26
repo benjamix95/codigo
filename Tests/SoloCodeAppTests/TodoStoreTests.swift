@@ -592,6 +592,77 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(visible, Set(["Scoped runtime"]))
     }
 
+    func testResolveComposerTodoItemsMatchesDisplayTodosForChatCanonicalPlusRuntime() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertCanonicalPlanTodos(["Step A", "Step B"], conversationId: conversationId)
+        store.upsertFromAgent(
+            id: nil,
+            title: "command_execution",
+            status: .inProgress,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        let resolved = resolveComposerTodoItems(
+            todoStore: store,
+            conversationId: conversationId
+        )
+        let displayed = store.displayTodosForChat(for: conversationId)
+        XCTAssertEqual(resolved.map(\.id), displayed.map(\.id))
+        XCTAssertEqual(
+            Set(resolved.map(\.title)),
+            Set(["Step A", "Step B", "command_execution"])
+        )
+    }
+
+    func testResolveComposerTodoItemsFallsBackToChatTodosWhenCanonicalMissing() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Scoped runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        let visible = Set(
+            resolveComposerTodoItems(
+                todoStore: store,
+                conversationId: conversationId
+            ).map(\.title)
+        )
+
+        XCTAssertEqual(visible, Set(["Scoped runtime"]))
+    }
+
+    func testResolveComposerTodoItemsMatchesDisplayTodosLegacyUnscopedFallback() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Legacy runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+
+        let resolved = resolveComposerTodoItems(
+            todoStore: store,
+            conversationId: conversationId
+        )
+        let displayed = store.displayTodosForChat(for: conversationId)
+        XCTAssertEqual(resolved.map(\.id), displayed.map(\.id))
+        XCTAssertEqual(resolved.map(\.title), ["Legacy runtime"])
+    }
+
     func testOperationalPlaceholdersAreExcludedFromVisibleTodoQueries() {
         let store = makeStore()
         let conversationId = UUID()
