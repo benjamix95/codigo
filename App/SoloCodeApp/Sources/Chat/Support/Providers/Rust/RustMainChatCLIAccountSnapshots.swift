@@ -220,7 +220,9 @@ extension ChatPanelView {
             let env = CLIProfileProvisioner.environmentOverrides(
                 provider: kind,
                 profilePath: account.profilePath,
-                secret: secret
+                secret: secret,
+                workspacePath: runtimeWorkspacePaths.first?.path,
+                workspacePathsForIndex: runtimeWorkspacePaths.isEmpty ? nil : runtimeWorkspacePaths
             )
             return MainChatCLIAccountSnapshotBridge(
                 id: account.id.uuidString,

@@ -1,3 +1,4 @@
+import CoderEngine
 import XCTest
 @testable import CoderIDE
 import Darwin
@@ -270,6 +271,25 @@ final class CLIProfileProvisionerTests: XCTestCase {
     func testBaseProfilesDirUsesSoloCodeApplicationSupportNamespace() {
         let baseDir = CLIProfileProvisioner.baseProfilesDir()
         XCTAssertTrue(baseDir.path.contains("/Library/Application Support/Solo Code/CLIProfiles"))
+    }
+
+    func testEnvironmentOverridesSetsWorkspaceIndexPathsForMultiRoot() {
+        let roots = [
+            URL(fileURLWithPath: "/proj/beta", isDirectory: true),
+            URL(fileURLWithPath: "/proj/alpha", isDirectory: true),
+        ]
+        let env = CLIProfileProvisioner.environmentOverrides(
+            provider: .claude,
+            profilePath: "/tmp/cli",
+            secret: nil,
+            workspacePath: "/proj/alpha",
+            workspacePathsForIndex: roots
+        )
+        XCTAssertEqual(
+            env["SOLOCODE_WORKSPACE_INDEX_PATHS"],
+            CodebaseIndex.indexCachePathsKey(for: roots)
+        )
+        XCTAssertEqual(env["SOLOCODE_WORKSPACE_PATH"], "/proj/alpha")
     }
 
     func testClaudeEnvironmentOverridesIsolateHomePerProfile() throws {

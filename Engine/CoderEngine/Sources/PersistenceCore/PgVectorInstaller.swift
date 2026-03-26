@@ -5,8 +5,8 @@ private let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "Pg
 
 // MARK: - PgVectorInstaller
 
-/// Ensures pgvector is installed in the Homebrew PostgreSQL installation.
-/// Called automatically during bootstrap — the user never needs to install manually.
+/// Estensione PostgreSQL **pgvector** (tipo `vector`) — spesso confusa con un ipotetico «pgprep», che non esiste in questo progetto.
+/// Installazione automatica assieme a Homebrew / PostgreSQL; l’utente non deve installarla a mano.
 public enum PgVectorInstaller {
 
     /// Check if pgvector extension is loadable by the **active** PostgreSQL version.

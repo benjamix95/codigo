@@ -156,11 +156,21 @@ public actor CodebaseIndex {
 
     // MARK: - Persistence
 
+    /// Sorted, pipe-joined filesystem paths — must match MCP env `SOLOCODE_WORKSPACE_INDEX_PATHS`.
+    public static func indexCachePathsKey(for workspacePaths: [URL]) -> String {
+        workspacePaths.map(\.path).sorted().joined(separator: "|")
+    }
+
+    /// Hex directory name under `…/Caches/Solo Code/index/` — same DJB2 as `mcp_index_cache` (Rust).
+    public static func indexCacheDirectoryHashHex(for workspacePaths: [URL]) -> String {
+        let pathsString = indexCachePathsKey(for: workspacePaths)
+        let hash = pathsString.utf8.reduce(UInt64(5381)) { ($0 &<< 5) &+ $0 &+ UInt64($1) }
+        return String(hash, radix: 16, uppercase: false)
+    }
+
     /// Compute a stable cache directory for the given workspace paths.
     static func cacheDirectory(for workspacePaths: [URL]) -> URL {
-        let pathsString = workspacePaths.map(\.path).sorted().joined(separator: "|")
-        let hash = pathsString.utf8.reduce(UInt64(5381)) { ($0 &<< 5) &+ $0 &+ UInt64($1) }
-        let hashHex = String(hash, radix: 16, uppercase: false)
+        let hashHex = indexCacheDirectoryHashHex(for: workspacePaths)
 
         let cacheDir = (FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory)

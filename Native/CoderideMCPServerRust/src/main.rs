@@ -2,6 +2,7 @@ mod audit_tools;
 mod catalog;
 mod debug_tools;
 mod diagnostics_tools;
+mod mcp_index_cache;
 mod edit_tools;
 mod file_lock;
 mod file_tools;
@@ -38,9 +39,27 @@ fn resolve_workspace() -> PathBuf {
     while let Some(arg) = args.next() {
         if arg == "--workspace" {
             if let Some(value) = args.next() {
-                return PathBuf::from(value);
+                let trimmed = value.trim();
+                if trimmed.is_empty() || trimmed == "." {
+                    if let Some(override_path) = workspace_override_from_env() {
+                        return override_path;
+                    }
+                }
+                return PathBuf::from(trimmed);
             }
         }
     }
+    if let Some(override_path) = workspace_override_from_env() {
+        return override_path;
+    }
     env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+fn workspace_override_from_env() -> Option<PathBuf> {
+    let value = env::var("SOLOCODE_WORKSPACE_PATH").ok()?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(trimmed))
 }

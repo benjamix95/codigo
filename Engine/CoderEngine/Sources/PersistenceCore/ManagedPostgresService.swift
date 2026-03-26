@@ -1,6 +1,10 @@
 import Darwin
 import Foundation
 
+/// Avvio PostgreSQL locale con provisioning **Homebrew → PostgreSQL → initdb**.
+/// L’estensione **pgvector** (colonne `vector` / ricerca semantica SQL) non viene installata qui:
+/// è gestita da `PostgresPersistenceStore.ensureReady()` tramite `PgVectorInstaller`.
+/// Non esiste nel progetto alcun componente denominato «pgprep».
 public final class ManagedPostgresService {
     public static let shared = ManagedPostgresService()
 

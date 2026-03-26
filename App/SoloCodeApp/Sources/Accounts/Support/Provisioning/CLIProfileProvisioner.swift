@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 
 enum CLIProfileProvisioner {
@@ -40,7 +41,40 @@ enum CLIProfileProvisioner {
     }
 
     static func environmentOverrides(provider: CLIProviderKind, profilePath: String, secret: String?) -> [String: String] {
+        environmentOverrides(
+            provider: provider,
+            profilePath: profilePath,
+            secret: secret,
+            workspacePath: nil
+        )
+    }
+
+    static func environmentOverrides(
+        provider: CLIProviderKind,
+        profilePath: String,
+        secret: String?,
+        workspacePath: String?,
+        workspacePathsForIndex: [URL]? = nil
+    ) -> [String: String] {
         var env: [String: String] = [:]
+        let trimmedPrimary = workspacePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let urlsForCacheKey: [URL]
+        if let roots = workspacePathsForIndex, !roots.isEmpty {
+            urlsForCacheKey = roots
+        } else if let p = trimmedPrimary, !p.isEmpty {
+            urlsForCacheKey = [URL(fileURLWithPath: p, isDirectory: true)]
+        } else {
+            urlsForCacheKey = []
+        }
+        if let p = trimmedPrimary, !p.isEmpty {
+            env["SOLOCODE_WORKSPACE_PATH"] = p
+        } else if let first = urlsForCacheKey.first {
+            env["SOLOCODE_WORKSPACE_PATH"] = first.path
+        }
+        if !urlsForCacheKey.isEmpty {
+            // Allineamento cache `semantic.jsonl` con `CodebaseIndex.cacheDirectory` e MCP Rust (`mcp_index_cache`).
+            env["SOLOCODE_WORKSPACE_INDEX_PATHS"] = CodebaseIndex.indexCachePathsKey(for: urlsForCacheKey)
+        }
         switch provider {
         case .codex:
             ensureCodexProfileFiles(at: URL(fileURLWithPath: profilePath, isDirectory: true), overwrite: false)

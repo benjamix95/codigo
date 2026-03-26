@@ -195,7 +195,13 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
                 while let selected = account, !attempted.contains(selected.id), !Task.isCancelled {
                     attempted.insert(selected.id)
                     let secret = await MainActor.run { accountsStore.secret(for: selected.id) }
-                    let env = CLIProfileProvisioner.environmentOverrides(provider: providerKind, profilePath: selected.profilePath, secret: secret)
+                    let env = CLIProfileProvisioner.environmentOverrides(
+                        provider: providerKind,
+                        profilePath: selected.profilePath,
+                        secret: secret,
+                        workspacePath: context.workspacePath.path,
+                        workspacePathsForIndex: context.workspacePaths
+                    )
                     let provider = makeProvider(selected, env)
 
                     do {
