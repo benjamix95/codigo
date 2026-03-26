@@ -56,6 +56,7 @@ extension PipelineIntegrationService {
 
     private func handleJobStarted(_ p: JobStartedPayload, for conversationId: UUID) {
         guard let runtime = runtime(for: conversationId) else { return }
+        runtime.cachedTaskRuntimeState = nil
         runtime.jobState = .intake
         runtime.totalTasks = p.taskCount
         runtime.completedTasks = 0
@@ -100,6 +101,7 @@ extension PipelineIntegrationService {
 
     private func handleTaskStarted(_ p: TaskStartedPayload, for conversationId: UUID) {
         guard let runtime = runtime(for: conversationId) else { return }
+        runtime.cachedTaskRuntimeState = nil
         runtime.jobState = .executing
         persistSnapshot(for: conversationId)
         consumePipelineUIEvent(.taskStarted(p), for: conversationId)
@@ -132,6 +134,7 @@ extension PipelineIntegrationService {
 
     private func handleTaskCompleted(_ p: TaskCompletedPayload, for conversationId: UUID) {
         guard let runtime = runtime(for: conversationId) else { return }
+        runtime.cachedTaskRuntimeState = nil
         runtime.completedTasks += 1
         persistSnapshot(for: conversationId)
         consumePipelineUIEvent(.taskCompleted(p), for: conversationId)
@@ -210,6 +213,7 @@ extension PipelineIntegrationService {
 
     private func handleTaskFailed(_ p: TaskFailedPayload, for conversationId: UUID) {
         if let runtime = runtime(for: conversationId) {
+            runtime.cachedTaskRuntimeState = nil
             if let existing = runtime.lastError, !existing.isEmpty {
                 if !existing.contains(p.error) {
                     runtime.lastError = "\(existing); \(p.error)"

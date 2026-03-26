@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - AgentWorkerEventBridge
 
@@ -7,18 +8,21 @@ import Foundation
 /// into `EventBusEvent` instances that the UI bridge can map to `PipelineUIEvent`.
 public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Sendable {
 
-    private actor SequenceGenerator {
-        private var nextValue: UInt64 = 0
+    /// Lock-free sequence generator — eliminates actor hop overhead in hot-path.
+    /// Previous `actor SequenceGenerator` required an async context switch on every
+    /// event (20-50/sec during streaming). `OSAllocatedUnfairLock` is synchronous
+    /// and ~100x faster for this use case.
+    private let sequencer = OSAllocatedUnfairLock(initialState: UInt64(0))
 
-        func next() -> UInt64 {
-            nextValue += 1
-            return nextValue
+    private func nextSequence() -> UInt64 {
+        sequencer.withLock { value in
+            value += 1
+            return value
         }
     }
 
     private let eventBus: EventBus
     private let jobId: String
-    private let sequencer = SequenceGenerator()
     private var isShutdown = false
 
     public init(eventBus: EventBus, jobId: String) {
@@ -62,7 +66,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         jobId: String, taskId: String,
         didEmitTextDelta delta: String
     ) async {
-        let seq = await sequencer.next()
+        let seq = nextSequence()
         let event = EventBusEvent(
             eventId: "evt_stream_\(seq)_delta_\(taskId)",
             jobId: self.jobId,
@@ -79,7 +83,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         jobId: String, taskId: String,
         didReplace replacement: String
     ) async {
-        let seq = await sequencer.next()
+        let seq = nextSequence()
         let event = EventBusEvent(
             eventId: "evt_stream_\(seq)_replace_\(taskId)",
             jobId: self.jobId,
@@ -96,7 +100,7 @@ public final class AgentWorkerEventBridge: AgentWorkerDelegate, @unchecked Senda
         jobId: String, taskId: String,
         didEmitRaw type: String, payload: [String: String]
     ) async {
-        let seq = await sequencer.next()
+        let seq = nextSequence()
         var mergedPayload = payload
         mergedPayload["raw_type"] = type
         mergedPayload["task_id"] = taskId

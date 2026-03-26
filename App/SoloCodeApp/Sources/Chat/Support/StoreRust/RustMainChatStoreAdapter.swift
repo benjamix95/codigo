@@ -73,6 +73,38 @@ enum RustMainChatStoreAdapter {
         })
     }
 
+    /// Scoped apply for pipeline events: updates only the active conversation
+    /// instead of replacing the entire `store.conversations` array.
+    /// This avoids O(N) COW + @Published notification for all conversations
+    /// when only one is being streamed to (~20-50 times/sec during streaming).
+    @MainActor
+    static func applyScopedForPipeline(
+        snapshot: MainChatStoreSnapshotBridge,
+        to store: ChatStore,
+        conversationId: UUID
+    ) {
+        // Update only the target conversation in-place
+        let newConversations = snapshot.conversations.compactMap(conversation)
+        guard let updatedConv = newConversations.first(where: { $0.id == conversationId }) else {
+            // Fallback: full apply if target conversation not found in response
+            apply(snapshot: snapshot, to: store, preserveLocalMessages: false)
+            return
+        }
+
+        if let existingIdx = store.conversations.firstIndex(where: { $0.id == conversationId }) {
+            store.conversations[existingIdx] = updatedConv
+        } else {
+            // Conversation was created by Rust — append it
+            store.conversations.append(updatedConv)
+        }
+
+        // Plan boards: only update keys that changed
+        for (key, value) in snapshot.planBoards {
+            guard let uuid = UUID(uuidString: key) else { continue }
+            store.planBoards[uuid] = planBoard(value)
+        }
+    }
+
     static func loadNormalizedSnapshot(
         _ snapshot: MainChatStoreSnapshotBridge
     ) -> MainChatStoreSnapshotBridge? {
@@ -156,6 +188,28 @@ enum RustMainChatStoreAdapter {
                     snapshot: state.storeSnapshot,
                     to: store,
                     preserveLocalMessages: preserveLocalMessages
+                )
+                apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
+            }
+            return response
+        }
+    }
+
+    /// Pipeline-optimized variant: updates only the active conversation
+    /// instead of replacing the entire conversations array.
+    @MainActor
+    static func applyUIIntentScopedForPipeline(
+        _ request: MainChatUIIntentRequestBridge,
+        to store: ChatStore,
+        conversationId: UUID
+    ) -> MainChatUIIntentResponseBridge? {
+        RustMainChatAdapterSignpost.measureApplyUIIntent(intentLabel: request.intent) {
+            guard let response = handleUIIntent(request) else { return nil }
+            if let state = response.state {
+                applyScopedForPipeline(
+                    snapshot: state.storeSnapshot,
+                    to: store,
+                    conversationId: conversationId
                 )
                 apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
             }

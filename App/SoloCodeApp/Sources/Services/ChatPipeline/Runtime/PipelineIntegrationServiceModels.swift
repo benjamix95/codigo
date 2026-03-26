@@ -51,12 +51,19 @@ final class PipelineConversationRuntime {
     /// the Rust boundary response. Cleared on retarget/teardown.
     var cachedStoreSnapshot: MainChatStoreSnapshotBridge?
 
+    /// Cached task runtime state to avoid re-reading chatStore on every
+    /// pipeline event. Task runtime only changes on begin_task/end_task/
+    /// set_task_status — not on text deltas. Invalidated by those events.
+    var cachedTaskRuntimeState: MainChatTaskRuntimeStateBridge?
+
     /// Eventi stream-only (testo) in attesa di flush verso il bridge Rust (debounce ~16ms).
     var pendingRustBridgeEvents: [ChatPipelineEvent] = []
     var rustBridgeDebounceTask: Task<Void, Never>?
 
     /// Debounce bridge per ridurre round-trip FFI su delta singoli ad alta frequenza.
-    static let rustBridgeDebounceNs: UInt64 = 16_000_000
+    /// Increased from 16ms to 32ms: halves FFI round-trips during streaming
+    /// while remaining imperceptible to the user (~30fps text update is smooth).
+    static let rustBridgeDebounceNs: UInt64 = 32_000_000
 
     init(
         conversationId: UUID,
@@ -123,6 +130,7 @@ final class PipelineConversationRuntime {
         )
         self.nextPipelineSequence = 1
         self.cachedStoreSnapshot = nil
+        self.cachedTaskRuntimeState = nil
         rustBridgeDebounceTask?.cancel()
         self.rustBridgeDebounceTask = nil
         self.pendingRustBridgeEvents.removeAll(keepingCapacity: false)

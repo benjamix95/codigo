@@ -276,11 +276,13 @@ extension PipelineIntegrationService {
         // from the Rust boundary response and invalidated on retarget/teardown.
         let storeSnapshot = runtime.cachedStoreSnapshot
             ?? RustMainChatStoreAdapter.snapshot(from: chatStore)
+        let taskRuntime = runtime.cachedTaskRuntimeState
+            ?? RustMainChatStoreAdapter.taskRuntimeState(from: chatStore)
 
         let uiState = MainChatUIStateBridge(
             storeSnapshot: storeSnapshot,
             runtimeSnapshot: runtimeSnapshot,
-            taskRuntimeState: RustMainChatStoreAdapter.taskRuntimeState(from: chatStore),
+            taskRuntimeState: taskRuntime,
             selectedConversationId: runtime.conversationId.lowercasedString,
             draftText: "",
             planPanelVisible: false,
@@ -303,17 +305,18 @@ extension PipelineIntegrationService {
             payload: [:]
         )
 
-        guard let response = RustMainChatStoreAdapter.applyUIIntent(
+        guard let response = RustMainChatStoreAdapter.applyUIIntentScopedForPipeline(
             request,
             to: chatStore,
-            preserveLocalMessages: false
+            conversationId: runtime.conversationId
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
             let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - rustStartTime) * 1000)
             if elapsedMs > 100 {
                 NSLog("[PipelineIntegrationService] Rust batch boundary took %dms (>100ms threshold), events=%d", elapsedMs, events.count)
             }
-            // Invalidate cache on failure — next call will rebuild from store
+            // Invalidate caches on failure — next call will rebuild from store
             runtime.cachedStoreSnapshot = nil
+            runtime.cachedTaskRuntimeState = nil
             if events.count == 1 {
                 return applyPipelineEventThroughRustBoundary(
                     events[0],
@@ -328,8 +331,9 @@ extension PipelineIntegrationService {
             NSLog("[PipelineIntegrationService] Rust batch boundary took %dms (>100ms threshold), events=%d", elapsedMs, events.count)
         }
         runtime.chatTurnState = nextState
-        // Cache the updated store snapshot from the Rust response
+        // Cache the updated store snapshot and task runtime from the Rust response
         runtime.cachedStoreSnapshot = response.state?.storeSnapshot
+        runtime.cachedTaskRuntimeState = response.state?.taskRuntimeState
         return true
     }
 
@@ -347,14 +351,16 @@ extension PipelineIntegrationService {
         )
         let rustStartTime = CFAbsoluteTimeGetCurrent()
 
-        // Use cached store snapshot to avoid full re-serialization
+        // Use cached store snapshot and task runtime to avoid full re-serialization
         let storeSnapshot = runtime.cachedStoreSnapshot
             ?? RustMainChatStoreAdapter.snapshot(from: chatStore)
+        let taskRuntime = runtime.cachedTaskRuntimeState
+            ?? RustMainChatStoreAdapter.taskRuntimeState(from: chatStore)
 
         let uiState = MainChatUIStateBridge(
             storeSnapshot: storeSnapshot,
             runtimeSnapshot: runtimeSnapshot,
-            taskRuntimeState: RustMainChatStoreAdapter.taskRuntimeState(from: chatStore),
+            taskRuntimeState: taskRuntime,
             selectedConversationId: runtime.conversationId.lowercasedString,
             draftText: "",
             planPanelVisible: false,
@@ -375,12 +381,13 @@ extension PipelineIntegrationService {
             payload: [:]
         )
 
-        guard let response = RustMainChatStoreAdapter.applyUIIntent(
+        guard let response = RustMainChatStoreAdapter.applyUIIntentScopedForPipeline(
             request,
             to: chatStore,
-            preserveLocalMessages: false
+            conversationId: runtime.conversationId
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
             runtime.cachedStoreSnapshot = nil
+            runtime.cachedTaskRuntimeState = nil
             return false
         }
         let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - rustStartTime) * 1000)
@@ -388,8 +395,9 @@ extension PipelineIntegrationService {
             NSLog("[PipelineIntegrationService] Rust single-event boundary took %dms (>100ms threshold), kind=%@", elapsedMs, event.kind.rawValue)
         }
         runtime.chatTurnState = nextState
-        // Cache the updated store snapshot
+        // Cache the updated store snapshot and task runtime
         runtime.cachedStoreSnapshot = response.state?.storeSnapshot
+        runtime.cachedTaskRuntimeState = response.state?.taskRuntimeState
         return true
     }
 
