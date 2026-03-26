@@ -180,7 +180,7 @@ pub fn input_schema_for(name: &str) -> Value {
                 SchemaProp::with_desc("path", "File path."),
                 SchemaProp::with_desc("pattern", "Regex pattern."),
                 SchemaProp::with_desc("replacement", "Replacement (may use capture groups)."),
-                SchemaProp::with_desc("flags", "Optional regex flags string."),
+                SchemaProp::with_desc("flags", "Optional flag letters; i = case-insensitive (Rust (?i) prefix)."),
                 SchemaProp::typed(
                     "replace_all",
                     "boolean",

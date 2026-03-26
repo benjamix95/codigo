@@ -171,12 +171,18 @@ fn regex_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
     if pattern.is_empty() {
         return CallToolResult::error("pattern is required");
     }
+    let flags = string_arg(arguments, "flags").to_lowercase();
+    let pattern_for_regex = if flags.contains('i') && !pattern.trim_start().starts_with("(?i)") {
+        format!("(?i){pattern}")
+    } else {
+        pattern
+    };
     let replacement = string_arg(arguments, "replacement");
     let content = match fs::read_to_string(&path) {
         Ok(content) => content,
         Err(error) => return CallToolResult::error(error.to_string()),
     };
-    let re = match Regex::new(&pattern) {
+    let re = match Regex::new(&pattern_for_regex) {
         Ok(re) => re,
         Err(error) => return CallToolResult::error(format!("invalid regex: {error}")),
     };
