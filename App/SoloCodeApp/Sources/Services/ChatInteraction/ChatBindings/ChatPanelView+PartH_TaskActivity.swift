@@ -300,7 +300,15 @@ extension ChatPanelView {
     }
 
     private var composerTodoMicroStatus: String? {
-        guard let cid = conversationId, let msg = composerTodoLatestAssistant else { return nil }
+        guard let cid = conversationId,
+              let msg = composerTodoLatestAssistant,
+              msg.isStreaming else { return nil }
+        // Stesso valore del footer messaggio: snapshot live (evita desync con calcolo diretto).
+        if snapshotIsLoading,
+           msg.id == snapshotActiveAssistantMessageId,
+           cid == messagesConversationSnapshot?.id {
+            return snapshotStreamingDetailText
+        }
         return streamingDetailText(for: msg, conversationId: cid)
     }
 

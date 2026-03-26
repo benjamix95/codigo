@@ -94,7 +94,6 @@ struct ChatPanelView: View {
     @State var snapshotInlineActivities: [TaskActivity] = []
     @State var snapshotSupervisorActivities: [TaskActivity] = []
     @State var snapshotLiveSubagentCards: [SwarmLiveCardState] = []
-    @State var lastActivityRefreshTime: CFAbsoluteTime = 0
     @State var composerRetainedTodoItems: [TodoItem] = []
     @State var composerTodoLastNonEmptySnapshotAt: CFAbsoluteTime = 0
     @State var composerTodoGraceTask: Task<Void, Never>?

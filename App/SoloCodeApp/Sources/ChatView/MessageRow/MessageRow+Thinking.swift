@@ -36,6 +36,10 @@ struct ThinkingBlockView: View {
     @State private var isExpanded = false
     private let contentMaxWidth: CGFloat = 800
 
+    private var displayText: String {
+        ChatStore.sanitizedChatReasoningText(text)
+    }
+
     @Environment(\.colorScheme) private var colorScheme
 
     private var accentBarColor: Color {
@@ -43,13 +47,13 @@ struct ThinkingBlockView: View {
             ? Color(red: 0.82, green: 0.63, blue: 0.28).opacity(0.34)
             : Color(red: 0.66, green: 0.46, blue: 0.12).opacity(0.28)
     }
-    private var thinkingTextColor: Color { .secondary.opacity(0.9) }
+    private var thinkingTextColor: Color { DesignSystem.Colors.textTertiary }
     private var headerTextColor: Color { accentBarColor.opacity(0.9) }
 
     private var isShowingContent: Bool { isExpanded }
 
     private var previewLine: String {
-        let first = text.components(separatedBy: .newlines)
+        let first = displayText.components(separatedBy: .newlines)
             .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
         return first.count > 80 ? String(first.prefix(80)) + "..." : first
     }
@@ -58,7 +62,7 @@ struct ThinkingBlockView: View {
         VStack(alignment: .leading, spacing: 0) {
             headerButton
             if isShowingContent {
-                reasoningContent(text: text)
+                reasoningContent(text: displayText)
             }
         }
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
@@ -87,9 +91,10 @@ struct ThinkingBlockView: View {
                 if !isShowingContent {
                     Text(previewLine)
                         .font(.system(size: 10))
-                        .foregroundStyle(.quaternary)
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .textShimmer(active: isLiveStreaming)
                 }
                 Spacer(minLength: 0)
             }
@@ -111,6 +116,7 @@ struct ThinkingBlockView: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 12)
+                .textShimmer(active: isLiveStreaming)
         }
         .padding(.leading, 4)
         .transition(.opacity.combined(with: .move(edge: .top)))
@@ -132,13 +138,13 @@ struct ThinkingBlocksView: View {
             ? Color(red: 0.82, green: 0.63, blue: 0.28).opacity(0.34)
             : Color(red: 0.66, green: 0.46, blue: 0.12).opacity(0.28)
     }
-    private var thinkingTextColor: Color { .secondary.opacity(0.9) }
+    private var thinkingTextColor: Color { DesignSystem.Colors.textTertiary }
     private var headerTextColor: Color { accentBarColor.opacity(0.9) }
     private var separatorColor: Color { .primary.opacity(0.06) }
     private var isShowingContent: Bool { isExpanded }
 
     private var previewLine: String {
-        let text = blocks.last?.text ?? blocks.first?.text ?? ""
+        let text = ChatStore.sanitizedChatReasoningText(blocks.last?.text ?? blocks.first?.text ?? "")
         let first = text.components(separatedBy: .newlines)
             .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
         return first.count > 80 ? String(first.prefix(80)) + "..." : first
@@ -182,9 +188,10 @@ struct ThinkingBlocksView: View {
                 if !isShowingContent {
                     Text(previewLine)
                         .font(.system(size: 10))
-                        .foregroundStyle(.quaternary)
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .textShimmer(active: isLiveStreaming)
                 }
                 Spacer(minLength: 0)
             }
@@ -201,7 +208,7 @@ struct ThinkingBlocksView: View {
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(accentBarColor)
                         .frame(width: 2)
-                    Text(block.text)
+                    Text(ChatStore.sanitizedChatReasoningText(block.text))
                         .font(.system(size: 11.5))
                         .foregroundStyle(thinkingTextColor)
                         .lineSpacing(5.5)

@@ -117,7 +117,7 @@ struct ComposerTodoOverlayView: View {
                 .frame(width: 6, height: 6)
             Text(text)
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .lineLimit(1)
                 .textShimmer(active: isStreaming)
             Spacer(minLength: 0)

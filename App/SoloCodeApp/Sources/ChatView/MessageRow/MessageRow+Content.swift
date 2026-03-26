@@ -335,18 +335,22 @@ extension MessageRow {
 
     func streamingBar() -> some View {
         let status = streamingStatusText.isEmpty ? "Thinking" : streamingStatusText
+        let mutedPlanOrThink = status == "Thinking" || status == "Planning next move"
+        let footerColor = mutedPlanOrThink
+            ? DesignSystem.Colors.textTertiary
+            : Color.secondary
         return HStack(spacing: 6) {
             Text(status)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(footerColor)
                 .textShimmer(active: true)
-            if status != "Planning next move", status != "Thinking",
+            if status != "Thinking",
                let detail = streamingDetailText, !detail.isEmpty {
                 Text("·")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(footerColor)
                 Text(detail)
                     .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(footerColor)
                     .lineLimit(1)
                     .textShimmer(active: true)
             }

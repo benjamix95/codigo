@@ -83,38 +83,13 @@ extension ChatPanelView {
 
     @MainActor
     internal func streamingDetailText(for message: ChatMessage, conversationId convId: UUID?) -> String? {
-        guard message.isStreaming, message.role == .assistant else { return nil }
-        if isReasoningSuppressedForProvider(resolvedTurnProviderId(for: convId)) {
-            return nil
-        }
         let scopedActivities = scopedTaskActivities(for: convId)
-        if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scopedActivities),
-           let line = ChatStore.sanitizedStreamingDetailLine(assistantUpdate) {
-            return line
-        }
-        if let fromActivities = TaskActivityStore.streamingDetailText(
-            activities: scopedActivities,
+        return resolvedStreamingDetail(
+            activeAssistant: message,
+            conversationId: convId,
+            scopedActivities: scopedActivities,
             activeOperationsCount: scopedActiveOperationsCount(for: convId)
-        ), let line = ChatStore.sanitizedStreamingDetailLine(fromActivities) {
-            return line
-        }
-        if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: message.content),
-           let line = ChatStore.sanitizedStreamingDetailLine(fromContent) {
-            return line
-        }
-        if let codexLine = streaming.codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId,
-           let line = ChatStore.sanitizedStreamingDetailLine(codexLine) {
-            return line
-        }
-        if convId == streaming.streamingReasoningConversationId, let reasoning = streaming.streamingReasoningText, !reasoning.isEmpty {
-            let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)
-                .last?
-                .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-            if !lastLine.isEmpty, let line = ChatStore.sanitizedStreamingDetailLine(lastLine, ellipsis: "…") {
-                return line
-            }
-        }
-        return nil
+        )
     }
 
     internal func scopedTaskActivities(for targetConversationId: UUID?) -> [TaskActivity] {

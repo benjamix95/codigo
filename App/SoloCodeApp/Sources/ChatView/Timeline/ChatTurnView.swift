@@ -281,27 +281,29 @@ struct ChatTurnView: View, Equatable {
 
     private var streamingFooter: some View {
         let status = streamingStatusText.isEmpty ? "Thinking" : streamingStatusText
-        // Allineato a `MessageRow.streamingBar`: stati generici senza dettaglio operativo.
         let reasoningSuppressed = ChatReasoningPresentationPolicy.shouldSuppressReasoningUI(
             messageProviderId: message.turnMetadata?.providerId,
             fallbackTurnProviderId: reasoningPolicyProviderId
         )
-        // “Thinking” e “Planning next move”: mai seconda riga (lì finiva testo modello / risposta).
+        let mutedPlanOrThink = status == "Thinking" || status == "Planning next move"
+        let footerColor = mutedPlanOrThink
+            ? DesignSystem.Colors.textTertiary
+            : Color.secondary
+        // “Thinking”: nessuna seconda riga (evita duplicare reasoning). Planning mostra todo/step reale.
         let showDetail = !reasoningSuppressed
-            && status != "Planning next move"
             && status != "Thinking"
             && !(streamingDetailText?.isEmpty ?? true)
         return HStack(spacing: 6) {
             Text(status)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(footerColor)
                 .textShimmer(active: true)
             if showDetail, let streamingDetailText, !streamingDetailText.isEmpty {
                 Text("·")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(footerColor)
                 Text(streamingDetailText)
                     .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(footerColor)
                     .lineLimit(1)
                     .textShimmer(active: true)
             }

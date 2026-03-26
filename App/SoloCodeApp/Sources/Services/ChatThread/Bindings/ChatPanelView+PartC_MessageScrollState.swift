@@ -273,11 +273,9 @@ extension ChatPanelView {
             lastTraceRefreshTime = now
         }
 
-        let activityElapsed = now - lastActivityRefreshTime
-        if activityElapsed >= 0.25 || !snapshotIsLoading {
-            refreshLiveActivitySnapshot(fresh: fresh)
-            lastActivityRefreshTime = now
-        }
+        // Sottotitolo live e planning: aggiornare sempre col messaggio (il throttle qui
+        // causava lag vs overlay composer e detail "Planning next move" fuori sync).
+        refreshLiveActivitySnapshot(fresh: fresh)
 
         // #region agent log
         let storeCount = chatStore.conversation(for: conversationId)?.messages.count ?? -1
@@ -388,40 +386,12 @@ extension ChatPanelView {
             isPaused: executionController.runState == .paused,
             activities: scoped
         )
-        let detail: String? = {
-            if isReasoningSuppressedForProvider(resolvedTurnProviderId(for: convId)) {
-                return nil
-            }
-            if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scoped),
-               let line = ChatStore.sanitizedStreamingDetailLine(assistantUpdate) {
-                return line
-            }
-            if let fromActivities = TaskActivityStore.streamingDetailText(
-                activities: scoped,
-                activeOperationsCount: scopedActiveOperationsCount(for: convId)
-            ), let line = ChatStore.sanitizedStreamingDetailLine(fromActivities) {
-                return line
-            }
-            if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: activeAssistant.content),
-               let line = ChatStore.sanitizedStreamingDetailLine(fromContent) {
-                return line
-            }
-            if let codexLine = streaming.codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId,
-               let line = ChatStore.sanitizedStreamingDetailLine(codexLine) {
-                return line
-            }
-            if convId == streaming.streamingReasoningConversationId,
-               let reasoning = streaming.streamingReasoningText,
-               !reasoning.isEmpty {
-                let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)
-                    .last?
-                    .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-                if !lastLine.isEmpty, let line = ChatStore.sanitizedStreamingDetailLine(lastLine, ellipsis: "…") {
-                    return line
-                }
-            }
-            return nil
-        }()
+        let detail = resolvedStreamingDetail(
+            activeAssistant: activeAssistant,
+            conversationId: convId,
+            scopedActivities: scoped,
+            activeOperationsCount: scopedActiveOperationsCount(for: convId)
+        )
 
         let inlineActivities = scoped.filter { activity in
             guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }

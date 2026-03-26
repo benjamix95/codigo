@@ -305,6 +305,10 @@ extension ChatPanelView {
             refreshMessagesSnapshot()
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
         }
+        .onReceive(todoStore.objectWillChange) { _ in
+            guard isLoadingForCurrentConversation else { return }
+            refreshMessagesSnapshot()
+        }
         .onDisappear { }
     }
 
