@@ -12,7 +12,7 @@ func shouldShowFooterUsageDivider(
 
 extension UsageFooterView {
     func footerTier(
-        showBranch: Bool,
+        showFooterBranchPicker: Bool,
         showProviderUsage: Bool,
         showContext: Bool,
         showTotal: Bool,
@@ -20,7 +20,10 @@ extension UsageFooterView {
     ) -> some View {
         HStack(spacing: 6) {
             worktreeToggleButton
-            gitButton(showBranch: showBranch)
+            gitButton
+            if showFooterBranchPicker {
+                footerBranchPicker
+            }
             modelContextLabel
             if shouldShowFooterUsageDivider(
                 showProviderUsage: showProviderUsage,
@@ -47,11 +50,11 @@ extension UsageFooterView {
         }
     }
 
-    func gitButton(showBranch: Bool) -> some View {
+    var gitButton: some View {
         Button {
             gitPanelStore.isOpen.toggle()
         } label: {
-            gitButtonLabel(showBranch: showBranch)
+            gitButtonLabel
         }
         .buttonStyle(.plain)
         .help(gitPanelStore.gitRoot == nil ? "No Git repository" : "Open Git panel")
@@ -121,17 +124,11 @@ extension UsageFooterView {
         return "128K"
     }
 
-    func gitButtonLabel(showBranch: Bool) -> some View {
+    var gitButtonLabel: some View {
         HStack(spacing: 6) {
             Image(systemName: "arrow.triangle.branch")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(gitPanelStore.isOpen ? DesignSystem.Colors.agentColor : .primary)
-            if showBranch {
-                Text(gitPanelStore.currentBranch)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .fixedSize()
-            }
             if !gitPanelStore.changedFiles.isEmpty {
                 Text("\(gitPanelStore.changedFiles.count)")
                     .font(.system(size: 9, weight: .bold))
@@ -141,7 +138,7 @@ extension UsageFooterView {
                     .background(DesignSystem.Colors.agentColor, in: Capsule())
             }
         }
-        .padding(.horizontal, showBranch ? 10 : 6)
+        .padding(.horizontal, 6)
         .padding(.vertical, 5)
         .background(
             (gitPanelStore.isOpen ? DesignSystem.Colors.agentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor).opacity(0.55)),

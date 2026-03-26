@@ -70,7 +70,7 @@ struct UsageFooterView: View {
         let tier = footerTierFlags(for: resolvedTier)
 
         footerTier(
-            showBranch: tier.showBranch,
+            showFooterBranchPicker: tier.showFooterBranchPicker,
             showProviderUsage: tier.showProviderUsage,
             showContext: tier.showContext,
             showTotal: tier.showTotal,
@@ -137,7 +137,7 @@ struct UsageFooterView: View {
     }
 
     private func footerTierFlags(for tier: FooterTier) -> (
-        showBranch: Bool,
+        showFooterBranchPicker: Bool,
         showProviderUsage: Bool,
         showContext: Bool,
         showTotal: Bool,
@@ -149,7 +149,7 @@ struct UsageFooterView: View {
         case .medium:
             return (true, false, true, true, true)
         case .compact:
-            return (false, false, true, true, false)
+            return (true, false, true, true, false)
         case .minimal:
             return (false, false, false, false, false)
         }
