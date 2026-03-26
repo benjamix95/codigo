@@ -167,114 +167,170 @@ extension ReviewPanelFindingDetail {
     var actionsSection: some View {
         let bugConfirmed = finding.isBugConfirmedForPatchPreparation
         let applyReady = patch?.isReadyForUserApply == true
-        return HStack(spacing: 8) {
-            if (finding.status.isOpenState || finding.status == .patchFailed),
-               let sessionId = store.selectedSessionId {
-                if !bugConfirmed {
-                    Button {
-                        Task { await store.verifyFindingDeepAnalysis(sessionId: sessionId, findingId: finding.id) }
-                    } label: {
-                        Label("Verify bug", systemImage: "checkmark.shield")
+        let isApplyingThisFinding = store.applyingPatchFindingId == finding.id
+        return VStack(alignment: .leading, spacing: 8) {
+            if let patch, patch.isPanelApplySuccess {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Applicazione confermata dopo suite test completa")
                             .font(.system(size: 10, weight: .semibold))
+                        Text("Puoi aprire una pull request dal pulsante a destra.")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                    .controlSize(.small)
-                }
-
-                if bugConfirmed && (patch == nil || finding.status == .patchFailed) {
-                    Button {
-                        Task { await store.preparePatch(sessionId: sessionId, findingId: finding.id) }
-                    } label: {
-                        Label(
-                            finding.status == .patchFailed ? "Retry Prepare" : "Prepare Patch",
-                            systemImage: "wand.and.stars"
-                        )
-                        .font(.system(size: 10, weight: .semibold))
+                    Spacer(minLength: 8)
+                    if patch.canInitiatePullRequestFromPanel, let sessionId = store.selectedSessionId {
+                        Button {
+                            Task { await store.openPatchPullRequest(sessionId: sessionId, findingId: finding.id) }
+                        } label: {
+                            Label("Crea PR", systemImage: "arrow.triangle.pull")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(store.accent)
+                        .controlSize(.small)
+                    } else if let urlString = patch.prURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+                              !urlString.isEmpty,
+                              let url = URL(string: urlString) {
+                        Link(destination: url) {
+                            Label("Apri PR", systemImage: "arrow.up.right.square")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
-
-                if patch != nil && !applyReady {
-                    Button {
-                        Task {}
-                    } label: {
-                        Label("Apply Patch", systemImage: "wrench.and.screwdriver")
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(true)
-                    .help("Il diff deve essere verificato prima dell’applicazione.")
-                }
-
-                if applyReady {
-                    Button {
-                        Task { await store.applyPatch(sessionId: sessionId, findingId: finding.id) }
-                    } label: {
-                        Label("Apply Patch", systemImage: "wrench.and.screwdriver")
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(store.accent)
-                    .controlSize(.small)
-                }
-
-                Button {
-                    Task {
-                        await store.dismissFinding(
-                            sessionId: sessionId, findingId: finding.id, reason: "dismissed"
-                        )
-                    }
-                } label: {
-                    Label("Dismiss", systemImage: "xmark.circle")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.green.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.green.opacity(0.25), lineWidth: 0.5)
+                )
             }
-            if let sessionId = store.selectedSessionId,
-               store.currentPatches.contains(where: { $0.findingId == finding.id }) {
-                Button {
-                    Task { await store.revalidatePatch(sessionId: sessionId, findingId: finding.id) }
-                } label: {
-                    Label("Revalidate", systemImage: "checkmark.seal")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
 
-                Button {
-                    Task { await store.rollbackPatch(sessionId: sessionId, findingId: finding.id) }
-                } label: {
-                    Label("Rollback", systemImage: "arrow.uturn.backward.circle")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            HStack(spacing: 8) {
+                if (finding.status.isOpenState || finding.status == .patchFailed),
+                   let sessionId = store.selectedSessionId {
+                    if !bugConfirmed {
+                        Button {
+                            Task { await store.verifyFindingDeepAnalysis(sessionId: sessionId, findingId: finding.id) }
+                        } label: {
+                            Label("Verify bug", systemImage: "checkmark.shield")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .controlSize(.small)
+                    }
 
-                Button {
-                    Task { await store.openPatchPullRequest(sessionId: sessionId, findingId: finding.id) }
-                } label: {
-                    Label("Open PR", systemImage: "arrow.up.right.square")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                    if bugConfirmed && (patch == nil || finding.status == .patchFailed) {
+                        Button {
+                            Task { await store.preparePatch(sessionId: sessionId, findingId: finding.id) }
+                        } label: {
+                            Label(
+                                finding.status == .patchFailed ? "Retry Prepare" : "Prepare Patch",
+                                systemImage: "wand.and.stars"
+                            )
+                            .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
 
-                if store.currentPatches.contains(where: { $0.findingId == finding.id && $0.prURL != nil }) {
+                    if patch != nil && !applyReady {
+                        Button {
+                            Task {}
+                        } label: {
+                            Label("Apply Patch", systemImage: "wrench.and.screwdriver")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(true)
+                        .help("Il diff deve essere verificato prima dell’applicazione.")
+                    }
+
+                    if applyReady {
+                        if isApplyingThisFinding {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Build e suite test…")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 4)
+                        } else {
+                            Button {
+                                Task { await store.applyPatch(sessionId: sessionId, findingId: finding.id) }
+                            } label: {
+                                Label("Apply Patch", systemImage: "wrench.and.screwdriver")
+                                    .font(.system(size: 10, weight: .semibold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(store.accent)
+                            .controlSize(.small)
+                        }
+                    }
+
                     Button {
-                        Task { await store.mergePatchPullRequest(sessionId: sessionId, findingId: finding.id) }
+                        Task {
+                            await store.dismissFinding(
+                                sessionId: sessionId, findingId: finding.id, reason: "dismissed"
+                            )
+                        }
                     } label: {
-                        Label("Merge PR", systemImage: "arrow.triangle.merge")
+                        Label("Dismiss", systemImage: "xmark.circle")
                             .font(.system(size: 10, weight: .medium))
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .disabled(isApplyingThisFinding)
                 }
+                if let sessionId = store.selectedSessionId,
+                   store.currentPatches.contains(where: { $0.findingId == finding.id }) {
+                    Button {
+                        Task { await store.revalidatePatch(sessionId: sessionId, findingId: finding.id) }
+                    } label: {
+                        Label("Revalidate", systemImage: "checkmark.seal")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isApplyingThisFinding)
+
+                    Button {
+                        Task { await store.rollbackPatch(sessionId: sessionId, findingId: finding.id) }
+                    } label: {
+                        Label("Rollback", systemImage: "arrow.uturn.backward.circle")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isApplyingThisFinding)
+
+                    if let p = patch,
+                       p.prURL != nil || p.prStatus == .opened || p.status == .prOpened
+                    {
+                        Button {
+                            Task { await store.mergePatchPullRequest(sessionId: sessionId, findingId: finding.id) }
+                        } label: {
+                            Label("Merge PR", systemImage: "arrow.triangle.merge")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isApplyingThisFinding)
+                    }
+                }
+                Spacer()
             }
-            Spacer()
         }
         .disabled(store.isRunning)
         .opacity(store.isRunning ? 0.72 : 1)

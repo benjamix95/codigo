@@ -158,6 +158,8 @@ extension CodeReviewPanelStore {
         artifact: ReviewPatchArtifact,
         workspaceRoot: String
     ) async {
+        applyingPatchFindingId = artifact.findingId
+        defer { applyingPatchFindingId = nil }
         do {
             let snapshot = patchWorkflowSnapshot(sessionId: sessionId, workspaceRoot: workspaceRoot)
             let updated = try await VerifiedFindingsPatchExecutionService.execute(
@@ -172,9 +174,9 @@ extension CodeReviewPanelStore {
             appendVerifiedFindingSystemMessage(
                 sessionId: sessionId,
                 findingId: artifact.findingId,
-                title: "Patch applicata",
+                title: "Patch applicata — test OK",
                 detail:
-                    "Il fix è stato applicato con validazione (build, test mirati, regression audit, suite di test completa dello scheme). Se compare ancora un test rosso—anche lontano dal finding—va corretto: non è accettabile ignorare regressioni finché la suite non è verde."
+                    "La patch è stata applicata solo dopo build, test mirati, controllo regressione e suite di test completa dello scheme (tutti verdi). Puoi usare «Crea PR» qui sotto per aprire una pull request. Se in seguito compaiono test rossi, vanno corretti prima di considerare il lavoro chiuso."
             )
             if settings.autoOpenPRAfterApply {
                 await openPatchPullRequest(sessionId: sessionId, findingId: artifact.findingId)

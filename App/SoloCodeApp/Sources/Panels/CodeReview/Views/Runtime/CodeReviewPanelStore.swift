@@ -70,6 +70,11 @@ final class CodeReviewPanelStore: ObservableObject {
         set { runtime.lastError = newValue }
     }
 
+    var applyingPatchFindingId: String? {
+        get { runtime.applyingPatchFindingId }
+        set { runtime.applyingPatchFindingId = newValue }
+    }
+
     // MARK: - Transcript (Rust reducer mirror only; no chat UI)
 
     var chatMessages: [ReviewPanelMessage] {

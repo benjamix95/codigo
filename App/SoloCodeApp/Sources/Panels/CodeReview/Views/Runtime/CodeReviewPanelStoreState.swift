@@ -19,6 +19,8 @@ struct ReviewRuntimeState {
     var runStartedAt: Date?
     var frozenTimerText: String?
     var lastError: String?
+    /// Durante `apply_patch`: build, test mirati, regression, suite completa Xcode.
+    var applyingPatchFindingId: String?
 }
 
 // MARK: - ReviewPanelTranscriptState
