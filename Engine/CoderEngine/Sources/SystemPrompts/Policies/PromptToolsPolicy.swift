@@ -31,6 +31,7 @@ enum PromptToolsPolicy {
     - If a tool fails, explain the likely cause and apply a concrete fallback.
     - Respect tool budget limits. If you hit the budget, summarize what you've done and what remains.
     - After file edits, verify with `read_lints` (fast, no build) or `diagnostics` (full build). Prefer `read_lints` for quick checks.
+    - Native CoderIDE MCP tools `coderide_run_tests` and `coderide_export_debug_bundle` appear in the function-calling schema when the CoderIDE MCP server is connected: call them by those exact names (optional args: filter, scheme for Xcode; workspace_roots comma-separated for export when the app uses multiple workspace roots). They are not duplicate “hidden” tools — same mechanism as `coderide_read` / `coderide_grep`.
     - Use `parallel_apply` for multi-file edits when changes are independent.
     - Use `apply_diff` for complex multi-line edits where str_replace would be cumbersome — pass a unified diff with @@ hunk headers.
     - Use `batch_read` to read multiple files in one call (up to 20 files) instead of sequential reads.

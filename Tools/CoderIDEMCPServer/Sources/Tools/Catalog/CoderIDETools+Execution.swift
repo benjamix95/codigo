@@ -40,13 +40,17 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_run_tests",
-            description: "Run unit tests (cargo test or swift test) in the workspace root.",
+            description: "Run unit tests (cargo test, swift test, or xcodebuild test when a .xcodeproj is present).",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
                     "filter": .object([
                         "type": "string",
-                        "description": "Optional test name filter (cargo) or swift test --filter pattern",
+                        "description": "Optional: cargo test name, swift test --filter, or xcodebuild -only-testing",
+                    ]),
+                    "scheme": .object([
+                        "type": "string",
+                        "description": "For Xcode only: scheme name if different from xcodebuild -list default",
                     ]),
                 ]),
             ]),
@@ -54,10 +58,15 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_export_debug_bundle",
-            description: "Zip SoloCode AgentDebug NDJSON logs for this workspace into .solocode for support.",
+            description: "Zip SoloCode AgentDebug NDJSON logs into .solocode. Optional workspace_roots (comma-separated) must match the app for multi-root.",
             inputSchema: .object([
                 "type": "object",
-                "properties": .object([:]),
+                "properties": .object([
+                    "workspace_roots": .object([
+                        "type": "string",
+                        "description": "Comma-separated workspace roots (same order as app optional); required for multi-root fingerprint match",
+                    ]),
+                ]),
             ]),
             annotations: .init(title: "Export Debug Bundle", readOnlyHint: false, idempotentHint: true)
         ),

@@ -20,14 +20,15 @@ pub fn handle(
 ) -> Option<CallToolResult> {
     match name {
         "coderide_run_tests" => Some(run_tests(workspace, arguments)),
-        "coderide_export_debug_bundle" => Some(export_debug_bundle(workspace)),
+        "coderide_export_debug_bundle" => Some(export_debug_bundle(workspace, arguments)),
         _ => None,
     }
 }
 
-/// Esegue test (Cargo o SwiftPM). Timeout lungo: suite grandi.
+/// Esegue test (Cargo, SwiftPM o progetto `.xcodeproj`). Timeout lungo: suite grandi.
 fn run_tests(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let filter = string_arg(arguments, "filter");
+    let scheme_arg = string_arg(arguments, "scheme");
     if workspace.join("Cargo.toml").is_file() {
         if filter.is_empty() {
             return shell_output("cargo", &["test"], workspace, 600);
@@ -40,18 +41,117 @@ fn run_tests(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolR
         }
         return shell_output("swift", &["test", "--filter", filter.as_str()], workspace, 600);
     }
+    if let Some(proj) = first_xcodeproj(workspace) {
+        let scheme = if !scheme_arg.is_empty() {
+            scheme_arg
+        } else if let Some(s) = xcodebuild_first_scheme(&proj) {
+            s
+        } else {
+            proj.file_stem()
+                .and_then(|x| x.to_str())
+                .unwrap_or("App")
+                .to_string()
+        };
+        let proj_arg = proj.to_string_lossy().into_owned();
+        let mut args: Vec<String> = vec![
+            "test".into(),
+            "-project".into(),
+            proj_arg,
+            "-scheme".into(),
+            scheme,
+            "-destination".into(),
+            "platform=macOS".into(),
+        ];
+        if !filter.is_empty() {
+            args.push("-only-testing".into());
+            args.push(filter);
+        }
+        let args_ref: Vec<&str> = args.iter().map(String::as_str).collect();
+        return shell_output("xcodebuild", &args_ref, workspace, 900);
+    }
     CallToolResult::text(
         json!({
             "ok": false,
-            "error": "run_tests supports only Cargo or SwiftPM workspaces (Cargo.toml / Package.swift).",
+            "error": "run_tests: serve Cargo.toml, Package.swift o un .xcodeproj nella root workspace.",
             "workspace": workspace.display().to_string(),
         })
         .to_string(),
     )
 }
 
+/// Primo scheme elencato da `xcodebuild -list` (stabile per la maggior parte dei progetti).
+fn xcodebuild_first_scheme(xcodeproj: &Path) -> Option<String> {
+    let out = Command::new("xcodebuild")
+        .arg("-project")
+        .arg(xcodeproj)
+        .arg("-list")
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut after_marker = false;
+    for line in text.lines() {
+        let s = line.trim();
+        if s == "Schemes:" {
+            after_marker = true;
+            continue;
+        }
+        if after_marker && !s.is_empty() {
+            return Some(s.to_string());
+        }
+    }
+    None
+}
+
+fn first_xcodeproj(workspace: &Path) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(workspace).ok()?;
+    let mut projects: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("xcodeproj"))
+        .collect();
+    if projects.is_empty() {
+        return None;
+    }
+    projects.sort();
+    projects.into_iter().next()
+}
+
+/// Fingerprint allineato a `AgentDebugSessionNDJSONLog` (Swift): path canonici ordinati, join `\u{1e}`.
+fn agent_debug_bucket_key(primary_workspace: &Path, workspace_roots_csv: &str) -> String {
+    let mut paths: Vec<PathBuf> = Vec::new();
+    let trimmed = workspace_roots_csv.trim();
+    if trimmed.is_empty() {
+        paths.push(primary_workspace.to_path_buf());
+    } else {
+        for part in trimmed.split(',') {
+            let p = part.trim();
+            if p.is_empty() {
+                continue;
+            }
+            let pbuf = PathBuf::from(p);
+            let full = if pbuf.is_absolute() {
+                pbuf
+            } else {
+                primary_workspace.join(pbuf)
+            };
+            paths.push(full);
+        }
+        if paths.is_empty() {
+            paths.push(primary_workspace.to_path_buf());
+        }
+    }
+    let mut canon: Vec<String> = paths
+        .into_iter()
+        .filter_map(|p| std::fs::canonicalize(&p).ok())
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
+    canon.sort();
+    let joined = canon.join("\x1e");
+    format!("{:x}", Sha256::digest(joined.as_bytes()))
+}
+
 /// Crea uno zip del bucket NDJSON AgentDebug in Application Support (stesso fingerprint dell’app).
-fn export_debug_bundle(workspace: &Path) -> CallToolResult {
+fn export_debug_bundle(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let home = match std::env::var("HOME") {
         Ok(h) if !h.is_empty() => h,
         _ => {
@@ -60,10 +160,8 @@ fn export_debug_bundle(workspace: &Path) -> CallToolResult {
             );
         }
     };
-    let canon = std::fs::canonicalize(workspace).unwrap_or_else(|_| workspace.to_path_buf());
-    let mut hasher = Sha256::new();
-    hasher.update(canon.to_string_lossy().as_bytes());
-    let fp = format!("{:x}", hasher.finalize());
+    let roots_csv = string_arg(arguments, "workspace_roots");
+    let fp = agent_debug_bucket_key(workspace, &roots_csv);
     let ndjson_dir = PathBuf::from(home)
         .join("Library/Application Support/SoloCode/AgentDebugNDJSON")
         .join(&fp);

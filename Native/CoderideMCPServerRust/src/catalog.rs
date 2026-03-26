@@ -127,8 +127,8 @@ fn description_for(name: &str) -> &'static str {
         "coderide_review_findings" => "List code review findings",
         "coderide_security_status" => "Read the current security review status",
         "coderide_bughunter_status" => "Read the current BugHunter status",
-        "coderide_run_tests" => "Run unit tests (cargo test or swift test) in the workspace",
-        "coderide_export_debug_bundle" => "Zip SoloCode AgentDebug NDJSON logs for this workspace into .solocode for support",
+        "coderide_run_tests" => "Run tests: cargo, swift test, or xcodebuild when a .xcodeproj exists (optional scheme, filter)",
+        "coderide_export_debug_bundle" => "Zip AgentDebug NDJSON logs into .solocode; optional workspace_roots CSV for multi-root fingerprint",
         _ => "Rust-migrated MCP tool",
     }
 }

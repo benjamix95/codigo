@@ -131,10 +131,13 @@ pub fn input_schema_for(name: &str) -> Value {
         "coderide_web_search" => object_schema(&[("query", "string"), ("explanation", "string")], &["query"]),
         "coderide_web_fetch" => object_schema(&[("url", "string")], &["url"]),
         "coderide_run_tests" => object_schema(
-            &[("filter", "string")],
+            &[
+                ("filter", "string"),
+                ("scheme", "string"),
+            ],
             &[],
         ),
-        "coderide_export_debug_bundle" => object_schema(&[], &[]),
+        "coderide_export_debug_bundle" => object_schema(&[("workspace_roots", "string")], &[]),
         _ => object_schema(&[], &[]),
     }
 }
