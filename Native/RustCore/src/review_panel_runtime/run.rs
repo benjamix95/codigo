@@ -43,7 +43,13 @@ pub fn finish_run_runtime(request: ReviewPanelRunFinishRequest) -> ReviewPanelRu
     };
 
     state.is_running = false;
-    state.frozen_timer_text = freeze_timer(state.run_started_at, request.finished_at);
+    // Solo run davvero completato: altrimenti il footer Swift mostrava "Completed in 0:00" su failed/cancel
+    // o quando lo snapshot non era ancora terminale.
+    if outcome.0 == "completed" {
+        state.frozen_timer_text = freeze_timer(state.run_started_at, request.finished_at);
+    } else {
+        state.frozen_timer_text = None;
+    }
     if state.selected_tab != "Chat" {
         state.selected_tab = request.selected_tab_on_finish;
     }
@@ -114,7 +120,7 @@ mod tests {
             state.last_error.as_deref(),
             Some("Review did not complete (phase: verifying)")
         );
-        assert_eq!(state.frozen_timer_text.as_deref(), Some("1:05"));
+        assert_eq!(state.frozen_timer_text, None);
         assert_eq!(response.outcome.expect("outcome").status, "failed");
     }
 }

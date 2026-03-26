@@ -61,15 +61,21 @@ final class ReviewPanelCoordinator {
                     await sessionState.fail(error: "Review cancelled.")
                 }
             }
-            let snapshot = await sessionState.snapshot()
+            var snapshot = await sessionState.snapshot()
+            snapshot = await Self.awaitTerminalSessionSnapshotIfNeeded(
+                sessionState: sessionState,
+                snapshot: snapshot,
+                streamError: streamError
+            )
             let reviewError = streamError
             let reviewCancelled = Task.isCancelled
+            let finalizedSnapshot = snapshot
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.isReviewRunning = false
                 onFinish(
                     ReviewPanelReviewTaskResult(
-                        snapshot: snapshot,
+                        snapshot: finalizedSnapshot,
                         error: reviewError,
                         wasCancelled: reviewCancelled
                     )
@@ -82,6 +88,28 @@ final class ReviewPanelCoordinator {
         reviewTask?.cancel()
         reviewTask = nil
         isReviewRunning = false
+    }
+
+    /// Il provider può chiudere lo stream mentre `CodeReviewSessionState` è ancora `analyzing`.
+    /// Senza questa attesa, `applyPanelRunFinish` congela il timer e il footer mostra "Completed in 0:00"
+    /// mentre la card pipeline è ancora Running.
+    private static func awaitTerminalSessionSnapshotIfNeeded(
+        sessionState: CodeReviewSessionState,
+        snapshot: CodeReviewSessionSnapshot,
+        streamError: String?
+    ) async -> CodeReviewSessionSnapshot {
+        if Task.isCancelled || streamError != nil { return snapshot }
+        var snap = snapshot
+        guard snap.phase.isActive else { return snap }
+        let pollNs: UInt64 = 200_000_000
+        let maxWaitNs: UInt64 = 3_600 * 1_000_000_000
+        var waited: UInt64 = 0
+        while snap.phase.isActive, waited < maxWaitNs {
+            try? await Task.sleep(nanoseconds: pollNs)
+            waited += pollNs
+            snap = await sessionState.snapshot()
+        }
+        return snap
     }
 
 }
