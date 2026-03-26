@@ -371,8 +371,29 @@ pub fn input_schema_for(name: &str) -> Value {
             &[("skill", "string"), ("name", "string"), ("task", "string"), ("args", "string")],
             &[],
         ),
-        "coderide_web_search" => object_schema(&[("query", "string"), ("explanation", "string")], &["query"]),
-        "coderide_web_fetch" => object_schema(&[("url", "string")], &["url"]),
+        "coderide_web_search" => object_from_props(
+            &[
+                SchemaProp::with_desc("query", "Search query."),
+                SchemaProp::with_desc("explanation", "Optional rationale for the search."),
+                SchemaProp::typed(
+                    "timeout",
+                    "number",
+                    "Max seconds for the HTTP request (0 < timeout ≤ 120; fractional values allowed; invalid values default to 30).",
+                ),
+            ],
+            &["query"],
+        ),
+        "coderide_web_fetch" => object_from_props(
+            &[
+                SchemaProp::with_desc("url", "URL to fetch (https added if scheme omitted)."),
+                SchemaProp::typed(
+                    "timeout",
+                    "number",
+                    "Max seconds for the HTTP request (0 < timeout ≤ 120; fractional values allowed; invalid values default to 30).",
+                ),
+            ],
+            &["url"],
+        ),
         "coderide_run_tests" => object_schema(&[("filter", "string"), ("scheme", "string")], &[]),
         "coderide_export_debug_bundle" => object_schema(&[("workspace_roots", "string")], &[]),
         _ => object_schema(&[], &[]),

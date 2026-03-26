@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Command;
 
-const DEFAULT_TIMEOUT_SECONDS: &str = "30";
+const DEFAULT_TIMEOUT_SECONDS: f64 = 30.0;
+const MAX_TIMEOUT_SECONDS: f64 = 120.0;
 
 pub fn handle(
     name: &str,
@@ -128,17 +129,61 @@ fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
 }
 
 fn timeout_arg(arguments: &BTreeMap<String, Value>) -> String {
-    let raw = arguments
-        .get("timeout")
-        .and_then(|v| {
-            v.as_i64()
-                .or_else(|| v.as_f64().map(|f| f as i64))
-                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
-        })
-        .unwrap_or(0);
-    if raw > 0 && raw <= 120 {
-        raw.to_string()
+    format_curl_max_time(resolve_timeout_seconds(arguments.get("timeout")))
+}
+
+/// Seconds for curl `--max-time` (supports fractional values; invalid / out of range → default).
+fn resolve_timeout_seconds(value: Option<&Value>) -> f64 {
+    let Some(value) = value else {
+        return DEFAULT_TIMEOUT_SECONDS;
+    };
+    let parsed = value
+        .as_f64()
+        .or_else(|| value.as_i64().map(|i| i as f64))
+        .or_else(|| value.as_u64().map(|u| u as f64))
+        .or_else(|| value.as_str().and_then(|s| s.trim().parse::<f64>().ok()));
+    let Some(secs) = parsed else {
+        return DEFAULT_TIMEOUT_SECONDS;
+    };
+    if !secs.is_finite() || secs <= 0.0 || secs > MAX_TIMEOUT_SECONDS {
+        DEFAULT_TIMEOUT_SECONDS
     } else {
-        DEFAULT_TIMEOUT_SECONDS.to_string()
+        secs
+    }
+}
+
+fn format_curl_max_time(secs: f64) -> String {
+    let millis = (secs * 1000.0).round();
+    let rounded = millis / 1000.0;
+    if (rounded - rounded.round()).abs() < 1e-6 {
+        format!("{}", rounded as i64)
+    } else {
+        let s = format!("{rounded:.3}");
+        s.trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
+#[cfg(test)]
+mod timeout_tests {
+    use super::{format_curl_max_time, resolve_timeout_seconds};
+    use serde_json::json;
+
+    #[test]
+    fn fractional_timeout_is_preserved_not_truncated_to_zero() {
+        let secs = resolve_timeout_seconds(Some(&json!(0.5)));
+        assert!((secs - 0.5).abs() < 1e-6, "got {secs}");
+        assert_eq!(format_curl_max_time(secs), "0.5");
+    }
+
+    #[test]
+    fn string_decimal_timeout_parses() {
+        assert!((resolve_timeout_seconds(Some(&json!("45.25"))) - 45.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn out_of_range_falls_back_to_default() {
+        assert_eq!(resolve_timeout_seconds(Some(&json!(200.0))), 30.0);
     }
 }

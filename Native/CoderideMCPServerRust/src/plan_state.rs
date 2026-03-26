@@ -150,6 +150,8 @@ pub fn step_upsert(arguments: &BTreeMap<String, Value>) -> Result<String, String
         .or_else(|_| required_string(arguments, "stepId"))?;
     let status = normalize_status(&required_string(arguments, "status")?);
     let conversation_id = required_conversation_id(arguments)?;
+    let linked_files = optional_string_array_arg_dual(arguments, "linked_files", "linkedFiles")?;
+    let depends_on_args = optional_string_array_arg_dual(arguments, "depends_on", "dependsOn")?;
     mutate_latest_snapshot(&conversation_id, |snapshot| {
         upsert_step(
             snapshot,
@@ -159,10 +161,8 @@ pub fn step_upsert(arguments: &BTreeMap<String, Value>) -> Result<String, String
             non_empty(string_arg(arguments, "description")),
             non_empty(string_arg(arguments, "target_file"))
                 .or_else(|| non_empty(string_arg(arguments, "targetFile"))),
-            parse_string_array(arguments.get("linked_files"))
-                .or_else(|| parse_string_array(arguments.get("linkedFiles"))),
-            parse_string_array(arguments.get("depends_on"))
-                .or_else(|| parse_string_array(arguments.get("dependsOn"))),
+            linked_files,
+            depends_on_args,
             non_empty(string_arg(arguments, "notes")),
         );
     })?;
@@ -175,8 +175,22 @@ pub fn step_batch_update(arguments: &BTreeMap<String, Value>) -> Result<String, 
         return Err("Error: 'updates' must be a non-empty JSON array".to_string());
     }
     let conversation_id = required_conversation_id(arguments)?;
+    let mut batch_linked: Vec<Option<Vec<String>>> = Vec::with_capacity(updates.len());
+    let mut batch_depends: Vec<Option<Vec<String>>> = Vec::with_capacity(updates.len());
+    for update in &updates {
+        batch_linked.push(optional_string_array_from_object(
+            update,
+            "linkedFiles",
+            "linked_files",
+        )?);
+        batch_depends.push(optional_string_array_from_object(
+            update,
+            "dependsOn",
+            "depends_on",
+        )?);
+    }
     mutate_latest_snapshot(&conversation_id, |snapshot| {
-        for update in &updates {
+        for (i, update) in updates.iter().enumerate() {
             let step_id = string_value(update, "stepId")
                 .or_else(|| string_value(update, "step_id"))
                 .unwrap_or_default();
@@ -191,10 +205,8 @@ pub fn step_batch_update(arguments: &BTreeMap<String, Value>) -> Result<String, 
                 string_value(update, "description"),
                 string_value(update, "targetFile")
                     .or_else(|| string_value(update, "target_file")),
-                parse_string_array(update.get("linkedFiles"))
-                    .or_else(|| parse_string_array(update.get("linked_files"))),
-                parse_string_array(update.get("dependsOn"))
-                    .or_else(|| parse_string_array(update.get("depends_on"))),
+                batch_linked[i].clone(),
+                batch_depends[i].clone(),
                 string_value(update, "notes"),
             );
         }
@@ -206,8 +218,7 @@ pub fn step_batch_update(arguments: &BTreeMap<String, Value>) -> Result<String, 
 }
 
 pub fn step_reorder(arguments: &BTreeMap<String, Value>) -> Result<String, String> {
-    let ordered = parse_string_array(arguments.get("ordered_step_ids"))
-        .or_else(|| parse_string_array(arguments.get("orderedStepIds")))
+    let ordered = optional_string_array_arg_dual(arguments, "ordered_step_ids", "orderedStepIds")?
         .ok_or_else(|| "Error: 'ordered_step_ids' must be a non-empty JSON array".to_string())?;
     if ordered.is_empty() {
         return Err("Error: 'ordered_step_ids' must contain at least one id".to_string());
@@ -252,8 +263,7 @@ pub fn step_reorder(arguments: &BTreeMap<String, Value>) -> Result<String, Strin
 pub fn step_dependency_set(arguments: &BTreeMap<String, Value>) -> Result<String, String> {
     let step_id = required_string(arguments, "step_id")
         .or_else(|_| required_string(arguments, "stepId"))?;
-    let depends_on = parse_string_array(arguments.get("depends_on"))
-        .or_else(|| parse_string_array(arguments.get("dependsOn")))
+    let depends_on = optional_string_array_arg_dual(arguments, "depends_on", "dependsOn")?
         .ok_or_else(|| "Error: 'depends_on' must be a valid JSON string array".to_string())?;
     let conversation_id = required_conversation_id(arguments)?;
     mutate_latest_snapshot(&conversation_id, |snapshot| {
@@ -518,10 +528,13 @@ fn parse_steps(value: Option<&Value>) -> Result<Vec<PlanStep>, String> {
     let Some(items) = normalized.as_array() else {
         return Err("Error: 'steps' must be a valid JSON array".to_string());
     };
-    Ok(items
-        .iter()
-        .enumerate()
-        .map(|(index, item)| PlanStep {
+    let mut steps = Vec::with_capacity(items.len());
+    for (index, item) in items.iter().enumerate() {
+        let linked_files = optional_string_array_from_object(item, "linked_files", "linkedFiles")?
+            .unwrap_or_default();
+        let depends_on = optional_string_array_from_object(item, "depends_on", "dependsOn")?
+            .unwrap_or_default();
+        steps.push(PlanStep {
             id: string_value(item, "id").unwrap_or_else(|| next_id("step")),
             title: string_value(item, "title")
                 .unwrap_or_else(|| format!("Step {}", index + 1)),
@@ -534,38 +547,79 @@ fn parse_steps(value: Option<&Value>) -> Result<Vec<PlanStep>, String> {
                 &string_value(item, "status")
                     .unwrap_or_else(|| "pending".to_string()),
             ),
-            linked_files: parse_string_array(item.get("linked_files"))
-                .or_else(|| parse_string_array(item.get("linkedFiles")))
-                .unwrap_or_default(),
-            depends_on: parse_string_array(item.get("depends_on"))
-                .or_else(|| parse_string_array(item.get("dependsOn")))
-                .unwrap_or_default(),
+            linked_files,
+            depends_on,
             notes: string_value(item, "notes").unwrap_or_default(),
             updated_at: iso_now(),
-        })
-        .collect())
+        });
+    }
+    Ok(steps)
 }
 
-fn parse_string_array(value: Option<&Value>) -> Option<Vec<String>> {
-    value.and_then(|value| {
-        if let Some(items) = value.as_array() {
-            return Some(
-                items.iter()
-                    .filter_map(|item| item.as_str().map(|text| text.trim().to_string()))
-                    .filter(|text| !text.is_empty())
-                    .collect::<Vec<_>>(),
-            );
+fn non_empty_string_items(items: &[Value]) -> Vec<String> {
+    items
+        .iter()
+        .filter_map(|item| item.as_str().map(|text| text.trim().to_string()))
+        .filter(|text| !text.is_empty())
+        .collect()
+}
+
+fn parse_string_array(value: Option<&Value>) -> Result<Option<Vec<String>>, String> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    if let Some(items) = value.as_array() {
+        return Ok(Some(non_empty_string_items(items)));
+    }
+    if let Some(text) = value.as_str() {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return Ok(Some(Vec::new()));
         }
-        value.as_str().and_then(|text| {
-            let parsed = serde_json::from_str::<Value>(text).ok()?;
-            parsed.as_array().map(|items| {
-                items.iter()
-                    .filter_map(|item| item.as_str().map(|text| text.trim().to_string()))
-                    .filter(|text| !text.is_empty())
-                    .collect::<Vec<_>>()
-            })
-        })
-    })
+        let parsed: Value = serde_json::from_str(trimmed)
+            .map_err(|e| format!("Invalid JSON in array field (expected JSON array): {e}"))?;
+        let Some(items) = parsed.as_array() else {
+            return Err(
+                "String value for array field must parse to a JSON array of strings.".to_string(),
+            );
+        };
+        return Ok(Some(non_empty_string_items(items)));
+    }
+    Ok(None)
+}
+
+fn optional_string_array_arg_dual(
+    arguments: &BTreeMap<String, Value>,
+    snake: &'static str,
+    camel: &'static str,
+) -> Result<Option<Vec<String>>, String> {
+    let primary = arguments.get(snake).filter(|v| !v.is_null());
+    let secondary = arguments.get(camel).filter(|v| !v.is_null());
+    match (primary, secondary) {
+        (Some(v), _) => parse_string_array(Some(v)),
+        (None, Some(v)) => parse_string_array(Some(v)),
+        (None, None) => Ok(None),
+    }
+}
+
+fn optional_string_array_from_object(
+    item: &Value,
+    snake: &str,
+    camel: &str,
+) -> Result<Option<Vec<String>>, String> {
+    let Some(obj) = item.as_object() else {
+        return Ok(None);
+    };
+    let primary = obj.get(snake).filter(|v| !v.is_null());
+    let secondary = obj.get(camel).filter(|v| !v.is_null());
+    match (primary, secondary) {
+        (Some(v), _) => parse_string_array(Some(v)),
+        (None, Some(v)) => parse_string_array(Some(v)),
+        (None, None) => Ok(None),
+    }
 }
 
 fn parse_value_array(value: Option<&Value>, field_name: &str) -> Result<Vec<Value>, String> {
