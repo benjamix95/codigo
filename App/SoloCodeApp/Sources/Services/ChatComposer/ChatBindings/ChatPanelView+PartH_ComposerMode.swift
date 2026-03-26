@@ -83,17 +83,7 @@ extension ChatPanelView {
     }
 
     internal var composerQuickCommandPresets: [ChatComposerView.QuickCommandPreset] {
-        guard coderMode == .codeReviewMultiSwarm else { return [] }
-        let defaults = CodeReviewQuickCommands.defaults.map { cmd in
-            ChatComposerView.QuickCommandPreset(
-                id: cmd.id,
-                slash: cmd.slash,
-                label: cmd.label,
-                prompt: cmd.prompt,
-                icon: nil
-            )
-        }
-        return defaults + customCodeReviewQuickPresets
+        []
     }
 
     internal var composerSlashCommandPresets: [ChatComposerView.QuickCommandPreset] {
@@ -110,33 +100,6 @@ extension ChatPanelView {
                 icon: nil
             )
         ]
-    }
-
-    internal var customCodeReviewQuickPresets: [ChatComposerView.QuickCommandPreset] {
-        struct CustomPreset: Decodable {
-            let slash: String
-            let label: String
-            let prompt: String
-        }
-        let raw = swarmReviewSettings.codeReviewQuickCommandsCustomJSON.trimmingCharacters(
-            in: .whitespacesAndNewlines)
-        guard !raw.isEmpty, let data = raw.data(using: .utf8) else { return [] }
-        guard let decoded = try? JSONDecoder().decode([CustomPreset].self, from: data) else {
-            return []
-        }
-        return decoded.enumerated().compactMap { idx, item in
-            let slash = item.slash.trimmingCharacters(in: .whitespacesAndNewlines)
-            let label = item.label.trimmingCharacters(in: .whitespacesAndNewlines)
-            let prompt = item.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard slash.hasPrefix("/"), !label.isEmpty, !prompt.isEmpty else { return nil }
-            return .init(
-                id: "review-custom-\(idx)-\(slash)",
-                slash: slash,
-                label: label,
-                prompt: prompt,
-                icon: nil
-            )
-        }
     }
 
     internal var effectiveSandbox: String {

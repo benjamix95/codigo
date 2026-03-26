@@ -69,18 +69,7 @@ extension ChatPanelView {
     }
 
     internal var composerCodeReviewModePresets: [ChatComposerView.QuickCommandPreset] {
-        guard coderMode == .codeReviewMultiSwarm else { return [] }
-        let selected = composerCodeReviewModes
-        return CodeReviewPanelMode.allCases.map { mode in
-            ChatComposerView.QuickCommandPreset(
-                id: "composer-review-mode-\(mode.id)",
-                slash: mode.displayName,
-                label: mode.displayName,
-                prompt: "",
-                isSelected: selected.contains(mode),
-                icon: mode.icon
-            )
-        }
+        []
     }
 
     internal func toggleComposerCodeReviewMode(_ modeId: String) {

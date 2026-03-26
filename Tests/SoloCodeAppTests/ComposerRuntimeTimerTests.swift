@@ -25,7 +25,7 @@ final class ComposerRuntimeTimerTests: XCTestCase {
     }
 
     @MainActor
-    func testComposerKeepsReviewQuickActionsButNotLegacyCodeReviewCard() {
+    func testComposerOmitsReviewQuickRowsByDefaultAndLegacyCodeReviewCard() {
         _ = NSApplication.shared
 
         let view = ChatComposerView(
@@ -51,25 +51,9 @@ final class ComposerRuntimeTimerTests: XCTestCase {
             ),
             inputHint: "Describe the change",
             providerNotReadyMessage: "",
-            quickCommandPresets: [
-                .init(
-                    id: "review-uncommitted",
-                    slash: "review-uncommitted",
-                    label: "Full uncommitted audit",
-                    prompt: "Run a review for the current uncommitted diff."
-                )
-            ],
+            quickCommandPresets: [],
             slashCommandPresets: [],
-            reviewModePresets: [
-                .init(
-                    id: "review-standard",
-                    slash: "review-standard",
-                    label: "Standard",
-                    prompt: "Run the standard review flow.",
-                    isSelected: true,
-                    icon: "magnifyingglass"
-                )
-            ],
+            reviewModePresets: [],
             showPlanRequestIndicator: false,
             controlsRow: AnyView(EmptyView()),
             voiceState: .idle,
@@ -89,8 +73,8 @@ final class ComposerRuntimeTimerTests: XCTestCase {
 
         let renderedStrings = renderedStrings(from: view)
 
-        XCTAssertTrue(renderedStrings.contains("review-uncommitted"))
-        XCTAssertTrue(renderedStrings.contains("Full uncommitted audit"))
+        XCTAssertFalse(renderedStrings.contains(where: { $0.contains("review-uncommitted") }))
+        XCTAssertFalse(renderedStrings.contains(where: { $0.contains("Full uncommitted audit") }))
         XCTAssertFalse(renderedStrings.contains("Code Review"))
         XCTAssertFalse(renderedStrings.contains("Autofix: analysis + parallel fix workers + test loop"))
         XCTAssertFalse(renderedStrings.contains("Discovery: analysis only, no automatic fixes"))
