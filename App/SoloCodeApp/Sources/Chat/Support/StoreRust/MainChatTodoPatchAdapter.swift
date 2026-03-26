@@ -19,6 +19,7 @@ enum MainChatTodoPatchAdapter {
                     continue
                 }
                 let conversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
+                let existingBeforeUpsert = todoStore.todos.first(where: { $0.id == todoId })?.planConversationId
                 // Always use upsertFromAgent — it has 3-level deduplication:
                 // 1. Match by exact ID
                 // 2. Match by canonical key (fuzzy)
@@ -35,13 +36,16 @@ enum MainChatTodoPatchAdapter {
                     linkedFiles: patch.linkedFiles,
                     conversationId: conversationId
                 )
-                if status == .done, let conversationId {
-                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: conversationId)
+                let effectiveAfterUpsert = conversationId
+                    ?? todoStore.todos.first(where: { $0.id == todoId })?.planConversationId
+                    ?? existingBeforeUpsert
+                if status == .done {
+                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
                 }
                 if patch.shouldEmitTraceUpdate,
-                   let conversationId
+                   let traceConversationId = conversationId ?? effectiveAfterUpsert
                 {
-                    onTraceUpdate?(patch, conversationId, status, patch.linkedFiles)
+                    onTraceUpdate?(patch, traceConversationId, status, patch.linkedFiles)
                 }
             case .setStatus:
                 guard let todoId = patch.todoId.flatMap(UUID.init(uuidString:)),
@@ -63,7 +67,10 @@ enum MainChatTodoPatchAdapter {
                 }
             case .removeTodo:
                 guard let todoId = patch.todoId.flatMap(UUID.init(uuidString:)) else { continue }
-                let removalConversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
+                let patchRemovalConversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
+                let existingRemovalConversationId = todoStore.todos.first(where: { $0.id == todoId })?
+                    .planConversationId
+                let effectiveRemovalConversationId = patchRemovalConversationId ?? existingRemovalConversationId
                 // #region agent log
                 ComposerTodoDebugNDJSONLog.append(
                     hypothesisId: "H6",
@@ -72,14 +79,12 @@ enum MainChatTodoPatchAdapter {
                     runId: "post-fix",
                     data: [
                         "todoId8": String(todoId.uuidString.prefix(8)),
-                        "conv8": removalConversationId.map { String($0.uuidString.prefix(8)) } ?? "nil",
+                        "conv8": effectiveRemovalConversationId.map { String($0.uuidString.prefix(8)) } ?? "nil",
                     ]
                 )
                 // #endregion
                 todoStore.remove(id: todoId)
-                if let removalConversationId {
-                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: removalConversationId)
-                }
+                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveRemovalConversationId)
             case .clearMessageRuntimeState:
                 continue
             }

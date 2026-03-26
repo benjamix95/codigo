@@ -91,8 +91,12 @@ extension ChatPanelView {
                 linkedFiles: todo.files,
                 conversationId: conversationId
             )
-            if let cid = conversationId, todo.status == .done {
-                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: cid)
+            if todo.status == .done {
+                let effectiveConversationId = conversationId
+                    ?? todo.id.flatMap { id in
+                        todoStore.todos.first(where: { $0.id == id })?.planConversationId
+                    }
+                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveConversationId)
             }
         }
         recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)

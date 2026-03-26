@@ -172,6 +172,92 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
     }
 
+    func testRawTodoWriteWithoutPlanAdvancesNextRuntimeTodoOnDone() {
+        let suiteName = "PipelineIntegrationServiceTests.runtime-todo-advance.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-todo-advance"),
+            tasks: [TaskNode(taskId: "task-todo-advance", title: "Step")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-todo-advance",
+                    text: "ok",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-todo-advance"
+            ),
+            providerId: "provider-todo-advance",
+            conversationId: conversationId,
+            assistantMessageId: UUID()
+        )
+
+        let firstId = UUID()
+        let secondId = UUID()
+        todoStore.upsertFromAgent(
+            id: firstId,
+            title: "First",
+            status: .inProgress,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+        todoStore.upsertFromAgent(
+            id: secondId,
+            title: "Second",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-todo-advance",
+                taskId: "task-todo-advance",
+                rawType: "todo_write",
+                payload: [
+                    "title": "First",
+                    "status": "done",
+                ]
+            ),
+            for: conversationId
+        )
+
+        let second = todoStore.todos.first { $0.id == secondId }
+        XCTAssertEqual(second?.status, .inProgress)
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
+    }
+
     func testExecuteJobTracksIndependentPipelineStatePerConversation() async throws {
         let suiteName = "PipelineIntegrationServiceTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

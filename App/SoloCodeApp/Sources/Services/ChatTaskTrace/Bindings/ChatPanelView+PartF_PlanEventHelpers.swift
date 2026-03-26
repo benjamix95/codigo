@@ -77,7 +77,16 @@ extension ChatPanelView {
             linkedFiles: [],
             conversationId: canonicalConversationId
         )
-        if !updated, !isBuildScoped {
+        if updated {
+            if todoStatus == .done {
+                _ = todoStore.advanceNextCanonicalTodoIfNeeded(conversationId: canonicalConversationId)
+            }
+            if let syncId = canonicalConversationId ?? targetConversationId,
+               !todoStore.canonicalTodos(for: syncId).isEmpty {
+                let canonicalTodos = todoStore.canonicalTodos(for: syncId)
+                chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: syncId)
+            }
+        } else if !isBuildScoped {
             todoStore.upsertFromAgent(
                 id: nil,
                 title: title,
@@ -88,6 +97,9 @@ extension ChatPanelView {
                 linkedFiles: [],
                 conversationId: targetConversationId
             )
+            if todoStatus == .done {
+                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: targetConversationId)
+            }
         }
     }
 }

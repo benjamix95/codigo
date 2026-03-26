@@ -178,6 +178,9 @@ extension PipelineIntegrationService {
                     linkedFiles: todo.files,
                     conversationId: conversationId
                 )
+                if todo.status == .done {
+                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: conversationId)
+                }
             }
         }
     }

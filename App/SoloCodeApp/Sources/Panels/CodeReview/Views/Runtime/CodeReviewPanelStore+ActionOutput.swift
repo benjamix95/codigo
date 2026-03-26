@@ -163,6 +163,13 @@ extension CodeReviewPanelStore {
             linkedFiles: parsedTodo.files,
             conversationId: conversationId
         )
+        if parsedTodo.status == .done {
+            let effectiveConversationId = conversationId
+                ?? parsedTodo.id.flatMap { id in
+                    todoStore.todos.first(where: { $0.id == id })?.planConversationId
+                }
+            _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveConversationId)
+        }
     }
 }
 
