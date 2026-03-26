@@ -280,12 +280,22 @@ struct ChatTurnView: View, Equatable {
     }
 
     private var streamingFooter: some View {
-        HStack(spacing: 6) {
-            Text(streamingStatusText.isEmpty ? "Thinking" : streamingStatusText)
+        let status = streamingStatusText.isEmpty ? "Thinking" : streamingStatusText
+        // Allineato a `MessageRow.streamingBar`: con stato “Planning next move” il
+        // dettaglio è quasi sempre testo modello (assistant_update) e non va mostrato qui.
+        let reasoningSuppressed = ChatReasoningPresentationPolicy.shouldSuppressReasoningUI(
+            messageProviderId: message.turnMetadata?.providerId,
+            fallbackTurnProviderId: reasoningPolicyProviderId
+        )
+        let showDetail = !reasoningSuppressed
+            && status != "Planning next move"
+            && !(streamingDetailText?.isEmpty ?? true)
+        return HStack(spacing: 6) {
+            Text(status)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
                 .textShimmer(active: true)
-            if let streamingDetailText, !streamingDetailText.isEmpty {
+            if showDetail, let streamingDetailText, !streamingDetailText.isEmpty {
                 Text("·")
                     .foregroundStyle(.secondary)
                 Text(streamingDetailText)
