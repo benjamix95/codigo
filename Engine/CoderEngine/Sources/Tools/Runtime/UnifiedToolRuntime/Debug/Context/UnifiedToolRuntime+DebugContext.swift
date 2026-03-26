@@ -7,7 +7,8 @@ extension UnifiedToolRuntime {
         let preferredRoot = context.workspaceContext.activeRootPath
         var sections: [String] = []
 
-        let scopeRaw = call.args["scope"] ?? "git,lints,env"
+        // Default leggero: niente read_lints / swift build / test list (costosi). Usa scope=git,lints,env o full per approfondire.
+        let scopeRaw = call.args["scope"] ?? "git,env"
         let scopes = Set(scopeRaw.lowercased().split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
         let isFull = scopes.contains("full")
         let includeContent = call.args["include_file_content"]?.lowercased() == "true"

@@ -194,7 +194,7 @@ extension AgentWorkerAdapter {
         switch debugStage {
         case .describePipelineBootstrap:
             lines.append(
-                "Run the full describe-phase bootstrap: activate debug mode, start debug_session, then set phase to describing. Follow pipeline_full_prompt if present."
+                "Run the describe-phase bootstrap: activate debug mode and set phase to describing (do not call debug_session yet). Follow pipeline_full_prompt if present."
             )
         case .reproducePipelineBootstrap:
             lines.append(
@@ -207,7 +207,9 @@ extension AgentWorkerAdapter {
         case .activateMode:
             lines.append("Activate debug mode and establish the debug session context.")
         case .sessionStart:
-            lines.append("Start the structured debug session and return the active session identifier.")
+            lines.append(
+                "Invoke debug_session with action=start (required). Return the session_id from the tool result; do not skip this step."
+            )
         case .sessionExport:
             lines.append("Export the full debug session report after cleanup is complete.")
         case .sessionStop:

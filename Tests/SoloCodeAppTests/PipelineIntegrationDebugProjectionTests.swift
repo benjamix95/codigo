@@ -191,7 +191,8 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
     func testDebugEventBufferedQueueNeverExceedsConfiguredLimit() {
         let service = PipelineIntegrationService()
         let conversationId = UUID()
-        for index in 0..<600 {
+        let limit = 1_500
+        for index in 0..<(limit + 120) {
             service.handleRawEvent(
                 RawEventPayload(
                     jobId: "job-buffer-\(index)",
@@ -205,7 +206,7 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
                 for: conversationId
             )
         }
-        XCTAssertEqual(service.pendingDebugEventsByConversation[conversationId]?.count, 500)
+        XCTAssertEqual(service.pendingDebugEventsByConversation[conversationId]?.count, limit)
     }
 
     func testRegisterWithReactivateFalseKeepsBufferedEventsUntilResume() {

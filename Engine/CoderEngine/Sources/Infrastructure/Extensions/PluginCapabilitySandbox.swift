@@ -10,6 +10,7 @@ enum PluginCapabilitySandbox {
         .mcp: ["mcp_call", "mcp_batch", "mcp_list_resources", "mcp_read_resource", "mcp_health", "mcp_reconnect", "mcp_restart_server"],
         .git: ["git_diff", "git_status", "git_show", "git_log_search"],
         .debug: [
+            "activate_debug_mode",
             "debug_context", "debug_log", "debug_query", "debug_session",
             "debug_hypothesize", "debug_mark", "debug_instrument", "debug_clean",
             "debug_set_phase", "debug_request_user", "debug_resolve",

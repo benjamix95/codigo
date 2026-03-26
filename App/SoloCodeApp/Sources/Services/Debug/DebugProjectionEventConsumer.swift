@@ -117,7 +117,15 @@ enum DebugProjectionEventConsumer {
         case .debugResolved(let summary):
             if debugStore.awaitingDebugClean {
                 let normalizedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-                debugStore.pendingResolutionAfterClean = normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
+                let merged = normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
+                debugStore.pendingResolutionAfterClean = merged
+                debugStore.addLog(
+                    severity: .info,
+                    source: "debug_resolve",
+                    message: "Resolve received during cleanup — summary will apply after debug_clean succeeds",
+                    detail: merged,
+                    category: "system"
+                )
                 return effects
             }
             let normalizedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)

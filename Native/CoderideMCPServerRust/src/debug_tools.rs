@@ -573,21 +573,57 @@ fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Call
         "compare" => with_store_read(workspace, |store| {
             let label = string_arg(arguments, "label");
             let compare_with = string_arg(arguments, "compare_with");
-            let current = build_snapshot(store, &label);
-            let Some(previous) = store.snapshots.iter().find(|item| item.label == compare_with) else {
-                return error_result("Error: snapshot not found", json!({ "error_code": "validation" }));
+            if label.is_empty() || compare_with.is_empty() {
+                return error_result(
+                    "Error: label and compare_with are required",
+                    json!({ "error_code": "validation" }),
+                );
+            }
+            let Some(baseline) = store.snapshots.iter().find(|item| item.label == compare_with) else {
+                return error_result(
+                    format!("Error: snapshot '{}' not found", compare_with),
+                    json!({ "error_code": "validation" }),
+                );
             };
+            if let Some(other) = store.snapshots.iter().find(|item| item.label == label) {
+                let output = format!(
+                    "Snapshot compare (persisted) '{}' vs '{}'\nlogs: {} vs {}\nerrors: {} vs {}\nwarnings: {} vs {}\nhypotheses: {} vs {}",
+                    compare_with,
+                    label,
+                    baseline.log_count,
+                    other.log_count,
+                    baseline.error_count,
+                    other.error_count,
+                    baseline.warning_count,
+                    other.warning_count,
+                    baseline.hypothesis_count,
+                    other.hypothesis_count
+                );
+                return text_with_structured(
+                    output.clone(),
+                    json!({
+                        "tool": "debug_snapshot",
+                        "action": "compare",
+                        "label": label,
+                        "compare_with": compare_with,
+                        "compare_mode": "persisted_pair",
+                        "detail": format!("Compared '{}' with '{}'", compare_with, label),
+                        "output": output
+                    }),
+                );
+            }
+            let current = build_snapshot(store, &label);
             let output = format!(
-                "Snapshot compare {} -> {}\nlogs: {} -> {}\nerrors: {} -> {}\nwarnings: {} -> {}\nhypotheses: {} -> {}",
-                previous.label,
+                "Snapshot compare '{}' (saved) -> current session (as '{}')\nlogs: {} -> {}\nerrors: {} -> {}\nwarnings: {} -> {}\nhypotheses: {} -> {}",
+                compare_with,
                 label,
-                previous.log_count,
+                baseline.log_count,
                 current.log_count,
-                previous.error_count,
+                baseline.error_count,
                 current.error_count,
-                previous.warning_count,
+                baseline.warning_count,
                 current.warning_count,
-                previous.hypothesis_count,
+                baseline.hypothesis_count,
                 current.hypothesis_count
             );
             text_with_structured(
@@ -597,7 +633,8 @@ fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Call
                     "action": "compare",
                     "label": label,
                     "compare_with": compare_with,
-                    "detail": format!("Compared '{}' with '{}'", compare_with, label),
+                    "compare_mode": "baseline_to_current",
+                    "detail": format!("Compared '{}' with current state labeled '{}'", compare_with, label),
                     "output": output
                 }),
             )
@@ -627,9 +664,17 @@ fn debug_trace_analyze(arguments: &BTreeMap<String, Value>) -> CallToolResult {
         return error_result("Error: 'error_text' is required", json!({ "error_code": "validation" }));
     }
     let error_type = non_empty(string_arg(arguments, "error_type")).unwrap_or_else(|| detect_error_type(&error_text));
-    let output = format!(
-        "error_type: {}\nsummary: inspect the first failing frame, validate the nearest changed callsite, and confirm with targeted tests.",
-        error_type
+    let hints = trace_location_hints(&error_text);
+    let mut output = format!("error_type: {error_type}\n");
+    if !hints.is_empty() {
+        output.push_str("locations (heuristic):\n");
+        for h in &hints {
+            output.push_str(&format!("- {h}\n"));
+        }
+        output.push('\n');
+    }
+    output.push_str(
+        "next_steps: open the top location first; diff recent git changes touching that callsite; reproduce under debugger or add targeted logging; run the smallest test touching that module.",
     );
     text_with_structured(
         output.clone(),
@@ -637,9 +682,40 @@ fn debug_trace_analyze(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             "tool": "debug_trace_analyze",
             "error_type": error_type,
             "detail": "Trace analyzed",
-            "output": output
+            "output": output,
+            "location_hints": hints
         }),
     )
+}
+
+/// Estrae path:line plausibili da stack trace / log (euristico, no parser completo).
+fn trace_location_hints(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let max = 12usize;
+    for line in text.lines().take(80) {
+        let t = line.trim();
+        if t.len() < 4 {
+            continue;
+        }
+        // Swift/Crash style: File.swift:42 or /abs/path.swift:42
+        for token in t.split_whitespace() {
+            if let Some((path, rest)) = token.rsplit_once(':') {
+                if rest.chars().all(|c| c.is_ascii_digit()) && !rest.is_empty() {
+                    let line_no: u32 = rest.parse().unwrap_or(0);
+                    if line_no > 0 && path.contains('.') && path.len() > 2 {
+                        let hint = format!("{path}:{rest}");
+                        if !out.contains(&hint) {
+                            out.push(hint);
+                            if out.len() >= max {
+                                return out;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out
 }
 
 fn debug_context(workspace: &Path) -> CallToolResult {

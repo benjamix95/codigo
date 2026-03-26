@@ -28,7 +28,7 @@ public enum DebugBackendPolicy: String, Codable, Sendable, Equatable, CaseIterab
 
 /// Stage tipizzato della debug pipeline.
 public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
-    /// Un solo turno MCP: activate_debug_mode → debug_session(start) → debug_set_phase(describing).
+    /// Un solo turno MCP: activate_debug_mode → debug_set_phase(describing). `session_start` è lo stage DAG dedicato a `debug_session` start.
     case describePipelineBootstrap = "describe_pipeline_bootstrap"
     /// Un solo turno MCP: debug_set_phase(reproducing) → debug_request_user(reproduce).
     case reproducePipelineBootstrap = "reproduce_pipeline_bootstrap"

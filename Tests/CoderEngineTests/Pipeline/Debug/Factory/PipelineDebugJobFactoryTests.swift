@@ -28,7 +28,7 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         XCTAssertTrue(tasks.contains { $0.debugStage == .nativeStart })
         XCTAssertTrue(tasks.contains { $0.debugStage == .reviewFix })
         XCTAssertTrue(tasks.contains { $0.debugStage == .clean })
-        XCTAssertFalse(tasks.contains { $0.debugStage == .sessionStart })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .sessionStart })
         XCTAssertFalse(tasks.contains { $0.debugStage == .setDescribePhase })
         XCTAssertTrue(tasks.contains { $0.debugStage == .reproducePipelineBootstrap })
         XCTAssertTrue(tasks.contains { $0.debugStage == .fixPipelineBootstrap })
@@ -65,8 +65,10 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
             providerId: "codex-cli"
         )
         let bootstrap = try XCTUnwrap(tasks.first { $0.debugStage == .describePipelineBootstrap })
+        let sessionStart = try XCTUnwrap(tasks.first { $0.debugStage == .sessionStart })
         let gather = try XCTUnwrap(tasks.first { $0.debugStage == .gatherContext })
-        XCTAssertEqual(Set(gather.dependsOn), Set([bootstrap.taskId]))
+        XCTAssertEqual(Set(sessionStart.dependsOn), Set([bootstrap.taskId]))
+        XCTAssertEqual(Set(gather.dependsOn), Set([sessionStart.taskId]))
         let clarifications = tasks.filter { $0.debugStage == .requestClarification }
         XCTAssertEqual(clarifications.count, 2)
         let firstClarify = try XCTUnwrap(clarifications.first { $0.metadata["question_index"] == "1" })

@@ -154,18 +154,39 @@ extension UnifiedToolRuntime {
 
         case "compare":
             guard !label.isEmpty else {
-                return ToolResult(ok: false, payload: ["detail": "label is required for compare (current snapshot label)"], durationMs: ms)
+                return ToolResult(ok: false, payload: ["detail": "label is required for compare (snapshot label or name for the newer side)"], durationMs: ms)
             }
             guard !compareWith.isEmpty else {
-                return ToolResult(ok: false, payload: ["detail": "compare_with is required (previous snapshot label)"], durationMs: ms)
+                return ToolResult(ok: false, payload: ["detail": "compare_with is required (baseline snapshot label)"], durationMs: ms)
             }
-            guard let snapA = debugSessionSnapshots[compareWith] else {
+            guard let snapBaseline = debugSessionSnapshots[compareWith] else {
                 return ToolResult(ok: false, payload: ["detail": "Snapshot '\(compareWith)' not found. Available: \(debugSessionSnapshots.keys.sorted().joined(separator: ", "))"], durationMs: ms)
             }
 
-            // Capture current state as snapB
+            // Due snapshot persistiti: confronto etichettato vs etichettato (semantica stabile).
+            if let snapOther = debugSessionSnapshots[label] {
+                var diff = "## Snapshot comparison (persisted): '\(compareWith)' vs '\(label)'\n\n"
+                let fields = ["log_count", "error_count", "warning_count", "hypothesis_count", "confirmed_count", "rejected_count"]
+                for field in fields {
+                    let a = Int(snapBaseline[field] ?? "0") ?? 0
+                    let b = Int(snapOther[field] ?? "0") ?? 0
+                    let delta = b - a
+                    let arrow = delta > 0 ? "↑\(delta)" : (delta < 0 ? "↓\(abs(delta))" : "→")
+                    diff += "- \(field): \(a) \(arrow) \(b)\n"
+                }
+                diff += "\n- Time: \(snapBaseline["timestamp"] ?? "?") vs \(snapOther["timestamp"] ?? "?")\n"
+                return ToolResult(ok: true, payload: [
+                    "title": "debug_snapshot",
+                    "detail": "Compared persisted '\(compareWith)' with '\(label)'",
+                    "output": diff,
+                    "action": "compare",
+                    "compare_mode": "persisted_pair",
+                ], durationMs: ms)
+            }
+
+            // Fallback: confronta baseline persistito con lo stato sessione corrente (etichetta `label` è solo nome report).
             let logResult = await debugLogServer.query(limit: 1)
-            let snapB: [String: String] = [
+            let snapCurrent: [String: String] = [
                 "timestamp": ISO8601DateFormatter().string(from: Date()),
                 "log_count": "\(logResult.totalCount)",
                 "error_count": "\(logResult.errorCount)",
@@ -176,22 +197,23 @@ extension UnifiedToolRuntime {
                 "label": label
             ]
 
-            var diff = "## Snapshot Comparison: '\(compareWith)' -> '\(label)'\n\n"
+            var diff = "## Snapshot comparison: '\(compareWith)' (saved) → current session (as '\(label)')\n\n"
             let fields = ["log_count", "error_count", "warning_count", "hypothesis_count", "confirmed_count", "rejected_count"]
             for field in fields {
-                let a = Int(snapA[field] ?? "0") ?? 0
-                let b = Int(snapB[field] ?? "0") ?? 0
+                let a = Int(snapBaseline[field] ?? "0") ?? 0
+                let b = Int(snapCurrent[field] ?? "0") ?? 0
                 let delta = b - a
                 let arrow = delta > 0 ? "↑\(delta)" : (delta < 0 ? "↓\(abs(delta))" : "→")
                 diff += "- \(field): \(a) \(arrow) \(b)\n"
             }
-            diff += "\n- Time: \(snapA["timestamp"] ?? "?") -> \(snapB["timestamp"] ?? "?")\n"
+            diff += "\n- Time: \(snapBaseline["timestamp"] ?? "?") -> \(snapCurrent["timestamp"] ?? "?")\n"
 
             return ToolResult(ok: true, payload: [
                 "title": "debug_snapshot",
-                "detail": "Compared '\(compareWith)' with current state",
+                "detail": "Compared '\(compareWith)' with current session state",
                 "output": diff,
-                "action": "compare"
+                "action": "compare",
+                "compare_mode": "baseline_to_current",
             ], durationMs: ms)
 
         case "list":

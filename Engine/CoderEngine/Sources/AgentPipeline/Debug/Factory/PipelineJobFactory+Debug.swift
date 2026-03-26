@@ -99,7 +99,7 @@ extension PipelineJobFactory {
                 return true
             case .intake:
                 switch stage {
-                case .describePipelineBootstrap, .gatherContext,
+                case .describePipelineBootstrap, .sessionStart, .gatherContext,
                      .requestClarification, .analyzeIssue, .reproducePipelineBootstrap,
                      .awaitReproduceGate:
                     return true
@@ -173,9 +173,9 @@ extension PipelineJobFactory {
         let bootstrapPrompt = """
         In one turn, run these MCP debug setup steps in strict order. Complete each successfully before the next:
         1) Tool activate_debug_mode (or equivalent activate_debug_mode MCP).
-        2) Tool debug_session with action=start.
-        3) Tool debug_set_phase with phase=describing.
-        Then reply with a brief summary that the session exists and is in the describing phase.
+        2) Tool debug_set_phase with phase=describing.
+        Then reply with a brief summary that debug mode is active and the flow is in the describing phase.
+        Do NOT call debug_session in this turn — the pipeline runs a dedicated next stage for debug_session action=start.
         """
         let describeBootstrapId = appendStage(
             .describePipelineBootstrap,
@@ -187,12 +187,23 @@ extension PipelineJobFactory {
                 "pipeline_full_prompt": bootstrapPrompt,
             ]
         )
+        let sessionStartId = appendStage(
+            .sessionStart,
+            title: "Start Debug Session",
+            taskType: .bugfix,
+            priority: 99,
+            dependsOn: [describeBootstrapId],
+            metadata: [
+                "mcp_tool": "debug_session",
+                "action": "start",
+            ]
+        )
         let gatherContextId = appendStage(
             .gatherContext,
             title: "Gather Debug Context",
             taskType: .bugfix,
             priority: 96,
-            dependsOn: [describeBootstrapId],
+            dependsOn: [sessionStartId],
             metadata: ["debug_tool": "debug_context"]
         )
         let describeQuestionOneId = appendStage(

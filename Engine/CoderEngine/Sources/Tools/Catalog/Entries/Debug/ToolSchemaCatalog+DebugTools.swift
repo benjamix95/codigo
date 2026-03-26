@@ -5,9 +5,9 @@ extension ToolSchemaCatalog {
         // MARK: Debug Tools (Optimized)
         ToolSchemaEntry(
             name: "debug_context",
-            description: "Gather comprehensive debugging context for the current workspace. Use at the START of every debug session (Describe phase). Collects git state, build errors, linter diagnostics, environment info, recent crash logs, dependencies, and open file context. Use 'scope' to focus on specific areas.",
+            description: "Gather debugging context for the workspace (Describe phase). Default scope is light (git + environment). Use scope=full or add lints, build, tests, crashes when you need deeper signal.",
             properties: [
-                "scope": ["type": "string", "description": "What to collect: 'full' (default, everything), 'git' (status/diff/log only), 'build' (build errors), 'lints' (linter diagnostics), 'env' (Swift/Xcode/SDK versions), 'tests' (test listing), 'crashes' (recent crash reports). Comma-separated for multiple."],
+                "scope": ["type": "string", "description": "Comma-separated: 'git', 'env' (default when omitted), 'lints', 'build', 'tests', 'crashes', or 'full' for everything including swift build and test listing."],
                 "include_file_content": ["type": "string", "description": "If 'true', includes source code around files with errors (20 lines context). Default: false."],
                 "max_depth": ["type": "string", "description": "Max depth for directory scanning (default: 3)"]
             ],

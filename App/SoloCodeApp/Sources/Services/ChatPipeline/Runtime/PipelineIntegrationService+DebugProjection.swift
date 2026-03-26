@@ -1,6 +1,7 @@
 import Foundation
 
-private let kDebugEventBufferLimit = 500
+/// Coda eventi debug per conv: ridurre drop su sessioni lunghe (trim per priorità resta attivo).
+private let kDebugEventBufferLimit = 1_500
 
 extension PipelineIntegrationService {
     /// `true` quando la proiezione è sospesa (es. Stop dal pannello): gli eventi vanno bufferizzati.
