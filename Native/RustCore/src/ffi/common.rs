@@ -1,6 +1,7 @@
 use crate::scoring::RustSearchResponsePayload;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::panic;
 
 pub(crate) const BACKEND_VERSION: &[u8] = b"solocode_rust_core/0.1.0\0";
 
@@ -25,16 +26,25 @@ pub extern "C" fn solocode_free_buffer(buffer: *mut c_char) {
 
 pub(crate) fn with_json_input<F>(input: *const c_char, handler: F) -> *mut c_char
 where
-    F: FnOnce(&str) -> RustSearchResponsePayload,
+    F: FnOnce(&str) -> RustSearchResponsePayload + panic::UnwindSafe,
 {
-    let payload = if input.is_null() {
-        RustSearchResponsePayload::error("invalid_input", "null input buffer")
-    } else {
-        let raw = unsafe { CStr::from_ptr(input) };
-        match raw.to_str() {
-            Ok(text) => handler(text),
-            Err(_) => RustSearchResponsePayload::error("invalid_utf8", "input was not valid UTF-8"),
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        if input.is_null() {
+            RustSearchResponsePayload::error("invalid_input", "null input buffer")
+        } else {
+            let raw = unsafe { CStr::from_ptr(input) };
+            match raw.to_str() {
+                Ok(text) => handler(text),
+                Err(_) => {
+                    RustSearchResponsePayload::error("invalid_utf8", "input was not valid UTF-8")
+                }
+            }
         }
+    }));
+
+    let payload = match result {
+        Ok(payload) => payload,
+        Err(_) => RustSearchResponsePayload::error("panic", "internal panic caught in FFI handler"),
     };
 
     let encoded = serde_json::to_string(&payload)
@@ -47,18 +57,28 @@ where
 
 pub(crate) fn with_raw_json_input<F>(input: *const c_char, handler: F) -> *mut c_char
 where
-    F: FnOnce(&str) -> String,
+    F: FnOnce(&str) -> String + panic::UnwindSafe,
 {
-    let payload = if input.is_null() {
-        "{\"error\":{\"code\":\"invalid_input\",\"message\":\"null input buffer\"}}".to_string()
-    } else {
-        let raw = unsafe { CStr::from_ptr(input) };
-        match raw.to_str() {
-            Ok(text) => handler(text),
-            Err(_) => {
-                "{\"error\":{\"code\":\"invalid_utf8\",\"message\":\"input was not valid UTF-8\"}}"
-                    .to_string()
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        if input.is_null() {
+            "{\"error\":{\"code\":\"invalid_input\",\"message\":\"null input buffer\"}}".to_string()
+        } else {
+            let raw = unsafe { CStr::from_ptr(input) };
+            match raw.to_str() {
+                Ok(text) => handler(text),
+                Err(_) => {
+                    "{\"error\":{\"code\":\"invalid_utf8\",\"message\":\"input was not valid UTF-8\"}}"
+                        .to_string()
+                }
             }
+        }
+    }));
+
+    let payload = match result {
+        Ok(payload) => payload,
+        Err(_) => {
+            "{\"error\":{\"code\":\"panic\",\"message\":\"internal panic caught in FFI handler\"}}"
+                .to_string()
         }
     };
 

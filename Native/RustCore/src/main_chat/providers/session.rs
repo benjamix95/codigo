@@ -287,20 +287,31 @@ fn session_response(
 
 fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
     thread::spawn(move || {
-        let result = match config.backend {
-            MainChatProviderBackend::OpenaiApi => openai::run(&session_id, &config),
-            MainChatProviderBackend::GoogleApi => google::run(&session_id, &config),
-            MainChatProviderBackend::AnthropicApi => anthropic::run(&session_id, &config),
-            MainChatProviderBackend::CodexCli => {
-                retry_cli(&session_id, &config, MainChatProviderBackend::CodexCli)
+        // Wrap the entire worker in catch_unwind so that a Rust panic
+        // (e.g. debug assertions on broken-pipe data) is converted to an
+        // error instead of crashing the host Swift process.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            match config.backend {
+                MainChatProviderBackend::OpenaiApi => openai::run(&session_id, &config),
+                MainChatProviderBackend::GoogleApi => google::run(&session_id, &config),
+                MainChatProviderBackend::AnthropicApi => anthropic::run(&session_id, &config),
+                MainChatProviderBackend::CodexCli => {
+                    retry_cli(&session_id, &config, MainChatProviderBackend::CodexCli)
+                }
+                MainChatProviderBackend::ClaudeCli => {
+                    retry_cli(&session_id, &config, MainChatProviderBackend::ClaudeCli)
+                }
+                MainChatProviderBackend::GeminiCli => {
+                    retry_cli(&session_id, &config, MainChatProviderBackend::GeminiCli)
+                }
             }
-            MainChatProviderBackend::ClaudeCli => {
-                retry_cli(&session_id, &config, MainChatProviderBackend::ClaudeCli)
-            }
-            MainChatProviderBackend::GeminiCli => {
-                retry_cli(&session_id, &config, MainChatProviderBackend::GeminiCli)
-            }
+        }));
+
+        let result = match result {
+            Ok(inner) => inner,
+            Err(_) => Err("worker_panic: internal panic caught in provider worker thread".to_string()),
         };
+
         let guard = sessions().lock().unwrap();
         if let Some(handle) = guard.get(&session_id) {
             let mut snapshot = handle.snapshot.lock().unwrap();
@@ -314,7 +325,7 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
                         .push_back(make_completed_event());
                 }
                 Ok(()) => {}
-                Err(error) if error == "cancelled" => {
+                Err(ref error) if error == "cancelled" => {
                     snapshot.status = "cancelled".to_string();
                 }
                 Err(error) => {
