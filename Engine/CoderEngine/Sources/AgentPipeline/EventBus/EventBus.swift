@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - EventSubscription
 
@@ -84,6 +85,10 @@ public enum EventBusError: Error, Sendable, Equatable {
 public actor EventBus: EventBusProtocol {
 
     private var subscriptions: [String: EventSubscription] = [:]
+    /// Reverse index: eventType → subscription IDs that listen for that type.
+    private var subscriptionIdsByType: [PipelineEventType: Set<String>] = [:]
+    /// Subscription IDs with no eventType filter (wildcard — match all events).
+    private var wildcardSubscriptionIds: Set<String> = []
     private var seenIdempotencyKeys: [String: Date] = [:]
     private var idempotencyKeyOrder: [String] = []
     private var sequenceCounter: UInt64 = 0
@@ -93,6 +98,8 @@ public actor EventBus: EventBusProtocol {
     private let deadLetterQueue: DeadLetterQueue
     private let maxTrackedIdempotencyKeys: Int
     private let idempotencyKeyMaxAge: TimeInterval
+    private var lastPruneTime: Date = .distantPast
+    private let pruneThrottleInterval: TimeInterval = 5.0
 
     public init(
         deliveryManager: EventDeliveryManager,
@@ -126,6 +133,26 @@ public actor EventBus: EventBusProtocol {
     // MARK: - Publish
 
     public func publish(_ event: EventBusEvent) async throws {
+        #if DEBUG
+        let publishSignpostID = OSSignpostID(log: EventBusPublishSignpost.log)
+        os_signpost(
+            .begin,
+            log: EventBusPublishSignpost.log,
+            name: "EventBusPublish",
+            signpostID: publishSignpostID,
+            "%{public}s",
+            event.type.rawValue
+        )
+        defer {
+            os_signpost(
+                .end,
+                log: EventBusPublishSignpost.log,
+                name: "EventBusPublish",
+                signpostID: publishSignpostID
+            )
+        }
+        #endif
+
         guard !isShutdown else {
             throw EventBusError.busShutdown
         }
@@ -145,9 +172,7 @@ public actor EventBus: EventBusProtocol {
         enriched.sequenceNumber = sequenceCounter
         enriched.deliveryStatus = .pending
 
-        let matchingSubscriptions = subscriptions.values.filter { sub in
-            sub.filter.matches(enriched)
-        }
+        let matchingSubscriptions = candidateSubscriptions(for: enriched)
 
         if matchingSubscriptions.isEmpty {
             var unroutable = enriched
@@ -170,11 +195,17 @@ public actor EventBus: EventBusProtocol {
     // MARK: - Subscribe / Unsubscribe
 
     public func subscribe(_ subscription: EventSubscription) async {
+        if let old = subscriptions[subscription.id] {
+            removeFromIndex(id: old.id, filter: old.filter)
+        }
         subscriptions[subscription.id] = subscription
+        addToIndex(id: subscription.id, filter: subscription.filter)
     }
 
     public func unsubscribe(id: String) async {
-        subscriptions.removeValue(forKey: id)
+        if let sub = subscriptions.removeValue(forKey: id) {
+            removeFromIndex(id: sub.id, filter: sub.filter)
+        }
     }
 
     // MARK: - Query
@@ -191,11 +222,51 @@ public actor EventBus: EventBusProtocol {
         subscriptions.count
     }
 
+    // MARK: - Index Management
+
+    private func addToIndex(id: String, filter: EventSubscriptionFilter) {
+        if let types = filter.eventTypes {
+            for type in types {
+                subscriptionIdsByType[type, default: []].insert(id)
+            }
+        } else {
+            wildcardSubscriptionIds.insert(id)
+        }
+    }
+
+    private func removeFromIndex(id: String, filter: EventSubscriptionFilter) {
+        if let types = filter.eventTypes {
+            for type in types {
+                subscriptionIdsByType[type]?.remove(id)
+                if subscriptionIdsByType[type]?.isEmpty == true {
+                    subscriptionIdsByType.removeValue(forKey: type)
+                }
+            }
+        } else {
+            wildcardSubscriptionIds.remove(id)
+        }
+    }
+
+    private func candidateSubscriptions(for event: EventBusEvent) -> [EventSubscription] {
+        var candidateIds = wildcardSubscriptionIds
+        if let indexed = subscriptionIdsByType[event.type] {
+            candidateIds.formUnion(indexed)
+        }
+        return candidateIds.compactMap { id in
+            guard let sub = subscriptions[id] else { return nil }
+            if let jid = sub.filter.jobId, event.jobId != jid { return nil }
+            if let tid = sub.filter.taskId, event.taskId != tid { return nil }
+            return sub
+        }
+    }
+
     // MARK: - Lifecycle
 
     public func shutdown() async {
         isShutdown = true
         subscriptions.removeAll()
+        subscriptionIdsByType.removeAll()
+        wildcardSubscriptionIds.removeAll()
         seenIdempotencyKeys.removeAll()
         idempotencyKeyOrder.removeAll()
         await deliveryManager.cancelAll()
@@ -244,16 +315,28 @@ public actor EventBus: EventBusProtocol {
             return
         }
 
-        let cutoff = now.addingTimeInterval(-maxAge)
-        seenIdempotencyKeys = seenIdempotencyKeys.filter { _, timestamp in
-            timestamp >= cutoff
+        // Throttle: skip if we pruned recently and under hard cap.
+        let elapsed = now.timeIntervalSince(lastPruneTime)
+        if elapsed < pruneThrottleInterval,
+           seenIdempotencyKeys.count <= maxTrackedIdempotencyKeys {
+            return
         }
-        idempotencyKeyOrder.removeAll { key in
-            seenIdempotencyKeys[key] == nil
+        lastPruneTime = now
+
+        // Walk the ordered list front-to-back (oldest first) and remove expired.
+        let cutoff = now.addingTimeInterval(-maxAge)
+        var removedCount = 0
+        for key in idempotencyKeyOrder {
+            guard let timestamp = seenIdempotencyKeys[key],
+                  timestamp < cutoff else { break }
+            seenIdempotencyKeys.removeValue(forKey: key)
+            removedCount += 1
+        }
+        if removedCount > 0 {
+            idempotencyKeyOrder.removeFirst(removedCount)
         }
 
-        // Hard cap: se dopo age-pruning siamo ancora sopra il limite,
-        // evinciamo i più vecchi fino all'80% della capacità.
+        // Hard cap: evict oldest until 80% capacity.
         let hardCapTarget = maxTrackedIdempotencyKeys * 4 / 5
         while seenIdempotencyKeys.count > hardCapTarget {
             guard !idempotencyKeyOrder.isEmpty else { break }

@@ -21,28 +21,36 @@ extension ChatPanelView {
 
                 ConnectionStatusBanner(monitor: networkMonitor)
 
-                let scopedSwarmCards = taskActivityStore.swarmCardStates(for: conversationId)
-                if coderMode == .agent
-                    && (!swarmProgressStore.steps(for: conversationId).isEmpty
-                        || !scopedSwarmCards.isEmpty)
-                {
-                    SwarmProgressView(
-                        store: swarmProgressStore,
-                        activities: scopedTaskActivities(for: conversationId),
-                        conversationId: conversationId,
-                        isTaskRunning: isLoadingForCurrentConversation,
-                        onSelectSwarm: { swarmId in
-                            showSwarmPanel = true
-                            selectedSwarmId = swarmId
-                        }
-                    )
-                }
+                ChatPanelRootSwarmProgressSlot(
+                    coderMode: coderMode,
+                    conversationId: conversationId,
+                    swarmSteps: snapshotRootLayoutSwarmSteps,
+                    swarmCards: snapshotRootLayoutSwarmCards,
+                    chromeLoading: snapshotChromeLoading,
+                    activities: scopedTaskActivities(for: conversationId),
+                    onSelectSwarm: { swarmId in
+                        showSwarmPanel = true
+                        selectedSwarmId = swarmId
+                    },
+                    swarmProgressStore: swarmProgressStore
+                )
 
                 if showsSwarmViewOnly {
                     swarmDashboardArea
                 } else {
                     messagesArea
                         .layoutPriority(1)
+                        // #region agent log
+                        .modifier(
+                            ChatPanelMessagesDebugModifier(
+                                storeMessageCount: chatStore.conversation(for: conversationId)?.messages.count ?? -1,
+                                snapshotCount: messagesConversationSnapshot?.messages.count ?? -1,
+                                snapshotIsNil: messagesConversationSnapshot == nil,
+                                showEmptyOverlay: shouldShowMessagesAreaEmptyState,
+                                isLoading: snapshotChromeLoading
+                            )
+                        )
+                        // #endregion
                 }
 
                 if shouldShowFinalChatActions {
@@ -51,9 +59,7 @@ extension ChatPanelView {
 
                 // Keep the legacy task bar only when the composer is not visible (e.g. Swarm).
                 if !shouldShowComposer(for: coderMode)
-                    && (isLoadingForCurrentConversation
-                        || isSummarizing
-                        || pipelineIntegrationService.isRunning(for: conversationId))
+                    && (snapshotChromeLoading || isSummarizing)
                 {
                     TaskControlBar(
                         chatStore: chatStore,
@@ -124,6 +130,20 @@ extension ChatPanelView {
         // evaluates each modifier on every state change. A single
         // .transaction modifier is more efficient — it unconditionally
         // strips animations from all child transactions.
+        .onAppear { refreshMessagesSnapshot() }
         .transaction { $0.animation = nil }
+        // #region agent log
+        .onChange(of: coderMode) { newMode in
+            AgentDebugSessionNDJSONLog.append(
+                hypothesisId: "H3",
+                location: "ChatPanelView+RootLayout",
+                message: "coder_mode_changed",
+                data: [
+                    "coderMode": "\(newMode)",
+                    "showsSwarmViewOnly": "\(showsSwarmViewOnly)",
+                ]
+            )
+        }
+        // #endregion
     }
 }

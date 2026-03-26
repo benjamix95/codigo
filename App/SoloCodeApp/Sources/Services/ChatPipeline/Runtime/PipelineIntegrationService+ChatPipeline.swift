@@ -38,6 +38,80 @@ extension PipelineIntegrationService {
               let runtime = runtime(for: conversationId),
               let chatStore
         else { return }
+
+        if !shouldDebounceRustBridgeOnly(events) {
+            flushPendingRustBridgeEventsIfNeeded(
+                conversationId: conversationId,
+                runtime: runtime,
+                chatStore: chatStore
+            )
+        }
+
+        if shouldDebounceRustBridgeOnly(events), let first = events.first {
+            runtime.pendingRustBridgeEvents.append(first)
+            scheduleRustBridgeDebounce(for: conversationId)
+            return
+        }
+
+        runPipelineEventsCommit(
+            events: events,
+            for: conversationId,
+            runtime: runtime,
+            chatStore: chatStore
+        )
+    }
+
+    /// Delta stream singoli: debounce 16ms per raggruppare più `consume` prima del round-trip Rust.
+    private func shouldDebounceRustBridgeOnly(_ events: [ChatPipelineEvent]) -> Bool {
+        guard events.count == 1, let only = events.first else { return false }
+        switch only.kind {
+        case .textDelta, .textReplace, .reasoningDelta:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func scheduleRustBridgeDebounce(for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.rustBridgeDebounceTask?.cancel()
+        runtime.rustBridgeDebounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: PipelineConversationRuntime.rustBridgeDebounceNs)
+            guard let self, !Task.isCancelled else { return }
+            guard let runtime = self.runtime(for: conversationId),
+                  let chatStore = self.chatStore else { return }
+            self.flushPendingRustBridgeEventsIfNeeded(
+                conversationId: conversationId,
+                runtime: runtime,
+                chatStore: chatStore
+            )
+        }
+    }
+
+    func flushPendingRustBridgeEventsIfNeeded(
+        conversationId: UUID,
+        runtime: PipelineConversationRuntime,
+        chatStore: ChatStore
+    ) {
+        runtime.rustBridgeDebounceTask?.cancel()
+        runtime.rustBridgeDebounceTask = nil
+        guard !runtime.pendingRustBridgeEvents.isEmpty else { return }
+        let batch = runtime.pendingRustBridgeEvents
+        runtime.pendingRustBridgeEvents.removeAll(keepingCapacity: true)
+        runPipelineEventsCommit(
+            events: batch,
+            for: conversationId,
+            runtime: runtime,
+            chatStore: chatStore
+        )
+    }
+
+    private func runPipelineEventsCommit(
+        events: [ChatPipelineEvent],
+        for conversationId: UUID,
+        runtime: PipelineConversationRuntime,
+        chatStore: ChatStore
+    ) {
         PipelineIntegrationConsumeEventsSignpost.measure(eventCount: events.count) {
             let coalescedEvents = coalescePipelineEvents(events)
             var shouldPersistImmediately = false

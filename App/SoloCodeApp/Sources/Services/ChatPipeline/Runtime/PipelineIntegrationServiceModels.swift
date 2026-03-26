@@ -46,6 +46,18 @@ final class PipelineConversationRuntime {
     var teardownState: TeardownState
     let jobStartTime: Date
 
+    /// Cached store snapshot to avoid re-serializing all conversations on
+    /// every pipeline event. Built once on first event, then updated from
+    /// the Rust boundary response. Cleared on retarget/teardown.
+    var cachedStoreSnapshot: MainChatStoreSnapshotBridge?
+
+    /// Eventi stream-only (testo) in attesa di flush verso il bridge Rust (debounce ~16ms).
+    var pendingRustBridgeEvents: [ChatPipelineEvent] = []
+    var rustBridgeDebounceTask: Task<Void, Never>?
+
+    /// Debounce bridge per ridurre round-trip FFI su delta singoli ad alta frequenza.
+    static let rustBridgeDebounceNs: UInt64 = 16_000_000
+
     init(
         conversationId: UUID,
         facade: PipelineFacade,
@@ -110,6 +122,10 @@ final class PipelineConversationRuntime {
             providerId: providerId
         )
         self.nextPipelineSequence = 1
+        self.cachedStoreSnapshot = nil
+        rustBridgeDebounceTask?.cancel()
+        self.rustBridgeDebounceTask = nil
+        self.pendingRustBridgeEvents.removeAll(keepingCapacity: false)
     }
 
     var isTearDownFinalized: Bool {

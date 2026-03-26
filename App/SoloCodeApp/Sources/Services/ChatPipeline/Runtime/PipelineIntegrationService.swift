@@ -96,6 +96,8 @@ final class PipelineIntegrationService: ObservableObject {
     var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
     var suppressedDebugProjectionConversationIds: Set<UUID> = []
     private let facadeConfig: PipelineFacadeConfig
+    private var dirtySnapshotConversationIds: Set<UUID> = []
+    private var snapshotFlushScheduled = false
 
     // MARK: - Init
 
@@ -150,7 +152,7 @@ final class PipelineIntegrationService: ObservableObject {
         )
         runtime.chatTurnState.orderedTextStreamIds = tasks.map(\.taskId)
         runtimesByConversation[conversationId] = runtime
-        persistSnapshot(for: conversationId)
+        flushSnapshotNow(for: conversationId)
 
         let taskTitles = tasks.map(\.title)
         swarmProgressStore?.setSteps(taskTitles, conversationId: conversationId)
@@ -246,9 +248,16 @@ final class PipelineIntegrationService: ObservableObject {
     // MARK: - Teardown
 
     private func claimTeardownRuntime(for conversationId: UUID) -> PipelineConversationRuntime? {
+        if let runtime = runtimesByConversation[conversationId], let chatStore {
+            flushPendingRustBridgeEventsIfNeeded(
+                conversationId: conversationId,
+                runtime: runtime,
+                chatStore: chatStore
+            )
+        }
         guard let runtime = runtimesByConversation[conversationId] else { return nil }
         guard runtime.beginTeardownIfNeeded() else { return nil }
-        persistSnapshot(for: conversationId)
+        flushSnapshotNow(for: conversationId)
         return runtime
     }
 
@@ -288,7 +297,7 @@ final class PipelineIntegrationService: ObservableObject {
         unregisterDebugStore(for: conversationId)
         pendingDebugEventsByConversation.removeValue(forKey: conversationId)
         suppressedDebugProjectionConversationIds.remove(conversationId)
-        persistSnapshot(for: conversationId)
+        flushSnapshotNow(for: conversationId)
     }
 
     // MARK: - Runtime Helpers
@@ -317,14 +326,41 @@ final class PipelineIntegrationService: ObservableObject {
             assistantMessageId: assistantMessageId,
             turnId: turnId
         )
-        persistSnapshot(for: conversationId)
+        flushSnapshotNow(for: conversationId)
     }
 
     func persistSnapshot(for conversationId: UUID) {
+        dirtySnapshotConversationIds.insert(conversationId)
+        scheduleSnapshotFlush()
+    }
+
+    /// Forces immediate snapshot flush for a conversation (used during teardown).
+    private func flushSnapshotNow(for conversationId: UUID) {
+        dirtySnapshotConversationIds.remove(conversationId)
         if let runtime = runtimesByConversation[conversationId] {
             snapshotsByConversation[conversationId] = runtime.snapshot
         } else {
             snapshotsByConversation.removeValue(forKey: conversationId)
+        }
+    }
+
+    private func scheduleSnapshotFlush() {
+        guard !snapshotFlushScheduled else { return }
+        snapshotFlushScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.snapshotFlushScheduled = false
+            let dirty = self.dirtySnapshotConversationIds
+            self.dirtySnapshotConversationIds.removeAll()
+            PipelineSnapshotFlushSignpost.measureBatch(dirtyCount: dirty.count) {
+                for conversationId in dirty {
+                    if let runtime = self.runtimesByConversation[conversationId] {
+                        self.snapshotsByConversation[conversationId] = runtime.snapshot
+                    } else {
+                        self.snapshotsByConversation.removeValue(forKey: conversationId)
+                    }
+                }
+            }
         }
     }
 }

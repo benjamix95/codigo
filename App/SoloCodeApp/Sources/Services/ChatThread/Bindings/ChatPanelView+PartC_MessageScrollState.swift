@@ -4,8 +4,53 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
+    /// Overlay “vuoto”: un solo punto di decisione con letture coerenti (stesso `conversationId`,
+    /// stesso `chatStore`, stesso snapshot). Regola: **mai** coprire l’area se il numero di messaggi
+    /// nello store è > 0 **oppure** lo snapshot (allineato o meno) ha ancora righe — la lista
+    /// `chatMessagesAreaContent` usa lo snapshot, quindi l’overlay deve rispettarlo. Evidenza H2: log
+    /// `empty_state_overlay_shown` con conteggi 4→6 non poteva essere vero nello stesso frame della
+    /// decisione (likely desync `onChange` vs `let` sul modifier); questa policy elimina il caso.
     internal var shouldShowMessagesAreaEmptyState: Bool {
-        messagesAreaIsEmpty && !isLoadingForCurrentConversation
+        guard !isLoadingForCurrentConversation else { return false }
+        // Con zero thread selezionato, lo store non ha contesto: senza questo guard l’overlay
+        // “vuoto” si attiva (storeCount 0, snapshot spesso vuoto) e copre tutta l’area. Se
+        // `selectedConversationId` vira nil per un frame, effetto “chat sparita” (evidenza
+        // fba6fd: empty_overlay_allowed con conversationId nil).
+        guard conversationId != nil else { return false }
+
+        let storeCount = chatStore.conversation(for: conversationId)?.messages.count ?? 0
+        guard storeCount == 0 else { return false }
+
+        let snap = messagesConversationSnapshot
+        let aligned: Bool = {
+            guard let cid = conversationId, let s = snap else { return false }
+            return s.id == cid
+        }()
+        let snapCount = snap?.messages.count ?? 0
+
+        if aligned {
+            guard snapCount == 0 else { return false }
+        } else if let s = snap, !s.messages.isEmpty {
+            // Snapshot ancora di un altro thread ma la lista lo sta ancora mostrando: non coprire.
+            return false
+        }
+
+        let result = true
+        // #region agent log
+        AgentDebugSessionNDJSONLog.appendThrottled(
+            gateKey: "H2-empty-overlay-allowed",
+            hypothesisId: "H2",
+            location: "shouldShowMessagesAreaEmptyState",
+            message: "empty_overlay_allowed",
+            data: [
+                "storeCount": "\(storeCount)",
+                "snapCount": "\(snapCount)",
+                "snapAligned": "\(aligned)",
+                "conversationId": conversationId?.uuidString ?? "nil",
+            ]
+        )
+        // #endregion
+        return result
     }
 
     internal var messagesAreaEmptyStateOverlay: some View {
@@ -94,8 +139,14 @@ extension ChatPanelView {
 
     @ViewBuilder
     internal var chatMessagesAreaContent: some View {
+        // Finché `@State messagesConversationSnapshot` non è valorizzato, `onAppear`/`.onChange`
+        // arrivano dopo il primo layout → un frame di placeholder vuoto (sfarfallio all’avvio).
+        // Fallback allo store solo nello stato nil mantiene il primo paint coerente senza
+        // dipendenza dal ramo snapshot quando quello è già presente.
         if let conv = messagesConversationSnapshot {
             messagesStack(for: conv)
+        } else if let cid = conversationId, let live = chatStore.conversation(for: cid) {
+            messagesStack(for: live)
         } else {
             LazyVStack(alignment: .leading, spacing: 0) {
                 Color.clear
@@ -117,7 +168,35 @@ extension ChatPanelView {
         let freshLoading = chatStore.isTaskActive(for: conversationId)
             || pipelineIntegrationService.isRunning(for: conversationId)
         if snapshotIsLoading != freshLoading {
+            // #region agent log
+            AgentDebugSessionNDJSONLog.append(
+                hypothesisId: "H12",
+                location: "refreshMessagesSnapshot",
+                message: "snapshotIsLoading_edge",
+                data: [
+                    "from": "\(snapshotIsLoading)",
+                    "to": "\(freshLoading)",
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "streamContentVersion": "\(streaming.streamContentVersion)",
+                ]
+            )
+            // #endregion
             snapshotIsLoading = freshLoading
+        }
+
+        let planBuilding =
+            planFlowPhase == .building && activeBuildPlanConversationId == conversationId
+        let chromeBusy = freshLoading || planBuilding
+        if snapshotChromeLoading != chromeBusy {
+            snapshotChromeLoading = chromeBusy
+        }
+
+        if let cid = conversationId {
+            snapshotRootLayoutSwarmSteps = swarmProgressStore.steps(for: cid)
+            snapshotRootLayoutSwarmCards = taskActivityStore.swarmCardStates(for: cid)
+        } else {
+            snapshotRootLayoutSwarmSteps = []
+            snapshotRootLayoutSwarmCards = []
         }
 
         // Only update conversation if actually different.
@@ -132,14 +211,54 @@ extension ChatPanelView {
         let snapshotLastBlocks = messagesConversationSnapshot?.messages.last?.blocks?.count ?? -1
         let freshLastBlocks = fresh?.messages.last?.blocks?.count ?? -1
 
-        if messagesConversationSnapshot?.id != fresh?.id
+        let needsSnapshotUpdate =
+            messagesConversationSnapshot?.id != fresh?.id
             || snapshotCount != freshCount
             || snapshotLastContent != freshLastContent
             || snapshotLastReasoning != freshLastReasoning
             || snapshotLastStreaming != freshLastStreaming
             || snapshotLastBlocks != freshLastBlocks
-        {
+
+        if needsSnapshotUpdate {
+            let prevSnapId = messagesConversationSnapshot?.id.uuidString ?? "nil"
             messagesConversationSnapshot = fresh
+            // #region agent log
+            AgentDebugSessionNDJSONLog.appendThrottled(
+                gateKey: "H8-snapshot-mutate",
+                minInterval: 0.06,
+                hypothesisId: "H8",
+                location: "refreshMessagesSnapshot",
+                message: "snapshot_state_replaced",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "prevSnapId": prevSnapId,
+                    "freshId": fresh?.id.uuidString ?? "nil",
+                    "freshCount": "\(freshCount)",
+                    "freshLastContentLen": "\(freshLastContent)",
+                    "freshLastStreaming": "\(freshLastStreaming)",
+                    "streamContentVersion": "\(streaming.streamContentVersion)",
+                    "snapshotIsLoading": "\(snapshotIsLoading)",
+                ]
+            )
+            // #endregion
+        } else if snapshotIsLoading || freshLoading {
+            // #region agent log
+            AgentDebugSessionNDJSONLog.appendThrottled(
+                gateKey: "H11-refresh-noop-stream",
+                minInterval: 0.12,
+                hypothesisId: "H11",
+                location: "refreshMessagesSnapshot",
+                message: "refresh_ran_but_snapshot_unchanged_while_active",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "streamContentVersion": "\(streaming.streamContentVersion)",
+                    "freshCount": "\(freshCount)",
+                    "freshLastContentLen": "\(freshLastContent)",
+                    "snapshotIsLoading": "\(snapshotIsLoading)",
+                    "freshLoading": "\(freshLoading)",
+                ]
+            )
+            // #endregion
         }
 
         // Throttle trace events refresh: only update at most every 250ms.
@@ -159,6 +278,69 @@ extension ChatPanelView {
             refreshLiveActivitySnapshot(fresh: fresh)
             lastActivityRefreshTime = now
         }
+
+        // #region agent log
+        let storeCount = chatStore.conversation(for: conversationId)?.messages.count ?? -1
+        let snapCount = messagesConversationSnapshot?.messages.count ?? -1
+        let snapNil = messagesConversationSnapshot == nil
+        if snapNil, storeCount > 0 {
+            AgentDebugSessionNDJSONLog.appendThrottled(
+                gateKey: "H1-snapshot-nil",
+                hypothesisId: "H1",
+                location: "refreshMessagesSnapshot",
+                message: "snapshot_nil_but_store_has_messages",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "storeCount": "\(storeCount)",
+                    "snapshotIsLoading": "\(snapshotIsLoading)",
+                ]
+            )
+        }
+        if !snapNil, snapCount == 0, storeCount > 0 {
+            AgentDebugSessionNDJSONLog.appendThrottled(
+                gateKey: "H4-snapshot-empty",
+                hypothesisId: "H4",
+                location: "refreshMessagesSnapshot",
+                message: "snapshot_empty_but_store_has_messages",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "storeCount": "\(storeCount)",
+                ]
+            )
+        }
+        if let cid = conversationId, let snap = messagesConversationSnapshot, snap.id != cid {
+            AgentDebugSessionNDJSONLog.appendThrottled(
+                gateKey: "H14-snap-misaligned",
+                minInterval: 0.15,
+                hypothesisId: "H14",
+                location: "refreshMessagesSnapshot",
+                message: "snapshot_id_ne_conversationId",
+                data: [
+                    "selectedConversation": cid.uuidString,
+                    "snapshotConversation": snap.id.uuidString,
+                    "streamContentVersion": "\(streaming.streamContentVersion)",
+                ]
+            )
+        }
+        let renderBranch: String = {
+            if messagesConversationSnapshot != nil { return "snapshot" }
+            if let cid = conversationId, chatStore.conversation(for: cid) != nil { return "store_fallback" }
+            return "placeholder"
+        }()
+        AgentDebugSessionNDJSONLog.appendThrottled(
+            gateKey: "H13-render-branch",
+            minInterval: 0.08,
+            hypothesisId: "H13",
+            location: "refreshMessagesSnapshot",
+            message: "render_branch_after_refresh",
+            data: [
+                "branch": renderBranch,
+                "conversationId": conversationId?.uuidString ?? "nil",
+                "streamContentVersion": "\(streaming.streamContentVersion)",
+                "snapMsgCount": "\(messagesConversationSnapshot?.messages.count ?? -1)",
+            ]
+        )
+        // #endregion
     }
 
     /// Refresh trace events snapshot. Separated from main refresh

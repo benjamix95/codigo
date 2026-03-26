@@ -7,7 +7,7 @@ enum RustMainChatStoreAdapter {
         MainChatTaskRuntimeStateBridge(
             taskStates: store.activeTaskConversationIds.map { conversationId in
                 MainChatTaskStateSnapshotBridge(
-                    conversationId: conversationId.uuidString.lowercased(),
+                    conversationId: conversationId.lowercasedString,
                     startedAt: store.taskStartDates[conversationId],
                     statusText: store.taskStatusTexts[conversationId] ?? "Thinking"
                 )
@@ -34,7 +34,7 @@ enum RustMainChatStoreAdapter {
         MainChatStoreSnapshotBridge(
             conversations: store.conversations.map(conversationSnapshot),
             planBoards: Dictionary(uniqueKeysWithValues: store.planBoards.map {
-                ($0.key.uuidString.lowercased(), planBoardSnapshot($0.value))
+                ($0.key.lowercasedString, planBoardSnapshot($0.value))
             })
         )
     }
@@ -118,7 +118,7 @@ enum RustMainChatStoreAdapter {
             storeSnapshot: snapshot(from: store),
             runtimeSnapshot: context.runtimeSnapshot,
             taskRuntimeState: taskRuntimeState(from: store),
-            selectedConversationId: context.selectedConversationId?.uuidString.lowercased(),
+            selectedConversationId: context.selectedConversationId?.lowercasedString,
             draftText: context.draftText,
             planPanelVisible: context.planPanelVisible,
             followLive: context.followLive,
@@ -149,16 +149,18 @@ enum RustMainChatStoreAdapter {
         to store: ChatStore,
         preserveLocalMessages: Bool = true
     ) -> MainChatUIIntentResponseBridge? {
-        guard let response = handleUIIntent(request) else { return nil }
-        if let state = response.state {
-            apply(
-                snapshot: state.storeSnapshot,
-                to: store,
-                preserveLocalMessages: preserveLocalMessages
-            )
-            apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
+        RustMainChatAdapterSignpost.measureApplyUIIntent(intentLabel: request.intent) {
+            guard let response = handleUIIntent(request) else { return nil }
+            if let state = response.state {
+                apply(
+                    snapshot: state.storeSnapshot,
+                    to: store,
+                    preserveLocalMessages: preserveLocalMessages
+                )
+                apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
+            }
+            return response
         }
-        return response
     }
 
     @MainActor
@@ -215,12 +217,12 @@ enum RustMainChatStoreAdapter {
 
     static func conversationSnapshot(_ conversation: Conversation) -> MainChatStoreConversationSnapshotBridge {
         MainChatStoreConversationSnapshotBridge(
-            id: conversation.id.uuidString.lowercased(),
-            threadRootConversationId: conversation.threadRootConversationId.uuidString.lowercased(),
+            id: conversation.id.lowercasedString,
+            threadRootConversationId: conversation.threadRootConversationId.lowercasedString,
             title: conversation.title,
             messages: conversation.messages.map(messageSnapshot),
             createdAt: conversation.createdAt,
-            contextId: conversation.contextId?.uuidString.lowercased(),
+            contextId: conversation.contextId?.lowercasedString,
             contextFolderPath: conversation.contextFolderPath,
             mode: conversation.mode?.rawValue,
             preferredProviderId: conversation.preferredProviderId,
@@ -231,7 +233,7 @@ enum RustMainChatStoreAdapter {
             isPinned: conversation.isPinned,
             isFavorite: conversation.isFavorite,
             lastInputTokens: conversation.lastInputTokens,
-            workspaceId: conversation.workspaceId?.uuidString.lowercased(),
+            workspaceId: conversation.workspaceId?.lowercasedString,
             adHocFolderPaths: conversation.adHocFolderPaths,
             checkpoints: conversation.checkpoints.map(checkpointSnapshot)
         )
@@ -239,7 +241,7 @@ enum RustMainChatStoreAdapter {
 
     static func messageSnapshot(_ message: ChatMessage) -> MainChatStoreMessageSnapshotBridge {
         MainChatStoreMessageSnapshotBridge(
-            id: message.id.uuidString.lowercased(),
+            id: message.id.lowercasedString,
             role: message.role.rawValue,
             content: message.content,
             primaryTextSnapshot: message.primaryTextSnapshot,
@@ -313,14 +315,14 @@ enum RustMainChatStoreAdapter {
         ChatTurnMetadata(turnId: snapshot.turnId, providerId: snapshot.providerId, sequence: snapshot.sequence, status: snapshot.status, startedAt: snapshot.startedAt, completedAt: snapshot.completedAt, updatedAt: snapshot.updatedAt, isStreaming: snapshot.isStreaming)
     }
     private static func attachmentSnapshot(_ attachment: ChatAttachment) -> MainChatStoreAttachmentSnapshotBridge {
-        MainChatStoreAttachmentSnapshotBridge(id: attachment.id.uuidString.lowercased(), kind: attachment.kind.rawValue, originalName: attachment.originalName, mimeType: attachment.mimeType, localPath: attachment.localPath, sizeBytes: attachment.sizeBytes, createdAt: attachment.createdAt)
+        MainChatStoreAttachmentSnapshotBridge(id: attachment.id.lowercasedString, kind: attachment.kind.rawValue, originalName: attachment.originalName, mimeType: attachment.mimeType, localPath: attachment.localPath, sizeBytes: attachment.sizeBytes, createdAt: attachment.createdAt)
     }
     private static func attachment(_ snapshot: MainChatStoreAttachmentSnapshotBridge) -> ChatAttachment? {
         guard let id = UUID(uuidString: snapshot.id), let kind = ChatAttachmentKind(rawValue: snapshot.kind) else { return nil }
         return ChatAttachment(id: id, kind: kind, originalName: snapshot.originalName, mimeType: snapshot.mimeType, localPath: snapshot.localPath, sizeBytes: snapshot.sizeBytes, createdAt: snapshot.createdAt ?? .now)
     }
     private static func planAttachmentSnapshot(_ attachment: PlanAttachment) -> MainChatStorePlanAttachmentSnapshotBridge {
-        MainChatStorePlanAttachmentSnapshotBridge(historyEntryId: attachment.historyEntryId.uuidString.lowercased(), layoutVersion: attachment.layoutVersion, showExpand: attachment.showExpand, snapshotTitle: attachment.snapshotTitle)
+        MainChatStorePlanAttachmentSnapshotBridge(historyEntryId: attachment.historyEntryId.lowercasedString, layoutVersion: attachment.layoutVersion, showExpand: attachment.showExpand, snapshotTitle: attachment.snapshotTitle)
     }
     private static func planAttachment(_ snapshot: MainChatStorePlanAttachmentSnapshotBridge) -> PlanAttachment? {
         guard let id = UUID(uuidString: snapshot.historyEntryId) else { return nil }
@@ -378,7 +380,7 @@ enum RustMainChatStoreAdapter {
         )
     }
     static func checkpointSnapshot(_ checkpoint: ConversationCheckpoint) -> MainChatStoreCheckpointSnapshotBridge {
-        MainChatStoreCheckpointSnapshotBridge(id: checkpoint.id.uuidString.lowercased(), createdAt: checkpoint.createdAt, messageCount: checkpoint.messageCount, planBoardSnapshot: checkpoint.planBoardSnapshot.map(planBoardSnapshot), linkedPlanConversationId: checkpoint.linkedPlanConversationId?.uuidString.lowercased(), linkedPlanBoardSnapshot: checkpoint.linkedPlanBoardSnapshot.map(planBoardSnapshot), gitStates: checkpoint.gitStates.map(gitStateSnapshot))
+        MainChatStoreCheckpointSnapshotBridge(id: checkpoint.id.lowercasedString, createdAt: checkpoint.createdAt, messageCount: checkpoint.messageCount, planBoardSnapshot: checkpoint.planBoardSnapshot.map(planBoardSnapshot), linkedPlanConversationId: checkpoint.linkedPlanConversationId?.lowercasedString, linkedPlanBoardSnapshot: checkpoint.linkedPlanBoardSnapshot.map(planBoardSnapshot), gitStates: checkpoint.gitStates.map(gitStateSnapshot))
     }
     private static func checkpoint(_ snapshot: MainChatStoreCheckpointSnapshotBridge) -> ConversationCheckpoint? {
         guard let id = UUID(uuidString: snapshot.id) else { return nil }

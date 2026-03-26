@@ -22,6 +22,7 @@ struct ChatPanelView: View {
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
     @EnvironmentObject var browserTabManager: BrowserTabManager
     @EnvironmentObject var pipelineIntegrationService: PipelineIntegrationService
+    @Environment(\.conversationBootstrapIfNeeded) var conversationBootstrapIfNeeded
 
     // MARK: - Injected (order matches call site)
 
@@ -73,9 +74,36 @@ struct ChatPanelView: View {
     /// Cached to avoid reading chatStore/pipelineIntegrationService in body.
     @State var snapshotIsLoading: Bool = false
 
+    /// Include fase plan "building" per chrome (task bar / swarm) senza leggere `planState` nel body di rootLayout.
+    @State var snapshotChromeLoading: Bool = false
+
+    /// Copia throttle di step/cards swarm per evitare letture dirette da store nel `rootLayout`.
+    @State var snapshotRootLayoutSwarmSteps: [SwarmStep] = []
+    @State var snapshotRootLayoutSwarmCards: [SwarmLiveCardState] = []
+
     /// Timestamp of last trace events refresh. Used to throttle trace
     /// snapshot updates to max 4/sec during streaming.
     @State var lastTraceRefreshTime: CFAbsoluteTime = 0
+
+    /// Snapshot of the active streaming assistant turn state. These values
+    /// are refreshed in a throttled way so the chat body does not need to
+    /// query TaskActivityStore directly during every render pass.
+    @State var snapshotActiveAssistantMessageId: UUID?
+    @State var snapshotStreamingStatusText: String = ""
+    @State var snapshotStreamingDetailText: String?
+    @State var snapshotInlineActivities: [TaskActivity] = []
+    @State var snapshotSupervisorActivities: [TaskActivity] = []
+    @State var snapshotLiveSubagentCards: [SwarmLiveCardState] = []
+    @State var lastActivityRefreshTime: CFAbsoluteTime = 0
+    @State var composerRetainedTodoItems: [TodoItem] = []
+    @State var composerTodoLastNonEmptySnapshotAt: CFAbsoluteTime = 0
+    @State var composerTodoGraceTask: Task<Void, Never>?
+    @State var composerTodoRetentionConversationId: UUID?
+    /// Per-conversation: evita che `hide_reset` sulla conv B azzeri l’expand scelto dall’utente sulla conv A.
+    @State var composerTodoOverlayExpandedByConversation: [UUID: Bool] = [:]
+    @State var composerTodoLastAutoExpandedSignatureByConversation: [UUID: String] = [:]
+    /// Firma todo per cui l’utente ha chiuso manualmente l’overlay (tap header); stesso formato di `composerTodoAutoExpandSignature`.
+    @State var composerTodoOverlayUserDismissedSignatureByConversation: [UUID: String] = [:]
 
     // MARK: - Remaining @State (not grouped)
 
@@ -106,6 +134,61 @@ struct ChatPanelView: View {
     // MARK: - Computed
 
     var conversationId: UUID? { selectedConversationId }
+
+    internal var composerTodoOverlayExpanded: Bool {
+        get {
+            guard let cid = conversationId else { return false }
+            return composerTodoOverlayExpandedByConversation[cid] ?? false
+        }
+        nonmutating set {
+            guard let cid = conversationId else { return }
+            var copy = composerTodoOverlayExpandedByConversation
+            if newValue {
+                copy[cid] = true
+            } else {
+                copy.removeValue(forKey: cid)
+            }
+            composerTodoOverlayExpandedByConversation = copy
+        }
+    }
+
+    internal var composerTodoLastAutoExpandedSignature: String {
+        get {
+            guard let cid = conversationId else { return "" }
+            return composerTodoLastAutoExpandedSignatureByConversation[cid] ?? ""
+        }
+        nonmutating set {
+            guard let cid = conversationId else { return }
+            var copy = composerTodoLastAutoExpandedSignatureByConversation
+            if newValue.isEmpty {
+                copy.removeValue(forKey: cid)
+            } else {
+                copy[cid] = newValue
+            }
+            composerTodoLastAutoExpandedSignatureByConversation = copy
+        }
+    }
+
+    internal var composerTodoOverlayExpandedBinding: Binding<Bool> {
+        Binding(
+            get: { composerTodoOverlayExpanded },
+            set: { composerTodoOverlayExpanded = $0 }
+        )
+    }
+
+    internal func setComposerTodoOverlayUserDismissedForSelection(signature: String) {
+        guard let cid = conversationId else { return }
+        var copy = composerTodoOverlayUserDismissedSignatureByConversation
+        copy[cid] = signature
+        composerTodoOverlayUserDismissedSignatureByConversation = copy
+    }
+
+    internal func clearComposerTodoOverlayUserDismissedForSelection() {
+        guard let cid = conversationId else { return }
+        var copy = composerTodoOverlayUserDismissedSignatureByConversation
+        copy.removeValue(forKey: cid)
+        composerTodoOverlayUserDismissedSignatureByConversation = copy
+    }
 
     var isLoadingForCurrentConversation: Bool {
         chatStore.isTaskActive(for: conversationId)
