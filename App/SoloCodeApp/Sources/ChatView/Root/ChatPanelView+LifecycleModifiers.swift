@@ -20,7 +20,14 @@ extension ChatPanelView {
                 draftSaveTask?.cancel()
                 draftSaveTask = nil
                 persistThreadUIState(for: oldId)
-                persistDebugState(for: oldId)
+                if let oldId {
+                    if chatStore.conversation(for: oldId) != nil {
+                        persistDebugState(for: oldId)
+                    } else {
+                        // Thread eliminato: evita di ripopolare lo snapshot dopo threadDeletionRequested.
+                        conversationRuntime.debugStateByConversation.removeValue(forKey: oldId)
+                    }
+                }
                 pipelineIntegrationService.unregisterDebugStore(for: oldId)
                 if let oldId {
                     let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
