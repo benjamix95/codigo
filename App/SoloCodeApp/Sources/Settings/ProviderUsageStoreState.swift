@@ -11,6 +11,8 @@ struct ProviderUsageSnapshot {
     var claudeUsage: ClaudeUsage?
     var claudeUsageMessage: String?
     var claudeUsageSourceLabel: String?
+    /// Stato installazione / login da `claude auth status` (stesso refresh del usage).
+    var claudeCLIStatus: ClaudeStatus?
     var geminiUsage: GeminiCLIUsage?
     var geminiUsageMessage: String?
 }

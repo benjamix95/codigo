@@ -76,59 +76,87 @@ public enum ClaudeDetector {
         return false
     }
 
-    /// Esegue `claude --version` e ritorna true se il CLI è funzionante.
-    /// Usa cache (60s) per evitare blocchi ripetuti del main thread.
-    public static func checkCLIAvailable(claudePath: String) -> Bool {
-        cacheLock.lock()
-        if let cached = cliAvailableCache[claudePath], Date().timeIntervalSince(cached.date) < cacheTTL {
-            let result = cached.result
-            cacheLock.unlock()
-            return result
+    /// Merge shell-like env with overrides (stesso schema di `ClaudeUsageFetcher`).
+    public static func resolvedEnvironment(override: [String: String]?) -> [String: String] {
+        var env = shellEnvironment()
+        if let override {
+            env.merge(override) { _, new in new }
         }
-        cacheLock.unlock()
+        return env
+    }
+
+    /// Esegue `claude --version` e ritorna true se il CLI è funzionante.
+    /// Usa cache (60s) per evitare blocchi ripetuti del main thread, solo senza `environmentOverride`.
+    public static func checkCLIAvailable(
+        claudePath: String,
+        environmentOverride: [String: String]? = nil
+    ) -> Bool {
+        let useCache = environmentOverride == nil
+        let env = resolvedEnvironment(override: environmentOverride)
+
+        if useCache {
+            cacheLock.lock()
+            if let cached = cliAvailableCache[claudePath], Date().timeIntervalSince(cached.date) < cacheTTL {
+                let result = cached.result
+                cacheLock.unlock()
+                return result
+            }
+            cacheLock.unlock()
+        }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: claudePath)
         process.arguments = ["--version"]
         process.standardOutput = nil
         process.standardError = nil
-        process.environment = shellEnvironment()
+        process.environment = env
         do {
             try process.run()
             let result = waitForExit(process, timeout: 5) == 0
-            cacheLock.lock()
-            defer { cacheLock.unlock() }
-            // Double-check: se un altro thread ha già scritto, non sovrascrivere
-            if cliAvailableCache[claudePath] == nil {
-                cliAvailableCache[claudePath] = (result, Date())
+            if useCache {
+                cacheLock.lock()
+                defer { cacheLock.unlock() }
+                if cliAvailableCache[claudePath] == nil {
+                    cliAvailableCache[claudePath] = (result, Date())
+                }
             }
             return result
         } catch {
-            cacheLock.lock()
-            defer { cacheLock.unlock() }
-            if cliAvailableCache[claudePath] == nil {
-                cliAvailableCache[claudePath] = (false, Date())
+            if useCache {
+                cacheLock.lock()
+                defer { cacheLock.unlock() }
+                if cliAvailableCache[claudePath] == nil {
+                    cliAvailableCache[claudePath] = (false, Date())
+                }
             }
             return false
         }
     }
 
     /// Esegue `claude auth status` (con timeout + cache) per validare login reale.
-    public static func checkAuthStatus(claudePath: String) -> Bool? {
-        cacheLock.lock()
-        if let cached = authStatusCache[claudePath], Date().timeIntervalSince(cached.date) < authStatusTTL {
-            let result = cached.result
+    public static func checkAuthStatus(
+        claudePath: String,
+        environmentOverride: [String: String]? = nil
+    ) -> Bool? {
+        let useCache = environmentOverride == nil
+        let env = resolvedEnvironment(override: environmentOverride)
+
+        if useCache {
+            cacheLock.lock()
+            if let cached = authStatusCache[claudePath], Date().timeIntervalSince(cached.date) < authStatusTTL {
+                let result = cached.result
+                cacheLock.unlock()
+                return result
+            }
             cacheLock.unlock()
-            return result
         }
-        cacheLock.unlock()
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: claudePath)
         process.arguments = ["auth", "status"]
         process.standardOutput = Pipe()
         process.standardError = Pipe()
-        process.environment = shellEnvironment()
+        process.environment = env
 
         let result: Bool?
         do {
@@ -142,24 +170,29 @@ public enum ClaudeDetector {
             result = nil
         }
 
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-        // Double-check: se un altro thread ha già scritto, non sovrascrivere
-        if authStatusCache[claudePath] == nil {
-            authStatusCache[claudePath] = (result, Date())
+        if useCache {
+            cacheLock.lock()
+            defer { cacheLock.unlock() }
+            if authStatusCache[claudePath] == nil {
+                authStatusCache[claudePath] = (result, Date())
+            }
         }
         return result
     }
 
     /// Detects complete Claude Code CLI status
-    public static func detect(customPath: String? = nil) -> ClaudeStatus {
+    public static func detect(
+        customPath: String? = nil,
+        environmentOverride: [String: String]? = nil
+    ) -> ClaudeStatus {
         guard let path = findClaudePath(customPath: customPath) else {
             return ClaudeStatus(isInstalled: false, path: nil, isLoggedIn: false, authMethod: nil)
         }
         let hasAuth = hasAuthFile()
-        let cliOk = checkCLIAvailable(claudePath: path)
-        let hasEnvKey = shellEnvironment()["ANTHROPIC_API_KEY"] != nil
-        let authStatus = cliOk ? checkAuthStatus(claudePath: path) : nil
+        let cliOk = checkCLIAvailable(claudePath: path, environmentOverride: environmentOverride)
+        let env = resolvedEnvironment(override: environmentOverride)
+        let hasEnvKey = env["ANTHROPIC_API_KEY"] != nil
+        let authStatus = cliOk ? checkAuthStatus(claudePath: path, environmentOverride: environmentOverride) : nil
 
         let loggedIn: Bool
         if hasEnvKey {

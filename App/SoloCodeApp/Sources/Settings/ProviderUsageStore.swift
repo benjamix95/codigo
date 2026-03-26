@@ -32,6 +32,10 @@ final class ProviderUsageStore: ObservableObject {
         get { provider.claudeUsageSourceLabel }
         set { provider.claudeUsageSourceLabel = newValue }
     }
+    var claudeCLIStatus: ClaudeStatus? {
+        get { provider.claudeCLIStatus }
+        set { provider.claudeCLIStatus = newValue }
+    }
     var geminiUsage: GeminiCLIUsage? {
         get { provider.geminiUsage }
         set { provider.geminiUsage = newValue }
@@ -165,10 +169,19 @@ final class ProviderUsageStore: ObservableObject {
             claudeUsage = nil
             claudeUsageMessage = "Claude CLI not found"
             claudeUsageSourceLabel = nil
+            claudeCLIStatus = nil
             return
         }
         isRefreshing = true
         defer { isRefreshing = false }
+        let cliStatus = await Task.detached(priority: .utility) {
+            ClaudeDetector.detect(
+                customPath: claudePath,
+                environmentOverride: environmentOverride
+            )
+        }.value
+        claudeCLIStatus = cliStatus
+
         let trimmedAdminKey = anthropicAdminApiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let attemptedOnline = !trimmedAdminKey.isEmpty
         if attemptedOnline {
