@@ -123,4 +123,14 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
         XCTAssertTrue(receivedEffects.contains { $0.shouldEnableDebugMode })
         XCTAssertTrue(receivedEffects.contains { $0.shouldRevealDebugPanel })
     }
+
+    func testIsDebugProjectionSuppressedTracksSuspendResume() {
+        let service = PipelineIntegrationService()
+        let conversationId = UUID()
+        XCTAssertFalse(service.isDebugProjectionSuppressed(for: conversationId))
+        service.suspendDebugProjection(for: conversationId)
+        XCTAssertTrue(service.isDebugProjectionSuppressed(for: conversationId))
+        service.resumeDebugProjection(for: conversationId)
+        XCTAssertFalse(service.isDebugProjectionSuppressed(for: conversationId))
+    }
 }

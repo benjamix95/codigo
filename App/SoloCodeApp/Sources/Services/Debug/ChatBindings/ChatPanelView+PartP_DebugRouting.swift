@@ -11,6 +11,11 @@ extension ChatPanelView {
         eventConversationId: UUID?
     ) {
         if shouldHandleDebugStoreEvent(payload: payload, eventConversationId: eventConversationId) {
+            if let eventConversationId,
+               pipelineIntegrationService.isDebugProjectionSuppressed(for: eventConversationId) {
+                pipelineIntegrationService.applyOrBufferDebugEvent(event, for: eventConversationId)
+                return
+            }
             applyDebugEventToActiveStore(event)
             persistDebugState(for: selectedConversationId)
             return

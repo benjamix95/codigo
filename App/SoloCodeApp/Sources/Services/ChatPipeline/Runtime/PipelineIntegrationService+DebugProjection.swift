@@ -3,6 +3,11 @@ import Foundation
 private let kDebugEventBufferLimit = 500
 
 extension PipelineIntegrationService {
+    /// `true` quando la proiezione è sospesa (es. Stop dal pannello): gli eventi vanno bufferizzati.
+    func isDebugProjectionSuppressed(for conversationId: UUID) -> Bool {
+        suppressedDebugProjectionConversationIds.contains(conversationId)
+    }
+
     func registerDebugStore(
         _ debugStore: DebugStore,
         for conversationId: UUID,
