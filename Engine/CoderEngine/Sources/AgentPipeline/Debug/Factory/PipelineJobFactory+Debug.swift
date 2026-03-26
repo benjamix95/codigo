@@ -205,13 +205,13 @@ extension PipelineJobFactory {
                 "question_index": "1",
             ]
         )
-        // Entrambe le clarification dipendono solo da gatherContext: esecuzione parallela nel worker pool.
+        // Seconda domanda dopo la prima: evita due turn agente paralleli su debug_request_user.
         let describeQuestionTwoId = appendStage(
             .requestClarification,
             title: "Request Describe Clarification Two",
             taskType: .bugfix,
             priority: 94,
-            dependsOn: [gatherContextId],
+            dependsOn: [describeQuestionOneId].compactMap { $0 },
             metadata: [
                 "mcp_tool": "debug_request_user",
                 "request_kind": "question",

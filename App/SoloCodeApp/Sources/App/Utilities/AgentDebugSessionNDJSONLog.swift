@@ -15,6 +15,7 @@ enum AgentDebugSessionNDJSONLog {
         let sorted = workspaceRoots
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+            .map { Self.canonicalFilePath($0) }
             .sorted()
         queue.sync {
             guard !sorted.isEmpty,
@@ -32,6 +33,12 @@ enum AgentDebugSessionNDJSONLog {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             logFileURL = dir.appendingPathComponent("session-\(sessionId).ndjson", isDirectory: false)
         }
+    }
+
+    /// Allineamento al fingerprint Rust (`canonicalize`): stesso workspace → stesso bucket NDJSON.
+    private static func canonicalFilePath(_ path: String) -> String {
+        let url = URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath().standardizedFileURL
+        return url.path
     }
 
     private static func sha256Hex(_ string: String) -> String {

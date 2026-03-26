@@ -123,22 +123,22 @@ fn debug_set_phase(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
             json!({ "error_code": "validation" }),
         );
     }
-    let mut store = read_store(workspace);
-    store.phase = Some(phase.clone());
-    push_log(
-        &mut store,
-        "info",
-        "debug_set_phase",
-        format!("Phase -> {phase}"),
-        None,
-        Some("system".to_string()),
-        None,
-    );
-    persist_store(workspace, &store);
-    text_with_structured(
-        format!("OK — debug phase set to {phase}"),
-        json!({ "tool": "debug_set_phase", "phase": phase }),
-    )
+    store_try_mut(workspace, |store| {
+        store.phase = Some(phase.clone());
+        push_log(
+            store,
+            "info",
+            "debug_set_phase",
+            format!("Phase -> {phase}"),
+            None,
+            Some("system".to_string()),
+            None,
+        );
+        Ok(text_with_structured(
+            format!("OK — debug phase set to {phase}"),
+            json!({ "tool": "debug_set_phase", "phase": phase }),
+        ))
+    })
 }
 
 fn debug_request_user(arguments: &BTreeMap<String, Value>) -> CallToolResult {
@@ -164,23 +164,23 @@ fn debug_resolve(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
     if summary.is_empty() {
         return error_result("Error: 'summary' is required", json!({ "error_code": "validation" }));
     }
-    let mut store = read_store(workspace);
-    store.resolved_summary = Some(summary.clone());
-    store.phase = Some("resolved".to_string());
-    push_log(
-        &mut store,
-        "info",
-        "debug_resolve",
-        "Debug session resolved".to_string(),
-        Some(summary.clone()),
-        Some("system".to_string()),
-        None,
-    );
-    persist_store(workspace, &store);
-    text_with_structured(
-        "OK — debug session resolved".to_string(),
-        json!({ "tool": "debug_resolve", "summary": summary }),
-    )
+    store_try_mut(workspace, |store| {
+        store.resolved_summary = Some(summary.clone());
+        store.phase = Some("resolved".to_string());
+        push_log(
+            store,
+            "info",
+            "debug_resolve",
+            "Debug session resolved".to_string(),
+            Some(summary.clone()),
+            Some("system".to_string()),
+            None,
+        );
+        Ok(text_with_structured(
+            "OK — debug session resolved".to_string(),
+            json!({ "tool": "debug_resolve", "summary": summary }),
+        ))
+    })
 }
 
 fn debug_log(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
@@ -196,31 +196,43 @@ fn debug_log(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolR
     let hypothesis_id = non_empty(string_arg(arguments, "hypothesis_id"));
     let data = parse_json_map(string_arg(arguments, "data"));
 
-    let mut store = read_store(workspace);
-    push_log(&mut store, &severity, &source, message.clone(), detail, category, hypothesis_id.clone());
-    if let Some(last) = store.logs.last_mut() {
-        last.run_id = run_id.clone();
-        last.data = data.clone();
-    }
-    persist_store(workspace, &store);
-
-    text_with_structured(
-        "OK — debug log entry recorded".to_string(),
-        json!({
-            "tool": "debug_log",
-            "severity": severity,
-            "source": source,
-            "message": message,
-            "category": store.logs.last().and_then(|entry| entry.category.clone()).unwrap_or_default(),
-            "run_id": run_id.unwrap_or_default(),
-            "hypothesis_id": hypothesis_id.unwrap_or_default(),
-            "data": data
-        }),
-    )
+    store_try_mut(workspace, |store| {
+        push_log(
+            store,
+            &severity,
+            &source,
+            message.clone(),
+            detail,
+            category,
+            hypothesis_id.clone(),
+        );
+        if let Some(last) = store.logs.last_mut() {
+            last.run_id = run_id.clone();
+            last.data = data.clone();
+        }
+        let category_out = store
+            .logs
+            .last()
+            .and_then(|entry| entry.category.clone())
+            .unwrap_or_default();
+        Ok(text_with_structured(
+            "OK — debug log entry recorded".to_string(),
+            json!({
+                "tool": "debug_log",
+                "severity": severity,
+                "source": source,
+                "message": message,
+                "category": category_out,
+                "run_id": run_id.unwrap_or_default(),
+                "hypothesis_id": hypothesis_id.unwrap_or_default(),
+                "data": data
+            }),
+        ))
+    })
 }
 
 fn debug_query(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let store = read_store(workspace);
+    with_store_read(workspace, |store| {
     let search = string_arg(arguments, "search").to_lowercase();
     let severity = string_arg(arguments, "severity").to_lowercase();
     let hypothesis_id = string_arg(arguments, "hypothesis_id").to_lowercase();
@@ -252,12 +264,12 @@ fn debug_query(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
     } else {
         text_with_structured(lines.join("\n"), json!({ "tool": "debug_query", "count": lines.len() }))
     }
+    })
 }
 
 fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let mut store = read_store(workspace);
     match string_arg(arguments, "action").to_lowercase().as_str() {
-        "start" => {
+        "start" => store_try_mut(workspace, |store| {
             let session_id = generate_id("dbg");
             store.session_active = true;
             store.session_id = Some(session_id.clone());
@@ -265,7 +277,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
             store.resolved_summary = None;
             store.failing_test_filters.clear();
             push_log(
-                &mut store,
+                store,
                 "info",
                 "debug_session",
                 "Debug session started".to_string(),
@@ -273,8 +285,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                 Some("system".to_string()),
                 None,
             );
-            persist_store(workspace, &store);
-            text_with_structured(
+            Ok(text_with_structured(
                 "OK — debug session started".to_string(),
                 json!({
                     "tool": "debug_session",
@@ -282,12 +293,12 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                     "session_id": session_id,
                     "workspace_path": workspace.display().to_string()
                 }),
-            )
-        }
-        "end" | "stop" => {
+            ))
+        }),
+        "end" | "stop" => store_try_mut(workspace, |store| {
             let resolved_summary = store.resolved_summary.clone();
             push_log(
-                &mut store,
+                store,
                 "info",
                 "debug_session",
                 "Debug session ended".to_string(),
@@ -300,8 +311,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                 .resolved_summary
                 .clone()
                 .unwrap_or_else(|| "Debug session ended".to_string());
-            persist_store(workspace, &store);
-            text_with_structured(
+            Ok(text_with_structured(
                 "OK — debug session ended".to_string(),
                 json!({
                     "tool": "debug_session",
@@ -310,17 +320,17 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                     "workspace_path": store.workspace_path.clone().unwrap_or_default(),
                     "output": output
                 }),
-            )
-        }
-        "clear" => {
-            persist_store(workspace, &DebugStore::default());
-            text_with_structured(
+            ))
+        }),
+        "clear" => store_try_mut(workspace, |store| {
+            *store = DebugStore::default();
+            Ok(text_with_structured(
                 "OK — debug session cleared".to_string(),
                 json!({ "tool": "debug_session", "action": "clear" }),
-            )
-        }
-        "export" => {
-            let report = export_report(&store);
+            ))
+        }),
+        "export" => with_store_read(workspace, |store| {
+            let report = export_report(store);
             text_with_structured(
                 "OK — debug session exported".to_string(),
                 json!({
@@ -331,8 +341,8 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                     "output": report
                 }),
             )
-        }
-        "stats" => {
+        }),
+        "stats" => with_store_read(workspace, |store| {
             let errors = store.logs.iter().filter(|entry| entry.severity == "error").count();
             let warnings = store.logs.iter().filter(|entry| entry.severity == "warning").count();
             let stats = format!(
@@ -353,7 +363,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                     "output": stats
                 }),
             )
-        }
+        }),
         _ => error_result(
             "Error: unsupported debug_session action",
             json!({ "error_code": "validation" }),
@@ -362,7 +372,6 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
 }
 
 fn debug_hypothesize(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let mut store = read_store(workspace);
     let action = string_arg(arguments, "action").to_lowercase();
     let confidence_raw = string_arg(arguments, "confidence");
     let confidence_parsed = if confidence_raw.is_empty() {
@@ -381,107 +390,119 @@ fn debug_hypothesize(workspace: &Path, arguments: &BTreeMap<String, Value>) -> C
             if title.is_empty() {
                 return error_result("Error: 'title' is required", json!({ "error_code": "validation" }));
             }
-            let id = generate_id("hyp");
-            let status = non_empty(string_arg(arguments, "status")).unwrap_or_else(|| "proposed".to_string());
-            let mut hypothesis = DebugHypothesis {
-                id: id.clone(),
-                title: title.clone(),
-                status: status.clone(),
-                description: string_arg(arguments, "description"),
-                confidence: confidence_parsed.unwrap_or(50),
-                root_cause_type,
-                related_files,
-                related_tests,
-                evidence: vec![],
-                created_at: now_string(),
-            };
-            if let Some(item) = evidence.clone() {
-                hypothesis.evidence.push(item);
-            }
-            store.hypotheses.push(hypothesis.clone());
-            push_log(
-                &mut store,
-                "info",
-                "debug_hypothesize",
-                format!("Hypothesis {} proposed: {}", short_id(&id), title),
-                evidence,
-                Some("debug".to_string()),
-                Some(id.clone()),
-            );
-            persist_store(workspace, &store);
-            text_with_structured(
-                "OK — debug hypothesis proposed".to_string(),
-                json!({
-                    "tool": "debug_hypothesize",
-                    "action": "propose",
-                    "hypothesis_id": id,
-                    "hypothesis_title": title,
-                    "description": hypothesis.description,
-                    "hypothesis_status": status,
-                    "confidence": hypothesis.confidence,
-                    "root_cause_type": hypothesis.root_cause_type,
-                    "related_files": hypothesis.related_files.join(","),
-                    "related_tests": hypothesis.related_tests.join(","),
-                    "evidence": hypothesis.evidence.join("|||")
-                }),
-            )
+            store_try_mut(workspace, |store| {
+                let id = generate_id("hyp");
+                let status =
+                    non_empty(string_arg(arguments, "status")).unwrap_or_else(|| "proposed".to_string());
+                let mut hypothesis = DebugHypothesis {
+                    id: id.clone(),
+                    title: title.clone(),
+                    status: status.clone(),
+                    description: string_arg(arguments, "description"),
+                    confidence: confidence_parsed.unwrap_or(50),
+                    root_cause_type: root_cause_type.clone(),
+                    related_files: related_files.clone(),
+                    related_tests: related_tests.clone(),
+                    evidence: vec![],
+                    created_at: now_string(),
+                };
+                if let Some(item) = evidence.clone() {
+                    hypothesis.evidence.push(item);
+                }
+                store.hypotheses.push(hypothesis.clone());
+                push_log(
+                    store,
+                    "info",
+                    "debug_hypothesize",
+                    format!("Hypothesis {} proposed: {}", short_id(&id), title),
+                    evidence,
+                    Some("debug".to_string()),
+                    Some(id.clone()),
+                );
+                Ok(text_with_structured(
+                    "OK — debug hypothesis proposed".to_string(),
+                    json!({
+                        "tool": "debug_hypothesize",
+                        "action": "propose",
+                        "hypothesis_id": id,
+                        "hypothesis_title": title,
+                        "description": hypothesis.description,
+                        "hypothesis_status": status,
+                        "confidence": hypothesis.confidence,
+                        "root_cause_type": hypothesis.root_cause_type,
+                        "related_files": hypothesis.related_files.join(","),
+                        "related_tests": hypothesis.related_tests.join(","),
+                        "evidence": hypothesis.evidence.join("|||")
+                    }),
+                ))
+            })
         }
         "update" => {
             let hypothesis_id = string_arg(arguments, "hypothesis_id");
-            let resolved = resolve_hypothesis_id(&store, &hypothesis_id);
-            let Some(resolved_id) = resolved else {
-                return error_result("Error: hypothesis not found", json!({ "error_code": "validation" }));
-            };
-            let Some(existing) = store.hypotheses.iter_mut().find(|item| item.id == resolved_id) else {
-                return error_result("Error: hypothesis not found", json!({ "error_code": "validation" }));
-            };
-            let next_status = non_empty(string_arg(arguments, "status")).unwrap_or_else(|| existing.status.clone());
-            existing.status = next_status.clone();
-            if let Some(c) = confidence_parsed {
-                existing.confidence = c;
-            }
-            if !string_arg(arguments, "description").is_empty() {
-                existing.description = string_arg(arguments, "description");
-            }
-            if !string_arg(arguments, "root_cause_type").is_empty() {
-                existing.root_cause_type = string_arg(arguments, "root_cause_type");
-            }
-            if !parse_csv(string_arg(arguments, "related_files")).is_empty() {
-                existing.related_files = parse_csv(string_arg(arguments, "related_files"));
-            }
-            if !parse_csv(string_arg(arguments, "related_tests")).is_empty() {
-                existing.related_tests = parse_csv(string_arg(arguments, "related_tests"));
-            }
-            if let Some(item) = evidence.clone() {
-                existing.evidence.push(item);
-            }
-            let snapshot = existing.clone();
-            push_log(
-                &mut store,
-                "info",
-                "debug_hypothesize",
-                format!("Hypothesis {} updated to {}", short_id(&resolved_id), next_status),
-                evidence,
-                Some("debug".to_string()),
-                Some(resolved_id.clone()),
-            );
-            persist_store(workspace, &store);
-            text_with_structured(
-                "OK — debug hypothesis updated".to_string(),
-                json!({
-                    "tool": "debug_hypothesize",
-                    "action": "update",
-                    "hypothesis_id": resolved_id,
-                    "hypothesis_title": snapshot.title,
-                    "description": snapshot.description,
-                    "hypothesis_status": snapshot.status,
-                    "confidence": snapshot.confidence,
-                    "root_cause_type": snapshot.root_cause_type,
-                    "related_files": snapshot.related_files.join(","),
-                    "related_tests": snapshot.related_tests.join(","),
-                    "evidence": snapshot.evidence.join("|||")
-                }),
-            )
+            store_try_mut(workspace, |store| {
+                let resolved = resolve_hypothesis_id(store, &hypothesis_id);
+                let Some(resolved_id) = resolved else {
+                    return Err(error_result(
+                        "Error: hypothesis not found",
+                        json!({ "error_code": "validation" }),
+                    ));
+                };
+                let Some(idx) = store.hypotheses.iter().position(|item| item.id == resolved_id) else {
+                    return Err(error_result(
+                        "Error: hypothesis not found",
+                        json!({ "error_code": "validation" }),
+                    ));
+                };
+                let next_status = non_empty(string_arg(arguments, "status"))
+                    .unwrap_or_else(|| store.hypotheses[idx].status.clone());
+                store.hypotheses[idx].status = next_status.clone();
+                if let Some(c) = confidence_parsed {
+                    store.hypotheses[idx].confidence = c;
+                }
+                if !string_arg(arguments, "description").is_empty() {
+                    store.hypotheses[idx].description = string_arg(arguments, "description");
+                }
+                if !string_arg(arguments, "root_cause_type").is_empty() {
+                    store.hypotheses[idx].root_cause_type = string_arg(arguments, "root_cause_type");
+                }
+                if !parse_csv(string_arg(arguments, "related_files")).is_empty() {
+                    store.hypotheses[idx].related_files =
+                        parse_csv(string_arg(arguments, "related_files"));
+                }
+                if !parse_csv(string_arg(arguments, "related_tests")).is_empty() {
+                    store.hypotheses[idx].related_tests =
+                        parse_csv(string_arg(arguments, "related_tests"));
+                }
+                if let Some(item) = evidence.clone() {
+                    store.hypotheses[idx].evidence.push(item);
+                }
+                let snapshot = store.hypotheses[idx].clone();
+                push_log(
+                    store,
+                    "info",
+                    "debug_hypothesize",
+                    format!("Hypothesis {} updated to {}", short_id(&resolved_id), next_status),
+                    evidence,
+                    Some("debug".to_string()),
+                    Some(resolved_id.clone()),
+                );
+                Ok(text_with_structured(
+                    "OK — debug hypothesis updated".to_string(),
+                    json!({
+                        "tool": "debug_hypothesize",
+                        "action": "update",
+                        "hypothesis_id": resolved_id,
+                        "hypothesis_title": snapshot.title,
+                        "description": snapshot.description,
+                        "hypothesis_status": snapshot.status,
+                        "confidence": snapshot.confidence,
+                        "root_cause_type": snapshot.root_cause_type,
+                        "related_files": snapshot.related_files.join(","),
+                        "related_tests": snapshot.related_tests.join(","),
+                        "evidence": snapshot.evidence.join("|||")
+                    }),
+                ))
+            })
         }
         _ => error_result(
             "Error: unsupported debug_hypothesize action",
@@ -491,56 +512,55 @@ fn debug_hypothesize(workspace: &Path, arguments: &BTreeMap<String, Value>) -> C
 }
 
 fn debug_timeline(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let store = read_store(workspace);
-    let filter = string_arg(arguments, "filter").to_lowercase();
-    let show_all = filter.is_empty() || filter == "all";
-    let mut lines = Vec::new();
-    if show_all || filter.contains("phases") {
-        if let Some(phase) = store.phase.as_deref() {
-            lines.push(format!("phase: {phase}"));
+    with_store_read(workspace, |store| {
+        let filter = string_arg(arguments, "filter").to_lowercase();
+        let show_all = filter.is_empty() || filter == "all";
+        let mut lines = Vec::new();
+        if show_all || filter.contains("phases") {
+            if let Some(phase) = store.phase.as_deref() {
+                lines.push(format!("phase: {phase}"));
+            }
         }
-    }
-    if show_all || filter.contains("hypotheses") {
-        for hypothesis in &store.hypotheses {
-            lines.push(format!(
-                "hypothesis {} [{}] {}",
-                short_id(&hypothesis.id),
-                hypothesis.status,
-                hypothesis.title
-            ));
+        if show_all || filter.contains("hypotheses") {
+            for hypothesis in &store.hypotheses {
+                lines.push(format!(
+                    "hypothesis {} [{}] {}",
+                    short_id(&hypothesis.id),
+                    hypothesis.status,
+                    hypothesis.title
+                ));
+            }
         }
-    }
-    if show_all || filter.contains("logs") {
-        for entry in &store.logs {
-            lines.push(format!(
-                "{} [{}] {} — {}",
-                entry.timestamp, entry.severity, entry.source, entry.message
-            ));
+        if show_all || filter.contains("logs") {
+            for entry in &store.logs {
+                lines.push(format!(
+                    "{} [{}] {} — {}",
+                    entry.timestamp, entry.severity, entry.source, entry.message
+                ));
+            }
         }
-    }
-    let output = if lines.is_empty() {
-        "No debug timeline available.".to_string()
-    } else {
-        lines.join("\n")
-    };
-    text_with_structured(
-        output.clone(),
-        json!({ "tool": "debug_timeline", "output": output, "format": string_arg(arguments, "format") }),
-    )
+        let output = if lines.is_empty() {
+            "No debug timeline available.".to_string()
+        } else {
+            lines.join("\n")
+        };
+        text_with_structured(
+            output.clone(),
+            json!({ "tool": "debug_timeline", "output": output, "format": string_arg(arguments, "format") }),
+        )
+    })
 }
 
 fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let mut store = read_store(workspace);
     let action = string_arg(arguments, "action").to_lowercase();
     match action.as_str() {
-        "capture" => {
+        "capture" => store_try_mut(workspace, |store| {
             let label = non_empty(string_arg(arguments, "label"))
                 .unwrap_or_else(|| format!("snapshot-{}", store.snapshots.len() + 1));
-            let snapshot = build_snapshot(&store, &label);
+            let snapshot = build_snapshot(store, &label);
             store.snapshots.retain(|item| item.label != label);
             store.snapshots.push(snapshot.clone());
-            persist_store(workspace, &store);
-            text_with_structured(
+            Ok(text_with_structured(
                 format!("Snapshot '{}' captured", label),
                 json!({
                     "tool": "debug_snapshot",
@@ -549,12 +569,12 @@ fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Call
                     "detail": format!("Snapshot '{}' captured", snapshot.label),
                     "output": snapshot_summary(&snapshot)
                 }),
-            )
-        }
-        "compare" => {
+            ))
+        }),
+        "compare" => with_store_read(workspace, |store| {
             let label = string_arg(arguments, "label");
             let compare_with = string_arg(arguments, "compare_with");
-            let current = build_snapshot(&store, &label);
+            let current = build_snapshot(store, &label);
             let Some(previous) = store.snapshots.iter().find(|item| item.label == compare_with) else {
                 return error_result("Error: snapshot not found", json!({ "error_code": "validation" }));
             };
@@ -582,8 +602,8 @@ fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Call
                     "output": output
                 }),
             )
-        }
-        "list" => {
+        }),
+        "list" => with_store_read(workspace, |store| {
             let output = if store.snapshots.is_empty() {
                 "No snapshots have been captured yet.".to_string()
             } else {
@@ -597,7 +617,7 @@ fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Call
                 output.clone(),
                 json!({ "tool": "debug_snapshot", "action": "list", "output": output }),
             )
-        }
+        }),
         _ => error_result("Error: unsupported debug_snapshot action", json!({ "error_code": "validation" })),
     }
 }
@@ -656,7 +676,6 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     let scope = non_empty(string_arg(arguments, "scope")).unwrap_or_else(|| "related".to_string());
     let filter = string_arg(arguments, "filter");
     let path = string_arg(arguments, "path");
-    let mut store = read_store(workspace);
 
     let xcodebuild = resolved_xcodebuild_path();
     let Some(xcodebuild) = xcodebuild else {
@@ -664,7 +683,8 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     };
 
     let executions = if scope == "failing" {
-        if store.failing_test_filters.is_empty() {
+        let filters = with_store_read(workspace, |s| s.failing_test_filters.clone());
+        if filters.is_empty() {
             return text_with_structured(
                 "No previously failing Xcode tests recorded in this runtime session.".to_string(),
                 json!({
@@ -676,7 +696,7 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
                 }),
             );
         }
-        grouped_executions_for_filters(&store.failing_test_filters)
+        grouped_executions_for_filters(&filters)
     } else if scope == "integration" {
         vec![DebugTestExecution {
             scheme: "Solo Code-IntegrationTests".to_string(),
@@ -741,38 +761,38 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         }
     }
 
-    store.failing_test_filters = dedupe(failing.clone());
-    if exit_code == 0 {
-        store.failing_test_filters.clear();
-    }
-    persist_store(workspace, &store);
-
-    let output = format!(
-        "Xcode tests {}: {} passed, {} failed\nschemes: {}\n{}",
-        if exit_code == 0 { "PASSED" } else { "FAILED" },
-        passed,
-        failed,
-        executions.iter().map(|item| item.scheme.clone()).collect::<Vec<_>>().join(", "),
-        outputs.join("\n\n")
-    );
-    text_with_structured(
+    store_try_mut(workspace, |store| {
+        store.failing_test_filters = dedupe(failing.clone());
         if exit_code == 0 {
-            "OK — debug test check passed".to_string()
-        } else {
-            "OK — debug test check failed".to_string()
-        },
-        json!({
-            "tool": "debug_test_check",
-            "scope": scope,
-            "detail": format!("{}: {} passed, {} failed [{}]", if exit_code == 0 { "PASSED" } else { "FAILED" }, passed, failed, scope),
-            "output": output,
-            "passed": passed,
-            "failed": failed,
-            "overall_status": if exit_code == 0 { "passed" } else { "failed" },
-            "schemes": executions.iter().map(|item| item.scheme.clone()).collect::<Vec<_>>().join(","),
-            "filter": filter
-        }),
-    )
+            store.failing_test_filters.clear();
+        }
+        let output = format!(
+            "Xcode tests {}: {} passed, {} failed\nschemes: {}\n{}",
+            if exit_code == 0 { "PASSED" } else { "FAILED" },
+            passed,
+            failed,
+            executions.iter().map(|item| item.scheme.clone()).collect::<Vec<_>>().join(", "),
+            outputs.join("\n\n")
+        );
+        Ok(text_with_structured(
+            if exit_code == 0 {
+                "OK — debug test check passed".to_string()
+            } else {
+                "OK — debug test check failed".to_string()
+            },
+            json!({
+                "tool": "debug_test_check",
+                "scope": scope,
+                "detail": format!("{}: {} passed, {} failed [{}]", if exit_code == 0 { "PASSED" } else { "FAILED" }, passed, failed, scope),
+                "output": output,
+                "passed": passed,
+                "failed": failed,
+                "overall_status": if exit_code == 0 { "passed" } else { "failed" },
+                "schemes": executions.iter().map(|item| item.scheme.clone()).collect::<Vec<_>>().join(","),
+                "filter": filter
+            }),
+        ))
+    })
 }
 
 fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
@@ -1279,31 +1299,46 @@ fn debug_store_path(workspace: &Path) -> PathBuf {
         .join("debug_state.json")
 }
 
-fn read_store(workspace: &Path) -> DebugStore {
-    let _guard = DEBUG_STORE_IO.lock().unwrap();
-    let path = debug_store_path(workspace);
-    let Ok(data) = fs::read(&path) else {
-        return DebugStore::default();
-    };
-    serde_json::from_slice(&data).unwrap_or_default()
-}
-
-fn write_store(workspace: &Path, store: &DebugStore) -> Result<(), String> {
-    let path = debug_store_path(workspace);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+fn load_store_from_disk(path: &Path) -> DebugStore {
+    match fs::read(path) {
+        Ok(data) => serde_json::from_slice(&data).unwrap_or_default(),
+        Err(_) => DebugStore::default(),
     }
-    let data = serde_json::to_vec_pretty(store).map_err(|error| error.to_string())?;
-    let tmp_path = path.with_extension("json.tmp");
-    fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
-    fs::rename(&tmp_path, &path).map_err(|error| error.to_string())
 }
 
-/// Wrapper che logga l'errore se write_store fallisce, senza silenziarlo.
-fn persist_store(workspace: &Path, store: &DebugStore) {
+fn save_store_to_disk(path: &Path, store: &DebugStore) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let data = serde_json::to_vec_pretty(store).map_err(|e| e.to_string())?;
+    let tmp_path = path.with_extension("json.tmp");
+    fs::write(&tmp_path, &data).map_err(|e| e.to_string())?;
+    fs::rename(&tmp_path, path).map_err(|e| e.to_string())
+}
+
+fn with_store_read<T>(workspace: &Path, f: impl FnOnce(&DebugStore) -> T) -> T {
     let _guard = DEBUG_STORE_IO.lock().unwrap();
-    if let Err(e) = write_store(workspace, store) {
-        eprintln!("[debug_tools] persist_store failed: {e}");
+    let path = debug_store_path(workspace);
+    let store = load_store_from_disk(&path);
+    f(&store)
+}
+
+/// Transazione atomica: lock per tutta la mutazione; `Err` = nessun write su disco.
+fn store_try_mut(
+    workspace: &Path,
+    f: impl FnOnce(&mut DebugStore) -> Result<CallToolResult, CallToolResult>,
+) -> CallToolResult {
+    let _guard = DEBUG_STORE_IO.lock().unwrap();
+    let path = debug_store_path(workspace);
+    let mut store = load_store_from_disk(&path);
+    match f(&mut store) {
+        Ok(res) => {
+            if let Err(e) = save_store_to_disk(&path, &store) {
+                eprintln!("[debug_tools] persist failed: {e}");
+            }
+            res
+        }
+        Err(err) => err,
     }
 }
 

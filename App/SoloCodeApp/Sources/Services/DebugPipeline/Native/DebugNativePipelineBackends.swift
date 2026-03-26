@@ -131,12 +131,8 @@ struct DebugNativeLLDBBackend: DebugNativePipelineBackend {
         case .nativeRefresh:
             state = await debugService.refresh()
         case .nativeSyncBreakpoints:
-            let breakpointState = await debugService.syncBreakpoints(context.debugBreakpoints)
-            if context.watchExpressions.isEmpty {
-                state = breakpointState
-            } else {
-                state = await debugService.syncWatches(context.watchExpressions)
-            }
+            // Le watch sono gestite dallo stage dedicato `nativeSyncWatches` (sequenza dopo i breakpoint).
+            state = await debugService.syncBreakpoints(context.debugBreakpoints)
         case .nativeSyncWatches:
             state = await debugService.syncWatches(context.watchExpressions)
         case .nativeStepIn:
