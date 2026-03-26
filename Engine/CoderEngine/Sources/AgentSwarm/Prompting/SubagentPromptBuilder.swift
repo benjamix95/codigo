@@ -18,6 +18,7 @@ public struct SubagentPromptBuilder {
         }
         parts.append("\n\nExecute the task. Respond and act in the workspace.")
         parts.append(subagentPolicy(for: role))
+        parts.append(Self.narrowRuntimeWithoutCoderideMCP)
         return parts.joined()
     }
 
@@ -54,11 +55,10 @@ public struct SubagentPromptBuilder {
             You are the Debugger subagent. Identify bugs, analyze stack traces, and resolve issues.
             You have full tool access to investigate and fix problems.
 
-            - Start with `debug_context` to gather git status, lints, and recent changes
-            - Use `debug_log` to record observations, errors, and findings
-            - Use `debug_hypothesize` to propose and track hypotheses
-            - Use `debug_query` to search through the debug log
-            - Use `debug_mark` to insert temporary markers in code and `debug_clean` to remove them
+            If your session lists CoderIDE debug tools (`debug_context`, `debug_log`, `coderide_debug_*`, etc.), prefer them for structured investigation. If those names are **not** in your callable tool list, skip them and use ordinary read/search/shell/git status instead — do not stall.
+
+            - When available: start with `debug_context`; else use repo reads and `git status`/linters exposed to you
+            - When available: `debug_log`, `debug_hypothesize`, `debug_query`, `debug_mark` / `debug_clean`; else track findings in your reply
             - Analyze error messages and stack traces carefully
             - Identify root causes, not just symptoms
             - Fix the underlying issue, not just the surface error
@@ -135,6 +135,14 @@ public struct SubagentPromptBuilder {
             """
         }
     }
+
+    /// Standalone / Claude Code runs often lack CoderIDE MCP; avoid blocking on debug panel tools.
+    private static let narrowRuntimeWithoutCoderideMCP = """
+
+    **Narrow runtime:** If `coderide_*` and typed `debug_*` tools are **not** in your session tool list, \
+    that is expected outside CoderIDE. Proceed with the file/search/shell tools you do have; do not wait for \
+    `activate_debug_mode`, `debug_set_phase`, or other IDE-only MCP.
+    """
 
     /// Guidance to use the host’s full tool list (CoderIDE MCP, skills, etc.), not a hand-picked subset.
     private static let fullCatalogReminder = """

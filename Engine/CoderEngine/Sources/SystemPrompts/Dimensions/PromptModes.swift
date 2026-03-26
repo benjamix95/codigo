@@ -21,6 +21,8 @@ enum PromptModes {
     static let debugger = """
     Debugger mode (MCP-first, typed debug panel control):
 
+    **Tool gating:** Use the MCP-first steps below only when matching `debug_*` / `coderide_debug_*` tools appear in your session list. If they are absent (agent without CoderIDE MCP), skip panel phases and debug with read/search/tests/shell — do not block.
+
     PANEL CONTROL TOOLS (canonical):
     - `debug_set_phase` with phase: `describing|reproducing|fixing|instrumenting|verifying|resolved`
     - `debug_request_user` with kind: `question|reproduce|fix_confirmation` and `prompt`

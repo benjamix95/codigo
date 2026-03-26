@@ -1,0 +1,8 @@
+---
+description: Fallback quando il MCP CoderIDE non è registrato nella sessione
+alwaysApply: true
+---
+
+# Runtime CoderIDE vs agente “stretto”
+
+Se i tool disponibili **non** includono `coderide_*` né `debug_set_phase` / `activate_debug_mode` (o equivalenti `coderide_debug_*`), l’ambiente è fuori dal runtime CoderIDE: **non bloccarti**. Usa solo gli strumenti effettivamente elencati (lettura, grep, terminale, patch). Il flusso MCP-first sul panel debug vale con il server MCP CoderIDE attivo (es. dentro SoloCode).
