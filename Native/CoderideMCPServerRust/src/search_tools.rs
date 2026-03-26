@@ -68,7 +68,15 @@ fn glob(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult
     if pattern.is_empty() {
         return CallToolResult::error("Error: 'pattern' parameter is required");
     }
-    match run_rg(workspace, &["--files", "-g", pattern.as_str()]) {
+    let path_scope = resolved_path_scope(arguments);
+    let search_dir = match crate::workspace_paths::resolve_search_directory(
+        workspace,
+        crate::workspace_paths::first_comma_scope_segment(&path_scope),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
+    match run_rg(&search_dir, &["--files", "-g", pattern.as_str()]) {
         Ok(output) if output.is_empty() => CallToolResult::text("No matches found."),
         Ok(output) => CallToolResult::text(output),
         Err(()) => CallToolResult::error("Error: failed to execute rg"),
@@ -131,8 +139,10 @@ fn grep(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult
 
     // Path scope — restrict search to a subdirectory.
     let path_scope = resolved_path_scope(arguments);
-    let search_dir = match crate::workspace_paths::resolve_search_directory(workspace, &path_scope)
-    {
+    let search_dir = match crate::workspace_paths::resolve_search_directory(
+        workspace,
+        crate::workspace_paths::first_comma_scope_segment(&path_scope),
+    ) {
         Ok(p) => p,
         Err(msg) => return CallToolResult::error(msg),
     };
@@ -191,8 +201,16 @@ fn find_files(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
     if pattern.is_empty() {
         return CallToolResult::error("Missing 'query' argument");
     }
+    let path_scope = resolved_path_scope(arguments);
+    let search_dir = match crate::workspace_paths::resolve_search_directory(
+        workspace,
+        crate::workspace_paths::first_comma_scope_segment(&path_scope),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     let extension_filter = string_arg(arguments, "extension");
-    let output = run_rg(workspace, &["--files"]);
+    let output = run_rg(&search_dir, &["--files"]);
     let Ok(output) = output else {
         return CallToolResult::error("Error: failed to enumerate files");
     };
@@ -229,7 +247,15 @@ fn find_symbol(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
         keyword_group,
         regex_escape(&query)
     );
-    let Ok(output) = run_rg(workspace, &["-n", "--no-heading", "-e", &regex]) else {
+    let path_scope = resolved_path_scope(arguments);
+    let search_dir = match crate::workspace_paths::resolve_search_directory(
+        workspace,
+        crate::workspace_paths::first_comma_scope_segment(&path_scope),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
+    let Ok(output) = run_rg(&search_dir, &["-n", "--no-heading", "-e", &regex]) else {
         return CallToolResult::error("Error: failed to search symbols");
     };
     let lines = output.lines().take(20).collect::<Vec<_>>();
@@ -250,7 +276,15 @@ fn find_references(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
         return CallToolResult::error("Missing 'query' argument");
     }
     let regex = format!(r"\b{}\b", regex_escape(&query));
-    let Ok(output) = run_rg(workspace, &["-n", "--no-heading", "-e", &regex]) else {
+    let path_scope = resolved_path_scope(arguments);
+    let search_dir = match crate::workspace_paths::resolve_search_directory(
+        workspace,
+        crate::workspace_paths::first_comma_scope_segment(&path_scope),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
+    let Ok(output) = run_rg(&search_dir, &["-n", "--no-heading", "-e", &regex]) else {
         return CallToolResult::error("Error: failed to search references");
     };
     let lines = output.lines().take(100).collect::<Vec<_>>();
@@ -344,12 +378,21 @@ fn codebase_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
         return CallToolResult::error("Missing 'query' argument");
     }
 
+    let scope_raw = resolved_codebase_search_path_scope(arguments);
+    let search_dir = match crate::workspace_paths::resolve_search_directory(
+        workspace,
+        crate::workspace_paths::first_comma_scope_segment(&scope_raw),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
+
     let terms = codebase_search_tokenize(&query);
 
     // Single term → fast path (simple grep).
     if terms.len() <= 1 {
         let search_term = if terms.is_empty() { &query } else { &terms[0] };
-        let Ok(output) = run_rg(workspace, &["-n", "--no-heading", "--smart-case", "-e", search_term]) else {
+        let Ok(output) = run_rg(&search_dir, &["-n", "--no-heading", "--smart-case", "-e", search_term]) else {
             return CallToolResult::error("Error: failed to search codebase");
         };
         let lines = output.lines().take(50).collect::<Vec<_>>();
@@ -364,7 +407,7 @@ fn codebase_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
     let mut line_content: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     for term in &terms {
-        let Ok(output) = run_rg(workspace, &["-n", "--no-heading", "--smart-case", "-e", term]) else {
+        let Ok(output) = run_rg(&search_dir, &["-n", "--no-heading", "--smart-case", "-e", term]) else {
             continue;
         };
         for line in output.lines().take(500) {
@@ -419,6 +462,17 @@ fn codebase_search_tokenize(query: &str) -> Vec<String> {
         .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_').to_lowercase())
         .filter(|w| w.len() >= 2 && !STOP.contains(&w.as_str()))
         .collect()
+}
+
+/// Scope per `coderide_codebase_search`: non usa `path` (riservato come alias della query / filePattern).
+fn resolved_codebase_search_path_scope(arguments: &BTreeMap<String, Value>) -> String {
+    for key in ["pathScope", "target_directories", "targetDirectories"] {
+        let value = string_arg(arguments, key);
+        if !value.is_empty() {
+            return value;
+        }
+    }
+    String::new()
 }
 
 fn resolved_codebase_search_query(arguments: &BTreeMap<String, Value>) -> String {

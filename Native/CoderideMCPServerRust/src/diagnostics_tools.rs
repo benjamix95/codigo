@@ -168,9 +168,12 @@ fn semantic_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
         return CallToolResult::error("Missing 'query' argument");
     }
 
-    // Resolve path scope from multiple aliases.
-    let path_scope = resolved_path_scope_for_search(arguments);
-    let search_dir = match crate::workspace_paths::resolve_search_directory(workspace, &path_scope) {
+    // Resolve path scope from multiple aliases (primo segmento se lista separata da virgole).
+    let path_scope_raw = resolved_path_scope_for_search(arguments);
+    let search_dir = match crate::workspace_paths::resolve_search_directory(
+        workspace,
+        crate::workspace_paths::first_comma_scope_segment(&path_scope_raw),
+    ) {
         Ok(p) => p,
         Err(msg) => return CallToolResult::error(msg),
     };
@@ -187,7 +190,11 @@ fn semantic_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
         .clamp(0.0, 1.0);
     let show_scoring = crate::search_tools::bool_arg(arguments, "show_scoring").unwrap_or(false);
     let strict_scope = crate::search_tools::bool_arg(arguments, "strict_scope").unwrap_or(false);
-    let target_directories = target_directories_for_search(arguments, &path_scope);
+    let target_directories = match target_directories_for_search(workspace, arguments, &path_scope_raw)
+    {
+        Ok(v) => v,
+        Err(msg) => return CallToolResult::error(msg),
+    };
 
     if strict_scope && target_directories.is_empty() {
         return CallToolResult::error(
@@ -474,7 +481,11 @@ fn semantic_search_via_persisted_index(
     })
 }
 
-fn target_directories_for_search(arguments: &BTreeMap<String, Value>, path_scope: &str) -> Vec<String> {
+fn target_directories_for_search(
+    workspace: &Path,
+    arguments: &BTreeMap<String, Value>,
+    path_scope: &str,
+) -> Result<Vec<String>, String> {
     let raw = [
         crate::search_tools::string_arg(arguments, "target_directories"),
         crate::search_tools::string_arg(arguments, "targetDirectories"),
@@ -485,11 +496,19 @@ fn target_directories_for_search(arguments: &BTreeMap<String, Value>, path_scope
     .find(|value| !value.is_empty())
     .unwrap_or_else(|| path_scope.to_string());
 
-    raw.split(',')
-        .map(|segment| segment.trim().trim_matches('/'))
-        .filter(|segment| !segment.is_empty() && *segment != ".")
-        .map(|segment| format!("{segment}/"))
-        .collect()
+    let mut out = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for segment in raw.split(',') {
+        let segment = segment.trim().trim_matches('/');
+        if segment.is_empty() || segment == "." {
+            continue;
+        }
+        let prefix = crate::workspace_paths::scoped_directory_prefix_for_filter(workspace, segment)?;
+        if !prefix.is_empty() && seen.insert(prefix.clone()) {
+            out.push(prefix);
+        }
+    }
+    Ok(out)
 }
 
 fn load_semantic_chunks_from_disk(cache_path: &Path) -> Option<Vec<PersistedSemanticChunk>> {
