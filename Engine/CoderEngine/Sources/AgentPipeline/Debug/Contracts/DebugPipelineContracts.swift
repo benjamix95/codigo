@@ -32,6 +32,8 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
     case describePipelineBootstrap = "describe_pipeline_bootstrap"
     /// Un solo turno MCP: debug_set_phase(reproducing) → debug_request_user(reproduce).
     case reproducePipelineBootstrap = "reproduce_pipeline_bootstrap"
+    /// Un solo turno MCP: debug_set_phase(fixing) → debug_snapshot capture before-fix.
+    case fixPipelineBootstrap = "fix_pipeline_bootstrap"
     case activateMode = "activate_mode"
     case sessionStart = "session_start"
     case sessionExport = "session_export"
@@ -75,7 +77,7 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
             return .reproducing
         case .instrument:
             return .instrumenting
-        case .setFixPhase, .snapshot, .hypothesize, .fix, .reviewFix:
+        case .fixPipelineBootstrap, .setFixPhase, .snapshot, .hypothesize, .fix, .reviewFix:
             return .fixing
         case .setVerifyPhase, .verify, .clean, .awaitFixGate, .sessionExport, .sessionStop:
             return .verifying
@@ -94,7 +96,8 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
              .nativeSyncWatches, .nativeStepIn, .nativeStepOver,
              .nativeStepOut, .nativeStop:
             return .nativeCommand
-        case .describePipelineBootstrap, .reproducePipelineBootstrap, .activateMode, .sessionStart,
+        case .describePipelineBootstrap, .reproducePipelineBootstrap, .fixPipelineBootstrap,
+             .activateMode, .sessionStart,
              .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase, .setVerifyPhase,
              .requestClarification, .requestReproduction,
@@ -118,7 +121,8 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
         case .reproduce, .instrument, .snapshot, .hypothesize,
              .fix, .clean, .timeline:
             return .debugger
-        case .describePipelineBootstrap, .reproducePipelineBootstrap, .activateMode, .sessionStart,
+        case .describePipelineBootstrap, .reproducePipelineBootstrap, .fixPipelineBootstrap,
+             .activateMode, .sessionStart,
              .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase, .setVerifyPhase,
              .requestClarification, .requestReproduction, .resolve,

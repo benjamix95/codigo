@@ -109,7 +109,7 @@ extension PipelineJobFactory {
             case .investigation:
                 switch stage {
                 case .nativeStart, .nativeSyncBreakpoints, .nativeSyncWatches,
-                     .reproduce, .instrument, .setFixPhase, .snapshot,
+                     .reproduce, .instrument, .fixPipelineBootstrap, .snapshot,
                      .hypothesize, .fix, .reviewFix, .setVerifyPhase,
                      .verify, .awaitFixGate:
                     return true
@@ -304,24 +304,21 @@ extension PipelineJobFactory {
             dependsOn: [reproduceId],
             metadata: ["debug_tool": "debug_instrument"]
         )
-        let setFixPhaseId = appendStage(
-            .setFixPhase,
-            title: "Set Fix Phase",
+        let fixBootstrapPrompt = """
+        In one turn, in strict order:
+        1) Tool debug_set_phase with phase=fixing.
+        2) Tool debug_snapshot with action=capture and label=before-fix.
+        Summarize briefly that fixing phase is active and the baseline snapshot is stored.
+        """
+        let fixPipelineBootstrapId = appendStage(
+            .fixPipelineBootstrap,
+            title: "Enter Fix Phase and Capture Before-Fix Snapshot",
             taskType: .bugfix,
             priority: 71,
             dependsOn: [instrumentId],
-            metadata: ["mcp_tool": "debug_set_phase", "phase": "fixing"]
-        )
-        let beforeFixSnapshotId = appendStage(
-            .snapshot,
-            title: "Capture Before Fix Snapshot",
-            taskType: .bugfix,
-            priority: 70,
-            dependsOn: [setFixPhaseId],
             metadata: [
-                "debug_tool": "debug_snapshot",
-                "action": "capture",
-                "label": "before-fix",
+                "mcp_tool": "debug_set_phase",
+                "pipeline_full_prompt": fixBootstrapPrompt,
             ]
         )
         let proposeHypothesisId = appendStage(
@@ -329,7 +326,7 @@ extension PipelineJobFactory {
             title: "Propose Debug Hypothesis",
             taskType: .bugfix,
             priority: 69,
-            dependsOn: [beforeFixSnapshotId],
+            dependsOn: [fixPipelineBootstrapId],
             metadata: ["debug_tool": "debug_hypothesize", "action": "propose"]
         )
         let fixId = appendStage(

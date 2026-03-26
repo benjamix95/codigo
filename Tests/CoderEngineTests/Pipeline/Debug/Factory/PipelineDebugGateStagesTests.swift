@@ -37,6 +37,26 @@ final class PipelineDebugGateStagesTests: XCTestCase {
         XCTAssertLessThan(gateIdx, reproduceIdx, "awaitReproduceGate must come before reproduce")
     }
 
+    func testFixBootstrapIsAfterInstrumentAndBeforeFirstHypothesis() throws {
+        let request = DebugSessionRequest(errorSummary: "Bug")
+        let (_, tasks) = PipelineJobFactory.fromDebugSession(
+            request,
+            workspace: "/tmp/test",
+            providerId: "test-provider"
+        )
+
+        let instrumentIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .instrument })
+        let fixBootIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .fixPipelineBootstrap })
+        let proposeHypothesisIdx = try XCTUnwrap(
+            tasks.firstIndex { task in
+                task.debugStage == .hypothesize && task.metadata["action"] == "propose"
+            }
+        )
+
+        XCTAssertLessThan(instrumentIdx, fixBootIdx, "fixPipelineBootstrap must follow instrument")
+        XCTAssertLessThan(fixBootIdx, proposeHypothesisIdx, "propose hypothesis must follow fix bootstrap")
+    }
+
     func testFixGateWaitsForVerifyAndHypothesisUpdateBeforeClean() throws {
         let request = DebugSessionRequest(
             errorSummary: "Bug",
@@ -124,7 +144,8 @@ final class PipelineDebugGateStagesTests: XCTestCase {
                        "Investigation slice should include awaitFixGate")
         XCTAssertFalse(tasks.contains { $0.debugStage == .awaitReproduceGate },
                         "Investigation slice should NOT include awaitReproduceGate")
-        XCTAssertTrue(tasks.contains { $0.debugStage == .setFixPhase })
+        XCTAssertTrue(tasks.contains { $0.debugStage == .fixPipelineBootstrap })
+        XCTAssertFalse(tasks.contains { $0.debugStage == .setFixPhase })
         XCTAssertTrue(tasks.contains { $0.debugStage == .setVerifyPhase })
     }
 
