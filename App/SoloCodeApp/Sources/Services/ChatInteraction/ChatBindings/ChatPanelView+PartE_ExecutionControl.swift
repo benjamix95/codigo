@@ -4,7 +4,11 @@ import CoderEngine
 extension ChatPanelView {
     internal func interruptTask(for targetConversationId: UUID?) {
         let scope = executionScopeForActiveTask()
-        executionController.terminate(scope: scope)
+
+        // Cancel the pipeline & tool runtime BEFORE killing the OS process.
+        // This triggers onTermination → cancelSessionBridge in Rust, setting
+        // the cancelled flag so the Rust worker thread can exit its read loop
+        // before the pipe is forcibly closed by process termination.
         let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: targetConversationId)
         var didCancelTask = didCancelPipeline || cancelRunTask(for: targetConversationId)
         if !didCancelTask, let target = targetConversationId,
@@ -14,6 +18,13 @@ extension ChatPanelView {
                 pipelineIntegrationService.cancelCurrentJob(for: agentId)
                 || cancelRunTask(for: agentId)
         }
+
+        // Now terminate the OS process as a fallback. The Rust worker has
+        // already been notified via cancelSessionBridge and will exit its
+        // read loop; terminate() ensures the child process is killed even
+        // if the Rust side hasn't reacted yet.
+        executionController.terminate(scope: scope)
+
         applyFlowCoordinatorState(for: targetConversationId) { $0.interrupt() }
         conversationRuntime.taskFlushTask?.cancel()
         conversationRuntime.taskFlushTask = nil

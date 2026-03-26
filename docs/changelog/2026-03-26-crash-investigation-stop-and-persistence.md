@@ -57,13 +57,17 @@ Creato report dettagliato: `docs/bugs/P0-2026-03-26-rust-from-raw-parts-crash-on
 |----|----------|-------------|-------|
 | P0-2026-03-26-rust-from-raw-parts | P0 | Crash Rust `from_raw_parts` quando si preme Stop nel composer | Documentato, fix proposto |
 
-## Fix proposto (non ancora implementato)
+## Fix implementato
 
-Invertire l'ordine di cancellazione:
-1. Prima: `cancelSessionBridge()` → Rust imposta `cancelled = true`
-2. Poi: `executionController.terminate()` → killa il processo OS
+### Inversione ordine di cancellazione
 
-Questo dà al worker Rust il tempo di uscire dal loop di lettura prima che la pipe venga chiusa.
+**File modificati:**
+
+1. **`ChatPanelView+PartE_ExecutionControl.swift`** — `interruptTask()` ora chiama `cancelCurrentJob()` e `cancelRunTask()` prima di `executionController.terminate()`. Il processo OS viene killato come fallback dopo la notifica Rust.
+
+2. **`RustMainChatProviderAdapter.swift`** — In `onTermination`, `cancelSessionBridge()` viene chiamato prima di `driver.cancel()`, garantendo che il Rust worker thread veda il flag `cancelled` prima dell'interruzione del poll loop.
+
+3. **`RustMainChatProviderAdapterTests.swift`** — Aggiunto test di regressione `testCancelSessionBridgeFiresBeforeDriverCancel()` che verifica l'ordine corretto di cancellazione.
 
 ## File investigati
 

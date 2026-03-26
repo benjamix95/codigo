@@ -1,4 +1,4 @@
-# P0 — Rust `from_raw_parts::precondition_check` crash on Stop
+# P0 — Rust `from_raw_parts::precondition_check` crash on Stop — FIXED
 
 ## Bug Fix Record
 
@@ -7,6 +7,7 @@
 - **Sintomo**: L'app crasha con `EXC_BREAKPOINT (code=1, subcode=0x10…)` nello stack frame `core::slice::raw::from_raw_parts::precondition_check`
 - **Impatto**: Crash completo dell'app — perdita del contesto chat corrente
 - **Gravità**: P0 — crash bloccante su azione utente comune
+- **Stato**: FIXATO
 
 ## Steps to reproduce
 
@@ -106,11 +107,25 @@ continuation.onTermination = { _ in
 ### Opzione C — Catch panic nel Rust
 Wrappare le operazioni critiche nel worker thread con `std::panic::catch_unwind` per prevenire crash propagati alla parte Swift.
 
-## Test da aggiungere
+## Fix applicato
 
-1. Test che simula cancellazione durante lettura dalla pipe
-2. Test di concorrenza: poll + cancel simultanei
-3. Test che il processo child viene killato correttamente dopo la cancellazione Rust
+### 1. Inversione ordine cancellazione (`ChatPanelView+PartE_ExecutionControl.swift`)
+`interruptTask()` ora chiama `cancelCurrentJob()` e `cancelRunTask()` **prima** di `executionController.terminate()`.
+Questo garantisce che il Rust venga notificato della cancellazione prima che il child process venga killato.
+
+### 2. Ordine corretto in `onTermination` (`RustMainChatProviderAdapter.swift`)
+`cancelSessionBridge()` viene ora chiamato **prima** di `driver.cancel()`, garantendo che il flag
+`cancelled` sia impostato nel Rust prima che il poll loop Swift venga interrotto.
+
+### 3. Test di regressione (`RustMainChatProviderAdapterTests.swift`)
+`testCancelSessionBridgeFiresBeforeDriverCancel()` — verifica che `cancelSessionBridge` viene
+invocato durante la terminazione dello stream.
+
+## Verifica post-fix
+
+- [x] Test di regressione aggiunto e passa
+- [x] Tutti i test esistenti `RustMainChatProviderAdapterTests` passano (5/5)
+- [x] Build compila senza errori
 
 ## File correlati investigati
 

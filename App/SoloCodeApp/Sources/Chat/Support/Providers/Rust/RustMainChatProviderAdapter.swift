@@ -146,10 +146,13 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
             }
 
             continuation.onTermination = { _ in
-                driver.cancel()
+                // Notify Rust FIRST so the worker thread sees the cancelled
+                // flag and can exit its blocking read loop before the Swift
+                // Task cancellation propagates and the pipe is closed.
                 let _ = self.cancelSessionBridge(
                     MainChatProviderSessionRequestBridge(schemaVersion: 1, sessionId: sessionId)
                 )
+                driver.cancel()
             }
         }
     }

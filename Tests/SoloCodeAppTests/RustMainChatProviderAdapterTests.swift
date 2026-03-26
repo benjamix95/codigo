@@ -91,6 +91,98 @@ final class RustMainChatProviderAdapterTests: XCTestCase {
         }
     }
 
+    /// Regression: cancelSessionBridge must fire BEFORE driver.cancel() so the
+    /// Rust worker thread sees the cancelled flag and exits its blocking read
+    /// loop before the pipe is closed.  (P0-2026-03-26-rust-from-raw-parts)
+    func testCancelSessionBridgeFiresBeforeDriverCancel() async throws {
+        let cancelOrder = OrderTracker()
+
+        // Poll returns "streaming" indefinitely so the driver stays alive.
+        let streamingResponse = MainChatProviderSessionResponseBridge(
+            schemaVersion: 1,
+            error: nil,
+            snapshot: .init(
+                sessionId: "cancel-order-test",
+                providerId: "codex-cli",
+                backend: .codexCli,
+                status: "streaming",
+                terminalError: nil,
+                activeAccountId: nil,
+                roundRobinIndex: 0,
+                emittedEventCount: 0,
+                lastFailoverReason: nil
+            ),
+            events: []
+        )
+
+        let provider = MainChatRustTransportProvider(
+            id: "codex-cli",
+            displayName: "Codex",
+            attachmentCapabilities: .none,
+            authenticated: true,
+            config: MainChatProviderSessionConfigBridge(
+                providerId: "codex-cli",
+                displayName: "Codex",
+                backend: .codexCli,
+                workspacePath: "/tmp",
+                workspacePaths: ["/tmp"],
+                prompt: "",
+                systemPrompt: nil,
+                contextPrompt: nil,
+                model: nil,
+                apiKey: nil,
+                baseURL: nil,
+                toolDefinitionsJson: nil,
+                extraHeaders: [:],
+                codexPath: "/usr/bin/codex",
+                codexSandbox: "workspace-write",
+                codexAskForApproval: "never",
+                codexModelOverride: nil,
+                codexReasoningEffort: nil,
+                codexModelProvider: nil,
+                codexFastMode: true,
+                codexSessionFullAccess: false,
+                codexPreferResponsesWireAPI: false,
+                claudePath: nil,
+                claudeModel: nil,
+                claudeAllowedTools: [],
+                claudeMcpServerPath: nil,
+                geminiCliPath: nil,
+                geminiModelOverride: nil,
+                attachments: [],
+                cliAccounts: []
+            ),
+            startSessionBridge: { _ in .init(schemaVersion: 1, error: nil, snapshot: nil, events: []) },
+            pollSessionBridge: { _ in
+                // Yield to allow cancellation to propagate.
+                Thread.sleep(forTimeInterval: 0.01)
+                return streamingResponse
+            },
+            cancelSessionBridge: { _ in
+                cancelOrder.record("cancelSessionBridge")
+                return nil
+            }
+        )
+
+        let stream = try await provider.send(prompt: "hello", context: .minimal(), attachments: nil)
+        let task = Task {
+            for try await _ in stream { /* consume */ }
+        }
+
+        // Give the poll loop time to start.
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        // Cancel the stream — this triggers onTermination.
+        task.cancel()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        let events = cancelOrder.events
+        XCTAssertTrue(
+            events.contains("cancelSessionBridge"),
+            "cancelSessionBridge should have been called on termination"
+        )
+    }
+
     private func makeProvider(
         providerId: String = "codex-cli",
         displayName: String = "Codex",
@@ -166,5 +258,19 @@ private final class ResponseQueue {
     func next() -> MainChatProviderSessionResponseBridge? {
         guard !responses.isEmpty else { return nil }
         return responses.removeFirst()
+    }
+}
+
+/// Thread-safe event order tracker for verifying call sequences.
+private final class OrderTracker: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _events: [String] = []
+
+    func record(_ event: String) {
+        lock.withLock { _events.append(event) }
+    }
+
+    var events: [String] {
+        lock.withLock { _events }
     }
 }
