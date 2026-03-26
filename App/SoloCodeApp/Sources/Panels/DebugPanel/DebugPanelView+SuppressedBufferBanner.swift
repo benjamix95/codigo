@@ -1,3 +1,4 @@
+import CoderEngine
 import SwiftUI
 
 // MARK: - Pipeline: coda eventi con proiezione sospesa

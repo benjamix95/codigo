@@ -65,14 +65,16 @@ final class ReviewPanelCoordinator {
                 }
             }
             let snapshot = await sessionState.snapshot()
+            let reviewError = streamError
+            let reviewCancelled = Task.isCancelled
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.isReviewRunning = false
                 onFinish(
                     ReviewPanelReviewTaskResult(
                         snapshot: snapshot,
-                        error: streamError,
-                        wasCancelled: Task.isCancelled
+                        error: reviewError,
+                        wasCancelled: reviewCancelled
                     )
                 )
             }
@@ -114,11 +116,13 @@ final class ReviewPanelCoordinator {
                     streamError = error.localizedDescription
                 }
             }
+            let chatError = streamError
+            let chatCancelled = Task.isCancelled
             await MainActor.run {
                 onFinish(
                     ReviewPanelChatTaskResult(
-                        error: streamError,
-                        wasCancelled: Task.isCancelled
+                        error: chatError,
+                        wasCancelled: chatCancelled
                     )
                 )
             }
