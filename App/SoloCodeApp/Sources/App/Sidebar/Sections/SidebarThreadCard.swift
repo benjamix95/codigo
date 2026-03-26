@@ -10,8 +10,12 @@ extension SidebarView {
         let hasDraft = !(chatStore.draftTexts[conv.id]?
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         let isActive = chatStore.isTaskActive(for: conv.id)
+        let isStreaming = chatStore.isAssistantStreaming(in: conv.id)
+        let showsWorkIndicator = isActive || isStreaming
         let statusText = chatStore.taskStatusTexts[conv.id]
         let metrics = SidebarThreadMetrics.compute(conversation: conv, toolTraceStore: toolTraceStore)
+        let chatTodos = todoStore.displayTodosForChat(for: conv.id)
+        let todoProgressLabel = SidebarThreadTodoCaption.progressLabel(displayTodos: chatTodos)
 
         return VStack(alignment: .leading, spacing: 4) {
             // Row 1: stato opzionale (pin / task / bozza) + titolo + badge modalità
@@ -20,12 +24,12 @@ extension SidebarView {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.textSecondary.opacity(0.9))
-                } else if isActive {
-                    Circle()
-                        .fill(Color.accentColor)
-                        .frame(width: 6, height: 6)
-                        .opacity(0.9)
-                } else if hasDraft {
+                }
+                if showsWorkIndicator {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: 12, height: 12)
+                } else if !conv.isPinned, hasDraft {
                     Image(systemName: "pencil.line")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.orange)
@@ -43,7 +47,7 @@ extension SidebarView {
                 }
             }
 
-            // Row 2: status/date + diff stats + progress
+            // Row 2: status/date + diff stats
             HStack(spacing: 6) {
                 if isActive, let status = statusText, !status.isEmpty {
                     Text(status)
@@ -51,6 +55,12 @@ extension SidebarView {
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .textShimmer(active: true)
+                } else if isStreaming {
+                    Text("In risposta…")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .lineLimit(1)
                         .textShimmer(active: true)
                 } else {
                     Text(relativeDate(conv.createdAt, relativeTo: now))
@@ -66,18 +76,19 @@ extension SidebarView {
                         linesRemoved: metrics.linesRemoved
                     )
                 }
+            }
 
-                if isActive {
-                    ProgressView()
-                        .controlSize(.mini)
-                }
+            if let todoProgressLabel {
+                Text(todoProgressLabel)
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
             }
         }
         .padding(.horizontal, selected ? 8 : 10)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(threadRowBackground(selected: selected, isActive: isActive))
+                .fill(threadRowBackground(selected: selected, isActive: showsWorkIndicator))
         )
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contextMenu { threadContextMenu(conv) }

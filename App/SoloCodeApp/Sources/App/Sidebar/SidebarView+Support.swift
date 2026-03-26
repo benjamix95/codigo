@@ -88,18 +88,12 @@ extension SidebarView {
         let context = projectContextStore.context(id: effectiveContextId)
         let folderScope = scopedFolderPath(for: context)
 
-        if let reusable = chatStore.reusableEmptyConversation(
+        // Azione esplicita "New Thread": crea sempre un nuovo thread. Il riuso di conversazioni
+        // vuote resta per altri flussi (invio, cambio contesto) tramite `reusableEmptyConversation`.
+        selectedConversationId = chatStore.createConversation(
             contextId: effectiveContextId,
-            contextFolderPath: folderScope,
-            mode: nil
-        ) {
-            selectedConversationId = reusable.id
-        } else {
-            selectedConversationId = chatStore.createConversation(
-                contextId: effectiveContextId,
-                contextFolderPath: folderScope
-            )
-        }
+            contextFolderPath: folderScope
+        )
         if let effectiveContextId {
             projectContextStore.activeContextId = effectiveContextId
             workspaceStore.syncActiveWorkspace(with: projectContextStore.context(id: effectiveContextId))
