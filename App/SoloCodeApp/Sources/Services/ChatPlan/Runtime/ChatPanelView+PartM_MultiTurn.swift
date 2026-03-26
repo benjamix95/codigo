@@ -157,6 +157,19 @@ extension ChatPanelView {
                 || parsePlanScreeningDecision(from: screeningText) == .noPlanNeeded
 
             if skipFullPipeline {
+                let rustFlag = screeningSnapshot?.output?.skipFullPlanPipeline == true
+                let swiftParse = parsePlanScreeningDecision(from: screeningText) == .noPlanNeeded
+                AgentDebugSessionNDJSONLog.append(
+                    hypothesisId: "PLAN_SCREEN",
+                    location: "ChatPanelView+PartM_MultiTurn.swift:screening",
+                    message: "plan_pipeline_skipped_direct_chat",
+                    data: [
+                        "conversationId": conversationId.uuidString,
+                        "rustSkipFullPlanPipeline": rustFlag ? "1" : "0",
+                        "swiftNoPlanNeededParse": swiftParse ? "1" : "0",
+                        "inline": shouldRunPlanInline ? "1" : "0",
+                    ]
+                )
                 await MainActor.run {
                     guard self.conversationId == conversationId else { return }
                     chatStore.updateLastAssistantMessage(

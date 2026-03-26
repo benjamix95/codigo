@@ -29,7 +29,7 @@ func planScreeningStatusMessage(for decision: PlanScreeningDecision) -> String {
     case .planNeeded, .unknown:
         return "Starting codebase analysis..."
     case .noPlanNeeded:
-        return "Request looks straightforward. Continuing..."
+        return "No structured plan is needed for this request. Answering directly…"
     }
 }
 

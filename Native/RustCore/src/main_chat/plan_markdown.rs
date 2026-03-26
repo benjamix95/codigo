@@ -24,7 +24,9 @@ pub fn parse_plan_screening_decision(text: &str) -> &'static str {
 
 pub fn plan_screening_status_message(decision: &str) -> String {
     match decision {
-        "no_plan_needed" => "Request looks straightforward. Continuing...".to_string(),
+        "no_plan_needed" => {
+            "No structured plan is needed for this request. Answering directly…".to_string()
+        }
         _ => "Starting codebase analysis...".to_string(),
     }
 }

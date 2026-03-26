@@ -271,7 +271,7 @@ extension PlanShortcutAndCommandTests {
         )
         XCTAssertEqual(
             planScreeningStatusMessage(for: .noPlanNeeded),
-            "Request looks straightforward. Continuing..."
+            "No structured plan is needed for this request. Answering directly…"
         )
     }
 }
