@@ -120,8 +120,9 @@ struct SoloCodeApp: App {
         .onAppear {
             configureWindow()
             bootstrapPersistenceIfNeeded()
-            Task { @MainActor in
-                FontPreferences.registerBundledFonts()
+                Task { @MainActor in
+                    SoloCodeSkillsPolicySource.ensureSkillsDirectoryExists()
+                    FontPreferences.registerBundledFonts()
                 projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
                 workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
                 chatStore.migrateLegacyContextsIfNeeded(

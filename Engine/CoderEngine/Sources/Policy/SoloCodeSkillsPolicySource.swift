@@ -15,8 +15,16 @@ public enum SoloCodeSkillsPolicySource {
         public let content: String
     }
 
+    /// Crea `~/.solocode/skills` (e `.solocode`) se assenti. Idempotente; chiamabile all’avvio app o prima della prima lettura.
+    public static func ensureSkillsDirectoryExists() {
+        let dir = skillsDirectory
+        guard !FileManager.default.fileExists(atPath: dir) else { return }
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    }
+
     /// Sezioni da fondere nel policy bundle (full text, obbligatorio per il modello).
     public static func instructionPolicyItems() -> [InstructionItem] {
+        ensureSkillsDirectoryExists()
         let fm = FileManager.default
         let dir = skillsDirectory
         guard fm.fileExists(atPath: dir),
@@ -44,6 +52,7 @@ public enum SoloCodeSkillsPolicySource {
 
     /// Voci per l’elenco «Detected local skills» (discovery).
     public static func skillCatalogLines() -> [String] {
+        ensureSkillsDirectoryExists()
         let fm = FileManager.default
         let dir = skillsDirectory
         guard fm.fileExists(atPath: dir),
@@ -60,6 +69,7 @@ public enum SoloCodeSkillsPolicySource {
 
     /// Corpo skill per il tool `skill` / esecuzione, nome normalizzato senza estensione (es. `doc-review`).
     public static func skillMarkdown(forNormalizedName normalized: String) -> String? {
+        ensureSkillsDirectoryExists()
         let stem = normalized
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
