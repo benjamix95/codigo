@@ -30,6 +30,8 @@ struct CodeReviewPanelView: View {
             tabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+            ReviewPanelSubagentsStrip(store: store)
+
             if showsBottomComposer {
                 Divider().opacity(0.2)
                 bottomComposer
