@@ -153,6 +153,10 @@ extension CodeReviewPanelStore {
               let parsedTodo = EventNormalizer.parseTodoWrite(payload: payload) else {
             return
         }
+        let normalizedTitle = parsedTodo.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let existingBeforeUpsert = parsedTodo.id.flatMap { id in
+            todoStore.todos.first(where: { $0.id == id })?.planConversationId
+        }
         todoStore.upsertFromAgent(
             id: parsedTodo.id,
             title: parsedTodo.title,
@@ -164,11 +168,14 @@ extension CodeReviewPanelStore {
             conversationId: conversationId
         )
         if parsedTodo.status == .done {
-            let effectiveConversationId = conversationId
-                ?? parsedTodo.id.flatMap { id in
-                    todoStore.todos.first(where: { $0.id == id })?.planConversationId
-                }
-            _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveConversationId)
+            let effectiveAfterUpsert = conversationId
+                ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(
+                    preferredId: parsedTodo.id,
+                    normalizedTitle: normalizedTitle,
+                    eventConversationId: conversationId
+                )
+                ?? existingBeforeUpsert
+            _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
         }
     }
 }

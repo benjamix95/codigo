@@ -81,6 +81,10 @@ extension ChatPanelView {
                 chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: sourcePlanId)
             }
         } else {
+            let normalizedTitle = todo.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let existingBeforeUpsert = todo.id.flatMap { id in
+                todoStore.todos.first(where: { $0.id == id })?.planConversationId
+            }
             todoStore.upsertFromAgent(
                 id: todo.id,
                 title: todo.title,
@@ -92,11 +96,14 @@ extension ChatPanelView {
                 conversationId: conversationId
             )
             if todo.status == .done {
-                let effectiveConversationId = conversationId
-                    ?? todo.id.flatMap { id in
-                        todoStore.todos.first(where: { $0.id == id })?.planConversationId
-                    }
-                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveConversationId)
+                let effectiveAfterUpsert = conversationId
+                    ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(
+                        preferredId: todo.id,
+                        normalizedTitle: normalizedTitle,
+                        eventConversationId: conversationId
+                    )
+                    ?? existingBeforeUpsert
+                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
             }
         }
         recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)

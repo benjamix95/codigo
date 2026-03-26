@@ -168,6 +168,10 @@ extension PipelineIntegrationService {
                     )
                 }
             } else {
+                let normalizedTitle = todo.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                let existingBeforeUpsert = todoId.flatMap { id in
+                    todoStore.todos.first(where: { $0.id == id })?.planConversationId
+                }
                 todoStore.upsertFromAgent(
                     id: todoId,
                     title: todo.title,
@@ -179,7 +183,14 @@ extension PipelineIntegrationService {
                     conversationId: conversationId
                 )
                 if todo.status == .done {
-                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: conversationId)
+                    let effectiveAfterUpsert = conversationId
+                        ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(
+                            preferredId: todoId,
+                            normalizedTitle: normalizedTitle,
+                            eventConversationId: conversationId
+                        )
+                        ?? existingBeforeUpsert
+                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
                 }
             }
         }

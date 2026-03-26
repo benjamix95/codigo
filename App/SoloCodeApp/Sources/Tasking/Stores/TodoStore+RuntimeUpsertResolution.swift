@@ -2,12 +2,15 @@ import Foundation
 
 extension TodoStore {
     /// Dopo `upsertFromAgent`, la riga aggiornata può non avere più `preferredId` se il merge è avvenuto per titolo nello stesso scope.
+    /// Con `preferredId == nil`, la risoluzione è solo per titolo (`updatedAt`, `createdAt`, `id`).
+    /// Se `eventConversationId` è valorizzato ma nessun match ha quel `planConversationId`, restituisce `nil` (niente fallback verso altre chat).
     func planConversationIdForRuntimeTodoAfterUpsert(
-        preferredId: UUID,
+        preferredId: UUID?,
         normalizedTitle: String,
         eventConversationId: UUID?
     ) -> UUID? {
-        if let row = todos.first(where: { $0.id == preferredId }) {
+        if let preferredId,
+           let row = todos.first(where: { $0.id == preferredId }) {
             return row.planConversationId
         }
         let key = normalizedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -17,10 +20,24 @@ extension TodoStore {
                 && !$0.isOperationalPlaceholder
                 && $0.title.caseInsensitiveCompare(key) == .orderedSame
         }
-        if let eventConversationId,
-           let scoped = matches.first(where: { $0.planConversationId == eventConversationId }) {
-            return scoped.planConversationId
+        guard !matches.isEmpty else { return nil }
+
+        if let eventConversationId {
+            let scoped = matches.filter { $0.planConversationId == eventConversationId }
+            guard !scoped.isEmpty else { return nil }
+            return scoped.max(by: Self.runtimeTodoResolutionPrefersSecond)?.planConversationId
         }
-        return matches.first?.planConversationId
+        return matches.max(by: Self.runtimeTodoResolutionPrefersSecond)?.planConversationId
+    }
+
+    /// Ordine per `max(by:)` crescente: vince la riga con `updatedAt` più recente, poi `createdAt`, poi `id` lessicografico.
+    private static func runtimeTodoResolutionPrefersSecond(_ lhs: TodoItem, _ rhs: TodoItem) -> Bool {
+        if lhs.updatedAt != rhs.updatedAt {
+            return lhs.updatedAt < rhs.updatedAt
+        }
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt < rhs.createdAt
+        }
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 }

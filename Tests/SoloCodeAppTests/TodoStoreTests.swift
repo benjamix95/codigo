@@ -766,6 +766,58 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(resolved, conversationId)
     }
 
+    func testPlanConversationIdAfterUpsertPicksNewestUpdatedAmongDuplicateTitlesNoEvent() {
+        let store = makeStore()
+        let cOlder = UUID()
+        let cNewer = UUID()
+        store.upsertFromAgent(
+            id: UUID(),
+            title: "Dup",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: cOlder
+        )
+        Thread.sleep(forTimeInterval: 0.02)
+        store.upsertFromAgent(
+            id: UUID(),
+            title: "Dup",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: cNewer
+        )
+        let resolved = store.planConversationIdForRuntimeTodoAfterUpsert(
+            preferredId: UUID(),
+            normalizedTitle: "Dup",
+            eventConversationId: nil
+        )
+        XCTAssertEqual(resolved, cNewer)
+    }
+
+    func testPlanConversationIdAfterUpsertNilWhenEventScopeHasNoMatchingTodo() {
+        let store = makeStore()
+        let c1 = UUID()
+        let wrongScope = UUID()
+        store.upsertFromAgent(
+            id: UUID(),
+            title: "Scoped row",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: c1
+        )
+        let resolved = store.planConversationIdForRuntimeTodoAfterUpsert(
+            preferredId: nil,
+            normalizedTitle: "Scoped row",
+            eventConversationId: wrongScope
+        )
+        XCTAssertNil(resolved)
+    }
+
     func testResolveComposerTodoItemsMatchesDisplayTodosForChatCanonicalPlusRuntime() {
         let store = makeStore()
         let conversationId = UUID()

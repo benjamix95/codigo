@@ -98,7 +98,13 @@ extension ChatPanelView {
                 conversationId: targetConversationId
             )
             if todoStatus == .done {
-                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: targetConversationId)
+                let effectiveAfterUpsert = targetConversationId
+                    ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(
+                        preferredId: nil,
+                        normalizedTitle: title,
+                        eventConversationId: targetConversationId
+                    )
+                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
             }
         }
     }
