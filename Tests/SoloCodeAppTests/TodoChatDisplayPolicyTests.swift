@@ -17,6 +17,21 @@ final class TodoChatDisplayPolicyTests: XCTestCase {
         )
     }
 
+    func testPolicyAnchorsAgentOrphanToLexicographicallySmallestScopedThread() {
+        let convA = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let convB = UUID(uuidString: "BBBBBBBB-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let orphan = TodoItem(title: "Orphan", source: .agent, planConversationId: nil)
+        let scopedA = TodoItem(title: "A", source: .agent, planConversationId: convA)
+        let scopedB = TodoItem(title: "B", source: .agent, planConversationId: convB)
+        let visible = [orphan, scopedA, scopedB]
+        XCTAssertTrue(
+            TodoChatDisplayPolicy.itemAppearsInChat(orphan, conversationId: convA, visibleTodos: visible)
+        )
+        XCTAssertFalse(
+            TodoChatDisplayPolicy.itemAppearsInChat(orphan, conversationId: convB, visibleTodos: visible)
+        )
+    }
+
     func testPolicyHidesManualWhenChatOnlySeesForeignScopedWorld() {
         let convA = UUID()
         let convB = UUID()
