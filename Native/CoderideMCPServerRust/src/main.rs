@@ -19,7 +19,9 @@ mod skill_tools;
 mod subagent_tools;
 mod support_workflow_tools;
 mod todo_tools;
+mod tool_json_schema;
 mod tool_schema;
+mod tool_schema_verified_workflows;
 mod web_tools;
 
 use server::{run_stdio_server, ServerConfig};
