@@ -9,7 +9,6 @@ enum CodeReviewTab: String, CaseIterable {
     case findings = "Findings"
     case history = "Findings History"
     case timeline = "Timeline"
-    case chat = "Chat"
     case settings = "Settings"
 
     var icon: String {
@@ -18,7 +17,6 @@ enum CodeReviewTab: String, CaseIterable {
         case .findings: return "exclamationmark.triangle"
         case .history: return "clock.arrow.circlepath"
         case .timeline: return "clock"
-        case .chat: return "bubble.left.and.bubble.right"
         case .settings: return "gearshape"
         }
     }
@@ -110,6 +108,7 @@ struct ReviewPanelSettings: Codable, Equatable {
     var autoMergeAfterGreen: Bool = false
     var autoResolveConflicts: ReviewConflictAutomation = .safeOnly
     var showCandidatesInMainFindings: Bool = false
+    /// When true, `publishSummaryToChat` copies the text summary to the clipboard after a run.
     var publishOutcomeToChat: Bool = true
     var preferredMode: String = "Standard"
     var customInstructions: String = ""

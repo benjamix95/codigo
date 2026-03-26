@@ -21,15 +21,14 @@ struct ReviewRuntimeState {
     var lastError: String?
 }
 
-// MARK: - ReviewChatState
+// MARK: - ReviewPanelTranscriptState
 
-/// Chat messages and thread state for the review panel.
-struct ReviewChatState {
-    var chatMessages: [ReviewPanelMessage] = []
-    var isChatProcessing: Bool = false
-    var chatStartedAt: Date?
-    var chatThreads: [ReviewPanelChatThreadState] = []
-    var activeChatThreadId: String?
+/// In-memory transcript mirror for the Rust panel runtime reducer (stream / activity).
+/// Not shown in UI; review chat was removed from the panel.
+struct ReviewPanelTranscriptState {
+    var messages: [ReviewPanelMessage] = []
+    var isProcessing: Bool = false
+    var startedAt: Date?
 }
 
 // MARK: - ReviewGitState

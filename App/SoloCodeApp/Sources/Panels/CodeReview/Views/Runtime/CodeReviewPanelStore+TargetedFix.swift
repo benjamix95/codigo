@@ -159,8 +159,7 @@ extension CodeReviewPanelStore {
         )
         let outputMessageId = beginPanelActionOutput(
             title: "Apply Fix (\(findings.count))",
-            detail: prompt,
-            selectChatTab: true
+            detail: prompt
         )
         appendReviewRunSectionLine(
             id: outputMessageId,
@@ -175,8 +174,8 @@ extension CodeReviewPanelStore {
             sessionState: fixSessionState,
             sessionId: fixSessionId,
             conversationId: conversationId,
-            selectedTabOnStart: .chat,
-            selectedTabOnFinish: .chat,
+            selectedTabOnStart: .findings,
+            selectedTabOnFinish: .findings,
             onEvent: { [weak self] event in
                 self?.streamPanelActionOutput(id: outputMessageId, event: event)
             },
@@ -196,8 +195,7 @@ extension CodeReviewPanelStore {
                     }
                     self.appendPanelSystemMessage(
                         "Applied targeted fix run for \(findings.count) finding(s).",
-                        kind: .findingMutation,
-                        selectChatTab: false
+                        kind: .findingMutation
                     )
                 }
             },

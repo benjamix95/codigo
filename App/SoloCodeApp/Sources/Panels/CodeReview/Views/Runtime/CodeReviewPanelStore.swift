@@ -17,7 +17,6 @@ final class CodeReviewPanelStore: ObservableObject {
     let openFilesStore: OpenFilesStore
     let todoStore: TodoStore?
     let conversationId: UUID?
-    let chatSessionStore: ReviewPanelChatSessionStore
     let providerFactoryConfigBuilder: () -> ProviderFactoryConfig
 
     // MARK: - Coordinator
@@ -28,7 +27,7 @@ final class CodeReviewPanelStore: ObservableObject {
 
     @Published var navigation = ReviewNavigationState()
     @Published var runtime = ReviewRuntimeState()
-    @Published var chat = ReviewChatState()
+    @Published var transcript = ReviewPanelTranscriptState()
     @Published var git = ReviewGitState()
     @Published var scope = ReviewScopeState()
     @Published var history = ReviewHistoryState()
@@ -71,27 +70,19 @@ final class CodeReviewPanelStore: ObservableObject {
         set { runtime.lastError = newValue }
     }
 
-    // MARK: - Backward-compatible accessors – Chat
+    // MARK: - Transcript (Rust reducer mirror only; no chat UI)
 
     var chatMessages: [ReviewPanelMessage] {
-        get { chat.chatMessages }
-        set { chat.chatMessages = newValue }
+        get { transcript.messages }
+        set { transcript.messages = newValue }
     }
     var isChatProcessing: Bool {
-        get { chat.isChatProcessing }
-        set { chat.isChatProcessing = newValue }
+        get { transcript.isProcessing }
+        set { transcript.isProcessing = newValue }
     }
     var chatStartedAt: Date? {
-        get { chat.chatStartedAt }
-        set { chat.chatStartedAt = newValue }
-    }
-    var chatThreads: [ReviewPanelChatThreadState] {
-        get { chat.chatThreads }
-        set { chat.chatThreads = newValue }
-    }
-    var activeChatThreadId: String? {
-        get { chat.activeChatThreadId }
-        set { chat.activeChatThreadId = newValue }
+        get { transcript.startedAt }
+        set { transcript.startedAt = newValue }
     }
 
     /// Maps activity message ID → response message ID for split bubbles.
@@ -187,9 +178,7 @@ final class CodeReviewPanelStore: ObservableObject {
 
     // MARK: - Session Persistence
 
-    private var chatStateCancellable: AnyCancellable?
     private var taskActivityStoreCancellable: AnyCancellable?
-    var pendingChatConversationApplyTask: Task<Void, Never>?
 
     // MARK: - Accent Color
 
@@ -205,7 +194,6 @@ final class CodeReviewPanelStore: ObservableObject {
         openFilesStore: OpenFilesStore,
         todoStore: TodoStore? = nil,
         conversationId: UUID?,
-        chatSessionStore: ReviewPanelChatSessionStore? = nil,
         providerFactoryConfigBuilder: @escaping () -> ProviderFactoryConfig
     ) {
         self.taskActivityStore = taskActivityStore
@@ -215,44 +203,13 @@ final class CodeReviewPanelStore: ObservableObject {
         self.openFilesStore = openFilesStore
         self.todoStore = todoStore
         self.conversationId = conversationId
-        let resolvedChatSessionStore = chatSessionStore ?? ReviewPanelChatSessionStore.shared
-        self.chatSessionStore = resolvedChatSessionStore
         self.providerFactoryConfigBuilder = providerFactoryConfigBuilder
         self.settings = ReviewPanelSettingsPersistence.load()
 
-        let initialConversation = resolvedChatSessionStore.conversation(
-            for: Self.chatSessionKey(conversationId: conversationId)
-        )
-        // Apply initial state synchronously (safe during init, no view update in progress).
-        chatThreads = initialConversation.threads
-        activeChatThreadId = initialConversation.activeThreadId
-        let activeState = initialConversation.activeThreadId.flatMap { activeId in
-            initialConversation.threads.first(where: { $0.id == activeId })?.sessionState
-        } ?? .empty
-        chatMessages = activeState.messages
-        isChatProcessing = activeState.isProcessing
-        chatStartedAt = activeState.startedAt
         if let snapshot = taskActivityStore.codeReviewSnapshot(sessionId: nil, conversationId: conversationId),
            !snapshot.findings.isEmpty || snapshot.isActive {
             self.selectedTab = .findings
-        } else if !chatMessages.isEmpty {
-            self.selectedTab = .chat
         }
-        if let activeChatThreadId,
-           !applyPanelIntent("set_active_chat_thread", value: activeChatThreadId),
-           !ReviewCoreBridge.isEnabled {
-            self.activeChatThreadId = activeChatThreadId
-        }
-
-        let sessionKey = Self.chatSessionKey(conversationId: conversationId)
-        self.chatStateCancellable = resolvedChatSessionStore.$conversationsByKey
-            .map { $0[sessionKey] ?? .empty }
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] conversation in
-                guard let self else { return }
-                self.handleIncomingChatConversation(conversation)
-            }
         self.taskActivityStoreCancellable = taskActivityStore.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in

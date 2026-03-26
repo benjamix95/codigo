@@ -45,8 +45,7 @@ extension CodeReviewPanelStore {
                 sessionId: sessionId,
                 findingId: findingId,
                 title: "Patch pronta",
-                detail: "La patch proposta e il diff preview sono ora disponibili prima dell'apply.",
-                selectChatTab: false
+                detail: "La patch proposta e il diff preview sono ora disponibili prima dell'apply."
             )
         } catch {
             await markPatchFailure(
@@ -128,8 +127,7 @@ extension CodeReviewPanelStore {
         )
         appendPanelSystemMessage(
             "BugHunter queued on uncommitted changes.",
-            kind: .statusNote,
-            selectChatTab: true
+            kind: .statusNote
         )
     }
 
@@ -151,8 +149,7 @@ extension CodeReviewPanelStore {
         )
         appendPanelSystemMessage(
             "BugHunter queued on commit window \(primaryCommit.prefix(8)).",
-            kind: .statusNote,
-            selectChatTab: true
+            kind: .statusNote
         )
     }
 
@@ -176,8 +173,7 @@ extension CodeReviewPanelStore {
                 sessionId: sessionId,
                 findingId: artifact.findingId,
                 title: "Patch applicata",
-                detail: "Il fix è stato applicato e il lifecycle ora espone apply, validation e rollback.",
-                selectChatTab: false
+                detail: "Il fix è stato applicato e il lifecycle ora espone apply, validation e rollback."
             )
             if settings.autoOpenPRAfterApply {
                 await openPatchPullRequest(sessionId: sessionId, findingId: artifact.findingId)
@@ -250,8 +246,7 @@ extension CodeReviewPanelStore {
                 sessionId: sessionId,
                 findingId: findingId,
                 title: "Patch fallita",
-                detail: message,
-                selectChatTab: true
+                detail: message
             )
             return
         }

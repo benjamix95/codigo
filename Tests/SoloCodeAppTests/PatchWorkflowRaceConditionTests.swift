@@ -10,7 +10,6 @@ final class PatchWorkflowRaceConditionTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        ReviewPanelChatSessionStore.shared.clearAll()
     }
 
     // MARK: - currentPatches vs patchesForSession scoping

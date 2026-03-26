@@ -49,25 +49,8 @@ extension CodeReviewPanelStore {
         chatStartedAt = startedAt
         persistChatState()
     }
-    func persistChatState() {
-        chatSessionStore.replaceActiveState(
-            ReviewPanelChatSessionState(
-                messages: chatMessages,
-                isProcessing: isChatProcessing,
-                startedAt: chatStartedAt
-            ),
-            for: chatSessionKey
-        )
-    }
-    func ensureActiveChatThread() {
-        if activeChatThreadId == nil {
-            let threadId = chatSessionStore.createThread(for: chatSessionKey)
-            if !setActiveChatThread(threadId),
-               !ReviewCoreBridge.isEnabled {
-                activeChatThreadId = threadId
-            }
-        }
-    }
+    func persistChatState() {}
+    func ensureActiveChatThread() {}
     func firstNonEmpty(_ values: [String?]) -> String? {
         for value in values {
             let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -84,7 +67,7 @@ extension CodeReviewPanelStore {
             panelSessionId: panelSessionId,
             selectedFindingId: selectedFindingId,
             selectedHistoricalFindingId: selectedHistoricalFindingId,
-            activeChatThreadId: activeChatThreadId,
+            activeChatThreadId: nil,
             isRunning: isRunning,
             runStartedAt: runStartedAt,
             frozenTimerText: frozenTimerText,
@@ -104,15 +87,15 @@ extension CodeReviewPanelStore {
     }
 
     func applyRuntimeState(_ state: ReviewPanelRuntimeStateSnapshot) {
-        pendingChatConversationApplyTask?.cancel()
-        pendingChatConversationApplyTask = nil
-        if let tab = CodeReviewTab(rawValue: state.selectedTab) {
+        let normalizedTabRaw = state.selectedTab == "Chat"
+            ? CodeReviewTab.findings.rawValue
+            : state.selectedTab
+        if let tab = CodeReviewTab(rawValue: normalizedTabRaw) {
             selectedTab = tab
         }
         panelSessionId = state.panelSessionId
         selectedFindingId = state.selectedFindingId
         selectedHistoricalFindingId = state.selectedHistoricalFindingId
-        activeChatThreadId = state.activeChatThreadId
         isRunning = state.isRunning
         runStartedAt = state.runStartedAt
         frozenTimerText = state.frozenTimerText

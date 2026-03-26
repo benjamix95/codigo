@@ -6,7 +6,6 @@ import CoderEngine
 final class CodeReviewPanelSessionScopingTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        ReviewPanelChatSessionStore.shared.clearAll()
         setenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH", reviewCoreLibraryPath(), 1)
         ReviewCoreBridge.resetForTests()
     }
@@ -93,33 +92,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
 
         XCTAssertEqual(store.availableSnapshots.map(\.sessionId), ["session-a"])
         XCTAssertEqual(store.selectedSessionId, "session-a")
-    }
-    func testPanelStoreRestoresCachedChatSessionState() {
-        let conversationId = UUID()
-        let sessionKey = CodeReviewPanelStore.chatSessionKey(conversationId: conversationId)
-        _ = ReviewPanelChatSessionStore.shared.createThread(for: sessionKey, title: "Cached")
-        ReviewPanelChatSessionStore.shared.replaceState(
-            ReviewPanelChatSessionState(
-                messages: [
-                    ReviewPanelMessage(role: .user, content: "Run review"),
-                    ReviewPanelMessage(role: .assistant, content: "Streaming...", isStreaming: true),
-                ],
-                isProcessing: true,
-                startedAt: Date(timeIntervalSinceReferenceDate: 42)
-            ),
-            for: sessionKey
-        )
-
-        let store = makePanelStore(
-            taskActivityStore: TaskActivityStore(),
-            conversationId: conversationId
-        )
-
-        XCTAssertEqual(store.chatMessages.count, 2)
-        XCTAssertTrue(store.isChatProcessing)
-        XCTAssertEqual(store.chatMessages.last?.content, "Streaming...")
-        XCTAssertTrue(store.chatMessages.last?.isStreaming == true)
-        XCTAssertEqual(store.chatThreads.count, 1)
     }
     func testDeleteSessionRemovesSnapshotAndClearsSelection() async {
         let taskStore = TaskActivityStore()
@@ -240,9 +212,9 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
             conversationId: UUID()
         )
 
-        store.selectTab(.chat)
+        store.selectTab(.timeline)
 
-        XCTAssertEqual(store.selectedTab, .chat)
+        XCTAssertEqual(store.selectedTab, .timeline)
     }
 
     func testSelectTabUsesRustIntentWhenReviewCoreAvailable() throws {
@@ -252,10 +224,10 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
             conversationId: UUID()
         )
 
-        store.selectTab(.chat)
+        store.selectTab(.commands)
 
-        XCTAssertEqual(store.selectedTab, .chat)
-        XCTAssertEqual(store.makeRuntimeStateSnapshot().selectedTab, CodeReviewTab.chat.rawValue)
+        XCTAssertEqual(store.selectedTab, .commands)
+        XCTAssertEqual(store.makeRuntimeStateSnapshot().selectedTab, CodeReviewTab.commands.rawValue)
     }
     func testPanelApplyFixFailsClosedWithoutWorkspaceAndDoesNotTouchOtherFindings() async throws {
         try requireReviewCore()
@@ -544,116 +516,6 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
 
         XCTAssertFalse(store.hasSelectedMode(.securityAudit))
         XCTAssertTrue(store.hasSelectedMode(.bugFinder))
-    }
-    func testStructuredChatFindingsSyncsIntoFindingsTimelineAndDeduplicates() async throws {
-        let taskStore = TaskActivityStore()
-        let conversationId = UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!
-        let sessionId = "review-session-chat"
-        taskStore.ingestCodeReviewSnapshot(
-            makeSnapshot(sessionId: sessionId, conversationId: conversationId),
-            conversationId: conversationId
-        )
-
-        let store = makePanelStore(
-            taskActivityStore: taskStore,
-            conversationId: conversationId
-        )
-        store.setSelectedSession(sessionId)
-
-        let firstMessageId = UUID()
-        store.appendChatMessage(
-            ReviewPanelMessage(
-                id: firstMessageId,
-                role: .assistant,
-                kind: .reviewRun,
-                content: """
-                ## Findings
-                - Ho trovato un bug reale.
-
-                ```review_findings
-                {
-                  "findings": [
-                    {
-                      "severity": "warning",
-                      "category": "correctness",
-                      "file": "Sources/App/Main.swift",
-                      "line": 42,
-                      "message": "Missing guard before dereferencing the session",
-                      "suggested_fix": "Add a guard for the active session before reading the snapshot.",
-                      "confidence": 0.91
-                    }
-                  ]
-                }
-                ```
-                """
-            )
-        )
-
-        await store.syncStructuredFindingsFromChatResponse(messageId: firstMessageId)
-
-        let firstSnapshot = try XCTUnwrap(
-            taskStore.codeReviewSnapshot(
-                sessionId: sessionId,
-                conversationId: conversationId
-            )
-        )
-        XCTAssertEqual(firstSnapshot.findings.count, 1)
-        XCTAssertEqual(firstSnapshot.candidates.count, 0)
-        XCTAssertEqual(firstSnapshot.findings.first?.filePath, "Sources/App/Main.swift")
-        XCTAssertEqual(firstSnapshot.findings.first?.lineNumber, 42)
-        XCTAssertEqual(
-            firstSnapshot.findings.first?.suggestedFix,
-            "Add a guard for the active session before reading the snapshot."
-        )
-        XCTAssertEqual(firstSnapshot.events.count, 1)
-        XCTAssertEqual(firstSnapshot.events.first?.type, .findingAdded)
-        XCTAssertEqual(firstSnapshot.events.first?.metadata["file_path"], "Sources/App/Main.swift")
-        XCTAssertFalse(
-            store.chatMessages.first(where: { $0.id == firstMessageId })?.content.contains("```review_findings") ?? true
-        )
-
-        let duplicateMessageId = UUID()
-        store.appendChatMessage(
-            ReviewPanelMessage(
-                id: duplicateMessageId,
-                role: .assistant,
-                kind: .reviewRun,
-                content: """
-                ## Findings
-                - Ripeto lo stesso finding.
-
-                ```review_findings
-                {
-                  "findings": [
-                    {
-                      "severity": "warning",
-                      "category": "correctness",
-                      "file": "Sources/App/Main.swift",
-                      "line": 42,
-                      "message": "Missing guard before dereferencing the session",
-                      "suggested_fix": "Add a guard for the active session before reading the snapshot.",
-                      "confidence": 0.91
-                    }
-                  ]
-                }
-                ```
-                """
-            )
-        )
-
-        await store.syncStructuredFindingsFromChatResponse(messageId: duplicateMessageId)
-
-        let deduplicatedSnapshot = try XCTUnwrap(
-            taskStore.codeReviewSnapshot(
-                sessionId: sessionId,
-                conversationId: conversationId
-            )
-        )
-        XCTAssertEqual(deduplicatedSnapshot.findings.count, 1)
-        XCTAssertEqual(
-            deduplicatedSnapshot.events.filter { $0.type == .findingAdded }.count,
-            1
-        )
     }
     func testPanelLaunchPlanUsesRustPlannerForPrefixAndConfig() throws {
         let taskStore = TaskActivityStore()

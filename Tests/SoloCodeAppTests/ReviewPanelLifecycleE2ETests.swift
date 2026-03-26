@@ -1,21 +1,18 @@
+import AppKit
 import XCTest
 import CoderEngine
 @testable import CoderIDE
 
 @MainActor
 final class ReviewPanelLifecycleE2ETests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        ReviewPanelChatSessionStore.shared.clearAll()
-    }
-
     override func tearDown() {
         unsetenv("SOLOCODE_REVIEW_CORE_LIBRARY_PATH")
         unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT")
         ReviewCoreBridge.resetForTests()
         super.tearDown()
     }
-    func testPanelReviewLifecycleStreamsIntoPanelChatAndPublishesSummary() async throws {
+
+    func testPanelReviewLifecycleStreamsTranscriptAndCompletesSession() async throws {
         try requireReviewCore()
         let taskStore = TaskActivityStore()
         let conversationId = UUID()
@@ -46,8 +43,7 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         let prompt = "Run Standard on Uncommitted changes"
         let outputId = store.beginPanelActionOutput(
             title: "Run Standard on Uncommitted changes",
-            detail: prompt,
-            selectChatTab: true
+            detail: prompt
         )
         store.isRunning = true
         store.runStartedAt = Date()
@@ -89,7 +85,7 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
                 )?.phase == .completed
         }
 
-        XCTAssertEqual(store.selectedTab, .chat)
+        XCTAssertEqual(store.selectedTab, .findings)
         XCTAssertEqual(store.panelSessionId, sessionId)
         let commandMessage = try XCTUnwrap(store.chatMessages.first)
         XCTAssertEqual(commandMessage.kind, .commandInvocation)
@@ -117,53 +113,7 @@ final class ReviewPanelLifecycleE2ETests: XCTestCase {
         XCTAssertFalse(store.todoStore?.displayTodosForChat(for: conversationId).isEmpty ?? true)
 
         store.publishSummaryToChat(sessionId: sessionId)
-
-        let summaryMessage = try XCTUnwrap(
-            store.chatMessages.last(where: { $0.kind == .summary })
-        )
-        XCTAssertEqual(summaryMessage.presentation?.sections.map(\.title), ["Outcome", "Findings"])
-        let storedState = ReviewPanelChatSessionStore.shared.state(
-            for: CodeReviewPanelStore.chatSessionKey(conversationId: conversationId)
-        )
-        XCTAssertEqual(storedState.messages, store.chatMessages)
-        XCTAssertFalse(storedState.isProcessing)
-    }
-    func testPanelChatStreamUsesRawToolEventsAndTodoSync() async throws {
-        try requireReviewCore()
-        let taskStore = TaskActivityStore()
-        let conversationId = UUID()
-        let providerRegistry = ProviderRegistry()
-        providerRegistry.register(PanelChatToolMockProvider())
-
-        let store = CodeReviewPanelStore(
-            taskActivityStore: taskStore,
-            providerRegistry: providerRegistry,
-            executionController: nil,
-            workspaceStore: WorkspaceStore(),
-            openFilesStore: OpenFilesStore(),
-            todoStore: TodoStore(),
-            conversationId: conversationId,
-            providerFactoryConfigBuilder: { self.makeProviderFactoryConfig() }
-        )
-
-        await store.sendChatMessage("analizza i bug")
-
-        try await waitUntil("panel chat stream completes") {
-            store.isChatProcessing == false && store.chatMessages.count >= 2
-        }
-        let reviewRun = try XCTUnwrap(
-            store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .reviewRun })
-        )
-        XCTAssertFalse(reviewRun.isStreaming)
-        XCTAssertTrue(reviewRun.presentation?.sections.map(\.title).contains("Activity") == true)
-        XCTAssertFalse(reviewRun.presentation?.sections.isEmpty ?? true)
-        let response = try XCTUnwrap(
-            store.chatMessages.first(where: { $0.role == .assistant && $0.kind == .plain })
-        )
-        XCTAssertFalse(response.isStreaming)
-        XCTAssertFalse(response.content.isEmpty)
-        XCTAssertFalse(taskStore.activities.isEmpty)
-        XCTAssertFalse(store.todoStore?.displayTodosForChat(for: conversationId).isEmpty ?? true)
+        XCTAssertFalse(NSPasteboard.general.string(forType: .string)?.isEmpty ?? true)
     }
 
     private func makePanelStore(
@@ -279,48 +229,6 @@ private final class PanelLifecycleMockProvider: LLMProvider, @unchecked Sendable
                     .textDelta("**Multi-swarm code review complete.** Tests passing. Re-review clean.\n")
                 )
                 await sessionState.complete()
-                continuation.yield(.completed)
-                continuation.finish()
-            }
-        }
-    }
-}
-
-private final class PanelChatToolMockProvider: LLMProvider, @unchecked Sendable {
-    let id = "panel-chat-tool-mock"
-    let displayName = "PanelChatToolMock"
-    let attachmentCapabilities: ProviderAttachmentCapabilities = .none
-
-    func isAuthenticated() -> Bool { true }
-
-    func send(
-        prompt: String,
-        context: WorkspaceContext,
-        imageURLs: [URL]?
-    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        AsyncThrowingStream { continuation in
-            Task {
-                continuation.yield(.started)
-                continuation.yield(.raw(type: "reasoning", payload: [
-                    "detail": "Tracing bug clusters and running audit tools"
-                ]))
-                continuation.yield(.raw(type: "todo_write", payload: [
-                    "title": "Review bug cluster",
-                    "status": "in_progress",
-                ]))
-                continuation.yield(.raw(type: "agent", payload: [
-                    "title": "bugHunter",
-                    "detail": "started",
-                    "swarm_id": "bughunter-chat",
-                    "group_id": "swarm-bughunter-chat",
-                ]))
-                continuation.yield(.textDelta("Ho verificato il cluster principale.\n"))
-                continuation.yield(.raw(type: "agent", payload: [
-                    "title": "bugHunter",
-                    "detail": "completed",
-                    "swarm_id": "bughunter-chat",
-                    "group_id": "swarm-bughunter-chat",
-                ]))
                 continuation.yield(.completed)
                 continuation.finish()
             }

@@ -16,13 +16,8 @@ enum ReviewPanelActionOutputRuntime {
 extension CodeReviewPanelStore {
     func beginPanelActionOutput(
         title: String,
-        detail: String? = nil,
-        selectChatTab: Bool = true
+        detail: String? = nil
     ) -> UUID {
-        ensureActiveChatThread()
-        if selectChatTab {
-            selectTab(.chat)
-        }
         appendChatMessage(
             ReviewPanelChatMessageFactory.commandInvocation(
                 title: title,
@@ -66,8 +61,7 @@ extension CodeReviewPanelStore {
         guard response?.error == nil, let state = response?.state else {
             appendPanelSystemMessage(
                 ReviewPanelStateRustAdapter.runtimeUnavailableMessage,
-                kind: .statusNote,
-                selectChatTab: true
+                kind: .statusNote
             )
             return
         }

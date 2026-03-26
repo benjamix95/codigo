@@ -1,3 +1,4 @@
+import AppKit
 import CoderEngine
 import Foundation
 
@@ -12,12 +13,9 @@ extension CodeReviewPanelStore {
 
     func publishSummaryToChat(sessionId: String) {
         guard settings.publishOutcomeToChat else { return }
-        guard let snapshot = taskActivityStore.codeReviewSnapshot(
-            sessionId: sessionId,
-            conversationId: conversationId
-        ) else { return }
-        selectTab(.chat)
-        appendChatMessage(ReviewPanelChatMessageFactory.summary(snapshot: snapshot))
+        let text = exportSummary(sessionId: sessionId)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     var currentReviewPanelDerivedState: ReviewPanelDerivedState? {

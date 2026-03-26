@@ -160,8 +160,7 @@ extension CodeReviewPanelStore {
                 sessionId: sessionId,
                 findingId: findingId,
                 title: "Revalidation completata",
-                detail: "Il finding è stato rivalidato dopo il fix con lo stato aggiornato del patch lifecycle.",
-                selectChatTab: false
+                detail: "Il finding è stato rivalidato dopo il fix con lo stato aggiornato del patch lifecycle."
             )
         } catch {
             await markPatchFailure(sessionId: sessionId, findingId: findingId, message: error.localizedDescription)
@@ -200,8 +199,7 @@ extension CodeReviewPanelStore {
                 sessionId: sessionId,
                 findingId: findingId,
                 title: "Rollback completato",
-                detail: "Il patch workflow è tornato allo stato precedente e il finding è stato aggiornato.",
-                selectChatTab: true
+                detail: "Il patch workflow è tornato allo stato precedente e il finding è stato aggiornato."
             )
         } catch {
             await markPatchFailure(sessionId: sessionId, findingId: findingId, message: error.localizedDescription)
@@ -228,8 +226,7 @@ extension CodeReviewPanelStore {
             await ingestUpdatedPatchSnapshot(updated)
             appendPanelSystemMessage(
                 "PR aperta per finding \(findingId): \(updated.patches.first(where: { $0.findingId == findingId })?.prURL ?? "n/a")",
-                kind: .statusNote,
-                selectChatTab: true
+                kind: .statusNote
             )
         } catch {
             await markPatchFailure(sessionId: sessionId, findingId: findingId, message: error.localizedDescription)
@@ -254,8 +251,7 @@ extension CodeReviewPanelStore {
             await ingestUpdatedPatchSnapshot(updated)
             appendPanelSystemMessage(
                 "Merge completato per finding \(findingId).",
-                kind: .statusNote,
-                selectChatTab: true
+                kind: .statusNote
             )
         } catch {
             await markPatchFailure(sessionId: sessionId, findingId: findingId, message: error.localizedDescription)

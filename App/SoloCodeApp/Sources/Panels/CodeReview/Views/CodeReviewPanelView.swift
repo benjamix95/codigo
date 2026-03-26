@@ -5,7 +5,6 @@ import SwiftUI
 /// Receives a `CodeReviewPanelStore` and two closures. No `@Binding`, no `onDispatchAction`.
 struct CodeReviewPanelView: View {
     @ObservedObject var store: CodeReviewPanelStore
-    let todoStore: TodoStore
     let onClose: () -> Void
     let onOpenFile: (String) -> Void
     let onOpenFileAtLocation: (String, Int?) -> Void
@@ -66,13 +65,6 @@ struct CodeReviewPanelView: View {
             )
         case .timeline:
             ReviewPanelTimelineTab(store: store)
-        case .chat:
-            ReviewPanelChatTab(
-                store: store,
-                todoStore: todoStore,
-                onOpenFile: onOpenFile,
-                onOpenFileAtLocation: onOpenFileAtLocation
-            )
         case .settings:
             ReviewPanelSettingsTab(store: store)
         }
@@ -181,7 +173,6 @@ struct CodeReviewPanelView: View {
 /// Use this from the call site where environment objects are available.
 struct ReviewPanelHost: View {
     @StateObject private var store: CodeReviewPanelStore
-    let todoStore: TodoStore
     let onClose: () -> Void
     let onOpenFile: (String) -> Void
     let onOpenFileAtLocation: (String, Int?) -> Void
@@ -209,7 +200,6 @@ struct ReviewPanelHost: View {
             conversationId: conversationId,
             providerFactoryConfigBuilder: providerFactoryConfigBuilder
         ))
-        self.todoStore = todoStore
         self.onClose = onClose
         self.onOpenFile = onOpenFile
         self.onOpenFileAtLocation = onOpenFileAtLocation
@@ -218,7 +208,6 @@ struct ReviewPanelHost: View {
     var body: some View {
         CodeReviewPanelView(
             store: store,
-            todoStore: todoStore,
             onClose: onClose,
             onOpenFile: onOpenFile,
             onOpenFileAtLocation: onOpenFileAtLocation

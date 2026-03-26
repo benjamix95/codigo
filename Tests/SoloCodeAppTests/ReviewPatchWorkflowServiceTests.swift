@@ -1406,7 +1406,6 @@ private struct NoopPatchExecutionProvider: LLMProvider {
 final class CodeReviewPanelLiveMutationRustTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        ReviewPanelChatSessionStore.shared.clearAll()
     }
 
     private func requireRustReviewCore() throws {

@@ -7,12 +7,7 @@ struct ReviewPanelReviewTaskResult {
     let wasCancelled: Bool
 }
 
-struct ReviewPanelChatTaskResult {
-    let error: String?
-    let wasCancelled: Bool
-}
-
-/// Lightweight coordinator that owns running review and chat Tasks.
+/// Lightweight coordinator that owns running review Tasks.
 /// All state flows back through `CodeReviewSessionState.onStateChange`.
 @MainActor
 final class ReviewPanelCoordinator {
@@ -20,7 +15,6 @@ final class ReviewPanelCoordinator {
     // MARK: - Task State
 
     private(set) var reviewTask: Task<Void, Never>?
-    private(set) var chatTask: Task<Void, Never>?
     private(set) var isReviewRunning: Bool = false
 
     // MARK: - Review Execution
@@ -87,52 +81,6 @@ final class ReviewPanelCoordinator {
         isReviewRunning = false
     }
 
-    // MARK: - Chat Stream
-
-    /// Runs a lightweight chat stream for the panel's independent chat.
-    func runChatStream(
-        provider: any LLMProvider,
-        prompt: String,
-        context: WorkspaceContext,
-        onEvent: @escaping @MainActor (StreamEvent) -> Void,
-        onFinish: @escaping @MainActor (ReviewPanelChatTaskResult) -> Void
-    ) {
-        cancelChat()
-
-        chatTask = Task.detached(priority: .userInitiated) {
-            var streamError: String?
-            do {
-                let stream = try await provider.send(
-                    prompt: prompt,
-                    context: context,
-                    imageURLs: nil
-                )
-                for try await event in stream {
-                    if Task.isCancelled { break }
-                    await MainActor.run { onEvent(event) }
-                }
-            } catch {
-                if !Task.isCancelled {
-                    streamError = error.localizedDescription
-                }
-            }
-            let chatError = streamError
-            let chatCancelled = Task.isCancelled
-            await MainActor.run {
-                onFinish(
-                    ReviewPanelChatTaskResult(
-                        error: chatError,
-                        wasCancelled: chatCancelled
-                    )
-                )
-            }
-        }
-    }
-
-    func cancelChat() {
-        chatTask?.cancel()
-        chatTask = nil
-    }
 }
 
 extension CodeReviewPanelStore {

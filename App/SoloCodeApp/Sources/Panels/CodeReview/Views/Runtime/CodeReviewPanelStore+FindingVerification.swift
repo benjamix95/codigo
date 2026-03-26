@@ -40,8 +40,7 @@ extension CodeReviewPanelStore {
                     sessionId: sessionId,
                     findingId: findingId,
                     title: title,
-                    detail: String(detail.prefix(2000)),
-                    selectChatTab: false
+                    detail: String(detail.prefix(2000))
                 )
             }
         } catch {
