@@ -77,6 +77,8 @@ extension ReviewPipelineCoordinator {
             return "Staged changes"
         case .workspace:
             return "Workspace source files"
+        case .codebase:
+            return "Indexed codebase"
         case .uncommitted:
             return "Uncommitted changes"
         }
@@ -231,7 +233,7 @@ extension ReviewPipelineCoordinator {
             let message = switch resolvedScope {
             case .staged:
                 "No staged source files found.\n"
-            case .workspace:
+            case .workspace, .codebase:
                 "No workspace source files found.\n"
             case .uncommitted:
                 "No uncommitted source files found.\n"

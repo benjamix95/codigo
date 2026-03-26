@@ -6,6 +6,7 @@ struct ReviewPanelLaunchRequest: Equatable {
     let conversationId: UUID?
     let scope: ReviewScopeTarget
     let modes: Set<CodeReviewPanelMode>
+    let reviewScanDepth: ReviewScanDepth
     let promptOverride: String
     let invocationLabel: String
 }
@@ -87,7 +88,7 @@ extension CodeReviewPanelStore {
     }
 
     var panelSessionPrefix: String {
-        if selectedModes == [.standard] {
+        if selectedModes == [.standard] || selectedModes.isEmpty {
             return "panel"
         }
         return primarySelectedMode.rawValue
@@ -103,6 +104,8 @@ extension CodeReviewPanelStore {
             return .staged
         case .workspace:
             return .workspace
+        case .codebase:
+            return .codebase
         case .uncommitted, .none:
             return .uncommitted
         }
@@ -111,12 +114,17 @@ extension CodeReviewPanelStore {
     func buildPrompt(
         scope: ReviewScopeTarget,
         modes: Set<CodeReviewPanelMode>
-    ) -> String {
-        ReviewPanelCoordinator.combinedPrompt(
+    ) async -> String {
+        let paths = await gatherCodebasePromptFilePaths(scope: scope, depth: reviewScanDepth)
+        var bridgeModes = modes
+        bridgeModes.insert(.standard)
+        return ReviewPanelCoordinator.combinedPrompt(
             scope: scope,
             currentBranch: currentGitBranch,
-            selectedModes: modes,
-            customInstructions: settings.customInstructions
+            selectedModes: bridgeModes,
+            customInstructions: settings.customInstructions,
+            scanDepth: reviewScanDepth,
+            codebaseFilePaths: paths
         )
     }
 
@@ -210,11 +218,11 @@ extension CodeReviewPanelStore {
         scope: ReviewScopeTarget,
         modes: Set<CodeReviewPanelMode>
     ) -> String {
-        let label = CodeReviewPanelMode.allCases
+        let label = [CodeReviewPanelMode.securityAudit, .bugFinder]
             .filter { modes.contains($0) }
             .map(\.displayName)
             .joined(separator: " + ")
-        return "Run \(label) on \(scope.displayDescription)"
+        return "Run \(reviewScanDepth.displayName) · \(label) on \(scope.displayDescription)"
     }
 
     private func planPanelLaunch(

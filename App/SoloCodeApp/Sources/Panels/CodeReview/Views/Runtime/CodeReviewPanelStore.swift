@@ -149,6 +149,10 @@ final class CodeReviewPanelStore: ObservableObject {
         get { scope.againstCommitRef }
         set { scope.againstCommitRef = newValue }
     }
+    var reviewScanDepth: ReviewScanDepth {
+        get { scope.reviewScanDepth }
+        set { scope.reviewScanDepth = newValue }
+    }
     var selectedModes: Set<CodeReviewPanelMode> {
         get { scope.selectedModes }
         set { scope.selectedModes = newValue }

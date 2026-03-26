@@ -43,41 +43,81 @@ struct ReviewPanelCommandsTab: View {
                     .tracking(0.8)
             }
 
-            HStack(spacing: 4) {
-                ForEach(CodeReviewPanelMode.allCases) { mode in
-                    Button {
-                        store.toggleModeSelection(mode)
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: mode.icon)
-                                .font(.system(size: 8))
-                            Text(mode.displayName)
-                                .font(.system(size: 9, weight: .medium))
+            HStack(spacing: 6) {
+                Menu {
+                    ForEach(ReviewScanDepth.allCases) { depth in
+                        Button {
+                            store.reviewScanDepth = depth
+                        } label: {
+                            HStack {
+                                Text(depth.displayName)
+                                if store.reviewScanDepth == depth {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
                         }
-                        .foregroundStyle(
-                            store.hasSelectedMode(mode)
-                                ? mode.accentColor : .secondary
-                        )
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(
-                                    store.hasSelectedMode(mode)
-                                        ? mode.accentColor.opacity(0.14) : Color.primary.opacity(0.04)
-                                )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .strokeBorder(
-                                    store.hasSelectedMode(mode)
-                                        ? mode.accentColor.opacity(0.3)
-                                        : DesignSystem.Colors.border.opacity(0.2),
-                                    lineWidth: 0.5
-                                )
-                        )
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "speedometer")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text(store.reviewScanDepth.displayName)
+                            .font(.system(size: 9.5, weight: .semibold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .foregroundStyle(store.accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(store.accent.opacity(0.12))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(store.accent.opacity(0.28), lineWidth: 0.5)
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(store.reviewScanDepth.detail)
+
+                HStack(spacing: 4) {
+                    ForEach([CodeReviewPanelMode.securityAudit, .bugFinder]) { mode in
+                        Button {
+                            store.toggleModeSelection(mode)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: mode.icon)
+                                    .font(.system(size: 8))
+                                Text(mode.displayName)
+                                    .font(.system(size: 9, weight: .medium))
+                            }
+                            .foregroundStyle(
+                                store.hasSelectedMode(mode)
+                                    ? mode.accentColor : .secondary
+                            )
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(
+                                        store.hasSelectedMode(mode)
+                                            ? mode.accentColor.opacity(0.14) : Color.primary.opacity(0.04)
+                                    )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(
+                                        store.hasSelectedMode(mode)
+                                            ? mode.accentColor.opacity(0.3)
+                                            : DesignSystem.Colors.border.opacity(0.2),
+                                        lineWidth: 0.5
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }

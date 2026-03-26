@@ -56,7 +56,8 @@ struct ReviewScopeState {
     var selectedCommits: Set<String> = []
     var scopeTarget: ReviewScopeTarget = .uncommitted
     var againstCommitRef: String = ""
-    var selectedModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
+    var reviewScanDepth: ReviewScanDepth = .standard
+    var selectedModes: Set<CodeReviewPanelMode> = [.bugFinder, .securityAudit]
     var selectedProviderOverrideId: String?
 }
 

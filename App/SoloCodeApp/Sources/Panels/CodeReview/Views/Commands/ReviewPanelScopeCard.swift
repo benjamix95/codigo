@@ -22,6 +22,7 @@ struct ReviewPanelScopeCard: View {
             HStack(spacing: 4) {
                 scopeButton("Uncommitted", target: .uncommitted)
                 scopeButton("Staged", target: .staged)
+                scopeButton("Codebase", target: .codebase)
                 scopeButton("Ref", target: .againstRef(store.againstCommitRef))
                 scopeButton("Commits", target: .commits(currentCommitScope))
                 scopeButton("Branch", target: .branch(store.selectedBranch?.name ?? ""))
@@ -78,6 +79,12 @@ struct ReviewPanelScopeCard: View {
                     store.scopeTarget = .branch("")
                 }
                 showBranchPicker = true
+            case .codebase:
+                store.selectedBranch = nil
+                store.selectedCommits.removeAll()
+                showCommitPicker = false
+                showBranchPicker = false
+                store.scopeTarget = .codebase
             default:
                 store.selectedBranch = nil
                 store.selectedCommits.removeAll()
@@ -105,6 +112,7 @@ struct ReviewPanelScopeCard: View {
         case (.againstRef, .againstRef): return true
         case (.commits, .commits): return true
         case (.branch, .branch): return true
+        case (.codebase, .codebase): return true
         default: return false
         }
     }
@@ -263,7 +271,7 @@ struct ReviewPanelScopeCard: View {
 
     private var isValidScope: Bool {
         switch store.scopeTarget {
-        case .uncommitted, .staged, .workspace: return true
+        case .uncommitted, .staged, .workspace, .codebase: return true
         case .againstRef(let ref): return !ref.isEmpty
         case .branch(let name): return !name.isEmpty && store.selectedBranch != nil
         case .commits(let shas): return !shas.isEmpty

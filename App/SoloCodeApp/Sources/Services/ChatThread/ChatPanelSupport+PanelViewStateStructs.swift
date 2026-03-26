@@ -35,7 +35,7 @@ struct ChatPanelComposerViewState {
     var composerAutoFocusTask: Task<Void, Never>?
     var draftSaveTask: Task<Void, Never>?
     var attachedComposerAttachments: [ComposerAttachment] = []
-    var composerCodeReviewModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
+    var composerCodeReviewModes: Set<CodeReviewPanelMode> = [.bugFinder, .securityAudit]
     var isSelectingImage = false
     var isComposerDropTargeted = false
     var isConvertingHeic = false

@@ -9,12 +9,14 @@ extension ChatPanelView {
         prompt: String,
         scope: ReviewScopeTarget,
         modes: Set<CodeReviewPanelMode>,
+        reviewScanDepth: ReviewScanDepth = .standard,
         invocationLabel: String = "Findings-first review"
     ) {
         let request = ReviewPanelLaunchRequest(
             conversationId: conversationId,
             scope: scope,
             modes: modes,
+            reviewScanDepth: reviewScanDepth,
             promptOverride: prompt,
             invocationLabel: invocationLabel
         )
@@ -36,7 +38,8 @@ extension ChatPanelView {
         launchCodeReviewPanelRequest(
             prompt: prompt,
             scope: .uncommitted,
-            modes: [.standard, .bugFinder, .securityAudit],
+            modes: [.bugFinder, .securityAudit],
+            reviewScanDepth: .standard,
             invocationLabel: "Findings-first review"
         )
     }

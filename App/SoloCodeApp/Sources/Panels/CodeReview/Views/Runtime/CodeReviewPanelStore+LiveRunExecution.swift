@@ -8,6 +8,7 @@ extension CodeReviewPanelStore {
         }
         scopeTarget = request.scope
         selectedModes = request.modes
+        reviewScanDepth = request.reviewScanDepth
         selectTab(.findings)
         await startReview(
             scope: request.scope,
@@ -28,7 +29,12 @@ extension CodeReviewPanelStore {
         promptOverride: String? = nil,
         invocationLabel: String? = nil
     ) async {
-        let resolvedPrompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
+        let resolvedPrompt: String
+        if let promptOverride {
+            resolvedPrompt = promptOverride
+        } else {
+            resolvedPrompt = await buildPrompt(scope: scope, modes: modes)
+        }
         let resolvedLabel = invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes)
 
         guard !isRunning else {
@@ -37,6 +43,7 @@ extension CodeReviewPanelStore {
                     conversationId: conversationId,
                     scope: scope,
                     modes: modes,
+                    reviewScanDepth: reviewScanDepth,
                     promptOverride: resolvedPrompt,
                     invocationLabel: resolvedLabel
                 )
@@ -80,6 +87,8 @@ extension CodeReviewPanelStore {
 
         let prompt = resolvedPrompt
         let context = buildWorkspaceContext()
+        let reportScope = scopeTarget
+        let reportDepth = reviewScanDepth
         runPanelReview(
             provider: provider,
             prompt: prompt,
@@ -92,7 +101,14 @@ extension CodeReviewPanelStore {
             onEvent: { [weak self] event in
                 self?.handlePanelReviewStreamEvent(event)
             },
-            onComplete: { _ in },
+            onComplete: { [weak self] snapshot in
+                guard let self else { return }
+                Task { await self.maybeExportReviewReportArtifacts(
+                    snapshot: snapshot,
+                    scope: reportScope,
+                    depth: reportDepth
+                ) }
+            },
             onError: { _ in }
         )
     }

@@ -37,6 +37,7 @@ public struct ReviewSessionScope: Sendable, Codable {
         case uncommitted
         case staged
         case workspace
+        case codebase
         case againstRef = "against_ref"
     }
 
@@ -48,6 +49,8 @@ public struct ReviewSessionScope: Sendable, Codable {
             return "staged changes (\(files.count) files)"
         case .workspace:
             return "workspace source files (\(files.count) files)"
+        case .codebase:
+            return "indexed codebase (\(files.count) files)"
         case .againstRef:
             return "vs \(ref ?? "unknown") (\(files.count) files)"
         }

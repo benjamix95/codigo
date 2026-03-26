@@ -9,7 +9,7 @@ pub fn parse_review_scope(prompt: &str) -> (String, Option<String>) {
         if let Some(end_rel) = after.find(']') {
             let raw = after[..end_rel].trim().to_lowercase();
             let scope = match raw.as_str() {
-                "staged" | "uncommitted" | "workspace" => Some(raw),
+                "staged" | "uncommitted" | "workspace" | "codebase" => Some(raw),
                 _ => None,
             };
             if let Some(scope) = scope {
@@ -98,6 +98,7 @@ pub fn review_scope_description(scope: &str, against_ref: Option<&str>) -> Strin
     match scope {
         "staged" => "Staged changes".to_string(),
         "workspace" => "Workspace source files".to_string(),
+        "codebase" => "Indexed codebase".to_string(),
         _ => "Uncommitted changes".to_string(),
     }
 }

@@ -107,6 +107,10 @@ pub struct ReviewPanelPromptRequest {
     pub commits: Vec<String>,
     #[serde(default)]
     pub selected_modes: Vec<String>,
+    #[serde(default)]
+    pub scan_depth: Option<String>,
+    #[serde(default)]
+    pub codebase_file_paths: Vec<String>,
     pub custom_instructions: Option<String>,
     pub user_message: Option<String>,
     pub session_summary: Option<String>,

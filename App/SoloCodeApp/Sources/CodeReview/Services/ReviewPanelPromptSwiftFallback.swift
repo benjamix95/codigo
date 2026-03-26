@@ -24,6 +24,12 @@ enum ReviewPanelPromptSwiftFallback {
 
     private static func combinedPrompt(_ request: ReviewPanelPromptBridgeRequest) -> String {
         var sections = [scopeHeader(request)]
+        if let depth = scanDepthSection(request) {
+            sections.append(depth)
+        }
+        if let files = codebasePathsSection(request) {
+            sections.append(files)
+        }
         let selected = Set(
             request.selectedModes
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -42,6 +48,27 @@ enum ReviewPanelPromptSwiftFallback {
             sections.append("Additional instructions:\n\(extra)")
         }
         return sections.joined(separator: "\n\n")
+    }
+
+    private static func scanDepthSection(_ request: ReviewPanelPromptBridgeRequest) -> String? {
+        guard let raw = nonEmpty(request.scanDepth) else { return nil }
+        switch raw.lowercased() {
+        case "fast":
+            return "Scan depth: FAST — prioritize speed; shallow passes acceptable when tools allow; report high-confidence issues."
+        case "pro":
+            return "Scan depth: PRO — exhaustive file-by-file review of the full scope; may take many hours on large trees; verify with tools."
+        case "standard":
+            return "Scan depth: STANDARD — balanced thoroughness across important paths and cross-cutting concerns."
+        default:
+            return "Scan depth: \(raw)"
+        }
+    }
+
+    private static func codebasePathsSection(_ request: ReviewPanelPromptBridgeRequest) -> String? {
+        guard !request.codebaseFilePaths.isEmpty else { return nil }
+        var lines = ["Indexed source paths (capped sample; use tools for full coverage):"]
+        lines.append(contentsOf: request.codebaseFilePaths.map { "- `\($0)`" })
+        return lines.joined(separator: "\n")
     }
 
     private static func standardPrompt(_ request: ReviewPanelPromptBridgeRequest) -> String {

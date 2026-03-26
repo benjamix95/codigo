@@ -19,6 +19,12 @@ pub fn build_prompt(request: ReviewPanelPromptRequest) -> ReviewPanelPromptRespo
 
 fn combined_prompt(request: &ReviewPanelPromptRequest) -> String {
     let mut sections = vec![scope_header(request)];
+    if let Some(block) = scan_depth_block(request) {
+        sections.push(block);
+    }
+    if let Some(block) = codebase_paths_block(request) {
+        sections.push(block);
+    }
     let selected = normalized_modes(&request.selected_modes);
     if selected.is_empty() || selected.contains("standard") {
         sections.push(STANDARD_FOCUS.to_string());
@@ -33,6 +39,35 @@ fn combined_prompt(request: &ReviewPanelPromptRequest) -> String {
         sections.push(format!("Additional instructions:\n{extra}"));
     }
     sections.join("\n\n")
+}
+
+fn scan_depth_block(request: &ReviewPanelPromptRequest) -> Option<String> {
+    let raw = request.scan_depth.as_deref()?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let lower = raw.to_lowercase();
+    let body = match lower.as_str() {
+        "fast" => "Scan depth: FAST — prioritize speed; shallow passes are acceptable when tools allow; emphasize high-confidence issues.",
+        "pro" => "Scan depth: PRO — exhaustive, file-by-file review across the entire scope. Expect very long runtimes (hours on large trees). Use tools to verify; do not skip major risk categories.",
+        "standard" => "Scan depth: STANDARD — balanced thoroughness across important paths and cross-cutting concerns.",
+        _ => return Some(format!("Scan depth: {raw}")),
+    };
+    Some(body.to_string())
+}
+
+fn codebase_paths_block(request: &ReviewPanelPromptRequest) -> Option<String> {
+    if request.codebase_file_paths.is_empty() {
+        return None;
+    }
+    let mut lines: Vec<String> = vec![
+        "Indexed source paths for orientation (list may be capped; use tools for full-tree coverage):"
+            .to_string(),
+    ];
+    for p in &request.codebase_file_paths {
+        lines.push(format!("- {p}"));
+    }
+    Some(lines.join("\n"))
 }
 
 fn standard_prompt(request: &ReviewPanelPromptRequest) -> String {
@@ -160,6 +195,8 @@ mod tests {
                 "securityAudit".to_string(),
                 "bugFinder".to_string(),
             ],
+            scan_depth: None,
+            codebase_file_paths: vec![],
             custom_instructions: Some("Check API edges".to_string()),
             user_message: None,
             session_summary: None,
@@ -187,6 +224,8 @@ mod tests {
             branch_name: Some("feature/refactor".to_string()),
             commits: Vec::new(),
             selected_modes: Vec::new(),
+            scan_depth: None,
+            codebase_file_paths: vec![],
             custom_instructions: None,
             user_message: None,
             session_summary: None,
@@ -210,6 +249,8 @@ mod tests {
             branch_name: None,
             commits: Vec::new(),
             selected_modes: Vec::new(),
+            scan_depth: None,
+            codebase_file_paths: vec![],
             custom_instructions: None,
             user_message: Some("controlla".to_string()),
             session_summary: Some("Phase: running".to_string()),

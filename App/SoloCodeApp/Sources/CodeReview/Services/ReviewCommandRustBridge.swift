@@ -285,6 +285,9 @@ struct ReviewPanelPromptBridgeRequest: Encodable {
     let branchName: String?
     let commits: [String]
     let selectedModes: [String]
+    /// `"fast"`, `"standard"`, `"pro"`.
+    let scanDepth: String?
+    let codebaseFilePaths: [String]
     let customInstructions: String?
     let userMessage: String?
     let sessionSummary: String?

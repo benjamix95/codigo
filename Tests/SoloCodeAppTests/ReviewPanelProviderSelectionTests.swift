@@ -68,7 +68,7 @@ final class ReviewPanelProviderSelectionTests: XCTestCase {
         )
 
         XCTAssertEqual(store.selectedTab, .findings)
-        XCTAssertEqual(store.selectedModes, [.standard, .bugFinder, .securityAudit])
+        XCTAssertEqual(store.selectedModes, Set([.bugFinder, .securityAudit]))
     }
 
     func testPublishedFindingsRemainHiddenUntilPatchPreviewIsReady() {

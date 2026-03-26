@@ -42,7 +42,7 @@ struct ReviewRuntimeAdapter {
         if files.isEmpty {
             let message = switch scope {
             case .staged: "No staged source files found.\n"
-            case .workspace: "No workspace source files found.\n"
+            case .workspace, .codebase: "No workspace source files found.\n"
             case .uncommitted: "No uncommitted source files found.\n"
             }
             continuation.yield(.textReplace(message))

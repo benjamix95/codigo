@@ -16,7 +16,7 @@ extension CodeReviewMultiSwarmProvider {
                 workspacePath: context.workspacePath,
                 excludedPaths: context.excludedPaths
             )
-        case .workspace:
+        case .workspace, .codebase:
             return WorkspaceScanner.listSourceFiles(
                 workspacePath: context.workspacePath,
                 excludedPaths: context.excludedPaths

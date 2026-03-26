@@ -3,11 +3,11 @@ import Foundation
 
 extension CodeReviewPanelStore {
     var orderedSelectedModes: [CodeReviewPanelMode] {
-        CodeReviewPanelMode.allCases.filter { selectedModes.contains($0) }
+        [CodeReviewPanelMode.securityAudit, .bugFinder].filter { selectedModes.contains($0) }
     }
 
     var primarySelectedMode: CodeReviewPanelMode {
-        orderedSelectedModes.first ?? .standard
+        orderedSelectedModes.first ?? .bugFinder
     }
 
     func hasSelectedMode(_ mode: CodeReviewPanelMode) -> Bool {

@@ -164,8 +164,23 @@ extension CodeReviewPanelStore {
 }
 
 extension ReviewPanelCoordinator {
-    static func combinedPrompt(scope: ReviewScopeTarget, currentBranch: String, selectedModes: Set<CodeReviewPanelMode>, customInstructions: String = "") -> String {
-        rustPrompt(kind: "combined", scope: scope, currentBranch: currentBranch, selectedModes: selectedModes, customInstructions: customInstructions)
+    static func combinedPrompt(
+        scope: ReviewScopeTarget,
+        currentBranch: String,
+        selectedModes: Set<CodeReviewPanelMode>,
+        customInstructions: String = "",
+        scanDepth: ReviewScanDepth = .standard,
+        codebaseFilePaths: [String] = []
+    ) -> String {
+        rustPrompt(
+            kind: "combined",
+            scope: scope,
+            currentBranch: currentBranch,
+            selectedModes: selectedModes,
+            customInstructions: customInstructions,
+            scanDepth: scanDepth,
+            codebaseFilePaths: codebaseFilePaths
+        )
     }
     static func standardPrompt(scope: ReviewScopeTarget, customInstructions: String = "") -> String { rustPrompt(kind: "standard", scope: scope, customInstructions: customInstructions) }
     static func securityAuditPrompt(scope: ReviewScopeTarget) -> String { rustPrompt(kind: "security_audit", scope: scope) }
@@ -182,6 +197,8 @@ extension ReviewPanelCoordinator {
         currentBranch: String? = nil,
         selectedModes: Set<CodeReviewPanelMode> = [],
         customInstructions: String = "",
+        scanDepth: ReviewScanDepth? = nil,
+        codebaseFilePaths: [String] = [],
         userMessage: String? = nil,
         sessionSummary: String? = nil,
         findingsCount: Int? = nil,
@@ -189,6 +206,7 @@ extension ReviewPanelCoordinator {
         activeSessionId: String? = nil,
         conversationId: UUID? = nil
     ) -> String {
+        let depthToken = scanDepth?.bridgeToken
         let request = ReviewPanelPromptBridgeRequest(
             schemaVersion: 1,
             promptKind: kind,
@@ -198,6 +216,8 @@ extension ReviewPanelCoordinator {
             branchName: scope.branchName,
             commits: scope.commits,
             selectedModes: CodeReviewPanelMode.allCases.filter { selectedModes.contains($0) }.map(\.bridgeName),
+            scanDepth: depthToken,
+            codebaseFilePaths: codebaseFilePaths,
             customInstructions: customInstructions.isEmpty ? nil : customInstructions,
             userMessage: userMessage,
             sessionSummary: sessionSummary,
@@ -219,6 +239,7 @@ private extension ReviewScopeTarget {
         case .againstRef: return "against_ref"
         case .staged: return "staged"
         case .workspace: return "workspace"
+        case .codebase: return "codebase"
         case .uncommitted: return "uncommitted"
         }
     }

@@ -111,6 +111,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         case uncommitted
         case staged
         case workspace
+        case codebase
     }
 
     enum ReviewPipelineError: Error, LocalizedError {

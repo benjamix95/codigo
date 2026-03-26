@@ -50,12 +50,42 @@ enum CodeReviewPanelMode: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Scan depth (combined review intensity)
+
+enum ReviewScanDepth: String, CaseIterable, Identifiable, Equatable {
+    case fast
+    case standard
+    case pro
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .fast: return "Fast"
+        case .standard: return "Standard"
+        case .pro: return "Pro"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .fast: return "Scansione rapida; campione di file dall’indice."
+        case .standard: return "Profondità equilibrata; più file nel contesto."
+        case .pro: return "Ispezione molto lenta ed esaustiva; elenco ampio di file (può richiedere molto tempo)."
+        }
+    }
+
+    /// Valore serializzato verso Rust (camelCase in bridge).
+    var bridgeToken: String { rawValue }
+}
+
 // MARK: - Scope Target
 
 enum ReviewScopeTarget: Equatable {
     case uncommitted
     case staged
     case workspace
+    case codebase
     case againstRef(String)
     case branch(String)
     case commits([String])
@@ -65,6 +95,7 @@ enum ReviewScopeTarget: Equatable {
         case .uncommitted: return "Uncommitted changes"
         case .staged: return "Staged changes"
         case .workspace: return "Workspace source files"
+        case .codebase: return "Indexed codebase"
         case .againstRef(let ref): return "Against \(ref)"
         case .branch(let name): return "Branch \(name)"
         case .commits(let shas):
@@ -80,6 +111,7 @@ enum ReviewScopeTarget: Equatable {
         case .uncommitted: return "[REVIEW_SCOPE:uncommitted]"
         case .staged: return "[REVIEW_SCOPE:staged]"
         case .workspace: return "[REVIEW_SCOPE:workspace]"
+        case .codebase: return "[REVIEW_SCOPE:codebase]"
         case .againstRef(let ref): return "[AGAINST:\(ref)]"
         case .branch(let name): return "[AGAINST:\(name)]"
         case .commits(let shas):
