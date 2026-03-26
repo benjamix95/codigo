@@ -87,6 +87,10 @@ var isAsyncConversationLoadPending = false
 static let persistQueue = DispatchQueue(label: "com.solocode.chatstore.persist", qos: .utility)
 /// Tracks the last time we persisted during a streaming session (to coalesce saves).
 var lastStreamingSaveAt: Date = .distantPast
+/// Debounce per `sync_assistant_content` FFI: la UI si aggiorna subito via fallback, Rust segue a batch.
+var assistantContentRustSyncDebounceItem: DispatchWorkItem?
+/// Ultimo contenuto da committare nel reducer Rust (coalescenza durante streaming).
+var pendingAssistantRustSync: (conversationId: UUID, messageId: UUID?, content: String)?
 
 /// True when any conversation has an active task.
 var isLoading: Bool { !activeTaskConversationIds.isEmpty }

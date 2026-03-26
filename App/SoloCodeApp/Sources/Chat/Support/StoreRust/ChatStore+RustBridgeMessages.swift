@@ -5,6 +5,9 @@ extension ChatStore {
     @MainActor
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
         guard let conversationId else { return }
+        if !streaming {
+            flushPendingAssistantContentRustSync()
+        }
         let applied = applyRustStoreAction("set_streaming_state") { request in
             request.conversationId = conversationId.uuidString.lowercased()
             request.boolValue = streaming
@@ -38,12 +41,22 @@ extension ChatStore {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        let applied = applyRustStoreAction("sync_assistant_content") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
-            request.text = resolvedContent
-        }
-        if !applied {
+        if persistImmediately {
+            cancelAssistantContentRustSyncSchedule()
+            let applied = applyRustStoreAction("sync_assistant_content") { request in
+                request.conversationId = conversationId.uuidString.lowercased()
+                request.text = resolvedContent
+            }
+            if !applied {
+                fallbackUpdateAssistantContent(conversationId: conversationId, content: resolvedContent)
+            }
+        } else {
             fallbackUpdateAssistantContent(conversationId: conversationId, content: resolvedContent)
+            scheduleAssistantContentRustSync(
+                conversationId: conversationId,
+                messageId: nil,
+                content: resolvedContent
+            )
         }
         persistAssistantMutation(immediately: persistImmediately)
     }
@@ -57,13 +70,27 @@ extension ChatStore {
     ) {
         guard let conversationId else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        let applied = applyRustStoreAction("sync_assistant_content") { request in
-            request.conversationId = conversationId.uuidString.lowercased()
-            request.messageId = messageId.uuidString.lowercased()
-            request.text = resolvedContent
-        }
-        if !applied {
+        if persistImmediately {
+            cancelAssistantContentRustSyncSchedule()
+            let applied = applyRustStoreAction("sync_assistant_content") { request in
+                request.conversationId = conversationId.uuidString.lowercased()
+                request.messageId = messageId.uuidString.lowercased()
+                request.text = resolvedContent
+            }
+            if !applied {
+                fallbackUpdateAssistantContent(
+                    conversationId: conversationId,
+                    messageId: messageId,
+                    content: resolvedContent
+                )
+            }
+        } else {
             fallbackUpdateAssistantContent(
+                conversationId: conversationId,
+                messageId: messageId,
+                content: resolvedContent
+            )
+            scheduleAssistantContentRustSync(
                 conversationId: conversationId,
                 messageId: messageId,
                 content: resolvedContent
@@ -187,6 +214,7 @@ extension ChatStore {
     @MainActor
     func endTask(conversationId: UUID?) {
         guard let id = conversationId else { return }
+        flushPendingAssistantContentRustSync()
         requireRustTaskRuntime("end_task") { request in
             request.conversationId = id.uuidString.lowercased()
         }
@@ -213,6 +241,9 @@ extension ChatStore {
         in conversationId: UUID,
         persistImmediately: Bool
     ) {
+        // Il commit pipeline sostituisce blocchi/testo: un `sync_assistant_content` debouncato in coda
+        // potrebbe ancora rifare round-trip Rust con testo obsoleto e svuotare la timeline.
+        cancelAssistantContentRustSyncSchedule()
         if mainChatTraceLoggingEnabled() {
             NSLog(
                 "[MainChatTrace] store sync_assistant_pipeline_state conv=%@ msg=%@ primary=%ld blocks=%ld streaming=%@",
@@ -246,10 +277,22 @@ extension ChatStore {
                 messageId.uuidString.lowercased()
             )
         }
-        if !applied,
-           let convIdx = conversations.firstIndex(where: { $0.id == conversationId }),
+        if let convIdx = conversations.firstIndex(where: { $0.id == conversationId }),
            let msgIdx = conversations[convIdx].messages.firstIndex(where: { $0.id == messageId }) {
-            conversations[convIdx].messages[msgIdx] = pipelineMessage
+            if !applied {
+                conversations[convIdx].messages[msgIdx] = pipelineMessage
+            } else {
+                let incoming = (pipelineMessage.primaryTextSnapshot ?? pipelineMessage.content)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let msg = conversations[convIdx].messages[msgIdx]
+                let visible = (msg.primaryTextSnapshot ?? msg.content)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !incoming.isEmpty, visible.isEmpty {
+                    conversations[convIdx].messages[msgIdx] = pipelineMessage
+                }
+            }
+        } else {
+            repairAppendMessageIfMissing(pipelineMessage, conversationId: conversationId)
         }
         persistAssistantMutation(immediately: persistImmediately)
     }

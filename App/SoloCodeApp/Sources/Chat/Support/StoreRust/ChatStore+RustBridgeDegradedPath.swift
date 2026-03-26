@@ -10,6 +10,30 @@ extension ChatStore {
         fallbackAppendMessage(message, in: conversationId)
     }
 
+    /// Dopo `pipeline_apply_events` via Rust, la timeline locale può restare senza testo pur avendo il turn state aggiornato.
+    @MainActor
+    func reconcileAssistantPrimaryTextFromPipelineIfStoreEmpty(
+        messageId: UUID,
+        conversationId: UUID,
+        primaryText: String,
+        persistImmediately: Bool
+    ) {
+        let trimmedPipeline = primaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPipeline.isEmpty else { return }
+        guard let conv = conversation(for: conversationId),
+              let msg = conv.messages.first(where: { $0.id == messageId })
+        else { return }
+        let visible = (msg.primaryTextSnapshot ?? msg.content)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard visible.isEmpty else { return }
+        updateAssistantMessage(
+            messageId: messageId,
+            content: primaryText,
+            in: conversationId,
+            persistImmediately: persistImmediately
+        )
+    }
+
     @MainActor
     func repairInsertMessageIfMissing(
         _ message: ChatMessage,

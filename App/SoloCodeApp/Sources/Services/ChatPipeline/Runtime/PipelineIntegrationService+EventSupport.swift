@@ -59,6 +59,17 @@ extension PipelineIntegrationService {
                 for: conversationId
             )
         }
+
+        // Applica subito eventi pipeline accodati dal debounce 16ms, così raw path + XCTest vedono stato coerente.
+        if let chatStore,
+           let runtime = runtime(for: conversationId),
+           !runtime.pendingRustBridgeEvents.isEmpty {
+            flushPendingRustBridgeEventsIfNeeded(
+                conversationId: conversationId,
+                runtime: runtime,
+                chatStore: chatStore
+            )
+        }
     }
 
     func projectAssistantUpdateIntoPrimaryTextIfNeeded(

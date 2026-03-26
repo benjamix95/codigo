@@ -272,6 +272,15 @@ final class ConversationFlowCoordinator: ObservableObject {
                     }
                 }
             }
+            func forwardRawEventsOnMainActor(_ events: [(String, [String: String])]) async {
+                guard !events.isEmpty else { return }
+                let pid = provider.id
+                await MainActor.run {
+                    for (t, pl) in events {
+                        onRaw(t, pl, pid)
+                    }
+                }
+            }
             while true {
                 try Task.checkCancellation()
                 let baseTimeoutMs = max(1, (runtimeSnapshot.currentPollTimeoutSeconds ?? 90) * 1000)
@@ -348,9 +357,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                         if !bufferedRawEvents.isEmpty {
                             let pending = bufferedRawEvents
                             bufferedRawEvents.removeAll(keepingCapacity: true)
-                            for (rawType, rawPayload) in pending {
-                                await MainActor.run { onRaw(rawType, rawPayload, provider.id) }
-                            }
+                            await forwardRawEventsOnMainActor(pending)
                         }
                     case .raw:
                         await flushCoalescedAssistantText()
@@ -376,14 +383,12 @@ final class ConversationFlowCoordinator: ObservableObject {
                             if rawType == "reasoning", runtimeStreamLogger.isEnabled(type: .debug) {
                                 runtimeStreamLogger.debug("forwarding reasoning to onRaw")
                             }
-                            await MainActor.run { onRaw(rawType, event.payload, provider.id) }
+                            var batch: [(String, [String: String])] = [(rawType, event.payload)]
                             if hasSeenNarrativeEvent, !bufferedRawEvents.isEmpty {
-                                let pending = bufferedRawEvents
+                                batch.append(contentsOf: bufferedRawEvents)
                                 bufferedRawEvents.removeAll(keepingCapacity: true)
-                                for (pendingType, pendingPayload) in pending {
-                                    await MainActor.run { onRaw(pendingType, pendingPayload, provider.id) }
-                                }
                             }
+                            await forwardRawEventsOnMainActor(batch)
                         }
                     case .error:
                         await flushCoalescedAssistantText()
@@ -394,9 +399,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                         if !bufferedRawEvents.isEmpty {
                             let pending = bufferedRawEvents
                             bufferedRawEvents.removeAll(keepingCapacity: true)
-                            for (rawType, rawPayload) in pending {
-                                await MainActor.run { onRaw(rawType, rawPayload, provider.id) }
-                            }
+                            await forwardRawEventsOnMainActor(pending)
                         }
                         await MainActor.run { onError(textSnapshot + "\n\n[Error: \(message)]") }
                         await setState(.error)
@@ -406,9 +409,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                         if !bufferedRawEvents.isEmpty {
                             let pending = bufferedRawEvents
                             bufferedRawEvents.removeAll(keepingCapacity: true)
-                            for (rawType, rawPayload) in pending {
-                                await MainActor.run { onRaw(rawType, rawPayload, provider.id) }
-                            }
+                            await forwardRawEventsOnMainActor(pending)
                         }
                         await setState(.completed)
                         return renderedTextSnapshot.isEmpty ? turnState.primaryTextSnapshot : renderedTextSnapshot

@@ -160,6 +160,16 @@ extension PipelineIntegrationService {
                         persistImmediately: false
                     )
                 }
+            } else {
+                let primarySnapshot = runtime.chatTurnState.primaryTextSnapshot
+                if !primarySnapshot.isEmpty {
+                    chatStore.reconcileAssistantPrimaryTextFromPipelineIfStoreEmpty(
+                        messageId: runtime.assistantMessageId,
+                        conversationId: conversationId,
+                        primaryText: primarySnapshot,
+                        persistImmediately: false
+                    )
+                }
             }
 
             if sequencedEvents.contains(where: { $0.kind == .turnCompleted || $0.kind == .turnFailed }) {
