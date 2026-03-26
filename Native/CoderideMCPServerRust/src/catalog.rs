@@ -148,6 +148,7 @@ fn is_read_only(name: &str) -> bool {
             | "coderide_codebase_search"
             | "coderide_semantic_search"
             | "coderide_read_lints"
+            | "coderide_git_diff"
             | "coderide_todo_read"
             | "coderide_plan_read"
             | "coderide_plan_diff"
