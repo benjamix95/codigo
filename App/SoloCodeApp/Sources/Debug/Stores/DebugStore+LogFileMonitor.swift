@@ -45,6 +45,7 @@ extension DebugStore {
         runtimeLogs.removeAll()
         loadRuntimeLogsFromDisk(path: nextPath)
         startLogFileMonitor(path: nextPath)
+        rescheduleDebugIdleWarningIfNeeded()
     }
 
     /// Loads runtime logs from a JSONL file on disk into the runtimeLogs array.

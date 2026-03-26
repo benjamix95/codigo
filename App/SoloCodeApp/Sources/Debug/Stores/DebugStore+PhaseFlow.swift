@@ -41,7 +41,6 @@ extension DebugStore {
         // Auto-load runtime logs from disk and start monitoring
         loadRuntimeLogsFromDisk(path: activeDebugLogPath)
         startLogFileMonitor(path: activeDebugLogPath)
-        rescheduleDebugIdleWarningIfNeeded()
     }
 
     @discardableResult
@@ -77,7 +76,6 @@ extension DebugStore {
         if newPhase == .reproducing && currentRunId == nil {
             currentRunId = UUID().uuidString
         }
-        rescheduleDebugIdleWarningIfNeeded()
         return true
     }
 
@@ -95,12 +93,10 @@ extension DebugStore {
             addLog(severity: .error, source: "debug_session",
                    message: "Fix loop limit reached (\(Self.maxFixLoopIterations) iterations). Manual intervention required.",
                    detail: reason, category: "system")
-            rescheduleDebugIdleWarningIfNeeded()
             return
         }
         phase = .instrumenting
         addLog(severity: .warning, source: "debug_session", message: "Verify failed (iteration \(fixLoopIteration)): \(reason). Looping back to instrument.", category: "system")
-        rescheduleDebugIdleWarningIfNeeded()
     }
 
     func resolveSession(summary: String) {

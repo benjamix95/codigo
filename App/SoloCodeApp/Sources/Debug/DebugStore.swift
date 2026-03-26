@@ -18,7 +18,10 @@ final class DebugStore: ObservableObject {
 
     var phase: DebugFlowPhase {
         get { flow.phase }
-        set { flow.phase = newValue }
+        set {
+            flow.phase = newValue
+            rescheduleDebugIdleWarningIfNeeded()
+        }
     }
     var logs: [DebugLogEntry] {
         get { flow.logs }
