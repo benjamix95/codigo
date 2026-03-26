@@ -833,6 +833,33 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(resolved, conversationId)
     }
 
+    func testPlanConversationIdAfterUpsertResolvesByLastTouchWhenPlanNil() {
+        let store = makeStore()
+        let conv = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Touch only resolve",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        guard let idx = store.todos.firstIndex(where: { $0.title == "Touch only resolve" }) else {
+            XCTFail("expected row")
+            return
+        }
+        store.todos[idx].lastTouchedConversationId = conv
+        store.todos[idx].planConversationId = nil
+        store.saveTodos()
+        let resolved = store.planConversationIdForRuntimeTodoAfterUpsert(
+            preferredId: UUID(),
+            normalizedTitle: "Touch only resolve",
+            eventConversationId: conv
+        )
+        XCTAssertEqual(resolved, conv)
+    }
+
     func testPlanConversationIdAfterUpsertPicksNewestUpdatedAmongDuplicateTitlesNoEvent() {
         let store = makeStore()
         let cOlder = UUID()

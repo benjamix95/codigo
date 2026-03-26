@@ -11,7 +11,7 @@ extension TodoStore {
     ) -> UUID? {
         if let preferredId,
            let row = todos.first(where: { $0.id == preferredId }) {
-            return row.planConversationId
+            return row.effectiveRuntimeQueueConversationId
         }
         let key = normalizedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return nil }
@@ -23,11 +23,15 @@ extension TodoStore {
         guard !matches.isEmpty else { return nil }
 
         if let eventConversationId {
-            let scoped = matches.filter { $0.planConversationId == eventConversationId }
+            let scoped = matches.filter {
+                $0.planConversationId == eventConversationId
+                    || ($0.planConversationId == nil && $0.lastTouchedConversationId == eventConversationId)
+            }
             guard !scoped.isEmpty else { return nil }
-            return scoped.max(by: Self.runtimeTodoResolutionPrefersSecond)?.planConversationId
+            let best = scoped.max(by: Self.runtimeTodoResolutionPrefersSecond)!
+            return best.effectiveRuntimeQueueConversationId ?? eventConversationId
         }
-        return matches.max(by: Self.runtimeTodoResolutionPrefersSecond)?.planConversationId
+        return matches.max(by: Self.runtimeTodoResolutionPrefersSecond)?.effectiveRuntimeQueueConversationId
     }
 
     /// Ordine per `max(by:)` crescente: vince la riga con `updatedAt` più recente, poi `createdAt`, poi `id` lessicografico.

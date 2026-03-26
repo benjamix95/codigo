@@ -170,7 +170,7 @@ extension PipelineIntegrationService {
             } else {
                 let normalizedTitle = todo.title.trimmingCharacters(in: .whitespacesAndNewlines)
                 let existingBeforeUpsert = todoId.flatMap { id in
-                    todoStore.todos.first(where: { $0.id == id })?.planConversationId
+                    todoStore.todos.first(where: { $0.id == id })?.effectiveRuntimeQueueConversationId
                 }
                 todoStore.upsertFromAgent(
                     id: todoId,

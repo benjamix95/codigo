@@ -20,7 +20,8 @@ enum MainChatTodoPatchAdapter {
                 }
                 let conversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
                 let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                let existingBeforeUpsert = todoStore.todos.first(where: { $0.id == todoId })?.planConversationId
+                let existingRow = todoStore.todos.first(where: { $0.id == todoId })
+                let existingBeforeUpsert = existingRow?.effectiveRuntimeQueueConversationId
                 // Always use upsertFromAgent — it has 3-level deduplication:
                 // 1. Match by exact ID
                 // 2. Match by canonical key (fuzzy)
@@ -58,7 +59,8 @@ enum MainChatTodoPatchAdapter {
                 else {
                     continue
                 }
-                let existingConversationId = todoStore.todos.first(where: { $0.id == todoId })?.planConversationId
+                let existingConversationId = todoStore.todos.first(where: { $0.id == todoId })?
+                    .effectiveRuntimeQueueConversationId
                 let patchConversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
                 let effectiveConversationId = patchConversationId ?? existingConversationId
                 todoStore.setStatus(id: todoId, status: status)
@@ -74,7 +76,7 @@ enum MainChatTodoPatchAdapter {
                 guard let todoId = patch.todoId.flatMap(UUID.init(uuidString:)) else { continue }
                 let patchRemovalConversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
                 let existingRemovalConversationId = todoStore.todos.first(where: { $0.id == todoId })?
-                    .planConversationId
+                    .effectiveRuntimeQueueConversationId
                 let effectiveRemovalConversationId = patchRemovalConversationId ?? existingRemovalConversationId
                 // #region agent log
                 ComposerTodoDebugNDJSONLog.append(

@@ -179,6 +179,14 @@ struct TodoItem: Identifiable, Codable {
         activeForm = (try? container.decode(String.self, forKey: .activeForm)) ?? ""
     }
 
+    /// Conversazione per `advanceNextRuntimeTodoIfNeeded` / trace quando `planConversationId` è nil
+    /// ma il lavoro è ancorato con `lastTouchedConversationId` (runtime agent).
+    var effectiveRuntimeQueueConversationId: UUID? {
+        if isPlanCanonical { return planConversationId }
+        if isOperationalPlaceholder { return planConversationId }
+        return planConversationId ?? lastTouchedConversationId
+    }
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)

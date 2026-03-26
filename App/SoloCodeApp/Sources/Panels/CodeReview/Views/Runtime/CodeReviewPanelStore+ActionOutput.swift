@@ -155,7 +155,7 @@ extension CodeReviewPanelStore {
         }
         let normalizedTitle = parsedTodo.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let existingBeforeUpsert = parsedTodo.id.flatMap { id in
-            todoStore.todos.first(where: { $0.id == id })?.planConversationId
+            todoStore.todos.first(where: { $0.id == id })?.effectiveRuntimeQueueConversationId
         }
         todoStore.upsertFromAgent(
             id: parsedTodo.id,
