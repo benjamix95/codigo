@@ -20,17 +20,35 @@ struct DebugNativePipelineAdapter {
         context: DebugNativePipelineTaskContext,
         provider: any LLMProvider
     ) async -> DebugNativeBackendOutcome {
-        var merged = DebugNativeBackendOutcome()
+        struct Indexed: Sendable {
+            let index: Int
+            let outcome: DebugNativeBackendOutcome
+        }
 
-        for backend in backends {
-            guard await backend.canRun(context: context, provider: provider) else {
-                continue
+        let indexedOutcomes: [Indexed] = await withTaskGroup(of: Indexed.self) { group in
+            for (idx, backend) in backends.enumerated() {
+                group.addTask {
+                    let can = await backend.canRun(context: context, provider: provider)
+                    guard can else {
+                        return Indexed(index: idx, outcome: DebugNativeBackendOutcome())
+                    }
+                    let outcome = await backend.perform(context: context, provider: provider)
+                    return Indexed(index: idx, outcome: outcome)
+                }
             }
-            let outcome = await backend.perform(context: context, provider: provider)
-            if let state = outcome.state {
+            var collected: [Indexed] = []
+            for await item in group {
+                collected.append(item)
+            }
+            return collected
+        }
+
+        var merged = DebugNativeBackendOutcome()
+        for item in indexedOutcomes.sorted(by: { $0.index < $1.index }) {
+            if let state = item.outcome.state {
                 merged.state = state
             }
-            merged.logs.append(contentsOf: outcome.logs)
+            merged.logs.append(contentsOf: item.outcome.logs)
         }
 
         if merged.state == nil {

@@ -52,6 +52,30 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         XCTAssertEqual(Set(resolveTask.dependsOn), Set([timelineTask.taskId, exportTask.taskId]))
     }
 
+    func testDescribeClarificationsDependOnGatherContextOnlyForParallelism() throws {
+        let request = DebugSessionRequest(errorSummary: "Parallel clarify")
+        let (_, tasks) = PipelineJobFactory.fromDebugSession(
+            request,
+            workspace: "/tmp/solocode",
+            providerId: "codex-cli"
+        )
+        let gather = try XCTUnwrap(tasks.first { $0.debugStage == .gatherContext })
+        let clarifications = tasks.filter { $0.debugStage == .requestClarification }
+        XCTAssertEqual(clarifications.count, 2)
+        for c in clarifications {
+            XCTAssertEqual(
+                Set(c.dependsOn),
+                Set([gather.taskId]),
+                "Ogni clarification deve dipendere solo da gather per permettere parallelismo"
+            )
+        }
+        let analyze = try XCTUnwrap(tasks.first { $0.debugStage == .analyzeIssue })
+        XCTAssertEqual(
+            Set(analyze.dependsOn),
+            Set(clarifications.map(\.taskId))
+        )
+    }
+
     func testFromDebugSessionOmitsOptionalStagesWhenDisabled() {
         let request = DebugSessionRequest(
             errorSummary: "Regression",

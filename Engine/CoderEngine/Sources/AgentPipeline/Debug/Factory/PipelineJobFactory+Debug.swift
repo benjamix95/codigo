@@ -55,7 +55,7 @@ extension PipelineJobFactory {
         providerId: String,
         slice: DebugPipelineSlice = .full,
         mode: PipelineMode = .strict,
-        maxConcurrentWorkers: Int = 3,
+        maxConcurrentWorkers: Int = 5,
         jobTimeoutMs: Int = 1_200_000
     ) -> (job: PipelineJob, tasks: [TaskNode]) {
         let jobId = "debug_\(UUID().uuidString.prefix(8))"
@@ -211,24 +211,29 @@ extension PipelineJobFactory {
                 "question_index": "1",
             ]
         )
+        // Entrambe le clarification dipendono solo da gatherContext: esecuzione parallela nel worker pool.
         let describeQuestionTwoId = appendStage(
             .requestClarification,
             title: "Request Describe Clarification Two",
             taskType: .bugfix,
             priority: 94,
-            dependsOn: [describeQuestionOneId],
+            dependsOn: [gatherContextId],
             metadata: [
                 "mcp_tool": "debug_request_user",
                 "request_kind": "question",
                 "question_index": "2",
             ]
         )
+        let clarifyDeps = [describeQuestionOneId, describeQuestionTwoId].compactMap { $0 }
+        let analyzeIssueDeps: [String] = clarifyDeps.isEmpty
+            ? [gatherContextId].compactMap { $0 }
+            : clarifyDeps
         let analyzeIssueId = appendStage(
             .analyzeIssue,
             title: "Analyze Issue",
             taskType: .bugfix,
             priority: 92,
-            dependsOn: [describeQuestionTwoId ?? describeQuestionOneId ?? gatherContextId],
+            dependsOn: analyzeIssueDeps,
             metadata: ["debug_tool": "debug_trace_analyze"]
         )
         let setReproducePhaseId = appendStage(
