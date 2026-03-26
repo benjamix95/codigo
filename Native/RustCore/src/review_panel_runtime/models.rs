@@ -10,6 +10,8 @@ pub struct ReviewPanelRuntimeStateSnapshot {
     pub panel_session_id: Option<String>,
     pub selected_finding_id: Option<String>,
     pub selected_historical_finding_id: Option<String>,
+    #[serde(default)]
+    pub immersive_finding_workspace_id: Option<String>,
     pub active_chat_thread_id: Option<String>,
     pub is_running: bool,
     pub run_started_at: Option<f64>,

@@ -67,6 +67,7 @@ extension CodeReviewPanelStore {
             panelSessionId: panelSessionId,
             selectedFindingId: selectedFindingId,
             selectedHistoricalFindingId: selectedHistoricalFindingId,
+            immersiveFindingWorkspaceId: immersiveFindingWorkspaceId,
             activeChatThreadId: nil,
             isRunning: isRunning,
             runStartedAt: runStartedAt,
@@ -96,6 +97,7 @@ extension CodeReviewPanelStore {
         panelSessionId = state.panelSessionId
         selectedFindingId = state.selectedFindingId
         selectedHistoricalFindingId = state.selectedHistoricalFindingId
+        immersiveFindingWorkspaceId = state.immersiveFindingWorkspaceId
         isRunning = state.isRunning
         runStartedAt = state.runStartedAt
         frozenTimerText = state.frozenTimerText
@@ -253,6 +255,7 @@ struct ReviewPanelRuntimeStateSnapshot: Codable {
     let panelSessionId: String?
     let selectedFindingId: String?
     let selectedHistoricalFindingId: String?
+    let immersiveFindingWorkspaceId: String?
     let activeChatThreadId: String?
     let isRunning: Bool
     let runStartedAt: Date?

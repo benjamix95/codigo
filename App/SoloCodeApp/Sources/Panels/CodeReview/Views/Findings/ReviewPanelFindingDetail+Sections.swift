@@ -115,16 +115,18 @@ extension ReviewPanelFindingDetail {
     }
 
     func patchSection(_ patch: ReviewPatchArtifact) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let immersive = chrome == .immersive
+        let corner: CGFloat = immersive ? 12 : 6
+        return VStack(alignment: .leading, spacing: 6) {
             sectionLabel("PATCH PREVIEW")
             Text(patch.diffPreview)
-                .font(.system(size: 9, design: .monospaced))
+                .font(.system(size: immersive ? 9.5 : 9, design: .monospaced))
                 .foregroundStyle(.primary.opacity(0.8))
-                .padding(8)
+                .padding(immersive ? 10 : 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                    RoundedRectangle(cornerRadius: corner, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(immersive ? 0.55 : 0.5))
                 )
             HStack(spacing: 8) {
                 Text("Verify: \(patch.verifyStatus.rawValue)")
@@ -135,6 +137,15 @@ extension ReviewPanelFindingDetail {
             .font(.system(size: 8.5, weight: .medium, design: .monospaced))
             .foregroundStyle(.quaternary)
         }
+        .padding(immersive ? 10 : 0)
+        .background(
+            RoundedRectangle(cornerRadius: immersive ? 14 : 0, style: .continuous)
+                .fill(Color.primary.opacity(immersive ? 0.03 : 0))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: immersive ? 14 : 0, style: .continuous)
+                .strokeBorder(store.accent.opacity(immersive ? 0.22 : 0), lineWidth: immersive ? 0.9 : 0)
+        )
     }
 
     var commentsSection: some View {

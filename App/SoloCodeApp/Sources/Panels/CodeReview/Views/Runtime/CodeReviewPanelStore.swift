@@ -50,6 +50,10 @@ final class CodeReviewPanelStore: ObservableObject {
         get { navigation.sessionBrowserExpanded }
         set { navigation.sessionBrowserExpanded = newValue }
     }
+    var immersiveFindingWorkspaceId: String? {
+        get { navigation.immersiveFindingWorkspaceId }
+        set { navigation.immersiveFindingWorkspaceId = newValue }
+    }
 
     // MARK: - Backward-compatible accessors – Runtime
 
@@ -73,6 +77,10 @@ final class CodeReviewPanelStore: ObservableObject {
     var applyingPatchFindingId: String? {
         get { runtime.applyingPatchFindingId }
         set { runtime.applyingPatchFindingId = newValue }
+    }
+    var applyPatchPhaseStartedAt: Date? {
+        get { runtime.applyPatchPhaseStartedAt }
+        set { runtime.applyPatchPhaseStartedAt = newValue }
     }
 
     // MARK: - Transcript (Rust reducer mirror only; no chat UI)
@@ -331,6 +339,7 @@ final class CodeReviewPanelStore: ObservableObject {
             panelSessionId = sessionId
             selectedFindingId = nil
             selectedHistoricalFindingId = nil
+            immersiveFindingWorkspaceId = nil
         }
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)
     }
@@ -355,6 +364,7 @@ final class CodeReviewPanelStore: ObservableObject {
         guard currentVisibleFindings.contains(where: { $0.id == findingId }) else { return }
         if !applyPanelIntent("focus_finding", value: findingId),
            !ReviewCoreBridge.isEnabled {
+            immersiveFindingWorkspaceId = nil
             selectedHistoricalFindingId = nil
             selectedFindingId = findingId
         }
@@ -365,6 +375,7 @@ final class CodeReviewPanelStore: ObservableObject {
         if !applyPanelIntent("clear_selected_finding"),
            !ReviewCoreBridge.isEnabled {
             selectedFindingId = nil
+            immersiveFindingWorkspaceId = nil
         }
     }
 

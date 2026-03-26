@@ -12,6 +12,7 @@ pub fn apply_intent(request: ReviewPanelIntentRequest) -> ReviewPanelRuntimeResp
             state.panel_session_id = normalized_value(request.value);
             state.selected_finding_id = None;
             state.selected_historical_finding_id = None;
+            state.immersive_finding_workspace_id = None;
         }
         "set_active_chat_thread" => {
             state.active_chat_thread_id = normalized_value(request.value);
@@ -23,15 +24,28 @@ pub fn apply_intent(request: ReviewPanelIntentRequest) -> ReviewPanelRuntimeResp
             state.panel_session_id = normalized_value(request.value);
         }
         "focus_finding" => {
+            state.immersive_finding_workspace_id = None;
             state.selected_finding_id = normalized_value(request.value);
             state.selected_historical_finding_id = None;
         }
+        "open_immersive_finding" => {
+            let id = normalized_value(request.value);
+            state.immersive_finding_workspace_id = id.clone();
+            state.selected_finding_id = id;
+            state.selected_historical_finding_id = None;
+        }
+        "leave_immersive_finding" => {
+            state.immersive_finding_workspace_id = None;
+            state.selected_finding_id = None;
+        }
         "focus_historical_finding" => {
             state.selected_finding_id = None;
+            state.immersive_finding_workspace_id = None;
             state.selected_historical_finding_id = normalized_value(request.value);
         }
         "clear_selected_finding" => {
             state.selected_finding_id = None;
+            state.immersive_finding_workspace_id = None;
         }
         "clear_selected_historical_finding" => {
             state.selected_historical_finding_id = None;
@@ -63,6 +77,7 @@ mod tests {
             panel_session_id: Some("session-a".to_string()),
             selected_finding_id: Some("finding-a".to_string()),
             selected_historical_finding_id: Some("hist-a".to_string()),
+            immersive_finding_workspace_id: None,
             active_chat_thread_id: Some("thread-a".to_string()),
             is_running: false,
             run_started_at: None,
@@ -208,5 +223,53 @@ mod tests {
         assert_eq!(state.active_chat_thread_id, None);
         assert_eq!(state.panel_session_id.as_deref(), Some("session-a"));
         assert_eq!(state.selected_tab, "Findings");
+    }
+
+    #[test]
+    fn open_immersive_finding_sets_workspace_and_selection() {
+        let response = apply_intent(ReviewPanelIntentRequest {
+            schema_version: 1,
+            state: base_state(),
+            intent: "open_immersive_finding".to_string(),
+            value: Some("finding-x".to_string()),
+        });
+        let state = response.state.expect("state");
+        assert_eq!(
+            state.immersive_finding_workspace_id.as_deref(),
+            Some("finding-x")
+        );
+        assert_eq!(state.selected_finding_id.as_deref(), Some("finding-x"));
+        assert_eq!(state.selected_historical_finding_id, None);
+    }
+
+    #[test]
+    fn leave_immersive_finding_clears_workspace() {
+        let mut s = base_state();
+        s.immersive_finding_workspace_id = Some("finding-x".to_string());
+        s.selected_finding_id = Some("finding-x".to_string());
+        let response = apply_intent(ReviewPanelIntentRequest {
+            schema_version: 1,
+            state: s,
+            intent: "leave_immersive_finding".to_string(),
+            value: None,
+        });
+        let state = response.state.expect("state");
+        assert_eq!(state.immersive_finding_workspace_id, None);
+        assert_eq!(state.selected_finding_id, None);
+    }
+
+    #[test]
+    fn focus_finding_clears_immersive_workspace() {
+        let mut s = base_state();
+        s.immersive_finding_workspace_id = Some("finding-a".to_string());
+        let response = apply_intent(ReviewPanelIntentRequest {
+            schema_version: 1,
+            state: s,
+            intent: "focus_finding".to_string(),
+            value: Some("finding-b".to_string()),
+        });
+        let state = response.state.expect("state");
+        assert_eq!(state.immersive_finding_workspace_id, None);
+        assert_eq!(state.selected_finding_id.as_deref(), Some("finding-b"));
     }
 }

@@ -7,6 +7,7 @@ struct ReviewPanelFindingDetail: View {
     let finding: CodeReviewFinding
     let onOpenFileAtLocation: (String, Int?) -> Void
     let onBack: () -> Void
+    var chrome: ReviewFindingDetailChrome = .standard
 
     var patch: ReviewPatchArtifact? {
         store.currentPatches.first(where: { $0.findingId == finding.id })
@@ -20,8 +21,12 @@ struct ReviewPanelFindingDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            detailHeader
-            Divider().opacity(0.2)
+            if chrome == .standard {
+                detailHeader
+                Divider().opacity(0.2)
+            } else {
+                Divider().opacity(0.12)
+            }
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 12) {
                     locationSection

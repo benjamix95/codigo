@@ -8,6 +8,8 @@ struct ReviewNavigationState {
     var selectedTab: CodeReviewTab = .findings
     var selectedFindingId: String?
     var selectedHistoricalFindingId: String?
+    /// Full-panel workspace per finding verificato (bug/security).
+    var immersiveFindingWorkspaceId: String?
     var sessionBrowserExpanded: Bool = false
 }
 
@@ -21,6 +23,8 @@ struct ReviewRuntimeState {
     var lastError: String?
     /// Durante `apply_patch`: build, test mirati, regression, suite completa Xcode.
     var applyingPatchFindingId: String?
+    /// Inizio fase apply (per timer nel footer immersivo).
+    var applyPatchPhaseStartedAt: Date?
 }
 
 // MARK: - ReviewPanelTranscriptState

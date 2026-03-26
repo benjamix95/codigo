@@ -159,7 +159,11 @@ extension CodeReviewPanelStore {
         workspaceRoot: String
     ) async {
         applyingPatchFindingId = artifact.findingId
-        defer { applyingPatchFindingId = nil }
+        applyPatchPhaseStartedAt = Date()
+        defer {
+            applyingPatchFindingId = nil
+            applyPatchPhaseStartedAt = nil
+        }
         do {
             let snapshot = patchWorkflowSnapshot(sessionId: sessionId, workspaceRoot: workspaceRoot)
             let updated = try await VerifiedFindingsPatchExecutionService.execute(
@@ -178,6 +182,9 @@ extension CodeReviewPanelStore {
                 detail:
                     "La patch è stata applicata solo dopo build, test mirati, controllo regressione e suite di test completa dello scheme (tutti verdi). Puoi usare «Crea PR» qui sotto per aprire una pull request. Se in seguito compaiono test rossi, vanno corretti prima di considerare il lavoro chiuso."
             )
+            if let resolved = updated.findings.first(where: { $0.id == artifact.findingId }) {
+                enqueueDocWriterFollowupAfterPatchApplied(finding: resolved, sessionId: sessionId)
+            }
             if settings.autoOpenPRAfterApply {
                 await openPatchPullRequest(sessionId: sessionId, findingId: artifact.findingId)
             }

@@ -9,8 +9,17 @@ struct ReviewPanelFindingsTab: View {
     var body: some View {
         let findings = store.currentVisibleFindings
 
-        if let selectedId = store.selectedFindingId,
-           let finding = findings.first(where: { $0.id == selectedId })
+        if let immersiveId = store.immersiveFindingWorkspaceId,
+           let immersiveFinding = findings.first(where: { $0.id == immersiveId }),
+           immersiveFinding.isEligibleForVerifiedBugOrSecurityWorkspace
+        {
+            ReviewPanelFindingImmersiveShell(
+                store: store,
+                finding: immersiveFinding,
+                onOpenFileAtLocation: onOpenFileAtLocation
+            )
+        } else if let selectedId = store.selectedFindingId,
+                  let finding = findings.first(where: { $0.id == selectedId })
         {
             ReviewPanelFindingDetail(
                 store: store,
@@ -163,8 +172,17 @@ struct ReviewPanelFindingsTab: View {
                 .padding(.horizontal, 10)
             LazyVStack(spacing: 2) {
                 ForEach(findings, id: \.id) { finding in
-                    findingRow(finding, isSelected: store.selectedFindingId == finding.id)
-                        .onTapGesture { store.focusFinding(finding.id) }
+                    findingRow(
+                        finding,
+                        isSelected: store.selectedFindingId == finding.id
+                            || store.immersiveFindingWorkspaceId == finding.id
+                    )
+                        .onTapGesture {
+                            if store.openImmersiveFindingWorkspaceIfEligible(finding.id) {
+                                return
+                            }
+                            store.focusFinding(finding.id)
+                        }
                 }
             }
             .padding(.horizontal, 6)
