@@ -13,6 +13,7 @@ final class WorkspaceStore: ObservableObject {
     @Published var workspaces: [Workspace] = []
     @Published var activeWorkspaceId: UUID?
     @Published var indexProgress: IndexingProgress?
+    @Published var indexBadgeState: WorkspaceIndexBadgeState = .initial
 
     let codebaseIndex = CodebaseIndex()
     lazy var languageService = LanguageService(codebaseIndex: codebaseIndex)
@@ -40,7 +41,7 @@ final class WorkspaceStore: ObservableObject {
         activeWorkspace?.excludedPaths ?? []
     }
 
-    private var isAutomaticIndexingEnabled: Bool {
+    var isAutomaticIndexingEnabled: Bool {
         let defaults = UserDefaults.standard
         if defaults.object(forKey: codebaseIndexEnabledKey) == nil {
             return true
@@ -78,6 +79,7 @@ final class WorkspaceStore: ObservableObject {
         let paths = activeWorkspacePaths
 
         guard isAutomaticIndexingEnabled, !paths.isEmpty else {
+            resetIndexBadgeToIdle()
             let index = codebaseIndex
             indexingTask = Task(priority: .utility) { [weak self] in
                 defer {
@@ -98,6 +100,16 @@ final class WorkspaceStore: ObservableObject {
         let filePatterns = globalExcludedFilePatterns
         let gitignore = isRespectGitignoreEnabled
         let index = codebaseIndex
+
+        DispatchQueue.main.async { [weak self] in
+            guard self?.indexingEpoch == activeToken else { return }
+            self?.indexBadgeState = WorkspaceIndexBadgeState(
+                progress: nil,
+                status: .indexing,
+                hasWorkspacePaths: true,
+                indexingEnabled: true
+            )
+        }
 
         startProgressPolling(activeToken: activeToken)
 
@@ -133,11 +145,18 @@ final class WorkspaceStore: ObservableObject {
                 self?.progressPollingTask?.cancel()
                 self?.progressPollingTask = nil
                 DispatchQueue.main.async { [weak self] in
-                    guard self?.indexingEpoch == activeToken else { return }
-                    self?.indexProgress = nil
+                    guard let self, self.indexingEpoch == activeToken else { return }
+                    Task { await self.finalizeIndexBadgeAfterRun(activeToken: activeToken) }
                 }
             }
         }
+    }
+
+    private func finalizeIndexBadgeAfterRun(activeToken: UUID) async {
+        guard indexingEpoch == activeToken else { return }
+        let info = await codebaseIndex.status()
+        guard indexingEpoch == activeToken else { return }
+        applyIndexStatus(info)
     }
 
     private func startProgressPolling(activeToken: UUID) {
@@ -147,9 +166,9 @@ final class WorkspaceStore: ObservableObject {
                 guard self?.indexingEpoch == activeToken else { break }
                 let info = await index.status()
                 guard !Task.isCancelled else { break }
-                DispatchQueue.main.async { [weak self] in
-                    guard self?.indexingEpoch == activeToken else { return }
-                    self?.indexProgress = info.progress
+                await MainActor.run { [weak self] in
+                    guard let self, self.indexingEpoch == activeToken else { return }
+                    self.applyIndexStatus(info)
                 }
                 if info.status != .indexing { break }
                 try? await Task.sleep(nanoseconds: 300_000_000)
@@ -168,6 +187,12 @@ final class WorkspaceStore: ObservableObject {
         progressPollingTask?.cancel()
         progressPollingTask = nil
         indexProgress = nil
+        indexBadgeState = WorkspaceIndexBadgeState(
+            progress: nil,
+            status: .idle,
+            hasWorkspacePaths: !activeWorkspacePaths.isEmpty,
+            indexingEnabled: isAutomaticIndexingEnabled
+        )
         return indexingEpoch
     }
 

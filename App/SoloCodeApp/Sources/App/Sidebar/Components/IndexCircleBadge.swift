@@ -3,65 +3,103 @@ import CoderEngine
 
 // MARK: - IndexCircleBadge
 
-/// Circular progress indicator for codebase indexing.
-/// Shows a ring that fills as indexing progresses.
-/// At 100% the ring stays solid green with a checkmark.
+/// Indicatore compatto: rosso = in attesa / errore, arancio = indicizzazione (codebase + vettoriale), giallo-oro in corso, verde = pronto.
 struct IndexCircleBadge: View {
-    let progress: IndexingProgress?
+    let state: WorkspaceIndexBadgeState
+    var dimension: CGFloat = 13
+    private var lineWidth: CGFloat { max(1.0, dimension * 0.12) }
 
-    /// Resolved fraction: 1.0 when indexing is done (progress == nil).
     private var fraction: Double {
-        if let progress { return progress.fraction }
-        return 1.0
+        if state.isFullyIndexed { return 1.0 }
+        if let p = state.progress { return min(1.0, max(0.0, p.fraction)) }
+        return 0
     }
 
-    /// Whether indexing is complete.
-    private var isComplete: Bool { progress == nil }
-
-    /// Percentage text for the tooltip.
-    private var percentText: String {
-        if let progress { return progress.percentText }
-        return "100%"
+    private var trackColor: Color {
+        if !state.indexingEnabled { return Color.secondary.opacity(0.25) }
+        if state.shouldShowErrorNotice { return DesignSystem.Colors.error.opacity(0.35) }
+        if state.isFullyIndexed { return DesignSystem.Colors.success.opacity(0.25) }
+        if state.isIndexingActive { return Color.orange.opacity(0.35) }
+        if state.shouldShowWaitNotice { return DesignSystem.Colors.error.opacity(0.3) }
+        return Color.secondary.opacity(0.25)
     }
 
-    // MARK: - Body
+    private var progressColor: Color {
+        if !state.indexingEnabled { return .secondary }
+        if state.shouldShowErrorNotice { return DesignSystem.Colors.error }
+        if state.isFullyIndexed { return DesignSystem.Colors.success }
+        if state.isIndexingActive { return Color.orange }
+        if state.shouldShowWaitNotice { return Color.red.opacity(0.9) }
+        return .secondary
+    }
 
     var body: some View {
         ZStack {
-            // Background ring (track).
             Circle()
-                .stroke(
-                    isComplete
-                        ? DesignSystem.Colors.success.opacity(0.2)
-                        : Color.accentColor.opacity(0.15),
-                    lineWidth: 2
-                )
+                .stroke(trackColor, lineWidth: lineWidth)
 
-            // Filled ring (progress).
             Circle()
                 .trim(from: 0, to: fraction)
                 .stroke(
-                    isComplete
-                        ? DesignSystem.Colors.success
-                        : Color.accentColor,
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                    progressColor,
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.easeInOut(duration: 0.3), value: fraction)
+                .animation(.easeInOut(duration: 0.22), value: fraction)
 
-            // Center content.
-            if isComplete {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 6, weight: .bold))
-                    .foregroundStyle(DesignSystem.Colors.success)
-            } else {
-                Text("\(Int(fraction * 100))")
-                    .font(.system(size: 6, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.accentColor)
-                    .minimumScaleFactor(0.5)
-            }
+            centerContent
+                .frame(width: dimension * 0.62, height: dimension * 0.62)
         }
-        .frame(width: 18, height: 18)
-        .help(isComplete ? "Indexed — codebase ready" : "Indexing: \(percentText)")
+        .frame(width: dimension, height: dimension)
+        .help(helpText)
+    }
+
+    @ViewBuilder
+    private var centerContent: some View {
+        if !state.indexingEnabled, state.hasWorkspacePaths {
+            Image(systemName: "minus")
+                .font(.system(size: dimension * 0.35, weight: .bold))
+                .foregroundStyle(.secondary)
+        } else if state.isFullyIndexed {
+            Image(systemName: "checkmark")
+                .font(.system(size: dimension * 0.38, weight: .bold))
+                .foregroundStyle(DesignSystem.Colors.success)
+        } else if state.shouldShowErrorNotice {
+            Image(systemName: "exclamationmark")
+                .font(.system(size: dimension * 0.38, weight: .bold))
+                .foregroundStyle(DesignSystem.Colors.error)
+        } else if state.isIndexingActive {
+            Text("\(state.displayPercent)")
+                .font(.system(size: dimension * 0.42, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.orange)
+                .minimumScaleFactor(0.4)
+        } else if state.shouldShowWaitNotice {
+            Image(systemName: "clock")
+                .font(.system(size: dimension * 0.36, weight: .semibold))
+                .foregroundStyle(Color.red.opacity(0.85))
+        } else {
+            Circle()
+                .fill(Color.secondary.opacity(0.35))
+                .frame(width: dimension * 0.28, height: dimension * 0.28)
+        }
+    }
+
+    private var helpText: String {
+        if !state.indexingEnabled {
+            return "Indice automatico disattivato"
+        }
+        if state.shouldShowErrorNotice {
+            return "Errore durante l’indicizzazione"
+        }
+        if state.isFullyIndexed {
+            return "Indicizzazione completa — codebase e ricerca vettoriale pronti"
+        }
+        if state.isIndexingActive {
+            return "Indicizzazione: \(state.displayPercentText) (file, semantic index, database vettoriale)"
+        }
+        if state.shouldShowWaitNotice {
+            return "Attendere il completamento dell’indice (codebase + DB vettoriale)"
+        }
+        return "Stato indice"
     }
 }
