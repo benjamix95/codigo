@@ -109,8 +109,8 @@ enum RustSyncedToolDescriptions {
       "coderide_subagent_testWriter": "Spawn a tests-and-verification subagent. Usage: task (required).",
       "coderide_todo_read": "Read the shared IDE todo list / LiveCard items. Usage: no required fields.",
       "coderide_todo_write": "Update structured todos shown in the IDE. Usage: pass todos JSON batch and/or single-item fields title, status, priority, notes, activeForm, linkedFiles.",
-      "coderide_web_fetch": "Fetch public URL and return Markdown content. Usage: url (required).",
-      "coderide_web_search": "Internet search for up-to-date docs, APIs, CVEs, releases. Usage: query (required); optional explanation/maxResults.",
+      "coderide_web_fetch": "Fetch public URL and return trimmed text. Usage: url (required); optional timeout seconds (fractional, max 120).",
+      "coderide_web_search": "DuckDuckGo HTML search, trimmed snippets. Usage: query (required); optional explanation; optional timeout seconds (fractional, max 120).",
       "coderide_write": "Overwrite or create a file with full contents. Usage: path and content. Prefer coderide_str_replace for small edits to existing files."
     }
     """

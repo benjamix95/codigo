@@ -11,7 +11,11 @@ extension CoderIDETools {
                 "type": "object",
                 "properties": .object([
                     "query": .object(["type": "string", "description": "Search query"]),
-                    "maxResults": .object(["type": "string", "description": "Maximum number of results (default: 5)"]),
+                    "explanation": .object(["type": "string", "description": "Optional rationale for the search"]),
+                    "timeout": .object([
+                        "type": "number",
+                        "description": "Max seconds for the HTTP request (0 < timeout ≤ 120; fractional allowed; invalid values default to 30)"
+                    ]),
                 ]),
                 "required": .array([.string("query")]),
             ]),
@@ -23,7 +27,11 @@ extension CoderIDETools {
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
-                    "url": .object(["type": "string", "description": "URL to fetch"]),
+                    "url": .object(["type": "string", "description": "URL to fetch (https added if scheme omitted)"]),
+                    "timeout": .object([
+                        "type": "number",
+                        "description": "Max seconds for the HTTP request (0 < timeout ≤ 120; fractional allowed; invalid values default to 30)"
+                    ]),
                 ]),
                 "required": .array([.string("url")]),
             ]),
