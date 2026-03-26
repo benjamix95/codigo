@@ -180,4 +180,21 @@ extension ChatComposerView {
         .padding(.vertical, isIDEStyle ? 6 : 8)
         .background(Color.orange.opacity(0.08))
     }
+
+    internal var noProjectOpenBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Text(
+                "Nessun progetto aperto. Apri una cartella o un workspace dalla barra laterale per inviare messaggi."
+            )
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, isIDEStyle ? 12 : 16)
+        .padding(.vertical, isIDEStyle ? 6 : 8)
+        .background(Color.secondary.opacity(0.08))
+    }
 }

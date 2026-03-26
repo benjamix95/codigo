@@ -41,6 +41,10 @@ extension ChatPanelView {
         guard !text.isEmpty || !attachedComposerAttachments.isEmpty else {
             return
         }
+        guard effectiveContext.hasContext else {
+            showNoProjectOpenAlert = true
+            return
+        }
         // Clear composer immediately for snappy feel
         let capturedAttachments = attachedComposerAttachments
         inputText = ""

@@ -36,6 +36,7 @@ final class ComposerRuntimeTimerTests: XCTestCase {
             isConvertingHeic: .constant(false),
             isInputFocused: .constant(false),
             isProviderReady: true,
+            isProjectContextAvailable: true,
             isLoading: false,
             planningState: .idle,
             runtimeRunState: .idle,

@@ -43,6 +43,8 @@ struct ChatComposerView: View {
     @Binding var isInputFocused: Bool
 
     let isProviderReady: Bool
+    /// `false` quando non c’è workspace/cartella: l’invio è bloccato e mostriamo il banner sul composer.
+    let isProjectContextAvailable: Bool
     let isLoading: Bool
     let planningState: PlanningState
     let runtimeRunState: ExecutionRunState
@@ -83,6 +85,9 @@ struct ChatComposerView: View {
         VStack(spacing: 0) {
             if !isProviderReady {
                 providerNotReadyBanner
+            }
+            if !isProjectContextAvailable {
+                noProjectOpenBanner
             }
 
             VStack(spacing: isIDEStyle ? 6 : 8) {

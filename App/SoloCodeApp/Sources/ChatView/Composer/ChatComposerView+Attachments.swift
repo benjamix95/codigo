@@ -149,7 +149,8 @@ extension ChatComposerView {
         let awaitingChoice = if case .awaitingChoice = planningState { true } else { false }
         let hasText = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let canSend =
-            (hasText || !attachedAttachments.isEmpty)
+            isProjectContextAvailable
+            && (hasText || !attachedAttachments.isEmpty)
             && !isLoading
             && !awaitingChoice
 

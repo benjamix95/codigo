@@ -308,6 +308,7 @@ struct ChatPanelThreadViewState {
     var hasJustCompletedTask = false
     var showRateLimitAlert = false
     var rateLimitAlertText = ""
+    var showNoProjectOpenAlert = false
     var didCopyAllChat = false
     var isFollowingLive = true
     var newEventsWhileDetached = 0
@@ -568,6 +569,11 @@ extension ChatPanelView {
     var rateLimitAlertText: String {
         get { panelState.rateLimitAlertText }
         nonmutating set { panelState.rateLimitAlertText = newValue }
+    }
+
+    var showNoProjectOpenAlert: Bool {
+        get { panelState.showNoProjectOpenAlert }
+        nonmutating set { panelState.showNoProjectOpenAlert = newValue }
     }
 
     var didCopyAllChat: Bool {

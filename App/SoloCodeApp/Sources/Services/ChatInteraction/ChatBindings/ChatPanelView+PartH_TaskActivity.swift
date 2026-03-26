@@ -337,6 +337,7 @@ extension ChatPanelView {
                 isConvertingHeic: $composerState.isConvertingHeic,
                 isInputFocused: $composerState.isInputFocused,
                 isProviderReady: isProviderReady,
+                isProjectContextAvailable: effectiveContext.hasContext,
                 isLoading: isLoadingForCurrentConversation,
                 planningState: planningState,
                 runtimeRunState: executionController.runState,
@@ -442,6 +443,13 @@ extension ChatPanelView {
             Button("OK", role: .cancel) {}
         } message: {
             Text(rateLimitAlertText)
+        }
+        .alert("Nessun progetto aperto", isPresented: $panelState.showNoProjectOpenAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(
+                "Apri una cartella o un workspace dalla barra laterale prima di inviare un messaggio."
+            )
         }
     }
 
