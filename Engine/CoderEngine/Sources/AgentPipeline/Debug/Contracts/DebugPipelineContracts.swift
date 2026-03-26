@@ -57,6 +57,8 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
     case timeline
     case resolve
     case awaitReproduceGate = "await_reproduce_gate"
+    /// Solo slice `.investigation` + native: placeholder nel DAG dopo preflight UI (nessun tool MCP).
+    case hostReproduceGateAck = "host_reproduce_gate_ack"
     case awaitFixGate = "await_fix_gate"
     case nativeStart = "native_start"
     case nativeRefresh = "native_refresh"
@@ -73,7 +75,7 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
              .gatherContext, .analyzeIssue, .requestClarification:
             return .describing
         case .reproducePipelineBootstrap, .setReproducePhase, .requestReproduction, .reproduce,
-             .awaitReproduceGate:
+             .awaitReproduceGate, .hostReproduceGateAck:
             return .reproducing
         case .instrument:
             return .instrumenting
@@ -101,7 +103,7 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
              .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase, .setVerifyPhase,
              .requestClarification, .requestReproduction,
-             .resolve, .awaitReproduceGate, .awaitFixGate:
+             .resolve, .awaitReproduceGate, .hostReproduceGateAck, .awaitFixGate:
             return .mcpTool
         case .gatherContext, .analyzeIssue, .reproduce,
              .instrument, .snapshot, .hypothesize, .fix,
@@ -126,7 +128,7 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
              .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase, .setVerifyPhase,
              .requestClarification, .requestReproduction, .resolve,
-             .awaitReproduceGate, .awaitFixGate,
+             .awaitReproduceGate, .hostReproduceGateAck, .awaitFixGate,
              .nativeStart, .nativeRefresh, .nativeSyncBreakpoints,
              .nativeSyncWatches, .nativeStepIn, .nativeStepOver,
              .nativeStepOut, .nativeStop:

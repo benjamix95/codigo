@@ -108,6 +108,8 @@ extension PipelineJobFactory {
                 }
             case .investigation:
                 switch stage {
+                case .hostReproduceGateAck:
+                    return request.includeNativeStages
                 case .nativeStart, .nativeSyncBreakpoints, .nativeSyncWatches,
                      .reproduce, .instrument, .fixPipelineBootstrap, .snapshot,
                      .hypothesize, .fix, .reviewFix, .setVerifyPhase,
@@ -260,16 +262,29 @@ extension PipelineJobFactory {
             ]
         )
 
-        // Slice `.investigation`: `awaitReproduceGate` non è nel grafo; la barriera reproduce è nel preflight UI
-        // (`ChatPanelView.executeDebugPipelineIntent`) prima di avviare i native stage.
+        let investigationHostReproduceAckId: String? = {
+            guard slice == .investigation, request.includeNativeStages else { return nil }
+            return appendStage(
+                .hostReproduceGateAck,
+                title: "Reproduce Gate (host preflight)",
+                taskType: .bugfix,
+                priority: 85,
+                dependsOn: [],
+                metadata: [
+                    PipelineHostCheckpoint.metadataKey: PipelineHostCheckpoint.hostReproduceAck.rawValue,
+                ]
+            )
+        }()
+
         var nativeSyncDeps: [String] = []
         if request.includeNativeStages {
+            let nativeStartDeps = [investigationHostReproduceAckId ?? awaitReproduceGateId].compactMap { $0 }
             let nativeStartId = appendStage(
                 .nativeStart,
                 title: "Start Native Debug Session",
                 taskType: .bugfix,
                 priority: 84,
-                dependsOn: [awaitReproduceGateId]
+                dependsOn: nativeStartDeps
             )
             let nativeSyncBreakpointsId = appendStage(
                 .nativeSyncBreakpoints,

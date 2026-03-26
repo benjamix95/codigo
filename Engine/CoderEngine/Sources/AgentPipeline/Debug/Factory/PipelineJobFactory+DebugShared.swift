@@ -24,6 +24,8 @@ extension PipelineJobFactory {
             return 60_000
         case .awaitReproduceGate, .awaitFixGate:
             return 600_000 // 10 min — user must reproduce/test before confirming
+        case .hostReproduceGateAck:
+            return 5_000
         case .verify:
             return 180_000
         case .nativeStart, .nativeRefresh, .nativeSyncBreakpoints,
@@ -42,7 +44,7 @@ extension PipelineJobFactory {
         case .describePipelineBootstrap, .reproducePipelineBootstrap, .fixPipelineBootstrap, .activateMode, .sessionStart, .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase,
              .setVerifyPhase, .requestClarification, .requestReproduction,
-             .resolve, .awaitReproduceGate, .awaitFixGate:
+             .resolve, .awaitReproduceGate, .hostReproduceGateAck, .awaitFixGate:
             return .low
         case .gatherContext, .analyzeIssue, .reviewFix, .verify,
              .snapshot, .hypothesize, .timeline:

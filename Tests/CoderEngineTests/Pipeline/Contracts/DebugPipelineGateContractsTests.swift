@@ -30,12 +30,20 @@ final class DebugPipelineGateContractsTests: XCTestCase {
         XCTAssertFalse(DebugStageKind.awaitFixGate.isNativeStage)
     }
 
+    func testHostReproduceGateAckDefaults() {
+        XCTAssertEqual(DebugStageKind.hostReproduceGateAck.defaultPhase, .reproducing)
+        XCTAssertEqual(DebugStageKind.hostReproduceGateAck.defaultExecutionStyle, .mcpTool)
+        XCTAssertNil(DebugStageKind.hostReproduceGateAck.defaultAgentRole)
+        XCTAssertFalse(DebugStageKind.hostReproduceGateAck.isNativeStage)
+    }
+
     // MARK: - All Cases Includes Gates
 
     func testAllCasesIncludesGateStages() {
         let allCases = DebugStageKind.allCases
         XCTAssertTrue(allCases.contains(.awaitReproduceGate))
         XCTAssertTrue(allCases.contains(.awaitFixGate))
+        XCTAssertTrue(allCases.contains(.hostReproduceGateAck))
     }
 
     // MARK: - Full Enum Roundtrip Still Works

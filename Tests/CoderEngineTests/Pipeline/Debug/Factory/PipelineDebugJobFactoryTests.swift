@@ -69,13 +69,10 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         XCTAssertEqual(Set(gather.dependsOn), Set([bootstrap.taskId]))
         let clarifications = tasks.filter { $0.debugStage == .requestClarification }
         XCTAssertEqual(clarifications.count, 2)
-        for c in clarifications {
-            XCTAssertEqual(
-                Set(c.dependsOn),
-                Set([gather.taskId]),
-                "Ogni clarification deve dipendere solo da gather per permettere parallelismo"
-            )
-        }
+        let firstClarify = try XCTUnwrap(clarifications.first { $0.metadata["question_index"] == "1" })
+        let secondClarify = try XCTUnwrap(clarifications.first { $0.metadata["question_index"] == "2" })
+        XCTAssertEqual(Set(firstClarify.dependsOn), Set([gather.taskId]))
+        XCTAssertEqual(Set(secondClarify.dependsOn), Set([firstClarify.taskId]))
         let analyze = try XCTUnwrap(tasks.first { $0.debugStage == .analyzeIssue })
         XCTAssertEqual(
             Set(analyze.dependsOn),
@@ -83,9 +80,10 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         )
     }
 
-    func testNativeSyncBreakpointsAndWatchesRunParallelAfterStart() throws {
+    func testNativeSyncWatchesRunAfterBreakpoints() throws {
         let request = DebugSessionRequest(
-            errorSummary: "Native parallel",
+            errorSummary: "Native sync order",
+            watchExpressions: ["x", "y"],
             includeNativeStages: true
         )
         let (_, tasks) = PipelineJobFactory.fromDebugSession(
@@ -97,9 +95,29 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         let bp = try XCTUnwrap(tasks.first { $0.debugStage == .nativeSyncBreakpoints })
         let watches = try XCTUnwrap(tasks.first { $0.debugStage == .nativeSyncWatches })
         XCTAssertEqual(Set(bp.dependsOn), Set([start.taskId]))
-        XCTAssertEqual(Set(watches.dependsOn), Set([start.taskId]))
+        XCTAssertEqual(Set(watches.dependsOn), Set([bp.taskId]))
         let repro = try XCTUnwrap(tasks.first { $0.debugStage == .reproduce })
         XCTAssertEqual(Set(repro.dependsOn), Set([bp.taskId, watches.taskId]))
+    }
+
+    func testInvestigationSliceInsertsHostReproduceAckBeforeNativeStart() throws {
+        let request = DebugSessionRequest(
+            errorSummary: "Continue inv",
+            includeNativeStages: true
+        )
+        let (_, tasks) = PipelineJobFactory.fromDebugSession(
+            request,
+            workspace: "/tmp/solocode",
+            providerId: "codex-cli",
+            slice: .investigation
+        )
+        let ack = try XCTUnwrap(tasks.first { $0.debugStage == .hostReproduceGateAck })
+        XCTAssertEqual(
+            ack.metadata[PipelineHostCheckpoint.metadataKey],
+            PipelineHostCheckpoint.hostReproduceAck.rawValue
+        )
+        let start = try XCTUnwrap(tasks.first { $0.debugStage == .nativeStart })
+        XCTAssertEqual(Set(start.dependsOn), Set([ack.taskId]))
     }
 
     func testFromDebugSessionOmitsOptionalStagesWhenDisabled() {

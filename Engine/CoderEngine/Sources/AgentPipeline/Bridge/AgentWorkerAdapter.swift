@@ -61,6 +61,18 @@ public actor AgentWorkerAdapter {
 
         return {
             let startedAt = Date()
+            if task.metadata[PipelineHostCheckpoint.metadataKey]
+                == PipelineHostCheckpoint.hostReproduceAck.rawValue
+            {
+                return WorkerTaskResult(
+                    taskId: taskId,
+                    agentName: agentName,
+                    agentRole: role,
+                    success: true,
+                    durationMs: 0,
+                    providerId: provider.id
+                )
+            }
             do {
                 if let directTaskExecutor,
                    let directResult = await Self.executeDirectTaskIfNeeded(

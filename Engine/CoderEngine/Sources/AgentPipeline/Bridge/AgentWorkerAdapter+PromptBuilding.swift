@@ -250,6 +250,10 @@ extension AgentWorkerAdapter {
             lines.append("Resolve the debug session with a concise summary of the outcome.")
         case .awaitReproduceGate:
             lines.append("Wait for the user to confirm they have reproduced the bug. Use debug_request_user kind=reproduce to prompt. The pipeline pauses until confirmation.")
+        case .hostReproduceGateAck:
+            lines.append(
+                "Host checkpoint only: reproduction was already confirmed in the app before this slice. Do not prompt the user again for this gate."
+            )
         case .awaitFixGate:
             lines.append("Wait for the user to verify the fix works. Use debug_request_user kind=fix_confirmation to prompt. The pipeline pauses until the user clicks Mark Fixed.")
         case .nativeStart, .nativeRefresh, .nativeSyncBreakpoints, .nativeSyncWatches,
