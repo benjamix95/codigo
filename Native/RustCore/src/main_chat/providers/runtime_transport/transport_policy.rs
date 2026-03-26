@@ -100,6 +100,7 @@ fn provider_display_name(provider_id: &str) -> &'static str {
         "codex" | "codex-cli" => "Codex CLI",
         "claude" | "claude-cli" => "Claude CLI",
         "gemini" | "gemini-cli" => "Gemini CLI",
+        "kilo" | "kilo-cli" => "Kilo CLI",
         _ => "CLI",
     }
 }

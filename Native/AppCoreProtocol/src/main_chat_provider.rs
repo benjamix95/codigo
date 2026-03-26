@@ -7,6 +7,7 @@ pub enum MainChatProviderBackend {
     CodexCli,
     ClaudeCli,
     GeminiCli,
+    KiloCli,
     #[default]
     OpenaiApi,
     AnthropicApi,
@@ -112,6 +113,10 @@ pub struct MainChatProviderSessionConfig {
     pub gemini_cli_path: Option<String>,
     pub gemini_model_override: Option<String>,
     #[serde(default)]
+    pub kilo_path: Option<String>,
+    #[serde(default)]
+    pub kilo_model: Option<String>,
+    #[serde(default)]
     pub attachments: Vec<MainChatProviderAttachment>,
     #[serde(default)]
     pub cli_accounts: Vec<MainChatCLIAccountSnapshot>,
@@ -145,6 +150,8 @@ pub struct MainChatRuntimeTransportRequest {
     #[serde(default)]
     pub claude_allowed_tools: Vec<String>,
     pub gemini_model_override: String,
+    #[serde(default)]
+    pub kilo_model: String,
     #[serde(default)]
     pub registry_providers: Vec<MainChatRuntimeProviderRegistryEntry>,
     #[serde(default)]

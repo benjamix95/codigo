@@ -143,6 +143,7 @@ struct MainChatRuntimeTransportRequestBridge: Encodable {
     let claudeModel: String
     let claudeAllowedTools: [String]
     let geminiModelOverride: String
+    let kiloModel: String
     let registryProviders: [MainChatRuntimeProviderRegistryEntryBridge]
     let codexCliAccounts: [MainChatCLIAccountSnapshotBridge]
     let claudeCliAccounts: [MainChatCLIAccountSnapshotBridge]

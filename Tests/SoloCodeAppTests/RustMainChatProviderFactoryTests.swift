@@ -309,10 +309,10 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         )
     }
 
-    func testRustTransportBypassTriggersForKiloInStandardAgentFlow() {
+    func testRustTransportBypassNeverRoutesKiloToLegacySwiftPipeline() {
         let config = makeProviderFactoryConfig(codexPath: "")
 
-        XCTAssertTrue(
+        XCTAssertFalse(
             MainChatRustTransportSupport.shouldBypassRustTransport(
                 selectedProviderId: "kilo-cli",
                 fallbackSelectedProviderId: nil,
@@ -323,11 +323,6 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
                 config: config
             )
         )
-    }
-
-    func testRustTransportBypassDoesNotTriggerForKiloDuringPlanFlow() {
-        let config = makeProviderFactoryConfig(codexPath: "")
-
         XCTAssertFalse(
             MainChatRustTransportSupport.shouldBypassRustTransport(
                 selectedProviderId: "kilo-cli",

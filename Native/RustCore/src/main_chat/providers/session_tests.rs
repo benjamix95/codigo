@@ -40,6 +40,8 @@ fn minimal_config(backend: MainChatProviderBackend) -> MainChatProviderSessionCo
         claude_mcp_server_path: None,
         gemini_cli_path: None,
         gemini_model_override: None,
+        kilo_path: None,
+        kilo_model: None,
         attachments: Vec::new(),
         cli_accounts: Vec::new(),
     }

@@ -1,5 +1,5 @@
 use super::api::{anthropic, google, openai};
-use super::cli::{claude, codex, gemini};
+use super::cli::{claude, codex, gemini, kilo};
 use super::models::{
     make_completed_event, make_error_event, make_raw_event, make_started_event,
     make_text_delta_event, make_text_replace_event, ProviderSessionHandle,
@@ -304,6 +304,9 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
                 MainChatProviderBackend::GeminiCli => {
                     retry_cli(&session_id, &config, MainChatProviderBackend::GeminiCli)
                 }
+                MainChatProviderBackend::KiloCli => {
+                    retry_cli(&session_id, &config, MainChatProviderBackend::KiloCli)
+                }
             }
         }));
 
@@ -352,6 +355,7 @@ fn retry_cli(
             MainChatProviderBackend::CodexCli => codex::run(session_id, config),
             MainChatProviderBackend::ClaudeCli => claude::run(session_id, config),
             MainChatProviderBackend::GeminiCli => gemini::run(session_id, config),
+            MainChatProviderBackend::KiloCli => kilo::run(session_id, config),
             _ => Ok(()),
         };
         match result {

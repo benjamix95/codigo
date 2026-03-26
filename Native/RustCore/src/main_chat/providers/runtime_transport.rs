@@ -78,6 +78,7 @@ pub fn resolve_runtime_transport(
             None,
             None,
         ),
+        MainChatProviderBackend::KiloCli => (normalized_string(&request.kilo_model), None, None),
         MainChatProviderBackend::OpenaiApi => (
             normalized_string(&request.openai_model),
             normalized_string(&request.openai_api_key),
@@ -269,6 +270,17 @@ mod tests {
         );
     }
 
+    #[test]
+    fn resolves_kilo_cli_transport_with_model() {
+        let mut transport_request = request("kilo-cli", Some("kilo-cli"), false, false, None);
+        transport_request.kilo_model = "kilo/giga-potato".to_string();
+        transport_request.registry_providers = vec![registry_provider("kilo-cli", true)];
+        let response = resolve_runtime_transport(transport_request);
+        assert_eq!(response.provider_id.as_deref(), Some("kilo-cli"));
+        assert_eq!(response.backend, Some(MainChatProviderBackend::KiloCli));
+        assert_eq!(response.model.as_deref(), Some("kilo/giga-potato"));
+    }
+
     fn request(
         fallback_selected_provider_id: &str,
         selected_provider_id: Option<&str>,
@@ -298,6 +310,7 @@ mod tests {
             claude_model: "claude-3".to_string(),
             claude_allowed_tools: vec!["Read".to_string(), "Edit".to_string()],
             gemini_model_override: "gemini-2.5".to_string(),
+            kilo_model: String::new(),
             registry_providers: vec![
                 registry_provider("codex-cli", true),
                 registry_provider("claude-cli", true),
