@@ -125,11 +125,11 @@ struct ComposerTodoOverlayView: View {
     private func microStatusRow(text: String) -> some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(Color.primary.opacity(0.22))
+                .fill(DesignSystem.Colors.planColor.opacity(0.85))
                 .frame(width: 6, height: 6)
             Text(text)
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .lineLimit(1)
                 .textShimmer(active: isStreaming)
             if isPlanningNextMoveInteractive {
