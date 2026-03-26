@@ -88,9 +88,7 @@ extension SidebarView {
             )
         } else if st.shouldShowWaitNotice {
             HStack(alignment: .top, spacing: 6) {
-                Image(systemName: "hourglass")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.orange)
+                SidebarIndexingHourglass()
                 Text(
                     "Attendere: l’indicizzazione (codebase + database vettoriale) partirà a breve o è in coda. La ricerca semantica è limitata finché non è al 100%."
                 )
