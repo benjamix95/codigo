@@ -17,6 +17,29 @@ public enum IndexFeatureFlags {
         return UserDefaults.standard.object(forKey: "vector_search_enabled") as? Bool ?? true
     }
 
+    /// Chunk per chiamata a `embedBatch` durante l’indicizzazione (default 64).
+    /// Env: `SOLOCODE_EMBEDDING_BATCH_SIZE` (1…256). UserDefaults: `embedding_index_batch_size`.
+    public static var embeddingIndexBatchSize: Int {
+        if let raw = ProcessInfo.processInfo.environment["SOLOCODE_EMBEDDING_BATCH_SIZE"],
+           let v = Int(raw), v > 0, v <= 256 {
+            return v
+        }
+        if let v = UserDefaults.standard.object(forKey: "embedding_index_batch_size") as? Int,
+           v > 0, v <= 256 {
+            return v
+        }
+        return 64
+    }
+
+    /// Soglia minima testi per provare prima il backend Rust (batch ONNX) rispetto a CoreML sequenziale.
+    public static var embeddingRustPreferredMinBatch: Int {
+        if let raw = ProcessInfo.processInfo.environment["SOLOCODE_EMBEDDING_RUST_MIN_BATCH"],
+           let v = Int(raw), v >= 1, v <= 256 {
+            return v
+        }
+        return 8
+    }
+
     // MARK: - Trigram / Instant Grep
 
     /// Whether the trigram inverted index (instant grep) is enabled.

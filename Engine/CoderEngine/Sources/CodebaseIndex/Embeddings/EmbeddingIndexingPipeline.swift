@@ -12,8 +12,8 @@ private let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "Em
 /// The pipeline runs on a utility-priority task and reports progress.
 public actor EmbeddingIndexingPipeline {
 
-    /// Default batch size — 32 chunks per inference call.
-    public static let defaultBatchSize = 32
+    /// Fallback se non si usa `IndexFeatureFlags.embeddingIndexBatchSize`.
+    public static let defaultBatchSize = 64
 
     // MARK: - State
 
@@ -32,11 +32,11 @@ public actor EmbeddingIndexingPipeline {
     public init(
         embeddingService: EmbeddingService,
         store: PostgresPersistenceStore = .shared,
-        batchSize: Int = EmbeddingIndexingPipeline.defaultBatchSize
+        batchSize: Int = IndexFeatureFlags.embeddingIndexBatchSize
     ) {
         self.embeddingService = embeddingService
         self.store = store
-        self.batchSize = batchSize
+        self.batchSize = max(1, min(256, batchSize))
     }
 
     // MARK: - Public API

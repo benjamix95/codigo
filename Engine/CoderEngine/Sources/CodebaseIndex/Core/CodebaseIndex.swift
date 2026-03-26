@@ -138,6 +138,9 @@ public actor CodebaseIndex {
     /// Maximum number of indexable files
     static let maxFiles: Int = 50_000
 
+    /// File processati in parallelo per onda durante `indexWorkspace` (estrazione simboli).
+    static let indexParallelSymbolBatchSize = 96
+
     // MARK: - Init
 
     public init() {}

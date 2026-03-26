@@ -23,7 +23,7 @@ extension CodebaseIndex {
         let wasCancelled: Bool
     }
 
-    private static let incrementalChunkSize = 32
+    private static let incrementalChunkSize = 64
 
     func runIncrementalReindexPipeline(
         sourceNodes: [String: FileNode],

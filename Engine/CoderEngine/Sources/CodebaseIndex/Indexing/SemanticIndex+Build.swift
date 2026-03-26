@@ -31,7 +31,7 @@ extension SemanticIndex {
             currentSimHash = MerkleTree.simHash(of: root)
         }
 
-        let chunkBatchSize = 64
+        let chunkBatchSize = 96
         for batchStart in stride(from: 0, to: indexedFiles.count, by: chunkBatchSize) {
             if Task.isCancelled {
                 Self.logger.notice("buildIndex: cancelled at batchStart=\(batchStart)")

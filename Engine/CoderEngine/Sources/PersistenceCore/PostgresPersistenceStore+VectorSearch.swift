@@ -151,6 +151,19 @@ extension PostgresPersistenceStore {
         return parseEmbeddingRecordRows(raw)
     }
 
+    /// Stesso dato di `embeddedChunkRecords(forFile:)` in una sola query (evita N round-trip su progetti grandi).
+    public func embeddedChunkRecords(forFiles filePaths: [String]) throws -> [EmbeddingRecord] {
+        guard !filePaths.isEmpty else { return [] }
+        let inList = filePaths.map { PersistenceSupport.sqlLiteral($0) }.joined(separator: ", ")
+        let sql = """
+        SELECT chunk_id, content_hash
+        FROM semantic_embeddings
+        WHERE file_path IN (\(inList));
+        """
+        let raw = try execute(sql: sql).trimmingCharacters(in: .whitespacesAndNewlines)
+        return parseEmbeddingRecordRows(raw)
+    }
+
     /// Check if the vector search table exists and pgvector is available.
     public func isVectorSearchAvailable() throws -> Bool {
         let sql = """

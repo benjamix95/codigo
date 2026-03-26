@@ -55,7 +55,18 @@ public actor EmbeddingService {
     public func embedBatch(_ texts: [String]) async -> [[Float]?] {
         guard !texts.isEmpty else { return [] }
 
-        // Try CoreML.
+        let rustFirst = texts.count >= IndexFeatureFlags.embeddingRustPreferredMinBatch
+
+        if rustFirst, await rustBackend.isAvailable {
+            if let results = await rustBackend.embedBatch(texts) {
+                let hasNonZero = results.contains { v in v.contains { $0 != 0 } }
+                if hasNonZero {
+                    activeBackend = .rustONNX
+                    return results.map { Optional($0) }
+                }
+            }
+        }
+
         if let backend = coreMLBackend {
             let results = await backend.embedBatch(texts)
             let hasNonZero = results.contains { v in v.contains { $0 != 0 } }
@@ -65,10 +76,14 @@ public actor EmbeddingService {
             }
         }
 
-        // Try Rust.
-        if let results = await rustBackend.embedBatch(texts) {
-            activeBackend = .rustONNX
-            return results.map { Optional($0) }
+        if !rustFirst, await rustBackend.isAvailable {
+            if let results = await rustBackend.embedBatch(texts) {
+                let hasNonZero = results.contains { v in v.contains { $0 != 0 } }
+                if hasNonZero {
+                    activeBackend = .rustONNX
+                    return results.map { Optional($0) }
+                }
+            }
         }
 
         logger.warning("No embedding backend available for batch of \(texts.count) texts")

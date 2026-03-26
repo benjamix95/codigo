@@ -88,7 +88,7 @@ extension CodebaseIndex {
             setUnifiedIndexingProgress(wFile * Double(processed) / Double(fileTotal))
 
             if !hydration.filesToReindex.isEmpty {
-                let batchSize = 64
+                let batchSize = Self.indexParallelSymbolBatchSize
                 for batchStart in stride(from: 0, to: hydration.filesToReindex.count, by: batchSize) {
                     if Task.isCancelled {
                         return makeCurrentIndexResult(durationMs: Int(Date().timeIntervalSince(startTime) * 1000))
@@ -113,7 +113,7 @@ extension CodebaseIndex {
             }
             totalFilesScanned = indexedFiles.count
         } else {
-            let batchSize = 64
+            let batchSize = Self.indexParallelSymbolBatchSize
             for batchStart in stride(from: 0, to: filesToIndex.count, by: batchSize) {
                 if Task.isCancelled {
                     return makeCurrentIndexResult(durationMs: Int(Date().timeIntervalSince(startTime) * 1000))

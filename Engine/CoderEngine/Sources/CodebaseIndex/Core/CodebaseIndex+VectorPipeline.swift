@@ -51,14 +51,12 @@ extension CodebaseIndex {
     func generateEmbeddingsForChunks(_ chunks: [SemanticChunk]) async {
         guard let pipeline = _embeddingPipeline else { return }
 
-        // Get existing hashes from pgvector to skip already-embedded chunks.
+        // Get existing hashes from pgvector to skip already-embedded chunks (una query per tutti i file).
         var existingHashes: [String: UInt64] = [:]
-        let filePaths = Set(chunks.map(\.filePath))
-        for filePath in filePaths {
-            if let records = try? PostgresPersistenceStore.shared.embeddedChunkRecords(forFile: filePath) {
-                for record in records {
-                    existingHashes[record.chunkId] = record.contentHash
-                }
+        let filePaths = Array(Set(chunks.map(\.filePath)))
+        if let records = try? PostgresPersistenceStore.shared.embeddedChunkRecords(forFiles: filePaths) {
+            for record in records {
+                existingHashes[record.chunkId] = record.contentHash
             }
         }
 
