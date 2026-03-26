@@ -16,9 +16,9 @@ use super::tasks::{
     classify_review_outcome, parse_review_tasks, ReviewFindingsState, TaskExtraction,
 };
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{OnceLock, RwLock};
 
-static SESSIONS: OnceLock<Mutex<HashMap<String, PipelineSession>>> = OnceLock::new();
+static SESSIONS: OnceLock<RwLock<HashMap<String, PipelineSession>>> = OnceLock::new();
 
 pub fn start_session(request: ReviewPipelineStartRequest) -> ReviewPipelineResponse {
     let (prompt_without_scope, explicit_scope) = parse_review_scope(&request.prompt);
@@ -39,14 +39,16 @@ pub fn start_session(request: ReviewPipelineStartRequest) -> ReviewPipelineRespo
         session.step.clone(),
     );
     sessions()
-        .lock()
-        .unwrap()
+        .write()
+        .unwrap_or_else(|err| err.into_inner())
         .insert(request.session_id, session);
     response
 }
 
 pub fn apply_callback_result(request: ReviewPipelineApplyRequest) -> ReviewPipelineResponse {
-    let mut sessions = sessions().lock().unwrap();
+    let mut sessions = sessions()
+        .write()
+        .unwrap_or_else(|err| err.into_inner());
     let Some(session) = sessions.get_mut(&request.session_id) else {
         return missing_session(&request.session_id);
     };
@@ -68,7 +70,9 @@ pub fn apply_callback_result(request: ReviewPipelineApplyRequest) -> ReviewPipel
 }
 
 pub fn get_snapshot(request: ReviewPipelineSessionRequest) -> ReviewPipelineResponse {
-    let sessions = sessions().lock().unwrap();
+    let sessions = sessions()
+        .read()
+        .unwrap_or_else(|err| err.into_inner());
     if let Some(session) = sessions.get(&request.session_id) {
         return ReviewPipelineResponse::success(
             request.session_id,
@@ -84,7 +88,9 @@ pub fn resume_session(request: ReviewPipelineSessionRequest) -> ReviewPipelineRe
 }
 
 pub fn cancel_session(request: ReviewPipelineSessionRequest) -> ReviewPipelineResponse {
-    let mut sessions = sessions().lock().unwrap();
+    let mut sessions = sessions()
+        .write()
+        .unwrap_or_else(|err| err.into_inner());
     if let Some(session) = sessions.get_mut(&request.session_id) {
         fail(session, "Review cancelled.".to_string());
         session.step = ReviewPipelineStep::failed("Review cancelled.");
@@ -398,8 +404,8 @@ fn extraction_failure(session: &mut PipelineSession, reason: String) -> ReviewPi
     ReviewPipelineStep::failed(format!("Review task extraction failed: {reason}"))
 }
 
-fn sessions() -> &'static Mutex<HashMap<String, PipelineSession>> {
-    SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+fn sessions() -> &'static RwLock<HashMap<String, PipelineSession>> {
+    SESSIONS.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
 fn missing_session(session_id: &str) -> ReviewPipelineResponse {

@@ -139,13 +139,32 @@ extension PipelineIntegrationService {
             }
             #endif
 
-            let committedViaRust = applyPipelineEventsThroughRustBoundary(
+            var rustAppliedEventCount = 0
+            var rustCommitComplete = false
+            if applyPipelineEventsThroughRustBoundary(
                 sequencedEvents,
                 runtime: runtime,
                 chatStore: chatStore
-            )
-            if !committedViaRust {
-                for sequenced in sequencedEvents {
+            ) {
+                rustAppliedEventCount = sequencedEvents.count
+                rustCommitComplete = true
+            } else if sequencedEvents.count > 1 {
+                rustAppliedEventCount = applyPipelineEventsSequentiallyThroughRustBoundary(
+                    sequencedEvents,
+                    runtime: runtime,
+                    chatStore: chatStore
+                )
+                rustCommitComplete = rustAppliedEventCount == sequencedEvents.count
+            }
+
+            if !rustCommitComplete {
+                let swiftSuffix = sequencedEvents.dropFirst(rustAppliedEventCount)
+                if !swiftSuffix.isEmpty {
+                    NSLog(
+                        "[PipelineIntegrationService] Rust pipeline incomplete: applied \(rustAppliedEventCount)/\(sequencedEvents.count); Swift fallback \(swiftSuffix.count) events"
+                    )
+                }
+                for sequenced in swiftSuffix {
                     NSLog(
                         "[PipelineIntegrationService] Rust pipeline boundary unavailable for %@, applying Swift fallback",
                         sequenced.kind.rawValue
@@ -160,7 +179,9 @@ extension PipelineIntegrationService {
                         persistImmediately: false
                     )
                 }
-            } else {
+            }
+
+            if rustAppliedEventCount > 0 {
                 let primarySnapshot = runtime.chatTurnState.primaryTextSnapshot
                 if !primarySnapshot.isEmpty {
                     chatStore.reconcileAssistantPrimaryTextFromPipelineIfStoreEmpty(
@@ -190,7 +211,8 @@ extension PipelineIntegrationService {
                     message: "pipeline_commit_snapshot",
                     data: [
                         "primaryChars": "\(primaryText.count)",
-                        "viaRust": committedViaRust ? "1" : "0",
+                        "viaRust": rustCommitComplete ? "1" : "0",
+                        "rustApplied": "\(rustAppliedEventCount)",
                         "textStreamKeys": "\(textKeys.count)",
                         "blockCount": "\(runtime.chatTurnState.blocks.count)",
                         "kindsTail": String(kinds.suffix(120)),
@@ -212,6 +234,26 @@ extension PipelineIntegrationService {
                 chatStore.saveConversations()
             }
         }
+    }
+
+    /// Quando il batch FFI fallisce, stessi eventi applicati uno alla volta (payload più piccoli, stesso contratto Rust).
+    private func applyPipelineEventsSequentiallyThroughRustBoundary(
+        _ events: [ChatPipelineEvent],
+        runtime: PipelineConversationRuntime,
+        chatStore: ChatStore
+    ) -> Int {
+        var applied = 0
+        for event in events {
+            guard applyPipelineEventThroughRustBoundary(
+                event,
+                runtime: runtime,
+                chatStore: chatStore
+            ) else {
+                break
+            }
+            applied += 1
+        }
+        return applied
     }
 
     private func applyPipelineEventsThroughRustBoundary(
