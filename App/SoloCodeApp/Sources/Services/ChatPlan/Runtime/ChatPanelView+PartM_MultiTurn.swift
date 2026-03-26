@@ -97,7 +97,19 @@ extension ChatPanelView {
         // PHASE 0: Screening (internal; chat shows only neutral status)
         // ========================
         if !skipScreening {
-            let screeningPrompt = buildPhase0ScreeningPrompt(userRequest: planUserRequest)
+            let screeningPrompt = await MainActor.run { () -> String in
+                guard self.conversationId == conversationId else { return "" }
+                return buildPhase0ScreeningPrompt(
+                    userRequest: planUserRequest,
+                    planIntentConversationId: conversationId
+                )
+            }
+            guard !screeningPrompt.isEmpty else {
+                await MainActor.run {
+                    cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+                }
+                return
+            }
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
                 chatStore.updateLastAssistantMessage(
@@ -123,11 +135,21 @@ extension ChatPanelView {
             )
 
             let screeningText = screeningResult.trimmingCharacters(in: .whitespacesAndNewlines)
-            let screeningSnapshot = planRuntimeAction(
-                "plan_apply_screening_result",
-                text: screeningText,
-                shouldRunInline: shouldRunPlanInline
-            )
+            let screeningSnapshot = await MainActor.run { () -> MainChatRuntimeSnapshotBridge? in
+                guard self.conversationId == conversationId else { return nil }
+                return planRuntimeAction(
+                    "plan_apply_screening_result",
+                    text: screeningText,
+                    shouldRunInline: shouldRunPlanInline,
+                    planIntentConversationId: conversationId
+                )
+            }
+            guard await MainActor.run(body: { self.conversationId == conversationId }) else {
+                await MainActor.run {
+                    cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+                }
+                return
+            }
             let screeningStatus = screeningSnapshot?.output?.chatContentOverride
                 ?? "Starting codebase analysis..."
 
@@ -166,7 +188,12 @@ extension ChatPanelView {
         // ========================
         let shouldStartPhase1 = await MainActor.run { () -> Bool in
             guard self.conversationId == conversationId else { return false }
-            _ = planRuntimeAction("plan_prepare_phase1_analysis_prompt", text: planUserRequest, shouldRunInline: shouldRunPlanInline)
+            _ = planRuntimeAction(
+                "plan_prepare_phase1_analysis_prompt",
+                text: planUserRequest,
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
+            )
             clearPlanStreamingState()
             return true
         }
@@ -178,7 +205,19 @@ extension ChatPanelView {
             return
         }
 
-        let analysisPrompt = buildPhase1AnalysisPrompt(userRequest: planUserRequest)
+        let analysisPrompt = await MainActor.run { () -> String in
+            guard self.conversationId == conversationId else { return "" }
+            return buildPhase1AnalysisPrompt(
+                userRequest: planUserRequest,
+                planIntentConversationId: conversationId
+            )
+        }
+        guard !analysisPrompt.isEmpty else {
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
+            return
+        }
         let analysisResult = try await flowCoordinator.runStream(
             provider: provider,
             prompt: analysisPrompt,
@@ -199,11 +238,21 @@ extension ChatPanelView {
         )
 
         let analysisText = analysisResult.trimmingCharacters(in: .whitespacesAndNewlines)
-        let analysisRuntimeSnapshot = planRuntimeAction(
-            "plan_apply_analysis_result",
-            text: analysisText,
-            shouldRunInline: shouldRunPlanInline
-        )
+        let analysisRuntimeSnapshot = await MainActor.run { () -> MainChatRuntimeSnapshotBridge? in
+            guard self.conversationId == conversationId else { return nil }
+            return planRuntimeAction(
+                "plan_apply_analysis_result",
+                text: analysisText,
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
+            )
+        }
+        guard await MainActor.run(body: { self.conversationId == conversationId }) else {
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
+            return
+        }
         let shouldRequestClarifications = analysisRuntimeSnapshot?.plan?.phase == .questioning
 
         await MainActor.run {
@@ -256,7 +305,12 @@ extension ChatPanelView {
                 )
             }
             clearPlanStreamingState()
-            _ = planRuntimeAction("plan_prepare_phase2_questions_prompt", text: planUserRequest, shouldRunInline: shouldRunPlanInline)
+            _ = planRuntimeAction(
+                "plan_prepare_phase2_questions_prompt",
+                text: planUserRequest,
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
+            )
             let questionAssistantMessageId = UUID()
             chatStore.addMessage(
                 ChatMessage(id: questionAssistantMessageId, role: .assistant, content: "", isStreaming: true),
@@ -287,10 +341,20 @@ extension ChatPanelView {
             return
         }
 
-        let questionPrompt = buildPhase2QuestionPrompt(
-            userRequest: planUserRequest,
-            analysisContext: analysisResult
-        )
+        let questionPrompt = await MainActor.run { () -> String in
+            guard self.conversationId == conversationId else { return "" }
+            return buildPhase2QuestionPrompt(
+                userRequest: planUserRequest,
+                analysisContext: analysisResult,
+                planIntentConversationId: conversationId
+            )
+        }
+        guard !questionPrompt.isEmpty else {
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
+            return
+        }
         let questionResult = try await flowCoordinator.runStream(
             provider: provider,
             prompt: questionPrompt,
@@ -319,11 +383,21 @@ extension ChatPanelView {
             return
         }
 
-        let questionRuntimeSnapshot = planRuntimeAction(
-            "plan_apply_question_result",
-            text: questionText,
-            shouldRunInline: shouldRunPlanInline
-        )
+        let questionRuntimeSnapshot = await MainActor.run { () -> MainChatRuntimeSnapshotBridge? in
+            guard self.conversationId == conversationId else { return nil }
+            return planRuntimeAction(
+                "plan_apply_question_result",
+                text: questionText,
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
+            )
+        }
+        guard await MainActor.run(body: { self.conversationId == conversationId }) else {
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
+            return
+        }
 
         if let questionRuntimeSnapshot,
            questionRuntimeSnapshot.plan?.planningStateKind == .awaitingClarification,
@@ -334,7 +408,12 @@ extension ChatPanelView {
                     targetConversationId: conversationId,
                     currentConversationId: self.conversationId
                 ) else { return }
-                _ = planRuntimeAction("plan_receive_clarification_questions", questions: questions, shouldRunInline: shouldRunPlanInline)
+                _ = planRuntimeAction(
+                    "plan_receive_clarification_questions",
+                    questions: questions,
+                    shouldRunInline: shouldRunPlanInline,
+                    planIntentConversationId: conversationId
+                )
                 updatePlanStreamingContent(questionText, conversationId: conversationId)
                 chatStore.updateLastAssistantMessage(
                     content: "Questions ready — answer in the plan panel.",
@@ -361,7 +440,12 @@ extension ChatPanelView {
                 targetConversationId: conversationId,
                 currentConversationId: self.conversationId
             ) else { return }
-            _ = planRuntimeAction("plan_prepare_phase3_generation_prompt", text: planUserRequest, shouldRunInline: shouldRunPlanInline)
+            _ = planRuntimeAction(
+                "plan_prepare_phase3_generation_prompt",
+                text: planUserRequest,
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
+            )
             chatStore.addMessage(
                 ChatMessage(id: UUID(), role: .assistant, content: phase2Summary),
                 to: conversationId

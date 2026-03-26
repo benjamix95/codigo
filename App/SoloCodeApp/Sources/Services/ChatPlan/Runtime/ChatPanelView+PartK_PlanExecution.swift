@@ -132,6 +132,10 @@ extension ChatPanelView {
                 planConversationIdForSnapshot: planConversationId
             )
 
+            guard self.conversationId == planConversationId else {
+                return
+            }
+
             let selectionResponse = applyPlanUIIntent(
                 "choose_plan_option",
                 conversationId: planConversationId,
@@ -254,7 +258,7 @@ extension ChatPanelView {
                     self.snapshotSubagentCardsAndEndTask(
                         conversationId: agentConvId,
                         outcome: pipelineOutcome,
-                        shouldEndTask: false
+                        shouldEndTask: true
                     )
                     self.activeBuildPlanConversationId = nil
                     self.activeBuildAgentConversationId = nil

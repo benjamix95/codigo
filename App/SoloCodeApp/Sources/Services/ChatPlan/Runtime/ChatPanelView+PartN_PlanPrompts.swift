@@ -134,7 +134,8 @@ extension ChatPanelView {
             _ = planRuntimeAction(
                 "plan_prepare_post_clarification_analysis_prompt",
                 text: planUserRequest,
-                shouldRunInline: shouldRunPlanInline
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
             )
             clearPlanStreamingState()
             let reanalysisAssistantMessageId = UUID()
@@ -159,11 +160,21 @@ extension ChatPanelView {
             return
         }
 
-        let reAnalysisPrompt = buildPostClarificationAnalysisPrompt(
-            userRequest: planUserRequest,
-            analysisContext: planAnalysisContext,
-            clarificationAnswers: planClarificationAnswers
-        )
+        let reAnalysisPrompt = await MainActor.run { () -> String in
+            guard self.conversationId == conversationId else { return "" }
+            return buildPostClarificationAnalysisPrompt(
+                userRequest: planUserRequest,
+                analysisContext: planAnalysisContext,
+                clarificationAnswers: planClarificationAnswers,
+                planIntentConversationId: conversationId
+            )
+        }
+        guard !reAnalysisPrompt.isEmpty else {
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
+            return
+        }
 
         let reAnalysisResult = try await flowCoordinator.runStream(
             provider: provider,
@@ -192,11 +203,21 @@ extension ChatPanelView {
             return
         }
 
-        let runtimeSnapshot = planRuntimeAction(
-            "plan_apply_post_clarification_analysis_result",
-            text: reAnalysisText,
-            shouldRunInline: shouldRunPlanInline
-        )
+        let runtimeSnapshot = await MainActor.run { () -> MainChatRuntimeSnapshotBridge? in
+            guard self.conversationId == conversationId else { return nil }
+            return planRuntimeAction(
+                "plan_apply_post_clarification_analysis_result",
+                text: reAnalysisText,
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
+            )
+        }
+        guard await MainActor.run(body: { self.conversationId == conversationId }) else {
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
+            return
+        }
 
         if let runtimeSnapshot,
            runtimeSnapshot.plan?.planningStateKind == .awaitingClarification,

@@ -10,7 +10,8 @@ extension ChatPanelView {
         questions: String? = nil,
         planContent: String? = nil,
         optionFullTexts: [String] = [],
-        shouldRunInline: Bool
+        shouldRunInline: Bool,
+        planIntentConversationId: UUID? = nil
     ) -> MainChatRuntimeSnapshotBridge? {
         let intent = action == "plan_receive_clarification_questions"
             ? "plan_receive_clarification_questions"
@@ -28,9 +29,10 @@ extension ChatPanelView {
         if !optionFullTexts.isEmpty {
             payload["option_full_texts"] = encodePlanOptionTexts(optionFullTexts)
         }
+        let targetConversationId = planIntentConversationId ?? conversationId
         let response = applyPlanUIIntent(
             intent,
-            conversationId: conversationId,
+            conversationId: targetConversationId,
             text: action == "plan_receive_clarification_questions" ? questions : text,
             payload: payload
         )
@@ -47,7 +49,7 @@ extension ChatPanelView {
         guard let response = applyMainChatUIIntentBridge(
             intent,
             conversationId: targetConversationId,
-            runtimeSnapshot: resolvedMainChatRuntimeSnapshot(preferPlanRuntime: true),
+            runtimeSnapshot: nil,
             preferPlanRuntime: true,
             text: text,
             timestamp: Date(),
@@ -68,7 +70,7 @@ extension ChatPanelView {
     ) -> (snapshot: MainChatUISnapshotBridge, state: MainChatUIStateBridge)? {
         projectMainChatUISnapshot(
             conversationId: targetConversationId,
-            runtimeSnapshot: resolvedMainChatRuntimeSnapshot(preferPlanRuntime: true),
+            runtimeSnapshot: nil,
             preferPlanRuntime: true
         )
     }
@@ -86,6 +88,10 @@ extension ChatPanelView {
         runtimeSnapshot: MainChatRuntimeSnapshotBridge?,
         conversationId targetConversationId: UUID?
     ) {
+        let effectiveTarget = targetConversationId ?? conversationId
+        if let effectiveTarget, let current = conversationId, effectiveTarget != current {
+            return
+        }
         if let runtimeSnapshot {
             flowCoordinator.setPlanRuntimeSnapshot(runtimeSnapshot)
             if let plan = runtimeSnapshot.plan {
@@ -126,86 +132,106 @@ extension ChatPanelView {
         }
     }
 
-    internal func buildPhase0ScreeningPrompt(userRequest: String) -> String {
+    internal func buildPhase0ScreeningPrompt(
+        userRequest: String,
+        planIntentConversationId: UUID? = nil
+    ) -> String {
         planRuntimeAction(
             "plan_prepare_phase0_screening_prompt",
             text: userRequest,
-            shouldRunInline: planShouldRunInline
+            shouldRunInline: planShouldRunInline,
+            planIntentConversationId: planIntentConversationId
         )?.output?.generatedPrompt ?? ""
     }
 
-    internal func buildPhase1AnalysisPrompt(userRequest: String) -> String {
+    internal func buildPhase1AnalysisPrompt(
+        userRequest: String,
+        planIntentConversationId: UUID? = nil
+    ) -> String {
         planRuntimeAction(
             "plan_prepare_phase1_analysis_prompt",
             text: userRequest,
-            shouldRunInline: planShouldRunInline
+            shouldRunInline: planShouldRunInline,
+            planIntentConversationId: planIntentConversationId
         )?.output?.generatedPrompt ?? ""
     }
 
     internal func buildPostClarificationAnalysisPrompt(
         userRequest: String,
         analysisContext: String,
-        clarificationAnswers: String
+        clarificationAnswers: String,
+        planIntentConversationId: UUID? = nil
     ) -> String {
         if planAnalysisContext != analysisContext {
             _ = planRuntimeAction(
                 "plan_store_analysis_context",
                 text: analysisContext,
-                shouldRunInline: planShouldRunInline
+                shouldRunInline: planShouldRunInline,
+                planIntentConversationId: planIntentConversationId
             )
         }
         if planClarificationAnswers != clarificationAnswers {
             _ = applyPlanUIIntent(
                 "submit_clarification_answers",
-                conversationId: conversationId,
+                conversationId: planIntentConversationId ?? conversationId,
                 text: clarificationAnswers
             )
         }
         return planRuntimeAction(
             "plan_prepare_post_clarification_analysis_prompt",
             text: userRequest,
-            shouldRunInline: planShouldRunInline
+            shouldRunInline: planShouldRunInline,
+            planIntentConversationId: planIntentConversationId
         )?.output?.generatedPrompt ?? ""
     }
 
-    internal func buildPhase2QuestionPrompt(userRequest: String, analysisContext: String) -> String {
+    internal func buildPhase2QuestionPrompt(
+        userRequest: String,
+        analysisContext: String,
+        planIntentConversationId: UUID? = nil
+    ) -> String {
         if planAnalysisContext != analysisContext {
             _ = planRuntimeAction(
                 "plan_store_analysis_context",
                 text: analysisContext,
-                shouldRunInline: planShouldRunInline
+                shouldRunInline: planShouldRunInline,
+                planIntentConversationId: planIntentConversationId
             )
         }
         return planRuntimeAction(
             "plan_prepare_phase2_questions_prompt",
             text: userRequest,
-            shouldRunInline: planShouldRunInline
+            shouldRunInline: planShouldRunInline,
+            planIntentConversationId: planIntentConversationId
         )?.output?.generatedPrompt ?? ""
     }
 
     internal func buildPhase3GenerationPrompt(
         userRequest: String,
         analysisContext: String,
-        clarificationAnswers: String
+        clarificationAnswers: String,
+        planIntentConversationId: UUID? = nil
     ) -> String {
         if planAnalysisContext != analysisContext {
             _ = planRuntimeAction(
                 "plan_store_analysis_context",
                 text: analysisContext,
-                shouldRunInline: planShouldRunInline
+                shouldRunInline: planShouldRunInline,
+                planIntentConversationId: planIntentConversationId
             )
         }
         if planClarificationAnswers != clarificationAnswers {
             _ = applyPlanUIIntent(
                 "submit_clarification_answers",
-                conversationId: conversationId,
+                conversationId: planIntentConversationId ?? conversationId,
                 text: clarificationAnswers
             )
         }
         return planRuntimeAction(
             "plan_prepare_phase3_generation_prompt",
             text: userRequest,
-            shouldRunInline: planShouldRunInline
+            shouldRunInline: planShouldRunInline,
+            planIntentConversationId: planIntentConversationId
         )?.output?.generatedPrompt ?? ""
     }
 
@@ -213,26 +239,29 @@ extension ChatPanelView {
         userRequest: String,
         analysisContext: String,
         clarificationAnswers: String,
-        invalidPlanOutput: String
+        invalidPlanOutput: String,
+        planIntentConversationId: UUID? = nil
     ) -> String {
         if planAnalysisContext != analysisContext {
             _ = planRuntimeAction(
                 "plan_store_analysis_context",
                 text: analysisContext,
-                shouldRunInline: planShouldRunInline
+                shouldRunInline: planShouldRunInline,
+                planIntentConversationId: planIntentConversationId
             )
         }
         if planClarificationAnswers != clarificationAnswers {
             _ = applyPlanUIIntent(
                 "submit_clarification_answers",
-                conversationId: conversationId,
+                conversationId: planIntentConversationId ?? conversationId,
                 text: clarificationAnswers
             )
         }
         return planRuntimeAction(
             "plan_prepare_phase3_repair_prompt",
             text: invalidPlanOutput,
-            shouldRunInline: planShouldRunInline
+            shouldRunInline: planShouldRunInline,
+            planIntentConversationId: planIntentConversationId
         )?.output?.generatedPrompt ?? ""
     }
 

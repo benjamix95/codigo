@@ -286,15 +286,24 @@ extension PipelineIntegrationService {
             for: agentConversationId
         )
 
-        todoStore.upsertFromAgent(
-            id: nil,
-            title: "Code Review & Test",
-            status: .pending,
-            priority: .high,
-            notes: "Review all pipeline changes and run tests",
-            linkedFiles: [],
-            conversationId: planId
-        )
+        let reviewFollowUpTitle = "Code Review & Test"
+        let alreadyHasOpenReviewTodo = todoStore.todos.contains { item in
+            item.planConversationId == planId
+                && !item.isPlanCanonical
+                && item.title == reviewFollowUpTitle
+                && item.status != .done
+        }
+        if !alreadyHasOpenReviewTodo {
+            todoStore.upsertFromAgent(
+                id: nil,
+                title: reviewFollowUpTitle,
+                status: .pending,
+                priority: .high,
+                notes: "Review all pipeline changes and run tests",
+                linkedFiles: [],
+                conversationId: planId
+            )
+        }
 
         let canonicalTodos = todoStore.canonicalTodos(for: planId)
         chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)

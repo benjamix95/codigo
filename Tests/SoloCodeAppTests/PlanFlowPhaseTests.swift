@@ -31,7 +31,17 @@ final class PlanFlowPhaseTests: XCTestCase {
 
     func testPhaseTransitionsProposalToReadyToBuildViaGating() {
         XCTAssertFalse(canExecutePlanBuild(phase: .idle, choice: "## Option 1: A"))
-        XCTAssertTrue(canExecutePlanBuild(phase: .idle, choice: "## Option 1: A", allowIdleRebuild: true))
+        let idleRebuildCompliant = """
+        ## Option 1: A
+
+        ## Todo
+        - [ ] Step one
+        """
+        XCTAssertFalse(
+            canExecutePlanBuild(phase: .idle, choice: "## Option 1: A", allowIdleRebuild: true),
+            "idle rebuild richiede sezione Todo eseguibile"
+        )
+        XCTAssertTrue(canExecutePlanBuild(phase: .idle, choice: idleRebuildCompliant, allowIdleRebuild: true))
         XCTAssertTrue(canExecutePlanBuild(phase: .proposalReady, choice: "## Option 1: A"))
         XCTAssertTrue(canExecutePlanBuild(phase: .readyToBuild, choice: "## Option 1: A"))
     }

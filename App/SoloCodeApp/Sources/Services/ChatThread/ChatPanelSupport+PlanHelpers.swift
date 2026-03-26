@@ -72,7 +72,8 @@ func canExecutePlanBuild(phase: PlanFlowPhase, choice: String, allowIdleRebuild:
     let trimmed = choice.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
     if allowIdleRebuild, phase == .idle {
-        return true
+        guard PlanOptionsParser.hasRequiredTodoHeader(trimmed) else { return false }
+        return !PlanOptionsParser.extractTodosFromOptionText(trimmed).isEmpty
     }
     return phase == .proposalReady || phase == .readyToBuild
 }

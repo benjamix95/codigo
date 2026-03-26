@@ -11,9 +11,17 @@ extension ChatPanelView {
         preferPlanRuntime: Bool = false,
         includeAutoTodoRuntimeState: Bool = false
     ) -> MainChatUIBridgeContext {
-        MainChatUIBridgeContext(
-            runtimeSnapshot: runtimeSnapshot
-                ?? resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime),
+        let effectiveSnapshot: MainChatRuntimeSnapshotBridge? = {
+            if let runtimeSnapshot { return runtimeSnapshot }
+            guard let cur = conversationId else {
+                return resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime)
+            }
+            let selected = targetConversationId ?? cur
+            guard selected == cur else { return nil }
+            return resolvedMainChatRuntimeSnapshot(preferPlanRuntime: preferPlanRuntime)
+        }()
+        return MainChatUIBridgeContext(
+            runtimeSnapshot: effectiveSnapshot,
             selectedConversationId: targetConversationId ?? conversationId,
             draftText: inputText,
             planPanelVisible: showPlanPanel,
@@ -35,6 +43,25 @@ extension ChatPanelView {
         }
         return flowCoordinator.directRuntimeSnapshotState()
             ?? flowCoordinator.planRuntimeSnapshotState()
+    }
+
+    /// In-memory plan runtime è legato alla conversazione attiva: evita di mescolare lo stato del
+    /// flow coordinator con un altro `conversationId` negli intent (dopo await o switch tab).
+    @MainActor
+    internal func runtimeSnapshotForPlanUIIntent(
+        targetConversationId: UUID?
+    ) -> MainChatRuntimeSnapshotBridge? {
+        let target = targetConversationId ?? conversationId
+        guard let target else {
+            return resolvedMainChatRuntimeSnapshot(preferPlanRuntime: true)
+        }
+        guard let current = conversationId else {
+            return nil
+        }
+        guard target == current else {
+            return nil
+        }
+        return resolvedMainChatRuntimeSnapshot(preferPlanRuntime: true)
     }
 
     @MainActor
@@ -74,11 +101,14 @@ extension ChatPanelView {
         let mergedPayload = (providerId.map { ["provider_id": $0] } ?? [:]).merging(payload) {
             _, new in new
         }
+        let resolvedRuntime = runtimeSnapshot ?? runtimeSnapshotForPlanUIIntent(
+            targetConversationId: targetConversationId
+        )
         let request = MainChatUIIntentRequestBridge(
             intent: intent,
             state: currentMainChatUIState(
                 conversationId: targetConversationId,
-                runtimeSnapshot: runtimeSnapshot,
+                runtimeSnapshot: resolvedRuntime,
                 preferPlanRuntime: preferPlanRuntime,
                 includeAutoTodoRuntimeState: includeAutoTodoRuntimeState
             ),

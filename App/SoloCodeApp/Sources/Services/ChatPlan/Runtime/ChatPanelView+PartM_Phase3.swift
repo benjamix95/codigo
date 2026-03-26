@@ -23,7 +23,8 @@ extension ChatPanelView {
             _ = planRuntimeAction(
                 "plan_prepare_phase3_generation_prompt",
                 text: planUserRequest,
-                shouldRunInline: shouldRunPlanInline
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
             )
             let generationAssistantMessageId = UUID()
             chatStore.addMessage(
@@ -55,11 +56,21 @@ extension ChatPanelView {
             return
         }
 
-        let generationPrompt = buildPhase3GenerationPrompt(
-            userRequest: planUserRequest,
-            analysisContext: planAnalysisContext,
-            clarificationAnswers: planClarificationAnswers
-        )
+        let generationPrompt = await MainActor.run { () -> String in
+            guard self.conversationId == conversationId else { return "" }
+            return buildPhase3GenerationPrompt(
+                userRequest: planUserRequest,
+                analysisContext: planAnalysisContext,
+                clarificationAnswers: planClarificationAnswers,
+                planIntentConversationId: conversationId
+            )
+        }
+        guard !generationPrompt.isEmpty else {
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
+            return
+        }
 
         let generationResult = try await flowCoordinator.runStream(
             provider: provider,
@@ -91,11 +102,21 @@ extension ChatPanelView {
 
         var full = generationResult
 
-        var generationRuntimeSnapshot = planRuntimeAction(
-            "plan_apply_generation_result",
-            text: full,
-            shouldRunInline: shouldRunPlanInline
-        )
+        var generationRuntimeSnapshot = await MainActor.run { () -> MainChatRuntimeSnapshotBridge? in
+            guard self.conversationId == conversationId else { return nil }
+            return planRuntimeAction(
+                "plan_apply_generation_result",
+                text: full,
+                shouldRunInline: shouldRunPlanInline,
+                planIntentConversationId: conversationId
+            )
+        }
+        guard await MainActor.run(body: { self.conversationId == conversationId }) else {
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
+            return
+        }
 
         if let runtimeSnapshot = generationRuntimeSnapshot,
            runtimeSnapshot.plan?.planningStateKind == .awaitingClarification,
@@ -139,12 +160,19 @@ extension ChatPanelView {
                 chatStore.setLastAssistantStreaming(true, in: conversationId)
             }
 
-            let repairPrompt = buildPhase3TodoComplianceRepairPrompt(
-                userRequest: planUserRequest,
-                analysisContext: planAnalysisContext,
-                clarificationAnswers: planClarificationAnswers,
-                invalidPlanOutput: full
-            )
+            let repairPrompt = await MainActor.run { () -> String in
+                guard self.conversationId == conversationId else { return "" }
+                return buildPhase3TodoComplianceRepairPrompt(
+                    userRequest: planUserRequest,
+                    analysisContext: planAnalysisContext,
+                    clarificationAnswers: planClarificationAnswers,
+                    invalidPlanOutput: full,
+                    planIntentConversationId: conversationId
+                )
+            }
+            guard !repairPrompt.isEmpty else {
+                break
+            }
 
             let repairedResult = try await flowCoordinator.runStream(
                 provider: provider,
@@ -166,11 +194,19 @@ extension ChatPanelView {
             )
 
             full = repairedResult
-            generationRuntimeSnapshot = planRuntimeAction(
-                "plan_apply_generation_result",
-                text: full,
-                shouldRunInline: shouldRunPlanInline
-            )
+            let repairedSnapshot = await MainActor.run { () -> MainChatRuntimeSnapshotBridge? in
+                guard self.conversationId == conversationId else { return nil }
+                return planRuntimeAction(
+                    "plan_apply_generation_result",
+                    text: full,
+                    shouldRunInline: shouldRunPlanInline,
+                    planIntentConversationId: conversationId
+                )
+            }
+            guard await MainActor.run(body: { self.conversationId == conversationId }) else {
+                break
+            }
+            generationRuntimeSnapshot = repairedSnapshot
         }
 
         await MainActor.run {
@@ -179,8 +215,8 @@ extension ChatPanelView {
                 currentConversationId: self.conversationId
             ) else { return }
             updatePlanStreamingContent(full, conversationId: conversationId)
+            chatStore.setLastAssistantStreaming(false, in: conversationId)
         }
-        chatStore.setLastAssistantStreaming(false, in: conversationId)
         clearStreamingReasoning(for: conversationId)
         finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
 
@@ -189,56 +225,60 @@ extension ChatPanelView {
         let canonicalTodos = runtimePlan?.canonicalTodos ?? []
 
         if generationRuntimeSnapshot?.plan?.phase == .proposalReady, !options.isEmpty {
-            let board = makePlanBoardFromRuntimePlan(runtimePlan, options: options)
-            chatStore.setPlanBoard(board, for: conversationId)
-            let currentConv = chatStore.conversation(for: conversationId)
-            let summaryTitle = runtimePlan?.summaryTitle ?? board.goal
-            let todoMarkdown = canonicalTodos.enumerated().map { idx, t in
-                "  \(idx + 1). \(t)"
-            }.joined(separator: "\n")
-            let recap: String
-            if todoMarkdown.isEmpty {
-                recap = "Plan ready: **\(summaryTitle)**\n\nOpen the Plan Panel to review and build."
-            } else {
-                recap = """
-                Plan ready: **\(summaryTitle)**
-
-                Steps:
-                \(todoMarkdown)
-
-                Open the Plan Panel to review and build.
-                """
-            }
-            chatStore.updateLastAssistantMessage(
-                content: recap,
-                in: conversationId,
-                persistImmediately: true
-            )
-
-            _ = planHistoryStore.createEntry(
-                conversationId: conversationId,
-                contextId: currentConv?.contextId,
-                contextFolderPath: currentConv?.contextFolderPath,
-                title: summaryTitle,
-                markdown: full,
-                options: options,
-                chosenPath: board.chosenPath,
-                tags: [],
-                sourceMessageId: nil
-            )
-
-            inlinePlanSummaries.removeValue(forKey: conversationId)
-
-            if shouldRunPlanInline {
-                let contextId = currentConv?.contextId
-                let contextFolderPath = currentConv?.contextFolderPath
-                let planConvId = chatStore.getOrCreateConversationForMode(
-                    contextId: contextId, contextFolderPath: contextFolderPath,
-                    mode: .plan)
-                chatStore.setPlanBoard(board, for: planConvId)
-            }
-
             await MainActor.run {
+                guard shouldMutatePlanState(
+                    targetConversationId: conversationId,
+                    currentConversationId: self.conversationId
+                ) else { return }
+                let board = makePlanBoardFromRuntimePlan(runtimePlan, options: options)
+                chatStore.setPlanBoard(board, for: conversationId)
+                let currentConv = chatStore.conversation(for: conversationId)
+                let summaryTitle = runtimePlan?.summaryTitle ?? board.goal
+                let todoMarkdown = canonicalTodos.enumerated().map { idx, t in
+                    "  \(idx + 1). \(t)"
+                }.joined(separator: "\n")
+                let recap: String
+                if todoMarkdown.isEmpty {
+                    recap = "Plan ready: **\(summaryTitle)**\n\nOpen the Plan Panel to review and build."
+                } else {
+                    recap = """
+                    Plan ready: **\(summaryTitle)**
+
+                    Steps:
+                    \(todoMarkdown)
+
+                    Open the Plan Panel to review and build.
+                    """
+                }
+                chatStore.updateLastAssistantMessage(
+                    content: recap,
+                    in: conversationId,
+                    persistImmediately: true
+                )
+
+                _ = planHistoryStore.createEntry(
+                    conversationId: conversationId,
+                    contextId: currentConv?.contextId,
+                    contextFolderPath: currentConv?.contextFolderPath,
+                    title: summaryTitle,
+                    markdown: full,
+                    options: options,
+                    chosenPath: board.chosenPath,
+                    tags: [],
+                    sourceMessageId: nil
+                )
+
+                inlinePlanSummaries.removeValue(forKey: conversationId)
+
+                if shouldRunPlanInline {
+                    let contextId = currentConv?.contextId
+                    let contextFolderPath = currentConv?.contextFolderPath
+                    let planConvId = chatStore.getOrCreateConversationForMode(
+                        contextId: contextId, contextFolderPath: contextFolderPath,
+                        mode: .plan)
+                    chatStore.setPlanBoard(board, for: planConvId)
+                }
+
                 guard self.conversationId == conversationId else {
                     return
                 }
@@ -246,7 +286,8 @@ extension ChatPanelView {
                     "plan_store_proposal",
                     planContent: full,
                     optionFullTexts: options.map(\.fullText),
-                    shouldRunInline: shouldRunPlanInline
+                    shouldRunInline: shouldRunPlanInline,
+                    planIntentConversationId: conversationId
                 )
                 if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
                     openPlanPanelForCurrentContext(
@@ -256,20 +297,21 @@ extension ChatPanelView {
                 }
             }
         } else {
-            chatStore.updateLastAssistantMessage(
-                content: "Plan generation failed. Please try again.",
-                in: conversationId,
-                persistImmediately: true
-            )
             await MainActor.run {
                 guard shouldMutatePlanState(
                     targetConversationId: conversationId,
                     currentConversationId: self.conversationId
                 ) else { return }
+                chatStore.updateLastAssistantMessage(
+                    content: "Plan generation failed. Please try again.",
+                    in: conversationId,
+                    persistImmediately: true
+                )
                 clearPlanStreamingState()
                 _ = planRuntimeAction(
                     "plan_reset",
-                    shouldRunInline: shouldRunPlanInline
+                    shouldRunInline: shouldRunPlanInline,
+                    planIntentConversationId: conversationId
                 )
             }
         }
