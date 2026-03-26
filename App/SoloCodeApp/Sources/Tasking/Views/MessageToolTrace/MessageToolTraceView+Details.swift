@@ -10,7 +10,7 @@ extension MessageToolTraceView {
             // Bash/terminal events → inline terminal view
             if isBashLike, let command = event.payload["command"], !command.isEmpty {
                 InlineTerminalView(
-                    command: command,
+                    command: UserFacingToolTraceRedaction.redactedIfNeeded(command),
                     output: event.payload["output"],
                     stderr: event.payload["stderr"],
                     exitCode: event.payload["exit_code"],
@@ -20,11 +20,17 @@ extension MessageToolTraceView {
             } else {
                 // Non-bash: show command as code block
                 if let command = event.payload["command"], !command.isEmpty {
-                    codeBlock(label: "Command", value: command)
+                    codeBlock(
+                        label: "Command",
+                        value: UserFacingToolTraceRedaction.redactedIfNeeded(command)
+                    )
                 }
             }
             if let query = event.payload["query"], !query.isEmpty {
-                detailPill(label: "Query", value: query)
+                detailPill(
+                    label: "Query",
+                    value: UserFacingToolTraceRedaction.redactedIfNeeded(query)
+                )
             }
             if let path = event.payload["path"] ?? event.payload["file"], !path.isEmpty {
                 HStack(spacing: 4) {
@@ -43,13 +49,19 @@ extension MessageToolTraceView {
                 }
             }
             if let tool = event.payload["tool"], !tool.isEmpty {
-                detailPill(label: "Tool", value: tool)
+                detailPill(
+                    label: "Tool",
+                    value: UserFacingToolTraceRedaction.redactedIfNeeded(tool)
+                )
             }
             if let server = payloadValue(event.payload, keys: ["mcp_server", "mcpServer", "server_id", "serverId"]) {
                 detailPill(label: "MCP Server", value: server)
             }
             if let mcpTool = payloadValue(event.payload, keys: ["mcp_tool", "mcpTool"]) {
-                detailPill(label: "MCP Tool", value: mcpTool)
+                detailPill(
+                    label: "MCP Tool",
+                    value: UserFacingToolTraceRedaction.redactedIfNeeded(mcpTool)
+                )
             }
             if let latency = payloadValue(event.payload, keys: ["mcp_latency_ms", "mcpLatencyMs"]) {
                 detailPill(label: "Latency", value: "\(latency)ms")

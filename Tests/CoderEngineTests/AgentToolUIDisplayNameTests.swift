@@ -3,6 +3,7 @@ import XCTest
 
 final class AgentToolUIDisplayNameTests: XCTestCase {
     func testWorkspaceToolLabelsAreExplicit() {
+        XCTAssertEqual(AgentToolUIDisplayName.label(forRuntimeTool: "tool_search"), "Tool search")
         XCTAssertEqual(AgentToolUIDisplayName.label(forRuntimeTool: "grep"), "Grep in workspace")
         XCTAssertEqual(AgentToolUIDisplayName.label(forRuntimeTool: "write"), "Write to workspace file")
         XCTAssertEqual(AgentToolUIDisplayName.label(forRuntimeTool: "create_file"), "Create workspace file")

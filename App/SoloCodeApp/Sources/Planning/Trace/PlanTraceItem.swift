@@ -51,7 +51,7 @@ struct PlanTraceItem: Identifiable {
     static func rawOutput(for activity: TaskActivity) -> String? {
         var lines: [String] = []
         if let command = activity.payload["command"], !command.isEmpty {
-            lines.append("$ \(command)")
+            lines.append("$ \(UserFacingToolTraceRedaction.redactedIfNeeded(command))")
         }
         if let cwd = activity.payload["cwd"], !cwd.isEmpty {
             lines.append("cwd: \(cwd)")
@@ -70,7 +70,7 @@ struct PlanTraceItem: Identifiable {
             lines.append(stderr)
         }
         if lines.isEmpty, let detail = activity.detail, !detail.isEmpty {
-            lines.append(detail)
+            lines.append(UserFacingToolTraceRedaction.redactedIfNeeded(detail))
         }
         let joined = lines.joined(separator: "\n")
         return joined.isEmpty ? nil : joined
@@ -119,16 +119,16 @@ private extension PlanTraceItem {
 
     static func summary(for activity: TaskActivity) -> String {
         if let command = activity.payload["command"], !command.isEmpty {
-            return command
+            return UserFacingToolTraceRedaction.redactedIfNeeded(command)
         }
         if let path = activity.payload["path"] ?? activity.payload["file"], !path.isEmpty {
             return path
         }
         if let query = activity.payload["query"], !query.isEmpty {
-            return query
+            return UserFacingToolTraceRedaction.redactedIfNeeded(query)
         }
         if let detail = activity.detail, !detail.isEmpty {
-            return detail
+            return UserFacingToolTraceRedaction.redactedIfNeeded(detail)
         }
         return activity.title
     }

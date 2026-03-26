@@ -85,7 +85,7 @@ struct TaskActivityRow: View {
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
                     .textShimmer(active: activity.isRunning)
-                if let detail = activity.detail, !detail.isEmpty {
+                if let detail = activity.userFacingDetail, !detail.isEmpty {
                     Text(detail)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)

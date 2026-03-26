@@ -114,6 +114,8 @@ public enum AgentToolUIDisplayName {
             return "Plan clarification request"
         case "code_context":
             return "Code context"
+        case "tool_search":
+            return "Tool search"
         case "git_status", "git_diff", "git_show", "git_log_search":
             return humanizedFallback(key)
         default:

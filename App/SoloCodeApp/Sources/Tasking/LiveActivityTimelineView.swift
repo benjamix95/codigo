@@ -86,7 +86,7 @@ struct LiveActivityTimelineView: View {
             }
 
             if expanded {
-                if let detail = activity.detail, !detail.isEmpty {
+                if let detail = activity.userFacingDetail, !detail.isEmpty {
                     Text(detail)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)

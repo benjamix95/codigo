@@ -236,7 +236,7 @@ extension MessageToolTraceView {
         for candidate in candidates {
             let text = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !text.isEmpty, text != event.title {
-                return String(text.prefix(120))
+                return UserFacingToolTraceRedaction.compactTraceDetail(from: text)
             }
         }
         return nil
