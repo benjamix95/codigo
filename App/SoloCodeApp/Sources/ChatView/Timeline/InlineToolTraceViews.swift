@@ -7,10 +7,6 @@ struct InlineToolTraceEventView: View {
     let workspaceHints: [String]
     let onOpenFile: (String) -> Void
 
-    private var identity: MessageToolTraceToolIdentity {
-        MessageToolTraceToolIdentity.resolve(for: event)
-    }
-
     private var compactDetail: String? {
         let fileChange = ToolTraceFileChangeMapper.from(event: event)
         if let fileChange {
@@ -56,9 +52,7 @@ struct InlineToolTraceEventView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 7) {
-            Image(systemName: identity.symbolName)
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(identity.tint)
+            WorkspaceCatalogToolIcon(event: event)
                 .frame(width: 14, alignment: .center)
 
             if let openPath {

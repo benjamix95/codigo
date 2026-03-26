@@ -5,11 +5,7 @@ extension MessageToolTraceView {
 
     @ViewBuilder
     func toolIcon(for event: ToolTraceEvent) -> some View {
-        let identity = MessageToolTraceToolIdentity.resolve(for: event)
-
-        Image(systemName: identity.symbolName)
-            .font(.system(size: 9.5, weight: .medium))
-            .foregroundStyle(identity.tint)
+        WorkspaceCatalogToolIcon(event: event)
     }
 
     // MARK: - Tool Title

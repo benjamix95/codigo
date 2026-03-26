@@ -134,6 +134,24 @@ extension ProviderToolEventMapper {
         return normalized
     }
 
+    /// `true` per strumenti del catalogo workspace SoloCode (grep, read, review/bughunter/audit, ecc.);
+    /// `false` per shell grezza e per nomi tool non presenti nel catalogo (tipici MCP esterni).
+    public static func isWorkspaceCatalogTool(_ raw: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if trimmed.lowercased().contains("coderide_") { return true }
+
+        let n = normalizeToolIdentifier(trimmed)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !n.isEmpty else { return false }
+        if n == "bash" || n == "command_execution" { return false }
+        if n.hasPrefix("review_") || n.hasPrefix("bughunter_") || n.hasPrefix("audit_") {
+            return true
+        }
+        return canonicalToolNames.contains(n)
+    }
+
     static func stringify(_ value: Any) -> String? {
         if let s = value as? String { return s }
         if let n = value as? NSNumber { return n.stringValue }
