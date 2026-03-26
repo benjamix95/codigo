@@ -147,61 +147,65 @@ extension ToolEnabledLLMProvider {
                 }
             }
 
-            group.addTask {
-                guard hasLiveCallback else { return }
-                while true {
-                    try await Task.sleep(
-                        nanoseconds: UInt64(
-                            SubagentExecutionRuntimeSettings.waitingHeartbeatIntervalSeconds * 1_000_000_000
-                        )
-                    )
-                    let snapshot = await liveState.snapshot()
-                    if snapshot.finished {
-                        return
-                    }
-                    let now = Date()
-                    let elapsed = Int(now.timeIntervalSince(snapshot.startedAt))
-                    if !snapshot.hasMeaningfulEvent {
-                        if now.timeIntervalSince(snapshot.startedAt) >= SubagentExecutionRuntimeSettings.firstMeaningfulEventDeadlineSeconds {
-                            throw SubagentNoMeaningfulEventError(
-                                roleName: role.displayName,
-                                backendName: liveContext.backendDisplayName,
-                                timeoutSeconds: Int(SubagentExecutionRuntimeSettings.firstMeaningfulEventDeadlineSeconds)
+            // Solo con callback live: altrimenti questo task farebbe `return` subito e `group.next()`
+            // preferirebbe questo completamento a quello del consumer dello stream, cancellando il reader
+            // prima di eventi terminali (es. `.error`).
+            if hasLiveCallback {
+                group.addTask {
+                    while true {
+                        try await Task.sleep(
+                            nanoseconds: UInt64(
+                                SubagentExecutionRuntimeSettings.waitingHeartbeatIntervalSeconds * 1_000_000_000
                             )
+                        )
+                        let snapshot = await liveState.snapshot()
+                        if snapshot.finished {
+                            return
                         }
-                        let detail = "waiting for first event • \(liveContext.backendDisplayName) • \(elapsed)s"
+                        let now = Date()
+                        let elapsed = Int(now.timeIntervalSince(snapshot.startedAt))
+                        if !snapshot.hasMeaningfulEvent {
+                            if now.timeIntervalSince(snapshot.startedAt) >= SubagentExecutionRuntimeSettings.firstMeaningfulEventDeadlineSeconds {
+                                throw SubagentNoMeaningfulEventError(
+                                    roleName: role.displayName,
+                                    backendName: liveContext.backendDisplayName,
+                                    timeoutSeconds: Int(SubagentExecutionRuntimeSettings.firstMeaningfulEventDeadlineSeconds)
+                                )
+                            }
+                            let detail = "waiting for first event • \(liveContext.backendDisplayName) • \(elapsed)s"
+                            await liveState.markHeartbeat(detail: detail)
+                            emitLiveOnly(
+                                .raw(type: "agent", payload: liveContext.agentPayload(
+                                    title: "Waiting for first event",
+                                    detail: detail,
+                                    status: "running",
+                                    stage: .waitingFirstEvent,
+                                    health: .waiting,
+                                    phase: "planning",
+                                    liveEmitted: true
+                                ))
+                            )
+                            continue
+                        }
+                        guard let lastMeaningfulEventAt = snapshot.lastMeaningfulEventAt,
+                              now.timeIntervalSince(lastMeaningfulEventAt) >= SubagentExecutionRuntimeSettings.activeHeartbeatIdleSeconds else {
+                            continue
+                        }
+                        let idleSeconds = Int(now.timeIntervalSince(lastMeaningfulEventAt))
+                        let detail = "\(snapshot.currentDetail) • last update \(idleSeconds)s ago"
                         await liveState.markHeartbeat(detail: detail)
                         emitLiveOnly(
                             .raw(type: "agent", payload: liveContext.agentPayload(
-                                title: "Waiting for first event",
+                                title: "Heartbeat",
                                 detail: detail,
                                 status: "running",
-                                stage: .waitingFirstEvent,
-                                health: .waiting,
-                                phase: "planning",
+                                stage: .toolActivity,
+                                health: .active,
+                                phase: "executing",
                                 liveEmitted: true
                             ))
                         )
-                        continue
                     }
-                    guard let lastMeaningfulEventAt = snapshot.lastMeaningfulEventAt,
-                          now.timeIntervalSince(lastMeaningfulEventAt) >= SubagentExecutionRuntimeSettings.activeHeartbeatIdleSeconds else {
-                        continue
-                    }
-                    let idleSeconds = Int(now.timeIntervalSince(lastMeaningfulEventAt))
-                    let detail = "\(snapshot.currentDetail) • last update \(idleSeconds)s ago"
-                    await liveState.markHeartbeat(detail: detail)
-                    emitLiveOnly(
-                        .raw(type: "agent", payload: liveContext.agentPayload(
-                            title: "Heartbeat",
-                            detail: detail,
-                            status: "running",
-                            stage: .toolActivity,
-                            health: .active,
-                            phase: "executing",
-                            liveEmitted: true
-                        ))
-                    )
                 }
             }
 
