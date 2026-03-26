@@ -43,7 +43,7 @@ final class MessageToolTraceMCPCamelCaseTests: XCTestCase {
 
         let summary = MessageToolTraceView.DerivedState.computeCollapsedSummary(orderedEvents: events)
 
-        XCTAssertEqual(summary, "batch, list_prompts +1")
+        XCTAssertEqual(summary, "MCP Batch, MCP List Prompts +1")
     }
 
     func testSemanticSearchStartedUsesDedicatedSemanticIcon() {
@@ -146,7 +146,7 @@ final class MessageToolTraceMCPCamelCaseTests: XCTestCase {
             collapser: ToolTraceEventCollapser.collapseSupersededToolStates
         )
 
-        XCTAssertEqual(view.headerTitle(derived: derived), "1 file letto · read")
+        XCTAssertEqual(view.headerTitle(derived: derived), "1 file letto · Read workspace file")
     }
 
     private func makeView(events: [ToolTraceEvent] = []) -> MessageToolTraceView {

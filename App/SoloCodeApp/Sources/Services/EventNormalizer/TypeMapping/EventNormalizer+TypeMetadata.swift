@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 
 func userFacingToolName(
@@ -20,11 +21,11 @@ func userFacingToolName(
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
+        // Rimuovi solo prefissi provider/host; lasciare intatto `mcp_*` così le etichette UI risolvono bene.
         let prefixes = [
             "functions.mcp__coderide__coderide_",
             "mcp__coderide__coderide_",
             "coderide_",
-            "mcp_",
         ]
         for prefix in prefixes where normalized.hasPrefix(prefix) {
             normalized = String(normalized.dropFirst(prefix.count))
@@ -32,10 +33,10 @@ func userFacingToolName(
         }
 
         if !normalized.isEmpty {
-            return normalized
+            return AgentToolUIDisplayName.label(forRuntimeTool: normalized)
         }
     }
-    return fallback
+    return AgentToolUIDisplayName.label(forRuntimeTool: fallback)
 }
 
 extension EventNormalizer {
@@ -126,7 +127,7 @@ extension EventNormalizer {
         case "plan_request_user_input":
             return "Plan clarification requested"
         default:
-            return type
+            return AgentToolUIDisplayName.label(forRuntimeTool: type)
         }
     }
 

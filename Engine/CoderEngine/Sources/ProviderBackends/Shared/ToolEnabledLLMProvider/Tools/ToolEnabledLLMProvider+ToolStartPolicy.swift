@@ -135,7 +135,7 @@ extension ToolEnabledLLMProvider {
         ]
         if let command = args["command"], !command.isEmpty {
             payload["command"] = command
-            payload["title"] = "Bash"
+            payload["title"] = AgentToolUIDisplayName.label(forRuntimeTool: "bash")
             payload["detail"] = command
         }
         if let path = args["path"], !path.isEmpty { payload["path"] = path }
@@ -178,50 +178,51 @@ extension ToolEnabledLLMProvider {
         let pathComponent = { (key: String) -> String in
             ((args[key] ?? "") as NSString).lastPathComponent
         }
-        switch toolName {
-        case "bash":
-            return "Bash"
+        let key = AgentToolUIDisplayName.normalizedRuntimeKey(toolName)
+        switch key {
+        case "bash", "command_execution":
+            return AgentToolUIDisplayName.label(forRuntimeTool: key)
         case "edit", "str_replace":
             let file = pathComponent("path")
-            return file.isEmpty ? "Edit" : "Edit • \(file)"
-        case "write", "create_file":
+            return AgentToolUIDisplayName.titled(
+                AgentToolUIDisplayName.label(forRuntimeTool: key),
+                detail: file.isEmpty ? nil : file
+            )
+        case "write", "write_file", "create_file":
             let file = pathComponent("path")
-            return file.isEmpty ? "Write" : "Write • \(file)"
-        case "read", "read_range":
+            return AgentToolUIDisplayName.titled(
+                AgentToolUIDisplayName.label(forRuntimeTool: key),
+                detail: file.isEmpty ? nil : file
+            )
+        case "read", "read_file", "read_range":
             let file = pathComponent("path")
-            return file.isEmpty ? "Read" : "Read • \(file)"
-        case "glob":
+            return AgentToolUIDisplayName.titled(
+                AgentToolUIDisplayName.label(forRuntimeTool: key),
+                detail: file.isEmpty ? nil : file
+            )
+        case "glob", "find_files":
             let pattern = args["pattern"] ?? ""
-            return pattern.isEmpty ? "Glob" : "Glob • \(pattern)"
-        case "grep":
+            return AgentToolUIDisplayName.titled(
+                AgentToolUIDisplayName.label(forRuntimeTool: key),
+                detail: pattern.isEmpty ? nil : pattern
+            )
+        case "grep", "instant_grep", "rg":
             let query = args["query"] ?? ""
-            return query.isEmpty ? "Grep" : "Grep • \(query)"
-        case "semantic_search":
-            return "Semantic search"
-        case "codebase_search":
-            return "Codebase search"
-        case "find_symbol":
-            return "Find symbol"
-        case "find_references":
-            return "Find references"
-        case "web_search":
-            return "Web search"
-        case "web_fetch":
-            return "Fetching web page"
-        case "diagnostics":
-            return "Diagnostics"
-        case "build_project":
-            return "Building project"
-        case "run_tests", "run_single_test":
-            return "Running tests"
+            return AgentToolUIDisplayName.titled(
+                AgentToolUIDisplayName.label(forRuntimeTool: key),
+                detail: query.isEmpty ? nil : query
+            )
+        case "semantic_search", "codebase_search", "find_symbol", "find_references",
+             "web_search", "web_fetch", "diagnostics", "build_project", "run_tests", "run_single_test":
+            return AgentToolUIDisplayName.label(forRuntimeTool: key)
         case "skill":
             let name = args["skill"] ?? args["name"] ?? ""
-            return name.isEmpty ? "Skill" : "Skill • \(name)"
+            return AgentToolUIDisplayName.titled(
+                AgentToolUIDisplayName.label(forRuntimeTool: key),
+                detail: name.isEmpty ? nil : name
+            )
         default:
-            if let role = SubagentRole.fromToolName(toolName) {
-                return "\(role.displayName) subagent"
-            }
-            return toolName.replacingOccurrences(of: "_", with: " ").capitalized
+            return AgentToolUIDisplayName.label(forRuntimeTool: toolName)
         }
     }
 
