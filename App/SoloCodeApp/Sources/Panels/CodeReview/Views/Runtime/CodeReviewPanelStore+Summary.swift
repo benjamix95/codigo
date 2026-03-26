@@ -35,7 +35,11 @@ extension CodeReviewPanelStore {
     }
 
     var currentPipelineJobState: ReviewPipelineJobState? {
-        currentReviewPanelDerivedState?.pipelineJobState
+        if let pipeline = currentReviewPanelDerivedState?.pipelineJobState {
+            return pipeline
+        }
+        guard let snapshot = currentSnapshot else { return nil }
+        return ReviewPipelineJobStateBuilder.build(snapshot: snapshot, entryPoint: .panel)
     }
 
     var currentLiveCandidates: [ReviewCandidate] {

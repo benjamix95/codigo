@@ -63,7 +63,10 @@ struct ReviewPanelFindingsTab: View {
             if let pipeline = store.currentPipelineJobState {
                 ReviewPipelineJobCard(
                     state: pipeline.replacingTitle(
-                        ReviewPanelLiveBoardPresentation.pipelineCardTitle(modes: store.selectedModes)
+                        ReviewPanelLiveBoardPresentation.pipelineCardTitle(
+                            modes: store.selectedModes,
+                            scanDepth: store.reviewScanDepth
+                        )
                     )
                 )
                 .padding(.horizontal, 10)

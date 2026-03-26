@@ -158,12 +158,22 @@ extension TaskActivityStore {
         if let sessionId,
            let snapshot = codeReviewSnapshotsBySession[sessionId] {
             guard let conversationId else { return snapshot }
-            return snapshot.conversationId == conversationId ? snapshot : nil
+            // Snapshot senza conversationId (bootstrap / versioni vecchie): non nascondere la sessione al panel.
+            if let snapConv = snapshot.conversationId, snapConv != conversationId {
+                return nil
+            }
+            return snapshot
         }
         guard let selectedId = selectedCodeReviewSessionId(for: conversationId) else {
             return nil
         }
-        return codeReviewSnapshotsBySession[selectedId]
+        guard let snapshot = codeReviewSnapshotsBySession[selectedId] else { return nil }
+        if let conversationId {
+            if let snapConv = snapshot.conversationId, snapConv != conversationId {
+                return nil
+            }
+        }
+        return snapshot
     }
 
     func codeReviewFindings(for conversationId: UUID?) -> [CodeReviewFinding] {

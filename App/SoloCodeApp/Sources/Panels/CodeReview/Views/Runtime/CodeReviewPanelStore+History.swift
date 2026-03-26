@@ -53,7 +53,10 @@ extension CodeReviewPanelStore {
             modes: selectedModes
         )
         let headerPipeline = board.pipeline.replacingTitle(
-            ReviewPanelLiveBoardPresentation.pipelineCardTitle(modes: selectedModes)
+            ReviewPanelLiveBoardPresentation.pipelineCardTitle(
+                modes: selectedModes,
+                scanDepth: reviewScanDepth
+            )
         )
         return ReviewHistoricalLiveBoardState(
             title: title,

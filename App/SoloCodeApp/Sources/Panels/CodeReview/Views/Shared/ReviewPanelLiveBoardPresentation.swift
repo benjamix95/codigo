@@ -20,8 +20,13 @@ enum ReviewPanelLiveBoardPresentation {
         return "Riepilogo dell’ultima sessione con profilo \(scan)."
     }
 
-    static func pipelineCardTitle(modes: Set<CodeReviewPanelMode>) -> String {
-        "Avanzamento — \(scanLabel(modes: modes))"
+    static func pipelineCardTitle(
+        modes: Set<CodeReviewPanelMode>,
+        scanDepth: ReviewScanDepth? = nil
+    ) -> String {
+        let base = "Avanzamento — \(scanLabel(modes: modes))"
+        guard let scanDepth else { return base }
+        return "\(base) · \(scanDepth.displayName)"
     }
 
     private static func scanLabel(modes: Set<CodeReviewPanelMode>) -> String {

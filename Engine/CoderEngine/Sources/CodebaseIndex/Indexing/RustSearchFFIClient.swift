@@ -146,7 +146,7 @@ final class RustSearchFFIClient: @unchecked Sendable {
         loadedLibraryPath = nil
 
         let candidates = Self.candidateLibraryPaths()
-        rustFFILogger.info("Rust dylib: probing \(candidates.count) candidate paths")
+        rustFFILogger.debug("Rust dylib: probing \(candidates.count) candidate paths")
 
         for (index, candidate) in candidates.enumerated() {
             let exists = FileManager.default.fileExists(atPath: candidate)
