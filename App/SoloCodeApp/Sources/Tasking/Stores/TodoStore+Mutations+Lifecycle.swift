@@ -70,7 +70,8 @@ extension TodoStore {
         saveTodos()
     }
 
-    /// Rimuove i todo il cui `planConversationId` coincide con la conversazione.
+    /// Rimuove i todo il cui `planConversationId` coincide con la conversazione, più i runtime agent
+    /// unscoped il cui `lastTouchedConversationId` è questa conversazione.
     /// - Parameter alsoRemoveLegacyUnscopedAgentRuntime: se `true`, rimuove anche i todo **agent** runtime
     ///   senza scope (`planConversationId == nil`). Da usare con cautela in multi-chat: la sidebar lo attiva
     ///   solo quando si elimina l’ultima conversazione (`conversations.count <= 1`), così la coda globale non

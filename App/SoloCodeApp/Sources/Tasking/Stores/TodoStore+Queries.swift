@@ -98,14 +98,19 @@ extension TodoStore {
         guard let conversationId else {
             return { !$0.isPlanCanonical }
         }
-        return { item in
+        return { [self] item in
             guard !item.isPlanCanonical, !item.isOperationalPlaceholder else { return false }
             if item.planConversationId == conversationId { return true }
             if item.planConversationId == nil, item.source == .agent {
                 if let touch = item.lastTouchedConversationId {
                     return touch == conversationId
                 }
-                return true
+                let visible = self.userVisibleTodos
+                return TodoChatDisplayPolicy.itemAppearsInChat(
+                    item,
+                    conversationId: conversationId,
+                    visibleTodos: visible
+                )
             }
             return false
         }

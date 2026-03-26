@@ -476,6 +476,43 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(runtimeTodo?.planConversationId, conversationId)
     }
 
+    func testUpsertFromAgentDoesNotMergeHiddenLegacyUnscopedIntoForeignChat() {
+        let store = makeStore()
+        let convA = UUID()
+        let convB = UUID()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Global orphan",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Only scoped A",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: convA
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Global orphan",
+            status: .done,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: convB
+        )
+        let rows = store.todos.filter { $0.title == "Global orphan" }
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows.first { $0.planConversationId == nil }?.status, .pending)
+        XCTAssertEqual(rows.first { $0.planConversationId == convB }?.status, .done)
+    }
+
     func testUpsertFromAgentRespectsConversationScopeForRuntimeTitleMatch() {
         let store = makeStore()
         let conversationA = UUID()
