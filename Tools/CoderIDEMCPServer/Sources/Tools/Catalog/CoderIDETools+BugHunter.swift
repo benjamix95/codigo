@@ -5,7 +5,10 @@ extension CoderIDETools {
     static let bugHunterTools: [Tool] = [
         Tool(
             name: "coderide_bughunter_start",
-            description: "Start a BugHunter run on uncommitted files, a commit, a commit window, or a branch window.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_bughunter_start",
+                fallback: "Start a BugHunter run on uncommitted files, a commit, a commit window, or a branch window."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -20,7 +23,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_status",
-            description: "Read current BugHunter run status and linked review status.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_status", fallback: "Read current BugHunter run status and linked review status."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -32,7 +35,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_findings",
-            description: "Read findings for a BugHunter run through its linked review session.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_findings", fallback: "Read findings for a BugHunter run through its linked review session."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -47,7 +50,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_autofix_preview",
-            description: "Prepare autofix preview for the highest-confidence verified BugHunter finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_autofix_preview", fallback: "Prepare autofix preview for the highest-confidence verified BugHunter finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -60,7 +63,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_autofix_apply",
-            description: "Apply autofix for the highest-confidence verified BugHunter finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_autofix_apply", fallback: "Apply autofix for the highest-confidence verified BugHunter finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -73,7 +76,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_autofix_commit",
-            description: "Apply and commit autofix for the highest-confidence verified BugHunter finding, then queue re-review.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_autofix_commit", fallback: "Apply and commit autofix for the highest-confidence verified BugHunter finding, then queue re-review."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -86,7 +89,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_commit_window",
-            description: "Start a BugHunter run on a commit plus correlated prior commits.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_commit_window", fallback: "Start a BugHunter run on a commit plus correlated prior commits."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -100,7 +103,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_install_hook",
-            description: "Install the managed post-commit hook that triggers BugHunter asynchronously.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_install_hook", fallback: "Install the managed post-commit hook that triggers BugHunter asynchronously."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -112,7 +115,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_uninstall_hook",
-            description: "Remove the managed post-commit hook for BugHunter.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_uninstall_hook", fallback: "Remove the managed post-commit hook for BugHunter."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -124,7 +127,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_run_history",
-            description: "List BugHunter runs and their outcome summary.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_run_history", fallback: "List BugHunter runs and their outcome summary."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -135,7 +138,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_explain_cluster",
-            description: "Explain the top correlated bug cluster for a BugHunter run.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_explain_cluster", fallback: "Explain the top correlated bug cluster for a BugHunter run."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -148,7 +151,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_bughunter_cancel_run",
-            description: "Cancel a running BugHunter run.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_bughunter_cancel_run", fallback: "Cancel a running BugHunter run."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

@@ -8,10 +8,10 @@ extension CoderIDETools {
         // --- Code Review Tools ---
         Tool(
             name: "coderide_review_start",
-            description: """
-                Start a code review session. Specify the scope (uncommitted, staged, or against a git ref) \
-                and optional configuration for workers and rounds.
-                """,
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_review_start",
+                fallback: "Start a code review session with scope and optional worker/round configuration."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -57,7 +57,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_list_sessions",
-            description: "List code review sessions for the current conversation or across the workspace, including completed sessions.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_list_sessions", fallback: "List code review sessions for the current conversation or across the workspace."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -71,7 +71,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_status",
-            description: "Get the current status of the active code review session: phase, progress, active workers, round info, audit breakdown, and blocking summary.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_status", fallback: "Get the current status of the active code review session."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -89,7 +89,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_findings",
-            description: "List code review findings. Filter by severity, file, status, origin, or category.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_findings", fallback: "List code review findings with optional filters."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -135,7 +135,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_apply_fix",
-            description: "Apply the suggested fix for a specific code review finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_apply_fix", fallback: "Apply the suggested fix for a specific code review finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -158,7 +158,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_dismiss",
-            description: "Dismiss a code review finding as false positive or won't fix.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_dismiss", fallback: "Dismiss a code review finding with rationale."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -185,7 +185,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_configure",
-            description: "Update the runtime configuration for the active code review session.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_configure", fallback: "Update the runtime configuration for the active code review session."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -224,7 +224,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_diff_summary",
-            description: "Get a structured summary of the diff for files in the current review scope, optionally filtered by finding origin/category.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_diff_summary", fallback: "Get a structured summary of the diff for files in the current review scope."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -254,7 +254,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_comment",
-            description: "Add a comment or annotation to a specific code review finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_comment", fallback: "Add a comment or annotation to a specific code review finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

@@ -5,7 +5,7 @@ extension CoderIDETools {
     static let planIntegrationTools: [Tool] = [
         Tool(
             name: "coderide_plan_create",
-            description: "Create or replace the current plan snapshot in the IDE plan panel.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_create", fallback: "Create or replace the current plan snapshot in the IDE plan panel."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -24,7 +24,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_read",
-            description: "Read the latest plan snapshot from IDE shared state.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_read", fallback: "Read the latest plan snapshot from IDE shared state."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -37,7 +37,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_step_upsert",
-            description: "Create or update a full plan step with metadata.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_step_upsert", fallback: "Create or update a full plan step with metadata."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -57,7 +57,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_step_batch_update",
-            description: "Batch update plan steps using a JSON array payload.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_step_batch_update", fallback: "Batch update plan steps using a JSON array payload."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -73,7 +73,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_step_reorder",
-            description: "Reorder plan steps using a JSON array of step ids.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_step_reorder", fallback: "Reorder plan steps using a JSON array of step ids."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -86,7 +86,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_step_dependency_set",
-            description: "Set dependencies for a specific plan step.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_step_dependency_set", fallback: "Set dependencies for a specific plan step."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -100,7 +100,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_set_walkthrough",
-            description: "Store final walkthrough markdown and build outcome for the current plan.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_set_walkthrough", fallback: "Store final walkthrough markdown and build outcome for the current plan."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -115,7 +115,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_history_read",
-            description: "Read recent plan snapshots history.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_history_read", fallback: "Read recent plan snapshots history."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -127,7 +127,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_diff",
-            description: "Diff two plan snapshots and return added, removed and changed statuses.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_diff", fallback: "Diff two plan snapshots and return added, removed and changed statuses."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -141,7 +141,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_request_user_input",
-            description: "Request structured clarification questions in the IDE plan panel. Can be called multiple times during plan analysis loops.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_plan_request_user_input", fallback: "Request structured clarification questions in the IDE plan panel."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

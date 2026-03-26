@@ -6,7 +6,7 @@ extension CoderIDETools {
         // --- Web ---
         Tool(
             name: "coderide_web_search",
-            description: "Search the web for information. Returns search results with titles, URLs and snippets.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_web_search", fallback: "Search the web for information."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -19,7 +19,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_web_fetch",
-            description: "Fetch a web page and convert it to readable Markdown.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_web_fetch", fallback: "Fetch a web page and convert it to readable Markdown."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

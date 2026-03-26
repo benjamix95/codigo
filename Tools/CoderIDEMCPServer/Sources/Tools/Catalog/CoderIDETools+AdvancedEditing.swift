@@ -6,7 +6,7 @@ extension CoderIDETools {
         // --- Advanced Editing ---
         Tool(
             name: "coderide_regex_replace",
-            description: "Replace text matching a regex pattern in a file.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_regex_replace", fallback: "Replace text matching a regex pattern in a file."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

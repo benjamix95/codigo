@@ -6,7 +6,7 @@ extension CoderIDETools {
         // --- Search & Navigation ---
         Tool(
             name: "coderide_grep",
-            description: "Search file contents using regex patterns. Supports aliases 'pattern'/'query' and 'path'/'pathScope'.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_grep", fallback: "Search file contents using regex patterns. Supports aliases pattern/query and path/pathScope."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -28,7 +28,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_semantic_search",
-            description: "Search code by intent and meaning using semantic index (with fallback text search).",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_semantic_search", fallback: "Search code by intent and meaning using semantic index (with fallback text search)."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -46,7 +46,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_glob",
-            description: "Find files by name pattern using glob syntax (e.g. '**/*.swift').",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_glob", fallback: "Find files by name pattern using glob syntax."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -59,7 +59,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_find_files",
-            description: "Find files by name pattern using the codebase index. Supports optional scope filters via 'path'/'filePattern'.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_find_files", fallback: "Find files by name pattern using the codebase index."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -75,7 +75,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_codebase_search",
-            description: "Search symbols/functions with the codebase index. 'path' is a compatibility alias of 'filePattern'.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_codebase_search", fallback: "Search symbols/functions with the codebase index."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -90,7 +90,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_find_symbol",
-            description: "Find symbol definitions (classes, functions, structs) by name.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_find_symbol", fallback: "Find symbol definitions (classes, functions, structs) by name."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -103,7 +103,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_find_references",
-            description: "Find all references to a symbol. Use before refactoring.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_find_references", fallback: "Find all references to a symbol. Use before refactoring."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -115,7 +115,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_file_outline",
-            description: "Get the structure outline of a file (functions, classes, imports).",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_file_outline", fallback: "Get the structure outline of a file (functions, classes, imports)."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

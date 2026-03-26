@@ -6,14 +6,10 @@ extension CoderIDETools {
         // --- IDE Integration (Todo / Plan) ---
         Tool(
             name: "coderide_todo_write",
-            description: """
-                Update the IDE todo list. Prefer single-item shorthand via 'title' + 'status'. \
-                For batch initialization, pass 'todos' as a JSON array string or structured array. \
-                Each item must have 'content' (string) and 'status' (pending|in_progress|done|blocked). \
-                Optional fields: 'activeForm' (present-tense label shown during execution), \
-                'priority' (low|medium|high), 'linkedFiles' (array of file paths related to the task). \
-                Use this tool to track multi-step task progress in the IDE live card.
-                """,
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_todo_write",
+                fallback: "Update the IDE todo list; prefer todos JSON or title/status shorthand."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -31,7 +27,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_todo_read",
-            description: "Read the current IDE todo list. Returns the current state of all tracked todo items.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_todo_read", fallback: "Read the current IDE todo list."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([:]),
@@ -40,10 +36,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_plan_step_update",
-            description: """
-                Update the status of a plan step in the IDE plan panel. \
-                Use this during plan execution to track progress of each step.
-                """,
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_plan_step_update",
+                fallback: "Update the status of a plan step in the IDE plan panel."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -57,14 +53,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_mermaid_render",
-            description: """
-                Render a mermaid diagram in the IDE chat and plan panel. \
-                Pass mermaid syntax (flowchart, sequence, class, state, etc.) and it will \
-                be displayed as an interactive rendered diagram. Use this to visualize \
-                architecture, flows, dependencies, and relationships. \
-                ALWAYS use this tool when analyzing problems or creating plans to provide \
-                visual context.
-                """,
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_mermaid_render",
+                fallback: "Render Mermaid diagram in the IDE."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -81,7 +73,7 @@ extension CoderIDETools {
         // --- IDE Integration (policy / modes / swarm) ---
         Tool(
             name: "coderide_policy_ack",
-            description: "Acknowledge a mandatory instruction policy hash before performing tool operations.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_policy_ack", fallback: "Acknowledge a mandatory instruction policy hash before performing tool operations."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -93,7 +85,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_activate_plan_mode",
-            description: "Request the IDE to activate the plan mode panel for structured planning.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_activate_plan_mode", fallback: "Request the IDE to activate the plan mode panel for structured planning."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -115,7 +107,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_show_task_panel",
-            description: "Show the IDE task/activity panel to display ongoing task progress.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_show_task_panel", fallback: "Show the IDE task/activity panel to display ongoing task progress."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([:]),
@@ -124,7 +116,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_show_swarm_panel",
-            description: "Request the IDE to open/focus the swarm panel.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_show_swarm_panel", fallback: "Request the IDE to open/focus the swarm panel."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

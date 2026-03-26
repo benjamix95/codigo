@@ -80,6 +80,42 @@ fn core_tools_expose_non_empty_input_schemas() {
     terminate(child);
 }
 
+#[test]
+fn tools_list_nonempty_input_properties_except_allowlist() {
+    const EMPTY_INPUT_ALLOWLIST: &[&str] = &["coderide_todo_read", "coderide_show_task_panel"];
+    let home = make_temp_dir("rust-mcp-home");
+    let workspace = make_temp_dir("rust-mcp-workspace");
+    let mut child = spawn_server(&home, &workspace);
+
+    initialize(&mut child);
+    write_message(
+        child.stdin.as_mut().expect("stdin"),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 33,
+            "method": "tools/list"
+        }),
+    );
+
+    let listed = read_message(&mut child);
+    let tools = listed["result"]["tools"].as_array().expect("tools array");
+    for tool in tools {
+        let name = tool["name"].as_str().expect("tool name");
+        if EMPTY_INPUT_ALLOWLIST.contains(&name) {
+            continue;
+        }
+        let props = tool["inputSchema"]["properties"]
+            .as_object()
+            .unwrap_or_else(|| panic!("{name}: inputSchema.properties missing"));
+        assert!(
+            !props.is_empty(),
+            "{name}: tools/list inputSchema properties must not be empty"
+        );
+    }
+
+    terminate(child);
+}
+
 fn initialize(child: &mut std::process::Child) {
     write_message(
         child.stdin.as_mut().expect("stdin"),

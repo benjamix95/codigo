@@ -6,7 +6,7 @@ extension CoderIDETools {
         // --- File Operations ---
         Tool(
             name: "coderide_read",
-            description: "Read the contents of a file. Always read before editing.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_read", fallback: "Read the contents of a file. Always read before editing."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -20,7 +20,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_read_range",
-            description: "Read a specific range of lines from a file.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_read_range", fallback: "Read a specific range of lines from a file."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -34,7 +34,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_list_dir",
-            description: "List files and directories in a directory path.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_list_dir", fallback: "List files and directories in a directory path."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -46,7 +46,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_write",
-            description: "Write or create a file with the specified content. Use coderide_str_replace for targeted edits.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_write", fallback: "Write or create a file with the specified content. Use coderide_str_replace for targeted edits."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -59,7 +59,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_str_replace",
-            description: "Replace a specific string in a file. The old_string must be unique in the file. Prefer this over write for targeted edits.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_str_replace", fallback: "Replace a specific string in a file. The old_string must be unique in the file. Prefer this over write for targeted edits."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -73,7 +73,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_create_file",
-            description: "Create a new file with content. Fails if file already exists.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_create_file", fallback: "Create a new file with content. Fails if file already exists."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

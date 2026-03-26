@@ -22,15 +22,25 @@ pub fn input_schema_for(name: &str) -> Value {
         return schema;
     }
     match name {
-        "coderide_read" => object_schema(&[("path", "string")], &["path"]),
-        "coderide_list_dir" => object_schema(&[("path", "string")], &["path"]),
-        "coderide_read_range" => object_schema(
+        "coderide_read" => object_from_props(
             &[
-                ("path", "string"),
-                ("start", "integer"),
-                ("end", "integer"),
-                ("start_line", "integer"),
-                ("end_line", "integer"),
+                SchemaProp::with_desc("path", "File path (relative to workspace or absolute)."),
+                SchemaProp::with_desc("offset", "Optional 1-based line offset when the host supports it."),
+                SchemaProp::with_desc("limit", "Optional max lines to read when the host supports it."),
+            ],
+            &["path"],
+        ),
+        "coderide_list_dir" => object_from_props(
+            &[SchemaProp::with_desc("path", "Directory to enumerate.")],
+            &["path"],
+        ),
+        "coderide_read_range" => object_from_props(
+            &[
+                SchemaProp::with_desc("path", "File path."),
+                SchemaProp::typed("start", "integer", "Start line (alias of start_line)."),
+                SchemaProp::typed("end", "integer", "End line inclusive (alias of end_line)."),
+                SchemaProp::typed("start_line", "integer", "Start line alias."),
+                SchemaProp::typed("end_line", "integer", "End line alias."),
             ],
             &["path"],
         ),
@@ -60,63 +70,113 @@ pub fn input_schema_for(name: &str) -> Value {
             ],
             &[],
         ),
-        "coderide_find_files" => object_schema(
+        "coderide_find_files" => object_from_props(
             &[
-                ("query", "string"),
-                ("pattern", "string"),
-                ("path", "string"),
-                ("filePattern", "string"),
-                ("extension", "string"),
+                SchemaProp::with_desc("query", "File name search (alias: pattern)."),
+                SchemaProp::with_desc("pattern", "Alias of query."),
+                SchemaProp::with_desc("path", "Optional directory scope."),
+                SchemaProp::with_desc("filePattern", "Optional path/glob filter."),
+                SchemaProp::with_desc("extension", "Optional extension filter e.g. swift."),
             ],
             &[],
         ),
-        "coderide_find_symbol" => object_schema(&[("query", "string"), ("name", "string"), ("kind", "string")], &["query"]),
-        "coderide_find_references" => object_schema(&[("query", "string"), ("name", "string")], &[]),
-        "coderide_file_outline" => object_schema(&[("path", "string")], &["path"]),
-        "coderide_codebase_search" => object_schema(
-            &[("query", "string"), ("kind", "string"), ("filePattern", "string"), ("path", "string")],
-            &["query"],
-        ),
-        "coderide_semantic_search" => object_schema(
+        "coderide_find_symbol" => object_from_props(
             &[
-                ("query", "string"),
-                ("target_directories", "string"),
-                ("targetDirectories", "string"),
-                ("pathScope", "string"),
-                ("path", "string"),
-                ("fileType", "string"),
-                ("num_results", "integer"),
-                ("limit", "integer"),
-                ("min_confidence", "number"),
-                ("show_scoring", "boolean"),
-                ("strict_scope", "boolean"),
+                SchemaProp::with_desc("query", "Symbol search string (alias: name)."),
+                SchemaProp::with_desc("name", "Alias of query."),
+                SchemaProp::with_desc("kind", "Optional symbol kind filter (class, function, …)."),
             ],
             &["query"],
         ),
-        "coderide_read_lints" => object_schema(&[("path", "string"), ("severity", "string"), ("limit", "integer")], &[]),
-        "coderide_diagnostics" => object_schema(&[("manager", "string")], &[]),
-        "coderide_git_diff" => object_schema(&[("path", "string")], &[]),
-        "coderide_write" | "coderide_create_file" => {
-            object_schema(&[("path", "string"), ("content", "string")], &["path", "content"])
-        }
-        "coderide_str_replace" => object_schema(
-            &[("path", "string"), ("old_string", "string"), ("new_string", "string")],
+        "coderide_find_references" => object_from_props(
+            &[
+                SchemaProp::with_desc("query", "Symbol to find references for (alias: name)."),
+                SchemaProp::with_desc("name", "Alias of query."),
+            ],
+            &[],
+        ),
+        "coderide_file_outline" => object_from_props(
+            &[SchemaProp::with_desc("path", "Source file path.")],
+            &["path"],
+        ),
+        "coderide_codebase_search" => object_from_props(
+            &[
+                SchemaProp::with_desc("query", "Symbol or name search."),
+                SchemaProp::with_desc("kind", "Optional symbol kind filter."),
+                SchemaProp::with_desc("filePattern", "Optional file glob filter."),
+                SchemaProp::with_desc("path", "Alias of filePattern for compatibility."),
+            ],
+            &["query"],
+        ),
+        "coderide_semantic_search" => object_from_props(
+            &[
+                SchemaProp::with_desc("query", "Natural language code search."),
+                SchemaProp::with_desc("target_directories", "Comma-separated dirs (alias: targetDirectories, pathScope, path)."),
+                SchemaProp::with_desc("targetDirectories", "Alias of target_directories."),
+                SchemaProp::with_desc("pathScope", "Scope alias."),
+                SchemaProp::with_desc("path", "Scope alias."),
+                SchemaProp::with_desc("fileType", "Extension filter."),
+                SchemaProp::typed("num_results", "integer", "Max hits (alias: limit)."),
+                SchemaProp::typed("limit", "integer", "Alias of num_results."),
+                SchemaProp::typed("min_confidence", "number", "Minimum score threshold."),
+                SchemaProp::typed("show_scoring", "boolean", "Include scores in output when true."),
+                SchemaProp::typed("strict_scope", "boolean", "Restrict to scope strictly when true."),
+            ],
+            &["query"],
+        ),
+        "coderide_read_lints" => object_from_props(
+            &[
+                SchemaProp::with_desc("path", "Optional path filter."),
+                SchemaProp::with_desc("severity", "Optional minimum severity filter."),
+                SchemaProp::typed("limit", "integer", "Max diagnostics to return."),
+            ],
+            &[],
+        ),
+        "coderide_diagnostics" => object_from_props(
+            &[SchemaProp::with_desc("manager", "Optional host-specific diagnostics manager id.")],
+            &[],
+        ),
+        "coderide_git_diff" => object_from_props(
+            &[SchemaProp::with_desc("path", "Optional path scope for the diff.")],
+            &[],
+        ),
+        "coderide_write" | "coderide_create_file" => object_from_props(
+            &[
+                SchemaProp::with_desc("path", "Destination file path."),
+                SchemaProp::with_desc("content", "Full file contents."),
+            ],
+            &["path", "content"],
+        ),
+        "coderide_str_replace" => object_from_props(
+            &[
+                SchemaProp::with_desc("path", "File to edit."),
+                SchemaProp::with_desc(
+                    "old_string",
+                    "Exact substring to replace once; add context lines if not unique.",
+                ),
+                SchemaProp::with_desc("new_string", "Replacement text."),
+            ],
             &["path", "old_string", "new_string"],
         ),
-        "coderide_regex_replace" => object_schema(
-            &[("path", "string"), ("pattern", "string"), ("replacement", "string"), ("flags", "string")],
+        "coderide_regex_replace" => object_from_props(
+            &[
+                SchemaProp::with_desc("path", "File path."),
+                SchemaProp::with_desc("pattern", "Regex pattern."),
+                SchemaProp::with_desc("replacement", "Replacement (may use capture groups)."),
+                SchemaProp::with_desc("flags", "Optional regex flags string."),
+            ],
             &["path", "pattern", "replacement"],
         ),
         "coderide_todo_read" | "coderide_show_task_panel" => object_schema(&[], &[]),
-        "coderide_todo_write" => object_schema(
+        "coderide_todo_write" => object_from_props(
             &[
-                ("title", "string"),
-                ("status", "string"),
-                ("priority", "string"),
-                ("notes", "string"),
-                ("activeForm", "string"),
-                ("linkedFiles", "string"),
-                ("todos", "string"),
+                SchemaProp::with_desc("title", "Single-item todo title (batch via todos)."),
+                SchemaProp::with_desc("status", "Todo status string (host-defined; e.g. pending, in_progress, done)."),
+                SchemaProp::with_desc("priority", "Optional priority string."),
+                SchemaProp::with_desc("notes", "Optional notes."),
+                SchemaProp::with_desc("activeForm", "Present-tense label for LiveCard."),
+                SchemaProp::with_desc("linkedFiles", "JSON array or comma-separated file paths."),
+                SchemaProp::with_desc("todos", "JSON array string of todo objects for batch update."),
             ],
             &[],
         ),
@@ -133,65 +193,84 @@ pub fn input_schema_for(name: &str) -> Value {
             ],
             &["goal"],
         ),
-        "coderide_plan_read" | "coderide_plan_history_read" => object_schema(
+        "coderide_plan_read" | "coderide_plan_history_read" => object_from_props(
             &[
-                ("conversation_id", "string"),
-                ("include_history", "string"),
-                ("history_limit", "string"),
-                ("limit", "string"),
+                SchemaProp::with_desc("conversation_id", "Optional conversation UUID."),
+                SchemaProp::with_desc("include_history", "String true/false for plan_read."),
+                SchemaProp::with_desc("history_limit", "History depth (plan_read)."),
+                SchemaProp::with_desc("limit", "Max snapshots (plan_history_read)."),
             ],
             &[],
         ),
-        "coderide_plan_step_upsert" => object_schema(
+        "coderide_plan_step_upsert" => object_from_props(
             &[
-                ("step_id", "string"),
-                ("status", "string"),
-                ("title", "string"),
-                ("description", "string"),
-                ("target_file", "string"),
-                ("linked_files", "string"),
-                ("depends_on", "string"),
-                ("notes", "string"),
-                ("conversation_id", "string"),
+                SchemaProp::with_desc("step_id", "Step identifier."),
+                SchemaProp::with_desc("status", "Step status string."),
+                SchemaProp::with_desc("title", "Optional step title."),
+                SchemaProp::with_desc("description", "Optional longer description."),
+                SchemaProp::with_desc("target_file", "Primary file for this step."),
+                SchemaProp::with_desc("linked_files", "JSON array of related paths."),
+                SchemaProp::with_desc("depends_on", "JSON array of prerequisite step ids."),
+                SchemaProp::with_desc("notes", "Optional notes."),
+                SchemaProp::with_desc("conversation_id", "Optional conversation UUID."),
             ],
             &["step_id", "status"],
         ),
-        "coderide_plan_step_update" => object_schema(
-            &[("step_id", "string"), ("status", "string"), ("title", "string")],
+        "coderide_plan_step_update" => object_from_props(
+            &[
+                SchemaProp::with_desc("step_id", "Step id."),
+                SchemaProp::with_desc("status", "New status."),
+                SchemaProp::with_desc("title", "Optional title change."),
+            ],
             &["step_id", "status"],
         ),
-        "coderide_plan_step_batch_update" => object_schema(
-            &[("updates", "string"), ("conversation_id", "string")],
+        "coderide_plan_step_batch_update" => object_from_props(
+            &[
+                SchemaProp::with_desc("updates", "JSON array of step patch objects."),
+                SchemaProp::with_desc("conversation_id", "Optional conversation UUID."),
+            ],
             &["updates"],
         ),
-        "coderide_plan_step_reorder" => object_schema(
-            &[("ordered_step_ids", "string"), ("conversation_id", "string")],
+        "coderide_plan_step_reorder" => object_from_props(
+            &[
+                SchemaProp::with_desc("ordered_step_ids", "JSON array of step ids in order."),
+                SchemaProp::with_desc("conversation_id", "Optional conversation UUID."),
+            ],
             &["ordered_step_ids"],
         ),
-        "coderide_plan_step_dependency_set" => object_schema(
-            &[("step_id", "string"), ("depends_on", "string"), ("conversation_id", "string")],
+        "coderide_plan_step_dependency_set" => object_from_props(
+            &[
+                SchemaProp::with_desc("step_id", "Step to update."),
+                SchemaProp::with_desc("depends_on", "JSON array of prerequisite step ids."),
+                SchemaProp::with_desc("conversation_id", "Optional conversation UUID."),
+            ],
             &["step_id", "depends_on"],
         ),
-        "coderide_plan_set_walkthrough" => object_schema(
-            &[("markdown", "string"), ("summary", "string"), ("outcome", "string"), ("conversation_id", "string")],
+        "coderide_plan_set_walkthrough" => object_from_props(
+            &[
+                SchemaProp::with_desc("markdown", "Final walkthrough body."),
+                SchemaProp::with_desc("summary", "Optional short summary."),
+                SchemaProp::with_desc("outcome", "Outcome: done, failed, or cancelled."),
+                SchemaProp::with_desc("conversation_id", "Optional conversation UUID."),
+            ],
             &["markdown"],
         ),
-        "coderide_plan_diff" => object_schema(
+        "coderide_plan_diff" => object_from_props(
             &[
-                ("from_snapshot_id", "string"),
-                ("to_snapshot_id", "string"),
-                ("conversation_id", "string"),
+                SchemaProp::with_desc("from_snapshot_id", "Starting snapshot id."),
+                SchemaProp::with_desc("to_snapshot_id", "Ending snapshot id (default latest)."),
+                SchemaProp::with_desc("conversation_id", "Optional conversation UUID."),
             ],
             &["from_snapshot_id"],
         ),
-        "coderide_plan_request_user_input" => object_schema(
+        "coderide_plan_request_user_input" => object_from_props(
             &[
-                ("questions", "string"),
-                ("title", "string"),
-                ("phase", "string"),
-                ("round", "string"),
-                ("context", "string"),
-                ("conversation_id", "string"),
+                SchemaProp::with_desc("questions", "JSON array of structured questions."),
+                SchemaProp::with_desc("title", "Optional UI title."),
+                SchemaProp::with_desc("phase", "Optional phase label."),
+                SchemaProp::with_desc("round", "Optional round index."),
+                SchemaProp::with_desc("context", "Optional blocker/context text."),
+                SchemaProp::with_desc("conversation_id", "Optional conversation UUID."),
             ],
             &["questions"],
         ),

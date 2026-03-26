@@ -5,12 +5,13 @@ import MCP
 /// Codex CLI will register these as available tools for the model.
 ///
 /// **Parità con Rust:** i nomi devono coincidere con `Native/CoderideMCPServerRust/src/tool_names.txt`.
-/// Le descrizioni mostrate dal server MCP Rust in `tools/list` sono il testo unione di
-/// `tool_descriptions.json` + blurbs audit in `tool_descriptions.rs` (ogni voce include la clausola **Usage:**).
+/// Le descrizioni model-facing per i tool in `tool_descriptions.json` sono replicate in
+/// `RustSyncedToolDescriptions` (blob JSON embedded): aggiornare quel file quando si modifica il JSON Rust.
+/// I tool audit usano blurbs in `tool_descriptions.rs`; i tool solo-Swift (es. debug) hanno testo locale.
 ///
 /// Ordine di aggiornamento per un nuovo tool: (1) riga in `tool_names.txt`, (2) voce in
 /// `tool_descriptions.json` (non-audit) o blurbs in `tool_descriptions.rs` (audit), (3) schema in
-/// `tool_schema*.rs` / `tool_schema_workflow_*`, (4) `Tool` qui in Swift, (5) `CATALOG_TOOL_COUNT` in `catalog.rs`.
+/// `tool_schema*.rs` / `tool_schema_workflow_*`, (4) blob e `Tool` in Swift, (5) `CATALOG_TOOL_COUNT` in `catalog.rs`.
 struct CoderIDETools {
     static let all: [Tool] = fileTools
         + searchTools

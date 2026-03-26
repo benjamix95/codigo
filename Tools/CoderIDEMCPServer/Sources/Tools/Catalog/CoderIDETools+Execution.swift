@@ -6,7 +6,7 @@ extension CoderIDETools {
         // --- Execution ---
         Tool(
             name: "coderide_git_diff",
-            description: "Show git diff for the current workspace.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_git_diff", fallback: "Show git diff for the current workspace."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -18,7 +18,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_diagnostics",
-            description: "Run full build diagnostics and return errors/warnings.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_diagnostics", fallback: "Run full build diagnostics and return errors/warnings."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -29,7 +29,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_read_lints",
-            description: "Read lint warnings/errors without full build. Faster than diagnostics.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_read_lints", fallback: "Read lint warnings/errors without full build. Faster than diagnostics."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -40,7 +40,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_run_tests",
-            description: "Run unit tests (cargo test, swift test, or xcodebuild test when a .xcodeproj is present).",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_run_tests", fallback: "Run unit tests (cargo test, swift test, or xcodebuild test when a .xcodeproj is present)."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -58,7 +58,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_export_debug_bundle",
-            description: "Zip SoloCode AgentDebug NDJSON logs into .solocode. Optional workspace_roots (comma-separated) must match the app for multi-root.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_export_debug_bundle", fallback: "Zip SoloCode AgentDebug NDJSON logs into .solocode."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

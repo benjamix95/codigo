@@ -5,7 +5,7 @@ extension CoderIDETools {
     static let codeReviewWorkflowTools: [Tool] = [
         Tool(
             name: "coderide_review_verify_finding",
-            description: "Verify a review candidate or finding before promoting or patching it.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_verify_finding", fallback: "Verify a review candidate or finding before promoting or patching it."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -19,7 +19,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_prepare_patch",
-            description: "Prepare a concrete patch preview for a verified review finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_prepare_patch", fallback: "Prepare a concrete patch preview for a verified review finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -33,7 +33,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_preview_patch",
-            description: "Preview the stored patch artifact for a review finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_preview_patch", fallback: "Preview the stored patch artifact for a review finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -47,7 +47,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_apply_patch",
-            description: "Apply the stored verified patch for a review finding to the local workspace.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_apply_patch", fallback: "Apply the stored verified patch for a review finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -61,7 +61,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_verify_patch",
-            description: "Run dry-run verification for the stored patch of a review finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_verify_patch", fallback: "Run dry-run verification for the stored patch of a review finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -75,7 +75,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_revalidate_finding",
-            description: "Re-run post-fix validation for an already applied review patch.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_revalidate_finding", fallback: "Re-run post-fix validation for an already applied review patch."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -89,7 +89,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_rollback_patch",
-            description: "Rollback an already applied review patch when rollback data is available.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_rollback_patch", fallback: "Rollback an already applied review patch."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -103,7 +103,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_close_finding",
-            description: "Close a review finding when the fix was verified or the finding was explicitly resolved.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_close_finding", fallback: "Close a review finding when the fix was verified."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -118,7 +118,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_open_pr",
-            description: "Open a PR for the stored patch artifact of a review finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_open_pr", fallback: "Open a PR for the stored patch artifact of a review finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -132,7 +132,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_merge_pr",
-            description: "Merge the PR associated with a review patch, using safe conflict handling when configured.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_merge_pr", fallback: "Merge the PR associated with a review patch."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -146,7 +146,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_resolve_conflicts",
-            description: "Attempt a safe automatic conflict resolution for the PR patch branch of a review finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_resolve_conflicts", fallback: "Attempt safe automatic conflict resolution for the review patch branch."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -160,7 +160,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_review_get_outcome",
-            description: "Read the structured outcome summary for a review session.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_review_get_outcome", fallback: "Read the structured outcome summary for a review session."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

@@ -6,7 +6,10 @@ extension CoderIDETools {
         // --- Subagent Tools ---
         Tool(
             name: "coderide_subagent_explorer",
-            description: "Spawn a read-only explorer subagent for parallel codebase investigation. The subagent can search, read, and analyze code but cannot edit files. Use for gathering context in parallel.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_subagent_explorer",
+                fallback: "Spawn a read-only explorer subagent for parallel codebase investigation."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -18,7 +21,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_subagent_coder",
-            description: "Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file or module in parallel.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_subagent_coder",
+                fallback: "Spawn a coding subagent with full tool access."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -30,7 +36,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_subagent_debugger",
-            description: "Spawn a debugger subagent. Investigates and fixes bugs using search, read, edit and bash tools.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_subagent_debugger",
+                fallback: "Spawn a debugger subagent. Investigates and fixes bugs using search, read, edit and bash tools."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -42,7 +51,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_subagent_reviewer",
-            description: "Spawn a code review subagent. Reviews code quality, bugs, style, and potential issues.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_subagent_reviewer",
+                fallback: "Spawn a code review subagent."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -54,7 +66,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_subagent_bugHunter",
-            description: "Spawn a bug hunting subagent that focuses on regressions, crash risks, concurrency issues, test gaps, and boundary-condition bugs.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_subagent_bugHunter",
+                fallback: "Spawn a bug hunting subagent."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -66,7 +81,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_subagent_testWriter",
-            description: "Spawn a test-writing subagent that writes and runs tests for code changes.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_subagent_testWriter",
+                fallback: "Spawn a test-writing subagent that writes and runs tests for code changes."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -78,7 +96,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_subagent_docWriter",
-            description: "Spawn a documentation subagent that writes README sections, inline comments, docstrings, and API docs.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_subagent_docWriter",
+                fallback: "Spawn a documentation subagent."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -90,7 +111,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_subagent_securityAuditor",
-            description: "Spawn a security auditor subagent that analyzes code for vulnerabilities, insecure dependencies, and OWASP top 10 issues.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_subagent_securityAuditor",
+                fallback: "Spawn a security auditor subagent."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

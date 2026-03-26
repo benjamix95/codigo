@@ -5,11 +5,10 @@ extension CoderIDETools {
     static let skillTools: [Tool] = [
         Tool(
             name: "coderide_skill",
-            description: """
-                Invoke a local skill (SKILL.md) from ~/.codex/skills, ~/.claude/skills, or ~/.agents/skills. \
-                Use when the task matches a skill's description (doc, imagegen, transcribe, code-review, playwright, \
-                cloudflare-deploy, gh-fix-ci). Prefer skills over manual workflows when a skill exists for the task.
-                """,
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_skill",
+                fallback: "Invoke a local SKILL.md workflow when the task matches a skill."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

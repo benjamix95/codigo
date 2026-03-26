@@ -5,7 +5,7 @@ extension CoderIDETools {
     static let securityWorkflowTools: [Tool] = [
         Tool(
             name: "coderide_security_start",
-            description: "Start a security-focused review session on uncommitted, staged, or against-ref scope using the shared VerifiedFindings backend.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_start", fallback: "Start a security-focused review session."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -19,7 +19,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_status",
-            description: "Read the shared security review status and security gate summary.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_status", fallback: "Read the shared security review status."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -31,7 +31,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_findings",
-            description: "List security findings from the shared VerifiedFindings-backed review session.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_findings", fallback: "List security findings from the review session."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -46,7 +46,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_verify_finding",
-            description: "Verify a security finding before promoting it to the verified queue.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_verify_finding", fallback: "Verify a security finding before promoting it."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -60,7 +60,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_prepare_patch",
-            description: "Prepare a patch for a verified security finding using the shared review workflow.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_prepare_patch", fallback: "Prepare a patch for a verified security finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -74,7 +74,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_preview_patch",
-            description: "Preview the prepared patch artifact for a security finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_preview_patch", fallback: "Preview the prepared patch artifact for a security finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -88,7 +88,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_apply_patch",
-            description: "Apply a verified patch for a security finding and reuse the shared revalidation flow.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_apply_patch", fallback: "Apply a verified patch for a security finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -102,7 +102,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_verify_patch",
-            description: "Run patch validation for a prepared security patch artifact.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_verify_patch", fallback: "Run patch validation for a prepared security patch."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -116,7 +116,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_revalidate_finding",
-            description: "Re-run the shared post-fix validation flow for a security finding.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_revalidate_finding", fallback: "Re-run post-fix validation for a security finding."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -130,7 +130,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_rollback_patch",
-            description: "Rollback an applied security patch through the shared review lifecycle.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_rollback_patch", fallback: "Rollback an applied security patch."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -144,7 +144,7 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_security_close_finding",
-            description: "Close a security finding when it is fixed, rejected, or manually resolved.",
+            description: RustSyncedToolDescriptions.text(mcpName: "coderide_security_close_finding", fallback: "Close a security finding when fixed or rejected."),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

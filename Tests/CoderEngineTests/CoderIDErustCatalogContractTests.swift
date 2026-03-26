@@ -97,11 +97,12 @@ final class CoderIDErustCatalogContractTests: XCTestCase {
             }
             XCTAssertTrue(jsonDesc.contains("Usage:"), "\(name): manca 'Usage:' in tool_descriptions.json")
             XCTAssertFalse(swiftDesc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "\(name): description Swift vuota")
+            XCTAssertEqual(
+                swiftDesc,
+                jsonDesc,
+                "\(name): la description in CoderIDETools deve coincidere con tool_descriptions.json (vedi RustSyncedToolDescriptions)"
+            )
         }
-    }
-
-    private static func collapseWhitespace(_ s: String) -> String {
-        s.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 }
 #endif
