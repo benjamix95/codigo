@@ -1,8 +1,9 @@
 import Foundation
 
 extension ReviewPipelineJobState {
-    /// Anello circolare: **0…100 nell’ambito della sola fase corrente**. Cambiando fase il conteggio riparte
-    /// da 0 e risale verso 100 dentro quella fase (non è un avanzamento globale del run).
+    /// Anello circolare: **0…100 nell’ambito della sola fase corrente**. Cambiando fase riparte da 0.
+    /// Avanza **in base ai dati che arrivano** (snapshot); tra un valore e l’altro SwiftUI interpola l’anello.
+    /// I tool in **running** contribuiscono con una frazione così la percentuale non resta bloccata a scatti solo su 0 / 33 / 66.
     var displayProgressPercent: Int {
         let raw: Int
         switch phase {
@@ -28,69 +29,91 @@ extension ReviewPipelineJobState {
 
     var displayProgressText: String { "\(displayProgressPercent)%" }
 
-    // MARK: - Per-fase (0…100)
+    // MARK: - Tool row (granularità > soli toolsCompleted / toolsTotal)
+
+    /// Peso 0…1 per tool: completato 1, in esecuzione ~0.42, pending 0 — poi 0…100.
+    private func toolExecutionWeightedPercent() -> Int? {
+        guard !tools.isEmpty else { return nil }
+        var sum = 0.0
+        for tool in tools {
+            switch tool.status {
+            case .completed:
+                sum += 1.0
+            case .running:
+                sum += 0.42
+            case .pending:
+                sum += 0.0
+            }
+        }
+        let pct = (sum / Double(tools.count)) * 100.0
+        return Int(round(pct))
+    }
+
+    private func mergedToolProgress(discoveryBoost: Int = 0) -> Int {
+        if let weighted = toolExecutionWeightedPercent() {
+            let core = min(100, weighted)
+            if discoveryBoost > 0 { return min(100, max(core, discoveryBoost)) }
+            return core
+        }
+        let t = max(toolsTotal, 1)
+        var fromCounts = toolsCompleted * 100 / t
+        if toolsRunning > 0, toolsCompleted < t {
+            let runningShare = min(55, (toolsRunning * 100) / max(t * 2, 1))
+            fromCounts = min(100, fromCounts + runningShare)
+        } else {
+            fromCounts = min(100, fromCounts)
+        }
+        if discoveryBoost > 0 { return min(100, max(fromCounts, discoveryBoost)) }
+        return fromCounts
+    }
+
+    // MARK: - Per fase
 
     private func queuedPhaseRingProgress() -> Int {
-        let t = max(toolsTotal, 1)
-        if toolsCompleted > 0 {
-            return min(100, toolsCompleted * 100 / t)
-        }
-        if toolsRunning > 0 {
-            return min(45, toolsRunning * 14)
-        }
-        return 0
+        mergedToolProgress()
     }
 
     private func discoveryPhaseRingProgress() -> Int {
-        let t = max(toolsTotal, 1)
-        if toolsCompleted > 0 {
-            return min(100, toolsCompleted * 100 / t)
-        }
-        if toolsRunning > 0 {
-            return min(95, 10 + toolsRunning * 14)
-        }
-        if candidateCount > 0 {
-            return min(85, candidateCount * 6)
-        }
-        return 0
+        let candidateHint = candidateCount > 0 ? min(30 + candidateCount * 4, 92) : 0
+        return mergedToolProgress(discoveryBoost: candidateHint)
     }
 
     private func auditPhaseRingProgress() -> Int {
-        let t = max(toolsTotal, 1)
-        var pct = min(100, toolsCompleted * 100 / t)
-        if toolsRunning > 0, toolsCompleted < t {
-            pct = min(100, pct + min(30, toolsRunning * 9))
-        }
-        return pct
+        mergedToolProgress()
     }
 
     private func verificationPhaseRingProgress() -> Int {
         let denom = max(candidateCount + verifiedCount, 1)
-        return verifiedCount * 100 / denom
+        let exact = (Double(verifiedCount) / Double(denom)) * 100.0
+        return Int(round(exact))
     }
 
     private func patchPreparationPhaseRingProgress() -> Int {
         let v = max(verifiedCount, 1)
         if publishedFindingCount > 0 {
-            return min(100, publishedFindingCount * 100 / v)
+            let exact = (Double(publishedFindingCount) / Double(v)) * 100.0
+            return min(100, Int(round(exact)))
         }
-        if let patchGate = gates.first(where: { $0.title == "Patch" }) {
-            return patchGate.isReady ? 80 : min(55, verifiedCount * 10)
+        if gates.contains(where: { $0.title == "Patch" && $0.isReady }) {
+            return 100
         }
-        return min(50, verifiedCount * 9)
+        let fromVerified = (Double(min(verifiedCount, v * 3)) / Double(v)) * 85.0
+        return min(100, max(0, Int(round(fromVerified))))
     }
 
     private func publishReadyPhaseRingProgress() -> Int {
         let denom = max(verifiedCount, max(publishedFindingCount, 1))
         if publishedFindingCount > 0 {
-            return min(100, publishedFindingCount * 100 / denom)
+            let exact = (Double(publishedFindingCount) / Double(denom)) * 100.0
+            return min(100, Int(round(exact)))
         }
         let ready = gates.filter(\.isReady).count
         let total = max(gates.count, 1)
-        return min(100, ready * 100 / total)
+        return min(100, Int(round((Double(ready) / Double(total)) * 100.0)))
     }
 
     private func fallbackPhaseRingProgress() -> Int {
+        if let w = toolExecutionWeightedPercent() { return w }
         let t = max(toolsTotal, 1)
         if toolsTotal > 0 {
             return min(100, toolsCompleted * 100 / t)
