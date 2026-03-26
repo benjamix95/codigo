@@ -21,6 +21,13 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         )
     }
 
+    func testUnknownToolStartTypeDefaultsToOperationalNotReadBatch() {
+        XCTAssertEqual(
+            ToolEnabledLLMProvider.toolStartEventType(for: "obscure_vendor_tool_xyz"),
+            "command_execution"
+        )
+    }
+
     func testExplicitUnknownToolDoesNotFallbackToReadHeuristic() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("explicit-unknown-no-fallback-\(UUID().uuidString)", isDirectory: true)

@@ -3,6 +3,8 @@ import Foundation
 extension TodoStore {
     func remove(id: UUID) {
         if let todo = todos.first(where: { $0.id == id }), todo.isPlanCanonical {
+            // Il wiring principale (ChatPanelView) risincronizza dal solo elenco canonico; lo
+            // stato .blocked è storico ma non determina il payload di sync.
             onCanonicalTodoStatusChange?(todo.title, .blocked, todo.planConversationId)
         }
         todos.removeAll { $0.id == id }

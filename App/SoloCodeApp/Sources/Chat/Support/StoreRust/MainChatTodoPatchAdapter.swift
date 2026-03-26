@@ -19,6 +19,7 @@ enum MainChatTodoPatchAdapter {
                     continue
                 }
                 let conversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
+                let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
                 let existingBeforeUpsert = todoStore.todos.first(where: { $0.id == todoId })?.planConversationId
                 // Always use upsertFromAgent — it has 3-level deduplication:
                 // 1. Match by exact ID
@@ -37,7 +38,11 @@ enum MainChatTodoPatchAdapter {
                     conversationId: conversationId
                 )
                 let effectiveAfterUpsert = conversationId
-                    ?? todoStore.todos.first(where: { $0.id == todoId })?.planConversationId
+                    ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(
+                        preferredId: todoId,
+                        normalizedTitle: normalizedTitle,
+                        eventConversationId: conversationId
+                    )
                     ?? existingBeforeUpsert
                 if status == .done {
                     _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)

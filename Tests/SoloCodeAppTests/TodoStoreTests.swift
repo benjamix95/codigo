@@ -621,6 +621,91 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(second?.status, .inProgress)
     }
 
+    func testAdvanceNextRuntimeTodoProceedsWhenCanonicalStepsAreAllDone() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertCanonicalPlanTodos(["Only step"], conversationId: conversationId)
+        for item in store.todos.filter({
+            $0.isPlanCanonical && $0.planConversationId == conversationId
+        }) {
+            store.setStatus(id: item.id, status: .done)
+        }
+
+        let firstRuntime = UUID()
+        let secondRuntime = UUID()
+        store.upsertFromAgent(
+            id: firstRuntime,
+            title: "Runtime A",
+            status: .inProgress,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+        store.upsertFromAgent(
+            id: secondRuntime,
+            title: "Runtime B",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+        store.setStatus(id: firstRuntime, status: .done)
+        XCTAssertTrue(store.advanceNextRuntimeTodoIfNeeded(conversationId: conversationId))
+        let second = store.todos.first { $0.id == secondRuntime }
+        XCTAssertEqual(second?.status, .inProgress)
+    }
+
+    func testAdvanceNextRuntimeTodoStillBlockedWhenCanonicalHasPendingStep() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertCanonicalPlanTodos(["Open plan"], conversationId: conversationId)
+        let runtimeId = UUID()
+        store.upsertFromAgent(
+            id: runtimeId,
+            title: "Runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+        XCTAssertFalse(store.advanceNextRuntimeTodoIfNeeded(conversationId: conversationId))
+        XCTAssertEqual(store.todos.first { $0.id == runtimeId }?.status, .pending)
+    }
+
+    func testPlanConversationIdAfterUpsertFindsRowMergedByTitle() {
+        let store = makeStore()
+        let conversationId = UUID()
+        let existingId = UUID()
+        store.upsertFromAgent(
+            id: existingId,
+            title: "Merged title",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+        let patchId = UUID()
+        store.upsertFromAgent(
+            id: patchId,
+            title: "Merged title",
+            status: .done,
+            priority: .high,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        let resolved = store.planConversationIdForRuntimeTodoAfterUpsert(
+            preferredId: patchId,
+            normalizedTitle: "Merged title",
+            eventConversationId: conversationId
+        )
+        XCTAssertEqual(resolved, conversationId)
+    }
+
     func testResolveComposerTodoItemsMatchesDisplayTodosForChatCanonicalPlusRuntime() {
         let store = makeStore()
         let conversationId = UUID()

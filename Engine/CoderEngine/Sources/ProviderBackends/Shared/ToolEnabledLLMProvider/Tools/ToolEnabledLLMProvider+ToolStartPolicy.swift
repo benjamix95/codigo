@@ -53,7 +53,8 @@ extension ToolEnabledLLMProvider {
         case "skill":
             return "skill_invocation"
         default:
-            return "read_batch_started"
+            // Strumenti sconosciuti: non classificarli come read-batch (potrebbero essere mutanti).
+            return "command_execution"
         }
     }
 
