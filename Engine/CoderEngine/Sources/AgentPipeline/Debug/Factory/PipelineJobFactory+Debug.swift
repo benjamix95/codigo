@@ -260,6 +260,8 @@ extension PipelineJobFactory {
             ]
         )
 
+        // Slice `.investigation`: `awaitReproduceGate` non è nel grafo; la barriera reproduce è nel preflight UI
+        // (`ChatPanelView.executeDebugPipelineIntent`) prima di avviare i native stage.
         var nativeSyncDeps: [String] = []
         if request.includeNativeStages {
             let nativeStartId = appendStage(

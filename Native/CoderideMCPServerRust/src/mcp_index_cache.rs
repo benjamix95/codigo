@@ -3,6 +3,8 @@
 //! - `SOLOCODE_WORKSPACE_INDEX_PATHS`: stringa esattamente come prodotta da Swift
 //!   `CodebaseIndex.indexCachePathsKey` (path ordinati, separati da `|`).
 //! - Se assente: stesso algoritmo sulla stringa di `SOLOCODE_WORKSPACE_PATH`, poi fallback al path workspace.
+//! - `debug_tools` persiste `debug_state.json` in una cartella derivata da SHA-256 di questa stessa
+//!   stringa quando `SOLOCODE_WORKSPACE_INDEX_PATHS` è impostata (multi-root allineato alla CLI Swift).
 
 use std::env;
 use std::path::{Path, PathBuf};

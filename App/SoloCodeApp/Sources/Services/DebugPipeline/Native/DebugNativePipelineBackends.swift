@@ -43,25 +43,11 @@ struct DebugNativePipelineAdapter {
             return collected
         }
 
-        var merged = DebugNativeBackendOutcome()
-        for item in indexedOutcomes.sorted(by: { $0.index < $1.index }) {
-            if let state = item.outcome.state {
-                if let existing = merged.state {
-                    let existingErr = existing.status == .error
-                    let incomingErr = state.status == .error
-                    if existingErr, !incomingErr {
-                        merged.state = state
-                    } else if !existingErr, incomingErr {
-                        // Mantieni lo stato non-errore già scelto (es. LLDB ok + altro backend in errore).
-                    } else {
-                        merged.state = state
-                    }
-                } else {
-                    merged.state = state
-                }
-            }
-            merged.logs.append(contentsOf: item.outcome.logs)
-        }
+        let pairs = indexedOutcomes.map { (index: $0.index, outcome: $0.outcome) }
+        var merged = DebugNativePipelineOutcomeMerge.mergedOutcome(
+            context: context,
+            indexedOutcomes: pairs
+        )
 
         if merged.state == nil {
             merged.state = makeErrorState(

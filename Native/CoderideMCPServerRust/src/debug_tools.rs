@@ -1,10 +1,9 @@
 use app_core_protocol::mcp::{CallToolResult, ToolContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::collections::hash_map::DefaultHasher;
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -715,6 +714,17 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         );
     }
 
+    let xcode_ws = std::env::var("SOLOCODE_DEBUG_XCODE_WORKSPACE")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "Solo Code.xcworkspace".to_string());
+    let xcode_dest = std::env::var("SOLOCODE_DEBUG_XCODE_DESTINATION")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "platform=macOS".to_string());
+
     let mut outputs = Vec::new();
     let mut failing = Vec::new();
     let mut passed = 0;
@@ -726,11 +736,11 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         cmd.current_dir(workspace)
             .arg("test")
             .arg("-workspace")
-            .arg("Solo Code.xcworkspace")
+            .arg(&xcode_ws)
             .arg("-scheme")
             .arg(&execution.scheme)
             .arg("-destination")
-            .arg("platform=macOS")
+            .arg(&xcode_dest)
             .arg("CODE_SIGNING_ALLOWED=NO");
         for identifier in &execution.only_testing {
             cmd.arg(format!("-only-testing:{identifier}"));
@@ -766,32 +776,50 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
         if exit_code == 0 {
             store.failing_test_filters.clear();
         }
+        let scheme_list = executions
+            .iter()
+            .map(|item| item.scheme.clone())
+            .collect::<Vec<_>>()
+            .join(", ");
         let output = format!(
             "Xcode tests {}: {} passed, {} failed\nschemes: {}\n{}",
             if exit_code == 0 { "PASSED" } else { "FAILED" },
             passed,
             failed,
-            executions.iter().map(|item| item.scheme.clone()).collect::<Vec<_>>().join(", "),
+            scheme_list,
             outputs.join("\n\n")
         );
-        Ok(text_with_structured(
-            if exit_code == 0 {
-                "OK — debug test check passed".to_string()
-            } else {
-                "OK — debug test check failed".to_string()
-            },
-            json!({
-                "tool": "debug_test_check",
-                "scope": scope,
-                "detail": format!("{}: {} passed, {} failed [{}]", if exit_code == 0 { "PASSED" } else { "FAILED" }, passed, failed, scope),
-                "output": output,
-                "passed": passed,
-                "failed": failed,
-                "overall_status": if exit_code == 0 { "passed" } else { "failed" },
-                "schemes": executions.iter().map(|item| item.scheme.clone()).collect::<Vec<_>>().join(","),
-                "filter": filter
-            }),
-        ))
+        let detail = format!(
+            "{}: {} passed, {} failed [{}]",
+            if exit_code == 0 { "PASSED" } else { "FAILED" },
+            passed,
+            failed,
+            scope
+        );
+        let payload = json!({
+            "tool": "debug_test_check",
+            "scope": scope,
+            "detail": detail,
+            "output": output,
+            "passed": passed,
+            "failed": failed,
+            "overall_status": if exit_code == 0 { "passed" } else { "failed" },
+            "exit_code": exit_code,
+            "schemes": scheme_list,
+            "filter": filter,
+            "error_code": if exit_code == 0 { Value::Null } else { json!("test_failed") },
+        });
+        if exit_code == 0 {
+            Ok(text_with_structured("OK — debug test check passed".to_string(), payload))
+        } else {
+            Ok(error_result(
+                format!(
+                    "Xcode tests FAILED: {} passed, {} failed [{}] (schemes: {scheme_list})",
+                    passed, failed, scope
+                ),
+                payload,
+            ))
+        }
     })
 }
 
@@ -836,8 +864,9 @@ fn debug_mark(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
             _ => format!("// [DEBUG:marker] {comment}{tag}"),
         }
     };
-    let insert_at = line.min(lines.len());
-    lines.insert(insert_at, marker.clone());
+    // `line` è 1-based (convenzione editor / LSP): inserisce prima della riga indicata.
+    let insert_idx = line.saturating_sub(1).min(lines.len());
+    lines.insert(insert_idx, marker.clone());
     if let Err(error) = write_lines(&file_path, &lines) {
         return error_result(format!("Error: {error}"), json!({ "error_code": "write_failed" }));
     }
@@ -1276,14 +1305,32 @@ fn resolve_hypothesis_id(store: &DebugStore, raw: &str) -> Option<String> {
         .map(|item| item.id.clone())
 }
 
+/// Stesso input di `SOLOCODE_WORKSPACE_INDEX_PATHS` quando la CLI lo imposta (Swift `CodebaseIndex.indexCachePathsKey`).
+/// SHA-256 hex stabile tra versioni Rust (a differenza di `DefaultHasher`).
 fn workspace_fingerprint(workspace: &Path) -> String {
+    let key_bytes: Vec<u8> = if let Ok(paths) = std::env::var("SOLOCODE_WORKSPACE_INDEX_PATHS") {
+        let t = paths.trim();
+        if !t.is_empty() {
+            t.as_bytes().to_vec()
+        } else {
+            single_workspace_fingerprint_key(workspace)
+        }
+    } else {
+        single_workspace_fingerprint_key(workspace)
+    };
+    sha256_hex(&key_bytes)
+}
+
+fn single_workspace_fingerprint_key(workspace: &Path) -> Vec<u8> {
     let normalized = workspace
         .canonicalize()
         .unwrap_or_else(|_| workspace.to_path_buf());
-    let key = normalized.to_string_lossy();
-    let mut hasher = DefaultHasher::new();
-    key.hash(&mut hasher);
-    format!("{:016x}", hasher.finish())
+    normalized.to_string_lossy().as_bytes().to_vec()
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    let digest = Sha256::digest(data);
+    digest.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn debug_store_path(workspace: &Path) -> PathBuf {

@@ -15,3 +15,4 @@ solocode_rust_core = { path = "../RustCore" }
 chrono = "0.4"
 libc = "0.2"
 regex = "1"
+sha2 = "0.10"
