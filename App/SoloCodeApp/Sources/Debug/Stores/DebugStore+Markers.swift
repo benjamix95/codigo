@@ -50,11 +50,14 @@ extension DebugStore {
             detail: files.isEmpty ? nil : files.joined(separator: ", "),
             category: "system"
         )
+        scheduleDebugCleanFallbackIfNeeded()
         return files
     }
 
     func cancelPendingMarkFixed(reason: String? = nil) {
         guard awaitingDebugClean || pendingResolutionAfterClean != nil else { return }
+        debugCleanAwaitingTask?.cancel()
+        debugCleanAwaitingTask = nil
         awaitingDebugClean = false
         pendingResolutionAfterClean = nil
         addLog(

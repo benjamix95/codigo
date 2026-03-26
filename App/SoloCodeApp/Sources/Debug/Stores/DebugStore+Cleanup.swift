@@ -2,6 +2,8 @@ extension DebugStore {
     /// Apply debug_clean result; resolve only when cleanup succeeds.
     func applyDebugCleanResult(success: Bool, detail: String?) {
         guard awaitingDebugClean else { return }
+        debugCleanAwaitingTask?.cancel()
+        debugCleanAwaitingTask = nil
 
         if success {
             _ = cleanAllDebugMarkers()

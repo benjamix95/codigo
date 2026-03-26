@@ -8,14 +8,27 @@ extension PipelineIntegrationService {
         suppressedDebugProjectionConversationIds.contains(conversationId)
     }
 
+    private static func isHighPriorityDebugEvent(_ event: NormalizedEvent) -> Bool {
+        switch event {
+        case .debugPhaseUpdate, .activateDebugMode, .debugResolved, .debugClean,
+             .debugSession, .debugUserRequest:
+            return true
+        default:
+            return false
+        }
+    }
+
     func registerDebugStore(
         _ debugStore: DebugStore,
         for conversationId: UUID,
+        reactivateProjection: Bool = true,
         applyEffects: @escaping @MainActor (DebugProjectionUIEffects) -> Void = { _ in }
     ) {
-        // Nuovo binding al pannello = riattiva la proiezione per questa conversazione e scarica il buffer.
-        // Altrimenti, dopo suspend + cambio thread, flushPending resterebbe bloccato fino a resume esplicito.
-        suppressedDebugProjectionConversationIds.remove(conversationId)
+        // `reactivateProjection`: su cambio chat (`bindRuntimeDebugProjection`) conserviamo `suspend`
+        // finché non arriva `resumeDebugProjection` (es. avvio pipeline debug).
+        if reactivateProjection {
+            suppressedDebugProjectionConversationIds.remove(conversationId)
+        }
         debugStoresByConversation[conversationId] = DebugProjectionStoreBinding(
             store: debugStore,
             applyEffects: applyEffects
@@ -26,7 +39,8 @@ extension PipelineIntegrationService {
     func unregisterDebugStore(for conversationId: UUID?) {
         guard let conversationId else { return }
         debugStoresByConversation.removeValue(forKey: conversationId)
-        suppressedDebugProjectionConversationIds.remove(conversationId)
+        // Non azzerare `suppressedDebugProjectionConversationIds`: così uno Stop resta efficace
+        // anche dopo cambio conversazione e rientro, finché non c’è `resumeDebugProjection`.
     }
 
     func suspendDebugProjection(for conversationId: UUID?) {
@@ -63,11 +77,13 @@ extension PipelineIntegrationService {
             bufferDebugEvent(event, for: conversationId)
             return
         }
-        if let binding = debugStoresByConversation[conversationId],
-           let store = binding.store {
-            let effects = DebugProjectionEventConsumer.apply(event, to: store)
-            binding.applyEffects(effects)
-            return
+        if let binding = debugStoresByConversation[conversationId] {
+            if let store = binding.store {
+                let effects = DebugProjectionEventConsumer.apply(event, to: store)
+                binding.applyEffects(effects)
+                return
+            }
+            debugStoresByConversation.removeValue(forKey: conversationId)
         }
         bufferDebugEvent(event, for: conversationId)
     }
@@ -75,15 +91,34 @@ extension PipelineIntegrationService {
     private func bufferDebugEvent(_ event: NormalizedEvent, for conversationId: UUID) {
         var pending = pendingDebugEventsByConversation[conversationId, default: []]
         pending.append(event)
-        if pending.count > kDebugEventBufferLimit {
-            let dropCount = pending.count - kDebugEventBufferLimit
-            NSLog(
-                "[PipelineIntegration] Debug event buffer overflow for conversation %@: dropping %d events",
-                conversationId.uuidString,
-                dropCount
-            )
-            pending.removeFirst(dropCount)
+        var dropped = 0
+        while pending.count > kDebugEventBufferLimit {
+            if let idx = pending.firstIndex(where: { !Self.isHighPriorityDebugEvent($0) }) {
+                pending.remove(at: idx)
+            } else {
+                pending.removeFirst()
+            }
+            dropped += 1
+        }
+        if dropped > 0 {
+            Self.postBufferDropNotification(conversationId: conversationId, dropped: dropped)
         }
         pendingDebugEventsByConversation[conversationId] = pending
+    }
+
+    private static func postBufferDropNotification(conversationId: UUID, dropped: Int) {
+        NSLog(
+            "[PipelineIntegration] Debug event buffer overflow for conversation %@: dropped %d events (priority trim)",
+            conversationId.uuidString,
+            dropped
+        )
+        NotificationCenter.default.post(
+            name: .soloCodeDebugEventBufferDropped,
+            object: nil,
+            userInfo: [
+                DebugPipelineBufferNotificationUserInfoKey.conversationId: conversationId,
+                DebugPipelineBufferNotificationUserInfoKey.dropped: dropped
+            ]
+        )
     }
 }

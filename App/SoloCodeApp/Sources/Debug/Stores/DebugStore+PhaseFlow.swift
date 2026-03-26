@@ -4,6 +4,7 @@ extension DebugStore {
     // MARK: - Phase Management
 
     func startDebugSession(errorContext: String = "") {
+        cancelDebugSessionWatchdogTasks()
         logs.removeAll()
         hypotheses.removeAll()
         breakpoints.removeAll()
@@ -40,6 +41,7 @@ extension DebugStore {
         // Auto-load runtime logs from disk and start monitoring
         loadRuntimeLogsFromDisk(path: activeDebugLogPath)
         startLogFileMonitor(path: activeDebugLogPath)
+        rescheduleDebugIdleWarningIfNeeded()
     }
 
     @discardableResult
@@ -49,6 +51,7 @@ extension DebugStore {
             if newPhase == .reproducing && currentRunId == nil {
                 currentRunId = UUID().uuidString
             }
+            rescheduleDebugIdleWarningIfNeeded()
             return true
         }
 
@@ -67,11 +70,14 @@ extension DebugStore {
             return false
         }
 
-        clearStreamLogs()
+        if newPhase == .reproducing {
+            clearStreamLogs()
+        }
         phase = newPhase
         if newPhase == .reproducing && currentRunId == nil {
             currentRunId = UUID().uuidString
         }
+        rescheduleDebugIdleWarningIfNeeded()
         return true
     }
 
@@ -96,6 +102,7 @@ extension DebugStore {
     }
 
     func resolveSession(summary: String) {
+        cancelDebugSessionWatchdogTasks()
         resolutionSummary = summary
         awaitingDebugClean = false
         pendingResolutionAfterClean = nil
@@ -104,6 +111,7 @@ extension DebugStore {
     }
 
     func resetSession() {
+        cancelDebugSessionWatchdogTasks()
         stopLogFileMonitor()
         phase = .idle
         logs.removeAll()

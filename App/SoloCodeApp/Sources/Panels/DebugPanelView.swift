@@ -58,6 +58,18 @@ struct DebugPanelView: View {
         )
         .frame(minWidth: 420, idealWidth: 500, maxWidth: 560)
         .animation(.smooth, value: debugStore.phase)
+        .onReceive(NotificationCenter.default.publisher(for: .soloCodeDebugEventBufferDropped)) { note in
+            guard let cid = note.userInfo?[DebugPipelineBufferNotificationUserInfoKey.conversationId] as? UUID,
+                  cid == conversationId
+            else { return }
+            let dropped = note.userInfo?[DebugPipelineBufferNotificationUserInfoKey.dropped] as? Int ?? 0
+            debugStore.addLog(
+                severity: .error,
+                source: "debug_pipeline",
+                message: "Coda eventi debug pipeline: eliminati \(dropped) eventi (buffer al cap)",
+                category: "system"
+            )
+        }
     }
 
     // MARK: - Scroll Content

@@ -112,7 +112,7 @@ final class DebugProjectionEventConsumerGateTests: XCTestCase {
         XCTAssertEqual(store.debugFindings.first?.title, "Null pointer")
         XCTAssertEqual(store.hypotheses.first?.confidence, 91)
         XCTAssertEqual(store.hypotheses.first?.rootCauseType, "nil_safety")
-        XCTAssertEqual(store.debugFindings.first?.status, .investigating)
+        XCTAssertEqual(store.debugFindings.first?.status, .open)
     }
 
     func testDebugMarkCreatesMarkerFinding() {

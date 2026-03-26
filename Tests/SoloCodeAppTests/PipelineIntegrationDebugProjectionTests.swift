@@ -133,4 +133,44 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
         service.resumeDebugProjection(for: conversationId)
         XCTAssertFalse(service.isDebugProjectionSuppressed(for: conversationId))
     }
+
+    func testUnregisterPreservesDebugProjectionSuppressState() {
+        let service = PipelineIntegrationService()
+        let conversationId = UUID()
+        service.suspendDebugProjection(for: conversationId)
+        service.unregisterDebugStore(for: conversationId)
+        XCTAssertTrue(service.isDebugProjectionSuppressed(for: conversationId))
+    }
+
+    func testRegisterWithReactivateFalseKeepsBufferedEventsUntilResume() {
+        let service = PipelineIntegrationService()
+        let debugStore = DebugStore()
+        let conversationId = UUID()
+        service.registerDebugStore(debugStore, for: conversationId, reactivateProjection: true)
+        service.suspendDebugProjection(for: conversationId)
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-suspend-buffer",
+                taskId: "task-suspend-buffer",
+                rawType: "debug_phase_update",
+                payload: [
+                    "phase": "fixing",
+                    "detail": "Applied"
+                ]
+            ),
+            for: conversationId
+        )
+        XCTAssertEqual(debugStore.phase, .idle)
+        service.unregisterDebugStore(for: conversationId)
+        service.registerDebugStore(
+            debugStore,
+            for: conversationId,
+            reactivateProjection: false,
+            applyEffects: { _ in }
+        )
+        XCTAssertTrue(service.isDebugProjectionSuppressed(for: conversationId))
+        XCTAssertEqual(debugStore.phase, .idle)
+        service.resumeDebugProjection(for: conversationId)
+        XCTAssertEqual(debugStore.phase, .fixing)
+    }
 }

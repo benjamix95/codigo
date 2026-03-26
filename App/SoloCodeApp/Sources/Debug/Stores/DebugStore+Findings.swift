@@ -66,14 +66,23 @@ extension DebugStore {
         debugFindings.filter { $0.status == .open || $0.status == .investigating }.count
     }
 
-    /// Adds a finding from a confirmed hypothesis.
+    /// Adds a finding from a hypothesis (status reflects pipeline outcome).
     func addFinding(fromHypothesis hypothesis: DebugHypothesis) {
+        let status: DebugFindingStatus =
+            switch hypothesis.status {
+            case .confirmed:
+                .open
+            case .rejected:
+                .dismissed
+            case .proposed, .investigating:
+                .investigating
+            }
         let finding = DebugFinding(
             title: hypothesis.title,
             filePath: hypothesis.relatedFiles.first,
             severity: .high,
             hypothesisId: hypothesis.id.uuidString,
-            status: .investigating
+            status: status
         )
         debugFindings.append(finding)
     }

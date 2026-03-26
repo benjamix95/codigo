@@ -245,13 +245,12 @@ extension PipelineIntegrationService {
                     conversationId: conversationId
                 )
                 if todo.status == .done {
-                    let effectiveAfterUpsert = conversationId
-                        ?? todoStore.planConversationIdForRuntimeTodoAfterUpsert(
+                    let effectiveAfterUpsert =
+                        todoStore.planConversationIdForRuntimeTodoAfterUpsert(
                             preferredId: todoId,
                             normalizedTitle: normalizedTitle,
                             eventConversationId: conversationId
-                        )
-                        ?? existingBeforeUpsert
+                        ) ?? existingBeforeUpsert ?? conversationId
                     _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveAfterUpsert)
                 }
             }

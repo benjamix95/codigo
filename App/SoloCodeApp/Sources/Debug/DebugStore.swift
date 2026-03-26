@@ -247,6 +247,11 @@ final class DebugStore: ObservableObject {
     }
     var streamLogCancellable: AnyCancellable?
 
+    /// Watchdog: Mark Fixed → `debug_clean` timeout.
+    var debugCleanAwaitingTask: Task<Void, Never>?
+    /// Watchdog: log if session stays active without user-visible resolution.
+    var sessionIdleWarningTask: Task<Void, Never>?
+
     var logFileMonitorSource: DispatchSourceFileSystemObject?
     var logFileMonitorHandle: FileHandle?
 
