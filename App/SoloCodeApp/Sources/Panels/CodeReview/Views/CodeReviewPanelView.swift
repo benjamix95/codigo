@@ -30,9 +30,10 @@ struct CodeReviewPanelView: View {
             tabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Divider().opacity(0.2)
-
-            bottomComposer
+            if showsBottomComposer {
+                Divider().opacity(0.2)
+                bottomComposer
+            }
         }
         .background(DesignSystem.Colors.chatPanelSolidBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -68,6 +69,11 @@ struct CodeReviewPanelView: View {
         case .settings:
             ReviewPanelSettingsTab(store: store)
         }
+    }
+
+    /// Barra inferiore solo durante run o subito dopo completamento (export); l’avvio review è dal tab Commands.
+    private var showsBottomComposer: Bool {
+        store.isRunning || store.frozenTimerText != nil
     }
 
     // MARK: - Bottom Mini Composer
@@ -134,32 +140,6 @@ struct CodeReviewPanelView: View {
                     }
                     .buttonStyle(.plain)
                 }
-            } else {
-                Button {
-                    Task {
-                        await store.startReview(
-                            scope: store.scopeTarget,
-                            modes: store.selectedModes
-                        )
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.right.circle")
-                            .font(.system(size: 9))
-                        Text("Start Review")
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(store.accent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        store.accent.opacity(0.1),
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
             }
         }
         .padding(.horizontal, 14)
