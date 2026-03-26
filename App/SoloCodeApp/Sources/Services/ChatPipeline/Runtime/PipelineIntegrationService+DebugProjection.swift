@@ -18,6 +18,20 @@ extension PipelineIntegrationService {
         }
     }
 
+    /// Maggiore = eliminare per primo quando il buffer è pieno solo di eventi ad alta priorità.
+    private static func criticalDebugControlEventDropScore(_ event: NormalizedEvent) -> Int {
+        switch event {
+        case .debugResolved, .debugClean:
+            return 0
+        case .debugPhaseUpdate:
+            return 1
+        case .debugSession, .debugUserRequest, .activateDebugMode:
+            return 2
+        default:
+            return 3
+        }
+    }
+
     func registerDebugStore(
         _ debugStore: DebugStore,
         for conversationId: UUID,
@@ -105,6 +119,10 @@ extension PipelineIntegrationService {
         while pending.count > kDebugEventBufferLimit {
             if let idx = pending.firstIndex(where: { !Self.isHighPriorityDebugEvent($0) }) {
                 pending.remove(at: idx)
+            } else if let dropPair = pending.enumerated().max(by: {
+                Self.criticalDebugControlEventDropScore($0.element) < Self.criticalDebugControlEventDropScore($1.element)
+            }) {
+                pending.remove(at: dropPair.offset)
             } else {
                 pending.removeFirst()
             }

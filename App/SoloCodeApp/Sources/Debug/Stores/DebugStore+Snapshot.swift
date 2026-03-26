@@ -90,6 +90,7 @@ extension DebugStore {
     }
 
     func restore(from snapshot: SessionSnapshot) {
+        cancelDebugSessionWatchdogTasks()
         stopLogFileMonitor()
 
         flow = DebugFlowState(
@@ -146,7 +147,13 @@ extension DebugStore {
         )
         pendingResolutionAfterClean = snapshot.pendingResolutionAfterClean
 
+        if awaitingDebugClean {
+            scheduleDebugCleanFallbackIfNeeded()
+        }
+
         guard flow.phase != .idle else { return }
+
         startLogFileMonitor(path: activeDebugLogPath)
+        rescheduleDebugIdleWarningIfNeeded()
     }
 }

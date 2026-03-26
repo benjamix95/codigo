@@ -66,6 +66,57 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertFalse(updated)
     }
 
+    func testRestoreFromSnapshotReschedulesDebugCleanFallbackWhenAwaitingClean() {
+        let active = DebugStore()
+        active.startDebugSession(errorContext: "boom")
+        active.phase = .verifying
+        _ = active.beginMarkFixed(summary: "done")
+        XCTAssertNotNil(active.debugCleanAwaitingTask)
+        let snap = active.snapshot()
+
+        let restored = DebugStore()
+        restored.restore(from: snap)
+
+        XCTAssertTrue(restored.awaitingDebugClean)
+        XCTAssertEqual(restored.phase, .verifying)
+        XCTAssertNotNil(
+            restored.debugCleanAwaitingTask,
+            "restore deve ripianificare il timeout Mark Fixed → debug_clean"
+        )
+    }
+
+    func testRestoreFromSnapshotReschedulesIdleWarningWhenPhaseActive() {
+        let active = DebugStore()
+        active.startDebugSession(errorContext: "ctx")
+        XCTAssertNotNil(active.sessionIdleWarningTask)
+        let snap = active.snapshot()
+        active.cancelDebugSessionWatchdogTasks()
+        XCTAssertNil(active.sessionIdleWarningTask)
+
+        active.restore(from: snap)
+
+        XCTAssertNotNil(
+            active.sessionIdleWarningTask,
+            "restore con fase attiva deve riavviare l’avviso idle"
+        )
+    }
+
+    func testRestoreFromSnapshotCancelsStaleWatchdogTasksBeforeApplyingSnapshot() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "a")
+        _ = store.beginMarkFixed(summary: "x")
+        let task = store.debugCleanAwaitingTask
+        XCTAssertNotNil(task)
+
+        var idleSnap = store.snapshot()
+        idleSnap.phase = .idle
+        idleSnap.awaitingDebugClean = false
+        store.restore(from: idleSnap)
+
+        XCTAssertFalse(store.awaitingDebugClean)
+        XCTAssertNil(store.debugCleanAwaitingTask)
+    }
+
     func testSessionSnapshotPreservesFindingsAndStreamLogs() {
         let store = DebugStore()
         store.startDebugSession(errorContext: "ctx")
