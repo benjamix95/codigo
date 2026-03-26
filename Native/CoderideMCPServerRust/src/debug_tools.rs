@@ -153,8 +153,15 @@ fn debug_request_user(arguments: &BTreeMap<String, Value>) -> CallToolResult {
         );
     }
     text_with_structured(
-        format!("OK — debug user request queued ({kind})"),
-        json!({ "tool": "debug_request_user", "kind": kind, "prompt": prompt }),
+        format!(
+            "OK — debug user request recorded ({kind}). SoloCode IDE: use coderide bridge so the debug panel shows this; standalone Rust MCP does not push UI."
+        ),
+        json!({
+            "tool": "debug_request_user",
+            "kind": kind,
+            "prompt": prompt,
+            "ide_bridge_required_for_panel_ui": true
+        }),
     )
 }
 

@@ -208,5 +208,25 @@ I problemi più gravi sono quattro:
 5. Introdurre typed events e test E2E per la suite avanzata.
 6. Spezzare `debug_context` in operazioni lazy e più economiche.
 
+## Aggiornamento stato (post-fix 2026-03-26)
+
+Interventi già integrati nel codice rispetto ai finding originari:
+
+- **P1 fix_confirmation vs handler IDE**: handler accetta `question`, `reproduce`, `fix_confirmation`.
+- **P1 `debug_session` nel DAG**: stage `session_start` dopo describe bootstrap, prima di `gatherContext`.
+- **P1 `debug_test_check` Xcode**: percorso Swift con validation config + `xcodebuild` (non solo `swift test` su Package).
+- **P1 default `debug_context`**: scope default leggero (`git,env`); `full` / `lints` espliciti.
+- **P1 Rust stub massiccio**: mark/clean/instrument/snapshot/test_check e compare snapshot ampliati in `debug_tools.rs`; `debug_request_user` documenta che la UI panel richiede bridge IDE (`ide_bridge_required_for_panel_ui`).
+- **Proiezione / buffer**: limite coda aumentato (1500); teardown con `DebugStore` ancora registrato **applica** i pending anche se la proiezione era soppressa (`resolvePendingDebugEventsBeforeTeardown`).
+- **Snapshot compare**: Swift e Rust supportano confronto tra due snapshot persistiti + fallback verso stato corrente.
+- **Sandbox plugin `.debug`**: include `activate_debug_mode`.
+
+Restano aree di attenzione (non chiuse al 100%):
+
+- Due percorsi di ingresso eventi (routing diretto vs `PipelineIntegrationService`) — da monitorare.
+- Overflow buffer con trim: possibile perdita di eventi a **bassa** priorità.
+- `debug_trace_analyze` ancora euristico (Swift e Rust).
+- Test E2E end-to-end sulla suite debug avanzata da espandere.
+
 ## Nota Finale
-Questa analisi è stata svolta senza modificare il runtime. I finding sopra sono pronti per essere trasformati in task separati, piccoli e verificabili.
+L’audit originale (2026-03-22) descriveva lo stato pre-fix. La sezione **Aggiornamento stato** riflette il codice a fine marzo 2026. I finding storici nella parte centrale del documento vanno letti con questo contesto.

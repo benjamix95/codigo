@@ -161,27 +161,31 @@ extension PipelineIntegrationService {
         )
     }
 
-    /// Prima di `unregister`/`suppress` al teardown: scarica la coda verso il `DebugStore` se possibile.
+    /// Prima di `unregister` al teardown conversazione: applica la coda al `DebugStore` se ancora collegato.
+    /// A differenza di `flushPendingDebugEvents`, ignora `suppress`: in chiusura preferiamo non perdere eventi già bufferizzati.
     func resolvePendingDebugEventsBeforeTeardown(for conversationId: UUID) {
         guard let pending = pendingDebugEventsByConversation[conversationId], !pending.isEmpty else {
             pendingDebugEventsByConversation.removeValue(forKey: conversationId)
             return
         }
         let count = pending.count
-        let suppressed = suppressedDebugProjectionConversationIds.contains(conversationId)
-        if !suppressed,
-           let binding = debugStoresByConversation[conversationId],
+        if let binding = debugStoresByConversation[conversationId],
            let store = binding.store {
-            flushPendingDebugEvents(for: conversationId, into: store)
+            pendingDebugEventsByConversation.removeValue(forKey: conversationId)
+            let applyEffects = binding.applyEffects
+            for event in pending {
+                let effects = DebugProjectionEventConsumer.apply(event, to: store)
+                applyEffects(effects)
+            }
+            bumpDebugProjectionBufferRevision()
             return
         }
-        let hasLiveStore = debugStoresByConversation[conversationId]?.store != nil
+        let suppressed = suppressedDebugProjectionConversationIds.contains(conversationId)
         NSLog(
-            "[PipelineIntegration] Teardown: dropping %d buffered debug event(s) for conv=%@ suppressed=%@ liveStore=%@",
+            "[PipelineIntegration] Teardown: dropping %d buffered debug event(s) for conv=%@ suppressed=%@ liveStore=no",
             count,
             conversationId.uuidString.lowercased(),
-            suppressed ? "yes" : "no",
-            hasLiveStore ? "yes" : "no"
+            suppressed ? "yes" : "no"
         )
         pendingDebugEventsByConversation.removeValue(forKey: conversationId)
         bumpDebugProjectionBufferRevision()

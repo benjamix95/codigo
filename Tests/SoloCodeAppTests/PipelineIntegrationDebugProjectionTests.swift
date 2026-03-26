@@ -188,6 +188,31 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
         XCTAssertGreaterThan(service.debugProjectionBufferRevision, revAfterSuspend)
     }
 
+    func testTeardownFlushesBufferedDebugEventsWhenStoreExistsEvenUnderSuppress() {
+        let service = PipelineIntegrationService()
+        let debugStore = DebugStore()
+        let conversationId = UUID()
+        service.registerDebugStore(debugStore, for: conversationId)
+        service.suspendDebugProjection(for: conversationId)
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-teardown-flush",
+                taskId: "task-teardown-flush",
+                rawType: "debug_phase_update",
+                payload: [
+                    "phase": "verifying",
+                    "detail": "before close"
+                ]
+            ),
+            for: conversationId
+        )
+        XCTAssertEqual(debugStore.phase, .idle)
+        XCTAssertEqual(service.pendingBufferedDebugEventCount(for: conversationId), 1)
+        service.resolvePendingDebugEventsBeforeTeardown(for: conversationId)
+        XCTAssertEqual(debugStore.phase, .verifying)
+        XCTAssertEqual(service.pendingBufferedDebugEventCount(for: conversationId), 0)
+    }
+
     func testDebugEventBufferedQueueNeverExceedsConfiguredLimit() {
         let service = PipelineIntegrationService()
         let conversationId = UUID()
