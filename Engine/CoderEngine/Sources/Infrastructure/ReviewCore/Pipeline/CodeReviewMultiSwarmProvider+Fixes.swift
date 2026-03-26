@@ -208,6 +208,7 @@ extension CodeReviewMultiSwarmProvider {
         """
 
         var accumulator = CodeReviewStreamTextAccumulator()
+        var streamErrorMessage: String?
         do {
             let stream = try await analysisProvider.send(
                 prompt: reReviewPrompt,
@@ -217,6 +218,9 @@ extension CodeReviewMultiSwarmProvider {
             for try await event in stream {
                 await waitWhilePaused()
                 if isCancelled() { break }
+                if case .error(let message) = event {
+                    streamErrorMessage = message
+                }
                 continuation.yield(event)
                 accumulator.consume(event)
             }
@@ -226,6 +230,14 @@ extension CodeReviewMultiSwarmProvider {
             return ReReviewOutcome(
                 text: partialText,
                 findings: .inconclusive(reason: "Re-review stream failed: \(error.localizedDescription)")
+            )
+        }
+        if let streamErrorMessage {
+            let partialText = accumulator.text
+            continuation.yield(.textDelta("\n**Re-review error:** \(streamErrorMessage)\n"))
+            return ReReviewOutcome(
+                text: partialText,
+                findings: .inconclusive(reason: "Re-review stream failed: \(streamErrorMessage)")
             )
         }
 

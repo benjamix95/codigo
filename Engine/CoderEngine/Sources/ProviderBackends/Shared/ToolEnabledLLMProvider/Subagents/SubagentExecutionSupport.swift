@@ -18,6 +18,15 @@ struct SubagentNoMeaningfulEventError: LocalizedError {
     }
 }
 
+/// Errore logico emesso dal provider come `StreamEvent.error` (senza throw dal transport).
+struct SubagentProviderStreamError: LocalizedError {
+    let message: String
+
+    var errorDescription: String? {
+        message
+    }
+}
+
 actor SubagentExecutionLimiter {
     static let shared = SubagentExecutionLimiter(maxConcurrent: 4)
 

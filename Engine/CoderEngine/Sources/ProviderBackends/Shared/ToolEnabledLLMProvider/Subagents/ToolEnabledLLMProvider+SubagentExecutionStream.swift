@@ -99,6 +99,14 @@ extension ToolEnabledLLMProvider {
                                 }
                                 await emitBufferedLiveTextIfNeeded()
                         }
+                    case .textReplace(let replacement):
+                        let visible = replacement
+                        fullTextParts = visible.isEmpty ? [] : [visible]
+                        fullTextLength = visible.count
+                        if hasLiveCallback, !visible.isEmpty {
+                            liveTextBuffer = String(visible.suffix(2400))
+                            await emitBufferedLiveTextIfNeeded()
+                        }
                     case .raw(let type, var payload):
                         await emitBufferedLiveTextIfNeeded(force: true)
                         let stage = Self.stageForSubagentEvent(type: type, payload: payload)
@@ -129,7 +137,11 @@ extension ToolEnabledLLMProvider {
                         )
                         let enriched = StreamEvent.raw(type: type, payload: payload)
                         await storeEvent(enriched, emitLive: hasLiveCallback)
-                    default:
+                    case .error(let message):
+                        await emitBufferedLiveTextIfNeeded(force: true)
+                        await storeEvent(.error(message), emitLive: hasLiveCallback)
+                        throw SubagentProviderStreamError(message: message)
+                    case .started, .completed:
                         break
                     }
                 }

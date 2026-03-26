@@ -100,13 +100,22 @@ extension ToolEnabledLLMProvider {
                             fullTextParts.append(delta)
                             fullTextLength += delta.count
                         }
+                    case .textReplace(let replacement):
+                        let chunk = replacement.isEmpty ? "" : replacement
+                        if chunk.count <= SkillExecutionPolicy.maxBufferedProviderCharacters {
+                            fullTextParts = chunk.isEmpty ? [] : [chunk]
+                            fullTextLength = chunk.count
+                        }
                     case .raw(let type, var payload):
                         payload["tool_call_id"] = payload["tool_call_id"] ?? toolCallId
                         payload["conversation_id"] = payload["conversation_id"] ?? conversationId
                         payload["swarm_id"] = skillId
                         payload["group_id"] = "swarm-\(skillId)"
                         forwardedEvents.append(.raw(type: type, payload: payload))
-                    default:
+                    case .error(let message):
+                        forwardedEvents.append(.error(message))
+                        throw SubagentProviderStreamError(message: message)
+                    case .started, .completed:
                         break
                     }
                 }

@@ -69,6 +69,7 @@ extension CodeReviewMultiSwarmProvider {
         """
 
         var accumulator = CodeReviewStreamTextAccumulator()
+        var streamErrorMessage: String?
         do {
             let stream = try await analysisProvider.send(
                 prompt: analysisPrompt,
@@ -78,12 +79,19 @@ extension CodeReviewMultiSwarmProvider {
             for try await event in stream {
                 await waitWhilePaused()
                 if isCancelled() { break }
+                if case .error(let message) = event {
+                    streamErrorMessage = message
+                }
                 continuation.yield(event)
                 accumulator.consume(event)
             }
         } catch {
             continuation.yield(.textDelta("\n**Analysis error:** \(error.localizedDescription)\n"))
             throw ReviewPipelineError.analysisTransportFailed(error.localizedDescription)
+        }
+        if let streamErrorMessage {
+            continuation.yield(.textDelta("\n**Analysis error:** \(streamErrorMessage)\n"))
+            throw ReviewPipelineError.analysisTransportFailed(streamErrorMessage)
         }
 
         let fullText = accumulator.text
