@@ -2,19 +2,18 @@ import XCTest
 @testable import CoderIDE
 
 final class ChatReasoningStreamReducerTests: XCTestCase {
-    func testCodexUsesInlineReasoningPresentationByDefault() {
+    func testCodexSuppressesReasoningPresentation() {
         XCTAssertEqual(
             ChatReasoningPresentationPolicy.mode(
                 providerId: "codex-cli",
                 separateCodexThinkingMessagesEnabled: false
             ),
-            .inline
+            .suppressed
         )
     }
 
-    func testAllProvidersUseInlineReasoningPresentationInMainChat() {
+    func testNonCodexProvidersUseInlineReasoningPresentationInMainChat() {
         let providerIds = [
-            "codex-cli",
             "claude-cli",
             "gemini-cli",
             "openai-api",

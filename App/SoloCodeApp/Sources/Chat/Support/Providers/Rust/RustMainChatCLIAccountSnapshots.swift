@@ -44,6 +44,8 @@ private struct MainChatReasoningResponseBridge: Decodable {
 enum ChatReasoningPresentationMode: String {
     case inline
     case separateMessages
+    /// Codex app-server: nessun blocco Thinking / reasoning in UI; solo testo risposta.
+    case suppressed
 }
 
 private func shouldAllowSwiftReasoningFallback(environment: [String: String]) -> Bool {
@@ -107,10 +109,14 @@ enum ChatReasoningPresentationPolicy {
         providerId: String,
         separateCodexThinkingMessagesEnabled: Bool
     ) -> ChatReasoningPresentationMode {
-        _ = providerId
         _ = separateCodexThinkingMessagesEnabled
-        // Main chat reasoning must remain provider-agnostic so Codex uses the
-        // same inline presentation grammar as the other providers.
+        if isCodexProvider(providerId) {
+            return .suppressed
+        }
+        let normalized = providerId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !normalized.isEmpty, normalized.contains("codex") {
+            return .suppressed
+        }
         return .inline
     }
 }

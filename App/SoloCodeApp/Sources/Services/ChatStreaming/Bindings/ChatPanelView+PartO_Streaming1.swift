@@ -203,6 +203,10 @@ extension ChatPanelView {
         reasoningPresentationMode(providerId: providerId) == .separateMessages
     }
 
+    internal func isReasoningSuppressedForProvider(_ providerId: String) -> Bool {
+        reasoningPresentationMode(providerId: providerId) == .suppressed
+    }
+
     internal func shouldUseLinearChat(providerId: String) -> Bool {
         guard codexLinearChatEnabled else { return false }
         return isCodexProvider(providerId)

@@ -13,6 +13,12 @@ enum RawArtifactEventAdapter {
         case "turn_started":
             return [make(.turnStarted, payload: payload, conversationId: conversationId, assistantMessageId: assistantMessageId, turnId: turnId, providerId: providerId)]
         case "reasoning":
+            if ChatReasoningPresentationPolicy.mode(
+                providerId: providerId,
+                separateCodexThinkingMessagesEnabled: false
+            ) == .suppressed {
+                return []
+            }
             guard let output = payload["output"], !output.isEmpty else { return [] }
             return [
                 make(

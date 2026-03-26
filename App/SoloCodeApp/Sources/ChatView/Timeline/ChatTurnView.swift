@@ -215,11 +215,17 @@ struct ChatTurnView: View, Equatable {
     // MARK: - Interleaved Timeline Segments
 
     private var interleavedSegments: [ChatTurnInterleavedSegment] {
-        ChatTurnTimelineInterleaver.segments(
+        let pid = message.turnMetadata?.providerId ?? ""
+        let suppressReasoning = ChatReasoningPresentationPolicy.mode(
+            providerId: pid,
+            separateCodexThinkingMessagesEnabled: false
+        ) == .suppressed
+        return ChatTurnTimelineInterleaver.segments(
             blocks: visibleBlocks,
             traceEvents: inlineTraceEvents,
             liveSubagentCards: liveSubagentCards,
-            subagentSnapshots: message.subagentCards ?? []
+            subagentSnapshots: message.subagentCards ?? [],
+            suppressReasoningBlocks: suppressReasoning
         )
     }
 

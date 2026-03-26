@@ -7,7 +7,8 @@ enum ChatTurnTimelineInterleaver {
         blocks: [PersistedChatTimelineBlock],
         traceEvents: [ToolTraceEvent],
         liveSubagentCards: [SwarmLiveCardState] = [],
-        subagentSnapshots: [SubagentCardSnapshot] = []
+        subagentSnapshots: [SubagentCardSnapshot] = [],
+        suppressReasoningBlocks: Bool = false
     ) -> [ChatTurnInterleavedSegment] {
         var segments: [ChatTurnInterleavedSegment] = []
 
@@ -48,6 +49,7 @@ enum ChatTurnTimelineInterleaver {
                 }
                 segments.append(.text(id: block.id, content: block.text, sequence: effectiveSequence))
             case .reasoning:
+                if suppressReasoningBlocks { continue }
                 segments.append(.reasoning(id: block.id, text: block.text, sequence: block.sequence))
             case .toolMarker:
                 // toolMarkers are placeholders from Rust — their sequence is used

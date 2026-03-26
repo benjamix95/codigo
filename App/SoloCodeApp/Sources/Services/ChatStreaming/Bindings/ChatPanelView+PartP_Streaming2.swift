@@ -228,6 +228,9 @@ extension ChatPanelView {
             return
         }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
+            if isReasoningSuppressedForProvider(pid) {
+                return
+            }
             guard shouldUpdateInlineReasoningVisuals else {
                 recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
                 return
@@ -257,7 +260,9 @@ extension ChatPanelView {
                     selectedConversationId: self.conversationId
                 )
                 if shouldUseLinearChat(providerId: pid), shouldUpdateVisibleReasoning {
-                    streaming.codexLastReasoningLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    streaming.codexLastReasoningLine = ChatStore.sanitizedChatReasoningText(
+                        output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    )
                 }
                 guard shouldUpdateVisibleReasoning else {
                     recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)

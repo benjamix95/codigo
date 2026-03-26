@@ -62,6 +62,26 @@ final class ChatTurnTimelineInterleaverTests: XCTestCase {
         }
     }
 
+    func testReasoningBlocksSkippedWhenSuppressed() {
+        let blocks = [
+            makeBlock(kind: .reasoning, text: "Hidden", sequence: 0),
+            makeBlock(kind: .primaryText, text: "Answer", sequence: 1),
+        ]
+
+        let segments = ChatTurnTimelineInterleaver.segments(
+            blocks: blocks,
+            traceEvents: [],
+            suppressReasoningBlocks: true
+        )
+
+        XCTAssertEqual(segments.count, 1)
+        if case .text(_, let content, _) = segments.first {
+            XCTAssertEqual(content, "Answer")
+        } else {
+            XCTFail("Expected only .text segment")
+        }
+    }
+
     func testToolMarkerBlocksAreSkipped() {
         let blocks = [
             makeBlock(kind: .toolMarker, text: "marker", sequence: 0),
