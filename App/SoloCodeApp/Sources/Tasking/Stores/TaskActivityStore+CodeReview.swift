@@ -42,17 +42,20 @@ extension TaskActivityStore {
             }
         }
 
-        // Update structured data for panel consumption
-        codeReviewFindings = resolvedSnapshot.findings
-        codeReviewEvents = resolvedSnapshot.events
-        codeReviewPhase = resolvedSnapshot.phase
-        codeReviewStage = resolvedSnapshot.stage
         verifiedFindingsEnvelopesBySession[resolvedSnapshot.sessionId] = verifiedEnvelope
         if let conversationScope = codeReviewConversationScope(resolvedConversationId) {
             codeReviewFindingsByConversation[conversationScope] = resolvedSnapshot.findings
             codeReviewEventsByConversation[conversationScope] = resolvedSnapshot.events
             codeReviewPhaseByConversation[conversationScope] = resolvedSnapshot.phase
             verifiedFindingsProjectionsByConversation[conversationScope] = derivedState.projection
+        }
+
+        // Avoid cross-chat leakage: unscoped legacy mirrors only when there is no conversation id.
+        if shouldMirrorCodeReviewToGlobalAggregates(resolvedConversationId: resolvedConversationId) {
+            codeReviewFindings = resolvedSnapshot.findings
+            codeReviewEvents = resolvedSnapshot.events
+            codeReviewPhase = resolvedSnapshot.phase
+            codeReviewStage = resolvedSnapshot.stage
         }
 
         // Persist off the main thread so PostgreSQL bootstrap / psql I/O cannot freeze the panel UI.
@@ -139,10 +142,12 @@ extension TaskActivityStore {
                         )
                 }
             }
-            codeReviewFindings = scopedSnapshot?.findings ?? []
-            codeReviewEvents = scopedSnapshot?.events ?? []
-            codeReviewPhase = scopedSnapshot?.phase ?? .idle
-            codeReviewStage = scopedSnapshot?.stage ?? .idle
+            if shouldMirrorCodeReviewToGlobalAggregates(resolvedConversationId: conversationId) {
+                codeReviewFindings = scopedSnapshot?.findings ?? []
+                codeReviewEvents = scopedSnapshot?.events ?? []
+                codeReviewPhase = scopedSnapshot?.phase ?? .idle
+                codeReviewStage = scopedSnapshot?.stage ?? .idle
+            }
         }
     }
 
@@ -235,6 +240,12 @@ extension TaskActivityStore {
 
     func codeReviewConversationScope(_ conversationId: UUID?) -> String? {
         conversationId?.uuidString.lowercased()
+    }
+
+    /// When a conversation is active, findings/phase live in `*ByConversation`; updating global
+    /// `codeReview*` fields would overwrite another chat’s data when multiple tabs run reviews.
+    private func shouldMirrorCodeReviewToGlobalAggregates(resolvedConversationId: UUID?) -> Bool {
+        codeReviewConversationScope(resolvedConversationId) == nil
     }
 
     private func sortReviewSnapshots(

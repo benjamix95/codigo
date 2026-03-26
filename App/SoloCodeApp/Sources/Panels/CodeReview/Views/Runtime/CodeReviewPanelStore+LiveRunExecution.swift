@@ -17,13 +17,32 @@ extension CodeReviewPanelStore {
         )
     }
 
+    func processNextPendingCodeReviewLaunchIfIdle() async {
+        guard !isRunning else { return }
+        await consumePendingLaunchRequestIfNeeded()
+    }
+
     func startReview(
         scope: ReviewScopeTarget,
         modes: Set<CodeReviewPanelMode>,
         promptOverride: String? = nil,
         invocationLabel: String? = nil
     ) async {
-        guard !isRunning else { return }
+        let resolvedPrompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
+        let resolvedLabel = invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes)
+
+        guard !isRunning else {
+            ReviewPanelLaunchRequestStore.shared.enqueue(
+                ReviewPanelLaunchRequest(
+                    conversationId: conversationId,
+                    scope: scope,
+                    modes: modes,
+                    promptOverride: resolvedPrompt,
+                    invocationLabel: resolvedLabel
+                )
+            )
+            return
+        }
 
         scopeTarget = scope
         selectedModes = modes
@@ -34,6 +53,7 @@ extension CodeReviewPanelStore {
                 "Failed to plan review session",
                 targetTab: .findings
             )
+            await processNextPendingCodeReviewLaunchIfIdle()
             return
         }
         let sessionId = plan.sessionId
@@ -54,10 +74,11 @@ extension CodeReviewPanelStore {
                 "Failed to create review provider",
                 targetTab: .findings
             )
+            await processNextPendingCodeReviewLaunchIfIdle()
             return
         }
 
-        let prompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
+        let prompt = resolvedPrompt
         let context = buildWorkspaceContext()
         runPanelReview(
             provider: provider,
@@ -186,6 +207,9 @@ extension CodeReviewPanelStore {
             let message = ReviewPanelStateRustAdapter.runtimeUnavailableMessage
             applyUnavailableRunError(message, targetTab: selectedTabOnFinish)
             onError(message)
+            Task { @MainActor [weak self] in
+                await self?.processNextPendingCodeReviewLaunchIfIdle()
+            }
             return
         }
         coordinator.runReview(
@@ -211,6 +235,9 @@ extension CodeReviewPanelStore {
                     onError(outcome?.message ?? ReviewPanelStateRustAdapter.runtimeUnavailableMessage)
                 default:
                     break
+                }
+                Task { @MainActor [weak self] in
+                    await self?.processNextPendingCodeReviewLaunchIfIdle()
                 }
             }
         )

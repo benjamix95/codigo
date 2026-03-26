@@ -39,8 +39,8 @@ final class ReviewPanelCoordinator {
         cancelReview()
         isReviewRunning = true
 
-        reviewTask = Task { @MainActor in
-            onStart()
+        reviewTask = Task.detached(priority: .userInitiated) { [weak self] in
+            await MainActor.run { onStart() }
             var streamError: String?
             do {
                 let stream = try await provider.send(
@@ -50,7 +50,7 @@ final class ReviewPanelCoordinator {
                 )
                 for try await event in stream {
                     if Task.isCancelled { break }
-                    onEvent(event)
+                    await MainActor.run { onEvent(event) }
                 }
             } catch {
                 if !Task.isCancelled {
@@ -58,15 +58,24 @@ final class ReviewPanelCoordinator {
                     streamError = error.localizedDescription
                 }
             }
+            if Task.isCancelled {
+                let snap = await sessionState.snapshot()
+                if snap.phase.isActive {
+                    await sessionState.fail(error: "Review cancelled.")
+                }
+            }
             let snapshot = await sessionState.snapshot()
-            isReviewRunning = false
-            onFinish(
-                ReviewPanelReviewTaskResult(
-                    snapshot: snapshot,
-                    error: streamError,
-                    wasCancelled: Task.isCancelled
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.isReviewRunning = false
+                onFinish(
+                    ReviewPanelReviewTaskResult(
+                        snapshot: snapshot,
+                        error: streamError,
+                        wasCancelled: Task.isCancelled
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -88,7 +97,7 @@ final class ReviewPanelCoordinator {
     ) {
         cancelChat()
 
-        chatTask = Task { @MainActor in
+        chatTask = Task.detached(priority: .userInitiated) {
             var streamError: String?
             do {
                 let stream = try await provider.send(
@@ -98,19 +107,21 @@ final class ReviewPanelCoordinator {
                 )
                 for try await event in stream {
                     if Task.isCancelled { break }
-                    onEvent(event)
+                    await MainActor.run { onEvent(event) }
                 }
             } catch {
                 if !Task.isCancelled {
                     streamError = error.localizedDescription
                 }
             }
-            onFinish(
-                ReviewPanelChatTaskResult(
-                    error: streamError,
-                    wasCancelled: Task.isCancelled
+            await MainActor.run {
+                onFinish(
+                    ReviewPanelChatTaskResult(
+                        error: streamError,
+                        wasCancelled: Task.isCancelled
+                    )
                 )
-            )
+            }
         }
     }
 

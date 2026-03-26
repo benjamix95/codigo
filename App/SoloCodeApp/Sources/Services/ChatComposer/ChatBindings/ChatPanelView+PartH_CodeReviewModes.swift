@@ -1,3 +1,4 @@
+import CoderEngine
 import SwiftUI
 
 struct AutoCodeReviewRequest: Equatable {
@@ -21,7 +22,8 @@ private struct AutoCodeReviewIntentMatch: Equatable {
 @MainActor
 func makeAutoCodeReviewRequest(
     userText: String,
-    coderMode: CoderMode
+    coderMode: CoderMode,
+    currentGitBranch: String = ""
 ) -> AutoCodeReviewRequest {
     let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard coderMode != .codeReviewMultiSwarm,
@@ -45,12 +47,12 @@ func makeAutoCodeReviewRequest(
         )
     }
 
-    let selectedModes: Set<CodeReviewPanelMode> = [.standard, .bugFinder, .securityAudit]
+    let selectedModes = codeReviewModesForAutoIntent(intent)
 
     let scopeTarget: ReviewScopeTarget = intent.prefersWorkspaceScope ? .workspace : .uncommitted
     let prompt = ReviewPanelCoordinator.combinedPrompt(
         scope: scopeTarget,
-        currentBranch: "",
+        currentBranch: currentGitBranch,
         selectedModes: selectedModes,
         customInstructions: trimmed
     )
@@ -63,9 +65,20 @@ func makeAutoCodeReviewRequest(
 }
 
 extension ChatPanelView {
+    /// Normalized branch for review prompts (`GitPanelStore` uses "-" when unknown).
+    internal func resolvedGitBranchForReviewPrompt() -> String {
+        let b = gitPanelStore.currentBranch.trimmingCharacters(in: .whitespacesAndNewlines)
+        if b.isEmpty || b == "-" { return "" }
+        return b
+    }
+
     @MainActor
     internal func resolvedAutoCodeReviewRequest(for text: String) -> AutoCodeReviewRequest {
-        makeAutoCodeReviewRequest(userText: text, coderMode: coderMode)
+        makeAutoCodeReviewRequest(
+            userText: text,
+            coderMode: coderMode,
+            currentGitBranch: resolvedGitBranchForReviewPrompt()
+        )
     }
 
     internal var composerCodeReviewModePresets: [ChatComposerView.QuickCommandPreset] {
@@ -90,12 +103,25 @@ extension ChatPanelView {
         }
         let prompt = ReviewPanelCoordinator.combinedPrompt(
             scope: .uncommitted,
-            currentBranch: "",
+            currentBranch: resolvedGitBranchForReviewPrompt(),
             selectedModes: composerCodeReviewModes,
             customInstructions: text
         )
         return prompt
     }
+}
+
+private func codeReviewModesForAutoIntent(
+    _ intent: AutoCodeReviewIntentMatch
+) -> Set<CodeReviewPanelMode> {
+    var modes = Set<CodeReviewPanelMode>()
+    if intent.wantsReview { modes.insert(.standard) }
+    if intent.wantsSecurity { modes.insert(.securityAudit) }
+    if intent.wantsBugHunt { modes.insert(.bugFinder) }
+    if modes.isEmpty {
+        return [.standard, .bugFinder, .securityAudit]
+    }
+    return modes
 }
 
 /// Evità falsi positivi tipo `file` dentro `profile` o `changes` dentro `exchanges`.

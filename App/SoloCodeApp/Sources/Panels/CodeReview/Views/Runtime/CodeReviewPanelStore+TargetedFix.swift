@@ -14,16 +14,29 @@ struct ReviewPanelLaunchRequest: Equatable {
 final class ReviewPanelLaunchRequestStore {
     static let shared = ReviewPanelLaunchRequestStore()
 
-    private var pendingByConversationKey: [String: ReviewPanelLaunchRequest] = [:]
+    private var pendingQueuesByConversationKey: [String: [ReviewPanelLaunchRequest]] = [:]
 
     private init() {}
 
     func enqueue(_ request: ReviewPanelLaunchRequest) {
-        pendingByConversationKey[conversationKey(for: request.conversationId)] = request
+        let key = conversationKey(for: request.conversationId)
+        var queue = pendingQueuesByConversationKey[key] ?? []
+        queue.append(request)
+        pendingQueuesByConversationKey[key] = queue
     }
 
     func consume(conversationId: UUID?) -> ReviewPanelLaunchRequest? {
-        pendingByConversationKey.removeValue(forKey: conversationKey(for: conversationId))
+        let key = conversationKey(for: conversationId)
+        guard var queue = pendingQueuesByConversationKey[key], !queue.isEmpty else {
+            return nil
+        }
+        let first = queue.removeFirst()
+        if queue.isEmpty {
+            pendingQueuesByConversationKey.removeValue(forKey: key)
+        } else {
+            pendingQueuesByConversationKey[key] = queue
+        }
+        return first
     }
 
     private func conversationKey(for conversationId: UUID?) -> String {
