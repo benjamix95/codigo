@@ -5,9 +5,8 @@ func shouldShowLiveTodoCardInChat(
     hasLiveSwarmCards: Bool,
     hasPipelineProgress: Bool
 ) -> Bool {
-    _ = hasSwarmSteps
-    _ = hasLiveSwarmCards
-    _ = hasPipelineProgress
+    if hasPipelineProgress { return true }
+    if hasSwarmSteps && hasLiveSwarmCards { return false }
     return true
 }
 
@@ -45,8 +44,8 @@ func resolveTodoCardAssistantMessageId(
         return candidate
     }
 
-        return firstValid(activeAssistantMessageId, requireVisibleContent: true)
+    return firstValid(activeAssistantMessageId, requireVisibleContent: true)
         ?? firstValid(latestAssistantMessageIdWithTrace, requireVisibleContent: true)
         ?? firstValid(pipelineAssistantMessageId, requireVisibleContent: true)
         ?? firstValid(latestVisibleAssistantMessageId, requireVisibleContent: true)
-    }
+}

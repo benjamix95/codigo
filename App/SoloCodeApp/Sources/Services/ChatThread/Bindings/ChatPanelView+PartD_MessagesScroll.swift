@@ -62,7 +62,7 @@ extension ChatPanelView {
             messages: messages,
             activeAssistantMessageId: toolRuntime.activeToolTraceTurnsByConversation[convId]?.assistantMessageId,
             latestAssistantMessageIdWithTrace: latestAssistantMessageIdWithTrace,
-            pipelineAssistantMessageId: nil,
+            pipelineAssistantMessageId: currentAssistantPipelineTarget(for: convId)?.messageId,
             latestVisibleAssistantMessageId: latestVisibleAssistantMessageId
         )
         let messageIndexById: [UUID: Int] = Dictionary(

@@ -12,7 +12,7 @@ final class ChatTodoVisibilityTests: XCTestCase {
         )
     }
 
-    func testLiveTodoCardIsHiddenWhenSwarmAlreadyOwnsProgressUI() {
+    func testLiveTodoCardStaysVisibleWhenOnlyOneSwarmSurfaceIsActive() {
         XCTAssertTrue(
             shouldShowLiveTodoCardInChat(
                 hasSwarmSteps: true,
@@ -23,6 +23,16 @@ final class ChatTodoVisibilityTests: XCTestCase {
         XCTAssertTrue(
             shouldShowLiveTodoCardInChat(
                 hasSwarmSteps: false,
+                hasLiveSwarmCards: true,
+                hasPipelineProgress: false
+            )
+        )
+    }
+
+    func testLiveTodoCardIsHiddenWhenSwarmStepsAndLiveCardsBothPresent() {
+        XCTAssertFalse(
+            shouldShowLiveTodoCardInChat(
+                hasSwarmSteps: true,
                 hasLiveSwarmCards: true,
                 hasPipelineProgress: false
             )

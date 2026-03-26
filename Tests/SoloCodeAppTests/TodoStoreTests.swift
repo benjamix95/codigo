@@ -566,7 +566,7 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(visible, Set(["Legacy canonical", "Legacy runtime"]))
     }
 
-    func testDisplayTodosForChatPrefersScopedTodosOverLegacyFallback() {
+    func testDisplayTodosForChatMergesScopedAndLegacyUnscopedRuntimeTodos() {
         let store = makeStore()
         let conversationId = UUID()
         store.upsertFromAgent(
@@ -589,7 +589,36 @@ final class TodoStoreTests: XCTestCase {
         )
 
         let visible = Set(store.displayTodosForChat(for: conversationId).map(\.title))
-        XCTAssertEqual(visible, Set(["Scoped runtime"]))
+        XCTAssertEqual(visible, Set(["Scoped runtime", "Legacy runtime"]))
+    }
+
+    func testAdvanceNextRuntimeTodoUsesUnscopedPoolWhenConversationIdIsNil() {
+        let store = makeStore()
+        let firstId = UUID()
+        let secondId = UUID()
+        store.upsertFromAgent(
+            id: firstId,
+            title: "First",
+            status: .inProgress,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        store.upsertFromAgent(
+            id: secondId,
+            title: "Second",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        store.setStatus(id: firstId, status: .done)
+        XCTAssertTrue(store.advanceNextRuntimeTodoIfNeeded(conversationId: nil))
+        let second = store.todos.first { $0.id == secondId }
+        XCTAssertNotNil(second)
+        XCTAssertEqual(second?.status, .inProgress)
     }
 
     func testResolveComposerTodoItemsMatchesDisplayTodosForChatCanonicalPlusRuntime() {

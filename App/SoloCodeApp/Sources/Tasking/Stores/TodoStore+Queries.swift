@@ -64,8 +64,10 @@ extension TodoStore {
         return sortedCanonicalFirstTodos(legacyUnscoped)
     }
 
-    /// Returns todos suitable for chat/task live cards, scoped STRICTLY to the current conversation.
-    /// Prefer scoped todos, but preserve legacy fallback for unscoped runtime/tool todos.
+    /// Returns todos suitable for chat/task live cards.
+    /// - Merges conversation-scoped items with legacy unscoped (`planConversationId == nil`) so runtime
+    ///   tasks without scope still appear alongside scoped work in the same chat.
+    /// - When this conversation has no scoped items, falls back to all unscoped todos (legacy Codex/agent paths).
     func displayTodosForChat(for conversationId: UUID?) -> [TodoItem] {
         let visible = userVisibleTodos
         guard let conversationId else {
@@ -73,10 +75,10 @@ extension TodoStore {
         }
 
         let scoped = visible.filter { $0.planConversationId == conversationId }
-        if !scoped.isEmpty {
-            return sortedCanonicalFirstTodos(scoped)
-        }
         let legacyUnscoped = visible.filter { $0.planConversationId == nil }
+        if !scoped.isEmpty {
+            return sortedCanonicalFirstTodos(scoped + legacyUnscoped)
+        }
         return sortedCanonicalFirstTodos(legacyUnscoped)
     }
 

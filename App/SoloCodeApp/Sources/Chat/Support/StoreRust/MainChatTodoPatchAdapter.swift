@@ -49,15 +49,17 @@ enum MainChatTodoPatchAdapter {
                 else {
                     continue
                 }
-                let scopedConversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
+                let existingConversationId = todoStore.todos.first(where: { $0.id == todoId })?.planConversationId
+                let patchConversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
+                let effectiveConversationId = patchConversationId ?? existingConversationId
                 todoStore.setStatus(id: todoId, status: status)
-                if status == .done, let scopedConversationId {
-                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: scopedConversationId)
+                if status == .done {
+                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: effectiveConversationId)
                 }
                 if patch.shouldEmitTraceUpdate,
-                   let conversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
+                   let traceConversationId = patchConversationId ?? existingConversationId
                 {
-                    onTraceUpdate?(patch, conversationId, status, patch.linkedFiles)
+                    onTraceUpdate?(patch, traceConversationId, status, patch.linkedFiles)
                 }
             case .removeTodo:
                 guard let todoId = patch.todoId.flatMap(UUID.init(uuidString:)) else { continue }

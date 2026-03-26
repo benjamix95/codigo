@@ -5,17 +5,27 @@ extension TodoStore {
     /// Usato quando non esiste un piano canonico per la conversazione — vedi log `canonIdHead` vuoto con todo in overlay.
     @discardableResult
     func advanceNextRuntimeTodoIfNeeded(conversationId: UUID?) -> Bool {
-        guard let conversationId else { return false }
-        if !canonicalTodos(for: conversationId).isEmpty { return false }
-
-        let scoped = userVisibleTodos.filter { item in
-            !item.isOperationalPlaceholder
-                && !item.isPlanCanonical
-                && item.planConversationId == conversationId
+        let runtimeVisible = userVisibleTodos.filter { item in
+            !item.isOperationalPlaceholder && !item.isPlanCanonical
         }
-        guard !scoped.isEmpty else { return false }
 
-        let ordered = scoped.sorted { lhs, rhs in
+        let pool: [TodoItem]
+        if let conversationId {
+            if !canonicalTodos(for: conversationId).isEmpty { return false }
+            let scoped = runtimeVisible.filter { $0.planConversationId == conversationId }
+            let unscoped = runtimeVisible.filter { $0.planConversationId == nil }
+            pool = scoped.isEmpty ? unscoped : scoped + unscoped
+        } else {
+            let blocksUnscopedAdvance = userVisibleTodos.contains {
+                $0.isPlanCanonical && $0.status != .done
+            }
+            if blocksUnscopedAdvance { return false }
+            pool = runtimeVisible.filter { $0.planConversationId == nil }
+        }
+
+        guard !pool.isEmpty else { return false }
+
+        let ordered = pool.sorted { lhs, rhs in
             if lhs.priority.rank != rhs.priority.rank { return lhs.priority.rank < rhs.priority.rank }
             if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
             return lhs.id.uuidString < rhs.id.uuidString
@@ -33,6 +43,7 @@ extension TodoStore {
         todos[idx].updatedAt = .now
         saveTodos()
 
+        let convLog = conversationId.map { String($0.uuidString.prefix(8)) } ?? "unscoped"
         // #region agent log
         ComposerTodoDebugNDJSONLog.append(
             hypothesisId: "H3",
@@ -41,7 +52,7 @@ extension TodoStore {
             runId: "post-fix",
             data: [
                 "nextId8": String(nextPending.id.uuidString.prefix(8)),
-                "conv8": String(conversationId.uuidString.prefix(8)),
+                "conv8": convLog,
             ]
         )
         // #endregion
