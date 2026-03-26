@@ -136,7 +136,20 @@ final class PipelineIntegrationService: ObservableObject {
         onCompletion: ((PipelineCompletionContext) -> Void)? = nil,
         rawEventHandler: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)? = nil
     ) {
-        guard !isRunning(for: conversationId) else { return }
+        guard !isRunning(for: conversationId) else {
+            // #region agent log
+            AgentDebugSessionNDJSONLog.append(
+                hypothesisId: "SEND",
+                location: "PipelineIntegrationService.executeJob",
+                message: "skipped_already_running",
+                data: [
+                    "conversationId": conversationId.uuidString,
+                    "assistantMessageId": assistantMessageId.uuidString,
+                ]
+            )
+            // #endregion
+            return
+        }
 
         executionController?.clearSwarmStopRequested()
 
@@ -205,6 +218,10 @@ final class PipelineIntegrationService: ObservableObject {
         guard let conversationId else { return false }
         guard let runtime = claimTeardownRuntime(for: conversationId) else {
             snapshotsByConversation.removeValue(forKey: conversationId)
+            resolvePendingDebugEventsBeforeTeardown(for: conversationId)
+            unregisterDebugStore(for: conversationId)
+            suppressedDebugProjectionConversationIds.remove(conversationId)
+            flushSnapshotNow(for: conversationId)
             return false
         }
 
@@ -293,8 +310,8 @@ final class PipelineIntegrationService: ObservableObject {
         runtimesByConversation.removeValue(forKey: conversationId)
         snapshotsByConversation.removeValue(forKey: conversationId)
         swarmProgressStore?.clear(conversationId: conversationId)
+        resolvePendingDebugEventsBeforeTeardown(for: conversationId)
         unregisterDebugStore(for: conversationId)
-        pendingDebugEventsByConversation.removeValue(forKey: conversationId)
         suppressedDebugProjectionConversationIds.remove(conversationId)
         flushSnapshotNow(for: conversationId)
     }

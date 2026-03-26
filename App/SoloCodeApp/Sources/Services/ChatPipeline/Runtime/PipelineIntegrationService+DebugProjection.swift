@@ -121,4 +121,29 @@ extension PipelineIntegrationService {
             ]
         )
     }
+
+    /// Prima di `unregister`/`suppress` al teardown: scarica la coda verso il `DebugStore` se possibile.
+    func resolvePendingDebugEventsBeforeTeardown(for conversationId: UUID) {
+        guard let pending = pendingDebugEventsByConversation[conversationId], !pending.isEmpty else {
+            pendingDebugEventsByConversation.removeValue(forKey: conversationId)
+            return
+        }
+        let count = pending.count
+        let suppressed = suppressedDebugProjectionConversationIds.contains(conversationId)
+        if !suppressed,
+           let binding = debugStoresByConversation[conversationId],
+           let store = binding.store {
+            flushPendingDebugEvents(for: conversationId, into: store)
+            return
+        }
+        let hasLiveStore = debugStoresByConversation[conversationId]?.store != nil
+        NSLog(
+            "[PipelineIntegration] Teardown: dropping %d buffered debug event(s) for conv=%@ suppressed=%@ liveStore=%@",
+            count,
+            conversationId.uuidString.lowercased(),
+            suppressed ? "yes" : "no",
+            hasLiveStore ? "yes" : "no"
+        )
+        pendingDebugEventsByConversation.removeValue(forKey: conversationId)
+    }
 }

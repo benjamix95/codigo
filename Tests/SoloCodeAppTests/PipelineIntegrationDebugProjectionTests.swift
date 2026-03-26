@@ -142,6 +142,29 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
         XCTAssertTrue(service.isDebugProjectionSuppressed(for: conversationId))
     }
 
+    func testDiscardWithoutRuntimeClearsPendingDebugBufferAndProjectionState() {
+        let service = PipelineIntegrationService()
+        let conversationId = UUID()
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-discard-no-runtime",
+                taskId: "task-discard-no-runtime",
+                rawType: "debug_phase_update",
+                payload: [
+                    "phase": "fixing",
+                    "detail": "orphan"
+                ]
+            ),
+            for: conversationId
+        )
+        XCTAssertEqual(service.pendingDebugEventsByConversation[conversationId]?.count, 1)
+        let discarded = service.discardConversationRuntime(for: conversationId)
+        XCTAssertFalse(discarded)
+        XCTAssertNil(service.pendingDebugEventsByConversation[conversationId])
+        XCTAssertNil(service.debugStoresByConversation[conversationId])
+        XCTAssertFalse(service.isDebugProjectionSuppressed(for: conversationId))
+    }
+
     func testRegisterWithReactivateFalseKeepsBufferedEventsUntilResume() {
         let service = PipelineIntegrationService()
         let debugStore = DebugStore()
