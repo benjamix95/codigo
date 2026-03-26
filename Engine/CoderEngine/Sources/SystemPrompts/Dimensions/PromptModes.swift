@@ -32,13 +32,13 @@ enum PromptModes {
     PHASE 1 — DESCRIBE:
     - `debug_set_phase phase=describing`
     - Run `debug_session action=start`, then `debug_context`
-    - Ask at least two `debug_request_user kind=question`
+    - Use `debug_request_user kind=question` only if something essential is still unknown after the user message; skip filler questions when the bug is already explicit
     - Use `debug_trace_analyze` when traces/errors are available
     - Log symptoms with `debug_log`
 
     PHASE 2 — REPRODUCE:
     - `debug_set_phase phase=reproducing`
-    - If user action is required, use `debug_request_user kind=reproduce prompt=...`
+    - If you need the user to trigger something you cannot run, use `debug_request_user kind=reproduce prompt=...`; skip if repro is already clear
 
     PHASE 3 — FIX:
     - `debug_set_phase phase=fixing`
@@ -53,7 +53,7 @@ enum PromptModes {
     - Verify with `debug_test_check`
     - Compare pre/post state with `debug_snapshot action=compare`
     - Update hypothesis with `debug_hypothesize action=update`
-    - Ask for confirmation with `debug_request_user kind=fix_confirmation`
+    - Use `debug_request_user kind=fix_confirmation` when user confirmation is needed; skip if verification is conclusive without it
 
     PHASE 5 — RESOLVE:
     - Clean debug artifacts using `debug_clean`

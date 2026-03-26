@@ -89,14 +89,14 @@ enum PromptToolsPolicy {
       21. `debug_resolve` → resolve session with comprehensive summary.
       22. `debug_session` action=stop → close the active debug session.
 
-      MANDATORY DEBUG RULES — follow strictly:
-      - In PHASE 1 (DESCRIBE): You MUST ask at least 2 questions to the user via `debug_request_user` to understand the context before advancing. Example questions: "What error are you seeing?", "When did this start?", "What changed recently?"
-      - In PHASE 2 (REPRODUCE): You MUST ask the user for reproduction steps via `debug_request_user kind=reproduce` and WAIT for user confirmation (Proceed button) before continuing. The pipeline WILL BLOCK until the user confirms.
-      - In PHASE 3 (FIX): You MUST propose at least one hypothesis via `debug_hypothesize action=propose` BEFORE applying any fix. Use `debug_instrument` to insert logging, NOT manual file edits for debug code. Use `debug_snapshot action=capture` before AND after every fix.
-      - In PHASE 4 (VERIFY): You MUST show test results and ask for confirmation via `debug_request_user kind=fix_confirmation` before cleanup. The pipeline WILL BLOCK until the user clicks "Mark Fixed".
-      - NEVER skip a phase. NEVER advance without using `debug_set_phase`. NEVER apply a fix without a hypothesis.
-      - Use `debug_instrument` for ALL debugging instrumentation (log/assert/timing/variable). The agent's markers are automatically tracked and cleaned up by `debug_clean`.
-      - Use `debug_log` with hypothesis_id= to link observations to hypotheses for structured debugging.
+      DEBUG WORKFLOW RULES — use judgment (no ritual question counts):
+      - PHASE 1 (DESCRIBE): Start with `debug_session` / `debug_context` / `debug_trace_analyze` when useful. Use `debug_request_user kind=question` only when critical information is still missing (environment, expected vs actual, unclear repro). If the user already gave a clear error, stack trace, file, and how to reproduce — do not ask filler questions.
+      - PHASE 2 (REPRODUCE): Use `debug_request_user kind=reproduce` only when you need the user to perform steps you cannot run (e.g. on-device). If reproduction is already explicit, continue without artificial gates.
+      - PHASE 3 (FIX): Propose a hypothesis via `debug_hypothesize action=propose` before a non-trivial fix; if logs or traces already pin the cause, state that as the hypothesis evidence. Prefer `debug_instrument` over ad-hoc debug edits. Use `debug_snapshot action=capture` before and after substantive fix attempts.
+      - PHASE 4 (VERIFY): Run `debug_test_check` or equivalent checks; use `debug_request_user kind=fix_confirmation` when user judgment is needed, not when verification is fully automated and clear.
+      - Track phases with `debug_set_phase`. Do not skip phases without reason, but do not block progress solely to satisfy a question quota. Do not use `debug_request_user` as padding.
+      - Use `debug_instrument` for executable instrumentation (log/assert/timing/variable); `debug_clean` removes tracked markers.
+      - Use `debug_log` with hypothesis_id= to link observations to hypotheses.
 
       Additional debug tool tips:
       - `debug_mark` vs `debug_instrument`: Use debug_mark for simple comment markers. Use debug_instrument for real executable code (logging, assertions, timing).
@@ -105,7 +105,9 @@ enum PromptToolsPolicy {
       - `debug_timeline` format=mermaid for visual diagrams, format=text for plain lists.
       - For debug panel control, use typed tools: `debug_set_phase`, `debug_request_user`, `debug_resolve`. Legacy `debug_panel` is invalid.
 
-    Mandatory execution workflow — follow this sequence for every task:
+    Mandatory execution workflow — for normal tasks only: if you are actively driving the debug tool sequence above (`debug_session`, `debug_set_phase`, etc.), treat that sequence as primary; use direct read/grep/semantic_search and debug_* tools first, and use subagents only when parallel exploration clearly helps. TodoWrite: optional until the fix is genuinely multi-step — do not block the first investigative debug round on todos.
+
+    For other (non-debug-driven) tasks, follow this sequence:
     1. INVESTIGATE VIA SUBAGENTS (MANDATORY): Spawn 2–3 subagent_explorer in PARALLEL to investigate different areas of the codebase simultaneously. Do NOT manually grep/read across multiple files yourself — delegate to explorers. Each explorer investigates a different aspect (e.g., one explores the data model, another explores the UI layer, another explores tests). Only use direct tools (grep/read) for quick single-file lookups while waiting for subagent results.
     2. REPORT FINDINGS: After subagent results arrive, synthesize findings — problems, root causes, affected files, scope. Be explicit about what is wrong and why.
     3. CREATE TODO LIST (MANDATORY): STOP HERE and use TodoWrite to create a structured task list with ALL concrete tasks BEFORE making any code changes. This is non-negotiable — the user sees progress only through the LiveCard. Never skip this step. Never jump from step 2 directly to step 4.

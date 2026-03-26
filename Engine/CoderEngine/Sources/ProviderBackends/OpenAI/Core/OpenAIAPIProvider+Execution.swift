@@ -7,7 +7,7 @@ extension OpenAIAPIProvider {
         imageURLs: [URL]?,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
-        let systemPrompt = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let systemPrompt = context.systemPromptOverride ?? context.resolvedStandardAgentSystemPrompt
         let useOptimizerMode = context.systemPromptOverride != nil
         let resolvedContent = buildResolvedContent(prompt: fullPrompt, imageURLs: imageURLs)
         let session = Self.makeSession(timeoutSeconds: timeoutSeconds)

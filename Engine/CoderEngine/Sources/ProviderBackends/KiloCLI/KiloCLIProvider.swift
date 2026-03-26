@@ -46,7 +46,7 @@ public final class KiloCLIProvider: LLMProvider, @unchecked Sendable {
         context: WorkspaceContext,
         imageURLs: [URL]? = nil
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let systemBlock = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let systemBlock = context.systemPromptOverride ?? context.resolvedStandardAgentSystemPrompt
         let fullPrompt = systemBlock + "\n\n" + prompt + context.contextPrompt()
         let path = kiloPath
         let workspacePath = context.workspacePath

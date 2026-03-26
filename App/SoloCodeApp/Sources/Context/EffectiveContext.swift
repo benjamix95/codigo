@@ -53,7 +53,8 @@ struct EffectiveContext {
         openFiles: [OpenFile] = [],
         activeSelection: String? = nil,
         activeFilePath: String? = nil,
-        scopeMode: ContextScopeMode = .auto
+        scopeMode: ContextScopeMode = .auto,
+        preferDebuggerPromptProfile: Bool = false
     ) -> WorkspaceContext {
         let scopedPaths: [String]
 
@@ -92,7 +93,8 @@ struct EffectiveContext {
             openFiles: openFiles,
             activeSelection: activeSelection,
             activeFilePath: activeFilePath,
-            activeRootPath: activeRootPath
+            activeRootPath: activeRootPath,
+            preferDebuggerPromptProfile: preferDebuggerPromptProfile
         )
     }
 

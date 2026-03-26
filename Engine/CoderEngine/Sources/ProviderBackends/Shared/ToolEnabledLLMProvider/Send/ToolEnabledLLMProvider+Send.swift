@@ -10,8 +10,9 @@ extension ToolEnabledLLMProvider {
 
         await warmMCPNativeRegistryIfNeeded()
 
+        let baseSystemPrompt = context.resolvedStandardAgentSystemPrompt
         let initialPrompt = """
-        \(SystemPrompts.taskCompletionStrict)
+        \(baseSystemPrompt)
 
         \(toolProtocolPrompt)
 

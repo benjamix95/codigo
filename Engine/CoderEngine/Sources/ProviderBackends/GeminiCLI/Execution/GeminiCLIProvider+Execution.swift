@@ -2,7 +2,7 @@ import Foundation
 
 public extension GeminiCLIProvider {
     func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let systemBlock = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let systemBlock = context.systemPromptOverride ?? context.resolvedStandardAgentSystemPrompt
         let fullPrompt = systemBlock + "\n\n" + prompt + context.contextPrompt()
         let path = geminiPath
         let workspacePath = context.workspacePath

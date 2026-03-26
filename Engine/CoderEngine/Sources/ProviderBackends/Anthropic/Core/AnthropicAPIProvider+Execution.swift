@@ -8,7 +8,7 @@ extension AnthropicAPIProvider {
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
         let session = Self.makeSession(timeoutSeconds: timeoutSeconds)
-        let systemPrompt = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let systemPrompt = context.systemPromptOverride ?? context.resolvedStandardAgentSystemPrompt
         let useOptimizerMode = context.systemPromptOverride != nil
 
         let resolvedContent = buildRequestContent(prompt: fullPrompt, imageURLs: imageURLs)

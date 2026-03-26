@@ -201,7 +201,7 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
         context: WorkspaceContext,
         attachments: [LLMAttachment]?
     ) -> MainChatProviderSessionConfigBridge {
-        let systemPrompt = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let systemPrompt = context.systemPromptOverride ?? context.resolvedStandardAgentSystemPrompt
         let contextPrompt = context.contextPrompt()
         return MainChatProviderSessionConfigBridge(
             providerId: baseConfig.providerId,

@@ -91,7 +91,10 @@ extension CodeReviewMultiSwarmProvider {
                         openFiles: context.openFiles,
                         activeSelection: context.activeSelection,
                         activeFilePath: context.activeFilePath,
-                        activeRootPath: context.activeRootPath
+                        activeRootPath: context.activeRootPath,
+                        skipContextEnrichment: context.skipContextEnrichment,
+                        systemPromptOverride: context.systemPromptOverride,
+                        preferDebuggerPromptProfile: context.preferDebuggerPromptProfile
                     )
 
                     do {

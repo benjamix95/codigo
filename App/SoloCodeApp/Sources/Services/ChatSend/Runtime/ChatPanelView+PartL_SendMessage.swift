@@ -176,11 +176,13 @@ extension ChatPanelView {
             runtimeProviderId: effectiveRuntimeProvider.id
         )
 
+        let preferDebuggerPrompt = coderMode == .debug || showDebugPanel
         let ctx = effectiveContext.toWorkspaceContext(
             openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
             activeSelection: nil,
             activeFilePath: openFilesStore.openFilePath,
-            scopeMode: ContextScopeMode(rawValue: uiSettings.contextScopeModeRaw) ?? .auto
+            scopeMode: ContextScopeMode(rawValue: uiSettings.contextScopeModeRaw) ?? .auto,
+            preferDebuggerPromptProfile: preferDebuggerPrompt
         )
         let checkpointConvId = targetConversationId
         let checkpointCtx = ctx

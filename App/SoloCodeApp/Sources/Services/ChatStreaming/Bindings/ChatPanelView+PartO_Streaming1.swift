@@ -99,7 +99,24 @@ extension ChatPanelView {
             """
             prompt = planningInstructions + "\n\n" + prompt
         } else if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
-                let baseInstructions = """
+                let isDebugUX = coderMode == .debug || showDebugPanel
+                let baseInstructions: String = {
+                    if isDebugUX {
+                        return """
+                        **Debug session (composer addendum):** Follow the `[DEBUG MODE ACTIVE]` contract above. Prioritize `debug_*` tools and direct `read`/`grep`/`semantic_search`. Do not default to spawning multiple `subagent_explorer` calls—only if parallel exploration clearly helps after initial debug context. TodoWrite is optional until the fix is genuinely multi-step; skip mandatory reviewer/testWriter rounds until you have substantive code changes to validate.
+                        Prefer MCP plan tools for plan tracking (`plan_create`, `plan_step_upsert`, `plan_step_batch_update`,
+                        `plan_step_reorder`, `plan_step_dependency_set`, `plan_set_walkthrough`) when also tracking plan work.
+                        If MCP tools are unavailable, fallback marker:
+                        \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
+                        For code searches with rg, you can emit markers with results:
+                        \(CoderIDEMarkers.instantGrepPrefix)query=foo|pathScope=Sources|matchesCount=3|previewLines=Sources/A.swift:12:line]
+                        Read files in parallel batches (max 8 per batch) when broad context is needed. To track the batch you can emit:
+                        \(CoderIDEMarkers.readBatchPrefix)count=8|files=FileA.swift,FileB.swift|group_id=batch-1]
+                        For concurrent web searches (max 4 queries in parallel), emit status markers:
+                        \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
+                        """
+                    }
+                    return """
                     **Todo Workflow (use only when truly needed):**
                     1. Start with analysis (read/search) first. Initial codebase analysis is allowed before any todo creation.
                     2. If the task is simple (single action or <=2 concrete operations), do NOT emit todo markers.
@@ -128,6 +145,7 @@ extension ChatPanelView {
                     For concurrent web searches (max 4 queries in parallel), emit status markers:
                     \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
                     """
+                }()
                 prompt = baseInstructions + "\n" + prompt
                 let scopedTodos = todoStore.displayTodosForChat(for: conversationId)
                 if !scopedTodos.isEmpty {

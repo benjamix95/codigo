@@ -12,6 +12,18 @@ public enum SystemPrompts {
         )
     )
 
+    /// System prompt for main chat when Debug mode is active (`WorkspaceContext.preferDebuggerPromptProfile`).
+    public static let debugSessionAgentBase = optimized(
+        config: PromptConfig(
+            profile: .debugger,
+            domain: .general,
+            safetyMode: .strict,
+            verbosity: .normal,
+            toolAggressiveness: .balanced,
+            requiresFinalOutcome: true
+        )
+    )
+
     public static var cursorDefault: String {
         compose([
             PromptCore.identity,

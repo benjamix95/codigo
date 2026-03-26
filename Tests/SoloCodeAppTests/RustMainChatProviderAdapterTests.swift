@@ -37,6 +37,24 @@ final class RustMainChatProviderAdapterTests: XCTestCase {
         XCTAssertEqual(config.systemPrompt, SystemPrompts.taskCompletionStrict)
     }
 
+    func testRuntimeSessionConfigUsesDebuggerPromptWhenDebugProfilePreferred() {
+        let provider = makeProvider(
+            providerId: "codex-cli",
+            displayName: "Codex",
+            backend: .codexCli
+        )
+        let ctx = WorkspaceContext(
+            workspacePaths: [URL(fileURLWithPath: "/tmp")],
+            preferDebuggerPromptProfile: true
+        )
+        let config = provider.runtimeSessionConfig(
+            prompt: "debug",
+            context: ctx,
+            attachments: nil
+        )
+        XCTAssertEqual(config.systemPrompt, SystemPrompts.debugSessionAgentBase)
+    }
+
     func testRustTransportProviderCompletesWhenPollReturnsCompletedSnapshot() async throws {
         let responses = ResponseQueue([
             .init(

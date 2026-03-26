@@ -115,7 +115,53 @@ extension ProviderToolEventMapper {
                 mapped[key] = stringValue
             }
         }
+        mergeStructuredDebugJSONFromOutput(into: &mapped)
         return (normalizedTool, mapped)
+    }
+
+    /// MCP servers often return tool fields only inside a JSON blob in `output`; EventNormalizer parsers need top-level keys.
+    private static func mergeStructuredDebugJSONFromOutput(into mapped: inout [String: String]) {
+        let raw = (mapped["output"] ?? mapped["result"] ?? mapped["content"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard raw.hasPrefix("{"), let obj = decodeJSONObjectString(raw) else { return }
+
+        func takeString(_ key: String, into dest: String) {
+            guard mapped[dest] == nil || mapped[dest]?.isEmpty == true else { return }
+            if let s = obj[key] as? String, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                mapped[dest] = s
+            }
+        }
+        func takeNumberString(_ key: String, into dest: String) {
+            guard mapped[dest] == nil || mapped[dest]?.isEmpty == true else { return }
+            if let n = obj[key] as? NSNumber {
+                mapped[dest] = n.stringValue
+            }
+        }
+
+        takeString("message", into: "message")
+        takeString("severity", into: "severity")
+        takeString("source", into: "source")
+        takeString("detail", into: "detail")
+        takeString("category", into: "category")
+        takeString("hypothesis_id", into: "hypothesis_id")
+        takeString("hypothesisId", into: "hypothesis_id")
+        takeString("run_id", into: "run_id")
+        takeString("runId", into: "run_id")
+        takeString("title", into: "title")
+        takeString("action", into: "action")
+        takeString("phase", into: "phase")
+        takeString("path", into: "path")
+        takeString("file", into: "path")
+        takeNumberString("line", into: "line")
+        takeString("comment", into: "comment")
+        takeString("marker_info", into: "marker_info")
+        takeString("log_detail", into: "log_detail")
+        takeString("description", into: "description")
+        takeString("status", into: "status")
+
+        if mapped["message"] == nil, let s = obj["summary"] as? String, !s.isEmpty {
+            mapped["message"] = s
+        }
     }
 
     static func mapIDEState(tool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {

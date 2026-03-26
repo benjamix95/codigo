@@ -48,7 +48,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     }
     
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let systemBlock = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let systemBlock = context.systemPromptOverride ?? context.resolvedStandardAgentSystemPrompt
         let fullPrompt = Self.buildPrompt(
             systemBlock: systemBlock,
             prompt: prompt,

@@ -41,7 +41,10 @@ public struct WorkspaceContext: Sendable {
     /// When set, base providers use this as the ONLY system prompt (no taskCompletionStrict)
     /// and disable tools. Used for prompt optimization so the model rewrites text instead of executing.
     public let systemPromptOverride: String?
-    
+
+    /// When true and `systemPromptOverride` is nil, use `SystemPrompts.debugSessionAgentBase` instead of `taskCompletionStrict`.
+    public let preferDebuggerPromptProfile: Bool
+
     public init(
         workspacePaths: [URL],
         isNamedWorkspace: Bool = false,
@@ -53,7 +56,8 @@ public struct WorkspaceContext: Sendable {
         activeFilePath: String? = nil,
         activeRootPath: String? = nil,
         skipContextEnrichment: Bool = false,
-        systemPromptOverride: String? = nil
+        systemPromptOverride: String? = nil,
+        preferDebuggerPromptProfile: Bool = false
     ) {
         self.workspacePaths = workspacePaths.isEmpty ? [URL(fileURLWithPath: "/tmp")] : workspacePaths
         self.isNamedWorkspace = isNamedWorkspace
@@ -66,6 +70,7 @@ public struct WorkspaceContext: Sendable {
         self.activeRootPath = activeRootPath
         self.skipContextEnrichment = skipContextEnrichment
         self.systemPromptOverride = systemPromptOverride
+        self.preferDebuggerPromptProfile = preferDebuggerPromptProfile
     }
     
     /// Legacy initializer (single path).
@@ -78,7 +83,8 @@ public struct WorkspaceContext: Sendable {
         activeFilePath: String? = nil,
         activeRootPath: String? = nil,
         skipContextEnrichment: Bool = false,
-        systemPromptOverride: String? = nil
+        systemPromptOverride: String? = nil,
+        preferDebuggerPromptProfile: Bool = false
     ) {
         self.workspacePaths = [workspacePath]
         self.isNamedWorkspace = false
@@ -91,6 +97,7 @@ public struct WorkspaceContext: Sendable {
         self.activeRootPath = activeRootPath
         self.skipContextEnrichment = skipContextEnrichment
         self.systemPromptOverride = systemPromptOverride
+        self.preferDebuggerPromptProfile = preferDebuggerPromptProfile
     }
 
     /// Context for prompt optimization: uses only the optimizer system instruction,

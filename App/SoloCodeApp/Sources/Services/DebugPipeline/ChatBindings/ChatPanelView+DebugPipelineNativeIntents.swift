@@ -89,7 +89,8 @@ extension ChatPanelView {
             openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
             activeSelection: nil,
             activeFilePath: openFilesStore.openFilePath,
-            scopeMode: ContextScopeMode(rawValue: uiSettings.contextScopeModeRaw) ?? .auto
+            scopeMode: ContextScopeMode(rawValue: uiSettings.contextScopeModeRaw) ?? .auto,
+            preferDebuggerPromptProfile: true
         )
 
         let assistantMessageId = UUID()
