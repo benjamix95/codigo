@@ -17,17 +17,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Ignore SIGHUP: when the user presses Stop, the child CLI process
-        // is terminated and the system may deliver SIGHUP to the parent app
-        // (e.g. when a pipe-connected subprocess exits). Without this, the
-        // signal interrupts an in-flight Dictionary operation causing a crash
-        // in Swift stdlib's hashProbe. Same pattern as SIGPIPE in MCPTransportFactory.
+        // Ignore SIGHUP/SIGPIPE: the app orchestrates subprocesses over stdio
+        // pipes (CLI providers, MCP servers, LLDB). If a child exits while we
+        // still hold an in-flight read/write on those pipes, Darwin can deliver
+        // a signal to the parent process instead of surfacing a recoverable
+        // EPIPE/HUP error in Swift code.
         signal(SIGHUP, SIG_IGN)
+        signal(SIGPIPE, SIG_IGN)
 
         NSApplication.shared.setActivationPolicy(.regular)
         disableWindowRestorationLoop()
         logRustRuntimeStatus()
         MCPSharedState.ensureDirectory()
+
+        DispatchQueue.global(qos: .utility).async {
+            _ = RipgrepInstaller.ensureInstalled()
+        }
 
         installWindowStyleObservers()
 

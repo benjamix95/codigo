@@ -4,7 +4,7 @@ import OSLog
 private let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "PostgresInstaller")
 
 /// Gestisce la presenza e l'installazione automatica di PostgreSQL via Homebrew.
-/// Secondo anello della catena: Homebrew → PostgreSQL → pgvector.
+/// Secondo anello della catena: Homebrew → PostgreSQL → pgvector. **ripgrep** è installato separatamente da `RipgrepInstaller` all’avvio app.
 public enum PostgresInstaller {
 
     /// Versione preferita di PostgreSQL da installare.

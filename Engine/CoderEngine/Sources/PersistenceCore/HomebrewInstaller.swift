@@ -4,7 +4,7 @@ import OSLog
 private let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "HomebrewInstaller")
 
 /// Gestisce la presenza e l'installazione automatica di Homebrew.
-/// Usato come primo anello della catena: Homebrew → PostgreSQL → pgvector.
+/// Usato come primo anello della catena: Homebrew → PostgreSQL → pgvector (e opz. **ripgrep** via `RipgrepInstaller`).
 public enum HomebrewInstaller {
 
     /// Path standard di Homebrew su Apple Silicon.
