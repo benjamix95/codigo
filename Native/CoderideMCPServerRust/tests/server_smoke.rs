@@ -651,7 +651,7 @@ fn debug_and_skill_tools_work() {
     let request_question = read_message(&mut child);
     assert_eq!(
         request_question["result"]["content"][0]["text"].as_str(),
-        Some("OK \u{2014} debug user request queued (question)")
+        Some("OK \u{2014} debug user request recorded (question). SoloCode IDE: use coderide bridge so the debug panel shows this; standalone Rust MCP does not push UI.")
     );
 
     write_message(child.stdin.as_mut().expect("stdin"), json!({
@@ -661,7 +661,7 @@ fn debug_and_skill_tools_work() {
     let request_reproduce = read_message(&mut child);
     assert_eq!(
         request_reproduce["result"]["content"][0]["text"].as_str(),
-        Some("OK \u{2014} debug user request queued (reproduce)")
+        Some("OK \u{2014} debug user request recorded (reproduce). SoloCode IDE: use coderide bridge so the debug panel shows this; standalone Rust MCP does not push UI.")
     );
 
     write_message(child.stdin.as_mut().expect("stdin"), json!({
@@ -671,7 +671,7 @@ fn debug_and_skill_tools_work() {
     let request_fix = read_message(&mut child);
     assert_eq!(
         request_fix["result"]["content"][0]["text"].as_str(),
-        Some("OK \u{2014} debug user request queued (fix_confirmation)")
+        Some("OK \u{2014} debug user request recorded (fix_confirmation). SoloCode IDE: use coderide bridge so the debug panel shows this; standalone Rust MCP does not push UI.")
     );
 
     write_message(child.stdin.as_mut().expect("stdin"), json!({

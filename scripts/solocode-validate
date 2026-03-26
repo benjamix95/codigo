@@ -168,7 +168,7 @@ native_only_validation="true"
 for file in "${FILES[@]-}"; do
   [[ -z "$file" ]] && continue
   case "$file" in
-    Native/*|Config/validation/*|scripts/solocode-validate|scripts/validate_rust_cutover_boundary.sh|.github/workflows/validation.yml|.gitignore|docs/*)
+    Native/*|Config/validation/*|scripts/solocode-validate|scripts/validate_rust_cutover_boundary.sh|.github/workflows/ci.yml|.gitignore|docs/*)
       ;;
     *)
       native_only_validation="false"

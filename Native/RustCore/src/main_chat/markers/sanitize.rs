@@ -105,7 +105,7 @@ fn line_should_be_hidden_as_coderide_tool_noise(line: &str) -> bool {
         return false;
     }
     let lower = core.to_lowercase();
-    if lower.contains("[policy error]") || lower.contains("[coderide") {
+    if lower.contains("[policy error]") {
         return true;
     }
     lower.starts_with("coderide_")
