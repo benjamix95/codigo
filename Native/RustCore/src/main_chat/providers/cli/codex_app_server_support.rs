@@ -114,12 +114,35 @@ pub(super) fn spawn_stderr_collector(stderr: std::process::ChildStderr) -> Arc<M
         for line in reader.lines().map_while(Result::ok) {
             let mut guard = captured.lock().unwrap();
             guard.push(line);
-            if guard.len() > 20 {
+            if guard.len() > 80 {
                 guard.remove(0);
             }
         }
     });
     tail
+}
+
+/// Aggiunge stato figlio e ultime righe stderr a qualsiasi errore del path app-server
+/// (utile quando `Broken pipe` indica che Codex è uscito ma l'errore reale è solo su stderr).
+pub(super) fn enrich_codex_process_error(
+    error: String,
+    stderr_tail: &Arc<Mutex<Vec<String>>>,
+    child: &mut std::process::Child,
+) -> String {
+    let status_note = match child.try_wait() {
+        Ok(Some(status)) => format!("codex_child_exited:code={:?}", status.code()),
+        Ok(None) => "codex_child_still_running_or_unknown".to_string(),
+        Err(e) => format!("codex_try_wait_failed:{e}"),
+    };
+    let tail = stderr_tail
+        .lock()
+        .map(|lines| lines.join("\n"))
+        .unwrap_or_default();
+    let trimmed = tail.trim();
+    if trimmed.is_empty() {
+        return format!("{error}\n{status_note}");
+    }
+    format!("{error}\n{status_note}\ncodex_stderr_tail:\n{trimmed}")
 }
 
 #[cfg(test)]

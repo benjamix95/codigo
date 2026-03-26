@@ -1,6 +1,7 @@
 use super::codex_app_server_support::{
-    first_result_text, is_turn_completed, json_rpc_id, normalize_status, raw_string_field,
-    send_error, send_notification, send_request, send_result, spawn_stderr_collector,
+    enrich_codex_process_error, first_result_text, is_turn_completed, json_rpc_id,
+    normalize_status, raw_string_field, send_error, send_notification, send_request,
+    send_result, spawn_stderr_collector,
 };
 use crate::main_chat::providers::common::string_value;
 use crate::main_chat::providers::session::{emit_error, emit_raw, emit_text_delta, is_cancelled};
@@ -109,33 +110,30 @@ pub(crate) fn run(
     let stderr_tail = spawn_stderr_collector(stderr);
     let mut reader = BufReader::new(stdout);
 
-    send_request(
-        &mut stdin,
-        1,
-        "initialize",
-        json!({
-            "clientInfo": { "name": "solocode", "version": "1.0" },
-            "capabilities": { "experimentalApi": true }
-        }),
-    )?;
-    send_notification(&mut stdin, "notifications/initialized", json!({}))?;
-    send_request(&mut stdin, 2, "config/mcpServer/reload", Value::Null)?;
+    let outcome = (|| -> Result<(), String> {
+        send_request(
+            &mut stdin,
+            1,
+            "initialize",
+            json!({
+                "clientInfo": { "name": "solocode", "version": "1.0" },
+                "capabilities": { "experimentalApi": true }
+            }),
+        )?;
+        send_notification(&mut stdin, "notifications/initialized", json!({}))?;
+        send_request(&mut stdin, 2, "config/mcpServer/reload", Value::Null)?;
+        let thread_id = wait_for_thread_start(session_id, config, &mut stdin, &mut reader)?;
+        start_turn(session_id, config, &thread_id, &mut stdin, &mut reader)?;
+        stream_until_turn_completed(session_id, &mut stdin, &mut reader)
+    })();
 
-    let thread_id = wait_for_thread_start(session_id, config, &mut stdin, &mut reader)?;
-    start_turn(session_id, config, &thread_id, &mut stdin, &mut reader)?;
-    let result = stream_until_turn_completed(session_id, &mut stdin, &mut reader);
-    if let Err(error) = result {
-        let tail = stderr_tail
-            .lock()
-            .ok()
-            .map(|items| items.join("\n"))
-            .unwrap_or_default();
-        if tail.trim().is_empty() {
-            return Err(error);
+    match outcome {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            let child = process.child_mut()?;
+            Err(enrich_codex_process_error(err, &stderr_tail, child))
         }
-        return Err(format!("{error}\n{tail}"));
     }
-    Ok(())
 }
 
 fn wait_for_thread_start(
