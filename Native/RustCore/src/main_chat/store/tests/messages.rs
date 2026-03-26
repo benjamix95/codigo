@@ -369,3 +369,31 @@ fn load_snapshot_normalizes_primary_text_and_reasoning_blocks() {
         .iter()
         .any(|block| block.kind == "reasoning" && block.text == "Thinking"));
 }
+
+#[test]
+fn save_reasoning_strips_coderide_markers() {
+    let mut request = action(
+        MainChatStoreSnapshot {
+            conversations: vec![conversation_with_messages(
+                "conv-r",
+                "R",
+                vec![
+                    message("u1", "user", "hi", false),
+                    message("a1", "assistant", "ok", false),
+                ],
+            )],
+            plan_boards: Default::default(),
+        },
+        "save_reasoning",
+    );
+    request.conversation_id = Some("conv-r".to_string());
+    request.text = Some(
+        "Hello [CODERIDE:policy_ack|hash=abc123] tail".to_string(),
+    );
+    let snapshot = unwrap_snapshot(handle_action(request));
+    let msg = snapshot.conversations[0].messages.last().expect("assistant");
+    let rt = msg.reasoning_text.as_deref().unwrap_or("");
+    assert!(!rt.contains("CODERIDE"));
+    assert!(rt.contains("Hello"));
+    assert!(rt.contains("tail"));
+}
