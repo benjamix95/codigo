@@ -433,7 +433,14 @@ extension PipelineIntegrationService {
                 )
             case .reasoningDelta:
                 var mergedPayload = last.payload
-                mergedPayload["delta"] = (last.payload["delta"] ?? "") + (event.payload["delta"] ?? "")
+                let previousChunk = last.payload["output"] ?? last.payload["delta"] ?? ""
+                let incomingChunk = event.payload["output"] ?? event.payload["delta"] ?? ""
+                let combined = ChatStreamReasoningTextMerge.merge(
+                    existing: previousChunk.isEmpty ? nil : previousChunk,
+                    incoming: incomingChunk
+                )
+                mergedPayload["output"] = combined
+                mergedPayload.removeValue(forKey: "delta")
                 coalesced[coalesced.count - 1] = ChatPipelineEvent(
                     conversationId: last.conversationId,
                     assistantMessageId: last.assistantMessageId,
@@ -462,9 +469,11 @@ extension PipelineIntegrationService {
               event.kind == previous.kind else { return false }
 
         switch event.kind {
-        case .textDelta, .textReplace, .reasoningDelta:
+        case .textDelta, .textReplace:
             return event.payload["stream_id"] == previous.payload["stream_id"]
                 && event.payload["task_id"] == previous.payload["task_id"]
+        case .reasoningDelta:
+            return (event.payload["group_id"] ?? "reasoning") == (previous.payload["group_id"] ?? "reasoning")
         default:
             return false
         }

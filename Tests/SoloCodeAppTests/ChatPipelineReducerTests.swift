@@ -108,6 +108,76 @@ final class ChatPipelineReducerTests: XCTestCase {
         XCTAssertEqual(state.primaryTextSnapshot, "first second")
     }
 
+    func testReasoningDeltaAcceptsDeltaPayloadWhenOutputMissing() {
+        let conversationId = UUID()
+        let assistantMessageId = UUID()
+        var state = ChatTurnState(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            turnId: assistantMessageId.uuidString
+        )
+        state = ChatPipelineReducer.apply(
+            state: state,
+            event: ChatPipelineEvent(
+                conversationId: conversationId,
+                assistantMessageId: assistantMessageId,
+                turnId: assistantMessageId.uuidString,
+                sequence: 1,
+                source: "codex",
+                kind: .reasoningDelta,
+                payload: ["delta": "chunk-da-chiave-delta", "group_id": "g-delta"]
+            )
+        )
+        XCTAssertTrue(state.reasoningTextSnapshot?.contains("chunk-da-chiave-delta") == true)
+    }
+
+    func testSequentialReasoningAppliesMatchesSingleCoalescedStylePayload() {
+        let conversationId = UUID()
+        let assistantMessageId = UUID()
+        let base = ChatTurnState(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            turnId: assistantMessageId.uuidString
+        )
+        let e1 = ChatPipelineEvent(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            turnId: assistantMessageId.uuidString,
+            sequence: 1,
+            source: "codex",
+            kind: .reasoningDelta,
+            payload: ["output": "hello ", "group_id": "g-merge"]
+        )
+        let e2 = ChatPipelineEvent(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            turnId: assistantMessageId.uuidString,
+            sequence: 2,
+            source: "codex",
+            kind: .reasoningDelta,
+            payload: ["output": "world", "group_id": "g-merge"]
+        )
+        var sequential = base
+        sequential = ChatPipelineReducer.apply(state: sequential, event: e1)
+        sequential = ChatPipelineReducer.apply(state: sequential, event: e2)
+
+        let afterFirstChunk = ChatStreamReasoningTextMerge.merge(existing: nil, incoming: "hello ")
+        let mergedOut = ChatStreamReasoningTextMerge.merge(existing: afterFirstChunk, incoming: "world")
+        let eMerged = ChatPipelineEvent(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            turnId: assistantMessageId.uuidString,
+            sequence: 1,
+            source: "codex",
+            kind: .reasoningDelta,
+            payload: ["output": mergedOut, "group_id": "g-merge"]
+        )
+        var single = base
+        single = ChatPipelineReducer.apply(state: single, event: eMerged)
+
+        XCTAssertEqual(sequential.reasoningByGroupId["g-merge"], single.reasoningByGroupId["g-merge"])
+    }
+
     func testReducerKeepsMermaidAsArtifactInsteadOfReplacingPrimaryText() {
         let conversationId = UUID()
         let assistantMessageId = UUID()

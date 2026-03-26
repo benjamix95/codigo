@@ -43,9 +43,10 @@ enum ChatPipelineReducer {
         case .reasoningDelta:
             let groupId = event.payload["group_id"] ?? "reasoning"
             let current = next.reasoningByGroupId[groupId]
+            let incoming = event.payload["output"] ?? event.payload["delta"] ?? ""
             let merged = ChatStreamReasoningTextMerge.merge(
                 existing: current,
-                incoming: event.payload["output"] ?? ""
+                incoming: incoming
             )
             if !merged.isEmpty {
                 next.reasoningByGroupId[groupId] = merged
