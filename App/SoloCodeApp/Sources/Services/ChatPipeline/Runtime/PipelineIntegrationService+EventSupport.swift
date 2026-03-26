@@ -67,6 +67,14 @@ extension PipelineIntegrationService {
         let status = runtime.chatTurnState.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard status != "completed", status != "failed" else { return }
 
+        // Codex app-server: `item/agentMessage/delta` con phase `commentary` va su eventi `reasoning`, non nel primary.
+        let phase = (rawEvent.payload["phase"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if phase == "commentary" {
+            return
+        }
+
         let rawText = rawEvent.payload["output"] ?? rawEvent.payload["text"]
             ?? rawEvent.payload["content"] ?? rawEvent.payload["detail"] ?? ""
         let cleaned = ChatStore.stripCoderideMarkers(rawText, aggressive: true)

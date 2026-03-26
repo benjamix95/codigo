@@ -53,17 +53,54 @@ impl Drop for ChildProcessGuard {
 
 #[derive(Default)]
 struct CodexAgentMessageGate {
-    cumulative_text: String,
+    /// Testo visibile nella bolla risposta (`text_delta` / `assistant_update` “output”).
+    final_answer_text: String,
+    /// Fase Responses “commentary”: non deve finire nel primary text.
+    commentary_text: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CodexAgentMessagePhaseKind {
+    Commentary,
+    FinalAnswer,
 }
 
 impl CodexAgentMessageGate {
-    fn push_delta(&mut self, delta: &str) -> Option<String> {
-        self.cumulative_text.push_str(delta);
-        Some(delta.to_string())
+    fn classify_agent_phase(phase: Option<&str>) -> CodexAgentMessagePhaseKind {
+        match phase.map(|p| p.trim().to_lowercase()).as_deref() {
+            Some("commentary") => CodexAgentMessagePhaseKind::Commentary,
+            _ => CodexAgentMessagePhaseKind::FinalAnswer,
+        }
+    }
+
+    /// Delta `item/agentMessage/delta`: commentary vs risposta utente (final).
+    fn push_agent_message_delta(
+        &mut self,
+        delta: &str,
+        phase: Option<&str>,
+    ) -> Option<(CodexAgentMessagePhaseKind, String)> {
+        if delta.is_empty() {
+            return None;
+        }
+        let kind = Self::classify_agent_phase(phase);
+        match kind {
+            CodexAgentMessagePhaseKind::Commentary => {
+                self.commentary_text.push_str(delta);
+            }
+            CodexAgentMessagePhaseKind::FinalAnswer => {
+                self.final_answer_text.push_str(delta);
+            }
+        }
+        Some((kind, delta.to_string()))
     }
 
     fn cumulative_text(&self) -> String {
-        self.cumulative_text.clone()
+        self.final_answer_text.clone()
+    }
+
+    #[cfg(test)]
+    fn commentary_cumulative(&self) -> String {
+        self.commentary_text.clone()
     }
 
     fn release_after_operational_event(&mut self) -> Option<String> {
@@ -273,29 +310,56 @@ fn handle_notification(
         }
         "item/agentMessage/delta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
-                rust_codex_trace(format!("agent delta chars={}", delta.len()));
-                if let Some(visible_delta) = gate.push_delta(&delta) {
-                    rust_codex_trace(format!("emit text_delta chars={}", visible_delta.len()));
-                    emit_text_delta(session_id, &visible_delta);
-                    let cumulative = gate.cumulative_text();
-                    let detail = cumulative
-                        .split('\n')
-                        .last()
-                        .unwrap_or_default()
-                        .chars()
-                        .take(240)
-                        .collect::<String>();
-                    let mut card = BTreeMap::from([
-                        ("title".to_string(), "Working".to_string()),
-                        ("detail".to_string(), detail),
-                        ("output".to_string(), cumulative),
-                        ("status".to_string(), "in_progress".to_string()),
-                    ]);
-                    // Responses-style phases on agentMessage (commentary | final_answer), se presenti.
-                    if let Some(phase) = payload.get("phase").and_then(string_value) {
-                        card.insert("phase".to_string(), phase);
+                let phase = payload.get("phase").and_then(string_value);
+                rust_codex_trace(format!(
+                    "agent delta chars={} phase={}",
+                    delta.len(),
+                    phase.as_deref().unwrap_or("")
+                ));
+                if let Some((kind, visible_delta)) =
+                    gate.push_agent_message_delta(&delta, phase.as_deref())
+                {
+                    match kind {
+                        CodexAgentMessagePhaseKind::Commentary => {
+                            let mut reasoning = BTreeMap::from([
+                                ("output".to_string(), visible_delta),
+                                ("title".to_string(), "Reasoning".to_string()),
+                                (
+                                    "group_id".to_string(),
+                                    "codex-agent-commentary".to_string(),
+                                ),
+                            ]);
+                            if let Some(p) = phase.clone() {
+                                reasoning.insert("phase".to_string(), p);
+                            }
+                            emit_raw(session_id, "reasoning", reasoning);
+                        }
+                        CodexAgentMessagePhaseKind::FinalAnswer => {
+                            rust_codex_trace(format!(
+                                "emit text_delta chars={}",
+                                visible_delta.len()
+                            ));
+                            emit_text_delta(session_id, &visible_delta);
+                            let cumulative = gate.cumulative_text();
+                            let detail = cumulative
+                                .split('\n')
+                                .last()
+                                .unwrap_or_default()
+                                .chars()
+                                .take(240)
+                                .collect::<String>();
+                            let mut card = BTreeMap::from([
+                                ("title".to_string(), "Working".to_string()),
+                                ("detail".to_string(), detail),
+                                ("output".to_string(), cumulative),
+                                ("status".to_string(), "in_progress".to_string()),
+                            ]);
+                            if let Some(p) = phase {
+                                card.insert("phase".to_string(), p);
+                            }
+                            emit_raw(session_id, "assistant_update", card);
+                        }
                     }
-                    emit_raw(session_id, "assistant_update", card);
                 }
             }
         }
@@ -454,16 +518,36 @@ fn handle_item_notification(
     } else if item_type == "agentMessage" {
         let phase = item.get("phase").and_then(string_value);
         if method == "item/completed" {
-            let mut card = BTreeMap::new();
-            if let Some(p) = phase {
-                card.insert("phase".to_string(), p);
+            let is_commentary = CodexAgentMessageGate::classify_agent_phase(phase.as_deref())
+                == CodexAgentMessagePhaseKind::Commentary;
+            if is_commentary {
+                if let Some(text) = item.get("text").and_then(string_value) {
+                    let mut card = BTreeMap::from([
+                        ("title".to_string(), "Reasoning".to_string()),
+                        (
+                            "group_id".to_string(),
+                            "codex-agent-commentary".to_string(),
+                        ),
+                        ("output".to_string(), codex_truncate_str(&text, 12_000)),
+                        ("lifecycle".to_string(), "completed".to_string()),
+                    ]);
+                    if let Some(p) = phase {
+                        card.insert("phase".to_string(), p.to_string());
+                    }
+                    emit_raw(session_id, "reasoning", card);
+                }
+            } else {
+                let mut card = BTreeMap::new();
+                if let Some(p) = phase {
+                    card.insert("phase".to_string(), p);
+                }
+                if let Some(text) = item.get("text").and_then(string_value) {
+                    card.insert("output".to_string(), codex_truncate_str(&text, 2_000));
+                }
+                card.insert("lifecycle".to_string(), "completed".to_string());
+                card.insert("title".to_string(), "Agent message".to_string());
+                emit_raw(session_id, "assistant_update", card);
             }
-            if let Some(text) = item.get("text").and_then(string_value) {
-                card.insert("output".to_string(), codex_truncate_str(&text, 2_000));
-            }
-            card.insert("lifecycle".to_string(), "completed".to_string());
-            card.insert("title".to_string(), "Agent message".to_string());
-            emit_raw(session_id, "assistant_update", card);
         } else if let Some(p) = phase {
             emit_raw(
                 session_id,
@@ -1013,6 +1097,7 @@ mod tests {
     use super::{
         capitalize_first, codex_make_swarm_id, codex_readable_name, codex_subagent_role_name,
         codex_truncate_str, is_operational_mcp_tool, ChildProcessGuard, CodexAgentMessageGate,
+        CodexAgentMessagePhaseKind,
     };
     use std::process::Command;
 
@@ -1039,20 +1124,16 @@ mod tests {
     fn codex_agent_message_gate_streams_text_immediately() {
         let mut gate = CodexAgentMessageGate::default();
 
-        assert_eq!(
-            gate.push_delta("Prima risposta. ").as_deref(),
-            Some("Prima risposta. ")
-        );
-        assert_eq!(
-            gate.push_delta("Ancora testo.").as_deref(),
-            Some("Ancora testo.")
-        );
+        let (k0, _) = gate
+            .push_agent_message_delta("Prima risposta. ", None)
+            .unwrap();
+        assert_eq!(k0, CodexAgentMessagePhaseKind::FinalAnswer);
+        let (k1, _) = gate.push_agent_message_delta("Ancora testo.", None).unwrap();
+        assert_eq!(k1, CodexAgentMessagePhaseKind::FinalAnswer);
         assert_eq!(gate.cumulative_text(), "Prima risposta. Ancora testo.");
         assert_eq!(gate.release_after_operational_event(), None);
-        assert_eq!(
-            gate.push_delta(" Dopo il tool.").as_deref(),
-            Some(" Dopo il tool.")
-        );
+        let (k2, _) = gate.push_agent_message_delta(" Dopo il tool.", None).unwrap();
+        assert_eq!(k2, CodexAgentMessagePhaseKind::FinalAnswer);
         assert_eq!(
             gate.cumulative_text(),
             "Prima risposta. Ancora testo. Dopo il tool."
@@ -1060,12 +1141,29 @@ mod tests {
     }
 
     #[test]
+    fn codex_agent_message_gate_splits_commentary_from_final_answer() {
+        let mut gate = CodexAgentMessageGate::default();
+        let (k0, d0) = gate
+            .push_agent_message_delta("Userò skill.", Some("commentary"))
+            .unwrap();
+        assert_eq!(k0, CodexAgentMessagePhaseKind::Commentary);
+        assert_eq!(d0, "Userò skill.");
+        assert_eq!(gate.cumulative_text(), "");
+        assert_eq!(gate.commentary_cumulative(), "Userò skill.");
+
+        let (k1, _) = gate
+            .push_agent_message_delta("Ecco la risposta.", Some("final_answer"))
+            .unwrap();
+        assert_eq!(k1, CodexAgentMessagePhaseKind::FinalAnswer);
+        assert_eq!(gate.cumulative_text(), "Ecco la risposta.");
+    }
+
+    #[test]
     fn codex_agent_message_gate_has_no_pending_flush_when_streaming_live() {
         let mut gate = CodexAgentMessageGate::default();
-        assert_eq!(
-            gate.push_delta("Risposta finale").as_deref(),
-            Some("Risposta finale")
-        );
+        assert!(gate
+            .push_agent_message_delta("Risposta finale", None)
+            .is_some());
         assert_eq!(gate.flush_pending(), None);
     }
 
