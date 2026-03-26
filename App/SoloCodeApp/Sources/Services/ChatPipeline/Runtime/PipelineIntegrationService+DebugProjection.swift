@@ -8,6 +8,9 @@ extension PipelineIntegrationService {
         for conversationId: UUID,
         applyEffects: @escaping @MainActor (DebugProjectionUIEffects) -> Void = { _ in }
     ) {
+        // Nuovo binding al pannello = riattiva la proiezione per questa conversazione e scarica il buffer.
+        // Altrimenti, dopo suspend + cambio thread, flushPending resterebbe bloccato fino a resume esplicito.
+        suppressedDebugProjectionConversationIds.remove(conversationId)
         debugStoresByConversation[conversationId] = DebugProjectionStoreBinding(
             store: debugStore,
             applyEffects: applyEffects
@@ -18,6 +21,7 @@ extension PipelineIntegrationService {
     func unregisterDebugStore(for conversationId: UUID?) {
         guard let conversationId else { return }
         debugStoresByConversation.removeValue(forKey: conversationId)
+        suppressedDebugProjectionConversationIds.remove(conversationId)
     }
 
     func suspendDebugProjection(for conversationId: UUID?) {

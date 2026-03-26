@@ -64,6 +64,34 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
         XCTAssertEqual(debugStore.phase, .verifying)
     }
 
+    func testRegisterDebugStoreAfterSuspendFlushesBufferedWithoutExplicitResume() {
+        let service = PipelineIntegrationService()
+        let debugStore = DebugStore()
+        let conversationId = UUID()
+
+        service.registerDebugStore(debugStore, for: conversationId)
+        service.suspendDebugProjection(for: conversationId)
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-rebind",
+                taskId: "task-rebind",
+                rawType: "debug_phase_update",
+                payload: [
+                    "phase": "instrumenting",
+                    "detail": "Instrumentation"
+                ]
+            ),
+            for: conversationId
+        )
+
+        XCTAssertEqual(debugStore.phase, .idle)
+
+        service.registerDebugStore(debugStore, for: conversationId)
+
+        XCTAssertEqual(debugStore.phase, .instrumenting)
+    }
+
     func testActivateDebugModeStartsDescribingSessionAndRevealsPanel() {
         let service = PipelineIntegrationService()
         let debugStore = DebugStore()
