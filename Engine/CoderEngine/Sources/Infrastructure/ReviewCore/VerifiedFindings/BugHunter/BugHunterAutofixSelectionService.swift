@@ -291,9 +291,11 @@ public enum VerifiedFindingsPipelineStatusService {
             let total = max(toolsTotal, 1)
             return 20 + Int((Double(toolsCompleted) / Double(total)) * 20.0)
         case "discovery":
-            // Piccola base > 0; risponde anche a worker attivi così la % si muove in tempo reale.
+            // Base allineata a `queued` (~4%) + bump per worker; evita salti a ~10–22% appena entri in discovery.
             let bump = min(12, max(0, snapshot.activeWorkerCount) * 3)
-            return toolsCompleted > 0 ? min(28, 18 + bump) : min(22, 10 + bump)
+            return toolsCompleted > 0
+                ? min(28, 18 + bump)
+                : min(22, 4 + bump)
         default:
             return snapshot.startedAt == nil ? 0 : 4
         }

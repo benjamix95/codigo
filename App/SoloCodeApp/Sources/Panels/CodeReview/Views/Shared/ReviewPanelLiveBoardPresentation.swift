@@ -53,10 +53,10 @@ enum ReviewPanelLiveBoardPresentation {
 }
 
 extension ReviewPipelineJobState {
-    /// Percentuale mostrata: non scende sotto la frazione della fase corrente (anello allineato a “Fase N di M”).
+    /// Avanzamento anello = solo `progressPercent` dal motore (0…100). Non usiamo più un pavimento
+    /// tipo “fase 1/6 ⇒ 16%”: confondeva (alla riapertura sembrava già partito) e non ripartiva “da zero” per fase.
     var displayProgressPercent: Int {
-        let stepPortion = (visibleStepNumber * 100) / max(visibleStepsTotal, 1)
-        return min(100, max(progressPercent, stepPortion))
+        min(100, max(0, progressPercent))
     }
 
     var displayProgressText: String { "\(displayProgressPercent)%" }
