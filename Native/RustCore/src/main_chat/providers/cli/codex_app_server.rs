@@ -111,13 +111,20 @@ pub(crate) fn run(
     let mut reader = BufReader::new(stdout);
 
     let outcome = (|| -> Result<(), String> {
+        // Allineato a https://developers.openai.com/codex/app-server (initialize + experimentalApi).
         send_request(
             &mut stdin,
             1,
             "initialize",
             json!({
-                "clientInfo": { "name": "solocode", "version": "1.0" },
-                "capabilities": { "experimentalApi": true }
+                "clientInfo": {
+                    "name": "solocode",
+                    "title": "Solo Code",
+                    "version": env!("CARGO_PKG_VERSION")
+                },
+                "capabilities": {
+                    "experimentalApi": true
+                }
             }),
         )?;
         send_notification(&mut stdin, "notifications/initialized", json!({}))?;
@@ -278,30 +285,103 @@ fn handle_notification(
                         .chars()
                         .take(240)
                         .collect::<String>();
-                    emit_raw(
-                        session_id,
-                        "assistant_update",
-                        BTreeMap::from([
-                            ("title".to_string(), "Working".to_string()),
-                            ("detail".to_string(), detail),
-                            ("output".to_string(), cumulative),
-                            ("status".to_string(), "in_progress".to_string()),
-                        ]),
-                    );
+                    let mut card = BTreeMap::from([
+                        ("title".to_string(), "Working".to_string()),
+                        ("detail".to_string(), detail),
+                        ("output".to_string(), cumulative),
+                        ("status".to_string(), "in_progress".to_string()),
+                    ]);
+                    // Responses-style phases on agentMessage (commentary | final_answer), se presenti.
+                    if let Some(phase) = payload.get("phase").and_then(string_value) {
+                        card.insert("phase".to_string(), phase);
+                    }
+                    emit_raw(session_id, "assistant_update", card);
                 }
             }
         }
         "item/reasoning/textDelta" | "item/reasoning/summaryTextDelta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
                 rust_codex_trace(format!("reasoning delta chars={}", delta.len()));
+                let mut reasoning = BTreeMap::from([
+                    ("output".to_string(), delta),
+                    ("title".to_string(), "Reasoning".to_string()),
+                    ("group_id".to_string(), "reasoning-stream".to_string()),
+                ]);
+                if let Some(idx) = payload.get("summaryIndex").and_then(|v| v.as_i64()) {
+                    reasoning.insert("summary_index".to_string(), idx.to_string());
+                }
+                emit_raw(session_id, "reasoning", reasoning);
+            }
+        }
+        "item/reasoning/summaryPartAdded" => {
+            let summary_index = payload
+                .get("summaryIndex")
+                .and_then(|v| v.as_u64())
+                .or_else(|| {
+                    payload
+                        .get("summaryIndex")
+                        .and_then(|v| v.as_i64())
+                        .map(|i| i.max(0) as u64)
+                })
+                .unwrap_or(0);
+            let item_id = payload.get("itemId").and_then(string_value).unwrap_or_default();
+            let group_id = if item_id.is_empty() {
+                format!("reasoning-summary-{summary_index}")
+            } else {
+                format!("reasoning-{item_id}-s{summary_index}")
+            };
+            rust_codex_trace(format!(
+                "reasoning summaryPartAdded idx={summary_index} itemId={item_id}"
+            ));
+            emit_raw(
+                session_id,
+                "reasoning",
+                BTreeMap::from([
+                    ("output".to_string(), "\n".to_string()),
+                    ("title".to_string(), "Reasoning".to_string()),
+                    ("group_id".to_string(), group_id),
+                    ("detail".to_string(), format!("summaryPartAdded({summary_index})")),
+                ]),
+            );
+        }
+        "item/plan/delta" => {
+            if let Some(delta) = raw_string_field(&payload, "delta") {
+                rust_codex_trace(format!("plan delta chars={}", delta.len()));
+                let item_id = payload.get("itemId").and_then(string_value).unwrap_or_default();
+                let group_id = if item_id.is_empty() {
+                    "codex-plan-stream".to_string()
+                } else {
+                    format!("codex-plan-{item_id}")
+                };
                 emit_raw(
                     session_id,
                     "reasoning",
                     BTreeMap::from([
                         ("output".to_string(), delta),
-                        ("title".to_string(), "Reasoning".to_string()),
+                        ("title".to_string(), "Plan".to_string()),
+                        ("group_id".to_string(), group_id),
                     ]),
                 );
+            }
+        }
+        "turn/plan/updated" => {
+            let mut m = BTreeMap::new();
+            if let Some(ex) = payload.get("explanation").and_then(string_value) {
+                m.insert(
+                    "explanation".to_string(),
+                    codex_truncate_str(&ex, 4_000),
+                );
+            }
+            if let Some(plan) = payload.get("plan") {
+                if let Ok(s) = serde_json::to_string(plan) {
+                    m.insert("plan_json".to_string(), codex_truncate_str(&s, 12_000));
+                }
+            }
+            if let Some(tid) = payload.get("turnId").and_then(string_value) {
+                m.insert("turn_id".to_string(), tid);
+            }
+            if !m.is_empty() {
+                emit_raw(session_id, "turn_plan_updated", m);
             }
         }
         "item/started" | "item/completed" => {
@@ -342,6 +422,70 @@ fn handle_item_notification(
         emit_file_change(session_id, method, &item);
         if let Some(buffered) = gate.release_after_operational_event() {
             emit_text_delta(session_id, &buffered);
+        }
+    } else if item_type == "agentMessage" {
+        let phase = item.get("phase").and_then(string_value);
+        if method == "item/completed" {
+            let mut card = BTreeMap::new();
+            if let Some(p) = phase {
+                card.insert("phase".to_string(), p);
+            }
+            if let Some(text) = item.get("text").and_then(string_value) {
+                card.insert("output".to_string(), codex_truncate_str(&text, 2_000));
+            }
+            card.insert("lifecycle".to_string(), "completed".to_string());
+            card.insert("title".to_string(), "Agent message".to_string());
+            emit_raw(session_id, "assistant_update", card);
+        } else if let Some(p) = phase {
+            emit_raw(
+                session_id,
+                "assistant_update",
+                BTreeMap::from([
+                    ("phase".to_string(), p),
+                    ("lifecycle".to_string(), "started".to_string()),
+                    ("title".to_string(), "Agent message".to_string()),
+                ]),
+            );
+        }
+    } else if item_type == "reasoning" {
+        let mut card = BTreeMap::from([("title".to_string(), "Reasoning".to_string())]);
+        if let Some(id) = item.get("id").and_then(string_value) {
+            card.insert("group_id".to_string(), format!("reasoning-item-{id}"));
+        }
+        if let Some(summary) = item.get("summary").and_then(string_value) {
+            card.insert(
+                "output".to_string(),
+                codex_truncate_str(&summary, 12_000),
+            );
+        } else if let Some(content) = item.get("content") {
+            if let Some(s) = content.as_str() {
+                card.insert("output".to_string(), codex_truncate_str(s, 12_000));
+            } else if let Ok(s) = serde_json::to_string(content) {
+                card.insert("output".to_string(), codex_truncate_str(&s, 12_000));
+            }
+        }
+        if method == "item/completed" {
+            card.insert("lifecycle".to_string(), "completed".to_string());
+        }
+        if card.contains_key("output") {
+            emit_raw(session_id, "reasoning", card);
+        }
+    } else if item_type == "plan" {
+        let mut card = BTreeMap::from([("title".to_string(), "Plan".to_string())]);
+        if let Some(id) = item.get("id").and_then(string_value) {
+            card.insert("group_id".to_string(), format!("codex-plan-{id}"));
+        }
+        if let Some(text) = item.get("text").and_then(string_value) {
+            card.insert(
+                "output".to_string(),
+                codex_truncate_str(&text, 12_000),
+            );
+        }
+        if method == "item/completed" {
+            card.insert("lifecycle".to_string(), "completed".to_string());
+        }
+        if card.contains_key("output") {
+            emit_raw(session_id, "reasoning", card);
         }
     }
 }
