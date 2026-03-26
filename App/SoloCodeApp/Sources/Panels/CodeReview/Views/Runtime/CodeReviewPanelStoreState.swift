@@ -25,6 +25,8 @@ struct ReviewReportExportNotice: Equatable {
 /// Execution lifecycle state for the review run.
 struct ReviewRuntimeState {
     var isRunning: Bool = false
+    /// True mentre si prepara il run (indice / prompt / provider) prima che Rust segni `isRunning`.
+    var isReviewLaunchPreparing: Bool = false
     var runStartedAt: Date?
     var frozenTimerText: String?
     var lastError: String?

@@ -75,7 +75,7 @@ struct CodeReviewPanelView: View {
 
     /// Barra inferiore solo durante run o subito dopo completamento (export); l’avvio review è dal tab Commands.
     private var showsBottomComposer: Bool {
-        store.isRunning || store.frozenTimerText != nil
+        store.isRunning || store.isReviewLaunchPreparing || store.frozenTimerText != nil
     }
 
     // MARK: - Bottom Mini Composer
@@ -110,6 +110,14 @@ struct CodeReviewPanelView: View {
                     )
                 }
                 .buttonStyle(.plain)
+            } else if store.isReviewLaunchPreparing && !store.isRunning {
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.mini)
+                    Text("Preparing review…")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(store.accent)
+                }
+                Spacer()
             } else if let frozen = store.frozenTimerText {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")

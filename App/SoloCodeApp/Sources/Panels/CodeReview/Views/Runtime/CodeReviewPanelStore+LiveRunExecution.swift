@@ -29,6 +29,11 @@ extension CodeReviewPanelStore {
         promptOverride: String? = nil,
         invocationLabel: String? = nil
     ) async {
+        isReviewLaunchPreparing = !isRunning
+        if isReviewLaunchPreparing {
+            await Task.yield()
+        }
+
         var codebasePromptPaths: [String]?
         if case .codebase = scope {
             let split = await gatherCodebaseIndexedPathsForRun(depth: reviewScanDepth)
@@ -54,6 +59,7 @@ extension CodeReviewPanelStore {
         let resolvedLabel = invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes)
 
         guard !isRunning else {
+            isReviewLaunchPreparing = false
             ReviewPanelLaunchRequestStore.shared.enqueue(
                 ReviewPanelLaunchRequest(
                     conversationId: conversationId,
@@ -73,6 +79,7 @@ extension CodeReviewPanelStore {
         selectTab(.findings)
 
         guard let plan = planPanelReviewLaunch() else {
+            isReviewLaunchPreparing = false
             applyUnavailableRunError(
                 "Failed to plan review session",
                 targetTab: .findings
@@ -95,6 +102,7 @@ extension CodeReviewPanelStore {
             sessionConfig: sessionConfig
         ) else {
             pendingCodebaseWorkspaceIncludedPaths = nil
+            isReviewLaunchPreparing = false
             applyUnavailableRunError(
                 "Failed to create review provider",
                 targetTab: .findings
@@ -144,6 +152,7 @@ extension CodeReviewPanelStore {
     }
 
     func cancelReview() {
+        isReviewLaunchPreparing = false
         coordinator.cancelReview()
         completePanelRun(selectTab: .findings)
     }
@@ -257,6 +266,7 @@ extension CodeReviewPanelStore {
             selectedTabOnStart: selectedTabOnStart,
             startedAt: Date()
         ) else {
+            isReviewLaunchPreparing = false
             let message = ReviewPanelStateRustAdapter.runtimeUnavailableMessage
             applyUnavailableRunError(message, targetTab: selectedTabOnFinish)
             onError(message)
@@ -265,6 +275,7 @@ extension CodeReviewPanelStore {
             }
             return
         }
+        isReviewLaunchPreparing = false
         coordinator.runReview(
             provider: provider,
             prompt: prompt,
@@ -348,6 +359,7 @@ private extension CodeReviewPanelStore {
 
     func applyUnavailableRunError(_ message: String, targetTab: CodeReviewTab) {
         pendingCodebaseWorkspaceIncludedPaths = nil
+        isReviewLaunchPreparing = false
         isRunning = false
         lastError = message
         frozenTimerText = nil

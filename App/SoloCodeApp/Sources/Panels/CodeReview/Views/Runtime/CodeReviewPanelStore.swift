@@ -61,6 +61,16 @@ final class CodeReviewPanelStore: ObservableObject {
         get { runtime.isRunning }
         set { runtime.isRunning = newValue }
     }
+
+    /// UI “occupato” tra il tap Run e l’avvio effettivo del run (prima degli snapshot).
+    var isReviewLaunchPreparing: Bool {
+        get { runtime.isReviewLaunchPreparing }
+        set { runtime.isReviewLaunchPreparing = newValue }
+    }
+
+    var isReviewUILocked: Bool {
+        isRunning || isReviewLaunchPreparing
+    }
     var runStartedAt: Date? {
         get { runtime.runStartedAt }
         set { runtime.runStartedAt = newValue }

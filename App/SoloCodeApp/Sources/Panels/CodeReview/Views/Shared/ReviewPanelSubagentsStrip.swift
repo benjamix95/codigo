@@ -9,7 +9,7 @@ struct ReviewPanelSubagentsStrip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if cards.isEmpty && store.isRunning {
+            if cards.isEmpty && store.isReviewUILocked {
                 Divider().opacity(0.2)
                 runningPlaceholderStrip
             } else if !cards.isEmpty {
@@ -63,6 +63,9 @@ struct ReviewPanelSubagentsStrip: View {
         .onChange(of: store.isRunning) { _ in
             logStripSnapshot("isRunning_toggle")
         }
+        .onChange(of: store.isReviewLaunchPreparing) { _ in
+            logStripSnapshot("preparing_toggle")
+        }
         .onChange(of: cards.map(\.swarmId)) { ids in
             if let id = expandedSwarmId, !ids.contains(id) {
                 expandedSwarmId = nil
@@ -78,7 +81,7 @@ struct ReviewPanelSubagentsStrip: View {
                 Text("Live activity")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.primary.opacity(0.85))
-                Text("Subagent in avvio… i dettagli compaiono appena lo stream pubblica le card.")
+                Text("Preparazione run o subagent in avvio… i dettagli compaiono appena lo stream pubblica le card.")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -111,6 +114,7 @@ struct ReviewPanelSubagentsStrip: View {
             data: [
                 "reason": reason,
                 "isRunning": store.isRunning,
+                "preparing": store.isReviewLaunchPreparing,
                 "cardCount": cards.count,
                 "scanDepth": store.reviewScanDepth.rawValue,
             ]

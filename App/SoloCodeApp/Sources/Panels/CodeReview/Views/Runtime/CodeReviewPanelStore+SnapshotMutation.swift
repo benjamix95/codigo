@@ -99,6 +99,9 @@ extension CodeReviewPanelStore {
         selectedHistoricalFindingId = state.selectedHistoricalFindingId
         immersiveFindingWorkspaceId = state.immersiveFindingWorkspaceId
         isRunning = state.isRunning
+        if state.isRunning {
+            isReviewLaunchPreparing = false
+        }
         runStartedAt = state.runStartedAt
         frozenTimerText = state.frozenTimerText
         lastError = state.lastError

@@ -228,7 +228,7 @@ struct ReviewPanelScopeCard: View {
             }
             .toggleStyle(.switch)
             .controlSize(.mini)
-            .disabled(store.isRunning)
+            .disabled(store.isReviewUILocked)
 
             Spacer()
 
@@ -266,7 +266,7 @@ struct ReviewPanelScopeCard: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(store.isRunning || !isValidScope)
+        .disabled(store.isReviewUILocked || !isValidScope)
     }
 
     private var isValidScope: Bool {

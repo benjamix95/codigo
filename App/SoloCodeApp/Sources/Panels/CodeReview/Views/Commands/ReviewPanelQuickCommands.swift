@@ -23,7 +23,7 @@ struct ReviewPanelQuickCommands: View {
                     commandRow(cmd)
                 }
                 .buttonStyle(.plain)
-                .disabled(store.isRunning)
+                .disabled(store.isReviewUILocked)
             }
 
             bugHunterButtons
@@ -46,7 +46,7 @@ struct ReviewPanelQuickCommands: View {
                 )
             }
             .buttonStyle(.plain)
-            .disabled(store.isRunning)
+            .disabled(store.isReviewUILocked)
 
             Button {
                 store.startBugHunterCommitWindow()
@@ -62,7 +62,7 @@ struct ReviewPanelQuickCommands: View {
                 )
             }
             .buttonStyle(.plain)
-            .disabled(store.isRunning || (store.selectedCommits.isEmpty && store.gitCommitLog.isEmpty))
+            .disabled(store.isReviewUILocked || (store.selectedCommits.isEmpty && store.gitCommitLog.isEmpty))
         }
     }
 
