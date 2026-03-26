@@ -30,12 +30,19 @@ extension TodoStore {
             let key = todo.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             guard !key.isEmpty else { continue }
             if let existingIndex = seenTitles[key] {
-                // Keep the one with more recent updatedAt
                 let existing = todos[existingIndex]
                 if todo.updatedAt > existing.updatedAt {
+                    todos[index].planConversationId =
+                        todo.planConversationId ?? existing.planConversationId
+                    todos[index].lastTouchedConversationId =
+                        todo.lastTouchedConversationId ?? existing.lastTouchedConversationId
                     duplicateIndices.insert(existingIndex)
                     seenTitles[key] = index
                 } else {
+                    todos[existingIndex].planConversationId =
+                        existing.planConversationId ?? todo.planConversationId
+                    todos[existingIndex].lastTouchedConversationId =
+                        existing.lastTouchedConversationId ?? todo.lastTouchedConversationId
                     duplicateIndices.insert(index)
                 }
             } else {
@@ -106,6 +113,9 @@ extension TodoStore {
             ]
             if let planConversationId = todo.planConversationId {
                 record["planConversationId"] = planConversationId.uuidString
+            }
+            if let lastTouchedConversationId = todo.lastTouchedConversationId {
+                record["lastTouchedConversationId"] = lastTouchedConversationId.uuidString
             }
             if let planOrder = todo.planOrder {
                 record["planOrder"] = planOrder

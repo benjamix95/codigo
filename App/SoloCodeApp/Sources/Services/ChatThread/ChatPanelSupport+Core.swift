@@ -170,17 +170,9 @@ func todoConversationScopeFilter(
     conversationId: UUID?
 ) -> (TodoItem) -> Bool {
     guard let conversationId else { return { _ in true } }
-    let hasScoped = todos.contains { $0.planConversationId == conversationId }
+    let visible = todos.filter { !$0.isOperationalPlaceholder }
     return { todo in
-        if let scopedConversationId = todo.planConversationId {
-            return scopedConversationId == conversationId
-        }
-        if todo.source == .agent, !todo.isPlanCanonical, !todo.isOperationalPlaceholder,
-           let touch = todo.lastTouchedConversationId {
-            return touch == conversationId
-        }
-        // Legacy fallback: keep unscoped todos visible when no scoped todo exists yet.
-        return !hasScoped
+        TodoChatDisplayPolicy.itemAppearsInChat(todo, conversationId: conversationId, visibleTodos: visible)
     }
 }
 

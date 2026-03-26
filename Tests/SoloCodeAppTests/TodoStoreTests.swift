@@ -621,6 +621,57 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(second?.status, .inProgress)
     }
 
+    func testAdvanceNextRuntimeTodoNilConversationIgnoresTouchPinnedUnscoped() {
+        let store = makeStore()
+        let conv = UUID()
+        let rowId = UUID()
+        store.upsertFromAgent(
+            id: rowId,
+            title: "Touch pinned",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        guard let idx = store.todos.firstIndex(where: { $0.id == rowId }) else {
+            XCTFail("row")
+            return
+        }
+        store.todos[idx].lastTouchedConversationId = conv
+        store.saveTodos()
+        XCTAssertFalse(store.advanceNextRuntimeTodoIfNeeded(conversationId: nil))
+    }
+
+    func testDedupeRuntimeMergesPlanAndTouchFromDuplicate() {
+        let store = makeStore()
+        let conv = UUID()
+        let older = Date().addingTimeInterval(-100)
+        let newer = Date()
+        let rowOld = TodoItem(
+            title: "Dup merge",
+            status: .pending,
+            source: .agent,
+            createdAt: older,
+            updatedAt: older,
+            planConversationId: conv
+        )
+        var rowNew = TodoItem(
+            title: "Dup merge",
+            status: .pending,
+            source: .agent,
+            createdAt: newer,
+            updatedAt: newer
+        )
+        rowNew.lastTouchedConversationId = conv
+        store.todos = [rowOld, rowNew]
+        XCTAssertTrue(store.deduplicateRuntimeTodosByTitle())
+        XCTAssertEqual(store.todos.count, 1)
+        let kept = store.todos[0]
+        XCTAssertEqual(kept.planConversationId, conv)
+        XCTAssertEqual(kept.lastTouchedConversationId, conv)
+    }
+
     func testAdvanceNextRuntimeTodoProceedsWhenCanonicalStepsAreAllDone() {
         let store = makeStore()
         let conversationId = UUID()

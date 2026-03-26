@@ -74,23 +74,10 @@ extension TodoStore {
         guard let conversationId else {
             return sortedCanonicalFirstTodos(visible)
         }
-
-        let scoped = visible.filter { $0.planConversationId == conversationId }
-        let legacyUnscoped = visible.filter {
-            $0.planConversationId == nil && includeInChatLegacyUnscopedBucket($0, conversationId: conversationId)
+        let inChat = visible.filter {
+            TodoChatDisplayPolicy.itemAppearsInChat($0, conversationId: conversationId, visibleTodos: visible)
         }
-        if !scoped.isEmpty {
-            return sortedCanonicalFirstTodos(scoped + legacyUnscoped)
-        }
-
-        let hasForeignScopedWork = visible.contains { item in
-            guard let sid = item.planConversationId else { return false }
-            return sid != conversationId
-        }
-        if hasForeignScopedWork {
-            return []
-        }
-        return sortedCanonicalFirstTodos(legacyUnscoped)
+        return sortedCanonicalFirstTodos(inChat)
     }
 
     func canonicalScopeFilter(for conversationId: UUID?) -> (TodoItem) -> Bool {
@@ -122,18 +109,5 @@ extension TodoStore {
             }
             return false
         }
-    }
-}
-
-private extension TodoStore {
-    /// Inclusione nel bucket `planConversationId == nil` per una chat (display / merge legacy).
-    func includeInChatLegacyUnscopedBucket(_ item: TodoItem, conversationId: UUID) -> Bool {
-        if item.source == .agent, !item.isPlanCanonical, !item.isOperationalPlaceholder {
-            if let touch = item.lastTouchedConversationId {
-                return touch == conversationId
-            }
-            return true
-        }
-        return true
     }
 }

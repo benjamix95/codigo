@@ -18,7 +18,10 @@ extension TodoStore {
                 !$0.isPlanCanonical && !$0.isOperationalPlaceholder
             }
         } else {
-            pool = runtimeVisible.filter { $0.planConversationId == nil }
+            // Solo coda veramente globale: niente `lastTouched` (altrimenti l’avanzamento va con `conversationId`).
+            pool = runtimeVisible.filter {
+                $0.planConversationId == nil && $0.lastTouchedConversationId == nil
+            }
         }
 
         guard !pool.isEmpty else { return false }
