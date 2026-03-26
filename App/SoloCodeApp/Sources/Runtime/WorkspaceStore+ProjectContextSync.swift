@@ -235,6 +235,33 @@ final class ConversationFlowCoordinator: ObservableObject {
             var pendingReasoningSnapshot = ""
             var coalescedAssistantTextDirty = false
             var consecutiveEmptyUiPolls = 0
+            /// Riduce hop MainActor per thinking Claude CLI (delta densi).
+            var claudeReasoningLastFlush = ContinuousClock.now
+            var claudeReasoningLastSentLen = 0
+            func flushClaudeCliReasoningDelta(force: Bool) async {
+                guard provider.id == "claude-cli", !hasSeenNarrativeEvent else { return }
+                let snapshot = pendingReasoningSnapshot
+                guard !snapshot.isEmpty else { return }
+                let now = ContinuousClock.now
+                let firstChunk = claudeReasoningLastSentLen == 0
+                let grown = snapshot.count - claudeReasoningLastSentLen
+                let since = now - claudeReasoningLastFlush
+                if !force, !firstChunk, grown < 256, since < .milliseconds(48) { return }
+                claudeReasoningLastFlush = now
+                claudeReasoningLastSentLen = snapshot.count
+                let reasoningCopy = snapshot
+                await MainActor.run {
+                    onRaw(
+                        "reasoning",
+                        [
+                            "output": reasoningCopy,
+                            "title": "Thinking",
+                            "group_id": "reasoning-stream",
+                        ],
+                        provider.id
+                    )
+                }
+            }
             func flushCoalescedAssistantText() async {
                 guard coalescedAssistantTextDirty else { return }
                 coalescedAssistantTextDirty = false
@@ -301,18 +328,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                         let isClaudeCli = provider.id == "claude-cli"
                         if !hasSeenNarrativeEvent && isClaudeCli {
                             pendingReasoningSnapshot += event.text
-                            let reasoningCopy = pendingReasoningSnapshot
-                            await MainActor.run {
-                                onRaw(
-                                    "reasoning",
-                                    [
-                                        "output": reasoningCopy,
-                                        "title": "Thinking",
-                                        "group_id": "reasoning-stream",
-                                    ],
-                                    provider.id
-                                )
-                            }
+                            await flushClaudeCliReasoningDelta(force: false)
                         } else {
                             hasSeenNarrativeEvent = true
                             renderedTextSnapshot += event.text
@@ -322,18 +338,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                         let isClaudeCliReplace = provider.id == "claude-cli"
                         if !hasSeenNarrativeEvent && isClaudeCliReplace {
                             pendingReasoningSnapshot = event.text
-                            let reasoningCopy = pendingReasoningSnapshot
-                            await MainActor.run {
-                                onRaw(
-                                    "reasoning",
-                                    [
-                                        "output": reasoningCopy,
-                                        "title": "Thinking",
-                                        "group_id": "reasoning-stream",
-                                    ],
-                                    provider.id
-                                )
-                            }
+                            await flushClaudeCliReasoningDelta(force: true)
                         } else {
                             hasSeenNarrativeEvent = true
                             renderedTextSnapshot = event.text
@@ -356,10 +361,12 @@ final class ConversationFlowCoordinator: ObservableObject {
                             )
                         }
                         if rawType == "assistant_update" || rawType == "reasoning" {
-                            hasSeenNarrativeEvent = true
                             if !pendingReasoningSnapshot.isEmpty {
+                                await flushClaudeCliReasoningDelta(force: true)
                                 pendingReasoningSnapshot = ""
+                                claudeReasoningLastSentLen = 0
                             }
+                            hasSeenNarrativeEvent = true
                         }
                         if !hasSeenNarrativeEvent
                             && shouldBufferOperationalRawEventUntilNarrative(rawType: rawType, payload: event.payload)

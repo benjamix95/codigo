@@ -278,9 +278,6 @@ extension ChatStore {
             RustMainChatStoreAdapter.apply(taskRuntimeState: state, to: self)
             return true
         }
-        guard shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) else {
-            return false
-        }
         guard let fallbackState = Self.fallbackTaskRuntimeState(from: request) else {
             return false
         }
