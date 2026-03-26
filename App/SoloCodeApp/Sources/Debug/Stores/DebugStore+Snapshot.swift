@@ -147,13 +147,6 @@ extension DebugStore {
         )
         pendingResolutionAfterClean = snapshot.pendingResolutionAfterClean
 
-        if awaitingDebugClean {
-            scheduleDebugCleanFallbackIfNeeded()
-        }
-
-        guard flow.phase != .idle else { return }
-
-        startLogFileMonitor(path: activeDebugLogPath)
-        rescheduleDebugIdleWarningIfNeeded()
+        reconcileWatchdogAndLogMonitorAfterBulkSessionRestore()
     }
 }

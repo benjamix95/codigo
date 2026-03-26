@@ -8,6 +8,11 @@ extension PipelineIntegrationService {
         suppressedDebugProjectionConversationIds.contains(conversationId)
     }
 
+    /// Eventi debug in attesa di flush (es. durante Stop / suppress della proiezione).
+    func pendingBufferedDebugEventCount(for conversationId: UUID) -> Int {
+        pendingDebugEventsByConversation[conversationId]?.count ?? 0
+    }
+
     private static func isHighPriorityDebugEvent(_ event: NormalizedEvent) -> Bool {
         switch event {
         case .debugPhaseUpdate, .activateDebugMode, .debugResolved, .debugClean,
@@ -60,11 +65,13 @@ extension PipelineIntegrationService {
     func suspendDebugProjection(for conversationId: UUID?) {
         guard let conversationId else { return }
         suppressedDebugProjectionConversationIds.insert(conversationId)
+        bumpDebugProjectionBufferRevision()
     }
 
     func resumeDebugProjection(for conversationId: UUID?) {
         guard let conversationId else { return }
         suppressedDebugProjectionConversationIds.remove(conversationId)
+        defer { bumpDebugProjectionBufferRevision() }
         guard let binding = debugStoresByConversation[conversationId] else { return }
         if let store = binding.store {
             flushPendingDebugEvents(for: conversationId, into: store)
@@ -94,6 +101,7 @@ extension PipelineIntegrationService {
             let effects = DebugProjectionEventConsumer.apply(event, to: debugStore)
             applyEffects(effects)
         }
+        bumpDebugProjectionBufferRevision()
     }
 
     func applyOrBufferDebugEvent(_ event: NormalizedEvent, for conversationId: UUID) {
@@ -119,12 +127,13 @@ extension PipelineIntegrationService {
         while pending.count > kDebugEventBufferLimit {
             if let idx = pending.firstIndex(where: { !Self.isHighPriorityDebugEvent($0) }) {
                 pending.remove(at: idx)
-            } else if let dropPair = pending.enumerated().max(by: {
-                Self.criticalDebugControlEventDropScore($0.element) < Self.criticalDebugControlEventDropScore($1.element)
-            }) {
-                pending.remove(at: dropPair.offset)
             } else {
-                pending.removeFirst()
+                let maxDrop = pending.lazy.map { Self.criticalDebugControlEventDropScore($0) }.max() ?? 0
+                if let idx = pending.firstIndex(where: { Self.criticalDebugControlEventDropScore($0) == maxDrop }) {
+                    pending.remove(at: idx)
+                } else {
+                    pending.removeFirst()
+                }
             }
             dropped += 1
         }
@@ -132,6 +141,7 @@ extension PipelineIntegrationService {
             Self.postBufferDropNotification(conversationId: conversationId, dropped: dropped)
         }
         pendingDebugEventsByConversation[conversationId] = pending
+        bumpDebugProjectionBufferRevision()
     }
 
     private static func postBufferDropNotification(conversationId: UUID, dropped: Int) {
@@ -173,5 +183,6 @@ extension PipelineIntegrationService {
             hasLiveStore ? "yes" : "no"
         )
         pendingDebugEventsByConversation.removeValue(forKey: conversationId)
+        bumpDebugProjectionBufferRevision()
     }
 }

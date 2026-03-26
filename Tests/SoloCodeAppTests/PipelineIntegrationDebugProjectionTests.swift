@@ -165,6 +165,29 @@ final class PipelineIntegrationDebugProjectionTests: XCTestCase {
         XCTAssertFalse(service.isDebugProjectionSuppressed(for: conversationId))
     }
 
+    func testPendingBufferedDebugEventCountWhileSuppressed() {
+        let service = PipelineIntegrationService()
+        let conversationId = UUID()
+        XCTAssertEqual(service.pendingBufferedDebugEventCount(for: conversationId), 0)
+        service.suspendDebugProjection(for: conversationId)
+        let revAfterSuspend = service.debugProjectionBufferRevision
+        XCTAssertGreaterThan(revAfterSuspend, 0)
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-pend-1",
+                taskId: "task-pend-1",
+                rawType: "debug_phase_update",
+                payload: [
+                    "phase": "verifying",
+                    "detail": "held"
+                ]
+            ),
+            for: conversationId
+        )
+        XCTAssertEqual(service.pendingBufferedDebugEventCount(for: conversationId), 1)
+        XCTAssertGreaterThan(service.debugProjectionBufferRevision, revAfterSuspend)
+    }
+
     func testDebugEventBufferedQueueNeverExceedsConfiguredLimit() {
         let service = PipelineIntegrationService()
         let conversationId = UUID()

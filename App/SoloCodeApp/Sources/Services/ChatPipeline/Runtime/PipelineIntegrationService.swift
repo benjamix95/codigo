@@ -80,6 +80,9 @@ final class PipelineIntegrationService: ObservableObject {
 
     @Published private(set) var snapshotsByConversation: [UUID: PipelineConversationSnapshot] = [:]
 
+    /// Incrementato quando cambia la coda degli eventi debug bufferizzati o lo stato suppress (per aggiornare il pannello).
+    @Published private(set) var debugProjectionBufferRevision: UInt = 0
+
     // MARK: - Dependencies
 
     private let dependencyBindings = PipelineIntegrationDependencyBindings()
@@ -106,6 +109,10 @@ final class PipelineIntegrationService: ObservableObject {
     }
 
     // MARK: - Configuration
+
+    func bumpDebugProjectionBufferRevision() {
+        debugProjectionBufferRevision &+= 1
+    }
 
     func configure(
         chatStore: ChatStore,
