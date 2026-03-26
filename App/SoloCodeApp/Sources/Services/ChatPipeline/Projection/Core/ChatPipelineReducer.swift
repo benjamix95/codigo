@@ -121,6 +121,7 @@ enum ChatPipelineReducer {
                 )
             }
         case .todoSnapshot:
+            // Stato todo è applicato dal path Rust (`chat_core_ui_handle_intent`); qui no-op per fallback Swift.
             break
         }
 

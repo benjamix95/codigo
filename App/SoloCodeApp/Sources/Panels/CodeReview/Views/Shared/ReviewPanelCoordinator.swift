@@ -44,6 +44,9 @@ final class ReviewPanelCoordinator {
                 )
                 for try await event in stream {
                     if Task.isCancelled { break }
+                    if case .error(let message) = event {
+                        streamError = message
+                    }
                     await MainActor.run { onEvent(event) }
                 }
             } catch {

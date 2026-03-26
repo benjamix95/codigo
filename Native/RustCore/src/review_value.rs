@@ -33,9 +33,19 @@ pub fn normalize(text: &str) -> String {
     text.trim().to_lowercase()
 }
 
+/// Normalizza il valore a un oggetto JSON mutabile. Tipi non oggetto vengono sostituiti con `{}`.
 pub fn ensure_object(value: &mut Value) -> &mut Map<String, Value> {
-    if !value.is_object() {
+    if !matches!(value, Value::Object(_)) {
         *value = Value::Object(Map::new());
     }
-    value.as_object_mut().expect("value must be an object")
+    match value {
+        Value::Object(map) => map,
+        _ => {
+            *value = Value::Object(Map::new());
+            match value {
+                Value::Object(map) => map,
+                _ => unreachable!("ensure_object: invariant Object dopo normalizzazione"),
+            }
+        }
+    }
 }

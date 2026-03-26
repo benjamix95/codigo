@@ -46,9 +46,7 @@ pub fn start_session(request: ReviewPipelineStartRequest) -> ReviewPipelineRespo
 }
 
 pub fn apply_callback_result(request: ReviewPipelineApplyRequest) -> ReviewPipelineResponse {
-    let mut sessions = sessions()
-        .write()
-        .unwrap_or_else(|err| err.into_inner());
+    let mut sessions = sessions().write().unwrap_or_else(|err| err.into_inner());
     let Some(session) = sessions.get_mut(&request.session_id) else {
         return missing_session(&request.session_id);
     };
@@ -66,13 +64,17 @@ pub fn apply_callback_result(request: ReviewPipelineApplyRequest) -> ReviewPipel
         _ => ReviewPipelineStep::failed("unsupported_step"),
     };
     session.step = next_step.clone();
-    ReviewPipelineResponse::success(request.session_id, session.snapshot.clone(), next_step)
+    let snapshot = session.snapshot.clone();
+    let sid = request.session_id.clone();
+    let terminal = next_step.kind == "completed" || next_step.kind == "failed";
+    if terminal {
+        sessions.remove(&sid);
+    }
+    ReviewPipelineResponse::success(sid, snapshot, next_step)
 }
 
 pub fn get_snapshot(request: ReviewPipelineSessionRequest) -> ReviewPipelineResponse {
-    let sessions = sessions()
-        .read()
-        .unwrap_or_else(|err| err.into_inner());
+    let sessions = sessions().read().unwrap_or_else(|err| err.into_inner());
     if let Some(session) = sessions.get(&request.session_id) {
         return ReviewPipelineResponse::success(
             request.session_id,
@@ -88,17 +90,15 @@ pub fn resume_session(request: ReviewPipelineSessionRequest) -> ReviewPipelineRe
 }
 
 pub fn cancel_session(request: ReviewPipelineSessionRequest) -> ReviewPipelineResponse {
-    let mut sessions = sessions()
-        .write()
-        .unwrap_or_else(|err| err.into_inner());
+    let mut sessions = sessions().write().unwrap_or_else(|err| err.into_inner());
     if let Some(session) = sessions.get_mut(&request.session_id) {
         fail(session, "Review cancelled.".to_string());
         session.step = ReviewPipelineStep::failed("Review cancelled.");
-        return ReviewPipelineResponse::success(
-            request.session_id,
-            session.snapshot.clone(),
-            session.step.clone(),
-        );
+        let snapshot = session.snapshot.clone();
+        let step = session.step.clone();
+        let sid = request.session_id.clone();
+        sessions.remove(&sid);
+        return ReviewPipelineResponse::success(sid, snapshot, step);
     }
     missing_session(&request.session_id)
 }

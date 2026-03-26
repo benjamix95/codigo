@@ -122,14 +122,17 @@ struct ReviewPipelineRustDriver {
                 continuation.finish()
                 return
             case "failed":
-                if let reason = response.step.reason, !reason.isEmpty {
-                    continuation.yield(.textDelta("\n**\(reason)**\n"))
-                }
+                let trimmed = response.step.reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let message = trimmed.isEmpty ? "Review failed." : trimmed
+                continuation.yield(.textDelta("\n**\(message)**\n"))
+                continuation.yield(.error(message))
                 continuation.yield(.completed)
                 continuation.finish()
                 return
             default:
-                continuation.yield(.textDelta("\n**Unsupported review pipeline step:** \(response.step.kind)\n"))
+                let message = "Unsupported review pipeline step: \(response.step.kind)"
+                continuation.yield(.textDelta("\n**\(message)**\n"))
+                continuation.yield(.error(message))
                 continuation.yield(.completed)
                 continuation.finish()
                 return

@@ -4,9 +4,18 @@ import Foundation
 extension CodeReviewPanelStore {
     /// Eventi stream del review “full panel”: aggiorna attività/todo senza transcript né FFI per delta testuali.
     func handlePanelReviewStreamEvent(_ event: StreamEvent) {
-        guard case .raw(let type, let payload) = event else { return }
-        ingestRawReviewActivity(type: type, payload: payload)
-        syncTodoIfNeeded(type: type, payload: payload)
+        switch event {
+        case .raw(let type, let payload):
+            ingestRawReviewActivity(type: type, payload: payload)
+            syncTodoIfNeeded(type: type, payload: payload)
+        case .error(let message):
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                appendPanelSystemMessage(trimmed, kind: .statusNote)
+            }
+        default:
+            break
+        }
     }
 
     func flushReviewPanelStreamDeltas(
