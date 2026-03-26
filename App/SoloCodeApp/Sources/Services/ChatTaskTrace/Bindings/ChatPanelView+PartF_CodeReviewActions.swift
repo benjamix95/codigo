@@ -19,7 +19,7 @@ extension ChatPanelView {
             invocationLabel: invocationLabel
         )
         ReviewPanelLaunchRequestStore.shared.enqueue(request)
-        showCodeReviewPanel = true
+        // Il pannello Code Review si apre solo da azione esplicita dell’utente (toggle UI), mai da agente/tool.
     }
 
     /// Retained for backward-compat: the MCP `processCodeReviewCommandLoop`
