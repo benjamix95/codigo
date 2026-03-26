@@ -4,15 +4,49 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
+    internal func activeStreamingAssistantMessage(in conv: Conversation) -> ChatMessage? {
+        guard snapshotIsLoading,
+              let activeMessageId = snapshotActiveAssistantMessageId else { return nil }
+        return conv.messages.last(where: {
+            $0.id == activeMessageId && $0.role == .assistant
+        })
+    }
+
+    internal func historyMessages(
+        from messages: [ChatMessage],
+        excluding activeStreamingMessage: ChatMessage?
+    ) -> [ChatMessage] {
+        guard let activeStreamingMessage else { return messages }
+        return messages.filter { $0.id != activeStreamingMessage.id }
+    }
+
+    internal func historyBarrierFingerprint(
+        conversationId: UUID?,
+        messages: [ChatMessage],
+        traceEventsByMessageId: [UUID: [ToolTraceEvent]],
+        isLoading: Bool
+    ) -> ChatMessagesBarrierFingerprint {
+        let lastMessage = messages.last
+        return .init(
+            conversationId: conversationId,
+            messageCount: messages.count,
+            lastMessageId: lastMessage?.id,
+            lastMessageContentLength: lastMessage?.content.count ?? 0,
+            lastMessageReasoningLength: lastMessage?.reasoningText?.count ?? 0,
+            lastMessageIsStreaming: lastMessage?.isStreaming ?? false,
+            lastMessageBlocksCount: lastMessage?.blocks?.count ?? 0,
+            lastMessageTraceEventsCount: lastMessage.flatMap { traceEventsByMessageId[$0.id]?.count } ?? 0,
+            isLoading: isLoading
+        )
+    }
+
     internal func messagesStack(for conv: Conversation) -> some View {
-        let _t0 = ChatRenderLogger.startTiming("messagesStack")
         let convId = conv.id
         let messages = conv.messages
-        let _ = ChatRenderLogger.logRender(
-            "messagesStack",
-            detail: "convId=\(convId.uuidString.prefix(8)) msgCount=\(messages.count)"
-        )
+        let activeStreamingMessage = activeStreamingAssistantMessage(in: conv)
+        let historyMessages = historyMessages(from: messages, excluding: activeStreamingMessage)
         let lastMsg = messages.last
+        let historyLastMsg = historyMessages.last
         let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
         let latestVisibleAssistantMessageId = messages.last(where: {
             $0.role == .assistant && !shouldHideBuildKickoffMessage($0, in: convId)
@@ -39,20 +73,38 @@ extension ChatPanelView {
         // SwiftUI dependency on toolTraceStore.objectWillChange, preventing
         // cascade re-renders on every tool trace append.
         let precomputedTraceEvents = snapshotTraceEvents
-        let _ = ChatRenderLogger.endTiming("messagesStack.setup", start: _t0)
+        let historyFingerprint = historyBarrierFingerprint(
+            conversationId: convId,
+            messages: historyMessages,
+            traceEventsByMessageId: precomputedTraceEvents,
+            isLoading: snapshotIsLoading
+        )
         return LazyVStack(alignment: .leading, spacing: 28) {
             Color.clear
                 .frame(height: 1)
                 .id(chatScrollTopAnchorId)
-            ForEach(messages, id: \.id) { message in
-                let index = messageIndexById[message.id] ?? 0
+            ChatMessagesBarrierView(fingerprint: historyFingerprint) {
+                ForEach(historyMessages, id: \.id) { message in
+                    let index = messageIndexById[message.id] ?? 0
+                    chatMessageCell(
+                        message: message,
+                        index: index,
+                        lastMsg: historyLastMsg,
+                        todoCardAssistantMessageId: todoCardAssistantMessageId,
+                        conversationId: convId,
+                        precomputedTraceEvents: precomputedTraceEvents[message.id] ?? []
+                    )
+                }
+            }
+            if let activeStreamingMessage {
+                let index = messageIndexById[activeStreamingMessage.id] ?? 0
                 chatMessageCell(
-                    message: message,
+                    message: activeStreamingMessage,
                     index: index,
                     lastMsg: lastMsg,
                     todoCardAssistantMessageId: todoCardAssistantMessageId,
                     conversationId: convId,
-                    precomputedTraceEvents: precomputedTraceEvents[message.id] ?? []
+                    precomputedTraceEvents: precomputedTraceEvents[activeStreamingMessage.id] ?? []
                 )
             }
             if shouldShowInlinePlanSummaryInChat,
@@ -120,10 +172,6 @@ extension ChatPanelView {
             ? { chatStore.removeMessage(messageId: message.id, in: conversationId) }
             : nil
 
-        let _ = ChatRenderLogger.logRender(
-            "chatMessageCell",
-            detail: "msgId=\(message.id.uuidString.prefix(8)) role=\(message.role.rawValue) idx=\(index) streaming=\(message.isStreaming)"
-        )
         if shouldHideBuildKickoffMessage(message, in: conversationId) {
             EmptyView()
                 .id(message.id)
@@ -191,9 +239,17 @@ extension ChatPanelView {
                     // re-render all cells on every activity change).
                     let shouldComputeStreamingText = isActiveStreamingAssistant && !shouldHideStreamingBarOnPreviousAssistant
                     let resolvedStreamingStatusText = shouldComputeStreamingText
-                        ? streamingStatusText(for: displayMessage) : ""
+                        ? (
+                            displayMessage.id == snapshotActiveAssistantMessageId
+                                ? snapshotStreamingStatusText
+                                : ""
+                        ) : ""
                     let resolvedStreamingDetailText: String? = shouldComputeStreamingText
-                        ? streamingDetailText(for: displayMessage, conversationId: conversationId) : nil
+                        ? (
+                            displayMessage.id == snapshotActiveAssistantMessageId
+                                ? snapshotStreamingDetailText
+                                : nil
+                        ) : nil
                     // Only the active streaming turn should receive
                     // isActuallyLoading=true. For all others, pass false
                     // to prevent EQ-MISS when the global loading state changes.
@@ -227,53 +283,15 @@ extension ChatPanelView {
                             && shouldShowPlanTodosInChat
                             && !todoStore.displayTodosForChat(for: conversationId).isEmpty
                             && message.id == todoCardAssistantMessageId
-                        let liveInlineActivities: [TaskActivity] = {
-                            guard isLastAssistant, snapshotIsLoading else { return [] }
-                            return scopedTaskActivities(for: conversationId).filter { activity in
-                                guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }
-                                if SwarmMetadata.isSupervisorEvent(activity.payload) {
-                                    return false
-                                }
-                                if SwarmMetadata.isSwarmEvent(activity.payload)
-                                    || activity.type == "agent"
-                                    || activity.type == "subagent_text"
-                                    || activity.type == "subagent_batch_done"
-                                {
-                                    return false
-                                }
-                                if activity.type == "todo_write" || activity.type == "todo_read" {
-                                    return false
-                                }
-                                guard shouldShowOperationEventInLinearChat(
-                                    eventType: activity.type,
-                                    payload: activity.payload,
-                                    showTodoCard: shouldShowTodoCardInTurn
-                                ) else {
-                                    return false
-                                }
-                                return true
-                            }
-                        }()
-                        let liveSupervisorActivities: [TaskActivity] = {
-                            guard isLastAssistant, snapshotIsLoading else { return [] }
-                            let scoped = scopedTaskActivities(for: conversationId)
-                            let hasWorkerCards = !taskActivityStore.swarmCardStates(for: conversationId).isEmpty
-                            guard hasWorkerCards else { return [] }
-                            return scoped.filter { activity in
-                                guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }
-                                guard SwarmMetadata.isSupervisorEvent(activity.payload) else { return false }
-                                if activity.type == "todo_write" || activity.type == "todo_read" {
-                                    return false
-                                }
-                                return true
-                            }
-                        }()
-                        let liveSubagentCards: [SwarmLiveCardState] = {
-                            guard isLastAssistant, snapshotIsLoading else { return [] }
-                            return visibleSwarmCardsForChat(
-                                from: taskActivityStore.swarmCardStates(for: conversationId)
-                            )
-                        }()
+                        let liveInlineActivities: [TaskActivity] =
+                            (isLastAssistant && snapshotIsLoading && displayMessage.id == snapshotActiveAssistantMessageId)
+                            ? snapshotInlineActivities : []
+                        let liveSupervisorActivities: [TaskActivity] =
+                            (isLastAssistant && snapshotIsLoading && displayMessage.id == snapshotActiveAssistantMessageId)
+                            ? snapshotSupervisorActivities : []
+                        let liveSubagentCards: [SwarmLiveCardState] =
+                            (isLastAssistant && snapshotIsLoading && displayMessage.id == snapshotActiveAssistantMessageId)
+                            ? snapshotLiveSubagentCards : []
                         ChatTurnView(
                             message: displayMessage,
                             context: effectiveContext.context,

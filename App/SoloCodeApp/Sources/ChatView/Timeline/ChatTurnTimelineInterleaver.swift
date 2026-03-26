@@ -31,11 +31,6 @@ enum ChatTurnTimelineInterleaver {
 
         let maxToolSequence = collapsedTraceEvents.map(\.sequence).max() ?? 0
 
-        ChatRenderLogger.logRender(
-            "Interleaver.segments",
-            detail: "blocks=\(blocks.count) textBlocks=\(textBlocks.count) tools=\(collapsedTraceEvents.count) markers=\(toolMarkerSequences.count) monolithic=\(isSingleMonolithicText)"
-        )
-
         for block in blocks {
             switch block.kind {
             case .primaryText:

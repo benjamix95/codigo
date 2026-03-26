@@ -124,10 +124,6 @@ struct MarkdownContentView: View {
     // MARK: - Body
 
     var body: some View {
-        let _ = ChatRenderLogger.logRender(
-            "MarkdownContentView",
-            detail: "streaming=\(isStreaming) len=\(content.count)"
-        )
         contentBody
     }
 }

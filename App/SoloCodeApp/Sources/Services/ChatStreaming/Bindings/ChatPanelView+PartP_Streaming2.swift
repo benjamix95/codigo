@@ -95,9 +95,6 @@ extension ChatPanelView {
         shouldApplyPipelineArtifacts: Bool = true,
         shouldUpdateInlineReasoningVisuals: Bool = true
     ) {
-        if t == "reasoning" {
-            print("[REASONING_ENTRY] handleRawStreamEvent ENTERED with type=reasoning conv=\(convId?.uuidString.prefix(8) ?? "nil")")
-        }
         if t == "assistant_update"
             || t == "turn_started"
             || t == "turn_completed"
@@ -230,19 +227,12 @@ extension ChatPanelView {
             )
             return
         }
-        // Ultra-early reasoning check — fires for ANY event type to confirm arrival
-        if t == "reasoning" {
-            print("[REASONING_EARLY] reasoning event ARRIVED in handleRawStreamEvent! output_present=\(p["output"] != nil) len=\(p["output"]?.count ?? 0)")
-        }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
-            print("[REASONING_DEBUG] GOT reasoning event len=\(output.count) provider=\(pid) shouldUpdateVisuals=\(shouldUpdateInlineReasoningVisuals) conv=\(convId?.uuidString.prefix(8) ?? "nil")")
             guard shouldUpdateInlineReasoningVisuals else {
-                print("[REASONING_DEBUG] BLOCKED by shouldUpdateInlineReasoningVisuals=false")
                 recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
                 return
             }
             let splitThinking = shouldSplitThinkingMessages(providerId: pid)
-            print("[REASONING_DEBUG] shouldSplitThinkingMessages=\(splitThinking)")
             if splitThinking {
                 let groupId = p["group_id"] ?? "reasoning-stream"
                 upsertSeparateThinkingMessage(
@@ -266,12 +256,10 @@ extension ChatPanelView {
                     eventConversationId: convId,
                     selectedConversationId: self.conversationId
                 )
-                print("[REASONING_DEBUG] shouldUpdateVisibleReasoning=\(shouldUpdateVisibleReasoning) eventConv=\(convId?.uuidString.prefix(8) ?? "nil") selectedConv=\(self.conversationId?.uuidString.prefix(8) ?? "nil")")
                 if shouldUseLinearChat(providerId: pid), shouldUpdateVisibleReasoning {
                     streaming.codexLastReasoningLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
                 }
                 guard shouldUpdateVisibleReasoning else {
-                    print("[REASONING_DEBUG] BLOCKED by shouldUpdateVisibleReasoning=false")
                     recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
                     return
                 }
@@ -299,7 +287,6 @@ extension ChatPanelView {
                 streaming.streamingReasoningText = reducedState.text
                 streaming.streamingSegments = reducedState.segments
                 streaming.streamingReasoningConversationId = convId
-                print("[REASONING_DEBUG] AFTER reducer: blocks=\(reducedState.blocks.count) text=\(reducedState.text?.count ?? 0) segments=\(reducedState.segments.count)")
                 // Save reasoning to the message immediately so ChatTurnView
                 // can display it during streaming (not just after stop).
                 if let text = reducedState.text, !text.isEmpty {
@@ -421,10 +408,6 @@ extension ChatPanelView {
                 )
             }
             return  // Don't create a separate trace event for tool_finish
-        }
-        // Log ALL raw event types to see what the pipeline receives
-        if t != "reasoning" && t != "usage" {
-            print("[ChatDebug] rawEvent type=\(t) keys=\(p.keys.sorted().joined(separator: ","))")
         }
         // Enrich file-change events with a diff preview when old_string/new_string
         // are present (e.g. str_replace, edit). Claude CLI events bypass the

@@ -94,33 +94,16 @@ extension ChatPanelView {
 
     @ViewBuilder
     internal var chatMessagesAreaContent: some View {
-        // Wrap in ChatMessagesBarrierView (Equatable) so SwiftUI can
-        // skip body re-evaluation when the fingerprint hasn't changed.
-        // Without this, parent body invalidations (from 14+ EnvironmentObjects)
-        // cascade into messagesStack even when no data changed.
-        ChatMessagesBarrierView(
-            fingerprint: ChatMessagesBarrierView.Fingerprint(
-                conversationId: messagesConversationSnapshot?.id,
-                messageCount: messagesConversationSnapshot?.messages.count ?? 0,
-                lastMessageId: messagesConversationSnapshot?.messages.last?.id,
-                lastMessageContentLength: messagesConversationSnapshot?.messages.last?.content.count ?? 0,
-                lastMessageIsStreaming: messagesConversationSnapshot?.messages.last?.isStreaming ?? false,
-                lastMessageBlocksCount: messagesConversationSnapshot?.messages.last?.blocks?.count ?? 0,
-                isLoading: snapshotIsLoading,
-                traceEventsTotalCount: snapshotTraceEvents.values.reduce(0) { $0 + $1.count }
-            )
-        ) {
-            if let conv = messagesConversationSnapshot {
-                messagesStack(for: conv)
-            } else {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    Color.clear
-                        .frame(height: 1)
-                        .id(chatScrollTopAnchorId)
-                    Color.clear
-                        .frame(height: 1)
-                        .id(chatScrollBottomAnchorId)
-                }
+        if let conv = messagesConversationSnapshot {
+            messagesStack(for: conv)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                Color.clear
+                    .frame(height: 1)
+                    .id(chatScrollTopAnchorId)
+                Color.clear
+                    .frame(height: 1)
+                    .id(chatScrollBottomAnchorId)
             }
         }
     }
@@ -142,6 +125,8 @@ extension ChatPanelView {
         let freshCount = fresh?.messages.count ?? -1
         let snapshotLastContent = messagesConversationSnapshot?.messages.last?.content.count ?? -1
         let freshLastContent = fresh?.messages.last?.content.count ?? -1
+        let snapshotLastReasoning = messagesConversationSnapshot?.messages.last?.reasoningText?.count ?? -1
+        let freshLastReasoning = fresh?.messages.last?.reasoningText?.count ?? -1
         let snapshotLastStreaming = messagesConversationSnapshot?.messages.last?.isStreaming ?? false
         let freshLastStreaming = fresh?.messages.last?.isStreaming ?? false
         let snapshotLastBlocks = messagesConversationSnapshot?.messages.last?.blocks?.count ?? -1
@@ -150,6 +135,7 @@ extension ChatPanelView {
         if messagesConversationSnapshot?.id != fresh?.id
             || snapshotCount != freshCount
             || snapshotLastContent != freshLastContent
+            || snapshotLastReasoning != freshLastReasoning
             || snapshotLastStreaming != freshLastStreaming
             || snapshotLastBlocks != freshLastBlocks
         {
@@ -166,6 +152,12 @@ extension ChatPanelView {
         if elapsed >= 0.25 || !snapshotIsLoading {
             refreshTraceEventsSnapshot(fresh: fresh)
             lastTraceRefreshTime = now
+        }
+
+        let activityElapsed = now - lastActivityRefreshTime
+        if activityElapsed >= 0.25 || !snapshotIsLoading {
+            refreshLiveActivitySnapshot(fresh: fresh)
+            lastActivityRefreshTime = now
         }
     }
 
@@ -186,5 +178,101 @@ extension ChatPanelView {
         if countsChanged {
             snapshotTraceEvents = newTraceMap
         }
+    }
+
+    private func refreshLiveActivitySnapshot(fresh: Conversation?) {
+        guard snapshotIsLoading, let convId = conversationId ?? fresh?.id else {
+            snapshotActiveAssistantMessageId = nil
+            snapshotStreamingStatusText = ""
+            snapshotStreamingDetailText = nil
+            snapshotInlineActivities = []
+            snapshotSupervisorActivities = []
+            snapshotLiveSubagentCards = []
+            return
+        }
+
+        guard let activeAssistant = fresh?.messages.last(where: { $0.role == .assistant }) else {
+            snapshotActiveAssistantMessageId = nil
+            snapshotStreamingStatusText = ""
+            snapshotStreamingDetailText = nil
+            snapshotInlineActivities = []
+            snapshotSupervisorActivities = []
+            snapshotLiveSubagentCards = []
+            return
+        }
+
+        let scoped = scopedTaskActivities(for: convId)
+        let status = TaskActivityStore.streamingStatusText(
+            isPaused: executionController.runState == .paused,
+            activities: scoped
+        )
+        let detail: String? = {
+            if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scoped) {
+                return assistantUpdate
+            }
+            if let fromActivities = TaskActivityStore.streamingDetailText(
+                activities: scoped,
+                activeOperationsCount: scopedActiveOperationsCount(for: convId)
+            ) {
+                return fromActivities
+            }
+            if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: activeAssistant.content) {
+                return fromContent
+            }
+            if let codexLine = streaming.codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId {
+                return codexLine.count > 80 ? String(codexLine.prefix(77)) + "..." : codexLine
+            }
+            if convId == streaming.streamingReasoningConversationId,
+               let reasoning = streaming.streamingReasoningText,
+               !reasoning.isEmpty {
+                let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)
+                    .last?
+                    .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
+                if !lastLine.isEmpty {
+                    return lastLine.count > 80 ? String(lastLine.prefix(77)) + "…" : lastLine
+                }
+            }
+            return nil
+        }()
+
+        let inlineActivities = scoped.filter { activity in
+            guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }
+            if SwarmMetadata.isSupervisorEvent(activity.payload) { return false }
+            if SwarmMetadata.isSwarmEvent(activity.payload)
+                || activity.type == "agent"
+                || activity.type == "subagent_text"
+                || activity.type == "subagent_batch_done"
+            {
+                return false
+            }
+            if activity.type == "todo_write" || activity.type == "todo_read" {
+                return false
+            }
+            return shouldShowOperationEventInLinearChat(
+                eventType: activity.type,
+                payload: activity.payload,
+                showTodoCard: false
+            )
+        }
+
+        let supervisorActivities = scoped.filter { activity in
+            guard TaskActivityStore.isConcreteVisibleEvent(activity) else { return false }
+            guard SwarmMetadata.isSupervisorEvent(activity.payload) else { return false }
+            if activity.type == "todo_write" || activity.type == "todo_read" {
+                return false
+            }
+            return true
+        }
+
+        let liveCards = visibleSwarmCardsForChat(
+            from: taskActivityStore.swarmCardStates(for: convId)
+        )
+
+        snapshotActiveAssistantMessageId = activeAssistant.id
+        snapshotStreamingStatusText = status
+        snapshotStreamingDetailText = detail
+        snapshotInlineActivities = inlineActivities
+        snapshotSupervisorActivities = supervisorActivities
+        snapshotLiveSubagentCards = liveCards
     }
 }

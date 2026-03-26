@@ -1,5 +1,17 @@
 import SwiftUI
 
+struct ChatMessagesBarrierFingerprint: Equatable {
+    let conversationId: UUID?
+    let messageCount: Int
+    let lastMessageId: UUID?
+    let lastMessageContentLength: Int
+    let lastMessageReasoningLength: Int
+    let lastMessageIsStreaming: Bool
+    let lastMessageBlocksCount: Int
+    let lastMessageTraceEventsCount: Int
+    let isLoading: Bool
+}
+
 /// Equatable barrier that prevents parent body invalidations from
 /// cascading into the messages list. SwiftUI compares the `Fingerprint`
 /// before re-evaluating the content closure. If the fingerprint hasn't
@@ -11,29 +23,14 @@ import SwiftUI
 /// `messagesAreaScrollView` → `chatMessagesAreaContent` → `messagesStack`.
 struct ChatMessagesBarrierView<Content: View>: View, Equatable {
 
-    let fingerprint: Fingerprint
+    let fingerprint: ChatMessagesBarrierFingerprint
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        let _ = ChatRenderLogger.logRender(
-            "MessagesBarrier.body",
-            detail: "msgs=\(fingerprint.messageCount) loading=\(fingerprint.isLoading) traces=\(fingerprint.traceEventsTotalCount)"
-        )
         content()
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.fingerprint == rhs.fingerprint
-    }
-
-    struct Fingerprint: Equatable {
-        let conversationId: UUID?
-        let messageCount: Int
-        let lastMessageId: UUID?
-        let lastMessageContentLength: Int
-        let lastMessageIsStreaming: Bool
-        let lastMessageBlocksCount: Int
-        let isLoading: Bool
-        let traceEventsTotalCount: Int
     }
 }

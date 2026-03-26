@@ -28,17 +28,9 @@ extension MarkdownContentView {
     @ViewBuilder
     var contentBody: some View {
         if isStreaming && !hasBlockLevelMarkdown {
-            let _ = ChatRenderLogger.logRender(
-                "Markdown.streamingInline",
-                detail: "len=\(content.count)"
-            )
             // Fast path: inline-only content during streaming.
             streamingBody
         } else if isStreaming {
-            let _ = ChatRenderLogger.logRender(
-                "Markdown.streamingFull",
-                detail: "len=\(content.count) blocks=\(cachedBlocks?.count ?? -1)"
-            )
             // Streaming with block-level markdown: use full parser
             // so headings, code blocks, lists render in real time.
             streamingFullMarkdownBody

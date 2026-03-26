@@ -233,10 +233,6 @@ extension ChatPanelView {
     internal var messagesArea: some View {
         ScrollViewReader { proxy in
             VStack(spacing: 0) {
-                if shouldShowStickyTodoCard {
-                    stickyTodoCard
-                    Divider().opacity(0.12)
-                }
                 ZStack {
                     messagesAreaScrollView(using: proxy)
                     if shouldShowMessagesAreaEmptyState {
@@ -271,21 +267,13 @@ extension ChatPanelView {
             // Conversation switched — refresh immediately.
             refreshMessagesSnapshot()
         }
-        .onChange(of: streaming.streamContentVersion) { newVersion in
-            ChatRenderLogger.logOnChange(
-                "streamContentVersion",
-                detail: "v=\(newVersion) followLive=\(isFollowingLive) loading=\(isLoadingForCurrentConversation)"
-            )
+        .onChange(of: streaming.streamContentVersion) { _ in
             // Refresh the snapshot on every stream content update.
             refreshMessagesSnapshot()
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleStreamContentVersionChange(proxy: proxy)
         }
-        .onChange(of: messagesConversationSnapshot?.messages.count) { newCount in
-            ChatRenderLogger.logOnChange(
-                "messages.count",
-                detail: "count=\(newCount ?? 0) followLive=\(isFollowingLive) loading=\(isLoadingForCurrentConversation)"
-            )
+        .onChange(of: messagesConversationSnapshot?.messages.count) { _ in
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleMessagesCountChange(proxy: proxy)
         }
@@ -294,14 +282,9 @@ extension ChatPanelView {
         // leading to black screen flicker. The streamContentVersion onChange already
         // handles auto-scrolling during streaming, which is sufficient.
         .onChange(of: planningState) { new in
-            ChatRenderLogger.logOnChange("planningState", detail: "\(new)")
             handlePlanningStateChange(new, proxy: proxy)
         }
         .onChangeCompat(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
-            ChatRenderLogger.logOnChange(
-                "activeTaskConversationIds",
-                detail: "old=\(oldSet.count) new=\(newSet.count)"
-            )
             // Task started/ended may change isStreaming on messages.
             refreshMessagesSnapshot()
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
@@ -309,44 +292,4 @@ extension ChatPanelView {
         .onDisappear { }
     }
 
-    internal var stickyTodoItems: [TodoItem] {
-        todoStore.displayTodosForChat(for: conversationId)
-    }
-
-    internal var shouldShowStickyTodoCard: Bool {
-        coderMode == .agent && !stickyTodoItems.isEmpty
-    }
-
-    @ViewBuilder
-    internal var stickyTodoCard: some View {
-        if let currentConversationId = conversationId {
-            let latestAssistant = chatStore.conversation(for: currentConversationId)?
-                .messages
-                .last(where: { $0.role == .assistant })
-            let traceEvents = latestAssistant.map {
-                toolTraceStore.events(
-                    conversationId: currentConversationId,
-                    assistantMessageId: $0.id
-                )
-            } ?? []
-            TodoCenterCardView(
-                store: todoStore,
-                conversationId: currentConversationId,
-                traceEvents: traceEvents,
-                microStatusText: latestAssistant.flatMap {
-                    streamingDetailText(for: $0, conversationId: currentConversationId)
-                },
-                isStreaming: (latestAssistant?.isStreaming ?? false) && isLoadingForCurrentConversation,
-                onReviewChanges: {
-                    gitPanelStore.isOpen = true
-                    gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-                }
-            )
-            .padding(.horizontal, 24)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
-            .background(DesignSystem.Colors.chatPanelSolidBackground)
-            .zIndex(1)
-        }
-    }
 }

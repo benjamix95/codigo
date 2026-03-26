@@ -16,6 +16,127 @@ enum ChatTurnAction: Equatable {
     case delete
 }
 
+private struct ChatTurnLiveCardFingerprint: Equatable {
+    let snapshot: SubagentCardSnapshot
+    let isCollapsed: Bool
+    let hasUnreadSinceCollapse: Bool
+
+    init(card: SwarmLiveCardState) {
+        self.snapshot = SubagentCardSnapshot(from: card)
+        self.isCollapsed = card.isCollapsed
+        self.hasUnreadSinceCollapse = card.hasUnreadSinceCollapse
+    }
+}
+
+private struct ChatTurnSegmentView: View, Equatable {
+    let segment: ChatTurnInterleavedSegment
+    let context: ProjectContext?
+    let modeColor: Color
+    let isLiveStreaming: Bool
+    let workspaceHints: [String]
+    let onAction: (ChatTurnAction) -> Void
+
+    static func == (lhs: ChatTurnSegmentView, rhs: ChatTurnSegmentView) -> Bool {
+        guard lhs.isLiveStreaming == rhs.isLiveStreaming,
+              lhs.workspaceHints == rhs.workspaceHints else { return false }
+
+        let lhsContextKey = lhs.context.map { "\($0.id.uuidString.lowercased())|\($0.folderPaths.joined(separator: "|"))" }
+        let rhsContextKey = rhs.context.map { "\($0.id.uuidString.lowercased())|\($0.folderPaths.joined(separator: "|"))" }
+        guard lhsContextKey == rhsContextKey else { return false }
+
+        switch (lhs.segment, rhs.segment) {
+        case let (.text(lhsId, lhsContent, lhsSequence), .text(rhsId, rhsContent, rhsSequence)):
+            return lhsId == rhsId && lhsContent == rhsContent && lhsSequence == rhsSequence
+
+        case let (.reasoning(lhsId, lhsText, lhsSequence), .reasoning(rhsId, rhsText, rhsSequence)):
+            return lhsId == rhsId && lhsText == rhsText && lhsSequence == rhsSequence
+
+        case let (.toolEvent(lhsId, lhsEvent, lhsSequence), .toolEvent(rhsId, rhsEvent, rhsSequence)):
+            return lhsId == rhsId && lhsEvent == rhsEvent && lhsSequence == rhsSequence
+
+        case let (.toolGroup(lhsId, lhsGroup, lhsSequence), .toolGroup(rhsId, rhsGroup, rhsSequence)):
+            return lhsId == rhsId && lhsGroup == rhsGroup && lhsSequence == rhsSequence
+
+        case let (.subagentLiveCard(lhsId, lhsCard, lhsSequence), .subagentLiveCard(rhsId, rhsCard, rhsSequence)):
+            return lhsId == rhsId
+                && ChatTurnLiveCardFingerprint(card: lhsCard) == ChatTurnLiveCardFingerprint(card: rhsCard)
+                && lhsSequence == rhsSequence
+
+        case let (.subagentSnapshot(lhsId, lhsSnapshot, lhsSequence), .subagentSnapshot(rhsId, rhsSnapshot, rhsSequence)):
+            return lhsId == rhsId && lhsSnapshot == rhsSnapshot && lhsSequence == rhsSequence
+
+        case let (.artifact(lhsId, lhsBlock, lhsSequence), .artifact(rhsId, rhsBlock, rhsSequence)):
+            return lhsId == rhsId && lhsBlock == rhsBlock && lhsSequence == rhsSequence
+
+        default:
+            return false
+        }
+    }
+
+    var body: some View {
+        switch segment {
+        case .text(_, let content, _):
+            MarkdownContentView(
+                content: content,
+                context: context,
+                onFileClicked: { onAction(.fileClicked($0)) },
+                textAlignment: .leading,
+                isStreaming: isLiveStreaming
+            )
+            .frame(maxWidth: 800, alignment: .leading)
+            .padding(.vertical, 4)
+
+        case .reasoning(let id, let text, _):
+            Group {
+                ThinkingBlocksView(
+                    blocks: [ReasoningBlock(id: id, text: text)],
+                    isLiveStreaming: isLiveStreaming
+                )
+                Rectangle()
+                    .fill(Color.primary.opacity(0.06))
+                    .frame(height: 0.5)
+                    .padding(.vertical, 4)
+            }
+
+        case .toolEvent(_, let event, _):
+            InlineToolTraceEventView(
+                event: event,
+                workspaceHints: workspaceHints,
+                onOpenFile: { onAction(.fileClicked($0)) }
+            )
+            .frame(maxWidth: 800, alignment: .leading)
+
+        case .toolGroup(_, let group, _):
+            InlineToolTraceGroupView(
+                group: group,
+                workspaceHints: workspaceHints,
+                onOpenFile: { onAction(.fileClicked($0)) }
+            )
+            .frame(maxWidth: 800, alignment: .leading)
+
+        case .subagentLiveCard(_, let card, _):
+            SubagentChatCardView(
+                card: card,
+                onOpenInPanel: { onAction(.openSubagentPanel(card.swarmId)) },
+                onStop: { onAction(.stopSubagent) }
+            )
+            .padding(.horizontal, 2)
+
+        case .subagentSnapshot(_, let snapshot, _):
+            SubagentSnapshotCardView(snapshot: snapshot)
+                .padding(.horizontal, 2)
+
+        case .artifact(_, let block, _):
+            ArtifactCardView(
+                block: block,
+                accentColor: modeColor,
+                context: context,
+                onFileClicked: { onAction(.fileClicked($0)) }
+            )
+        }
+    }
+}
+
 // MARK: - ChatTurnView
 
 struct ChatTurnView: View, Equatable {
@@ -38,68 +159,22 @@ struct ChatTurnView: View, Equatable {
     let showTopDivider: Bool
 
     nonisolated static func == (lhs: ChatTurnView, rhs: ChatTurnView) -> Bool {
-        // Log which field caused the Equatable miss (re-render).
-        let msgId = lhs.message.id.uuidString.prefix(8)
-        if lhs.message.id != rhs.message.id {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] message.id changed")
-            return false
-        }
-        if lhs.message.content != rhs.message.content {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] content changed (len \(lhs.message.content.count)→\(rhs.message.content.count))")
-            return false
-        }
-        if lhs.message.isStreaming != rhs.message.isStreaming {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] isStreaming \(lhs.message.isStreaming)→\(rhs.message.isStreaming)")
-            return false
-        }
-        if lhs.isActuallyLoading != rhs.isActuallyLoading {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] isActuallyLoading \(lhs.isActuallyLoading)→\(rhs.isActuallyLoading)")
-            return false
-        }
-        if lhs.streamingStatusText != rhs.streamingStatusText {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] streamingStatusText changed")
-            return false
-        }
-        if lhs.streamingDetailText != rhs.streamingDetailText {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] streamingDetailText changed")
-            return false
-        }
-        if lhs.traceEvents.count != rhs.traceEvents.count {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] traceEvents.count \(lhs.traceEvents.count)→\(rhs.traceEvents.count)")
-            return false
-        }
-        if lhs.inlineActivities.count != rhs.inlineActivities.count {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] inlineActivities.count \(lhs.inlineActivities.count)→\(rhs.inlineActivities.count)")
-            return false
-        }
-        if lhs.liveSubagentCards.count != rhs.liveSubagentCards.count {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] liveSubagentCards.count \(lhs.liveSubagentCards.count)→\(rhs.liveSubagentCards.count)")
-            return false
-        }
-        if lhs.todoItems.count != rhs.todoItems.count {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] todoItems.count \(lhs.todoItems.count)→\(rhs.todoItems.count)")
-            return false
-        }
-        if lhs.conversationId != rhs.conversationId {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] conversationId changed")
-            return false
-        }
-        if lhs.shouldShowTodo != rhs.shouldShowTodo {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] shouldShowTodo changed")
-            return false
-        }
-        if lhs.canEdit != rhs.canEdit {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] canEdit changed")
-            return false
-        }
-        if lhs.canDelete != rhs.canDelete {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] canDelete changed")
-            return false
-        }
-        if lhs.showTopDivider != rhs.showTopDivider {
-            ChatRenderLogger.logEquatableMiss("ChatTurnView", reason: "[\(msgId)] showTopDivider changed")
-            return false
-        }
+        if lhs.message.id != rhs.message.id { return false }
+        if lhs.message.content != rhs.message.content { return false }
+        if lhs.message.reasoningText != rhs.message.reasoningText { return false }
+        if lhs.message.isStreaming != rhs.message.isStreaming { return false }
+        if lhs.isActuallyLoading != rhs.isActuallyLoading { return false }
+        if lhs.streamingStatusText != rhs.streamingStatusText { return false }
+        if lhs.streamingDetailText != rhs.streamingDetailText { return false }
+        if lhs.traceEvents.count != rhs.traceEvents.count { return false }
+        if lhs.inlineActivities.count != rhs.inlineActivities.count { return false }
+        if lhs.liveSubagentCards.count != rhs.liveSubagentCards.count { return false }
+        if lhs.todoItems.count != rhs.todoItems.count { return false }
+        if lhs.conversationId != rhs.conversationId { return false }
+        if lhs.shouldShowTodo != rhs.shouldShowTodo { return false }
+        if lhs.canEdit != rhs.canEdit { return false }
+        if lhs.canDelete != rhs.canDelete { return false }
+        if lhs.showTopDivider != rhs.showTopDivider { return false }
         return true
     }
 
@@ -140,27 +215,15 @@ struct ChatTurnView: View, Equatable {
     // MARK: - Interleaved Timeline Segments
 
     private var interleavedSegments: [ChatTurnInterleavedSegment] {
-        let t0 = ChatRenderLogger.startTiming("interleave")
-        let result = ChatTurnTimelineInterleaver.segments(
+        ChatTurnTimelineInterleaver.segments(
             blocks: visibleBlocks,
             traceEvents: inlineTraceEvents,
             liveSubagentCards: liveSubagentCards,
             subagentSnapshots: message.subagentCards ?? []
         )
-        ChatRenderLogger.endTiming(
-            "interleave(\(message.id.uuidString.prefix(8)))",
-            start: t0,
-            thresholdMs: 1.0
-        )
-        return result
     }
 
     var body: some View {
-        let _ = ChatRenderLogger.startTiming("ChatTurnView.body")
-        let _ = ChatRenderLogger.logRender(
-            "ChatTurnView.body",
-            detail: "msgId=\(message.id.uuidString.prefix(8)) streaming=\(message.isStreaming) loading=\(isActuallyLoading) traces=\(traceEvents.count) segments=\(interleavedSegments.count)"
-        )
         VStack(alignment: .leading, spacing: 10) {
             if showTopDivider {
                 Rectangle()
@@ -170,7 +233,14 @@ struct ChatTurnView: View, Equatable {
             }
             header
             ForEach(interleavedSegments) { segment in
-                segmentView(for: segment)
+                ChatTurnSegmentView(
+                    segment: segment,
+                    context: context,
+                    modeColor: modeColor,
+                    isLiveStreaming: message.isStreaming && isActuallyLoading,
+                    workspaceHints: traceWorkspaceHints,
+                    onAction: onAction
+                )
             }
             if message.isStreaming && isActuallyLoading {
                 streamingFooter
@@ -178,70 +248,6 @@ struct ChatTurnView: View, Equatable {
             actions
         }
         .frame(maxWidth: 860, alignment: .leading)
-    }
-
-    // MARK: - Segment Rendering
-
-    @ViewBuilder
-    private func segmentView(for segment: ChatTurnInterleavedSegment) -> some View {
-        switch segment {
-        case .text(_, let content, _):
-            MarkdownContentView(
-                content: content,
-                context: context,
-                onFileClicked: { onAction(.fileClicked($0)) },
-                textAlignment: .leading,
-                isStreaming: message.isStreaming && isActuallyLoading
-            )
-            .frame(maxWidth: 800, alignment: .leading)
-            .padding(.vertical, 4)
-
-        case .reasoning(let id, let text, _):
-            ThinkingBlocksView(
-                blocks: [ReasoningBlock(id: id, text: text)],
-                isLiveStreaming: message.isStreaming && isActuallyLoading
-            )
-            Rectangle()
-                .fill(Color.primary.opacity(0.06))
-                .frame(height: 0.5)
-                .padding(.vertical, 4)
-
-        case .toolEvent(_, let event, _):
-            InlineToolTraceEventView(
-                event: event,
-                workspaceHints: traceWorkspaceHints,
-                onOpenFile: { onAction(.fileClicked($0)) }
-            )
-            .frame(maxWidth: 800, alignment: .leading)
-
-        case .toolGroup(_, let group, _):
-            InlineToolTraceGroupView(
-                group: group,
-                workspaceHints: traceWorkspaceHints,
-                onOpenFile: { onAction(.fileClicked($0)) }
-            )
-            .frame(maxWidth: 800, alignment: .leading)
-
-        case .subagentLiveCard(_, let card, _):
-            SubagentChatCardView(
-                card: card,
-                onOpenInPanel: { onAction(.openSubagentPanel(card.swarmId)) },
-                onStop: { onAction(.stopSubagent) }
-            )
-            .padding(.horizontal, 2)
-
-        case .subagentSnapshot(_, let snapshot, _):
-            SubagentSnapshotCardView(snapshot: snapshot)
-                .padding(.horizontal, 2)
-
-        case .artifact(_, let block, _):
-            ArtifactCardView(
-                block: block,
-                accentColor: modeColor,
-                context: context,
-                onFileClicked: { onAction(.fileClicked($0)) }
-            )
-        }
     }
 
     // MARK: - Filter
