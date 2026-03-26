@@ -173,7 +173,8 @@ extension CodeReviewPanelStore {
                 sessionId: sessionId,
                 findingId: artifact.findingId,
                 title: "Patch applicata",
-                detail: "Il fix è stato applicato e il lifecycle ora espone apply, validation e rollback."
+                detail:
+                    "Il fix è stato applicato con validazione (build, test mirati, regression audit, suite di test completa dello scheme). Se compare ancora un test rosso—anche lontano dal finding—va corretto: non è accettabile ignorare regressioni finché la suite non è verde."
             )
             if settings.autoOpenPRAfterApply {
                 await openPatchPullRequest(sessionId: sessionId, findingId: artifact.findingId)

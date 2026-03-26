@@ -65,8 +65,11 @@ public actor ValidationOrchestrator {
             TargetedTestsStage(),
             SecurityStage(),
         ]
-        if profile == .gitCommit || profile == .ciFull {
+        if profile == .gitCommit || profile == .ciFull || profile == .reviewPatchApply {
             stages.append(RegressionStage())
+        }
+        if profile == .reviewPatchApply || profile == .gitCommit {
+            stages.append(FullSchemeTestsStage())
         }
         if profile == .ciFull {
             stages.append(PerformanceStage())

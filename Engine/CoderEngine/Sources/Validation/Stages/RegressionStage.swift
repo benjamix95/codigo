@@ -8,7 +8,7 @@ struct RegressionStage: ValidationStage {
         profile: ValidationProfile,
         descriptor: ProjectValidationDescriptor
     ) async -> ValidationStageResult {
-        guard profile == .gitCommit || profile == .ciFull else {
+        guard profile == .gitCommit || profile == .ciFull || profile == .reviewPatchApply else {
             return ValidationStageResult(stage: id, status: .skipped, summary: "Regression gate non richiesto dal profilo.")
         }
         let result = CodeReviewAuditService.runTool(

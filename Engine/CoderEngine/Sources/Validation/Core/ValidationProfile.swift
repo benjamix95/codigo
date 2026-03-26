@@ -21,6 +21,8 @@ public enum ValidationStageID: String, Sendable, Codable, CaseIterable {
     case targetedTests
     case security
     case regression
+    /// `xcodebuild test` sullo scheme configurato senza filtri `-only-testing` (tutti i bundle dello scheme).
+    case fullSchemeTests
     case performance
     case e2e
 }
