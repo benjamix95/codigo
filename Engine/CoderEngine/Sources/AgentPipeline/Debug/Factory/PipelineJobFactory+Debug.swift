@@ -99,7 +99,7 @@ extension PipelineJobFactory {
                 return true
             case .intake:
                 switch stage {
-                case .activateMode, .sessionStart, .setDescribePhase, .gatherContext,
+                case .describePipelineBootstrap, .gatherContext,
                      .requestClarification, .analyzeIssue, .setReproducePhase,
                      .requestReproduction, .awaitReproduceGate:
                     return true
@@ -168,35 +168,29 @@ extension PipelineJobFactory {
             return taskId
         }
 
-        let activateModeId = appendStage(
-            .activateMode,
-            title: "Activate Debug Mode",
+        let bootstrapPrompt = """
+        In one turn, run these MCP debug setup steps in strict order. Complete each successfully before the next:
+        1) Tool activate_debug_mode (or equivalent activate_debug_mode MCP).
+        2) Tool debug_session with action=start.
+        3) Tool debug_set_phase with phase=describing.
+        Then reply with a brief summary that the session exists and is in the describing phase.
+        """
+        let describeBootstrapId = appendStage(
+            .describePipelineBootstrap,
+            title: "Open Debug Session",
             taskType: .bugfix,
             priority: 100,
-            metadata: ["mcp_tool": "activate_debug_mode"]
-        )
-        let sessionStartId = appendStage(
-            .sessionStart,
-            title: "Start Debug Session",
-            taskType: .bugfix,
-            priority: 99,
-            dependsOn: [activateModeId],
-            metadata: ["mcp_tool": "debug_session", "action": "start"]
-        )
-        let setDescribePhaseId = appendStage(
-            .setDescribePhase,
-            title: "Set Describe Phase",
-            taskType: .bugfix,
-            priority: 98,
-            dependsOn: [sessionStartId],
-            metadata: ["mcp_tool": "debug_set_phase", "phase": "describing"]
+            metadata: [
+                "mcp_tool": "activate_debug_mode",
+                "pipeline_full_prompt": bootstrapPrompt,
+            ]
         )
         let gatherContextId = appendStage(
             .gatherContext,
             title: "Gather Debug Context",
             taskType: .bugfix,
             priority: 96,
-            dependsOn: [setDescribePhaseId],
+            dependsOn: [describeBootstrapId],
             metadata: ["debug_tool": "debug_context"]
         )
         let describeQuestionOneId = appendStage(
@@ -265,7 +259,7 @@ extension PipelineJobFactory {
             ]
         )
 
-        var nativeBackboneTailId = awaitReproduceGateId
+        var nativeSyncDeps: [String] = []
         if request.includeNativeStages {
             let nativeStartId = appendStage(
                 .nativeStart,
@@ -281,21 +275,25 @@ extension PipelineJobFactory {
                 priority: 82,
                 dependsOn: [nativeStartId]
             )
-            nativeBackboneTailId = appendStage(
+            let nativeSyncWatchesId = appendStage(
                 .nativeSyncWatches,
                 title: "Sync Native Watches",
                 taskType: .bugfix,
                 priority: 80,
-                dependsOn: [nativeSyncBreakpointsId]
+                dependsOn: [nativeStartId]
             )
+            nativeSyncDeps = [nativeSyncBreakpointsId, nativeSyncWatchesId].compactMap { $0 }
         }
+        let reproduceDeps: [String] = nativeSyncDeps.isEmpty
+            ? [awaitReproduceGateId].compactMap { $0 }
+            : nativeSyncDeps
 
         let reproduceId = appendStage(
             .reproduce,
             title: "Reproduce Bug",
             taskType: .bugfix,
             priority: 76,
-            dependsOn: [nativeBackboneTailId]
+            dependsOn: reproduceDeps
         )
         let instrumentId = appendStage(
             .instrument,

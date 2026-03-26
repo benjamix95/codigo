@@ -22,14 +22,14 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
         XCTAssertEqual(job.selectedProviderProfile, "codex-cli")
         XCTAssertEqual(job.debugSession?.backendPolicy, .appleHybrid)
         XCTAssertEqual(job.debugSession?.errorSummary, "Crash on launch")
-        XCTAssertEqual(tasks.first?.debugStage, .activateMode)
+        XCTAssertEqual(tasks.first?.debugStage, .describePipelineBootstrap)
         XCTAssertEqual(tasks.last?.debugStage, .sessionStop)
 
         XCTAssertTrue(tasks.contains { $0.debugStage == .nativeStart })
         XCTAssertTrue(tasks.contains { $0.debugStage == .reviewFix })
         XCTAssertTrue(tasks.contains { $0.debugStage == .clean })
-        XCTAssertTrue(tasks.contains { $0.debugStage == .sessionStart })
-        XCTAssertTrue(tasks.contains { $0.debugStage == .setDescribePhase })
+        XCTAssertFalse(tasks.contains { $0.debugStage == .sessionStart })
+        XCTAssertFalse(tasks.contains { $0.debugStage == .setDescribePhase })
         XCTAssertTrue(tasks.contains { $0.debugStage == .requestClarification })
         XCTAssertTrue(tasks.contains { $0.debugStage == .snapshot })
         XCTAssertTrue(tasks.contains { $0.debugStage == .hypothesize })
@@ -59,7 +59,9 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
             workspace: "/tmp/solocode",
             providerId: "codex-cli"
         )
+        let bootstrap = try XCTUnwrap(tasks.first { $0.debugStage == .describePipelineBootstrap })
         let gather = try XCTUnwrap(tasks.first { $0.debugStage == .gatherContext })
+        XCTAssertEqual(Set(gather.dependsOn), Set([bootstrap.taskId]))
         let clarifications = tasks.filter { $0.debugStage == .requestClarification }
         XCTAssertEqual(clarifications.count, 2)
         for c in clarifications {
@@ -74,6 +76,25 @@ final class PipelineDebugJobFactoryTests: XCTestCase {
             Set(analyze.dependsOn),
             Set(clarifications.map(\.taskId))
         )
+    }
+
+    func testNativeSyncBreakpointsAndWatchesRunParallelAfterStart() throws {
+        let request = DebugSessionRequest(
+            errorSummary: "Native parallel",
+            includeNativeStages: true
+        )
+        let (_, tasks) = PipelineJobFactory.fromDebugSession(
+            request,
+            workspace: "/tmp/solocode",
+            providerId: "codex-cli"
+        )
+        let start = try XCTUnwrap(tasks.first { $0.debugStage == .nativeStart })
+        let bp = try XCTUnwrap(tasks.first { $0.debugStage == .nativeSyncBreakpoints })
+        let watches = try XCTUnwrap(tasks.first { $0.debugStage == .nativeSyncWatches })
+        XCTAssertEqual(Set(bp.dependsOn), Set([start.taskId]))
+        XCTAssertEqual(Set(watches.dependsOn), Set([start.taskId]))
+        let repro = try XCTUnwrap(tasks.first { $0.debugStage == .reproduce })
+        XCTAssertEqual(Set(repro.dependsOn), Set([bp.taskId, watches.taskId]))
     }
 
     func testFromDebugSessionOmitsOptionalStagesWhenDisabled() {

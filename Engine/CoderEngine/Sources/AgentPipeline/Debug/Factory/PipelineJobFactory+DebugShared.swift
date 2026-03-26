@@ -12,6 +12,8 @@ extension PipelineJobFactory {
 
     static func timeoutForDebugStage(_ stage: DebugStageKind) -> Int {
         switch stage {
+        case .describePipelineBootstrap:
+            return 90_000
         case .activateMode, .sessionStart, .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase,
              .setVerifyPhase, .resolve:
@@ -37,7 +39,7 @@ extension PipelineJobFactory {
 
     static func riskForDebugStage(_ stage: DebugStageKind) -> RiskLevel {
         switch stage {
-        case .activateMode, .sessionStart, .sessionExport, .sessionStop,
+        case .describePipelineBootstrap, .activateMode, .sessionStart, .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase,
              .setVerifyPhase, .requestClarification, .requestReproduction,
              .resolve, .awaitReproduceGate, .awaitFixGate:
