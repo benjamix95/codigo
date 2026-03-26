@@ -22,6 +22,8 @@ final class WorkspaceStore: ObservableObject {
     private(set) var indexingEpoch: UUID = UUID()
     private(set) var progressPollingTask: Task<Void, Never>?
     private(set) var indexingTask: Task<Void, Never>?
+    /// Evita provision CI ripetuti se le root non cambiano.
+    private var lastLocalCIProvisionFingerprint: String?
 
     init() {
         load()
@@ -77,6 +79,8 @@ final class WorkspaceStore: ObservableObject {
     func indexActiveWorkspace() {
         let activeToken = resetIndexingInfrastructure()
         let paths = activeWorkspacePaths
+
+        scheduleLocalCIScaffold(for: paths)
 
         guard isAutomaticIndexingEnabled, !paths.isEmpty else {
             resetIndexBadgeToIdle()
@@ -243,6 +247,24 @@ final class WorkspaceStore: ObservableObject {
             UserDefaults.standard.set(id.uuidString, forKey: activeWorkspaceIdKey)
         } else {
             UserDefaults.standard.removeObject(forKey: activeWorkspaceIdKey)
+        }
+    }
+
+    /// Genera `.github/workflows/solocode-auto-ci.yml` e `scripts/solocode-run-local-ci.sh` in base ai linguaggi rilevati.
+    private func scheduleLocalCIScaffold(for paths: [URL]) {
+        guard !paths.isEmpty else {
+            lastLocalCIProvisionFingerprint = nil
+            return
+        }
+        let fingerprint = paths
+            .map { $0.standardizedFileURL.path }
+            .sorted()
+            .joined(separator: "\u{1e}")
+        guard fingerprint != lastLocalCIProvisionFingerprint else { return }
+        lastLocalCIProvisionFingerprint = fingerprint
+        let roots = paths.map { $0.standardizedFileURL }
+        Task.detached(priority: .utility) {
+            WorkspaceLocalCIProvisioner.provision(roots: roots)
         }
     }
 }
