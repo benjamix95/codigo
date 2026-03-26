@@ -39,6 +39,7 @@ extension MCPSharedState {
         )
     }
 
+
     static func withBugHunterAdvisoryLock<T>(
         _ body: () -> T
     ) -> T {
@@ -73,9 +74,6 @@ extension MCPSharedState {
     ) -> T {
         #if DEBUG
         let _lockEntryTime = CFAbsoluteTimeGetCurrent()
-        if Thread.isMainThread {
-            NSLog("[CrossProcessLock] ENTER on main thread: label=%@", label)
-        }
         #endif
         // NSRecursiveLock gestisce reentrancy e serializzazione intra-processo.
         fallbackLock.lock()
@@ -87,6 +85,17 @@ extension MCPSharedState {
                 NSLog("[CrossProcessLock] MAIN-STALL-TOTAL: label=%@ — %.0fms total (lock+body)", label, elapsed)
             }
             #endif
+        }
+
+        // On the main thread, skip the advisory file lock (flock) to avoid
+        // blocking the UI with up to 10s spin-wait. The NSRecursiveLock
+        // above is sufficient for intra-process serialization. Cross-process
+        // safety is sacrificed on main-thread calls, but this is acceptable
+        // because the MCP server (the other process) rarely holds the lock
+        // for more than a few ms, and UI responsiveness is more important.
+        if Thread.isMainThread {
+            ensureLockDirectory()
+            return body()
         }
 
         let result = acquireLock?() ?? acquireAdvisoryFileLock(

@@ -44,9 +44,10 @@ public enum MCPSharedState {
     // MARK: - Todos
 
     /// Write the full todo list (authoritative). Called by the main IDE app.
-    /// Thread-safe: serialized through `fileAccessQueue` to prevent concurrent read/write races.
+    /// Thread-safe: serialized through `fileAccessQueue`.
+    /// Uses `.async` to avoid blocking the calling thread (main thread).
     public static func writeTodos(_ items: [[String: Any]]) {
-        fileAccessQueue.sync {
+        fileAccessQueue.async {
             withTodosAdvisoryLock {
                 _writeTodosUnsafe(items)
             }
@@ -115,7 +116,7 @@ public enum MCPSharedState {
         linkedFiles: [String]? = nil,
         sourceServer: String? = nil
     ) {
-        fileAccessQueue.sync {
+        fileAccessQueue.async {
             withTodosAdvisoryLock {
             var todos = _readTodosUnsafe()
             let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -158,7 +159,7 @@ public enum MCPSharedState {
 
     /// Batch-write todos from the MCP server (full replacement of todos_json).
     public static func batchWriteTodosFromMCP(_ todosArray: [[String: Any]]) {
-        fileAccessQueue.sync {
+        fileAccessQueue.async {
             withTodosAdvisoryLock {
             var existing = _readTodosUnsafe()
             for todoItem in todosArray {
