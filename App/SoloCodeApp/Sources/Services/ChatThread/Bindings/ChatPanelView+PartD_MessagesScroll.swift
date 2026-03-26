@@ -334,7 +334,10 @@ extension ChatPanelView {
                             onPlanningNextMoveTap: (resolvedStreamingStatusText == "Planning next move" && cellIsLoading)
                                 ? { performPlanningNextMoveUserAction() }
                                 : nil,
-                            showTopDivider: needsDivider
+                            showTopDivider: needsDivider,
+                            clipboardMarkdownOverride: suppressPlanArtifacts
+                                ? message.exportMarkdownContent
+                                : nil
                         )
                     }
                 }

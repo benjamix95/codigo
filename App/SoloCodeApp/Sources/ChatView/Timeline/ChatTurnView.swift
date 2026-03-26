@@ -161,6 +161,8 @@ struct ChatTurnView: View, Equatable {
     /// Tap su “Planning next move”: promuove todo o invia nudge se il thread è fermo.
     var onPlanningNextMoveTap: (() -> Void)? = nil
     let showTopDivider: Bool
+    /// Se valorizzato (es. piano mostrato come placeholder in chat), la copia usa questo testo invece di `message.exportMarkdownContent`.
+    var clipboardMarkdownOverride: String? = nil
 
     nonisolated static func == (lhs: ChatTurnView, rhs: ChatTurnView) -> Bool {
         if lhs.message.id != rhs.message.id { return false }
@@ -180,6 +182,7 @@ struct ChatTurnView: View, Equatable {
         if lhs.canEdit != rhs.canEdit { return false }
         if lhs.canDelete != rhs.canDelete { return false }
         if lhs.showTopDivider != rhs.showTopDivider { return false }
+        if lhs.clipboardMarkdownOverride != rhs.clipboardMarkdownOverride { return false }
         return true
     }
 
@@ -343,7 +346,8 @@ struct ChatTurnView: View, Equatable {
         HStack(spacing: 4) {
             Button {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(message.exportMarkdownContent, forType: .string)
+                let exportBody = clipboardMarkdownOverride ?? message.exportMarkdownContent
+                NSPasteboard.general.setString(exportBody, forType: .string)
                 didCopyMessage = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
                     didCopyMessage = false

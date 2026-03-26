@@ -142,6 +142,8 @@ extension ChatPanelView {
         )
     }
 
+    /// Finalizza il tool trace per un turno. Passa sempre `conversationId` quando possibile:
+    /// con `nil` si chiudono **tutti** i turni attivi (solo per interrupt/shutdown globale).
     @MainActor
     internal func finalizeToolTraceTurn(conversationId: UUID?, outcome: ToolTraceTurnOutcome? = nil) {
         let finalOutcome = outcome ?? toolTraceTurnOutcome(for: flowCoordinator.state)

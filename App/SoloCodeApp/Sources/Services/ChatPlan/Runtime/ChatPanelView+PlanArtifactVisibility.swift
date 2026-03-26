@@ -59,13 +59,45 @@ extension ChatPanelView {
         return hasChecklist || hasMermaid
     }
 
+    /// Allineato a `handleStreamResult`: quando true, in chat si mostra solo `planInPanelPlaceholder` ma il messaggio in store conserva il testo completo.
+    func planMarkdownHiddenInChat(
+        effectiveFullText: String,
+        conversationId: UUID,
+        isBuildContext: Bool,
+        shouldRunPlanInline: Bool
+    ) -> Bool {
+        let fullLooksLikePlanPayload = looksLikePlanPayload(effectiveFullText)
+        let shouldRoutePlanStreamToPanel = shouldRoutePlanStream(to: conversationId)
+        let shouldHidePlanMarkdownForBuild = isBuildContext && shouldRoutePlanStreamToPanel
+        let hasPlanContextForStreamConversation = hasActivePlanContext(for: conversationId)
+        return shouldHidePlanMarkdownInChat(
+            shouldRoutePlanStreamToPanel: shouldRoutePlanStreamToPanel,
+            coderMode: coderMode,
+            shouldRunPlanInline: shouldRunPlanInline,
+            fullLooksLikePlanPayload: fullLooksLikePlanPayload,
+            shouldHidePlanMarkdownForBuild: shouldHidePlanMarkdownForBuild,
+            hasActivePlanContext: hasPlanContextForStreamConversation
+        )
+    }
+
     func shouldSuppressPlanArtifactsInChat(
         message: ChatMessage,
         conversationId: UUID?
     ) -> Bool {
-        _ = message
-        _ = conversationId
-        return false
+        guard message.role == .assistant else { return false }
+        guard let conversationId else { return false }
+        let isBuildContext = isPlanBuildContext(
+            conversationId: conversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
+        return planMarkdownHiddenInChat(
+            effectiveFullText: message.content,
+            conversationId: conversationId,
+            isBuildContext: isBuildContext,
+            shouldRunPlanInline: planShouldRunInline
+        )
     }
 
     func chatDisplayMessage(

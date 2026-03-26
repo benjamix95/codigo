@@ -44,24 +44,20 @@ extension ChatPanelView {
         let full = isBuildContext
             ? normalizeBuildFinalResponse(fullText)
             : fullText
-        let fullLooksLikePlanPayload = looksLikePlanPayload(full)
         let shouldRoutePlanStreamToPanel = shouldRoutePlanStream(to: streamConversationId)
         let shouldHidePlanMarkdownForBuild =
             isBuildContext && shouldRoutePlanStreamToPanel
-        let hasPlanContextForStreamConversation = hasActivePlanContext(for: streamConversationId)
         let activeReasoningText = streaming.streamingReasoningConversationId == streamConversationId
             ? streaming.streamingReasoningText
             : chatStore.conversation(for: streamConversationId)?
                 .messages
                 .last(where: { $0.role == .assistant })?
                 .reasoningText
-        let shouldHidePlanMarkdown = shouldHidePlanMarkdownInChat(
-            shouldRoutePlanStreamToPanel: shouldRoutePlanStreamToPanel,
-            coderMode: coderMode,
-            shouldRunPlanInline: shouldRunPlanInline,
-            fullLooksLikePlanPayload: fullLooksLikePlanPayload,
-            shouldHidePlanMarkdownForBuild: shouldHidePlanMarkdownForBuild,
-            hasActivePlanContext: hasPlanContextForStreamConversation
+        let shouldHidePlanMarkdown = planMarkdownHiddenInChat(
+            effectiveFullText: full,
+            conversationId: streamConversationId,
+            isBuildContext: isBuildContext,
+            shouldRunPlanInline: shouldRunPlanInline
         )
         if shouldHidePlanMarkdownForBuild,
            shouldAutoOpenPlanPanel(trigger: .flowStarted),
@@ -90,15 +86,14 @@ extension ChatPanelView {
             ]
         )
         // #endregion
-        let initialChatContent = shouldHidePlanMarkdown
-            ? "Processing plan output in Plan Panel..."
-            : finalVisibleChatContent
         await MainActor.run {
             applyMainChatUIStreamIntent(
                 "stream_finish_success",
                 conversationId: streamConversationId,
                 providerId: resolvedTurnProviderId(for: streamConversationId),
-                text: initialChatContent
+                // Con plan nascosto in chat: non sovrascrivere il contenuto in store con un placeholder
+                // (`apply_terminal_text_override`). La UI usa `shouldSuppressPlanArtifactsInChat` + placeholder.
+                text: shouldHidePlanMarkdown ? nil : finalVisibleChatContent
             )
             clearStreamingReasoning(for: streamConversationId)
         }
