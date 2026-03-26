@@ -60,15 +60,33 @@ extension SidebarView {
                 }
             }
 
-            indexWaitBanner
+            indexBanners(for: context)
         }
         .padding(12)
     }
 
     @ViewBuilder
-    private var indexWaitBanner: some View {
+    private func indexBanners(for context: ProjectContext) -> some View {
         let st = workspaceStore.indexBadgeState
-        if st.shouldShowWaitNotice {
+        if context.folderPaths.isEmpty || st.shouldShowNoWorkspaceFoldersNotice {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "folder.badge.questionmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text(
+                    "Nessuna cartella nel workspace: non viene indicizzato nulla. Aggiungi una cartella al progetto per avviare l’indicizzazione."
+                )
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+            )
+        } else if st.shouldShowWaitNotice {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "hourglass")
                     .font(.system(size: 10, weight: .semibold))
@@ -108,7 +126,12 @@ extension SidebarView {
         let state = workspaceStore.indexBadgeState
         return HStack(spacing: 5) {
             IndexCircleBadge(state: state, dimension: 13)
-            if state.hasWorkspacePaths, state.indexingEnabled {
+            if !state.hasWorkspacePaths {
+                Text("—")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                    .help("Nessuna cartella nel workspace — indicizzazione non attiva")
+            } else if state.indexingEnabled {
                 Text(state.displayPercentText)
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(sidebarIndexPercentColor(state))
@@ -119,6 +142,7 @@ extension SidebarView {
     }
 
     private func sidebarIndexPercentColor(_ st: WorkspaceIndexBadgeState) -> Color {
+        if !st.hasWorkspacePaths { return DesignSystem.Colors.textQuaternary }
         if st.shouldShowErrorNotice { return DesignSystem.Colors.error }
         if st.isFullyIndexed { return DesignSystem.Colors.success }
         if st.isIndexingActive { return Color.orange }

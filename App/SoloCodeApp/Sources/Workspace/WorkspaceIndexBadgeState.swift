@@ -47,6 +47,11 @@ struct WorkspaceIndexBadgeState: Equatable {
         indexingEnabled && hasWorkspacePaths && status == .error && !isIndexingActive
     }
 
+    /// Nessun path nel workspace attivo: niente viene indicizzato (cache/DB possono essere stati azzerati).
+    var shouldShowNoWorkspaceFoldersNotice: Bool {
+        !hasWorkspacePaths
+    }
+
     static func from(
         info: IndexStatusInfo,
         hasWorkspacePaths: Bool,

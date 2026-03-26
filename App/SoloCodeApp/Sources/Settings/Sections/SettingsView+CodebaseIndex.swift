@@ -61,9 +61,12 @@ struct CodebaseIndexSettingsSection: View {
         let st = workspaceStore.indexBadgeState
         switch info.status {
         case .idle:
-            indexStatusText = st.hasWorkspacePaths
-                ? "In attesa — avvio indicizzazione (codebase + vettoriale)"
-                : "Nessun workspace in app"
+            if !st.hasWorkspacePaths {
+                indexStatusText =
+                    "Nessuna cartella nel workspace — non viene indicizzato nulla. Aggiungi una cartella dalla barra laterale (contesto progetto)."
+            } else {
+                indexStatusText = "In attesa — avvio indicizzazione (codebase + vettoriale)"
+            }
         case .indexing:
             indexStatusText = "Scansione file, indice semantico e database vettoriale"
         case .ready:
@@ -138,7 +141,14 @@ private extension CodebaseIndexSettingsSection {
                                 .foregroundStyle(.tertiary)
                         }
 
-                        if st.shouldShowWaitNotice {
+                        if st.shouldShowNoWorkspaceFoldersNotice {
+                            Text(
+                                "Aggiungi almeno una cartella al contesto progetto nella barra laterale: finché il workspace non ha path, non viene indicizzato nulla (né simboli né vettoriale)."
+                            )
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        } else if st.shouldShowWaitNotice {
                             Text(
                                 "Attendere il 100%: finché l’indicizzazione non è completa, ricerca semantica e contesto vettoriale possono essere incompleti."
                             )
@@ -173,7 +183,10 @@ private extension CodebaseIndexSettingsSection {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(workspaceStore.indexBadgeState.isIndexingActive)
+                .disabled(
+                    workspaceStore.indexBadgeState.isIndexingActive
+                        || !workspaceStore.indexBadgeState.hasWorkspacePaths
+                )
             }
         }
     }
@@ -190,7 +203,7 @@ private extension CodebaseIndexSettingsSection {
 
     func settingsIndexHeadline(_ st: WorkspaceIndexBadgeState) -> String {
         if !st.indexingEnabled { return "Indice disattivato" }
-        if !st.hasWorkspacePaths { return "Nessun workspace" }
+        if !st.hasWorkspacePaths { return "Nessuna cartella nel workspace" }
         if st.shouldShowErrorNotice { return "Errore" }
         if st.isFullyIndexed { return "Completato" }
         if st.isIndexingActive { return "In corso" }

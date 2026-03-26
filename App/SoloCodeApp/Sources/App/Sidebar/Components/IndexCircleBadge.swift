@@ -16,6 +16,7 @@ struct IndexCircleBadge: View {
     }
 
     private var trackColor: Color {
+        if !state.hasWorkspacePaths { return Color.secondary.opacity(0.2) }
         if !state.indexingEnabled { return Color.secondary.opacity(0.25) }
         if state.shouldShowErrorNotice { return DesignSystem.Colors.error.opacity(0.35) }
         if state.isFullyIndexed { return DesignSystem.Colors.success.opacity(0.25) }
@@ -25,6 +26,7 @@ struct IndexCircleBadge: View {
     }
 
     private var progressColor: Color {
+        if !state.hasWorkspacePaths { return .secondary.opacity(0.5) }
         if !state.indexingEnabled { return .secondary }
         if state.shouldShowErrorNotice { return DesignSystem.Colors.error }
         if state.isFullyIndexed { return DesignSystem.Colors.success }
@@ -56,7 +58,11 @@ struct IndexCircleBadge: View {
 
     @ViewBuilder
     private var centerContent: some View {
-        if !state.indexingEnabled, state.hasWorkspacePaths {
+        if !state.hasWorkspacePaths {
+            Image(systemName: "folder")
+                .font(.system(size: dimension * 0.34, weight: .semibold))
+                .foregroundStyle(.secondary.opacity(0.75))
+        } else if !state.indexingEnabled, state.hasWorkspacePaths {
             Image(systemName: "minus")
                 .font(.system(size: dimension * 0.35, weight: .bold))
                 .foregroundStyle(.secondary)
@@ -85,6 +91,9 @@ struct IndexCircleBadge: View {
     }
 
     private var helpText: String {
+        if !state.hasWorkspacePaths {
+            return "Nessuna cartella nel workspace — nessuna indicizzazione"
+        }
         if !state.indexingEnabled {
             return "Indice automatico disattivato"
         }
