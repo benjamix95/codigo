@@ -3,7 +3,171 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+private let composerTodoRetentionGraceIntervalSeconds: CFAbsoluteTime = 0.75
+
+func shouldHoldComposerTodoOverlay(
+    incomingItems: [TodoItem],
+    retainedItems: [TodoItem],
+    isLoading: Bool,
+    isStreaming: Bool,
+    hasRecentNonEmptySnapshot: Bool
+) -> Bool {
+    !hasVisibleComposerTodoOverlay(items: incomingItems)
+        && hasVisibleComposerTodoOverlay(items: retainedItems)
+        && (isLoading || isStreaming || hasRecentNonEmptySnapshot)
+}
+
+func resolveEffectiveComposerTodoItems(
+    incomingItems: [TodoItem],
+    retainedItems: [TodoItem],
+    isLoading: Bool,
+    isStreaming: Bool,
+    hasRecentNonEmptySnapshot: Bool
+) -> [TodoItem] {
+    if hasVisibleComposerTodoOverlay(items: incomingItems) {
+        return incomingItems
+    }
+    if shouldHoldComposerTodoOverlay(
+        incomingItems: incomingItems,
+        retainedItems: retainedItems,
+        isLoading: isLoading,
+        isStreaming: isStreaming,
+        hasRecentNonEmptySnapshot: hasRecentNonEmptySnapshot
+    ) {
+        return retainedItems
+    }
+    return []
+}
+
+@MainActor
+func resolveComposerTodoItems(
+    todoStore: TodoStore,
+    conversationId: UUID?
+) -> [TodoItem] {
+    guard let conversationId else {
+        return []
+    }
+
+    let visibleTodos = todoStore.userVisibleTodos
+    let canonicalTodos = todoStore.canonicalTodos(for: conversationId)
+    if !canonicalTodos.isEmpty {
+        return canonicalTodos
+    }
+
+    let scopedVisibleTodos = visibleTodos
+        .filter { $0.planConversationId == conversationId }
+        .sorted { lhs, rhs in
+            if lhs.isPlanCanonical != rhs.isPlanCanonical { return lhs.isPlanCanonical }
+            if lhs.isPlanCanonical, rhs.isPlanCanonical {
+                let lhsOrder = lhs.planOrder ?? Int.max
+                let rhsOrder = rhs.planOrder ?? Int.max
+                if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
+            }
+            if lhs.priority.rank != rhs.priority.rank { return lhs.priority.rank < rhs.priority.rank }
+            return lhs.createdAt < rhs.createdAt
+        }
+
+    return scopedVisibleTodos
+}
+
 extension ChatPanelView {
+    private var composerTodoHasRecentNonEmptySnapshot: Bool {
+        composerTodoLastNonEmptySnapshotAt > 0
+            && (CFAbsoluteTimeGetCurrent() - composerTodoLastNonEmptySnapshotAt) < composerTodoRetentionGraceIntervalSeconds
+    }
+
+    private func composerTodoInputSignature(_ items: [TodoItem]) -> String {
+        composerTodoAutoExpandSignature(items: items)
+    }
+
+    @MainActor
+    private func scheduleComposerTodoGraceReevaluation() {
+        composerTodoGraceTask?.cancel()
+        let currentConversationId = conversationId
+        let delayNs = UInt64(composerTodoRetentionGraceIntervalSeconds * 1_000_000_000)
+        composerTodoGraceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: delayNs)
+            guard !Task.isCancelled else { return }
+            guard composerTodoRetentionConversationId == currentConversationId else { return }
+            let latestIncoming = composerTodoItems
+            syncComposerTodoRetention(with: latestIncoming)
+            composerTodoGraceTask = nil
+        }
+    }
+
+    @MainActor
+    private func syncComposerTodoRetention(with incomingItems: [TodoItem]) {
+        if composerTodoRetentionConversationId != conversationId {
+            composerTodoGraceTask?.cancel()
+            composerTodoGraceTask = nil
+            composerRetainedTodoItems = []
+            composerTodoLastNonEmptySnapshotAt = 0
+            composerTodoRetentionConversationId = conversationId
+        }
+
+        let incomingHasOverlay = hasVisibleComposerTodoOverlay(items: incomingItems)
+        if incomingHasOverlay {
+            composerTodoGraceTask?.cancel()
+            composerTodoGraceTask = nil
+            composerRetainedTodoItems = incomingItems
+            composerTodoLastNonEmptySnapshotAt = CFAbsoluteTimeGetCurrent()
+            return
+        }
+
+        if shouldHoldComposerTodoOverlay(
+            incomingItems: incomingItems,
+            retainedItems: composerRetainedTodoItems,
+            isLoading: isLoadingForCurrentConversation,
+            isStreaming: composerTodoRetentionStreamingSignal,
+            hasRecentNonEmptySnapshot: composerTodoHasRecentNonEmptySnapshot
+        ) {
+            scheduleComposerTodoGraceReevaluation()
+            return
+        }
+
+        composerTodoGraceTask?.cancel()
+        composerTodoGraceTask = nil
+        composerRetainedTodoItems = []
+        composerTodoLastNonEmptySnapshotAt = 0
+    }
+
+    private func effectiveComposerTodoItems(from incomingItems: [TodoItem]) -> [TodoItem] {
+        resolveEffectiveComposerTodoItems(
+            incomingItems: incomingItems,
+            retainedItems: composerRetainedTodoItems,
+            isLoading: isLoadingForCurrentConversation,
+            isStreaming: composerTodoRetentionStreamingSignal,
+            hasRecentNonEmptySnapshot: composerTodoHasRecentNonEmptySnapshot
+        )
+    }
+
+    @MainActor
+    private func syncComposerTodoOverlayExpansionState(with items: [TodoItem]) {
+        let signature = composerTodoAutoExpandSignature(items: items)
+        let hasOverlay = hasVisibleComposerTodoOverlay(items: items)
+
+        guard hasOverlay else {
+            composerTodoLastAutoExpandedSignature = ""
+            composerTodoOverlayExpanded = false
+            clearComposerTodoOverlayUserDismissedForSelection()
+            return
+        }
+
+        guard signature != composerTodoLastAutoExpandedSignature else {
+            if !composerTodoOverlayExpanded, let cid = conversationId {
+                let userDismissedSig = composerTodoOverlayUserDismissedSignatureByConversation[cid]
+                if userDismissedSig != signature {
+                    composerTodoOverlayExpanded = true
+                }
+            }
+            return
+        }
+
+        clearComposerTodoOverlayUserDismissedForSelection()
+        composerTodoLastAutoExpandedSignature = signature
+        composerTodoOverlayExpanded = true
+    }
+
     internal static func immediateSubtitleLabel(for activity: TaskActivity) -> String {
         let t = activity.type.lowercased()
         if activity.isRunning {
@@ -140,9 +304,50 @@ extension ChatPanelView {
         )
     }
 
+    // MARK: - Composer Todo Helpers
+
+    private var composerTodoLatestAssistant: ChatMessage? {
+        guard let cid = conversationId else { return nil }
+        return chatStore.conversation(for: cid)?
+            .messages
+            .last(where: { $0.role == .assistant })
+    }
+
+    private var composerTodoFileChanges: [ToolTraceFileChange] {
+        guard let cid = conversationId, let msg = composerTodoLatestAssistant else { return [] }
+        let events = toolTraceStore.events(conversationId: cid, assistantMessageId: msg.id)
+        return ToolTraceFileChangeMapper.collect(from: events)
+    }
+
+    private var composerTodoMicroStatus: String? {
+        guard let cid = conversationId, let msg = composerTodoLatestAssistant else { return nil }
+        return streamingDetailText(for: msg, conversationId: cid)
+    }
+
+    private var composerTodoIsStreaming: Bool {
+        (composerTodoLatestAssistant?.isStreaming ?? false) && isLoadingForCurrentConversation
+    }
+
+    /// Messaggio assistente ancora in streaming: i todo “incoming” possono sparire tra un chunk e l’altro.
+    private var composerTodoRetentionStreamingSignal: Bool {
+        composerTodoLatestAssistant?.isStreaming ?? false
+    }
+
+    private var composerTodoItems: [TodoItem] {
+        resolveComposerTodoItems(
+            todoStore: todoStore,
+            conversationId: conversationId
+        )
+    }
+
     // MARK: - Composer
     @ViewBuilder
     internal var composerArea: some View {
+        let incomingComposerTodoItems = composerTodoItems
+        let stabilizedComposerTodoItems = effectiveComposerTodoItems(from: incomingComposerTodoItems)
+        let resolvedComposerFileChanges = composerTodoFileChanges
+        let resolvedComposerMicroStatus = composerTodoMicroStatus
+        let resolvedComposerStreaming = composerTodoIsStreaming
         VStack(spacing: 0) {
             ChatComposerView(
                 inputText: $composerState.inputText,
@@ -189,8 +394,52 @@ extension ChatPanelView {
                 onDismissFrozenTimer: { composerFrozenTimerState = nil },
                 onVoiceAction: { handleVoiceAction() },
                 onOptimizePrompt: { optimizeCurrentPrompt() },
-                isOptimizingPrompt: isOptimizingPrompt
+                isOptimizingPrompt: isOptimizingPrompt,
+                topOverlay: hasVisibleComposerTodoOverlay(items: stabilizedComposerTodoItems)
+                    ? AnyView(
+                        ComposerTodoOverlayView(
+                            items: stabilizedComposerTodoItems,
+                            fileChanges: resolvedComposerFileChanges,
+                            microStatusText: resolvedComposerMicroStatus,
+                            isStreaming: resolvedComposerStreaming,
+                            isIDEStyle: coderMode == .ide,
+                            isExpanded: composerTodoOverlayExpandedBinding,
+                            onReviewChanges: {
+                                gitPanelStore.isOpen = true
+                                gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                            },
+                            onUserExpandedAfterHeaderTap: { expanded in
+                                if expanded {
+                                    clearComposerTodoOverlayUserDismissedForSelection()
+                                } else {
+                                    setComposerTodoOverlayUserDismissedForSelection(
+                                        signature: composerTodoAutoExpandSignature(items: stabilizedComposerTodoItems)
+                                    )
+                                }
+                            }
+                        )
+                    )
+                    : nil
             )
+        }
+        .onAppear {
+            syncComposerTodoRetention(with: incomingComposerTodoItems)
+            syncComposerTodoOverlayExpansionState(with: stabilizedComposerTodoItems)
+        }
+        .onChange(of: composerTodoInputSignature(incomingComposerTodoItems)) { _ in
+            syncComposerTodoRetention(with: incomingComposerTodoItems)
+            syncComposerTodoOverlayExpansionState(with: effectiveComposerTodoItems(from: incomingComposerTodoItems))
+        }
+        .onChange(of: conversationId) { _ in
+            syncComposerTodoRetention(with: incomingComposerTodoItems)
+            syncComposerTodoOverlayExpansionState(with: effectiveComposerTodoItems(from: incomingComposerTodoItems))
+        }
+        .onDisappear {
+            composerTodoGraceTask?.cancel()
+            composerTodoGraceTask = nil
+            composerTodoOverlayExpanded = false
+            composerTodoLastAutoExpandedSignature = ""
+            clearComposerTodoOverlayUserDismissedForSelection()
         }
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
