@@ -27,14 +27,16 @@ public struct SubagentPromptBuilder {
         case .explorer:
             return """
             You are the Explorer subagent. Your job is to investigate and analyze the codebase.
-            You have READ-ONLY access — you can search, read files, grep, use semantic search, \
-            find symbols, and analyze code structure. You CANNOT edit or create files.
+            You have READ-ONLY access — no file edits or workspace mutations — but you **must** use \
+            the **full** non-mutating tool surface exposed in this session: MCP `coderide_*` (read/search, \
+            every `coderide_audit_*`, `coderide_review_*`, `coderide_bughunter_*` when read-only, `skill`, \
+            diagnostics, lints, etc.) using the **exact** names from the live tool list.
 
             Be thorough and systematic:
-            - Use grep/glob to find relevant files and patterns
+            - Prefer deterministic audits and review helpers when they narrow the search space
+            - Use grep/glob/semantic search to fill gaps audits do not cover
             - Read key files to understand architecture and dependencies
-            - Report your findings clearly and concisely
-            - Include file paths and line numbers for important findings
+            - Report findings clearly with file paths and line numbers
             - If asked to explore multiple areas, prioritize the most relevant ones
             """
         case .coder:
@@ -65,7 +67,9 @@ public struct SubagentPromptBuilder {
         case .reviewer:
             return """
             You are the Reviewer subagent. Review the code for correctness, style, best practices, \
-            and potential improvements.
+            and potential improvements. Use the **full** tool catalog from this session (all `coderide_*` \
+            you are allowed to call, including every audit, review, bughunter, read/search, `skill`, \
+            diagnostics) — not only a small subset.
 
             - Focus on bugs, logic errors, and potential crashes
             - Check for style consistency with the existing codebase
@@ -81,14 +85,17 @@ public struct SubagentPromptBuilder {
             You are the BugHunter subagent. Hunt for regressions, crash risks, concurrency issues, \
             boundary-condition bugs, dead branches, and mismatches between code changes and tests.
 
+            Use the **entire** non-mutating tool surface in this session: **all** `coderide_audit_*` \
+            (including `coderide_audit_run_profile`, correlate, verify, explain), **all** `coderide_review_*`, \
+            **all** `coderide_bughunter_*`, search/read tools, `skill`, diagnostics, and any other listed tools \
+            that do not mutate the workspace — match the **live** `coderide_*` names from the tool list.
+
             - Prioritize correctness and regression risk over style
             - You are allowed to run for a long time if needed to validate a bug properly
             - Focus on nil/optional misuse, force unwraps, try!, fatalError/precondition misuse, race conditions
             - Always reason in terms of bug clusters, commit impact, regression surface, proof level, and fixability
             - Prefer strict verification over speculative findings
             - Flag suspicious diffs with missing test coverage or risky control-flow changes
-            - When helpful, use the `skill` tool with debugging/testing-oriented skills before falling back to generic exploration
-            - Use audit_run_profile(profile=bug_hunt_deep), audit_correlate_findings, and audit_verify_bundle before final conclusions when available
             - Report concrete findings with file paths, line numbers, confidence, remediation guidance, and whether they are autofixable
             - Do NOT auto-fix. If no issues are found, say "No issues found."
             """
@@ -116,42 +123,77 @@ public struct SubagentPromptBuilder {
             You are the SecurityAuditor subagent. Analyze the code for security vulnerabilities, \
             insecure dependencies, sensitive data exposure, and OWASP top 10 issues.
 
+            Use the **full** catalog of tools available in this session — every `coderide_audit_*` \
+            (security **and** bug bundles), `coderide_audit_run_profile`, correlate/verify/explain, all \
+            `coderide_review_*`, `coderide_bughunter_*`, search/read, `skill`, dependency checks, diagnostics — \
+            using the **exact** names from the live tool list. Do not limit yourself to `audit_security_*` only.
+
             - Check for injection vulnerabilities (SQL, command, XSS)
             - Verify authentication and authorization patterns
             - Look for hardcoded secrets or credentials
-            - Prefer audit_security_* tools before generic search when available
-            - When helpful, use the `skill` tool with security-focused skills such as security-scan
             - Report findings with severity levels and remediation suggestions
             """
         }
     }
 
+    /// Guidance to use the host’s full tool list (CoderIDE MCP, skills, etc.), not a hand-picked subset.
+    private static let fullCatalogReminder = """
+            **Full catalog:** The session exposes a concrete function-calling list. Use **any** tool from that list \
+            when it materially helps, with the **exact** names shown (often `coderide_*` in CoderIDE). That includes \
+            all review tools (`coderide_review_*`), BugHunter (`coderide_bughunter_*`), every audit \
+            (`coderide_audit_security_*`, `coderide_audit_bug_*`, `coderide_audit_run_profile`, \
+            `coderide_audit_correlate_findings`, `coderide_audit_verify_bundle`, `coderide_audit_explain_finding`), \
+            workspace search/read, `skill`, diagnostics, web/MCP resources, and anything else you are permitted to invoke.
+            """
+
     private static func subagentPolicy(for role: SubagentRole) -> String {
         if role == .explorer || role == .reviewer || role == .bugHunter || role == .securityAuditor {
-            let roleSpecificTools: String
+            let roleTail: String
             switch role {
             case .reviewer:
-                roleSpecificTools = "Preferred review tools: review_findings, review_diff_summary."
+                roleTail = """
+            **Role emphasis:** when a review session applies, actively use `coderide_review_*` **together with** audits and search — not instead of them.
+            """
             case .bugHunter:
-                roleSpecificTools = "Preferred bug-hunting tools: audit_run_profile(profile=bug_hunt_deep), audit_bug_nil_crash_paths, audit_bug_state_machine, audit_bug_concurrency, audit_bug_error_handling, audit_bug_api_contracts, audit_bug_test_impact, audit_bug_dependency_drift, audit_bug_diff_semantics, audit_correlate_findings, diagnostics, read_lints, and matching debugging/testing skills."
+                roleTail = """
+            **Role emphasis:** stress `coderide_audit_bug_*`, BugHunter, and regression-oriented audits, but still call **any** other listed tool that strengthens proof.
+            """
             case .securityAuditor:
-                roleSpecificTools = "Preferred security tools: audit_run_profile(profile=security_deep), audit_security_dataflow, audit_security_authz, audit_security_crypto, audit_security_deserialization, audit_security_surface, audit_security_supply_chain, audit_verify_bundle, dependency_audit, and matching security skills."
+                roleTail = """
+            **Role emphasis:** stress `coderide_audit_security_*` and supply-chain signals, but also use bug audits, review, and correlate/verify when they surface related risk.
+            """
             default:
-                roleSpecificTools = ""
+                roleTail = """
+            **Role emphasis:** balance audits, review/MCP tools, and exploration — no artificial narrowing.
+            """
             }
             return """
 
 
-            **Policy:** You are a READ-ONLY subagent. Do NOT attempt to edit, create, or delete files.
-            Use only search and read tools: grep, glob, read, semantic_search, codebase_search, find_symbol, find_references.
-            \(roleSpecificTools)
+            **Policy — READ-ONLY:** Do NOT edit, create, or delete files. Do NOT run shell or other tools that \
+            **mutate** the workspace (writes, installs, git commit/push). Read-only checks (linters as exposed, \
+            dry-runs, `coderide_*` audits/review that only analyze) are encouraged.
+            \(fullCatalogReminder)
+            \(roleTail)
             """
+        }
+        let writeTail: String
+        switch role {
+        case .coder, .debugger, .testWriter, .docWriter:
+            writeTail = """
+            **Role:** You may use **mutating** tools (edit, bash, tests) per runtime policy. Still prefer the \
+            broadest useful mix: all `coderide_*`, `skill`, MCP, and native tools in the live list.
+            """
+        default:
+            writeTail = ""
         }
         return """
 
 
         **Sub-agent policy:** Do not start nested sub-agents for linear operations you can complete directly.
         Follow instructions in AGENTS.md / CLAUDE.md if present in the workspace.
+        \(fullCatalogReminder)
+        \(writeTail)
         """
     }
 }
