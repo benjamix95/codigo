@@ -1,5 +1,5 @@
 use super::process::stream_process_lines;
-use crate::main_chat::providers::common::{join_cli_prompt, string_value};
+use crate::main_chat::providers::common::{apply_gui_safe_cli_path, join_cli_prompt, string_value};
 use crate::main_chat::providers::session::{emit_error, emit_raw, emit_text_delta, is_cancelled};
 use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
 use serde_json::Value;
@@ -57,7 +57,8 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
     }
     args.push(prompt);
 
-    let environment = std::env::vars().collect::<BTreeMap<_, _>>();
+    let mut environment = std::env::vars().collect::<BTreeMap<_, _>>();
+    apply_gui_safe_cli_path(&mut environment);
     stream_process_lines(
         executable,
         &args,

@@ -1,6 +1,7 @@
 use app_core_protocol::main_chat_provider::MainChatProviderAttachment;
 use base64::Engine;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn apple_reference_seconds() -> f64 {
@@ -102,4 +103,89 @@ pub(crate) fn retry_delay_ms(attempt: i32, retry_after_seconds: Option<i64>) -> 
     let base = 500_i64;
     let multiplier = 2_i64.saturating_pow(attempt.max(0) as u32);
     (base * multiplier).min(8_000)
+}
+
+/// Molti CLI (Codex, Gemini, …) sono shim `#!/usr/bin/env node`. Le app macOS avviate da GUI
+/// hanno spesso un PATH minimale → `env: node: No such file or directory` e exit 127.
+/// Antepone directory comuni (Homebrew, Volta, nvm, …) al PATH esistente.
+pub(crate) fn path_for_node_based_cli(existing_path: &str) -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let mut ordered: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    let mut push_dir = |dir: String| {
+        if dir.is_empty() {
+            return;
+        }
+        if Path::new(&dir).is_dir() && seen.insert(dir.clone()) {
+            ordered.push(dir);
+        }
+    };
+
+    for d in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"] {
+        push_dir(d.to_string());
+    }
+    for rel in [
+        ".volta/bin",
+        ".bun/bin",
+        ".local/bin",
+        ".npm/bin",
+        ".yarn/bin",
+    ] {
+        push_dir(format!("{home}/{rel}"));
+    }
+    push_dir(format!("{home}/.asdf/shims"));
+
+    let nvm_versions = format!("{home}/.nvm/versions/node");
+    let nvm_path = Path::new(&nvm_versions);
+    let default_link = nvm_path.join("default");
+    if let Ok(target) = std::fs::read_link(&default_link) {
+        let resolved = default_link
+            .parent()
+            .unwrap_or(nvm_path)
+            .join(target)
+            .join("bin");
+        if resolved.is_dir() {
+            push_dir(resolved.to_string_lossy().into_owned());
+        }
+    } else if let Ok(rd) = std::fs::read_dir(&nvm_versions) {
+        let mut versions: Vec<_> = rd
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        versions.sort();
+        if let Some(vdir) = versions.last() {
+            let bin = vdir.join("bin");
+            if bin.is_dir() {
+                push_dir(bin.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    for seg in existing_path.split(':').filter(|s| !s.is_empty()) {
+        let s = seg.to_string();
+        if seen.insert(s.clone()) {
+            ordered.push(s);
+        }
+    }
+
+    ordered.join(":")
+}
+
+pub(crate) fn apply_gui_safe_cli_path(environment: &mut BTreeMap<String, String>) {
+    let prior = environment.get("PATH").map(|s| s.as_str()).unwrap_or("");
+    environment.insert("PATH".to_string(), path_for_node_based_cli(prior));
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::path_for_node_based_cli;
+
+    #[test]
+    fn path_for_node_based_cli_preserves_existing_segments() {
+        let p = path_for_node_based_cli("/tmp/foo:/usr/bin");
+        assert!(p.contains("/tmp/foo"));
+        assert!(p.contains("/usr/bin"));
+    }
 }

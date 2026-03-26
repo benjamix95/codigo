@@ -1,5 +1,7 @@
 use super::codex_app_server;
-use crate::main_chat::providers::common::{flatten_string_map, string_value};
+use crate::main_chat::providers::common::{
+    apply_gui_safe_cli_path, flatten_string_map, string_value,
+};
 use crate::main_chat::providers::parsing::jsonl::parse_jsonl_line;
 use crate::main_chat::providers::session::{
     emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, running_cli_account,
@@ -17,6 +19,7 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
     if let Some(account) = account {
         environment.extend(account.env_overrides);
     }
+    apply_gui_safe_cli_path(&mut environment);
     codex_app_server::run(session_id, config, &executable, &environment)
 }
 

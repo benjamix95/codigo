@@ -1,5 +1,7 @@
 use super::process::stream_process_lines;
-use crate::main_chat::providers::common::{flatten_string_map, join_cli_prompt, string_value};
+use crate::main_chat::providers::common::{
+    apply_gui_safe_cli_path, flatten_string_map, join_cli_prompt, string_value,
+};
 use crate::main_chat::providers::parsing::jsonl::parse_jsonl_line;
 use crate::main_chat::providers::session::{
     emit_error, emit_raw, emit_text_delta, failover_to_next_cli_account, is_cancelled,
@@ -38,6 +40,7 @@ pub(crate) fn run(session_id: &str, config: &MainChatProviderSessionConfig) -> R
     if let Some(account) = account {
         environment.extend(account.env_overrides);
     }
+    apply_gui_safe_cli_path(&mut environment);
     stream_process_lines(
         &executable,
         &args,
