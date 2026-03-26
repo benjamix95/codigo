@@ -26,13 +26,22 @@ extension CodebaseIndex {
         return "\(a)\u{1f}\(b)\u{1f}\(respectGitignore)"
     }
 
-    /// Prova a ripristinare l’indice simboli da disco se workspace, settings e hash file coincidono.
-    func loadValidatedPrimarySymbolCache(
+    /// Piani di riuso cache: file ancora validi per hash, file da re-indicizzare, path da rimuovere dal semantic index.
+    struct PrimarySymbolCacheHydration: Sendable {
+        let reusableFiles: [IndexedFile]
+        let filesToReindex: [FileNode]
+        let semanticRemovals: [String]
+    }
+
+    /// Carica la cache simboli e la confronta file-per-file con il disco: riusa ciò che non è cambiato e richiede
+    /// solo i diff (nuovi / modificati / non in cache). I path presenti in cache ma assenti dal workspace attuale
+    /// vanno rimossi dall’indice semantico persistito.
+    func loadPrimarySymbolCacheHydration(
         cacheURL: URL,
         filesToIndex: [FileNode],
         workspacePathsKey: String,
         settingsKey: String
-    ) async -> [IndexedFile]? {
+    ) async -> PrimarySymbolCacheHydration? {
         guard FileManager.default.fileExists(atPath: cacheURL.path),
               let data = try? Data(contentsOf: cacheURL),
               let payload = try? JSONDecoder().decode(PrimarySymbolCachePayload.self, from: data),
@@ -42,41 +51,54 @@ extension CodebaseIndex {
         else {
             return nil
         }
+
         let expected = Set(filesToIndex.map(\.relativePath))
-        let cached = Set(payload.files.map(\.relativePath))
-        guard expected == cached, !expected.isEmpty else {
-            return nil
-        }
+        guard !expected.isEmpty else { return nil }
+
+        let cachedPaths = Set(payload.files.map(\.relativePath))
+        let semanticRemovals = cachedPaths.subtracting(expected).sorted()
+
         var byRel: [String: IndexedFile] = [:]
         for f in payload.files {
             byRel[f.relativePath] = f
         }
-        for node in filesToIndex {
-            guard let cachedFile = byRel[node.relativePath] else { return nil }
-            guard let diskData = FileManager.default.contents(atPath: node.absolutePath) else {
-                return nil
-            }
-            if SymbolExtractor.fnv1aHash(diskData) != cachedFile.contentHash {
-                return nil
+
+        let orderedNodes = filesToIndex.sorted { $0.relativePath < $1.relativePath }
+        var reusable: [IndexedFile] = []
+        reusable.reserveCapacity(orderedNodes.count)
+        var toReindex: [FileNode] = []
+        toReindex.reserveCapacity(min(32, orderedNodes.count))
+
+        for node in orderedNodes {
+            if let cachedFile = byRel[node.relativePath],
+               let diskData = FileManager.default.contents(atPath: node.absolutePath),
+               SymbolExtractor.fnv1aHash(diskData) == cachedFile.contentHash {
+                if cachedFile.absolutePath == node.absolutePath {
+                    reusable.append(cachedFile)
+                } else {
+                    reusable.append(
+                        IndexedFile(
+                            relativePath: cachedFile.relativePath,
+                            absolutePath: node.absolutePath,
+                            language: cachedFile.language,
+                            symbols: cachedFile.symbols,
+                            imports: cachedFile.imports,
+                            lineCount: cachedFile.lineCount,
+                            size: cachedFile.size,
+                            indexedAt: cachedFile.indexedAt,
+                            contentHash: cachedFile.contentHash
+                        ))
+                }
+            } else {
+                toReindex.append(node)
             }
         }
-        return filesToIndex.compactMap { node -> IndexedFile? in
-            guard let f = byRel[node.relativePath] else { return nil }
-            if f.absolutePath == node.absolutePath {
-                return f
-            }
-            return IndexedFile(
-                relativePath: f.relativePath,
-                absolutePath: node.absolutePath,
-                language: f.language,
-                symbols: f.symbols,
-                imports: f.imports,
-                lineCount: f.lineCount,
-                size: f.size,
-                indexedAt: f.indexedAt,
-                contentHash: f.contentHash
-            )
-        }
+
+        return PrimarySymbolCacheHydration(
+            reusableFiles: reusable,
+            filesToReindex: toReindex,
+            semanticRemovals: semanticRemovals
+        )
     }
 
     func savePrimarySymbolCache(

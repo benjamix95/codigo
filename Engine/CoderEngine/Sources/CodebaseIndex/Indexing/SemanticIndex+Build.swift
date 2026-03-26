@@ -173,6 +173,24 @@ extension SemanticIndex {
     public func removeFile(_ relativePath: String) {
         removeChunksForFile(relativePath)
         recalcAvgDocLength()
+        if persistencePath != nil {
+            scheduleDebouncedPersist()
+        }
+    }
+
+    /// Ricalcola Merkle/simHash dal filesystem e persiste (usato dopo rimozioni chunk senza `incrementalUpdate`).
+    func alignMerkleState(withWorkspaceRoot root: URL) async {
+        persistDebounceTask?.cancel()
+        persistDebounceTask = nil
+        merkleRoot = MerkleTree.build(root: root)
+        if let node = merkleRoot {
+            currentSimHash = MerkleTree.simHash(of: node)
+        } else {
+            currentSimHash = 0
+        }
+        if persistencePath != nil {
+            await persist()
+        }
     }
 
     /// Clear the entire semantic index state.

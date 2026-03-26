@@ -65,18 +65,53 @@ extension CodebaseIndex {
 
         setUnifiedIndexingProgress(0)
 
-        if let cachedFiles = await loadValidatedPrimarySymbolCache(
+        var reindexedForSemantic: [IndexedFile] = []
+        var semanticPathsRemoved: [String] = []
+
+        if let hydration = await loadPrimarySymbolCacheHydration(
             cacheURL: primaryCacheURL,
             filesToIndex: filesToIndex,
             workspacePathsKey: pathsKey,
             settingsKey: settingsKey
         ) {
-            Self.logger.info("indexWorkspace: restored primary symbol cache (\(cachedFiles.count) files)")
-            for f in cachedFiles {
-                addIndexedFile(f)
+            semanticPathsRemoved = hydration.semanticRemovals
+            let fileTotal = max(1, filesToIndex.count)
+            var processed = 0
+
+            if Task.isCancelled {
+                return makeCurrentIndexResult(durationMs: Int(Date().timeIntervalSince(startTime) * 1000))
             }
-            totalFilesScanned = cachedFiles.count
-            setUnifiedIndexingProgress(wFile)
+            for f in hydration.reusableFiles {
+                addIndexedFile(f)
+                processed += 1
+            }
+            setUnifiedIndexingProgress(wFile * Double(processed) / Double(fileTotal))
+
+            if !hydration.filesToReindex.isEmpty {
+                let batchSize = 64
+                for batchStart in stride(from: 0, to: hydration.filesToReindex.count, by: batchSize) {
+                    if Task.isCancelled {
+                        return makeCurrentIndexResult(durationMs: Int(Date().timeIntervalSince(startTime) * 1000))
+                    }
+                    let batchEnd = min(batchStart + batchSize, hydration.filesToReindex.count)
+                    let batch = hydration.filesToReindex[batchStart..<batchEnd]
+                    let results: [IndexedFile] = await indexFilesInParallel(batch: batch)
+                    for indexed in results {
+                        addIndexedFile(indexed)
+                        reindexedForSemantic.append(indexed)
+                        processed += 1
+                    }
+                    setUnifiedIndexingProgress(wFile * Double(processed) / Double(fileTotal))
+                }
+                Self.logger.info(
+                    "indexWorkspace: primary symbol cache partial — reused \(hydration.reusableFiles.count, privacy: .public), reindexed \(hydration.filesToReindex.count, privacy: .public)"
+                )
+            } else if !hydration.reusableFiles.isEmpty {
+                Self.logger.info(
+                    "indexWorkspace: restored primary symbol cache fully (\(hydration.reusableFiles.count, privacy: .public) files)"
+                )
+            }
+            totalFilesScanned = indexedFiles.count
         } else {
             let batchSize = 64
             for batchStart in stride(from: 0, to: filesToIndex.count, by: batchSize) {
@@ -104,32 +139,57 @@ extension CodebaseIndex {
         await semanticIndex.setPersistencePath(semanticCachePath)
         setUnifiedIndexingProgress(wFile + wSemantic * 0.02)
 
-        let allIndexed = Array(indexedFiles.values)
+        let allIndexed = indexedFiles.values.sorted { $0.relativePath < $1.relativePath }
         if let firstRoot = paths.first {
-            let semanticStatus = await semanticIndex.status()
+            var semanticStatus = await semanticIndex.status()
             if semanticStatus.totalChunks == 0 {
                 await semanticIndex.loadFromDisk()
             }
+            semanticStatus = await semanticIndex.status()
 
-            let loadedStatus = await semanticIndex.status()
-            if loadedStatus.totalChunks > 0 {
-                let newMerkle = MerkleTree.build(root: firstRoot)
-                let newSimHash = newMerkle.map { MerkleTree.simHash(of: $0) } ?? 0
-                if loadedStatus.simHash == newSimHash && newSimHash != 0 {
-                    Self.logger.info("indexWorkspace: reusing persisted semantic index (\(loadedStatus.totalChunks) chunks, simHash match)")
-                    setUnifiedIndexingProgress(wFile + wSemantic)
-                } else {
-                    Self.logger.info("indexWorkspace: persisted semantic index stale, rebuilding")
-                    await semanticIndex.buildIndex(
-                        indexedFiles: allIndexed,
-                        workspaceRoot: firstRoot,
-                        onIndexedFileBatchComplete: { done, tot in
-                            let frac = wFile + wSemantic * Double(done) / Double(max(1, tot))
-                            await self.setUnifiedIndexingProgress(frac)
-                        }
+            let hadDiskSemantic = semanticStatus.totalChunks > 0
+            let newMerkle = MerkleTree.build(root: firstRoot)
+            let newSimHash = newMerkle.map { MerkleTree.simHash(of: $0) } ?? 0
+
+            let didSemanticRemovals = !semanticPathsRemoved.isEmpty
+            let didSymbolReindex = !reindexedForSemantic.isEmpty
+
+            if !hadDiskSemantic {
+                Self.logger.info("indexWorkspace: no persisted semantic index — full build")
+                await semanticIndex.buildIndex(
+                    indexedFiles: allIndexed,
+                    workspaceRoot: firstRoot,
+                    onIndexedFileBatchComplete: { done, tot in
+                        let frac = wFile + wSemantic * Double(done) / Double(max(1, tot))
+                        await self.setUnifiedIndexingProgress(frac)
+                    }
+                )
+            } else if didSemanticRemovals || didSymbolReindex {
+                if didSemanticRemovals {
+                    for rel in semanticPathsRemoved {
+                        await semanticIndex.removeFile(rel)
+                    }
+                }
+                if didSymbolReindex {
+                    Self.logger.info(
+                        "indexWorkspace: semantic incremental update (\(reindexedForSemantic.count, privacy: .public) files)"
+                    )
+                    await semanticIndex.incrementalUpdate(
+                        changedFiles: reindexedForSemantic,
+                        workspaceRoot: firstRoot
                     )
                 }
+                if didSemanticRemovals, !didSymbolReindex {
+                    await semanticIndex.alignMerkleState(withWorkspaceRoot: firstRoot)
+                }
+                setUnifiedIndexingProgress(wFile + wSemantic)
+            } else if semanticStatus.simHash == newSimHash && newSimHash != 0 {
+                Self.logger.info(
+                    "indexWorkspace: reusing persisted semantic index (\(semanticStatus.totalChunks, privacy: .public) chunks, simHash match)"
+                )
+                setUnifiedIndexingProgress(wFile + wSemantic)
             } else {
+                Self.logger.info("indexWorkspace: persisted semantic index stale, rebuilding")
                 await semanticIndex.buildIndex(
                     indexedFiles: allIndexed,
                     workspaceRoot: firstRoot,
