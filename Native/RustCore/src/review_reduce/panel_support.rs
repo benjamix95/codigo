@@ -120,7 +120,7 @@ pub fn build_file_ledger(
     }).collect()
 }
 
-pub fn tool_executions(snapshot: &Value, pipeline_phase: &str) -> Vec<Value> {
+pub fn tool_executions(snapshot: &Value, _pipeline_phase: &str) -> Vec<Value> {
     let coverage = snapshot
         .pointer("/audit/toolCoverage")
         .and_then(Value::as_object)
@@ -146,13 +146,46 @@ pub fn tool_executions(snapshot: &Value, pipeline_phase: &str) -> Vec<Value> {
             })
             .collect();
     }
-    bundle_modes(snapshot)
+    // Allineato a `ReviewPipelineJobStateBuilder.toolExecutions` (Swift): solo i primi
+    // `tools_running_cap` slot sono "running", non tutti i bundle durante DISCOVERY/AUDIT.
+    // Altrimenti l’anello UI pesava 0.42 su ogni tool → (0.42*N)/N = 42% con N=3 anche con 0/3 completati.
+    let modes = bundle_modes(snapshot);
+    if modes.is_empty() {
+        return Vec::new();
+    }
+    let tools_completed: usize = 0;
+    let n = modes.len();
+    let phase_str = get_str(snapshot, "phase").unwrap_or("");
+    let session_active = matches!(
+        phase_str,
+        "analyzing" | "fixing" | "testing" | "re_reviewing"
+    );
+    let workers = snapshot
+        .get("activeWorkerCount")
+        .and_then(Value::as_i64)
+        .unwrap_or(0) as usize;
+    let tools_running_cap = if session_active {
+        workers.max(1).min(n.saturating_sub(tools_completed))
+    } else {
+        0
+    };
+    modes
         .into_iter()
-        .map(|mode| json!({
-            "id": mode,
-            "status": if pipeline_phase == DISCOVERY || pipeline_phase == AUDIT { "running" } else { "pending" },
-            "findingsCount": 0
-        }))
+        .enumerate()
+        .map(|(idx, mode)| {
+            let status = if idx < tools_completed {
+                "completed"
+            } else if idx < tools_completed + tools_running_cap {
+                "running"
+            } else {
+                "pending"
+            };
+            json!({
+                "id": mode,
+                "status": status,
+                "findingsCount": 0
+            })
+        })
         .collect()
 }
 

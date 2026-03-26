@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 extension ReviewPipelineJobState {
     /// Anello circolare: **0…100 nell’ambito della sola fase corrente**. Cambiando fase riparte da 0.
@@ -20,11 +21,47 @@ extension ReviewPipelineJobState {
         case "publish_ready":
             raw = publishReadyPhaseRingProgress()
         case "completed":
-            return 100
+            raw = 100
         default:
             raw = fallbackPhaseRingProgress()
         }
-        return min(100, max(0, raw))
+        let result = min(100, max(0, raw))
+        // #region agent log
+        #if DEBUG
+        let toolSnap = tools.map { "\($0.id):\($0.status)" }.joined(separator: ";")
+        ReviewPhaseRingAgentLog.emit(
+            hypothesisId: "H1",
+            location: "ReviewPipelineJobState+PhaseRingProgress.displayProgressPercent",
+            message: "phase_ring",
+            data: [
+                "phase": phase,
+                "result": result,
+                "raw": raw,
+                "toolsCount": tools.count,
+                "toolSnap": toolSnap,
+                "toolsCompleted": toolsCompleted,
+                "toolsRunningField": toolsRunning,
+                "toolsTotal": toolsTotal,
+                "weighted": toolExecutionWeightedPercent() as Any,
+            ]
+        )
+        let log = OSLog(subsystem: "dev.solocode.ReviewDebug", category: "PhaseRing")
+        os_log(
+            "PhaseRing phase=%{public}s pct=%d tools=%{public}s completed=%d/%d",
+            log: log,
+            type: .debug,
+            phase,
+            result,
+            toolSnap,
+            toolsCompleted,
+            toolsTotal
+        )
+        print(
+            "[PhaseRing DEBUG] phase=\(phase) pct=\(result) raw=\(raw) tools=\(toolSnap) metrics=\(toolsCompleted)/\(toolsTotal) runningField=\(toolsRunning)"
+        )
+        #endif
+        // #endregion
+        return result
     }
 
     var displayProgressText: String { "\(displayProgressPercent)%" }
@@ -121,3 +158,33 @@ extension ReviewPipelineJobState {
         return min(100, max(0, progressPercent))
     }
 }
+
+// #region agent log
+#if DEBUG
+enum ReviewPhaseRingAgentLog {
+    private static let logPath = "/Users/benjaminstoica/SoloCode/.cursor/debug-7e54b6.log"
+
+    static func emit(hypothesisId: String, location: String, message: String, data: [String: Any]) {
+        let payload: [String: Any] = [
+            "sessionId": "7e54b6",
+            "hypothesisId": hypothesisId,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        guard JSONSerialization.isValidJSONObject(payload),
+              let json = try? JSONSerialization.data(withJSONObject: payload),
+              let line = String(data: json, encoding: .utf8)
+        else { return }
+        if !FileManager.default.fileExists(atPath: logPath) {
+            FileManager.default.createFile(atPath: logPath, contents: nil)
+        }
+        guard let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: logPath)) else { return }
+        defer { try? handle.close() }
+        handle.seekToEndOfFile()
+        handle.write(Data((line + "\n").utf8))
+    }
+}
+#endif
+// #endregion
