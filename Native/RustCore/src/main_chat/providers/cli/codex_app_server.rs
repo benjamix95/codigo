@@ -56,7 +56,7 @@ impl Drop for ChildProcessGuard {
 struct CodexAgentMessageGate {
     /// Testo visibile nella bolla risposta (`text_delta` / `assistant_update` “output”).
     final_answer_text: String,
-    /// Fase Responses “commentary”: non deve finire nel primary text.
+    /// Fase Responses `commentary`: testo mostrato nella bolla (il modello spesso mette qui la risposta visibile).
     commentary_text: String,
     /// `phase` dell’item `agentMessage` da `item/started` (le delta spesso non la ripetono).
     agent_message_phase_by_item_id: HashMap<String, String>,
@@ -130,7 +130,6 @@ impl CodexAgentMessageGate {
         self.final_answer_text.clone()
     }
 
-    #[cfg(test)]
     fn commentary_cumulative(&self) -> String {
         self.commentary_text.clone()
     }
@@ -353,18 +352,29 @@ fn handle_notification(
                 {
                     match kind {
                         CodexAgentMessagePhaseKind::Commentary => {
-                            let mut reasoning = BTreeMap::from([
-                                ("output".to_string(), visible_delta),
-                                ("title".to_string(), "Reasoning".to_string()),
-                                (
-                                    "group_id".to_string(),
-                                    "codex-agent-commentary".to_string(),
-                                ),
+                            rust_codex_trace(format!(
+                                "commentary delta as primary chars={}",
+                                visible_delta.len()
+                            ));
+                            emit_text_delta(session_id, &visible_delta);
+                            let cumulative = gate.commentary_cumulative();
+                            let detail = cumulative
+                                .split('\n')
+                                .last()
+                                .unwrap_or_default()
+                                .chars()
+                                .take(240)
+                                .collect::<String>();
+                            let mut card = BTreeMap::from([
+                                ("title".to_string(), "Working".to_string()),
+                                ("detail".to_string(), detail),
+                                ("output".to_string(), cumulative),
+                                ("status".to_string(), "in_progress".to_string()),
                             ]);
-                            if let Some(p) = phase.clone() {
-                                reasoning.insert("phase".to_string(), p);
+                            if let Some(p) = phase {
+                                card.insert("phase".to_string(), p);
                             }
-                            emit_raw(session_id, "reasoning", reasoning);
+                            emit_raw(session_id, "assistant_update", card);
                         }
                         CodexAgentMessagePhaseKind::FinalAnswer => {
                             rust_codex_trace(format!(
@@ -567,18 +577,15 @@ fn handle_item_notification(
             if is_commentary {
                 if let Some(text) = item.get("text").and_then(string_value) {
                     let mut card = BTreeMap::from([
-                        ("title".to_string(), "Reasoning".to_string()),
-                        (
-                            "group_id".to_string(),
-                            "codex-agent-commentary".to_string(),
-                        ),
+                        ("title".to_string(), "Working".to_string()),
                         ("output".to_string(), codex_truncate_str(&text, 12_000)),
                         ("lifecycle".to_string(), "completed".to_string()),
+                        ("status".to_string(), "completed".to_string()),
                     ]);
                     if let Some(p) = phase {
-                        card.insert("phase".to_string(), p.to_string());
+                        card.insert("phase".to_string(), p);
                     }
-                    emit_raw(session_id, "reasoning", card);
+                    emit_raw(session_id, "assistant_update", card);
                 }
             } else {
                 let mut card = BTreeMap::new();

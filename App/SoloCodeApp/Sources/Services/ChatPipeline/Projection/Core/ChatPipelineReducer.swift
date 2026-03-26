@@ -194,6 +194,6 @@ enum ChatPipelineReducer {
         if incomingTrimmed.contains(existing) {
             return incomingTrimmed
         }
-        return existing + "\n\n" + incomingTrimmed
+        return existing + incomingTrimmed
     }
 }

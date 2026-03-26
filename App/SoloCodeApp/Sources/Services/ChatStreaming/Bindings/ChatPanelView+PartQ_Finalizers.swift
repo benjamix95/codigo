@@ -148,35 +148,34 @@ extension ChatPanelView {
 
     static func mergeReasoningText(existing: String?, incoming: String) -> String {
         let incomingTrimmed = incoming.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !incomingTrimmed.isEmpty else { return existing ?? "" }
+        guard !incomingTrimmed.isEmpty else {
+            return ChatStore.sanitizedChatReasoningText(existing ?? "")
+        }
         guard let existing, !existing.isEmpty else {
-            return String(incoming.prefix(24_000))
+            return ChatStore.sanitizedChatReasoningText(String(incomingTrimmed.prefix(24_000)))
         }
 
-        if incoming == existing { return existing }
-        if incoming.hasPrefix(existing) {
-            return String(incoming.prefix(24_000))
+        if incomingTrimmed == existing { return ChatStore.sanitizedChatReasoningText(existing) }
+        if incomingTrimmed.hasPrefix(existing) {
+            return ChatStore.sanitizedChatReasoningText(String(incomingTrimmed.prefix(24_000)))
         }
-        if existing.hasPrefix(incoming) || existing.contains(incoming) {
-            return existing
+        if existing.hasPrefix(incomingTrimmed) || existing.contains(incomingTrimmed) {
+            return ChatStore.sanitizedChatReasoningText(existing)
         }
-        if incoming.contains(existing) {
-            return String(incoming.prefix(24_000))
+        if incomingTrimmed.contains(existing) {
+            return ChatStore.sanitizedChatReasoningText(String(incomingTrimmed.prefix(24_000)))
         }
 
-        let overlap = reasoningSuffixPrefixOverlapLength(lhs: existing, rhs: incoming)
+        let overlap = reasoningSuffixPrefixOverlapLength(lhs: existing, rhs: incomingTrimmed)
         if overlap > 0 {
-            let suffixStart = incoming.index(incoming.startIndex, offsetBy: overlap)
-            let merged = existing + String(incoming[suffixStart...])
-            return String(merged.suffix(24_000))
+            let suffixStart = incomingTrimmed.index(incomingTrimmed.startIndex, offsetBy: overlap)
+            let merged = existing + String(incomingTrimmed[suffixStart...])
+            return ChatStore.sanitizedChatReasoningText(String(merged.suffix(24_000)))
         }
 
-        let separator =
-            existing.hasSuffix("\n") || incoming.hasPrefix("\n")
-            ? "\n"
-            : "\n\n"
-        let merged = existing + separator + incoming
-        return String(merged.suffix(24_000))
+        // Chunk incrementali senza overlap: concatena senza `\n\n` (evita parole spezzate nello stream).
+        let merged = existing + incomingTrimmed
+        return ChatStore.sanitizedChatReasoningText(String(merged.suffix(24_000)))
     }
 
     internal static func reasoningSuffixPrefixOverlapLength(lhs: String, rhs: String) -> Int {

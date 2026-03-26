@@ -67,13 +67,8 @@ extension PipelineIntegrationService {
         let status = runtime.chatTurnState.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard status != "completed", status != "failed" else { return }
 
-        // Codex app-server: `item/agentMessage/delta` con phase `commentary` va su eventi `reasoning`, non nel primary.
-        let phase = (rawEvent.payload["phase"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        if phase == "commentary" {
-            return
-        }
+        // Codex app-server: la fase `commentary` è instradata come testo principale (text_delta + assistant_update),
+        // così la risposta visibile non resta solo nel blocco Thinking.
 
         let rawText = rawEvent.payload["output"] ?? rawEvent.payload["text"]
             ?? rawEvent.payload["content"] ?? rawEvent.payload["detail"] ?? ""

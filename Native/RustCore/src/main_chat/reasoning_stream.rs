@@ -171,11 +171,12 @@ fn merge_reasoning_text(existing: Option<String>, incoming: String) -> String {
         return incoming;
     }
     let overlap = reasoning_suffix_prefix_overlap_length(&existing, &incoming);
-    if overlap == 0 {
-        return incoming;
+    if overlap > 0 {
+        let suffix = incoming.chars().skip(overlap).collect::<String>();
+        return format!("{existing}{suffix}");
     }
-    let suffix = incoming.chars().skip(overlap).collect::<String>();
-    format!("{existing}{suffix}")
+    // Delta incrementali (token): nessun overlap né prefisso cumulativo → concatena, altrimenti si perde il prefisso.
+    format!("{existing}{incoming}")
 }
 
 fn reasoning_suffix_prefix_overlap_length(lhs: &str, rhs: &str) -> usize {
@@ -236,6 +237,14 @@ mod tests {
             second.text.as_deref(),
             Some("Planning next move\nReading files")
         );
+    }
+
+    #[test]
+    fn reducer_appends_incremental_deltas_without_dropping_prefix() {
+        let first =
+            apply_stream_chunk("parol".to_string(), "g1".to_string(), MainChatReasoningState::default(), false, 0);
+        let second = apply_stream_chunk("a".to_string(), "g1".to_string(), first, false, 0);
+        assert_eq!(second.blocks[0].text, "parola");
     }
 
     #[test]
