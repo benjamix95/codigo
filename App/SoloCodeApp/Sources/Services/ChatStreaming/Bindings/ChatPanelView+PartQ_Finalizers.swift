@@ -65,8 +65,12 @@ extension ChatPanelView {
             let currentContent = chatStore.conversation(for: targetConversationId)?
                 .messages.first(where: { $0.id == targetMessageId })?
                 .content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let significantGrowth = text.count >= currentContent.count + 80
-            let shouldWrite = currentContent.isEmpty || significantGrowth || !applied
+            let trimmedIncoming = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            // `onText` invia tipicamente il testo completo sostituito, non un delta. Confrontiamo con il locale:
+            // il vecchio gate “+80 caratteri” saltava riscritture più corte e correzioni. Se il bridge Rust non
+            // ha applicato, aggiorniamo sempre il locale (fallback).
+            let contentDiffers = trimmedIncoming != currentContent
+            let shouldWrite = currentContent.isEmpty || contentDiffers || !applied
             if shouldWrite {
                 chatStore.updateAssistantMessage(
                     messageId: targetMessageId,
