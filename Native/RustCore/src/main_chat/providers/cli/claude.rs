@@ -507,7 +507,7 @@ fn consume_line(
                     eprintln!("[CLAUDE_DEBUG] task_progress ALL keys: {:?}", keys);
                     for (k, v) in obj {
                         if let Some(s) = string_value(v) {
-                            let preview = if s.len() > 200 { &s[..200] } else { &s };
+                            let preview = clip_utf8_prefix(&s, 200);
                             eprintln!("[CLAUDE_DEBUG]   task_progress.{} = {}", k, preview);
                         }
                     }
@@ -585,7 +585,7 @@ fn consume_line(
                     eprintln!("[CLAUDE_DEBUG] task_notification ALL keys: {:?}", keys);
                     for (k, v) in obj {
                         if let Some(s) = string_value(v) {
-                            let preview = if s.len() > 300 { &s[..300] } else { &s };
+                            let preview = clip_utf8_prefix(&s, 300);
                             eprintln!("[CLAUDE_DEBUG]   task_notification.{} = {}", k, preview);
                         }
                     }
@@ -686,6 +686,18 @@ fn make_swarm_id(tool_use_id: &str) -> String {
 }
 
 /// Truncates a string to a max number of characters, appending "…" if truncated.
+/// Truncate to at most `max_bytes` UTF-8 bytes without splitting a scalar value (avoids panics).
+fn clip_utf8_prefix(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 fn truncate_str(s: &str, max_chars: usize) -> String {
     if s.len() <= max_chars {
         return s.to_string();
@@ -741,7 +753,7 @@ fn subagent_readable_name(task: &str, fallback: &str) -> String {
     }
     let result = words.join(" ");
     if result.len() > 60 {
-        result[..60].to_string()
+        clip_utf8_prefix(&result, 60).to_string()
     } else {
         result
     }
@@ -1018,5 +1030,13 @@ mod tests {
         let result = truncate_str(&long, 500);
         assert!(result.len() <= 504); // 500 + "…"
         assert!(result.ends_with('…'));
+    }
+
+    #[test]
+    fn clip_utf8_prefix_never_splits_codepoint() {
+        let s = "€".repeat(100);
+        let clipped = clip_utf8_prefix(&s, 200);
+        assert!(clipped.len() <= 200);
+        assert!(s.starts_with(clipped));
     }
 }

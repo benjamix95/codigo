@@ -11,6 +11,7 @@ use app_core_protocol::main_chat_provider::{
     MainChatProviderSessionResponse, MainChatProviderSessionStartRequest,
 };
 use std::collections::{BTreeMap, HashMap};
+use std::io::Write;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -312,7 +313,48 @@ fn spawn_worker(session_id: String, config: MainChatProviderSessionConfig) {
 
         let result = match result {
             Ok(inner) => inner,
-            Err(_) => Err("worker_panic: internal panic caught in provider worker thread".to_string()),
+            Err(panic_payload) => {
+                let detail = match panic_payload.downcast::<String>() {
+                    Ok(message) => (*message).clone(),
+                    Err(panic_payload) => match panic_payload.downcast::<&'static str>() {
+                        Ok(message) => (*message).to_string(),
+                        Err(_) => {
+                            "internal panic (non-string payload; try RUST_BACKTRACE=1)"
+                                .to_string()
+                        }
+                    },
+                };
+                // #region agent log
+                {
+                    let log_path =
+                        "/Users/benjaminstoica/SoloCode/.cursor/debug-d56c92.log";
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(log_path)
+                    {
+                        let ts = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis() as u64)
+                            .unwrap_or(0);
+                        let line = serde_json::json!({
+                            "sessionId": "d56c92",
+                            "hypothesisId": "PANIC",
+                            "location": "session.rs:spawn_worker",
+                            "message": "worker_catch_unwind",
+                            "data": { "detail": &detail },
+                            "timestamp": ts,
+                        });
+                        let _ = writeln!(
+                            f,
+                            "{}",
+                            serde_json::to_string(&line).unwrap_or_default()
+                        );
+                    }
+                }
+                // #endregion
+                Err(format!("worker_panic: {detail}"))
+            }
         };
 
         let guard = sessions().lock().unwrap();
