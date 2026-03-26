@@ -38,7 +38,11 @@ extension SidebarView {
             try? checkpointGitStore.deleteSnapshotBranch(conversationId: conversation.id, gitRoot: root)
         }
         projectContextStore.clearLastActiveConversation(conversationId: conversation.id)
-        todoStore.clearTodos(forConversationId: conversation.id)
+        let purgeLegacyUnscopedAgent = chatStore.conversations.count <= 1
+        todoStore.clearTodos(
+            forConversationId: conversation.id,
+            alsoRemoveLegacyUnscopedAgentRuntime: purgeLegacyUnscopedAgent
+        )
     }
 
     func prepareConversationForArchive(_ conversation: Conversation) {

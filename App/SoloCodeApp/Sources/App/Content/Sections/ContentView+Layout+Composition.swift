@@ -245,6 +245,7 @@ extension ContentView {
         .environmentObject(chatStore)
         .environmentObject(workspaceStore)
         .environmentObject(projectContextStore)
+        .environmentObject(todoStore)
         .environmentObject(openFilesStore)
         .environmentObject(toolTraceStore)
         .environmentObject(pipelineIntegrationService)

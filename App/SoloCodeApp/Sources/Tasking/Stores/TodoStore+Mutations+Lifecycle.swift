@@ -72,8 +72,9 @@ extension TodoStore {
 
     /// Rimuove i todo il cui `planConversationId` coincide con la conversazione.
     /// - Parameter alsoRemoveLegacyUnscopedAgentRuntime: se `true`, rimuove anche i todo **agent** runtime
-    ///   senza scope (`planConversationId == nil`). Pericoloso in multi-chat se altre finestre usano ancora
-    ///   quella coda; usare solo da azioni esplicite (es. reset todo globale), non di default alla cancellazione thread.
+    ///   senza scope (`planConversationId == nil`). Da usare con cautela in multi-chat: la sidebar lo attiva
+    ///   solo quando si elimina l’ultima conversazione (`conversations.count <= 1`), così la coda globale non
+    ///   interferisce con un workspace appena ripulito; con più thread resta `false`.
     func clearTodos(
         forConversationId conversationId: UUID,
         alsoRemoveLegacyUnscopedAgentRuntime: Bool = false

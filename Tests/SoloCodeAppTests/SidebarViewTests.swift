@@ -27,6 +27,10 @@ final class SidebarViewTests: XCTestCase {
         )
 
         var selectedConversationId: UUID? = conversationId
+        let todoStore = TodoStore(
+            storageKey: "SidebarViewTests.todos",
+            userDefaults: UserDefaults(suiteName: #filePath + ".todos") ?? .standard
+        )
         let view = SidebarView(
             selectedConversationId: Binding(
                 get: { selectedConversationId },
@@ -40,6 +44,9 @@ final class SidebarViewTests: XCTestCase {
         .environmentObject(chatStore)
         .environmentObject(workspaceStore)
         .environmentObject(projectContextStore)
+        .environmentObject(todoStore)
+        .environmentObject(ToolTraceStore())
+        .environmentObject(PipelineIntegrationService())
 
         let hostingView = NSHostingView(rootView: view)
         XCTAssertNotNil(hostingView)

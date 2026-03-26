@@ -5,6 +5,7 @@ struct SidebarView: View {
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var workspaceStore: WorkspaceStore
     @EnvironmentObject var projectContextStore: ProjectContextStore
+    @EnvironmentObject var todoStore: TodoStore
     @EnvironmentObject var toolTraceStore: ToolTraceStore
     @EnvironmentObject var pipelineIntegrationService: PipelineIntegrationService
 
