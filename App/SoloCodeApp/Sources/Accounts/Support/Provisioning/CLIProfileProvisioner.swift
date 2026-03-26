@@ -93,6 +93,8 @@ enum CLIProfileProvisioner {
             if let secret, !secret.isEmpty { env["GOOGLE_API_KEY"] = secret }
             ensureGeminiMCPConfig(at: URL(fileURLWithPath: profilePath, isDirectory: true))
         }
+        let basePath = env["PATH"] ?? ProcessInfo.processInfo.environment["PATH"]
+        env["PATH"] = HostEnvironmentPaths.augmentedPATH(existing: basePath)
         return env
     }
 

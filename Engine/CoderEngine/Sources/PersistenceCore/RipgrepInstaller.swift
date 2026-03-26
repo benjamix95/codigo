@@ -10,11 +10,12 @@ private let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "Ri
 /// Catena: **Homebrew → `brew install ripgrep`** (se `rg` assente).
 public enum RipgrepInstaller {
 
-    /// Percorsi tipici su macOS (Apple Silicon e Intel Homebrew).
-    public static let commonBinaryPaths: [String] = [
-        "/opt/homebrew/bin/rg",
-        "/usr/local/bin/rg",
-    ]
+    /// Percorsi tipici di `rg` sotto le stesse directory Homebrew usate per il PATH subprocess.
+    public static var commonBinaryPaths: [String] {
+        HostEnvironmentPaths.homebrewBinaryDirectories.map {
+            URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("rg").path
+        }
+    }
 
     /// True se esiste un eseguibile `rg` nei path noti o in PATH (`/usr/bin/env rg` non serve; controlliamo file).
     public static func isInstalled() -> Bool {

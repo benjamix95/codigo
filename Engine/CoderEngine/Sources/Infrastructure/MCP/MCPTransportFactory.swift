@@ -58,11 +58,12 @@ public enum MCPTransportFactory {
         process.standardInput = stdinHandle
         process.standardOutput = stdoutHandle
         process.standardError = stderrPipe
+        var env = ProcessInfo.processInfo.environment
         if !environment.isEmpty {
-            var env = ProcessInfo.processInfo.environment
             env.merge(environment) { _, new in new }
-            process.environment = env
         }
+        env["PATH"] = HostEnvironmentPaths.augmentedPATH(existing: env["PATH"])
+        process.environment = env
         if let cwd = workingDirectory {
             process.currentDirectoryURL = cwd
         }
