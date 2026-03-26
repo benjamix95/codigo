@@ -171,8 +171,14 @@ func todoConversationScopeFilter(
 ) -> (TodoItem) -> Bool {
     guard let conversationId else { return { _ in true } }
     let visible = todos.filter { !$0.isOperationalPlaceholder }
+    let planScopeIds = Set(visible.compactMap(\.planConversationId))
     return { todo in
-        TodoChatDisplayPolicy.itemAppearsInChat(todo, conversationId: conversationId, visibleTodos: visible)
+        TodoChatDisplayPolicy.itemAppearsInChat(
+            todo,
+            conversationId: conversationId,
+            visibleTodos: visible,
+            planScopeIds: planScopeIds
+        )
     }
 }
 

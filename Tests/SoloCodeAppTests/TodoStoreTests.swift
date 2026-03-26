@@ -790,6 +790,43 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.first { $0.id == runtimeId }?.status, .pending)
     }
 
+    func testDisplayLegacyOrphanOnlyOnLexicographicallyFirstScopedThread() {
+        let store = makeStore()
+        let convA = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let convB = UUID(uuidString: "BBBBBBBB-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        store.upsertFromAgent(
+            id: nil,
+            title: "Shared orphan",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Work A",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: convA
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Work B",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: convB
+        )
+        let titlesA = Set(store.displayTodosForChat(for: convA).map(\.title))
+        let titlesB = Set(store.displayTodosForChat(for: convB).map(\.title))
+        XCTAssertTrue(titlesA.contains("Shared orphan"))
+        XCTAssertFalse(titlesB.contains("Shared orphan"))
+    }
+
     func testDisplayTodosForChatHidesGlobalUnscopedWhenAnotherConversationHasScoped() {
         let store = makeStore()
         let convA = UUID()

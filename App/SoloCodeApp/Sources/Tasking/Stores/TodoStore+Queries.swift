@@ -74,8 +74,14 @@ extension TodoStore {
         guard let conversationId else {
             return sortedCanonicalFirstTodos(visible)
         }
+        let planScopeIds = Set(visible.compactMap(\.planConversationId))
         let inChat = visible.filter {
-            TodoChatDisplayPolicy.itemAppearsInChat($0, conversationId: conversationId, visibleTodos: visible)
+            TodoChatDisplayPolicy.itemAppearsInChat(
+                $0,
+                conversationId: conversationId,
+                visibleTodos: visible,
+                planScopeIds: planScopeIds
+            )
         }
         return sortedCanonicalFirstTodos(inChat)
     }
@@ -106,10 +112,12 @@ extension TodoStore {
                     return touch == conversationId
                 }
                 let visible = self.userVisibleTodos
+                let planScopeIds = Set(visible.compactMap(\.planConversationId))
                 return TodoChatDisplayPolicy.itemAppearsInChat(
                     item,
                     conversationId: conversationId,
-                    visibleTodos: visible
+                    visibleTodos: visible,
+                    planScopeIds: planScopeIds
                 )
             }
             return false
