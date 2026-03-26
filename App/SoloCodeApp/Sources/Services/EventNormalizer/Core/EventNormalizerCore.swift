@@ -41,6 +41,8 @@ enum EventNormalizer {
         case "activate_plan_mode", "activate_debug_mode": kind = .modeActivation
         case "swarm_steps", "agent", "subagent_text": kind = .swarmProgress
         case "usage": kind = .usageUpdate
+        case "codex_thread_token_usage", "codex_rate_limits_updated": kind = .usageUpdate
+        case "codex_thread_status", "codex_context_compaction", "codex_turn_diff": kind = .generic
         case "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied", "error":
             kind = .errorDiagnostic
         default: kind = .generic

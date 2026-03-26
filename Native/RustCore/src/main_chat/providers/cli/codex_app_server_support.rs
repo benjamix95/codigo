@@ -1,10 +1,56 @@
 use crate::main_chat::providers::common::string_value;
 use app_core_protocol::jsonrpc::{JsonRpcErrorResponse, JsonRpcId, JsonRpcResponse};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::ChildStdin;
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+fn truncate_utf8_prefix(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        return s.to_string();
+    }
+    let mut end = max;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…", &s[..end])
+}
+
+/// Params notifica app-server (oggetti annidati → `*_json` troncati) per `emit_raw` verso Swift.
+pub(super) fn flatten_app_server_params_to_payload(
+    payload: &Value,
+    max_nested: usize,
+) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    let Some(obj) = payload.as_object() else {
+        if let Ok(s) = serde_json::to_string(payload) {
+            out.insert("payload_json".to_string(), truncate_utf8_prefix(&s, max_nested));
+        }
+        return out;
+    };
+    for (k, v) in obj {
+        match v {
+            Value::String(s) => {
+                out.insert(k.clone(), s.clone());
+            }
+            Value::Number(n) => {
+                out.insert(k.clone(), n.to_string());
+            }
+            Value::Bool(b) => {
+                out.insert(k.clone(), b.to_string());
+            }
+            Value::Null => {}
+            _ => {
+                if let Ok(s) = serde_json::to_string(v) {
+                    out.insert(format!("{k}_json"), truncate_utf8_prefix(&s, max_nested));
+                }
+            }
+        }
+    }
+    out
+}
 
 pub(super) fn send_request(
     stdin: &mut ChildStdin,
@@ -160,5 +206,14 @@ mod tests {
             raw_string_field(&payload, "delta").as_deref(),
             Some(" Ho aggiornato la todo list.\nPoi ho aperto il plan panel. ")
         );
+    }
+
+    #[test]
+    fn flatten_app_server_params_nested_becomes_json_key() {
+        use super::flatten_app_server_params_to_payload;
+        let v = json!({"threadId": "t1", "meta": {"a": 1}});
+        let m = flatten_app_server_params_to_payload(&v, 500);
+        assert_eq!(m.get("threadId").map(String::as_str), Some("t1"));
+        assert!(m.contains_key("meta_json"));
     }
 }

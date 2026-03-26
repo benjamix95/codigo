@@ -170,4 +170,25 @@ extension CodexUsageFetcher {
         }
         return nil
     }
+
+    // MARK: - Streaming (`account/rateLimits/updated`)
+
+    /// Costruisce `CodexUsage` da params notifica app-server (stessa forma di `account/rateLimits/read.result`).
+    public static func codexUsage(fromAppServerRateLimitsWire wire: [String: Any]) -> CodexUsage? {
+        let limits = (wire["rateLimits"] as? [String: Any]) ?? wire
+        let wrapped: [String: Any] = ["rateLimits": limits]
+        let snapshot = extractSnapshot(wrapped)
+        let primary = parseRateWindow(from: snapshot["primary"] as? [String: Any])
+        let secondary = parseRateWindow(from: snapshot["secondary"] as? [String: Any])
+        let credits = parseCredits(result: wire, snapshot: snapshot)
+        return CodexUsage(
+            fiveHourPct: primary.usedPercent,
+            weeklyPct: secondary.usedPercent,
+            resetFiveH: primary.resetLabel,
+            resetWeekly: secondary.resetLabel,
+            creditsBalance: credits.balance,
+            creditsCurrency: credits.currency,
+            creditsSource: credits.source
+        )
+    }
 }

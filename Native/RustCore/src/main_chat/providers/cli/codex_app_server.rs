@@ -1,7 +1,7 @@
 use super::codex_app_server_support::{
-    enrich_codex_process_error, first_result_text, is_turn_completed, json_rpc_id,
-    normalize_status, raw_string_field, send_error, send_notification, send_request,
-    send_result, spawn_stderr_collector,
+    enrich_codex_process_error, first_result_text, flatten_app_server_params_to_payload,
+    is_turn_completed, json_rpc_id, normalize_status, raw_string_field, send_error,
+    send_notification, send_request, send_result, spawn_stderr_collector,
 };
 use crate::main_chat::providers::common::string_value;
 use crate::main_chat::providers::session::{emit_error, emit_raw, emit_text_delta, is_cancelled};
@@ -384,6 +384,34 @@ fn handle_notification(
                 emit_raw(session_id, "turn_plan_updated", m);
             }
         }
+        // Documentati in https://developers.openai.com/codex/app-server (Events)
+        "thread/tokenUsage/updated" => {
+            let mut m = flatten_app_server_params_to_payload(&payload, 8_000);
+            m.entry("title".to_string())
+                .or_insert_with(|| "Token usage".to_string());
+            m.entry("detail".to_string()).or_insert_with(|| {
+                "Aggiornamento utilizzo token (thread)".to_string()
+            });
+            emit_raw(session_id, "codex_thread_token_usage", m);
+        }
+        "thread/status/changed" => {
+            let mut m = flatten_app_server_params_to_payload(&payload, 4_000);
+            m.entry("title".to_string())
+                .or_insert_with(|| "Thread status".to_string());
+            emit_raw(session_id, "codex_thread_status", m);
+        }
+        "account/rateLimits/updated" => {
+            let mut m = flatten_app_server_params_to_payload(&payload, 8_000);
+            m.entry("title".to_string())
+                .or_insert_with(|| "Rate limits".to_string());
+            emit_raw(session_id, "codex_rate_limits_updated", m);
+        }
+        "turn/diff/updated" => {
+            let mut m = flatten_app_server_params_to_payload(&payload, 24_000);
+            m.entry("title".to_string())
+                .or_insert_with(|| "Diff turn".to_string());
+            emit_raw(session_id, "codex_turn_diff", m);
+        }
         "item/started" | "item/completed" => {
             handle_item_notification(session_id, method, &payload, gate)
         }
@@ -470,6 +498,24 @@ fn handle_item_notification(
         if card.contains_key("output") {
             emit_raw(session_id, "reasoning", card);
         }
+    } else if item_type == "contextCompaction" {
+        let mut card = BTreeMap::from([
+            ("title".to_string(), "Context compaction".to_string()),
+            ("type".to_string(), "context_compaction".to_string()),
+        ]);
+        if let Some(id) = item.get("id").and_then(string_value) {
+            card.insert("id".to_string(), id);
+        }
+        card.insert(
+            "lifecycle".to_string(),
+            if method == "item/completed" {
+                "completed"
+            } else {
+                "started"
+            }
+            .to_string(),
+        );
+        emit_raw(session_id, "codex_context_compaction", card);
     } else if item_type == "plan" {
         let mut card = BTreeMap::from([("title".to_string(), "Plan".to_string())]);
         if let Some(id) = item.get("id").and_then(string_value) {

@@ -126,6 +126,16 @@ extension EventNormalizer {
             return "Plan diff computed"
         case "plan_request_user_input":
             return "Plan clarification requested"
+        case "codex_thread_token_usage":
+            return "Thread token usage updated"
+        case "codex_thread_status":
+            return "Thread status changed"
+        case "codex_rate_limits_updated":
+            return "Codex rate limits updated"
+        case "codex_turn_diff":
+            return "Turn diff updated"
+        case "codex_context_compaction":
+            return "Context compaction"
         default:
             return AgentToolUIDisplayName.label(forRuntimeTool: type)
         }

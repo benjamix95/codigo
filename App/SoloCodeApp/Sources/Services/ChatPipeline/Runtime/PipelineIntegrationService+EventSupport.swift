@@ -15,6 +15,7 @@ extension PipelineIntegrationService {
     // MARK: - Raw Events
 
     func handleRawEvent(_ p: RawEventPayload, for conversationId: UUID) {
+        applyCodexAppServerStreamingMeta(p)
         let rawType = p.rawType
         let normalizedEnvelope = normalizeRawEventEnvelope(p)
 
