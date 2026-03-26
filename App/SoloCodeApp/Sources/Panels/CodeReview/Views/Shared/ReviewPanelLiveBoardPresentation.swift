@@ -53,14 +53,6 @@ enum ReviewPanelLiveBoardPresentation {
 }
 
 extension ReviewPipelineJobState {
-    /// Avanzamento anello = solo `progressPercent` dal motore (0…100). Non usiamo più un pavimento
-    /// tipo “fase 1/6 ⇒ 16%”: confondeva (alla riapertura sembrava già partito) e non ripartiva “da zero” per fase.
-    var displayProgressPercent: Int {
-        min(100, max(0, progressPercent))
-    }
-
-    var displayProgressText: String { "\(displayProgressPercent)%" }
-
     func replacingTitle(_ newTitle: String) -> ReviewPipelineJobState {
         ReviewPipelineJobState(
             title: newTitle,
