@@ -37,8 +37,9 @@ extension ChatPanelView {
         case .startSession:
             return nil
         case .continueInvestigation:
-            guard debugStore.phase == .reproducing,
-                  debugStore.isAwaitingReproduceConfirmation else {
+            let proceedPending = debugStore.isAwaitingReproduceConfirmation
+                || debugStore.userConfirmedReproduce
+            guard debugStore.phase == .reproducing, proceedPending else {
                 return "[Debug] Continue investigation richiede una sessione in fase reproducing con conferma utente in attesa."
             }
             return nil

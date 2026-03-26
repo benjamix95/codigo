@@ -28,6 +28,7 @@ extension DebugStore {
 
     func confirmReproduced() {
         userConfirmedReproduce = true
+        isAwaitingReproduceConfirmation = false
         clearStreamLogs()
         phase = .fixing
         startNativeDebugSession()

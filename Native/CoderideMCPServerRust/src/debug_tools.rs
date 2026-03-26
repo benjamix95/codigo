@@ -2,13 +2,18 @@ use app_core_protocol::mcp::{CallToolResult, ToolContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 static DEBUG_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
+/// Serializza lettura/scrittura del JSON debug per workspace (evita lost update tra tool concorrenti).
+static DEBUG_STORE_IO: Mutex<()> = Mutex::new(());
 
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,15 +85,15 @@ pub fn handle(
     arguments: &BTreeMap<String, Value>,
 ) -> Option<CallToolResult> {
     match name {
-        "coderide_debug_log" => Some(debug_log(arguments)),
-        "coderide_debug_query" => Some(debug_query(arguments)),
-        "coderide_debug_set_phase" => Some(debug_set_phase(arguments)),
+        "coderide_debug_log" => Some(debug_log(workspace, arguments)),
+        "coderide_debug_query" => Some(debug_query(workspace, arguments)),
+        "coderide_debug_set_phase" => Some(debug_set_phase(workspace, arguments)),
         "coderide_debug_request_user" => Some(debug_request_user(arguments)),
-        "coderide_debug_resolve" => Some(debug_resolve(arguments)),
+        "coderide_debug_resolve" => Some(debug_resolve(workspace, arguments)),
         "coderide_debug_session" => Some(debug_session(workspace, arguments)),
-        "coderide_debug_hypothesize" => Some(debug_hypothesize(arguments)),
-        "coderide_debug_timeline" => Some(debug_timeline(arguments)),
-        "coderide_debug_snapshot" => Some(debug_snapshot(arguments)),
+        "coderide_debug_hypothesize" => Some(debug_hypothesize(workspace, arguments)),
+        "coderide_debug_timeline" => Some(debug_timeline(workspace, arguments)),
+        "coderide_debug_snapshot" => Some(debug_snapshot(workspace, arguments)),
         "coderide_debug_trace_analyze" => Some(debug_trace_analyze(arguments)),
         "coderide_debug_context" => Some(debug_context(workspace)),
         "coderide_debug_test_check" => Some(debug_test_check(workspace, arguments)),
@@ -99,7 +104,7 @@ pub fn handle(
     }
 }
 
-fn debug_set_phase(arguments: &BTreeMap<String, Value>) -> CallToolResult {
+fn debug_set_phase(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let phase = string_arg(arguments, "phase").to_lowercase();
     let valid = [
         "describing",
@@ -118,7 +123,7 @@ fn debug_set_phase(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             json!({ "error_code": "validation" }),
         );
     }
-    let mut store = read_store();
+    let mut store = read_store(workspace);
     store.phase = Some(phase.clone());
     push_log(
         &mut store,
@@ -129,7 +134,7 @@ fn debug_set_phase(arguments: &BTreeMap<String, Value>) -> CallToolResult {
         Some("system".to_string()),
         None,
     );
-    persist_store(&store);
+    persist_store(workspace, &store);
     text_with_structured(
         format!("OK — debug phase set to {phase}"),
         json!({ "tool": "debug_set_phase", "phase": phase }),
@@ -154,12 +159,12 @@ fn debug_request_user(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     )
 }
 
-fn debug_resolve(arguments: &BTreeMap<String, Value>) -> CallToolResult {
+fn debug_resolve(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let summary = string_arg(arguments, "summary");
     if summary.is_empty() {
         return error_result("Error: 'summary' is required", json!({ "error_code": "validation" }));
     }
-    let mut store = read_store();
+    let mut store = read_store(workspace);
     store.resolved_summary = Some(summary.clone());
     store.phase = Some("resolved".to_string());
     push_log(
@@ -171,14 +176,14 @@ fn debug_resolve(arguments: &BTreeMap<String, Value>) -> CallToolResult {
         Some("system".to_string()),
         None,
     );
-    persist_store(&store);
+    persist_store(workspace, &store);
     text_with_structured(
         "OK — debug session resolved".to_string(),
         json!({ "tool": "debug_resolve", "summary": summary }),
     )
 }
 
-fn debug_log(arguments: &BTreeMap<String, Value>) -> CallToolResult {
+fn debug_log(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let severity = non_empty(string_arg(arguments, "severity")).unwrap_or_else(|| "info".to_string());
     let source = non_empty(string_arg(arguments, "source")).unwrap_or_else(|| "agent".to_string());
     let message = string_arg(arguments, "message");
@@ -191,13 +196,13 @@ fn debug_log(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let hypothesis_id = non_empty(string_arg(arguments, "hypothesis_id"));
     let data = parse_json_map(string_arg(arguments, "data"));
 
-    let mut store = read_store();
+    let mut store = read_store(workspace);
     push_log(&mut store, &severity, &source, message.clone(), detail, category, hypothesis_id.clone());
     if let Some(last) = store.logs.last_mut() {
         last.run_id = run_id.clone();
         last.data = data.clone();
     }
-    persist_store(&store);
+    persist_store(workspace, &store);
 
     text_with_structured(
         "OK — debug log entry recorded".to_string(),
@@ -214,8 +219,8 @@ fn debug_log(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     )
 }
 
-fn debug_query(arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let store = read_store();
+fn debug_query(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    let store = read_store(workspace);
     let search = string_arg(arguments, "search").to_lowercase();
     let severity = string_arg(arguments, "severity").to_lowercase();
     let hypothesis_id = string_arg(arguments, "hypothesis_id").to_lowercase();
@@ -250,7 +255,7 @@ fn debug_query(arguments: &BTreeMap<String, Value>) -> CallToolResult {
 }
 
 fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let mut store = read_store();
+    let mut store = read_store(workspace);
     match string_arg(arguments, "action").to_lowercase().as_str() {
         "start" => {
             let session_id = generate_id("dbg");
@@ -268,7 +273,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                 Some("system".to_string()),
                 None,
             );
-            persist_store(&store);
+            persist_store(workspace, &store);
             text_with_structured(
                 "OK — debug session started".to_string(),
                 json!({
@@ -295,7 +300,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
                 .resolved_summary
                 .clone()
                 .unwrap_or_else(|| "Debug session ended".to_string());
-            persist_store(&store);
+            persist_store(workspace, &store);
             text_with_structured(
                 "OK — debug session ended".to_string(),
                 json!({
@@ -308,7 +313,7 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
             )
         }
         "clear" => {
-            persist_store(&DebugStore::default());
+            persist_store(workspace, &DebugStore::default());
             text_with_structured(
                 "OK — debug session cleared".to_string(),
                 json!({ "tool": "debug_session", "action": "clear" }),
@@ -356,8 +361,8 @@ fn debug_session(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
     }
 }
 
-fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let mut store = read_store();
+fn debug_hypothesize(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    let mut store = read_store(workspace);
     let action = string_arg(arguments, "action").to_lowercase();
     let confidence_raw = string_arg(arguments, "confidence");
     let confidence_parsed = if confidence_raw.is_empty() {
@@ -403,7 +408,7 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
                 Some("debug".to_string()),
                 Some(id.clone()),
             );
-            persist_store(&store);
+            persist_store(workspace, &store);
             text_with_structured(
                 "OK — debug hypothesis proposed".to_string(),
                 json!({
@@ -460,7 +465,7 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
                 Some("debug".to_string()),
                 Some(resolved_id.clone()),
             );
-            persist_store(&store);
+            persist_store(workspace, &store);
             text_with_structured(
                 "OK — debug hypothesis updated".to_string(),
                 json!({
@@ -485,8 +490,8 @@ fn debug_hypothesize(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     }
 }
 
-fn debug_timeline(arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let store = read_store();
+fn debug_timeline(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    let store = read_store(workspace);
     let filter = string_arg(arguments, "filter").to_lowercase();
     let show_all = filter.is_empty() || filter == "all";
     let mut lines = Vec::new();
@@ -524,8 +529,8 @@ fn debug_timeline(arguments: &BTreeMap<String, Value>) -> CallToolResult {
     )
 }
 
-fn debug_snapshot(arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let mut store = read_store();
+fn debug_snapshot(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
+    let mut store = read_store(workspace);
     let action = string_arg(arguments, "action").to_lowercase();
     match action.as_str() {
         "capture" => {
@@ -534,7 +539,7 @@ fn debug_snapshot(arguments: &BTreeMap<String, Value>) -> CallToolResult {
             let snapshot = build_snapshot(&store, &label);
             store.snapshots.retain(|item| item.label != label);
             store.snapshots.push(snapshot.clone());
-            persist_store(&store);
+            persist_store(workspace, &store);
             text_with_structured(
                 format!("Snapshot '{}' captured", label),
                 json!({
@@ -651,7 +656,7 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     let scope = non_empty(string_arg(arguments, "scope")).unwrap_or_else(|| "related".to_string());
     let filter = string_arg(arguments, "filter");
     let path = string_arg(arguments, "path");
-    let mut store = read_store();
+    let mut store = read_store(workspace);
 
     let xcodebuild = resolved_xcodebuild_path();
     let Some(xcodebuild) = xcodebuild else {
@@ -740,7 +745,7 @@ fn debug_test_check(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Ca
     if exit_code == 0 {
         store.failing_test_filters.clear();
     }
-    persist_store(&store);
+    persist_store(workspace, &store);
 
     let output = format!(
         "Xcode tests {}: {} passed, {} failed\nschemes: {}\n{}",
@@ -1251,41 +1256,55 @@ fn resolve_hypothesis_id(store: &DebugStore, raw: &str) -> Option<String> {
         .map(|item| item.id.clone())
 }
 
-fn read_store() -> DebugStore {
-    let path = debug_store_path();
-    let Ok(data) = fs::read(path) else {
+fn workspace_fingerprint(workspace: &Path) -> String {
+    let normalized = workspace
+        .canonicalize()
+        .unwrap_or_else(|_| workspace.to_path_buf());
+    let key = normalized.to_string_lossy();
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+fn debug_store_path(workspace: &Path) -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let fp = workspace_fingerprint(workspace);
+    PathBuf::from(home)
+        .join("Library")
+        .join("Application Support")
+        .join("CoderIDE")
+        .join("mcp-shared")
+        .join("workspaces")
+        .join(fp)
+        .join("debug_state.json")
+}
+
+fn read_store(workspace: &Path) -> DebugStore {
+    let _guard = DEBUG_STORE_IO.lock().unwrap();
+    let path = debug_store_path(workspace);
+    let Ok(data) = fs::read(&path) else {
         return DebugStore::default();
     };
     serde_json::from_slice(&data).unwrap_or_default()
 }
 
-fn write_store(store: &DebugStore) -> Result<(), String> {
-    let path = debug_store_path();
+fn write_store(workspace: &Path, store: &DebugStore) -> Result<(), String> {
+    let path = debug_store_path(workspace);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let data = serde_json::to_vec_pretty(store).map_err(|error| error.to_string())?;
-    // Atomic write: temp file + rename to prevent partial writes.
     let tmp_path = path.with_extension("json.tmp");
     fs::write(&tmp_path, &data).map_err(|error| error.to_string())?;
     fs::rename(&tmp_path, &path).map_err(|error| error.to_string())
 }
 
 /// Wrapper che logga l'errore se write_store fallisce, senza silenziarlo.
-fn persist_store(store: &DebugStore) {
-    if let Err(e) = write_store(store) {
+fn persist_store(workspace: &Path, store: &DebugStore) {
+    let _guard = DEBUG_STORE_IO.lock().unwrap();
+    if let Err(e) = write_store(workspace, store) {
         eprintln!("[debug_tools] persist_store failed: {e}");
     }
-}
-
-fn debug_store_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home)
-        .join("Library")
-        .join("Application Support")
-        .join("CoderIDE")
-        .join("mcp-shared")
-        .join("debug_state.json")
 }
 
 fn resolved_xcodebuild_path() -> Option<String> {

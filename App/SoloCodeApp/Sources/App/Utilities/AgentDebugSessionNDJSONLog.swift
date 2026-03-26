@@ -1,12 +1,43 @@
+import CryptoKit
 import Foundation
 
-/// NDJSON sessione debug chat (path workspace). Non loggare segreti o PII.
+/// NDJSON diagnostica agent (Application Support, bucket per workspace). Non loggare segreti o PII.
 enum AgentDebugSessionNDJSONLog {
     private static let queue = DispatchQueue(label: "solo.agent.debug.ndjson")
-    private static let logPath = "/Users/benjaminstoica/SoloCode/.cursor/debug-fba6fd.log"
-    private static let sessionId = "fba6fd"
+    private static var logFileURL: URL?
+    private static var sessionId = UUID().uuidString
     private static var throttleLast: [String: CFAbsoluteTime] = [:]
     private static let throttleLock = NSLock()
+
+    /// Aggiorna directory di log in base alle radici workspace (path ordinati + hash).
+    @MainActor
+    static func configure(workspaceRoots: [String]) {
+        let sorted = workspaceRoots
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted()
+        queue.sync {
+            guard !sorted.isEmpty,
+                  let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            else {
+                logFileURL = nil
+                return
+            }
+            let fingerprint = sha256Hex(sorted.joined(separator: "\u{1e}"))
+            sessionId = UUID().uuidString
+            let dir = base
+                .appendingPathComponent("SoloCode", isDirectory: true)
+                .appendingPathComponent("AgentDebugNDJSON", isDirectory: true)
+                .appendingPathComponent(fingerprint, isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            logFileURL = dir.appendingPathComponent("session-\(sessionId).ndjson", isDirectory: false)
+        }
+    }
+
+    private static func sha256Hex(_ string: String) -> String {
+        let digest = SHA256.hash(data: Data(string.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
 
     static func appendThrottled(
         gateKey: String,
@@ -34,8 +65,10 @@ enum AgentDebugSessionNDJSONLog {
         data: [String: String] = [:]
     ) {
         queue.async {
+            guard let url = logFileURL else { return }
+            let sid = sessionId
             let payload: [String: Any] = [
-                "sessionId": sessionId,
+                "sessionId": sid,
                 "hypothesisId": hypothesisId,
                 "location": location,
                 "message": message,
@@ -46,12 +79,11 @@ enum AgentDebugSessionNDJSONLog {
                   var line = String(data: json, encoding: .utf8)
             else { return }
             line.append("\n")
-            let path = logPath
+            let path = url.path
             if !FileManager.default.fileExists(atPath: path) {
                 FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
                 return
             }
-            let url = URL(fileURLWithPath: path)
             guard let handle = try? FileHandle(forWritingTo: url) else { return }
             defer { try? handle.close() }
             _ = try? handle.seekToEnd()

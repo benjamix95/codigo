@@ -191,6 +191,12 @@ extension ChatPanelView {
             .onChange(of: effectiveContext.primaryPath) { newPath in
                 gitPanelStore.refresh(workingDirectory: newPath)
             }
+            .onChangeCompat(of: effectiveContext.agentDebugLogConfigurationKey) { _, _ in
+                AgentDebugSessionNDJSONLog.configure(workspaceRoots: effectiveContext.folderPaths)
+            }
+            .onAppear {
+                AgentDebugSessionNDJSONLog.configure(workspaceRoots: effectiveContext.folderPaths)
+            }
             .onChange(of: selectedConversationId) { _ in
                 gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
                 DispatchQueue.main.async {

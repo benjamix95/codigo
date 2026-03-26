@@ -36,6 +36,14 @@ struct EffectiveContext {
     var primaryPath: String? { folderPaths.first }
     var activeRootPath: String? { context?.activeFolderPath ?? folderPaths.first }
 
+    /// Chiave stabile per onChange (NDJSON diagnostica, senza esporre path grezzi alla UI).
+    var agentDebugLogConfigurationKey: String {
+        folderPaths.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted()
+            .joined(separator: "\u{1e}")
+    }
+
     var displayLabel: String {
         if let context {
             return context.name

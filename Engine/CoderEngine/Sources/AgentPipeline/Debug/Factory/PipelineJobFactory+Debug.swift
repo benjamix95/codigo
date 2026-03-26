@@ -281,7 +281,7 @@ extension PipelineJobFactory {
                 title: "Sync Native Watches",
                 taskType: .bugfix,
                 priority: 80,
-                dependsOn: [nativeStartId]
+                dependsOn: [nativeSyncBreakpointsId].compactMap { $0 }
             )
             nativeSyncDeps = [nativeSyncBreakpointsId, nativeSyncWatchesId].compactMap { $0 }
         }
