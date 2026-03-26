@@ -22,7 +22,7 @@ fn tools_list_matches_frozen_catalog_size_and_annotations() {
 
     let listed = read_message(&mut child);
     let tools = listed["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 116);
+    assert_eq!(tools.len(), 117);
     assert!(tools.iter().all(|tool| tool["description"].is_string()));
     assert!(tools
         .iter()

@@ -20,6 +20,10 @@ pub fn handle(
             "Error: 'skill' parameter is required",
         ));
     };
+    let skill = match sanitize_skill_slug(&skill) {
+        Ok(s) => s,
+        Err(msg) => return Some(CallToolResult::error(msg)),
+    };
     let task = string_arg(arguments, "task")
         .or_else(|| string_arg(arguments, "args"))
         .unwrap_or_default();
@@ -45,6 +49,24 @@ pub fn handle(
             }
         });
     Some(CallToolResult::text(detail))
+}
+
+fn sanitize_skill_slug(skill: &str) -> Result<String, String> {
+    let t = skill.trim();
+    if t.is_empty() {
+        return Err("Error: skill name is empty".to_string());
+    }
+    if t.contains('/')
+        || t.contains('\\')
+        || t.contains("..")
+        || t.starts_with('.')
+    {
+        return Err(
+            "Error: skill name must be a single path segment (no /, \\, .., or leading .)"
+                .to_string(),
+        );
+    }
+    Ok(t.to_string())
 }
 
 fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> Option<String> {

@@ -3,7 +3,7 @@ use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Atomic write: write to temp file then rename, preventing partial writes.
 fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
@@ -27,10 +27,13 @@ pub fn handle(
 }
 
 fn create_file(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let path = resolve_path(workspace, string_arg(arguments, "path"));
-    if path.as_os_str().is_empty() {
-        return CallToolResult::error("path is required");
-    }
+    let path = match crate::workspace_paths::resolve_within_workspace(
+        workspace,
+        &string_arg(arguments, "path"),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     if path.exists() {
         return CallToolResult::error(format!(
             "File already exists: {}. Use str_replace to edit or write to overwrite.",
@@ -62,12 +65,24 @@ fn create_file(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
 }
 
 fn write_file(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let path = resolve_path(workspace, string_arg(arguments, "path"));
-    if path.as_os_str().is_empty() {
-        return CallToolResult::error("Missing path");
-    }
+    let path = match crate::workspace_paths::resolve_within_workspace(
+        workspace,
+        &string_arg(arguments, "path"),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     let content = string_arg(arguments, "content");
-    let old_content = fs::read_to_string(&path).unwrap_or_default();
+    let old_content = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(err) => {
+            return CallToolResult::error(format!(
+                "cannot read {} for diff stats: {err}",
+                path.display()
+            ));
+        }
+    };
     if let Err(error) = atomic_write(&path, &content) {
         return CallToolResult::error(error.to_string());
     }
@@ -85,7 +100,13 @@ fn write_file(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTool
 }
 
 fn str_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let path = resolve_path(workspace, string_arg(arguments, "path"));
+    let path = match crate::workspace_paths::resolve_within_workspace(
+        workspace,
+        &string_arg(arguments, "path"),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     if !path.exists() {
         return CallToolResult::error(format!(
             "File not found: {}. Use create_file for new files.",
@@ -136,7 +157,13 @@ fn str_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToo
 }
 
 fn regex_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let path = resolve_path(workspace, string_arg(arguments, "path"));
+    let path = match crate::workspace_paths::resolve_within_workspace(
+        workspace,
+        &string_arg(arguments, "path"),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     if !path.exists() {
         return CallToolResult::error(format!("File not found: {}", path.display()));
     }
@@ -153,7 +180,15 @@ fn regex_replace(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallT
         Ok(re) => re,
         Err(error) => return CallToolResult::error(format!("invalid regex: {error}")),
     };
-    let replaced = re.replace_all(&content, replacement.as_str()).to_string();
+    let replace_all = arguments
+        .get("replace_all")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let replaced = if replace_all {
+        re.replace_all(&content, replacement.as_str()).to_string()
+    } else {
+        re.replace(&content, replacement.as_str()).to_string()
+    };
     if replaced == content {
         return CallToolResult::error(format!("pattern not found in {}", path.display()));
     }
@@ -181,43 +216,6 @@ fn success_with_structured(text: String, structured: Value) -> CallToolResult {
     }
 }
 
-fn resolve_path(workspace: &Path, input: String) -> PathBuf {
-    let trimmed = input.trim().to_string();
-    let path = Path::new(&trimmed);
-    let resolved = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        workspace.join(path)
-    };
-    // Canonicalize what exists, then verify prefix.
-    // For new files, canonicalize the parent and check that.
-    let check_path = if resolved.exists() {
-        resolved.canonicalize().unwrap_or(resolved.clone())
-    } else if let Some(parent) = resolved.parent() {
-        if parent.exists() {
-            parent
-                .canonicalize()
-                .map(|p| p.join(resolved.file_name().unwrap_or_default()))
-                .unwrap_or(resolved.clone())
-        } else {
-            resolved.clone()
-        }
-    } else {
-        resolved.clone()
-    };
-    let workspace_canonical = match workspace.canonicalize() {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("[edit_tools] WARNING: cannot canonicalize workspace {:?} — rejecting path for safety", workspace);
-            return PathBuf::new();
-        }
-    };
-    if !check_path.starts_with(&workspace_canonical) {
-        return PathBuf::new(); // empty path → triggers "path is required" error
-    }
-    resolved
-}
-
 fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
     arguments
         .get(key)
@@ -227,6 +225,9 @@ fn string_arg(arguments: &BTreeMap<String, Value>, key: &str) -> String {
 }
 
 fn count_lines(text: &str) -> usize {
+    if text.is_empty() {
+        return 0;
+    }
     text.lines().count().max(1)
 }
 

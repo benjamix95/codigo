@@ -90,7 +90,8 @@ pub fn supports_tool_name(name: &str) -> bool {
         || review_tools::handle(name, Path::new("."), &Default::default()).is_some()
         || matches!(
             name,
-            "coderide_plan_create"
+            "coderide_activate_debug_mode"
+                | "coderide_plan_create"
                 | "coderide_plan_read"
                 | "coderide_plan_history_read"
                 | "coderide_plan_step_update"

@@ -2,7 +2,7 @@ use app_core_protocol::mcp::CallToolResult;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub fn handle(
     name: &str,
@@ -22,7 +22,13 @@ pub fn supports(name: &str) -> bool {
 }
 
 fn file_read(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let path = resolve_path(workspace, string_arg(arguments, "path"));
+    let path = match crate::workspace_paths::resolve_within_workspace(
+        workspace,
+        &string_arg(arguments, "path"),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     let Ok(content) = fs::read_to_string(&path) else {
         return CallToolResult::error(format!("Error: unable to read '{}'", path.display()));
     };
@@ -37,7 +43,13 @@ fn file_read(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolR
 }
 
 fn list_dir(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let path = resolve_path(workspace, string_arg(arguments, "path"));
+    let path = match crate::workspace_paths::resolve_within_workspace(
+        workspace,
+        &string_arg(arguments, "path"),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     let Ok(entries) = fs::read_dir(&path) else {
         return CallToolResult::error(format!("Error: unable to list '{}'", path.display()));
     };
@@ -47,35 +59,6 @@ fn list_dir(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolRe
         .collect::<Vec<_>>();
     lines.sort();
     CallToolResult::text(lines.join("\n"))
-}
-
-fn resolve_path(workspace: &Path, input: String) -> PathBuf {
-    let trimmed = input.trim().to_string();
-    let path = Path::new(&trimmed);
-    let resolved = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        workspace.join(path)
-    };
-    let check_path = if resolved.exists() {
-        resolved.canonicalize().unwrap_or(resolved.clone())
-    } else if let Some(parent) = resolved.parent() {
-        if parent.exists() {
-            parent
-                .canonicalize()
-                .map(|p| p.join(resolved.file_name().unwrap_or_default()))
-                .unwrap_or(resolved.clone())
-        } else {
-            resolved.clone()
-        }
-    } else {
-        resolved.clone()
-    };
-    let workspace_canonical = workspace.canonicalize().unwrap_or(workspace.to_path_buf());
-    if !check_path.starts_with(&workspace_canonical) {
-        return PathBuf::new();
-    }
-    resolved
 }
 
 fn int_arg(arguments: &BTreeMap<String, Value>, key: &str) -> Option<i64> {

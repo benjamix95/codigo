@@ -1,3 +1,4 @@
+coderide_activate_debug_mode
 coderide_activate_plan_mode
 coderide_audit_bug_api_contracts
 coderide_audit_bug_concurrency

@@ -96,14 +96,42 @@ struct ParsedSemanticChunksCache {
 
 static PARSED_SEMANTIC_CHUNKS_CACHE: Mutex<Option<ParsedSemanticChunksCache>> = Mutex::new(None);
 
+enum PersistedSemanticOutcome {
+    Output(String),
+    SkipIndex,
+    Error(String),
+}
+
 fn git_diff(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
     let scope = crate::search_tools::string_arg(arguments, "path");
-    let args = if scope.is_empty() {
-        vec!["diff", "--", "."]
+    let owned: Vec<String> = if scope.is_empty() {
+        vec!["diff".into(), "--".into(), ".".into()]
     } else {
-        vec!["diff", "--", scope.as_str()]
+        let resolved = match crate::workspace_paths::resolve_within_workspace(workspace, &scope) {
+            Ok(p) => p,
+            Err(msg) => return CallToolResult::error(msg),
+        };
+        let rel = git_diff_relative_path(workspace, &resolved);
+        vec!["diff".into(), "--".into(), rel]
     };
-    shell_text("git", &args, workspace)
+    let refs: Vec<&str> = owned.iter().map(|s| s.as_str()).collect();
+    shell_text("git", &refs, workspace)
+}
+
+fn git_diff_relative_path(workspace: &Path, resolved: &std::path::Path) -> String {
+    let Ok(ws) = workspace.canonicalize() else {
+        return resolved.display().to_string();
+    };
+    let Ok(target) = resolved.canonicalize() else {
+        return resolved
+            .strip_prefix(workspace)
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| resolved.display().to_string());
+    };
+    target
+        .strip_prefix(&ws)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| target.display().to_string())
 }
 
 fn diagnostics(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
@@ -142,10 +170,9 @@ fn semantic_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
 
     // Resolve path scope from multiple aliases.
     let path_scope = resolved_path_scope_for_search(arguments);
-    let search_dir = if path_scope.is_empty() {
-        workspace.to_path_buf()
-    } else {
-        workspace.join(&path_scope)
+    let search_dir = match crate::workspace_paths::resolve_search_directory(workspace, &path_scope) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
     };
 
     // File type filter.
@@ -168,7 +195,7 @@ fn semantic_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
         );
     }
 
-    if let Some(index_output) = semantic_search_via_persisted_index(
+    match semantic_search_via_persisted_index(
         workspace,
         &query,
         &target_directories,
@@ -177,7 +204,9 @@ fn semantic_search(workspace: &Path, arguments: &BTreeMap<String, Value>) -> Cal
         min_confidence,
         show_scoring,
     ) {
-        return CallToolResult::text(index_output);
+        PersistedSemanticOutcome::Output(text) => return CallToolResult::text(text),
+        PersistedSemanticOutcome::Error(msg) => return CallToolResult::error(msg),
+        PersistedSemanticOutcome::SkipIndex => {}
     }
 
     let lexical_hits = lexical_semantic_search(
@@ -320,14 +349,16 @@ fn semantic_search_via_persisted_index(
     limit: usize,
     min_confidence: f64,
     show_scoring: bool,
-) -> Option<String> {
+) -> PersistedSemanticOutcome {
     let profile = matches!(
         std::env::var("SOLOCODE_MCP_SEMANTIC_LOAD_PROFILE").as_deref(),
         Ok("1")
     );
-    let chunks = load_semantic_chunks(workspace)?;
+    let Some(chunks) = load_semantic_chunks(workspace) else {
+        return PersistedSemanticOutcome::SkipIndex;
+    };
     if chunks.is_empty() {
-        return None;
+        return PersistedSemanticOutcome::SkipIndex;
     }
 
     let filtered_chunks = chunks
@@ -341,7 +372,7 @@ fn semantic_search_via_persisted_index(
         })
         .collect::<Vec<_>>();
     if filtered_chunks.is_empty() {
-        return Some("No results.".to_string());
+        return PersistedSemanticOutcome::Output("No results.".to_string());
     }
 
     let t_snap = Instant::now();
@@ -361,10 +392,24 @@ fn semantic_search_via_persisted_index(
         },
         snapshot,
     };
-    let raw = serde_json::to_string(&payload).ok()?;
-    let response = solocode_rust_core::scoring::handle_search_request(&raw).ok()?;
+    let raw = match serde_json::to_string(&payload) {
+        Ok(r) => r,
+        Err(e) => {
+            return PersistedSemanticOutcome::Error(format!(
+                "semantic index: JSON serialize failed: {e}"
+            ));
+        }
+    };
+    let response = match solocode_rust_core::scoring::handle_search_request(&raw) {
+        Ok(r) => r,
+        Err(e) => {
+            return PersistedSemanticOutcome::Error(format!(
+                "semantic index: scoring failed: {e}"
+            ));
+        }
+    };
     if response.hits.is_empty() {
-        return Some("No results.".to_string());
+        return PersistedSemanticOutcome::Output("No results.".to_string());
     }
 
     let max_score = response
@@ -422,7 +467,7 @@ fn semantic_search_via_persisted_index(
         })
         .collect::<Vec<_>>();
 
-    Some(if rendered.is_empty() {
+    PersistedSemanticOutcome::Output(if rendered.is_empty() {
         "No results.".to_string()
     } else {
         rendered.join("\n")
@@ -450,9 +495,18 @@ fn target_directories_for_search(arguments: &BTreeMap<String, Value>, path_scope
 fn load_semantic_chunks_from_disk(cache_path: &Path) -> Option<Vec<PersistedSemanticChunk>> {
     let content = fs::read_to_string(cache_path).ok()?;
     let mut chunks = Vec::new();
+    let mut bad_lines = 0_u32;
     for line in content.lines().filter(|line| !line.trim().is_empty()) {
-        let chunk = serde_json::from_str::<PersistedSemanticChunk>(line).ok()?;
-        chunks.push(chunk);
+        match serde_json::from_str::<PersistedSemanticChunk>(line) {
+            Ok(chunk) => chunks.push(chunk),
+            Err(_) => bad_lines += 1,
+        }
+    }
+    if bad_lines > 0 {
+        eprintln!(
+            "[mcp-semantic] skipped {bad_lines} invalid JSONL line(s) in {}",
+            cache_path.display()
+        );
     }
     Some(chunks)
 }
@@ -472,22 +526,22 @@ fn load_semantic_chunks(workspace: &Path) -> Option<Vec<PersistedSemanticChunk>>
     let arc_chunks: Arc<Vec<PersistedSemanticChunk>> = if let Ok(mut guard) =
         PARSED_SEMANTIC_CHUNKS_CACHE.lock()
     {
-        let hit = guard.as_ref().is_some_and(|c| {
-            c.cache_path == cache_path && c.mtime == mtime && c.len == len
-        });
-        if hit {
-            Arc::clone(&guard.as_ref().expect("hit implies some").chunks)
-        } else {
-            cache_miss = true;
-            let chunks = load_semantic_chunks_from_disk(&cache_path)?;
-            let arc = Arc::new(chunks);
-            *guard = Some(ParsedSemanticChunksCache {
-                cache_path: cache_path.clone(),
-                mtime,
-                len,
-                chunks: Arc::clone(&arc),
-            });
-            arc
+        match guard.as_ref() {
+            Some(cached) if cached.cache_path == cache_path && cached.mtime == mtime && cached.len == len => {
+                Arc::clone(&cached.chunks)
+            }
+            _ => {
+                cache_miss = true;
+                let chunks = load_semantic_chunks_from_disk(&cache_path)?;
+                let arc = Arc::new(chunks);
+                *guard = Some(ParsedSemanticChunksCache {
+                    cache_path: cache_path.clone(),
+                    mtime,
+                    len,
+                    chunks: Arc::clone(&arc),
+                });
+                arc
+            }
         }
     } else {
         cache_miss = true;

@@ -3,7 +3,7 @@ use crate::tool_schema::input_schema_for;
 
 const TOOL_NAMES: &str = include_str!("tool_names.txt");
 pub const CATALOG_VERSION: &str = "2026-03-26";
-pub const CATALOG_TOOL_COUNT: usize = 116;
+pub const CATALOG_TOOL_COUNT: usize = 117;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ToolFamily {
@@ -71,7 +71,10 @@ fn family_for(name: &str) -> ToolFamily {
         || name == "coderide_run_tests"
     {
         ToolFamily::Diagnostics
-    } else if name.starts_with("coderide_plan_") || name == "coderide_activate_plan_mode" {
+    } else if name.starts_with("coderide_plan_")
+        || name == "coderide_activate_plan_mode"
+        || name == "coderide_activate_debug_mode"
+    {
         ToolFamily::Plan
     } else if name.starts_with("coderide_review_") {
         ToolFamily::Review

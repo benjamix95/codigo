@@ -61,7 +61,7 @@ enum RustSyncedToolDescriptions {
       "coderide_read": "Read a file from the workspace with line numbers. Always read before editing. Usage: path (required). Optional offset/limit as line hints when supported by the host.",
       "coderide_read_lints": "Read current linter/IDE diagnostics without a full build when available. Usage: optional path filter, severity, limit.",
       "coderide_read_range": "Read an inclusive line slice from a file (faster than whole file for large sources). Usage: path; start and end as start_line/end_line or start/end integers when available.",
-      "coderide_regex_replace": "Regex-powered single-file replace (supports capture groups in replacement). Usage: path, pattern, replacement; optional flags string.",
+      "coderide_regex_replace": "Regex-powered single-file replace (supports capture replace_all=true for every match; default single match). Usage: path, pattern, replacement; optional flags, replace_all.",
       "coderide_review_apply_fix": "Apply an IDE-suggested fix for a finding. Usage: finding identifiers per host schema (finding_id, session_id, etc.).",
       "coderide_review_apply_patch": "Apply the verified patch to the workspace. Usage: finding_id and session_id (required); optional conversation_id.",
       "coderide_review_close_finding": "Close a finding after fix or explicit resolution. Usage: finding_id, session_id; optional reason; optional conversation_id.",
@@ -109,8 +109,8 @@ enum RustSyncedToolDescriptions {
       "coderide_subagent_testWriter": "Spawn a tests-and-verification subagent. Usage: task (required).",
       "coderide_todo_read": "Read the shared IDE todo list / LiveCard items. Usage: no required fields.",
       "coderide_todo_write": "Update structured todos shown in the IDE. Usage: pass todos JSON batch and/or single-item fields title, status, priority, notes, activeForm, linkedFiles.",
-      "coderide_web_fetch": "Fetch public URL and return trimmed text. Usage: url (required); optional timeout seconds (fractional, max 120).",
-      "coderide_web_search": "DuckDuckGo HTML search, trimmed snippets. Usage: query (required); optional explanation; optional timeout seconds (fractional, max 120).",
+      "coderide_web_fetch": "Fetch public URL and return Markdown content. Usage: url (required).",
+      "coderide_web_search": "Internet search for up-to-date docs, APIs, CVEs, releases. Usage: query (required); optional explanation/maxResults.",
       "coderide_write": "Overwrite or create a file with full contents. Usage: path and content. Prefer coderide_str_replace for small edits to existing files."
     }
     """

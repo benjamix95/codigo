@@ -3,7 +3,7 @@ use regex::Regex;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 pub fn handle(
@@ -131,10 +131,10 @@ fn grep(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult
 
     // Path scope — restrict search to a subdirectory.
     let path_scope = resolved_path_scope(arguments);
-    let search_dir = if path_scope.is_empty() {
-        workspace.to_path_buf()
-    } else {
-        workspace.join(&path_scope)
+    let search_dir = match crate::workspace_paths::resolve_search_directory(workspace, &path_scope)
+    {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
     };
 
     let rg_refs: Vec<&str> = rg_args.iter().map(|s| s.as_str()).collect();
@@ -146,7 +146,13 @@ fn grep(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult
 }
 
 fn read_range(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallToolResult {
-    let path = resolve_path(workspace, string_arg(arguments, "path"));
+    let path = match crate::workspace_paths::resolve_within_workspace(
+        workspace,
+        &string_arg(arguments, "path"),
+    ) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     let start = int_arg(arguments, "start")
         .or_else(|| int_arg(arguments, "start_line"))
         .unwrap_or(1)
@@ -264,7 +270,10 @@ fn file_outline(workspace: &Path, arguments: &BTreeMap<String, Value>) -> CallTo
     if path_arg.is_empty() {
         return CallToolResult::error("Missing 'path' argument");
     }
-    let path = resolve_path(workspace, path_arg);
+    let path = match crate::workspace_paths::resolve_within_workspace(workspace, &path_arg) {
+        Ok(p) => p,
+        Err(msg) => return CallToolResult::error(msg),
+    };
     let Ok(content) = fs::read_to_string(&path) else {
         return CallToolResult::error(format!("Error: unable to read '{}'", path.display()));
     };
@@ -805,15 +814,6 @@ pub(crate) fn bool_arg(arguments: &BTreeMap<String, Value>, key: &str) -> Option
             })
         })
     })
-}
-
-fn resolve_path(workspace: &Path, input: String) -> PathBuf {
-    let path = Path::new(input.trim());
-    if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        workspace.join(path)
-    }
 }
 
 fn regex_escape(input: &str) -> String {

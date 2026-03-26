@@ -164,6 +164,11 @@ pub fn input_schema_for(name: &str) -> Value {
                 SchemaProp::with_desc("pattern", "Regex pattern."),
                 SchemaProp::with_desc("replacement", "Replacement (may use capture groups)."),
                 SchemaProp::with_desc("flags", "Optional regex flags string."),
+                SchemaProp::typed(
+                    "replace_all",
+                    "boolean",
+                    "If true, replace every match; default false (single replacement, safer).",
+                ),
             ],
             &["path", "pattern", "replacement"],
         ),

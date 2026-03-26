@@ -1,4 +1,5 @@
 {
+  "coderide_activate_debug_mode": "Open or focus IDE debug workflow / instrumentation UI. Usage: optional reason string.",
   "coderide_activate_plan_mode": "Open or focus the IDE plan panel for structured multi-step planning before large edits. Usage: optional reason string explaining why plan mode is needed.",
   "coderide_bughunter_autofix_apply": "Apply autofix for top verified finding. Usage: run_id (required); optional conversation_id.",
   "coderide_bughunter_autofix_commit": "Apply+commit autofix and queue follow-up review. Usage: run_id (required); optional conversation_id.",

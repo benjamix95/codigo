@@ -96,7 +96,10 @@ extension CoderIDETools {
         ),
         Tool(
             name: "coderide_activate_debug_mode",
-            description: "Request the IDE to activate the debug mode panel for structured debugging.",
+            description: RustSyncedToolDescriptions.text(
+                mcpName: "coderide_activate_debug_mode",
+                fallback: "Request the IDE to activate the debug mode panel for structured debugging."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([

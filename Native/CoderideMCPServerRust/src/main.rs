@@ -27,6 +27,7 @@ mod tool_schema_workflow_review;
 mod tool_schema_workflow_security;
 mod tool_schema_workflow_shared;
 mod web_tools;
+mod workspace_paths;
 
 use server::{run_stdio_server, ServerConfig};
 use std::env;

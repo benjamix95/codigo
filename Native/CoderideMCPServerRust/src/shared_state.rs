@@ -130,7 +130,15 @@ fn read_todos() -> Vec<Value> {
     let Ok(data) = fs::read(path) else {
         return Vec::new();
     };
-    serde_json::from_slice::<Vec<Value>>(&data).unwrap_or_default()
+    match serde_json::from_slice::<Vec<Value>>(&data) {
+        Ok(items) => items,
+        Err(e) => {
+            eprintln!(
+                "[shared_state] todos.json parse error (returning empty list): {e}"
+            );
+            Vec::new()
+        }
+    }
 }
 
 fn todos_file_path() -> PathBuf {

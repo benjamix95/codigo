@@ -13,7 +13,10 @@ pub fn handle(
         return None;
     }
     let tool_name = name.trim_start_matches("coderide_");
-    let mut scope_files = parse_scope_files(arguments);
+    let mut scope_files = match parse_scope_files(arguments) {
+        Ok(v) => v,
+        Err(msg) => return Some(CallToolResult::error(msg)),
+    };
     if scope_files.is_empty() {
         let p = string_arg(arguments, "path");
         if !p.is_empty() {
@@ -64,33 +67,38 @@ fn parse_audit_params(arguments: &BTreeMap<String, Value>) -> AuditParams {
     }
 }
 
-fn parse_scope_files(arguments: &BTreeMap<String, Value>) -> Vec<String> {
+fn parse_scope_files(arguments: &BTreeMap<String, Value>) -> Result<Vec<String>, String> {
     let value = arguments
         .get("scope_files")
         .or_else(|| arguments.get("scopeFiles"))
         .cloned()
         .unwrap_or_else(|| Value::Array(vec![]));
     match value {
-        Value::Array(items) => items
+        Value::Array(items) => Ok(items
             .iter()
             .filter_map(Value::as_str)
             .map(|text| text.trim().to_string())
             .filter(|text| !text.is_empty())
-            .collect(),
-        Value::String(text) if text.trim().starts_with('[') => serde_json::from_str::<Value>(&text)
-            .ok()
-            .and_then(|parsed| parsed.as_array().cloned())
-            .unwrap_or_default()
-            .iter()
-            .filter_map(Value::as_str)
-            .map(|part| part.trim().to_string())
-            .filter(|part| !part.is_empty())
-            .collect(),
-        Value::String(text) => text
+            .collect()),
+        Value::String(text) if text.trim().starts_with('[') => {
+            let parsed: Value = serde_json::from_str(&text).map_err(|e| {
+                format!("scope_files / scopeFiles: invalid JSON array string: {e}")
+            })?;
+            let Some(arr) = parsed.as_array() else {
+                return Err("scope_files string must be a JSON array".to_string());
+            };
+            Ok(arr
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|part| part.trim().to_string())
+                .filter(|part| !part.is_empty())
+                .collect())
+        }
+        Value::String(text) => Ok(text
             .split(',')
             .map(|part| part.trim().to_string())
             .filter(|part| !part.is_empty())
-            .collect(),
-        _ => vec![],
+            .collect()),
+        _ => Ok(vec![]),
     }
 }

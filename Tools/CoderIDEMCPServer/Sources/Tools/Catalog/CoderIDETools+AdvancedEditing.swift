@@ -13,6 +13,10 @@ extension CoderIDETools {
                     "path": .object(["type": "string", "description": "File path"]),
                     "pattern": .object(["type": "string", "description": "Regex pattern to match"]),
                     "replacement": .object(["type": "string", "description": "Replacement string"]),
+                    "replace_all": .object([
+                        "type": "boolean",
+                        "description": "If true, replace every match; default false (single replacement).",
+                    ]),
                 ]),
                 "required": .array([.string("path"), .string("pattern"), .string("replacement")]),
             ]),
