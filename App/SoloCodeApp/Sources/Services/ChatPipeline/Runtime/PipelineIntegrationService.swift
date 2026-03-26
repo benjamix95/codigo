@@ -189,15 +189,13 @@ final class PipelineIntegrationService: ObservableObject {
         runtime.activeStreamTask?.cancel()
         runtime.activeStreamTask = nil
 
-        // Cancel facade first to stop event emission, then tear down
         let facade = runtime.facade
-        Task { @MainActor [weak self] in
+        let completionCtx = completionContext(for: runtime, conversationId: conversationId)
+        // Teardown UI e registry subito: evita snapshot/task attivi finché await cancel() non ritorna.
+        completeTeardown(runtime, for: conversationId, completionContext: completionCtx)
+
+        Task { @MainActor in
             await facade.cancel()
-            self?.completeTeardown(
-                runtime,
-                for: conversationId,
-                completionContext: self?.completionContext(for: runtime, conversationId: conversationId)
-            )
         }
         return true
     }
@@ -215,9 +213,10 @@ final class PipelineIntegrationService: ObservableObject {
         runtime.activeStreamTask = nil
 
         let facade = runtime.facade
-        Task { @MainActor [weak self] in
+        completeTeardown(runtime, for: conversationId, completionContext: nil)
+
+        Task { @MainActor in
             await facade.cancel()
-            self?.completeTeardown(runtime, for: conversationId, completionContext: nil)
         }
         return true
     }
