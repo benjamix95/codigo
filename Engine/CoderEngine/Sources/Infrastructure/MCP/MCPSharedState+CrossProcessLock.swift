@@ -71,9 +71,23 @@ extension MCPSharedState {
         acquireLock: (() -> AdvisoryFileLockResult)? = nil,
         body: () -> T
     ) -> T {
+        #if DEBUG
+        let _lockEntryTime = CFAbsoluteTimeGetCurrent()
+        if Thread.isMainThread {
+            NSLog("[CrossProcessLock] ENTER on main thread: label=%@", label)
+        }
+        #endif
         // NSRecursiveLock gestisce reentrancy e serializzazione intra-processo.
         fallbackLock.lock()
-        defer { fallbackLock.unlock() }
+        defer {
+            fallbackLock.unlock()
+            #if DEBUG
+            let elapsed = (CFAbsoluteTimeGetCurrent() - _lockEntryTime) * 1000
+            if Thread.isMainThread && elapsed > 3 {
+                NSLog("[CrossProcessLock] MAIN-STALL-TOTAL: label=%@ — %.0fms total (lock+body)", label, elapsed)
+            }
+            #endif
+        }
 
         let result = acquireLock?() ?? acquireAdvisoryFileLock(
             lockURL: lockURL,
