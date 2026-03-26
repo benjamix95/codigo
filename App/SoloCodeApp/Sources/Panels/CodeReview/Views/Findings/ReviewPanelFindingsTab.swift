@@ -9,6 +9,19 @@ struct ReviewPanelFindingsTab: View {
     var body: some View {
         let findings = store.currentVisibleFindings
 
+        VStack(alignment: .leading, spacing: 0) {
+            if let notice = store.reviewReportExportNotice {
+                ReviewReportExportNoticeBanner(store: store, notice: notice)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 8)
+            }
+
+            tabContent(findings: findings)
+        }
+    }
+
+    @ViewBuilder
+    private func tabContent(findings: [CodeReviewFinding]) -> some View {
         if let immersiveId = store.immersiveFindingWorkspaceId,
            let immersiveFinding = findings.first(where: { $0.id == immersiveId }),
            immersiveFinding.isEligibleForVerifiedBugOrSecurityWorkspace

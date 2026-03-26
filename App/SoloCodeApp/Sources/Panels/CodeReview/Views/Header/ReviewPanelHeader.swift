@@ -1,3 +1,4 @@
+import CoderEngine
 import SwiftUI
 
 /// Top bar for the Code Review Panel with title, mode badge, timer, and close button.
@@ -6,7 +7,25 @@ struct ReviewPanelHeader: View {
     let onClose: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
+            if !ReviewCoreBridge.isEnabled {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.orange)
+                    Text(ReviewCoreBridge.userFacingDisabledReason())
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.12))
+            }
+
+            HStack(spacing: 8) {
             // Icon & title
             Image(systemName: "doc.text.magnifyingglass")
                 .font(.system(size: 12, weight: .semibold))
@@ -56,9 +75,10 @@ struct ReviewPanelHeader: View {
             }
             .buttonStyle(.plain)
             .help("Close panel")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
     }
 
     // MARK: - Timer

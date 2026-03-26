@@ -138,7 +138,8 @@ final class TaskActivityStore: ObservableObject {
 
     func scheduleCodeReviewSnapshotIngest(
         _ snapshot: CodeReviewSessionSnapshot,
-        conversationId: UUID? = nil
+        conversationId: UUID? = nil,
+        uiCoalesceDelayNanoseconds: UInt64 = 8_000_000
     ) {
         pendingCodeReviewSnapshotsBySession[snapshot.sessionId] = (
             snapshot: snapshot,
@@ -146,7 +147,9 @@ final class TaskActivityStore: ObservableObject {
         )
         guard codeReviewSnapshotIngestTask == nil else { return }
         codeReviewSnapshotIngestTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 8_000_000)
+            if uiCoalesceDelayNanoseconds > 0 {
+                try? await Task.sleep(nanoseconds: uiCoalesceDelayNanoseconds)
+            }
             await MainActor.run {
                 guard let self else { return }
                 let pending = self.pendingCodeReviewSnapshotsBySession.values

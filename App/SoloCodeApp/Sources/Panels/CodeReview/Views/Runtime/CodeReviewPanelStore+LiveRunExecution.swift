@@ -29,11 +29,27 @@ extension CodeReviewPanelStore {
         promptOverride: String? = nil,
         invocationLabel: String? = nil
     ) async {
+        var codebasePromptPaths: [String]?
+        if case .codebase = scope {
+            let split = await gatherCodebaseIndexedPathsForRun(depth: reviewScanDepth)
+            pendingCodebaseWorkspaceIncludedPaths = split.workspaceIncludedPaths.isEmpty
+                ? nil
+                : split.workspaceIncludedPaths
+            codebasePromptPaths = split.promptPaths
+        } else {
+            pendingCodebaseWorkspaceIncludedPaths = nil
+            codebasePromptPaths = nil
+        }
+
         let resolvedPrompt: String
         if let promptOverride {
             resolvedPrompt = promptOverride
         } else {
-            resolvedPrompt = await buildPrompt(scope: scope, modes: modes)
+            resolvedPrompt = await buildPrompt(
+                scope: scope,
+                modes: modes,
+                precomputedCodebasePromptPaths: codebasePromptPaths
+            )
         }
         let resolvedLabel = invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes)
 
@@ -78,6 +94,7 @@ extension CodeReviewPanelStore {
             sessionState: sessionState,
             sessionConfig: sessionConfig
         ) else {
+            pendingCodebaseWorkspaceIncludedPaths = nil
             applyUnavailableRunError(
                 "Failed to create review provider",
                 targetTab: .findings
@@ -135,9 +152,14 @@ extension CodeReviewPanelStore {
             onStateChange: { [weak self] snapshot in
                 Task { @MainActor in
                     await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
+                    let hotPhases: Set<ReviewSessionPhase> = [
+                        .analyzing, .fixing, .testing, .reReviewing,
+                    ]
+                    let delayNs: UInt64 = hotPhases.contains(snapshot.phase) ? 0 : 8_000_000
                     self?.taskActivityStore.scheduleCodeReviewSnapshotIngest(
                         snapshot,
-                        conversationId: self?.conversationId ?? snapshot.conversationId
+                        conversationId: self?.conversationId ?? snapshot.conversationId,
+                        uiCoalesceDelayNanoseconds: delayNs
                     )
                     self?.schedulePanelSessionBinding(snapshot.sessionId)
                 }
@@ -308,10 +330,12 @@ private extension CodeReviewPanelStore {
             return ReviewPanelRuntimeOutcome(status: "failed", message: message)
         }
         applyRuntimeState(state)
+        pendingCodebaseWorkspaceIncludedPaths = nil
         return response?.outcome
     }
 
     func applyUnavailableRunError(_ message: String, targetTab: CodeReviewTab) {
+        pendingCodebaseWorkspaceIncludedPaths = nil
         isRunning = false
         lastError = message
         frozenTimerText = nil

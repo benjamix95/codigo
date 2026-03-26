@@ -242,3 +242,14 @@ pub fn payload_line_map(payload: &HashMap<String, String>, keys: &[&str]) -> Vec
         .filter_map(|key| payload.get(*key).map(|value| format!("{key}: {value}")))
         .collect()
 }
+
+/// Allinea i nomi tool MCP al catalogo corto (es. prefisso `coderide_` dal server).
+pub fn normalize_external_mcp_tool_name(raw: &str) -> String {
+    let trimmed = raw.trim();
+    const PREFIX: &str = "coderide_";
+    if trimmed.len() > PREFIX.len() && trimmed[..PREFIX.len()].eq_ignore_ascii_case(PREFIX) {
+        trimmed[PREFIX.len()..].to_string()
+    } else {
+        trimmed.to_string()
+    }
+}

@@ -68,6 +68,8 @@ struct ReviewScopeState {
     var reviewScanDepth: ReviewScanDepth = .standard
     var selectedModes: Set<CodeReviewPanelMode> = [.bugFinder, .securityAudit]
     var selectedProviderOverrideId: String?
+    /// Path relativi indicizzati per `WorkspaceContext.includedPaths` (scope codebase); reset a fine run.
+    var pendingCodebaseWorkspaceIncludedPaths: [String]?
 }
 
 // MARK: - ReviewHistoryState

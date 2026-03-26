@@ -29,9 +29,12 @@ pub fn handle_review_tool(request: ReviewMCPToolRequest) -> ReviewMCPToolRespons
 
 fn review_start(request: &ReviewMCPToolRequest) -> ReviewMCPToolResponse {
     let scope = normalized_scope(get_arg(&request.args, "scope"));
-    if !matches!(scope.as_str(), "uncommitted" | "staged" | "against_ref") {
+    if !matches!(
+        scope.as_str(),
+        "uncommitted" | "staged" | "against_ref" | "workspace" | "codebase"
+    ) {
         return ReviewMCPToolResponse::err(format!(
-            "Error: invalid scope '{}'. Use: uncommitted, staged, against_ref",
+            "Error: invalid scope '{}'. Use: uncommitted, staged, against_ref, workspace, codebase",
             scope
         ));
     }

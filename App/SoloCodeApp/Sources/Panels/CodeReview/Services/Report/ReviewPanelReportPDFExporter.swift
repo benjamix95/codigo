@@ -21,13 +21,7 @@ enum ReviewPanelReportPDFExporter {
             height: pageHeight - 2 * margin
         )
 
-        let attr = NSAttributedString(
-            string: text,
-            attributes: [
-                .font: NSFont.monospacedSystemFont(ofSize: 8, weight: .regular),
-                .foregroundColor: NSColor.textColor,
-            ]
-        )
+        let attr = attributedString(forExport: text)
 
         let framesetter = CTFramesetterCreateWithAttributedString(attr)
         var range = CFRange(location: 0, length: 0)
@@ -69,5 +63,30 @@ enum ReviewPanelReportPDFExporter {
 
         guard !data.isEmpty else { throw ExportError.emptyDocument }
         try data.write(to: destination, options: .atomic)
+    }
+
+    /// Interpreta il report come Markdown quando possibile; altrimenti testo monospace.
+    private static func attributedString(forExport text: String) -> NSAttributedString {
+        if #available(macOS 12.0, *) {
+            var options = AttributedString.MarkdownParsingOptions()
+            options.interpretedSyntax = .full
+            if let parsed = try? NSAttributedString(markdown: text, options: options, baseURL: nil),
+               parsed.length > 0 {
+                let mutable = NSMutableAttributedString(attributedString: parsed)
+                mutable.addAttribute(
+                    .foregroundColor,
+                    value: NSColor.textColor,
+                    range: NSRange(location: 0, length: mutable.length)
+                )
+                return mutable
+            }
+        }
+        return NSAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 9, weight: .regular),
+                .foregroundColor: NSColor.textColor,
+            ]
+        )
     }
 }

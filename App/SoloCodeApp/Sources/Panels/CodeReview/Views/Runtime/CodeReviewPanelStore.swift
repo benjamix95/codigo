@@ -165,6 +165,10 @@ final class CodeReviewPanelStore: ObservableObject {
         get { scope.selectedProviderOverrideId }
         set { scope.selectedProviderOverrideId = newValue }
     }
+    var pendingCodebaseWorkspaceIncludedPaths: [String]? {
+        get { scope.pendingCodebaseWorkspaceIncludedPaths }
+        set { scope.pendingCodebaseWorkspaceIncludedPaths = newValue }
+    }
 
     // MARK: - Settings
 
@@ -397,9 +401,14 @@ final class CodeReviewPanelStore: ObservableObject {
     // MARK: - Workspace Context
 
     func buildWorkspaceContext() -> WorkspaceContext {
-        WorkspaceContext(
+        let included: [String]? = {
+            guard let paths = pendingCodebaseWorkspaceIncludedPaths, !paths.isEmpty else { return nil }
+            return paths
+        }()
+        return WorkspaceContext(
             workspacePaths: workspaceStore.activeWorkspacePaths,
             excludedPaths: workspaceStore.activeExcludedPaths,
+            includedPaths: included,
             openFiles: openFilesStore.openFilesForContext(),
             activeFilePath: openFilesStore.openFilePath,
             activeRootPath: workspaceStore.activeWorkspacePaths.first?.path

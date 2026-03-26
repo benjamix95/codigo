@@ -113,9 +113,15 @@ extension CodeReviewPanelStore {
 
     func buildPrompt(
         scope: ReviewScopeTarget,
-        modes: Set<CodeReviewPanelMode>
+        modes: Set<CodeReviewPanelMode>,
+        precomputedCodebasePromptPaths: [String]? = nil
     ) async -> String {
-        let paths = await gatherCodebasePromptFilePaths(scope: scope, depth: reviewScanDepth)
+        let paths: [String]
+        if let precomputedCodebasePromptPaths {
+            paths = precomputedCodebasePromptPaths
+        } else {
+            paths = await gatherCodebasePromptFilePaths(scope: scope, depth: reviewScanDepth)
+        }
         var bridgeModes = modes
         bridgeModes.insert(.standard)
         return ReviewPanelCoordinator.combinedPrompt(
@@ -132,6 +138,7 @@ extension CodeReviewPanelStore {
         sourceSnapshot: CodeReviewSessionSnapshot,
         findings: [CodeReviewFinding]
     ) async -> Bool {
+        pendingCodebaseWorkspaceIncludedPaths = nil
         guard executionController != nil else { return false }
         guard let plan = planPanelTargetedFixLaunch(sourceSnapshot: sourceSnapshot) else {
             return false

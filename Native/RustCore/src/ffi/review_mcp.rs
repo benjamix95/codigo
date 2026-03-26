@@ -70,7 +70,7 @@ fn tool_request_call(
     ) -> crate::review_mcp::models::ReviewMCPToolResponse,
 ) -> *mut c_char {
     with_raw_json_input(input, |raw| {
-        let request: crate::review_mcp::models::ReviewMCPToolRequest =
+        let mut request: crate::review_mcp::models::ReviewMCPToolRequest =
             match serde_json::from_str(raw) {
                 Ok(request) => request,
                 Err(err) => {
@@ -84,6 +84,8 @@ fn tool_request_call(
                 "unsupported_schema",
             ));
         }
+        request.tool_name =
+            crate::review_mcp::models::normalize_external_mcp_tool_name(&request.tool_name);
         encode_raw(&handler(request))
     })
 }
