@@ -273,18 +273,26 @@ struct ReviewPipelineJobState: Equatable {
         }
     }
 
-    var visibleStepsTotal: Int { 5 }
+    /// Allineato a `VerifiedFindingsPipelineStatus.stepsTotal` (6): avanzamento 1→6 in ordine cronologico.
+    var visibleStepsTotal: Int { max(stepsTotal, 1) }
 
+    /// Fase corrente mostrata come “Fase N di M” (1 = avvio, 6 = completamento).
     var visibleStepNumber: Int {
         switch phase {
-        case "queued", "discovery": return 5
-        case "audit": return 4
-        case "verification": return 3
-        case "patch_preparation": return 2
-        case "publish_ready", "completed": return 1
+        case "queued", "discovery":
+            return 1
+        case "audit":
+            return 2
+        case "verification":
+            return 3
+        case "patch_preparation":
+            return 4
+        case "publish_ready":
+            return 5
+        case "completed":
+            return visibleStepsTotal
         default:
-            let normalized = min(max(stepsCompleted, 1), visibleStepsTotal)
-            return visibleStepsTotal - normalized + 1
+            return min(max(stepsCompleted, 1), visibleStepsTotal)
         }
     }
 

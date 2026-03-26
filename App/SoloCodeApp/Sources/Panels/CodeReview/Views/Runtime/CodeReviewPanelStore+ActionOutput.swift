@@ -140,15 +140,11 @@ extension CodeReviewPanelStore {
             type: type,
             payload: enrichedPayload
         )
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.taskActivityStore.scheduleAddEnvelope(envelope)
-            for event in envelope.events {
-                if case .taskActivity(let activity) = event {
-                    self.taskActivityStore.scheduleAddActivity(
-                        self.scopedTaskActivity(activity)
-                    )
-                }
+        // `CodeReviewPanelStore` è `@MainActor`: evita un giro extra in coda rispetto a `scheduleDeferredMutation`.
+        taskActivityStore.scheduleAddEnvelope(envelope)
+        for event in envelope.events {
+            if case .taskActivity(let activity) = event {
+                taskActivityStore.scheduleAddActivity(scopedTaskActivity(activity))
             }
         }
     }

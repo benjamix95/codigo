@@ -9,6 +9,9 @@ struct ReviewPanelCommandsTab: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
+                if let notice = store.reviewReportExportNotice {
+                    reviewExportNoticeBanner(notice)
+                }
                 modeSelector
                 scopeCard
                 quickCommandsCard
@@ -27,6 +30,47 @@ struct ReviewPanelCommandsTab: View {
             }
             .padding(12)
         }
+    }
+
+    // MARK: - Report export notice
+
+    private func reviewExportNoticeBanner(_ notice: ReviewReportExportNotice) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.richtext.fill")
+                    .foregroundStyle(store.accent)
+                Text("Report esportati (Markdown e PDF)")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Spacer(minLength: 8)
+                Button("Chiudi") {
+                    store.dismissReviewReportExportNotice()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.secondary)
+            }
+            Text(notice.markdownFileURL.path)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            HStack(spacing: 8) {
+                Button("Mostra nel Finder") {
+                    store.revealExportedReviewReportsInFinder()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(store.accent)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(store.accent.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(store.accent.opacity(0.25), lineWidth: 0.5)
+        )
     }
 
     // MARK: - Mode Selector

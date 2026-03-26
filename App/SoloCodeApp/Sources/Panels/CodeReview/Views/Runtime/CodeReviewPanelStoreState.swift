@@ -15,6 +15,13 @@ struct ReviewNavigationState {
 
 // MARK: - ReviewRuntimeState
 
+/// Messaggio dopo export MD/PDF (codebase o scan Pro).
+struct ReviewReportExportNotice: Equatable {
+    var markdownFileURL: URL
+    var pdfFileURL: URL
+    var savedAt: Date
+}
+
 /// Execution lifecycle state for the review run.
 struct ReviewRuntimeState {
     var isRunning: Bool = false
@@ -25,6 +32,8 @@ struct ReviewRuntimeState {
     var applyingPatchFindingId: String?
     /// Inizio fase apply (per timer nel footer immersivo).
     var applyPatchPhaseStartedAt: Date?
+    /// Banner opzionale: report salvati su disco.
+    var reviewReportExportNotice: ReviewReportExportNotice?
 }
 
 // MARK: - ReviewPanelTranscriptState

@@ -291,7 +291,8 @@ public enum VerifiedFindingsPipelineStatusService {
             let total = max(toolsTotal, 1)
             return 20 + Int((Double(toolsCompleted) / Double(total)) * 20.0)
         case "discovery":
-            return toolsCompleted > 0 ? 18 : 8
+            // Piccola base > 0 così l’anello di avanzamento non resta “vuoto” all’avvio.
+            return toolsCompleted > 0 ? 20 : 12
         default:
             return snapshot.startedAt == nil ? 0 : 4
         }

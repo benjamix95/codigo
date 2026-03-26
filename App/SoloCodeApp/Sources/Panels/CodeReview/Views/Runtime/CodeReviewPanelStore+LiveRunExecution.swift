@@ -53,6 +53,7 @@ extension CodeReviewPanelStore {
 
         scopeTarget = scope
         selectedModes = modes
+        reviewReportExportNotice = nil
         selectTab(.findings)
 
         guard let plan = planPanelReviewLaunch() else {

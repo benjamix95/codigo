@@ -146,7 +146,7 @@ final class TaskActivityStore: ObservableObject {
         )
         guard codeReviewSnapshotIngestTask == nil else { return }
         codeReviewSnapshotIngestTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 25_000_000)
+            try? await Task.sleep(nanoseconds: 8_000_000)
             await MainActor.run {
                 guard let self else { return }
                 let pending = self.pendingCodeReviewSnapshotsBySession.values

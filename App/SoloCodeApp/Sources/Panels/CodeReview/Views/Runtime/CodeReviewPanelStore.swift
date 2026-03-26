@@ -82,6 +82,10 @@ final class CodeReviewPanelStore: ObservableObject {
         get { runtime.applyPatchPhaseStartedAt }
         set { runtime.applyPatchPhaseStartedAt = newValue }
     }
+    var reviewReportExportNotice: ReviewReportExportNotice? {
+        get { runtime.reviewReportExportNotice }
+        set { runtime.reviewReportExportNotice = newValue }
+    }
 
     // MARK: - Transcript (Rust reducer mirror only; no chat UI)
 

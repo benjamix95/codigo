@@ -37,12 +37,24 @@ extension CodeReviewPanelStore {
         do {
             try markdown.write(to: mdURL, atomically: true, encoding: .utf8)
             try ReviewPanelReportPDFExporter.writeMultipagePDF(text: markdown, destination: pdfURL)
+            reviewReportExportNotice = ReviewReportExportNotice(
+                markdownFileURL: mdURL,
+                pdfFileURL: pdfURL,
+                savedAt: Date()
+            )
+            appendPanelSystemMessage(
+                "Report review salvati: \(mdURL.path) e \(pdfURL.path)",
+                kind: .statusNote
+            )
         } catch {
-            // Export best-effort: non bloccare UI.
+            appendPanelSystemMessage(
+                "Export report review non riuscito: \(error.localizedDescription)",
+                kind: .statusNote
+            )
         }
     }
 
-    private static func reviewReportsDirectory() -> URL {
+    static func reviewReportsDirectory() -> URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         let root = support?.appendingPathComponent("SoloCode", isDirectory: true)
         return (root ?? FileManager.default.temporaryDirectory)
