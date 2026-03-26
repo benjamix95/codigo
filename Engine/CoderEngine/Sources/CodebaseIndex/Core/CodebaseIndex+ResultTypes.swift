@@ -52,7 +52,7 @@ public struct IndexResult: Sendable {
 }
 
 /// Index status
-public enum IndexStatus: String, Sendable {
+public enum IndexStatus: String, Sendable, Equatable {
     case idle
     case indexing
     case ready
@@ -72,7 +72,7 @@ public struct IndexStatusInfo: Sendable {
 }
 
 /// Progress information during indexing
-public struct IndexingProgress: Sendable {
+public struct IndexingProgress: Sendable, Equatable {
     public let current: Int
     public let total: Int
     public init(current: Int, total: Int) {

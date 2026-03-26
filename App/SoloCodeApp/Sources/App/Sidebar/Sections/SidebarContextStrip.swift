@@ -32,7 +32,7 @@ extension SidebarView {
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
 
-                indexBadge
+                indexBadgeWithPercent
 
                 Spacer()
 
@@ -59,14 +59,71 @@ extension SidebarView {
                     addFolderButton(contextId: context.id)
                 }
             }
+
+            indexWaitBanner
         }
         .padding(12)
     }
 
+    @ViewBuilder
+    private var indexWaitBanner: some View {
+        let st = workspaceStore.indexBadgeState
+        if st.shouldShowWaitNotice {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "hourglass")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text(
+                    "Attendere: l’indicizzazione (codebase + database vettoriale) partirà a breve o è in coda. La ricerca semantica è limitata finché non è al 100%."
+                )
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.orange.opacity(0.12)))
+        } else if st.shouldShowErrorNotice {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.error)
+                Text("Indicizzazione non riuscita. Controlla i log o riprova da Impostazioni › Codebase Index.")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(DesignSystem.Colors.error.opacity(0.1))
+            )
+        }
+    }
+
     // MARK: - Index Badge (circular progress)
 
-    private var indexBadge: some View {
-        IndexCircleBadge(progress: workspaceStore.indexProgress)
+    private var indexBadgeWithPercent: some View {
+        let state = workspaceStore.indexBadgeState
+        return HStack(spacing: 5) {
+            IndexCircleBadge(state: state, dimension: 13)
+            if state.hasWorkspacePaths, state.indexingEnabled {
+                Text(state.displayPercentText)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(sidebarIndexPercentColor(state))
+                    .fixedSize()
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func sidebarIndexPercentColor(_ st: WorkspaceIndexBadgeState) -> Color {
+        if st.shouldShowErrorNotice { return DesignSystem.Colors.error }
+        if st.isFullyIndexed { return DesignSystem.Colors.success }
+        if st.isIndexingActive { return Color.orange }
+        if st.shouldShowWaitNotice { return Color.red.opacity(0.9) }
+        return DesignSystem.Colors.textSecondary
     }
 
     // MARK: - Add Folder

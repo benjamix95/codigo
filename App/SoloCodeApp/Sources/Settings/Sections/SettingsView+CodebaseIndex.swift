@@ -55,26 +55,36 @@ struct CodebaseIndexSettingsSection: View {
     // MARK: - Refresh Logic
 
     private func refreshIndexStatus() async {
+        await workspaceStore.refreshIndexBadgeStateAsync()
         let index = workspaceStore.codebaseIndex
         let info = await index.status()
+        let st = workspaceStore.indexBadgeState
         switch info.status {
-        case .idle: indexStatusText = "Idle - no indexed workspace"
-        case .indexing: indexStatusText = "Indexing..."
+        case .idle:
+            indexStatusText = st.hasWorkspacePaths
+                ? "In attesa — avvio indicizzazione (codebase + vettoriale)"
+                : "Nessun workspace in app"
+        case .indexing:
+            indexStatusText = "Scansione file, indice semantico e database vettoriale"
         case .ready:
-            let duration = info.indexDurationMs > 0 ? " (\(info.indexDurationMs)ms)" : ""
-            indexStatusText = "Ready\(duration)"
-        case .error: indexStatusText = "Indexing error"
+            let duration = info.indexDurationMs > 0 ? " · \(info.indexDurationMs)ms" : ""
+            indexStatusText = st.isFullyIndexed
+                ? "Tutto indicizzato: simboli, semantic index e PGVector\(duration)"
+                : "Pronto\(duration)"
+        case .error:
+            indexStatusText = "Errore durante l’indicizzazione"
         }
         var stats: [String] = []
-        if info.totalFiles > 0 { stats.append("\(info.totalFiles) files") }
-        if info.totalSourceFiles > 0 { stats.append("\(info.totalSourceFiles) sources") }
-        if info.totalSymbols > 0 { stats.append("\(info.totalSymbols) symbols") }
+        if info.totalFiles > 0 { stats.append("\(info.totalFiles) file") }
+        if info.totalSourceFiles > 0 { stats.append("\(info.totalSourceFiles) sorgenti") }
+        if info.totalSymbols > 0 { stats.append("\(info.totalSymbols) simboli") }
         indexStatsText = stats.joined(separator: " · ")
     }
 
     private func refreshDbSize() {
-        let bytes = ManagedPostgresService.shared.dataDirSizeBytes()
-        dbSizeText = Self.formattedSize(bytes)
+        let pg = ManagedPostgresService.shared.dataDirSizeBytes()
+        let cache = CodebaseIndex.indexCacheStorageBytes(for: workspaceStore.activeWorkspacePaths)
+        dbSizeText = Self.formattedSize(pg + cache)
     }
 
     static func formattedSize(_ bytes: UInt64) -> String {
@@ -101,51 +111,91 @@ private extension CodebaseIndexSettingsSection {
             VStack(alignment: .leading, spacing: 12) {
                 settingsFieldLabel("Index status")
 
-                HStack(spacing: 12) {
-                    // Circular progress badge (same component as sidebar).
-                    IndexCircleBadge(progress: workspaceStore.indexProgress)
-                        .frame(width: 32, height: 32)
+                let st = workspaceStore.indexBadgeState
+                HStack(alignment: .top, spacing: 12) {
+                    IndexCircleBadge(state: st, dimension: 22)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let progress = workspaceStore.indexProgress {
-                            Text("Indexing \(progress.percentText)")
-                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(.primary)
-                            Text("\(progress.current)/\(progress.total) files")
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(settingsIndexStatusColor(st))
+                                .frame(width: 10, height: 10)
+                            Text(settingsIndexHeadline(st))
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        Text(st.displayPercentText)
+                            .font(.system(size: 20, weight: .bold, design: .monospaced))
+                            .foregroundStyle(settingsIndexStatusColor(st))
+
+                        Text(indexStatusText)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if !indexStatsText.isEmpty {
+                            Text(indexStatsText)
                                 .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text(indexStatusText)
-                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(.primary)
-                            if !indexStatsText.isEmpty {
-                                Text(indexStatsText)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
-                            }
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        if st.shouldShowWaitNotice {
+                            Text(
+                                "Attendere il 100%: finché l’indicizzazione non è completa, ricerca semantica e contesto vettoriale possono essere incompleti."
+                            )
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                        } else if st.shouldShowErrorNotice {
+                            Text("Si è verificato un errore. Usa Reindex o controlla i permessi sul workspace.")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(DesignSystem.Colors.error)
                         }
                     }
 
                     Spacer()
                 }
 
-                if let progress = workspaceStore.indexProgress {
-                    ProgressView(value: progress.fraction)
+                if st.isIndexingActive, let p = st.progress {
+                    ProgressView(value: p.fraction)
                         .progressViewStyle(.linear)
-                        .tint(.accentColor)
+                        .tint(.orange)
+                } else if st.isFullyIndexed {
+                    ProgressView(value: 1.0)
+                        .progressViewStyle(.linear)
+                        .tint(DesignSystem.Colors.success)
                 }
 
                 Button("Reindex") {
                     Task {
-                        indexStatusText = "Reindexing..."
+                        indexStatusText = "Reindicizzazione…"
                         workspaceStore.indexActiveWorkspace()
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(workspaceStore.indexProgress != nil)
+                .disabled(workspaceStore.indexBadgeState.isIndexingActive)
             }
         }
+    }
+
+    func settingsIndexStatusColor(_ st: WorkspaceIndexBadgeState) -> Color {
+        if !st.indexingEnabled { return .secondary }
+        if !st.hasWorkspacePaths { return .secondary }
+        if st.shouldShowErrorNotice { return DesignSystem.Colors.error }
+        if st.isFullyIndexed { return DesignSystem.Colors.success }
+        if st.isIndexingActive { return Color.orange }
+        if st.shouldShowWaitNotice { return Color.red.opacity(0.9) }
+        return .secondary
+    }
+
+    func settingsIndexHeadline(_ st: WorkspaceIndexBadgeState) -> String {
+        if !st.indexingEnabled { return "Indice disattivato" }
+        if !st.hasWorkspacePaths { return "Nessun workspace" }
+        if st.shouldShowErrorNotice { return "Errore" }
+        if st.isFullyIndexed { return "Completato" }
+        if st.isIndexingActive { return "In corso" }
+        if st.shouldShowWaitNotice { return "In attesa" }
+        return "Stato"
     }
 
     var databaseStorageGroup: some View {
@@ -166,10 +216,12 @@ private extension CodebaseIndexSettingsSection {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(workspaceStore.indexProgress != nil)
+                    .disabled(workspaceStore.indexBadgeState.isIndexingActive)
                 }
 
-                settingsHintBox("Vector database stored in ~/Library/Application Support/CoderIDE/postgres. Deleting removes all indexed data — it will be rebuilt on next indexing.")
+                settingsHintBox(
+                    "Spazio mostrato = PostgreSQL locale (pgvector / embedding) nella cartella dell’app + cache dell’indice semantico (es. semantic.jsonl sotto Cache). Elimina il DB azzera il vettoriale; la cache su disco può richiedere una nuova indicizzazione per rigenerarsi."
+                )
             }
         }
         .alert("Delete vector database?", isPresented: $showDeleteConfirmation) {
