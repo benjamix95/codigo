@@ -152,6 +152,8 @@ struct ChatTurnView: View, Equatable {
     let liveSubagentCards: [SwarmLiveCardState]
     let todoItems: [TodoItem]
     let conversationId: UUID
+    /// Provider effettivo del turno (es. da `resolvedTurnProviderId`); serve se `message.turnMetadata` non ha ancora `providerId`.
+    let reasoningPolicyProviderId: String
     let shouldShowTodo: Bool
     let canEdit: Bool
     let canDelete: Bool
@@ -171,6 +173,7 @@ struct ChatTurnView: View, Equatable {
         if lhs.liveSubagentCards.count != rhs.liveSubagentCards.count { return false }
         if lhs.todoItems.count != rhs.todoItems.count { return false }
         if lhs.conversationId != rhs.conversationId { return false }
+        if lhs.reasoningPolicyProviderId != rhs.reasoningPolicyProviderId { return false }
         if lhs.shouldShowTodo != rhs.shouldShowTodo { return false }
         if lhs.canEdit != rhs.canEdit { return false }
         if lhs.canDelete != rhs.canDelete { return false }
@@ -215,11 +218,10 @@ struct ChatTurnView: View, Equatable {
     // MARK: - Interleaved Timeline Segments
 
     private var interleavedSegments: [ChatTurnInterleavedSegment] {
-        let pid = message.turnMetadata?.providerId ?? ""
-        let suppressReasoning = ChatReasoningPresentationPolicy.mode(
-            providerId: pid,
-            separateCodexThinkingMessagesEnabled: false
-        ) == .suppressed
+        let suppressReasoning = ChatReasoningPresentationPolicy.shouldSuppressReasoningUI(
+            messageProviderId: message.turnMetadata?.providerId,
+            fallbackTurnProviderId: reasoningPolicyProviderId
+        )
         return ChatTurnTimelineInterleaver.segments(
             blocks: visibleBlocks,
             traceEvents: inlineTraceEvents,

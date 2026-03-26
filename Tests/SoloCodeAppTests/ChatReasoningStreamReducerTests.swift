@@ -12,6 +12,21 @@ final class ChatReasoningStreamReducerTests: XCTestCase {
         )
     }
 
+    func testSuppressReasoningUsesFallbackWhenMessageMetadataProviderIdMissing() {
+        XCTAssertTrue(
+            ChatReasoningPresentationPolicy.shouldSuppressReasoningUI(
+                messageProviderId: "",
+                fallbackTurnProviderId: "codex-cli"
+            )
+        )
+        XCTAssertFalse(
+            ChatReasoningPresentationPolicy.shouldSuppressReasoningUI(
+                messageProviderId: "",
+                fallbackTurnProviderId: "claude-cli"
+            )
+        )
+    }
+
     func testNonCodexProvidersUseInlineReasoningPresentationInMainChat() {
         let providerIds = [
             "claude-cli",

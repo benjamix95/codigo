@@ -305,6 +305,7 @@ extension ChatPanelView {
                             todoItems: shouldShowTodoCardInTurn
                                 ? todoStore.displayTodosForChat(for: conversationId) : [],
                             conversationId: conversationId,
+                            reasoningPolicyProviderId: resolvedTurnProviderId(for: conversationId),
                             shouldShowTodo: shouldShowTodoCardInTurn,
                             canEdit: displayMessage.role == .user,
                             canDelete: deleteAction != nil,

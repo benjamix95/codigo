@@ -84,6 +84,9 @@ extension ChatPanelView {
     @MainActor
     internal func streamingDetailText(for message: ChatMessage, conversationId convId: UUID?) -> String? {
         guard message.isStreaming, message.role == .assistant else { return nil }
+        if isReasoningSuppressedForProvider(resolvedTurnProviderId(for: convId)) {
+            return nil
+        }
         let scopedActivities = scopedTaskActivities(for: convId)
         if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scopedActivities),
            let line = ChatStore.sanitizedStreamingDetailLine(assistantUpdate) {

@@ -389,6 +389,9 @@ extension ChatPanelView {
             activities: scoped
         )
         let detail: String? = {
+            if isReasoningSuppressedForProvider(resolvedTurnProviderId(for: convId)) {
+                return nil
+            }
             if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scoped),
                let line = ChatStore.sanitizedStreamingDetailLine(assistantUpdate) {
                 return line

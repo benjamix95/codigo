@@ -85,6 +85,19 @@ func shouldUpdateInlineReasoningState(
 }
 
 enum ChatReasoningPresentationPolicy {
+    /// Quando `turnMetadata.providerId` manca (stream appena avviato), usa il provider risolto del turno.
+    static func shouldSuppressReasoningUI(
+        messageProviderId: String?,
+        fallbackTurnProviderId: String
+    ) -> Bool {
+        let meta = (messageProviderId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !meta.isEmpty {
+            return mode(providerId: meta, separateCodexThinkingMessagesEnabled: false) == .suppressed
+        }
+        let fb = fallbackTurnProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        return mode(providerId: fb, separateCodexThinkingMessagesEnabled: false) == .suppressed
+    }
+
     static func isCodexProvider(_ providerId: String) -> Bool {
         let response: MainChatReasoningResponseBridge? = ReviewCoreBridge.call(
             functionName: "chat_core_reasoning_handle",
