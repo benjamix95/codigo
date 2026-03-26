@@ -36,7 +36,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         }
 
         var sections = collectPolicySections(workspacePaths: workspacePaths)
-        for item in SoloCodeSkillsPolicySource.instructionPolicyItems() {
+        for item in SoloCodeSkillsPolicySource.instructionPolicyItems(workspacePaths: workspacePaths) {
             sections.append(
                 PolicySection(
                     title: item.title,
@@ -46,7 +46,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
                 )
             )
         }
-        let skills = collectSkillCatalog()
+        let skills = collectSkillCatalog(workspacePaths: workspacePaths)
         guard !sections.isEmpty || !skills.isEmpty else {
             let empty = InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
             storeCachedBundle(empty, for: cacheKey)
@@ -185,7 +185,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         return sections
     }
 
-    private static func collectSkillCatalog() -> [String] {
+    private static func collectSkillCatalog(workspacePaths: [String]) -> [String] {
         let home = NSHomeDirectory()
         let roots: [(label: String, path: String)] = [
             ("codex", "\(home)/.codex/skills"),
@@ -202,7 +202,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
                 entries.append("\(root.label): \(name)")
             }
         }
-        entries.append(contentsOf: SoloCodeSkillsPolicySource.skillCatalogLines())
+        entries.append(contentsOf: SoloCodeSkillsPolicySource.skillCatalogLines(workspacePaths: workspacePaths))
         return entries
     }
 
@@ -286,7 +286,8 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
     }
 
     /// Resolve skill name to full SKILL.md content (markdown body; frontmatter optional).
-    public static func skillContent(for name: String) -> String? {
+    /// - Parameter workspacePaths: Percorsi cartelle workspace; le skill in `.solocode/skills` del progetto hanno priorità su `~/.solocode/skills`.
+    public static func skillContent(for name: String, workspacePaths: [String] = []) -> String? {
         let home = NSHomeDirectory()
         let roots = [
             "\(home)/.codex/skills",
@@ -316,7 +317,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
                 return String(content.prefix(30_000))
             }
         }
-        if let solo = SoloCodeSkillsPolicySource.skillMarkdown(forNormalizedName: normalized) {
+        if let solo = SoloCodeSkillsPolicySource.skillMarkdown(forNormalizedName: normalized, workspacePaths: workspacePaths) {
             return solo
         }
         return nil

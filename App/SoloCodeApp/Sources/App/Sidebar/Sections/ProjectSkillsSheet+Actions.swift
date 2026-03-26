@@ -3,6 +3,13 @@ import SwiftUI
 
 extension ProjectSkillsSheet {
 
+    /// Cartella progetto passata al modello solo in ambito «Progetto» (hint contesto AI).
+    var aiWorkspaceFolderForGeneration: String? {
+        guard skillsScope == .project else { return nil }
+        let r = projectRoot?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return r.isEmpty ? nil : r
+    }
+
     func beginNewSkillDraft() {
         isCreating = true
         selectedSkillId = nil
@@ -69,7 +76,7 @@ extension ProjectSkillsSheet {
                 skillFileNameStem: stem,
                 userRequest: aiBriefHint,
                 provider: provider,
-                projectRoot: projectRoot
+                projectRoot: aiWorkspaceFolderForGeneration
             )
             editorContent = md
         } catch {
@@ -92,7 +99,7 @@ extension ProjectSkillsSheet {
                     ? "Improve and clarify this skill; keep Markdown structure.\n\n\(editorContent)"
                     : aiBriefHint,
                 provider: provider,
-                projectRoot: projectRoot
+                projectRoot: aiWorkspaceFolderForGeneration
             )
             editorContent = md
         } catch {
@@ -101,6 +108,11 @@ extension ProjectSkillsSheet {
     }
 
     func loadSkills() {
+        SoloCodeSkillsPolicySource.ensureSkillsDirectoryExists()
+        if skillsScope == .project,
+           let r = projectRoot?.trimmingCharacters(in: .whitespacesAndNewlines), !r.isEmpty {
+            SoloCodeSkillsPolicySource.ensureProjectSkillsDirectory(forProjectRoot: r)
+        }
         let dir = skillsDir
         let fm = FileManager.default
         if !fm.fileExists(atPath: dir) {

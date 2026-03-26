@@ -26,12 +26,13 @@ extension ToolEnabledLLMProvider {
             ])]
         }
 
-        guard let skillContent = InstructionPolicyBundle.skillContent(for: skillName) else {
+        let wsPaths = context.workspacePaths.map(\.path)
+        guard let skillContent = InstructionPolicyBundle.skillContent(for: skillName, workspacePaths: wsPaths) else {
             return [.raw(type: "tool_validation_error", payload: [
                 "id": toolCallId,
                 "name": "skill",
                 "title": "Skill not found",
-                "detail": "No skill '\(skillName)' in ~/.codex/skills, ~/.claude/skills, or ~/.agents/skills. Install with the skill-installer skill.",
+                "detail": "No skill '\(skillName)' in ~/.codex/skills, ~/.claude/skills, ~/.agents/skills, <project>/.solocode/skills, or ~/.solocode/skills. Install with the skill-installer skill.",
                 "status": "failed",
                 "error_code": "skill_not_found"
             ])]

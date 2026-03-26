@@ -17,9 +17,10 @@ extension UnifiedToolRuntime {
             )
         }
 
-        guard let skillContent = InstructionPolicyBundle.skillContent(for: skillName) else {
+        let workspacePathStrings = context.workspaceContext.workspacePaths.map(\.path)
+        guard let skillContent = InstructionPolicyBundle.skillContent(for: skillName, workspacePaths: workspacePathStrings) else {
             return failure(
-                "No skill '\(skillName)' in ~/.codex/skills, ~/.claude/skills, or ~/.agents/skills. Install with the skill-installer skill.",
+                "No skill '\(skillName)' in ~/.codex/skills, ~/.claude/skills, ~/.agents/skills, <project>/.solocode/skills, or ~/.solocode/skills. Install with the skill-installer skill.",
                 errorCode: "skill_not_found",
                 startDate: startDate,
                 payload: ["title": "Skill not found", "skill": skillName]

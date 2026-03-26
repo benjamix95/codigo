@@ -123,8 +123,11 @@ struct SoloCodeApp: App {
                 Task { @MainActor in
                     SoloCodeSkillsPolicySource.ensureSkillsDirectoryExists()
                     FontPreferences.registerBundledFonts()
-                projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
-                workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
+                    projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+                    workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
+                    SoloCodeSkillsPolicySource.ensureProjectSkillsDirectories(
+                        forWorkspacePaths: workspaceStore.activeWorkspacePaths.map(\.path)
+                    )
                 chatStore.migrateLegacyContextsIfNeeded(
                     contextStore: projectContextStore, workspaceStore: workspaceStore)
                 chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)

@@ -1,13 +1,25 @@
 import SwiftUI
 import CoderEngine
 
-/// Sheet per skill Markdown in `~/.solocode/skills/`.
-/// Le skill **abilitate** sono incluse nel *Mandatory instruction policy* su ogni turno agente (come AGENTS): si applicano a tutti i provider che usano `WorkspaceContext` arricchito.
-/// Disabilitare dalla lista (cerchio) le esclude dal prompt finché non le riattivi.
+/// Sheet per skill Markdown: **globale** (`~/.solocode/skills`) o **di progetto** (`<cartella>/.solocode/skills`).
+/// Le skill abilitate entrano nel *Mandatory instruction policy* (progetto prima, poi globale). Il cerchio nella lista disattiva solo quella copia (per cartella).
 struct ProjectSkillsSheet: View {
+    enum SkillsScope: String, CaseIterable, Identifiable {
+        case global
+        case project
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .global: return "Globale"
+            case .project: return "Progetto"
+            }
+        }
+    }
+
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var providerRegistry: ProviderRegistry
 
+    @State var skillsScope: SkillsScope = .global
     @State var skills: [SkillFile] = []
     @State var selectedSkillId: String?
     @State var editorContent = ""
@@ -38,7 +50,14 @@ struct ProjectSkillsSheet: View {
             }
         }
         .frame(minWidth: 780, idealWidth: 840, maxWidth: 920, minHeight: 520, idealHeight: 560)
-        .onAppear { loadSkills() }
+        .onAppear {
+            if hasProjectSkillsTarget {
+                skillsScope = .project
+            } else {
+                skillsScope = .global
+            }
+            loadSkills()
+        }
         .alert("Generazione AI", isPresented: Binding(
             get: { aiErrorMessage != nil },
             set: { if !$0 { aiErrorMessage = nil } }
@@ -54,8 +73,24 @@ struct ProjectSkillsSheet: View {
             Image(systemName: "wand.and.stars")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
-            Text("Project Skills")
+            Text("Skills")
                 .font(.system(size: 14, weight: .semibold))
+            if hasProjectSkillsTarget {
+                Picker("", selection: $skillsScope) {
+                    Text(SkillsScope.global.title).tag(SkillsScope.global)
+                    Text(SkillsScope.project.title).tag(SkillsScope.project)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+                .onChange(of: skillsScope) { _ in
+                    isCreating = false
+                    newSkillName = ""
+                    aiBriefHint = ""
+                    selectedSkillId = nil
+                    editorContent = ""
+                    loadSkills()
+                }
+            }
             Spacer()
             Button("Done") { dismiss() }
                 .buttonStyle(.borderedProminent)
@@ -64,9 +99,27 @@ struct ProjectSkillsSheet: View {
         .padding(16)
     }
 
-    /// Percorso ~/.solocode/skills (skill globali app).
+    var hasProjectSkillsTarget: Bool {
+        guard let r = projectRoot?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
+        return !r.isEmpty
+    }
+
+    /// Directory attiva in base al selettore Globale / Progetto.
     var skillsDir: String {
-        (NSHomeDirectory() as NSString).appendingPathComponent(".solocode/skills")
+        switch skillsScope {
+        case .global:
+            return SoloCodeSkillsPolicySource.globalSkillsDirectoryPath
+        case .project:
+            guard let r = projectRoot?.trimmingCharacters(in: .whitespacesAndNewlines), !r.isEmpty else {
+                return SoloCodeSkillsPolicySource.globalSkillsDirectoryPath
+            }
+            return SoloCodeSkillsPolicySource.projectSkillsDirectoryPath(forProjectRoot: r)
+        }
+    }
+
+    var skillsDirectoryDisplayPath: String {
+        let home = NSHomeDirectory()
+        return skillsDir.replacingOccurrences(of: home, with: "~")
     }
 
     func sanitizeSkillName(_ raw: String) -> String {

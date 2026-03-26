@@ -1,11 +1,39 @@
 import Foundation
 
-/// Skill Markdown piatte in `~/.solocode/skills/*.md` gestite dall’app Solo Code.
-/// Inserite nel `InstructionPolicyBundle` come istruzioni **sempre attive** (come AGENTS), non solo come elenco opzionale.
+/// Skill Markdown in `~/.solocode/skills` (**globale**) e in **`<progetto>/.solocode/skills`** (per workspace).
+/// Fuse nel `InstructionPolicyBundle`: prima le skill di progetto (una cartella per root workspace), poi le globali.
 public enum SoloCodeSkillsPolicySource {
     private static let maxCharsPerFile = 24_000
-    private static var skillsDirectory: String {
+
+    public static var globalSkillsDirectoryPath: String {
         (NSHomeDirectory() as NSString).appendingPathComponent(".solocode/skills")
+    }
+
+    public static func projectSkillsDirectoryPath(forProjectRoot projectRoot: String) -> String {
+        let trimmed = projectRoot.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed as NSString).appendingPathComponent(".solocode/skills")
+    }
+
+    /// Crea `~/.solocode/skills` se assente.
+    public static func ensureSkillsDirectoryExists() {
+        let dir = globalSkillsDirectoryPath
+        guard !FileManager.default.fileExists(atPath: dir) else { return }
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    }
+
+    /// Crea `<root>/.solocode/skills` se assente.
+    public static func ensureProjectSkillsDirectory(forProjectRoot root: String) {
+        let trimmed = root.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let dir = projectSkillsDirectoryPath(forProjectRoot: trimmed)
+        guard !FileManager.default.fileExists(atPath: dir) else { return }
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    }
+
+    public static func ensureProjectSkillsDirectories(forWorkspacePaths paths: [String]) {
+        for r in projectSkillRoots(from: paths) {
+            ensureProjectSkillsDirectory(forProjectRoot: r)
+        }
     }
 
     public struct InstructionItem: Sendable {
@@ -15,60 +43,40 @@ public enum SoloCodeSkillsPolicySource {
         public let content: String
     }
 
-    /// Crea `~/.solocode/skills` (e `.solocode`) se assenti. Idempotente; chiamabile all’avvio app o prima della prima lettura.
-    public static func ensureSkillsDirectoryExists() {
-        let dir = skillsDirectory
-        guard !FileManager.default.fileExists(atPath: dir) else { return }
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-    }
+    // MARK: - Policy merge
 
-    /// Sezioni da fondere nel policy bundle (full text, obbligatorio per il modello).
-    public static func instructionPolicyItems() -> [InstructionItem] {
+    public static func instructionPolicyItems(workspacePaths: [String] = []) -> [InstructionItem] {
         ensureSkillsDirectoryExists()
-        let fm = FileManager.default
-        let dir = skillsDirectory
-        guard fm.fileExists(atPath: dir),
-              let files = try? fm.contentsOfDirectory(atPath: dir) else { return [] }
-
-        let home = NSHomeDirectory()
-        return files
-            .filter { $0.hasSuffix(".md") && !$0.hasPrefix(".") }
-            .sorted()
-            .compactMap { fileName -> InstructionItem? in
-                guard !isDisabled(fileName: fileName) else { return nil }
-                let path = "\(dir)/\(fileName)"
-                guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
-                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return nil }
-                let body = String(trimmed.prefix(maxCharsPerFile))
-                return InstructionItem(
-                    title: "Solo Code skill (always apply): \(fileName)",
-                    sourcePath: path,
-                    displayPath: path.replacingOccurrences(of: home, with: "~"),
-                    content: body
-                )
-            }
+        var out: [InstructionItem] = []
+        for root in projectSkillRoots(from: workspacePaths) {
+            ensureProjectSkillsDirectory(forProjectRoot: root)
+            let dir = projectSkillsDirectoryPath(forProjectRoot: root)
+            let label = shortPathLabel(root)
+            out.append(contentsOf: loadInstructionItems(skillsDirectory: dir, kind: "project", locationLabel: label))
+        }
+        out.append(contentsOf: loadInstructionItems(
+            skillsDirectory: globalSkillsDirectoryPath,
+            kind: "global",
+            locationLabel: "~/.solocode/skills"
+        ))
+        return out
     }
 
-    /// Voci per l’elenco «Detected local skills» (discovery).
-    public static func skillCatalogLines() -> [String] {
+    public static func skillCatalogLines(workspacePaths: [String] = []) -> [String] {
         ensureSkillsDirectoryExists()
-        let fm = FileManager.default
-        let dir = skillsDirectory
-        guard fm.fileExists(atPath: dir),
-              let files = try? fm.contentsOfDirectory(atPath: dir) else { return [] }
-        return files
-            .filter { $0.hasSuffix(".md") && !$0.hasPrefix(".") }
-            .sorted()
-            .filter { !isDisabled(fileName: $0) }
-            .map { fileName in
-                let stem = (fileName as NSString).deletingPathExtension
-                return "solocode: \(stem) (file \(fileName); content always in policy above)"
-            }
+        var lines: [String] = []
+        for root in projectSkillRoots(from: workspacePaths) {
+            ensureProjectSkillsDirectory(forProjectRoot: root)
+            let dir = projectSkillsDirectoryPath(forProjectRoot: root)
+            let label = shortPathLabel(root)
+            lines.append(contentsOf: catalogLines(skillsDirectory: dir, prefix: "solocode-project (\(label))"))
+        }
+        lines.append(contentsOf: catalogLines(skillsDirectory: globalSkillsDirectoryPath, prefix: "solocode-global"))
+        return lines
     }
 
-    /// Corpo skill per il tool `skill` / esecuzione, nome normalizzato senza estensione (es. `doc-review`).
-    public static func skillMarkdown(forNormalizedName normalized: String) -> String? {
+    /// Progetto prima, poi globale (shadowing: file omonimo nel progetto vince).
+    public static func skillMarkdown(forNormalizedName normalized: String, workspacePaths: [String] = []) -> String? {
         ensureSkillsDirectoryExists()
         let stem = normalized
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -76,9 +84,86 @@ public enum SoloCodeSkillsPolicySource {
         guard !stem.isEmpty, !stem.contains("/"), !stem.contains("..") else { return nil }
 
         let fileName = stem.hasSuffix(".md") ? stem : "\(stem).md"
-        let path = "\(skillsDirectory)/\(fileName)"
+
+        for root in projectSkillRoots(from: workspacePaths) {
+            ensureProjectSkillsDirectory(forProjectRoot: root)
+            let dir = projectSkillsDirectoryPath(forProjectRoot: root)
+            if let body = readSkillBody(fileName: fileName, skillsDirectory: dir) {
+                return body
+            }
+        }
+        return readSkillBody(fileName: fileName, skillsDirectory: globalSkillsDirectoryPath)
+    }
+
+    // MARK: - Internals
+
+    private static func projectSkillRoots(from workspacePaths: [String]) -> [String] {
+        var roots: [String] = []
+        var seen = Set<String>()
+        let fm = FileManager.default
+        for raw in workspacePaths {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            var url = URL(fileURLWithPath: trimmed).resolvingSymlinksInPath().standardizedFileURL
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue {
+                url = url.deletingLastPathComponent()
+            }
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else { continue }
+            let path = url.path
+            guard seen.insert(path).inserted else { continue }
+            roots.append(path)
+        }
+        return roots
+    }
+
+    private static func shortPathLabel(_ absoluteRoot: String) -> String {
+        let home = NSHomeDirectory()
+        let shortened = absoluteRoot.replacingOccurrences(of: home, with: "~")
+        return URL(fileURLWithPath: shortened).lastPathComponent
+    }
+
+    private static func loadInstructionItems(skillsDirectory dir: String, kind: String, locationLabel: String) -> [InstructionItem] {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: dir),
+              let files = try? fm.contentsOfDirectory(atPath: dir) else { return [] }
+        return files
+            .filter { $0.hasSuffix(".md") && !$0.hasPrefix(".") }
+            .sorted()
+            .compactMap { fileName -> InstructionItem? in
+                guard !isDisabled(fileName: fileName, skillsDirectory: dir) else { return nil }
+                let path = "\(dir)/\(fileName)"
+                guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                let body = String(trimmed.prefix(maxCharsPerFile))
+                return InstructionItem(
+                    title: "Solo Code skill (\(kind), always apply): \(fileName)",
+                    sourcePath: path,
+                    displayPath: "\(locationLabel)/\(fileName)",
+                    content: body
+                )
+            }
+    }
+
+    private static func catalogLines(skillsDirectory dir: String, prefix: String) -> [String] {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: dir),
+              let files = try? fm.contentsOfDirectory(atPath: dir) else { return [] }
+        return files
+            .filter { $0.hasSuffix(".md") && !$0.hasPrefix(".") }
+            .sorted()
+            .filter { !isDisabled(fileName: $0, skillsDirectory: dir) }
+            .map { fileName in
+                let stem = (fileName as NSString).deletingPathExtension
+                return "\(prefix): \(stem) (\(fileName); in policy)"
+            }
+    }
+
+    private static func readSkillBody(fileName: String, skillsDirectory dir: String) -> String? {
+        guard !isDisabled(fileName: fileName, skillsDirectory: dir) else { return nil }
+        let path = "\(dir)/\(fileName)"
         guard FileManager.default.fileExists(atPath: path) else { return nil }
-        guard !isDisabled(fileName: fileName) else { return nil }
         guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -90,7 +175,7 @@ public enum SoloCodeSkillsPolicySource {
         return String(content.prefix(30_000))
     }
 
-    private static func isDisabled(fileName: String) -> Bool {
-        FileManager.default.fileExists(atPath: "\(skillsDirectory)/.\(fileName).disabled")
+    private static func isDisabled(fileName: String, skillsDirectory dir: String) -> Bool {
+        FileManager.default.fileExists(atPath: "\(dir)/.\(fileName).disabled")
     }
 }

@@ -4,6 +4,18 @@ extension ProjectSkillsSheet {
 
     var skillList: some View {
         VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: skillsScope == .global ? "globe" : "folder")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                Text(skillsDirectoryDisplayPath)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .lineLimit(2)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+
             if skills.isEmpty && !isCreating {
                 VStack(spacing: 10) {
                     Image(systemName: "wand.and.stars")
