@@ -35,6 +35,7 @@ extension ProjectSkillsSheet {
         isCreating = false
         newSkillName = ""
         aiBriefHint = ""
+        InstructionPolicyBundle.invalidateCache()
         loadSkills()
         selectedSkillId = name
         editorContent = (try? String(contentsOfFile: path, encoding: .utf8)) ?? editorContent
@@ -131,6 +132,7 @@ extension ProjectSkillsSheet {
         let safeName = sanitizeSkillName(id)
         let path = "\(skillsDir)/\(safeName)"
         try? editorContent.write(toFile: path, atomically: true, encoding: .utf8)
+        InstructionPolicyBundle.invalidateCache()
         loadSkills()
     }
 
@@ -139,6 +141,7 @@ extension ProjectSkillsSheet {
         try? FileManager.default.removeItem(atPath: "\(skillsDir)/\(safeName)")
         try? FileManager.default.removeItem(atPath: "\(skillsDir)/.\(safeName).disabled")
         if selectedSkillId == skill.id { selectedSkillId = nil; editorContent = "" }
+        InstructionPolicyBundle.invalidateCache()
         loadSkills()
     }
 
@@ -150,6 +153,7 @@ extension ProjectSkillsSheet {
         } else {
             try? FileManager.default.removeItem(atPath: marker)
         }
+        InstructionPolicyBundle.invalidateCache()
         loadSkills()
     }
 }

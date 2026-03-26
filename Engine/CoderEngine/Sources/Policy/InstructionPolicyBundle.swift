@@ -35,7 +35,17 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
             return cached
         }
 
-        let sections = collectPolicySections(workspacePaths: workspacePaths)
+        var sections = collectPolicySections(workspacePaths: workspacePaths)
+        for item in SoloCodeSkillsPolicySource.instructionPolicyItems() {
+            sections.append(
+                PolicySection(
+                    title: item.title,
+                    sourcePath: item.sourcePath,
+                    displayPath: item.displayPath,
+                    content: item.content
+                )
+            )
+        }
         let skills = collectSkillCatalog()
         guard !sections.isEmpty || !skills.isEmpty else {
             let empty = InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
@@ -192,6 +202,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
                 entries.append("\(root.label): \(name)")
             }
         }
+        entries.append(contentsOf: SoloCodeSkillsPolicySource.skillCatalogLines())
         return entries
     }
 
@@ -282,7 +293,8 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
             "\(home)/.agents/skills",
             "\(home)/.claude/skills",
         ]
-        guard let normalized = normalizedSkillName(name) else { return nil }
+        let normalized = normalizedSkillToken(forSkillTool: name)
+        guard let normalized else { return nil }
         for root in roots {
             let rootURL = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL
             let candidates = [
@@ -304,7 +316,18 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
                 return String(content.prefix(30_000))
             }
         }
+        if let solo = SoloCodeSkillsPolicySource.skillMarkdown(forNormalizedName: normalized) {
+            return solo
+        }
         return nil
+    }
+
+    /// Nome token per cartelle Codex/Claude o file piatto `~/.solocode/skills/*.md` (stem opzionale `.md`).
+    private static func normalizedSkillToken(forSkillTool name: String) -> String? {
+        if let n = normalizedSkillName(name) { return n }
+        let t = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard t.hasSuffix(".md"), t.count > 3 else { return nil }
+        return normalizedSkillName(String(t.dropLast(3)))
     }
 
     private static func normalizedSkillName(_ name: String) -> String? {

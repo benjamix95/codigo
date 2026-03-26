@@ -1,7 +1,9 @@
 import SwiftUI
 import CoderEngine
 
-/// Sheet for managing project-level skills (Markdown in ~/.solocode/skills/).
+/// Sheet per skill Markdown in `~/.solocode/skills/`.
+/// Le skill **abilitate** sono incluse nel *Mandatory instruction policy* su ogni turno agente (come AGENTS): si applicano a tutti i provider che usano `WorkspaceContext` arricchito.
+/// Disabilitare dalla lista (cerchio) le esclude dal prompt finché non le riattivi.
 struct ProjectSkillsSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var providerRegistry: ProviderRegistry
