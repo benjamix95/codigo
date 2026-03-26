@@ -1,0 +1,32 @@
+   Compiling solocode_rust_core v0.1.0 (/Users/benjaminstoica/SoloCode/Native/RustCore)
+   Compiling solocode_rust_core v0.1.0 (/Users/benjaminstoica/SoloCode/Native/RustCore)
+   Compiling coderide_mcp_server_rust v0.1.0 (/Users/benjaminstoica/SoloCode/Native/CoderideMCPServerRust)
+   Compiling coderide_mcp_server_rust v0.1.0 (/Users/benjaminstoica/SoloCode/Native/CoderideMCPServerRust)
+error: unexpected closing delimiter: `}`
+  --> CoderideMCPServerRust/src/audit_tools.rs:39:1
+   |
+11 | ) -> Option<CallToolResult> {
+   |                             - the nearest open delimiter
+error: unexpected closing delimiter: `}`
+  --> CoderideMCPServerRust/src/audit_tools.rs:39:1
+   |
+11 | ) -> Option<CallToolResult> {
+   |                             - the nearest open delimiter
+...
+38 |     }))
+   |       - missing open `(` for this delimiter
+39 | }
+   | ^ unexpected closing delimiter
+
+...
+38 |     }))
+   |       - missing open `(` for this delimiter
+39 | }
+   | ^ unexpected closing delimiter
+
+error: could not compile `coderide_mcp_server_rust` (bin "coderide-mcp-server-rust" test) due to 1 previous error
+error: could not compile `coderide_mcp_server_rust` (bin "coderide-mcp-server-rust" test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `coderide_mcp_server_rust` (bin "coderide-mcp-server-rust") due to 1 previous error
+error: could not compile `coderide_mcp_server_rust` (bin "coderide-mcp-server-rust") due to 1 previous error
