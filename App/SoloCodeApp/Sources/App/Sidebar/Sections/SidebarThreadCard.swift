@@ -27,8 +27,9 @@ extension SidebarView {
                 }
                 if showsWorkIndicator {
                     ProgressView()
-                        .controlSize(.small)
-                        .frame(width: 12, height: 12)
+                        .controlSize(.mini)
+                        .scaleEffect(0.52)
+                        .frame(width: 10, height: 10)
                 } else if !conv.isPinned, hasDraft {
                     Image(systemName: "pencil.line")
                         .font(.system(size: 10, weight: .semibold))
@@ -39,6 +40,14 @@ extension SidebarView {
                     .font(.system(size: 12, weight: selected ? .semibold : .regular))
                     .lineLimit(1)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                if let todoProgressLabel {
+                    Text(todoProgressLabel)
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
 
                 Spacer(minLength: 4)
 
@@ -76,12 +85,6 @@ extension SidebarView {
                         linesRemoved: metrics.linesRemoved
                     )
                 }
-            }
-
-            if let todoProgressLabel {
-                Text(todoProgressLabel)
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
             }
         }
         .padding(.horizontal, selected ? 8 : 10)
