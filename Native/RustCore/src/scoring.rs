@@ -45,22 +45,22 @@ struct RustSearchChunkPayload {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RustSearchResponsePayload {
-    hits: Vec<RustSearchHitPayload>,
-    error: Option<RustSearchErrorPayload>,
+    pub hits: Vec<RustSearchHitPayload>,
+    pub error: Option<RustSearchErrorPayload>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RustSearchHitPayload {
-    chunk_id: String,
-    score: f64,
+pub struct RustSearchHitPayload {
+    pub chunk_id: String,
+    pub score: f64,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RustSearchErrorPayload {
-    code: String,
-    message: String,
+pub struct RustSearchErrorPayload {
+    pub code: String,
+    pub message: String,
 }
 
 impl RustSearchResponsePayload {
@@ -149,17 +149,17 @@ pub fn handle_search_request(raw: &str) -> Result<RustSearchResponsePayload, Str
 
     if !negative_tokens.is_empty() {
         let negative_set: HashSet<String> = negative_tokens.into_iter().collect();
-        scores.retain(|chunk_id, _| {
-            chunks_by_id
-                .get(chunk_id)
-                .map(|chunk| {
-                    let chunk_tokens: HashSet<String> = tokenize_query(&chunk.contextualized_text)
-                        .into_iter()
-                        .collect();
-                    negative_set.is_disjoint(&chunk_tokens)
-                })
-                .unwrap_or(false)
-        });
+        // Use the inverted index to find chunks containing negative tokens,
+        // avoiding expensive per-chunk re-tokenization (O(k*p) vs O(n*m)).
+        let mut excluded_chunk_ids: HashSet<&str> = HashSet::new();
+        for neg_token in &negative_set {
+            if let Some(postings) = payload.snapshot.inverted_index.get(neg_token.as_str()) {
+                for chunk_id in postings {
+                    excluded_chunk_ids.insert(chunk_id.as_str());
+                }
+            }
+        }
+        scores.retain(|chunk_id, _| !excluded_chunk_ids.contains(chunk_id));
     }
 
     let mut ranked: Vec<RustSearchHitPayload> = scores
@@ -244,4 +244,106 @@ fn score_bonus(chunk: &RustSearchChunkPayload, query_lower: &str, query_tokens: 
     }
 
     bonus
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_test_payload(query: &str) -> String {
+        serde_json::json!({
+            "query": {
+                "query": query,
+                "targetDirectories": [],
+                "numResults": 10
+            },
+            "snapshot": {
+                "chunks": [
+                    {
+                        "chunkId": "c1",
+                        "filePath": "foo.swift",
+                        "scope": "Foo",
+                        "kind": "function",
+                        "content": "func hello() { }",
+                        "symbolNames": ["hello"],
+                        "contextualizedText": "hello world greeting"
+                    },
+                    {
+                        "chunkId": "c2",
+                        "filePath": "bar.swift",
+                        "scope": "Bar",
+                        "kind": "function",
+                        "content": "func goodbye() { }",
+                        "symbolNames": ["goodbye"],
+                        "contextualizedText": "goodbye farewell parting"
+                    },
+                    {
+                        "chunkId": "c3",
+                        "filePath": "baz.swift",
+                        "scope": "Baz",
+                        "kind": "function",
+                        "content": "func greet() { hello() }",
+                        "symbolNames": ["greet"],
+                        "contextualizedText": "hello greet welcome"
+                    }
+                ],
+                "invertedIndex": {
+                    "hello": ["c1", "c3"],
+                    "world": ["c1"],
+                    "greet": ["c3"],
+                    "goodby": ["c2"],
+                    "farewell": ["c2"],
+                    "welcom": ["c3"]
+                },
+                "termFrequencies": {
+                    "c1": {"hello": 1, "world": 1},
+                    "c2": {"goodby": 1, "farewell": 1},
+                    "c3": {"hello": 1, "greet": 1, "welcom": 1}
+                },
+                "docLengths": {"c1": 3, "c2": 3, "c3": 3},
+                "avgDocLength": 3.0,
+                "totalDocs": 3,
+                "k1": 1.2,
+                "b": 0.75
+            }
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn test_negative_query_excludes_via_inverted_index() {
+        // Query "hello -goodby" should return c1,c3 but NOT c2
+        let payload = make_test_payload("hello -goodbye");
+        let result = handle_search_request(&payload).unwrap();
+        assert!(result.error.is_none());
+        let ids: Vec<&str> = result.hits.iter().map(|h| h.chunk_id.as_str()).collect();
+        assert!(ids.contains(&"c1"), "c1 should be in results");
+        assert!(ids.contains(&"c3"), "c3 should be in results");
+        assert!(!ids.contains(&"c2"), "c2 should be excluded by negative query");
+    }
+
+    #[test]
+    fn test_negative_query_empty_negatives_returns_all() {
+        let payload = make_test_payload("hello");
+        let result = handle_search_request(&payload).unwrap();
+        assert!(result.error.is_none());
+        // "hello" tokens match c1 and c3 via inverted index
+        let ids: Vec<&str> = result.hits.iter().map(|h| h.chunk_id.as_str()).collect();
+        assert!(ids.contains(&"c1"));
+        assert!(ids.contains(&"c3"));
+    }
+
+    #[test]
+    fn test_split_negations_basic() {
+        let (pos, neg) = split_negations("hello -world foo");
+        assert_eq!(pos, "hello foo");
+        assert!(!neg.is_empty());
+    }
+
+    #[test]
+    fn test_split_negations_no_negatives() {
+        let (pos, neg) = split_negations("hello world");
+        assert_eq!(pos, "hello world");
+        assert!(neg.is_empty());
+    }
 }

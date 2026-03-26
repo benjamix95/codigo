@@ -9,23 +9,12 @@ struct ChatTodoExecutionCardView: View {
 
     @State private var isExpanded = false
 
-    private var orderedItems: [TodoItem] {
-        // Keep original insertion order: sort by planOrder then createdAt.
-        // Completed items stay in place (no status-based reordering).
-        items.sorted { lhs, rhs in
-            if lhs.planOrder != rhs.planOrder {
-                return (lhs.planOrder ?? .max) < (rhs.planOrder ?? .max)
-            }
-            return lhs.createdAt < rhs.createdAt
-        }
-    }
-
     private var metrics: ChatTodoExecutionCardMetrics {
-        ChatTodoExecutionCardMetrics.build(items: orderedItems, fileChanges: fileChanges)
+        ChatTodoExecutionCardMetrics.build(items: items, fileChanges: fileChanges)
     }
 
     var body: some View {
-        if !orderedItems.isEmpty {
+        if !items.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 if let microStatusText, !microStatusText.isEmpty {
@@ -53,7 +42,7 @@ struct ChatTodoExecutionCardView: View {
                     .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.6)
             )
             .onAppear {
-                isExpanded = ChatTodoExecutionCardMetrics.shouldStartExpanded(items: orderedItems)
+                isExpanded = ChatTodoExecutionCardMetrics.shouldStartExpanded(items: items)
             }
         }
     }
@@ -87,7 +76,7 @@ struct ChatTodoExecutionCardView: View {
     private var checklistSection: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 14) {
-                ForEach(Array(orderedItems.enumerated()), id: \.element.id) { index, todo in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, todo in
                     HStack(alignment: .top, spacing: 12) {
                         statusIcon(for: todo.status)
                             .padding(.top, 2)

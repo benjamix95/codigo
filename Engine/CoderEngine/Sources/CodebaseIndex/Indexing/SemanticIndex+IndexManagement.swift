@@ -20,6 +20,7 @@ extension SemanticIndex {
             }
             termFrequencies[chunk.id] = termFrequency
             docLengths[chunk.id] = tokens.count
+            totalTokenCount += tokens.count
 
             for token in termFrequency.keys {
                 invertedIndex[token, default: []].insert(chunk.id)
@@ -27,6 +28,7 @@ extension SemanticIndex {
         }
 
         fileToChunks[relativePath] = chunkIds
+        dirtyFilePaths.insert(relativePath)
     }
 
     /// Remove all chunks for a file.
@@ -45,16 +47,28 @@ extension SemanticIndex {
 
             chunks.removeValue(forKey: chunkId)
             termFrequencies.removeValue(forKey: chunkId)
-            docLengths.removeValue(forKey: chunkId)
+            if let len = docLengths.removeValue(forKey: chunkId) {
+                totalTokenCount -= len
+            }
             chunkAccessOrder.removeValue(forKey: chunkId)
         }
 
         fileToChunks.removeValue(forKey: relativePath)
+        dirtyFilePaths.insert(relativePath)
     }
 
     /// Recalculate average document length.
+    /// When called without arguments, uses the running `totalTokenCount` for O(1).
+    /// The full O(n) recomputation is only used in `loadFromDisk()` to rebuild
+    /// `totalTokenCount` from the persisted state.
     func recalcAvgDocLength() {
-        let totalLength = docLengths.values.reduce(0, +)
-        avgDocLength = docLengths.isEmpty ? 0 : Double(totalLength) / Double(docLengths.count)
+        avgDocLength = docLengths.isEmpty ? 0 : Double(totalTokenCount) / Double(docLengths.count)
+    }
+
+    /// Full O(n) recomputation of totalTokenCount from docLengths.
+    /// Used only after loading from disk when the running total is unknown.
+    func rebuildTotalTokenCount() {
+        totalTokenCount = docLengths.values.reduce(0, +)
+        recalcAvgDocLength()
     }
 }

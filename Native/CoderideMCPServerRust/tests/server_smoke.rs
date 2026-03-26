@@ -473,6 +473,13 @@ fn search_tools_work() {
     assert!(read_range["result"]["content"][0]["text"].as_str().unwrap_or("").contains("2: struct Sample {}"));
 
     write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":30_1,"method":"tools/call",
+        "params":{"name":"coderide_read_range","arguments":{"path":"Sample.swift","start_line":"2","end_line":"4"}}
+    }));
+    let read_range_string_args = read_message(&mut child);
+    assert!(read_range_string_args["result"]["content"][0]["text"].as_str().unwrap_or("").contains("2: struct Sample {}"));
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
         "jsonrpc":"2.0","id":31,"method":"tools/call",
         "params":{"name":"coderide_find_files","arguments":{"query":"Sample.swift"}}
     }));
@@ -595,6 +602,20 @@ fn diagnostics_and_audit_tools_work() {
     }));
     let git_diff = read_message(&mut child);
     assert!(git_diff["result"]["content"][0]["text"].as_str().is_some());
+
+    write_message(child.stdin.as_mut().expect("stdin"), json!({
+        "jsonrpc":"2.0","id":54,"method":"tools/call",
+        "params":{"name":"coderide_semantic_search","arguments":{
+            "query":"demo function",
+            "pathScope":"src",
+            "limit":"5",
+            "show_scoring":"true",
+            "min_confidence":"0.10"
+        }}
+    }));
+    let semantic_search = read_message(&mut child);
+    let semantic_text = semantic_search["result"]["content"][0]["text"].as_str().unwrap_or("");
+    assert!(semantic_text.contains("lib.rs"));
     terminate(child);
 }
 

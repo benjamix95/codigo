@@ -286,4 +286,79 @@ extension SemanticIndexTests {
             XCTAssertTrue(r.chunk.filePath.hasPrefix("Sources"))
         }
     }
+
+    // MARK: - Dirty Tracking Persistence (Regression: ARCH-2026-03-26)
+
+    func testPersistSkipsFullRewriteWhenNoDirtyFiles() async throws {
+        let (files, tmpDir) = makeTestIndexedFiles()
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let persistPath = tmpDir.appendingPathComponent("dirty-tracking.jsonl")
+        let index = SemanticIndex(persistencePath: persistPath)
+        await index.buildIndex(indexedFiles: files, workspaceRoot: tmpDir)
+
+        // After buildIndex, persist was called and dirty set should be cleared.
+        // Calling persist again should be a no-op for the main index file.
+        let firstSnapshot = try String(contentsOf: persistPath, encoding: .utf8)
+        let firstModDate = try FileManager.default.attributesOfItem(
+            atPath: persistPath.path
+        )[.modificationDate] as? Date
+
+        // Small delay so modification date would differ if file is rewritten
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        // Second persist with no changes — should skip full rewrite
+        await index.persist()
+
+        let secondSnapshot = try String(contentsOf: persistPath, encoding: .utf8)
+        let secondModDate = try FileManager.default.attributesOfItem(
+            atPath: persistPath.path
+        )[.modificationDate] as? Date
+
+        // Content must be identical
+        XCTAssertEqual(firstSnapshot, secondSnapshot)
+        // File should NOT have been rewritten (mod date unchanged)
+        XCTAssertEqual(firstModDate, secondModDate, "persist() should skip rewrite when no dirty files")
+    }
+
+    func testPersistRewritesAfterIncrementalUpdate() async throws {
+        let (files, tmpDir) = makeTestIndexedFiles()
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let persistPath = tmpDir.appendingPathComponent("dirty-update.jsonl")
+        let index = SemanticIndex(persistencePath: persistPath)
+        await index.buildIndex(indexedFiles: files, workspaceRoot: tmpDir)
+
+        let statusBefore = await index.status()
+
+        // Add a new file — this marks dirty
+        let newContent = "class DirtyTrackingProbe { func probe() {} }"
+        let newPath = tmpDir.appendingPathComponent("DirtyProbe.swift")
+        try newContent.write(to: newPath, atomically: true, encoding: .utf8)
+
+        let newFile = IndexedFile(
+            relativePath: "DirtyProbe.swift",
+            absolutePath: newPath.path,
+            language: .swift,
+            symbols: [
+                IndexedSymbol(name: "DirtyTrackingProbe", kind: .class, filePath: "DirtyProbe.swift", line: 1, endLine: 1, language: .swift),
+            ],
+            imports: [],
+            lineCount: 1,
+            size: UInt64(newContent.utf8.count)
+        )
+        await index.updateFile(newFile)
+
+        // Manually persist (bypassing debounce)
+        await index.persist()
+
+        // Reload and verify the new file is included
+        let loaded = SemanticIndex(persistencePath: persistPath)
+        await loaded.loadFromDisk()
+        let statusAfter = await loaded.status()
+
+        XCTAssertEqual(statusAfter.totalFiles, statusBefore.totalFiles + 1)
+        let results = await loaded.search(query: "DirtyTrackingProbe")
+        XCTAssertFalse(results.isEmpty, "New file should be persisted after dirty update")
+    }
 }

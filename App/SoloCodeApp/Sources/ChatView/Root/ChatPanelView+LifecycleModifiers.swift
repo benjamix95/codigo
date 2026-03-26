@@ -55,6 +55,9 @@ extension ChatPanelView {
                 requestInitialComposerFocusIfNeeded()
             }
             .onAppear {
+                if selectedConversationId == nil {
+                    conversationBootstrapIfNeeded()
+                }
                 migrateSwarmProviderDefaultsIfNeeded()
                 syncProviderFromConversation()
                 scheduleToolRuntimePolicySync(immediate: true)

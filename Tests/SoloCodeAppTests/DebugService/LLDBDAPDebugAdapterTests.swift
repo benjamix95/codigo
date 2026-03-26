@@ -183,17 +183,17 @@ final class LLDBDAPDebugAdapterTests: XCTestCase {
 
     func testPersistentSessionMantieneLoStatoTraStartEStep() async {
         let session = LLDBPersistentSessionSpy(
-            queuedOutputs: [
-                """
+            queuedResults: [
+                .success("""
                 Process 808 stopped
                 * thread #1, stop reason = breakpoint 1.1
                 frame #0: 0x1 Demo`main at Sources/Main.swift:10
-                """,
-                """
+                """),
+                .success("""
                 Process 808 stopped
                 * thread #1, stop reason = step over
                 frame #0: 0x2 Demo`next at Sources/Main.swift:11
-                """
+                """)
             ]
         )
         let adapter = LLDBDAPDebugAdapter(sessionFactory: {
@@ -220,6 +220,36 @@ final class LLDBDAPDebugAdapterTests: XCTestCase {
         XCTAssertFalse(secondInvocation.contains(where: { $0.contains("target create") }))
         XCTAssertTrue(secondInvocation.contains("thread step-over"))
         XCTAssertTrue(secondInvocation.contains("process status"))
+    }
+
+    func testPersistentSessionTerminataDuranteStepPropagaErroreGestibile() async {
+        let session = LLDBPersistentSessionSpy(
+            queuedResults: [
+                .success("""
+                Process 909 stopped
+                * thread #1, stop reason = breakpoint 1.1
+                frame #0: 0x1 Demo`main at Sources/Main.swift:10
+                """),
+                .failure(LLDBPersistentSessionError.terminated)
+            ]
+        )
+        let adapter = LLDBDAPDebugAdapter(sessionFactory: {
+            session
+        })
+
+        _ = await adapter.startSession(
+            targetPath: "/bin/ls",
+            arguments: [],
+            breakpoints: [],
+            watchExpressions: []
+        )
+
+        let state = await adapter.step(command: "thread step-over")
+
+        XCTAssertEqual(state.status, .error)
+        XCTAssertEqual(state.lastError, LLDBPersistentSessionError.terminated.localizedDescription)
+        let closeCalls = await session.closeCalls
+        XCTAssertEqual(closeCalls, 1)
     }
 }
 
@@ -249,20 +279,20 @@ private actor LLDBBatchRunnerSpy {
 }
 
 private actor LLDBPersistentSessionSpy: LLDBCommandSession {
-    private var queuedOutputs: [String]
+    private var queuedResults: [Result<String, Error>]
     private var invocations: [[String]] = []
     private(set) var closeCalls = 0
 
-    init(queuedOutputs: [String]) {
-        self.queuedOutputs = queuedOutputs
+    init(queuedResults: [Result<String, Error>]) {
+        self.queuedResults = queuedResults
     }
 
     func send(commands: [String]) async throws -> String {
         invocations.append(commands)
-        if queuedOutputs.isEmpty {
+        if queuedResults.isEmpty {
             return ""
         }
-        return queuedOutputs.removeFirst()
+        return try queuedResults.removeFirst().get()
     }
 
     func close() async {

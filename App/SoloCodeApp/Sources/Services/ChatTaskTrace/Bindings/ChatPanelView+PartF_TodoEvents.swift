@@ -61,6 +61,19 @@ extension ChatPanelView {
                 )
             }
             if updated, let sourcePlanId {
+                // #region agent log
+                ComposerTodoDebugNDJSONLog.append(
+                    hypothesisId: "H3",
+                    location: "ChatPanelView+PartF_TodoEvents.swift:handleTodoWriteEvent",
+                    message: "plan_todo_upserted",
+                    data: [
+                        "titleLen": "\(todo.title.count)",
+                        "status": todo.status?.rawValue ?? "nil",
+                        "willAdvance": "\(todo.status == .done)",
+                        "planId8": String(sourcePlanId.uuidString.prefix(8)),
+                    ]
+                )
+                // #endregion
                 if todo.status == .done {
                     _ = todoStore.advanceNextCanonicalTodoIfNeeded(conversationId: sourcePlanId)
                 }
@@ -78,6 +91,9 @@ extension ChatPanelView {
                 linkedFiles: todo.files,
                 conversationId: conversationId
             )
+            if let cid = conversationId, todo.status == .done {
+                _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: cid)
+            }
         }
         recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
         if shouldInvalidateChatTimelineForLiveMutation(eventType: "todo_write") {

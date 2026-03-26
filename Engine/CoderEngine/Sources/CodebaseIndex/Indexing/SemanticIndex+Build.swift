@@ -21,6 +21,7 @@ extension SemanticIndex {
         termFrequencies.removeAll()
         docLengths.removeAll()
         fileToChunks.removeAll()
+        totalTokenCount = 0
         deferredMerkleTouchedFiles = 0
         lastSearchMetrics = nil
 
@@ -136,9 +137,9 @@ extension SemanticIndex {
         evictIfNeeded()
         recalcAvgDocLength()
 
-        // Persist after incremental update so the on-disk index stays fresh
+        // Schedule debounced persist — coalesces rapid batch updates
         if persistencePath != nil {
-            await persist()
+            scheduleDebouncedPersist()
         }
     }
 
@@ -159,9 +160,10 @@ extension SemanticIndex {
         evictIfNeeded()
         recalcAvgDocLength()
 
-        // Persist incrementally so the on-disk index stays fresh
+        // Schedule debounced persist — multiple rapid file changes coalesce
+        // into a single disk write instead of O(n) full-persist per file.
         if persistencePath != nil {
-            await persist()
+            scheduleDebouncedPersist()
         }
     }
 
@@ -178,6 +180,7 @@ extension SemanticIndex {
         termFrequencies.removeAll()
         docLengths.removeAll()
         avgDocLength = 0
+        totalTokenCount = 0
         merkleRoot = nil
         currentSimHash = 0
         fileToChunks.removeAll()

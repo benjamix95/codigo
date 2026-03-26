@@ -29,8 +29,8 @@ mod review_session;
 mod review_sync;
 mod review_value;
 mod review_verify;
-mod scoring;
+pub mod scoring;
 #[cfg(test)]
 mod test_support;
 mod todo_state;
-mod tokenize;
+pub mod tokenize;

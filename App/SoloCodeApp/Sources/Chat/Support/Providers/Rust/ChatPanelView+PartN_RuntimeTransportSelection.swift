@@ -121,8 +121,8 @@ extension ChatPanelView {
     /// Resolves the path to the actual Rust MCP server binary so it can
     /// be passed to Claude CLI for MCP integration.  Resolution order:
     /// 1. Env override `SOLOCODE_MCP_SERVER_PATH`
-    /// 2. `coderide-mcp-server-rust` sibling in app bundle (Rust binary)
-    /// 3. `Native/target/{debug,release}/coderide-mcp-server-rust` (cargo build)
+    /// 2. `Native/target/{debug,release}/coderide-mcp-server-rust` (cargo build)
+    /// 3. `coderide-mcp-server-rust` sibling in app bundle (Rust binary)
     ///
     /// Note: the Swift wrapper `coderide-mcp-server` is NOT used because
     /// it requires the Rust binary as a sibling which may not be bundled.
@@ -141,14 +141,8 @@ extension ChatPanelView {
         let mainExe = URL(fileURLWithPath: CommandLine.arguments[0])
         let bundleDir = mainExe.deletingLastPathComponent()
 
-        // Prefer the Rust binary directly (avoids Swift wrapper indirection)
-        let rustBundleCandidate = bundleDir
-            .appendingPathComponent("coderide-mcp-server-rust")
-        if fm.isExecutableFile(atPath: rustBundleCandidate.path) {
-            return rustBundleCandidate.path
-        }
-
-        // Development: Rust cargo output
+        // Development: prefer cargo output so local fixes are picked up
+        // immediately instead of silently running a stale bundled binary.
         let sourceFile = URL(fileURLWithPath: #filePath)
         var dir = sourceFile.deletingLastPathComponent()
         while dir.path != "/" {
@@ -165,6 +159,13 @@ extension ChatPanelView {
                 break
             }
             dir.deleteLastPathComponent()
+        }
+
+        // Prefer the Rust binary directly (avoids Swift wrapper indirection)
+        let rustBundleCandidate = bundleDir
+            .appendingPathComponent("coderide-mcp-server-rust")
+        if fm.isExecutableFile(atPath: rustBundleCandidate.path) {
+            return rustBundleCandidate.path
         }
 
         // Last resort: Swift wrapper (only works if Rust binary is co-located)

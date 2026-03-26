@@ -93,6 +93,13 @@ public protocol SearchEngineBackend: Sendable {
         snapshot: SemanticIndexSearchSnapshot
     ) -> SearchEngineBackendResponse
 
+    /// Async variant of `search()`. Backends that bridge async work (e.g. vector
+    /// search) should override this to avoid blocking the cooperative thread pool.
+    func asyncSearch(
+        query: SearchQueryInput,
+        snapshot: SemanticIndexSearchSnapshot
+    ) async -> SearchEngineBackendResponse
+
     /// Vector-based semantic search (optional — default returns empty).
     func vectorSearch(
         queryEmbedding: [Float],
@@ -106,6 +113,13 @@ public protocol SearchEngineBackend: Sendable {
 
 // Default implementations for backward compatibility.
 public extension SearchEngineBackend {
+    func asyncSearch(
+        query: SearchQueryInput,
+        snapshot: SemanticIndexSearchSnapshot
+    ) async -> SearchEngineBackendResponse {
+        search(query: query, snapshot: snapshot)
+    }
+
     func vectorSearch(
         queryEmbedding: [Float],
         limit: Int,

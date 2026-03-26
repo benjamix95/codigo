@@ -50,10 +50,43 @@ extension TodoStore {
     @discardableResult
     func advanceNextCanonicalTodoIfNeeded(conversationId: UUID?) -> Bool {
         let scoped = canonicalTodos(for: conversationId)
-        guard !scoped.isEmpty else { return false }
-        guard !scoped.contains(where: { $0.status == .inProgress }) else { return false }
+        // #region agent log
+        let scopedSummary = scoped
+            .map { "\($0.id.uuidString.prefix(8)):\($0.status.rawValue)" }
+            .joined(separator: ",")
+        // #endregion
+        guard !scoped.isEmpty else {
+            // #region agent log
+            ComposerTodoDebugNDJSONLog.append(
+                hypothesisId: "H3",
+                location: "TodoStore+PlanExecutionProgression.swift:advanceNext",
+                message: "advance_skip_empty_scoped",
+                data: ["scoped": scopedSummary]
+            )
+            // #endregion
+            return false
+        }
+        guard !scoped.contains(where: { $0.status == .inProgress }) else {
+            // #region agent log
+            ComposerTodoDebugNDJSONLog.append(
+                hypothesisId: "H3",
+                location: "TodoStore+PlanExecutionProgression.swift:advanceNext",
+                message: "advance_skip_already_in_progress",
+                data: ["scoped": String(scopedSummary.prefix(500))]
+            )
+            // #endregion
+            return false
+        }
         guard let nextPending = scoped.first(where: { $0.status == .pending }),
               let idx = todos.firstIndex(where: { $0.id == nextPending.id }) else {
+            // #region agent log
+            ComposerTodoDebugNDJSONLog.append(
+                hypothesisId: "H3",
+                location: "TodoStore+PlanExecutionProgression.swift:advanceNext",
+                message: "advance_skip_no_pending",
+                data: ["scoped": String(scopedSummary.prefix(500))]
+            )
+            // #endregion
             return false
         }
 
@@ -73,6 +106,17 @@ extension TodoStore {
                 todos[idx].planConversationId
             )
         }
+        // #region agent log
+        ComposerTodoDebugNDJSONLog.append(
+            hypothesisId: "H3",
+            location: "TodoStore+PlanExecutionProgression.swift:advanceNext",
+            message: "advance_promoted_pending_to_in_progress",
+            data: [
+                "nextId8": String(nextPending.id.uuidString.prefix(8)),
+                "scoped": String(scopedSummary.prefix(500)),
+            ]
+        )
+        // #endregion
         return true
     }
 }

@@ -242,6 +242,15 @@ extension ChatPanelView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            refreshMessagesSnapshot()
+        }
+        .onChange(of: conversationId) { _ in
+            refreshMessagesSnapshot()
+        }
+        .task(id: conversationId) {
+            refreshMessagesSnapshot()
+        }
         // Inject markdown font settings once at the messages area root.
         // All child MarkdownContentView instances read these via
         // @Environment(\.markdownSettings) instead of 4 separate
@@ -259,15 +268,22 @@ extension ChatPanelView {
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 24)
-        .onAppear {
-            // Populate the initial snapshot so messagesStack can render.
-            refreshMessagesSnapshot()
-        }
-        .onChange(of: conversationId) { _ in
-            // Conversation switched — refresh immediately.
-            refreshMessagesSnapshot()
-        }
-        .onChange(of: streaming.streamContentVersion) { _ in
+        .onChange(of: streaming.streamContentVersion) { newVersion in
+            // #region agent log
+            AgentDebugSessionNDJSONLog.appendThrottled(
+                gateKey: "H10-stream-version",
+                minInterval: 0.08,
+                hypothesisId: "H10",
+                location: "messagesAreaScrollView",
+                message: "stream_content_version_tick",
+                data: [
+                    "version": "\(newVersion)",
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "isFollowingLive": "\(isFollowingLive)",
+                    "taskLoading": "\(isLoadingForCurrentConversation)",
+                ]
+            )
+            // #endregion
             // Refresh the snapshot on every stream content update.
             refreshMessagesSnapshot()
             guard isFollowingLive || isLoadingForCurrentConversation else { return }

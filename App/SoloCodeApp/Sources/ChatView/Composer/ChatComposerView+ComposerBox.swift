@@ -1,7 +1,9 @@
 import SwiftUI
 
 extension ChatComposerView {
-    internal var composerBox: some View {
+    /// Inner content of the composer box — no background, border, or shadow.
+    /// The fused container in `ChatComposerView.body` provides those.
+    internal var composerBoxContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             if voiceState != .idle {
                 voiceStatusView
@@ -17,56 +19,61 @@ extension ChatComposerView {
                 standardComposerContent
             }
         }
-        .padding(.horizontal, isIDEStyle ? 12 : 14)
-        .padding(.vertical, isIDEStyle ? 8 : 10)
-        .background(
-            RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 20, style: .continuous)
-                .fill(composerSurfaceGradient)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 20, style: .continuous)
-                .strokeBorder(
-                    isComposerDropTargeted
-                        ? Color.white.opacity(0.35)
-                        : (isInputFocused
-                            ? Color.white.opacity(0.22)
-                            : Color.white.opacity(0.12)),
-                    lineWidth: isComposerDropTargeted ? 1.2 : 0.8
-                )
-        )
-        .shadow(color: Color.black.opacity(isIDEStyle ? 0.14 : 0.25), radius: isIDEStyle ? 6 : 12, y: isIDEStyle ? 1 : 3)
-        .animation(.easeOut(duration: 0.2), value: isInputFocused)
-        .onDrop(
-            of: [.item, .fileURL, .image, .png, .jpeg, .gif, .pdf],
-            isTargeted: $isComposerDropTargeted
-        ) { providers in
-            Task {
-                var incoming: [ComposerAttachment] = []
-                for provider in providers {
-                    if let attachment = await AttachmentIntakeService.attachmentFromDropProvider(provider) {
-                        incoming.append(attachment)
-                    }
-                }
-                await MainActor.run {
-                    appendAttachments(incoming)
-                }
-            }
-            return true
-        }
-        .overlay {
-            if isConvertingHeic {
-                RoundedRectangle(cornerRadius: isIDEStyle ? 18 : 26, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        VStack(spacing: 8) {
-                            ProgressView().controlSize(.regular)
-                            Text("Converting HEIC image...")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+    }
+
+    /// Legacy standalone composer box (kept for any external callers).
+    internal var composerBox: some View {
+        composerBoxContent
+            .padding(.horizontal, isIDEStyle ? 12 : 14)
+            .padding(.vertical, isIDEStyle ? 8 : 10)
+            .background(
+                RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 20, style: .continuous)
+                    .fill(composerSurfaceGradient)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 20, style: .continuous)
+                    .strokeBorder(
+                        isComposerDropTargeted
+                            ? Color.white.opacity(0.35)
+                            : (isInputFocused
+                                ? Color.white.opacity(0.22)
+                                : Color.white.opacity(0.12)),
+                        lineWidth: isComposerDropTargeted ? 1.2 : 0.8
+                    )
+            )
+            .shadow(color: Color.black.opacity(isIDEStyle ? 0.14 : 0.25), radius: isIDEStyle ? 6 : 12, y: isIDEStyle ? 1 : 3)
+            .animation(.easeOut(duration: 0.2), value: isInputFocused)
+            .onDrop(
+                of: [.item, .fileURL, .image, .png, .jpeg, .gif, .pdf],
+                isTargeted: $isComposerDropTargeted
+            ) { providers in
+                Task {
+                    var incoming: [ComposerAttachment] = []
+                    for provider in providers {
+                        if let attachment = await AttachmentIntakeService.attachmentFromDropProvider(provider) {
+                            incoming.append(attachment)
                         }
                     }
+                    await MainActor.run {
+                        appendAttachments(incoming)
+                    }
+                }
+                return true
             }
-        }
+            .overlay {
+                if isConvertingHeic {
+                    RoundedRectangle(cornerRadius: isIDEStyle ? 18 : 26, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            VStack(spacing: 8) {
+                                ProgressView().controlSize(.regular)
+                                Text("Converting HEIC image...")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                }
+            }
     }
 
     internal var standardComposerContent: some View {

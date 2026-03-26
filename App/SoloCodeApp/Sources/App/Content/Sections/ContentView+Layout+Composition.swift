@@ -55,6 +55,9 @@ extension ContentView {
 
     var configuredContent: some View {
         contentRoot
+        .environment(\.conversationBootstrapIfNeeded) {
+            configureInitialConversationSelection()
+        }
         .onAppear(perform: configureInitialConversationSelection)
         .onAppear {
             configureDefaultProviderSelection()

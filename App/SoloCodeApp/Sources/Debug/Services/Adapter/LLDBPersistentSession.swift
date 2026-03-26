@@ -104,7 +104,7 @@ actor LLDBPersistentSession: LLDBCommandSession {
             .map { "\($0)\n" }
             .joined()
 
-        stdinHandle.write(Data(payload.utf8))
+        try writeToStdin(Data(payload.utf8))
         return try await outputBuffer.waitForMarker(
             marker,
             legacyMarker: legacyMarker,
@@ -117,7 +117,7 @@ actor LLDBPersistentSession: LLDBCommandSession {
         guard !isClosed else { return }
         isClosed = true
 
-        stdinHandle.write(Data("quit\n".utf8))
+        try? writeToStdin(Data("quit\n".utf8))
         stdinHandle.closeFile()
 
         if process.isRunning {
@@ -129,6 +129,14 @@ actor LLDBPersistentSession: LLDBCommandSession {
         stdoutReader = nil
         stderrReader = nil
         await outputBuffer.forceClose()
+    }
+
+    private func writeToStdin(_ data: Data) throws {
+        do {
+            try stdinHandle.write(contentsOf: data)
+        } catch {
+            throw LLDBPersistentSessionError.terminated
+        }
     }
 }
 

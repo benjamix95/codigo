@@ -6,17 +6,19 @@ extension SemanticIndex {
     // MARK: - Search
 
     /// Search code snippets by natural language and return ranked chunks.
+    /// Uses `asyncSearch()` to avoid blocking the cooperative thread pool
+    /// when the backend bridges async work (e.g. hybrid vector search).
     public func search(
         query: String,
         targetDirectories: [String] = [],
         numResults: Int = 25
-    ) -> [SearchResult] {
+    ) async -> [SearchResult] {
         let queryInput = SearchQueryInput(
             query: query,
             targetDirectories: targetDirectories,
             numResults: numResults
         )
-        let hits = searchBackend.search(
+        let hits = await searchBackend.asyncSearch(
             query: queryInput,
             snapshot: makeSearchSnapshot()
         )

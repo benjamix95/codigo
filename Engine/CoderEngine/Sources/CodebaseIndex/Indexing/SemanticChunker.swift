@@ -67,6 +67,23 @@ public enum SemanticChunker {
             }
         }
 
+        // Tiny files (or very small symbol regions) can fall under `minChunkWeight`
+        // and produce zero chunks while the file is non-empty. That breaks persistence
+        // (no JSONL lines for the path) and reload/search for those paths.
+        if chunks.isEmpty {
+            return [makeChunk(
+                filePath: indexedFile.relativePath,
+                lines: lines,
+                startLine: 1,
+                endLine: min(lines.count, maxChunkLines),
+                scope: "",
+                kind: "file",
+                language: indexedFile.language.rawValue,
+                symbolNames: symbols.map(\.name),
+                imports: indexedFile.imports
+            )]
+        }
+
         return chunks
     }
 

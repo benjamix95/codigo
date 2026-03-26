@@ -5,15 +5,15 @@ pub fn input_schema_for(name: &str) -> Value {
         "coderide_read" => object_schema(&[("path", "string")], &["path"]),
         "coderide_list_dir" => object_schema(&[("path", "string")], &["path"]),
         "coderide_read_range" => object_schema(
-            &[("path", "string"), ("start", "string"), ("end", "string"), ("start_line", "string"), ("end_line", "string")],
+            &[("path", "string"), ("start", "integer"), ("end", "integer"), ("start_line", "integer"), ("end_line", "integer")],
             &["path"],
         ),
         "coderide_glob" => object_schema(&[("pattern", "string"), ("path", "string")], &["pattern"]),
         "coderide_grep" => object_schema(
             &[
                 ("query", "string"), ("pattern", "string"), ("pathScope", "string"), ("path", "string"),
-                ("fileType", "string"), ("glob", "string"), ("context_lines", "string"),
-                ("case_sensitive", "string"), ("multiline", "string"),
+                ("fileType", "string"), ("glob", "string"), ("context_lines", "integer"),
+                ("case_sensitive", "boolean"), ("multiline", "boolean"), ("output_mode", "string"),
             ],
             &[],
         ),
@@ -31,13 +31,13 @@ pub fn input_schema_for(name: &str) -> Value {
         "coderide_semantic_search" => object_schema(
             &[
                 ("query", "string"), ("target_directories", "string"), ("targetDirectories", "string"),
-                ("pathScope", "string"), ("path", "string"), ("num_results", "string"),
-                ("limit", "string"), ("min_confidence", "string"), ("show_scoring", "string"),
-                ("strict_scope", "string"),
+                ("pathScope", "string"), ("path", "string"), ("fileType", "string"), ("num_results", "integer"),
+                ("limit", "integer"), ("min_confidence", "number"), ("show_scoring", "boolean"),
+                ("strict_scope", "boolean"),
             ],
             &["query"],
         ),
-        "coderide_read_lints" => object_schema(&[("path", "string"), ("severity", "string"), ("limit", "string")], &[]),
+        "coderide_read_lints" => object_schema(&[("path", "string"), ("severity", "string"), ("limit", "integer")], &[]),
         "coderide_diagnostics" => object_schema(&[("manager", "string")], &[]),
         "coderide_git_diff" => object_schema(&[("path", "string")], &[]),
         "coderide_write" | "coderide_create_file" => object_schema(&[("path", "string"), ("content", "string")], &["path", "content"]),

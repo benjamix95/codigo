@@ -250,7 +250,7 @@ extension ChatPanelView {
         ) {
             todoStore.clearAgentTodos(
                 conversationId: targetConversationId,
-                includePlanCanonical: shouldClearPlanCanonicalTodos
+                includePlanCanonical: true
             )
             scheduleFallbackTurnStartEvent(
                 conversationId: targetConversationId,
@@ -323,10 +323,9 @@ extension ChatPanelView {
         ) {
             clearTaskActivityPipeline()
         }
-        todoStore.clearAgentTodos(
-            conversationId: targetConversationId,
-            includePlanCanonical: shouldClearPlanCanonicalTodos
-        )
+        if shouldClearPlanCanonicalTodos {
+            todoStore.clearCanonicalAgentTodos(conversationId: targetConversationId)
+        }
         scheduleFallbackTurnStartEvent(
             conversationId: targetConversationId,
             providerId: effectiveRuntimeProvider.id

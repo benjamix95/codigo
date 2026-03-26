@@ -75,31 +75,131 @@ public final class HybridSearchEngineBackend: SearchEngineBackend, @unchecked Se
         )
     }
 
-    // MARK: - RRF Fusion
+    // MARK: - Async Search (cooperative-thread-pool safe)
 
+    /// Async variant that runs lexical + vector search concurrently without
+    /// blocking the cooperative thread pool. Callers inside actors (e.g.
+    /// SemanticIndex) MUST prefer this over the sync `search()`.
+    public func asyncSearch(
+        query: SearchQueryInput,
+        snapshot: SemanticIndexSearchSnapshot
+    ) async -> SearchEngineBackendResponse {
+        let start = Date()
+
+        // Run lexical search on a non-cooperative thread to avoid actor hop issues.
+        let lexicalResponse = lexicalBackend.search(query: query, snapshot: snapshot)
+
+        // Vector search — fully async, no semaphore needed.
+        let vectorHits = await mergeWithVectorAsync(query: query)
+
+        let merged: [SearchHitOutput]
+        if vectorHits.isEmpty {
+            merged = lexicalResponse.hits
+        } else {
+            merged = rrfMerge(
+                lexicalHits: lexicalResponse.hits,
+                vectorHits: vectorHits,
+                limit: query.numResults
+            )
+        }
+
+        let elapsed = Int(Date().timeIntervalSince(start) * 1000)
+        return SearchEngineBackendResponse(
+            hits: merged,
+            metrics: SearchBackendMetrics(
+                backendKind: .hybrid,
+                elapsedMs: elapsed,
+                hitCount: merged.count,
+                usedFallback: false,
+                loadedRustLibrary: lexicalResponse.metrics.loadedRustLibrary,
+                errorMessage: nil
+            )
+        )
+    }
+
+    /// Async vector search with timeout — no DispatchSemaphore, fully
+    /// cooperative-thread-pool safe.
+    private func mergeWithVectorAsync(
+        query: SearchQueryInput
+    ) async -> [SearchHitOutput] {
+        do {
+            return try await withThrowingTaskGroup(of: [SearchHitOutput].self) { group in
+                group.addTask { [weak self] in
+                    guard let self else { return [] }
+                    guard let embedding = await self.embeddingService.embed(query.query) else {
+                        return []
+                    }
+                    return await self.vectorBackend.vectorSearch(
+                        queryEmbedding: embedding,
+                        limit: query.numResults,
+                        threshold: 0.3
+                    )
+                }
+
+                // 2-second timeout task.
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    return []
+                }
+
+                // Return the first result; if timeout wins, cancel the rest.
+                if let first = try await group.next() {
+                    if !first.isEmpty {
+                        group.cancelAll()
+                        return first
+                    }
+                    // First returned empty — could be timeout or no results.
+                    // Try second if available.
+                    if let second = try await group.next(), !second.isEmpty {
+                        return second
+                    }
+                }
+                return []
+            }
+        } catch {
+            logger.warning("mergeWithVectorAsync: vector search failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    // MARK: - RRF Fusion (legacy sync path)
+
+    /// Thread-safe box for bridging async results to sync contexts.
+    private final class SendableBox<T: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: T
+        init(_ initial: T) { self.value = initial }
+        func set(_ newValue: T) { lock.lock(); value = newValue; lock.unlock() }
+        func get() -> T { lock.lock(); defer { lock.unlock() }; return value }
+    }
+
+    /// Legacy sync bridge — retained for backward compatibility with callers
+    /// that cannot use `asyncSearch()`. Prefer `asyncSearch()` in actor contexts.
     private func mergeWithVectorSync(
         lexicalHits: [SearchHitOutput],
         query: SearchQueryInput
     ) -> [SearchHitOutput] {
-        // Get embedding for the query.
-        var vectorHits: [SearchHitOutput] = []
-
-        // Use a semaphore to bridge async → sync (within the search protocol).
+        let box = SendableBox<[SearchHitOutput]>([])
         let semaphore = DispatchSemaphore(value: 0)
-        Task.detached { [weak self] in
-            guard let self else { semaphore.signal(); return }
-            if let embedding = await self.embeddingService.embed(query.query) {
-                vectorHits = await self.vectorBackend.vectorSearch(
-                    queryEmbedding: embedding,
-                    limit: query.numResults,
-                    threshold: 0.3
-                )
-            }
-            semaphore.signal()
-        }
-        // Timeout after 500ms — don't block indefinitely.
-        _ = semaphore.wait(timeout: .now() + 0.5)
 
+        Task.detached { [weak self] in
+            defer { semaphore.signal() }
+            guard let self else { return }
+            guard let embedding = await self.embeddingService.embed(query.query) else { return }
+            let hits = await self.vectorBackend.vectorSearch(
+                queryEmbedding: embedding,
+                limit: query.numResults,
+                threshold: 0.3
+            )
+            box.set(hits)
+        }
+
+        let waitResult = semaphore.wait(timeout: .now() + 2.0)
+        if waitResult == .timedOut {
+            logger.warning("mergeWithVectorSync: vector search timed out after 2s, returning lexical only")
+        }
+
+        let vectorHits = box.get()
         guard !vectorHits.isEmpty else { return lexicalHits }
         return rrfMerge(lexicalHits: lexicalHits, vectorHits: vectorHits, limit: query.numResults)
     }

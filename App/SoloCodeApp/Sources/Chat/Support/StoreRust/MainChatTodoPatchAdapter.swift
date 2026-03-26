@@ -35,6 +35,9 @@ enum MainChatTodoPatchAdapter {
                     linkedFiles: patch.linkedFiles,
                     conversationId: conversationId
                 )
+                if status == .done, let conversationId {
+                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: conversationId)
+                }
                 if patch.shouldEmitTraceUpdate,
                    let conversationId
                 {
@@ -46,7 +49,11 @@ enum MainChatTodoPatchAdapter {
                 else {
                     continue
                 }
+                let scopedConversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
                 todoStore.setStatus(id: todoId, status: status)
+                if status == .done, let scopedConversationId {
+                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: scopedConversationId)
+                }
                 if patch.shouldEmitTraceUpdate,
                    let conversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
                 {
@@ -54,7 +61,23 @@ enum MainChatTodoPatchAdapter {
                 }
             case .removeTodo:
                 guard let todoId = patch.todoId.flatMap(UUID.init(uuidString:)) else { continue }
+                let removalConversationId = patch.conversationId.flatMap(UUID.init(uuidString:))
+                // #region agent log
+                ComposerTodoDebugNDJSONLog.append(
+                    hypothesisId: "H6",
+                    location: "MainChatTodoPatchAdapter.swift:removeTodo",
+                    message: "rust_remove_todo_then_maybe_advance",
+                    runId: "post-fix",
+                    data: [
+                        "todoId8": String(todoId.uuidString.prefix(8)),
+                        "conv8": removalConversationId.map { String($0.uuidString.prefix(8)) } ?? "nil",
+                    ]
+                )
+                // #endregion
                 todoStore.remove(id: todoId)
+                if let removalConversationId {
+                    _ = todoStore.advanceNextRuntimeTodoIfNeeded(conversationId: removalConversationId)
+                }
             case .clearMessageRuntimeState:
                 continue
             }

@@ -73,8 +73,11 @@ struct ChatComposerView: View {
     let onVoiceAction: () -> Void
     let onOptimizePrompt: () -> Void
     let isOptimizingPrompt: Bool
+    var topOverlay: AnyView? = nil
 
-    // MARK: - Body
+    private var composerChromeAnimationToken: String {
+        "\(isInputFocused)-\(isComposerDropTargeted)"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,7 +86,66 @@ struct ChatComposerView: View {
             }
 
             VStack(spacing: isIDEStyle ? 6 : 8) {
-                composerBox
+                // The parent mounts the todo overlay above the composer while
+                // preserving the same fused visual container.
+                VStack(spacing: 0) {
+                    if let topOverlay {
+                        topOverlay
+                    }
+
+                    composerBoxContent
+                        .padding(.horizontal, isIDEStyle ? 12 : 14)
+                        .padding(.vertical, isIDEStyle ? 8 : 10)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 20, style: .continuous)
+                        .fill(composerSurfaceGradient)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 20, style: .continuous)
+                        .strokeBorder(
+                            isComposerDropTargeted
+                                ? Color.white.opacity(0.35)
+                                : (isInputFocused
+                                    ? Color.white.opacity(0.22)
+                                    : Color.white.opacity(0.12)),
+                            lineWidth: isComposerDropTargeted ? 1.2 : 0.8
+                        )
+                        .animation(.easeOut(duration: 0.2), value: composerChromeAnimationToken)
+                )
+                .shadow(color: Color.black.opacity(isIDEStyle ? 0.14 : 0.25), radius: isIDEStyle ? 6 : 12, y: isIDEStyle ? 1 : 3)
+                .onDrop(
+                    of: [.item, .fileURL, .image, .png, .jpeg, .gif, .pdf],
+                    isTargeted: $isComposerDropTargeted
+                ) { providers in
+                    Task {
+                        var incoming: [ComposerAttachment] = []
+                        for provider in providers {
+                            if let attachment = await AttachmentIntakeService.attachmentFromDropProvider(provider) {
+                                incoming.append(attachment)
+                            }
+                        }
+                        await MainActor.run {
+                            appendAttachments(incoming)
+                        }
+                    }
+                    return true
+                }
+                .overlay {
+                    if isConvertingHeic {
+                        RoundedRectangle(cornerRadius: isIDEStyle ? 18 : 26, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                            .overlay {
+                                VStack(spacing: 8) {
+                                    ProgressView().controlSize(.regular)
+                                    Text("Converting HEIC image...")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                    }
+                }
+
                 if !slashMatches.isEmpty {
                     slashAutocompletePanel
                 }

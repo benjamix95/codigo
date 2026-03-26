@@ -27,11 +27,23 @@ public actor SemanticIndex {
     let searchBackend: any SearchEngineBackend
     var lastSearchMetrics: SearchBackendMetrics?
 
+    // MARK: - Debounced Persistence
+    /// Task per il debounce della persistenza. Cancellato e ricreato ad ogni modifica.
+    var persistDebounceTask: Task<Void, Never>?
+    /// Intervallo di debounce in nanosecondi (2 secondi).
+    static let persistDebounceNs: UInt64 = 2_000_000_000
+
     // MARK: - Chunk Budget (LRU Eviction)
     /// Limite massimo di chunk in memoria. Default 50K.
     let maxChunks: Int
     /// Timestamp di ultimo accesso per ogni chunkId (LRU tracking).
     var chunkAccessOrder: [String: Date] = [:]
+    /// File paths modified since last persist. Only dirty files trigger a full rewrite.
+    var dirtyFilePaths: Set<String> = []
+    /// Running total of all token counts across documents. Updated incrementally
+    /// by addChunks/removeChunksForFile/removeChunk so that avgDocLength can be
+    /// recomputed in O(1) instead of O(n).
+    var totalTokenCount: Int = 0
     /// Soglia di warning (80% della capacità).
     static let capacityWarningThreshold: Double = 0.8
 
