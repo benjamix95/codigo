@@ -340,7 +340,8 @@ extension MessageRow {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
                 .textShimmer(active: true)
-            if status != "Planning next move", let detail = streamingDetailText, !detail.isEmpty {
+            if status != "Planning next move", status != "Thinking",
+               let detail = streamingDetailText, !detail.isEmpty {
                 Text("·")
                     .foregroundStyle(.secondary)
                 Text(detail)
