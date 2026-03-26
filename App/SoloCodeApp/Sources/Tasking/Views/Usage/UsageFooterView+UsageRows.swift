@@ -68,7 +68,7 @@ extension UsageFooterView {
                 Image(systemName: "octagon.fill")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.red)
-                    .help(providerUsageStore.codexRateLimitMessage ?? "Rate limit reached")
+                    .help(Text(verbatim: providerUsageStore.codexRateLimitMessage ?? "Rate limit reached"))
             } else if providerUsageStore.isCodexUsageHigh {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))
@@ -126,9 +126,11 @@ extension UsageFooterView {
             }
         }
         .help(
-            providerUsageStore.isCodexRateLimited
-                ? (providerUsageStore.codexRateLimitMessage ?? "Rate limit reached")
-                : "Codex CLI usage"
+            Text(
+                verbatim: providerUsageStore.isCodexRateLimited
+                    ? (providerUsageStore.codexRateLimitMessage ?? "Rate limit reached")
+                    : "Codex CLI usage"
+            )
         )
     }
 
@@ -150,7 +152,7 @@ extension UsageFooterView {
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
                 .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
-                .help(claudeCLIStatusHelp(st))
+                .help(Text(verbatim: claudeCLIStatusHelp(st)))
             }
             if let u = providerUsageStore.claudeUsage {
                 if let source = providerUsageStore.claudeUsageSourceLabel, !source.isEmpty {
@@ -164,10 +166,12 @@ extension UsageFooterView {
                 if let message = providerUsageStore.claudeUsageMessage,
                    !message.isEmpty,
                    providerUsageStore.claudeUsageSourceLabel == "Local session" {
-                    Text("fallback")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                        .help(message)
+                    Group {
+                        Text("fallback")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .help(Text(verbatim: message))
                 }
                 if let c = u.sessionCost {
                     Text(c)
@@ -207,7 +211,9 @@ extension UsageFooterView {
             }
         }
         .help(
-            "Claude Code — stato CLI (`claude auth status`), usage Admin API o sessione locale (`/cost`)"
+            Text(
+                verbatim: "Claude Code — stato CLI (`claude auth status`), usage Admin API o sessione locale (`/cost`)"
+            )
         )
     }
 
@@ -291,6 +297,6 @@ extension UsageFooterView {
                     .help("Context window almost full — conversation will be summarized automatically")
             }
         }
-        .help(formatContextPercentHelpText(pct))
+        .help(Text(verbatim: formatContextPercentHelpText(pct)))
     }
 }
