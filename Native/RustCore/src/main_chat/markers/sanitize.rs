@@ -43,11 +43,12 @@ const STRUCTURED_KEYS: &[&str] = &[
 ];
 
 pub fn strip_coderide_markers(content: &str, aggressive: bool) -> String {
-    if !should_run_marker_cleanup(content, aggressive) {
-        return normalize_fast_path(content, aggressive);
+    let content = strip_lines_starting_with_coderide_tool_noise(content);
+    if !should_run_marker_cleanup(&content, aggressive) {
+        return normalize_fast_path(&content, aggressive);
     }
 
-    let mut result = split_by_code_fences(content)
+    let mut result = split_by_code_fences(&content)
         .into_iter()
         .map(|(text, is_code_fence)| {
             if is_code_fence {
@@ -83,6 +84,50 @@ fn should_run_marker_cleanup(content: &str, aggressive: bool) -> bool {
             || AGGRESSIVE_NEEDLES
                 .iter()
                 .any(|needle| content.to_lowercase().contains(&needle.to_lowercase())))
+}
+
+fn line_should_be_hidden_as_coderide_tool_noise(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let payload = if let Some(rest) = trimmed.strip_prefix("- ") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("* ") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("+ ") {
+        rest
+    } else {
+        trimmed
+    };
+    let core = payload.trim_start();
+    if core.is_empty() {
+        return false;
+    }
+    let lower = core.to_lowercase();
+    lower.starts_with("coderide_")
+        || lower.starts_with("mcp__coderide__coderide_")
+        || lower.starts_with("functions.mcp__coderide__coderide_")
+        || lower.starts_with("functions.coderide_")
+}
+
+/// Rimuove righe “rumore” solo-nome-tool (es. `coderide_subagent_explorer`) dalla prose in chat;
+/// i blocchi ```…``` restano intatti.
+fn strip_lines_starting_with_coderide_tool_noise(content: &str) -> String {
+    split_by_code_fences(content)
+        .into_iter()
+        .map(|(segment, is_code)| {
+            if is_code {
+                segment
+            } else {
+                segment
+                    .lines()
+                    .filter(|line| !line_should_be_hidden_as_coderide_tool_noise(line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+        })
+        .collect()
 }
 
 fn normalize_fast_path(content: &str, aggressive: bool) -> String {

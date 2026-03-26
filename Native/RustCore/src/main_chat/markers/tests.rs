@@ -34,6 +34,30 @@ mod tests {
     }
 
     #[test]
+    fn strip_removes_standalone_coderide_tool_line_even_on_fast_path() {
+        let input = "coderide_subagent_explorer";
+        let sanitized = strip(input, true);
+        assert!(!sanitized.to_lowercase().contains("coderide_"));
+        assert!(sanitized.trim().is_empty());
+    }
+
+    #[test]
+    fn strip_keeps_coderide_tool_line_inside_code_fence() {
+        let input = "Before\n```\ncoderide_subagent_explorer\n```\nAfter";
+        let sanitized = strip(input, true);
+        assert!(sanitized.contains("coderide_subagent_explorer"));
+        assert!(sanitized.contains("After"));
+    }
+
+    #[test]
+    fn strip_removes_list_item_coderide_tool_line() {
+        let input = "- coderide_read\n\nHello";
+        let sanitized = strip(input, true);
+        assert!(!sanitized.to_lowercase().contains("coderide_"));
+        assert!(sanitized.contains("Hello"));
+    }
+
+    #[test]
     fn strip_removes_inline_marker_payloads() {
         let input = "Proceeding markers:plan_step|step_id=1|status=running|then continuing with the analysis.";
         let sanitized = strip(input, true);

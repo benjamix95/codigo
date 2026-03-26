@@ -130,26 +130,44 @@ extension ChatStore {
         return MainChatTaskRuntimeStateBridge(taskStates: states)
     }
 
-    private static var isRustMarkersRuntimeAvailable: Bool { ReviewCoreBridge.isEnabled }
+    nonisolated private static var isRustMarkersRuntimeAvailable: Bool { ReviewCoreBridge.isEnabled }
 
-    static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
+    nonisolated static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
         guard isRustMarkersRuntimeAvailable else { return swiftFallbackStripCoderideMarkers(content, aggressive: aggressive) }
         let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "strip_coderide_markers", text: content, aggressive: aggressive)
         guard let result = RustMainChatStoreAdapter.handleMarkers(request) else { return swiftFallbackStripCoderideMarkers(content, aggressive: aggressive) }
         return result
     }
 
-    private static func swiftFallbackStripCoderideMarkers(_ content: String, aggressive: Bool) -> String {
-        let pattern = "\\[CODERIDE:[^\\]]*\\]"
-        let stripped = content.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Reasoning / thinking: sempre senza marker operativi `[CODERIDE:…]` in UI e persistenza.
+    nonisolated static func sanitizedChatReasoningText(_ text: String) -> String {
+        stripCoderideMarkers(text, aggressive: true)
+    }
+
+    nonisolated private static func swiftFallbackStripCoderideMarkers(_ content: String, aggressive: Bool) -> String {
+        var working = CoderideDisplayLineFilter.stripDisplayLinesWithCoderideToolPrefix(content)
+        let pattern = "\\[\\s*CODERIDE\\s*:[^\\]\\n]*\\]"
+        working = working.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        // Marker senza `]` (streaming/troncato): rimuovi dalla `[` fino a fine riga o fine stringa.
+        while let range = working.range(of: "[CODERIDE", options: .caseInsensitive) {
+            let tail = working[range.lowerBound...]
+            if let close = tail.firstIndex(of: "]") {
+                working.removeSubrange(range.lowerBound...close)
+            } else if let nl = tail.firstIndex(of: "\n") {
+                working.removeSubrange(range.lowerBound..<nl)
+            } else {
+                working.removeSubrange(range.lowerBound..<working.endIndex)
+                break
+            }
+        }
+        let stripped = working.trimmingCharacters(in: .whitespacesAndNewlines)
         if aggressive {
             return stripped
         }
         return stripped
     }
 
-    static func extractLastOperationalThinkingLine(from content: String) -> String? {
+    nonisolated static func extractLastOperationalThinkingLine(from content: String) -> String? {
         guard isRustMarkersRuntimeAvailable else { return nil }
         let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "extract_last_operational_thinking_line", text: content, aggressive: nil)
         guard let result = RustMainChatStoreAdapter.handleMarkers(request) else { return nil }
