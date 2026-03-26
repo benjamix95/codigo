@@ -16,7 +16,7 @@ final class KiloStateStore: ObservableObject {
         let path = storedPath.isEmpty ? nil : storedPath
         Task.detached(priority: .utility) { [path] in
             let result = KiloDetector.detect(customPath: path)
-            await MainActor.run { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.status = result
             }
         }

@@ -18,9 +18,9 @@ final class CodexStateStore: ObservableObject {
     func refresh() {
         let path = storedPath.isEmpty ? nil : storedPath
         // Run the blocking detection off the main thread.
-        Task.detached(priority: .utility) { [weak self] in
+        Task.detached(priority: .utility) { [path] in
             let result = CodexDetector.detect(customPath: path)
-            DispatchQueue.main.async {
+            Task { @MainActor [weak self] in
                 self?.status = result
             }
         }
