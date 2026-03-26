@@ -65,16 +65,42 @@ extension PipelineIntegrationService {
               let runtime = runtime(for: conversationId)
         else { return }
         let status = runtime.chatTurnState.status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard status != "completed", status != "failed" else { return }
+        guard status != "completed", status != "failed" else {
+            // #region agent log
+            CursorSessionDebugNDJSON.append(
+                hypothesisId: "H2",
+                location: "PipelineIntegrationService+EventSupport.swift",
+                message: "assistant_update_skip_terminal_status",
+                data: ["status": status, "conv": String(conversationId.uuidString.prefix(8))]
+            )
+            // #endregion
+            return
+        }
 
         // Codex app-server: la fase `commentary` è instradata come testo principale (text_delta + assistant_update),
         // così la risposta visibile non resta solo nel blocco Thinking.
 
+        let phase = (rawEvent.payload["phase"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let rawText = rawEvent.payload["output"] ?? rawEvent.payload["text"]
             ?? rawEvent.payload["content"] ?? rawEvent.payload["detail"] ?? ""
         let cleaned = ChatStore.stripCoderideMarkers(rawText, aggressive: true)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty else { return }
+        guard !cleaned.isEmpty else {
+            // #region agent log
+            CursorSessionDebugNDJSON.append(
+                hypothesisId: "H2",
+                location: "PipelineIntegrationService+EventSupport.swift",
+                message: "assistant_update_empty_after_strip",
+                data: [
+                    "phase": phase,
+                    "rawChars": "\(rawText.count)",
+                    "conv": String(conversationId.uuidString.prefix(8)),
+                ]
+            )
+            // #endregion
+            return
+        }
         if mainChatTraceLoggingEnabled() {
             NSLog(
                 "[MainChatTrace] pipeline assistant_update project conv=%@ msg=%@ chars=%ld status=%@",
@@ -89,8 +115,35 @@ extension PipelineIntegrationService {
             ? (runtime.chatTurnState.orderedTextStreamIds.first ?? "main")
             : rawEvent.taskId
         guard runtime.chatTurnState.textByStreamId[streamId]?.trimmingCharacters(in: .whitespacesAndNewlines) != cleaned else {
+            // #region agent log
+            CursorSessionDebugNDJSON.append(
+                hypothesisId: "H2",
+                location: "PipelineIntegrationService+EventSupport.swift",
+                message: "assistant_update_skip_duplicate_stream",
+                data: [
+                    "phase": phase,
+                    "streamId": String(streamId.prefix(24)),
+                    "cleanedChars": "\(cleaned.count)",
+                    "conv": String(conversationId.uuidString.prefix(8)),
+                ]
+            )
+            // #endregion
             return
         }
+
+        // #region agent log
+        CursorSessionDebugNDJSON.append(
+            hypothesisId: "H2",
+            location: "PipelineIntegrationService+EventSupport.swift",
+            message: "assistant_update_emit_textReplace",
+            data: [
+                "phase": phase,
+                "cleanedChars": "\(cleaned.count)",
+                "streamId": String(streamId.prefix(24)),
+                "conv": String(conversationId.uuidString.prefix(8)),
+            ]
+        )
+        // #endregion
 
         consumePipelineEvents([ChatPipelineEvent(
             conversationId: conversationId,

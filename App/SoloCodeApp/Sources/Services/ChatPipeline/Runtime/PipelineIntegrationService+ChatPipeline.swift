@@ -139,11 +139,12 @@ extension PipelineIntegrationService {
             }
             #endif
 
-            if !applyPipelineEventsThroughRustBoundary(
+            let committedViaRust = applyPipelineEventsThroughRustBoundary(
                 sequencedEvents,
                 runtime: runtime,
                 chatStore: chatStore
-            ) {
+            )
+            if !committedViaRust {
                 for sequenced in sequencedEvents {
                     NSLog(
                         "[PipelineIntegrationService] Rust pipeline boundary unavailable for %@, applying Swift fallback",
@@ -167,6 +168,27 @@ extension PipelineIntegrationService {
             let primaryText = runtime.chatTurnState.primaryTextSnapshot
             let textKeys = runtime.chatTurnState.textByStreamId.keys.sorted()
             let streamIds = runtime.chatTurnState.orderedTextStreamIds
+            // #region agent log
+            let hasTextish = sequencedEvents.contains {
+                $0.kind == .textDelta || $0.kind == .textReplace
+            }
+            if hasTextish || !primaryText.isEmpty {
+                let kinds = sequencedEvents.map { $0.kind.rawValue }.joined(separator: ",")
+                CursorSessionDebugNDJSON.append(
+                    hypothesisId: "H2",
+                    location: "PipelineIntegrationService+ChatPipeline.swift",
+                    message: "pipeline_commit_snapshot",
+                    data: [
+                        "primaryChars": "\(primaryText.count)",
+                        "viaRust": committedViaRust ? "1" : "0",
+                        "textStreamKeys": "\(textKeys.count)",
+                        "blockCount": "\(runtime.chatTurnState.blocks.count)",
+                        "kindsTail": String(kinds.suffix(120)),
+                        "conv": String(conversationId.uuidString.prefix(8)),
+                    ]
+                )
+            }
+            // #endregion
             #if DEBUG
             if !primaryText.isEmpty || !coalescedEvents.filter({ $0.kind == .textDelta || $0.kind == .textReplace }).isEmpty {
                 print(
