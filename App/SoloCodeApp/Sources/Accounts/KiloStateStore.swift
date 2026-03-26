@@ -17,6 +17,8 @@ final class KiloStateStore: ObservableObject {
         Task.detached(priority: .utility) { [path] in
             let result = KiloDetector.detect(customPath: path)
             Task { @MainActor [weak self] in
+                // Evita "Publishing changes from within view updates" se il risultato arriva durante un refresh SwiftUI.
+                await Task.yield()
                 self?.status = result
             }
         }
