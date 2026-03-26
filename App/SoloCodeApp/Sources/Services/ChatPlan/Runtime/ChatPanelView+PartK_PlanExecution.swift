@@ -17,7 +17,8 @@ extension ChatPanelView {
             isLoadingCurrentConversation: isLoadingForCurrentConversation,
             phase: planFlowPhase,
             activeBuildPlanConversationId: activeBuildPlanConversationId,
-            hasActiveBuildTask: hasActiveBuildTask
+            hasActiveBuildTask: hasActiveBuildTask,
+            isPlanBuildCheckpointInFlight: interactionState.isPlanBuildCheckpointInFlight
         )
         guard canStartBuild else {
             if hasActiveBuildTask {
@@ -99,92 +100,112 @@ extension ChatPanelView {
             scopeMode: ContextScopeMode(rawValue: uiSettings.contextScopeModeRaw) ?? .auto
         )
 
-        do {
-            try createCheckpointBeforeTurn(
-                conversationId: agentConvId,
-                workspaceContext: ctx,
+        let pathStrings = ctx.workspacePaths.map(\.path)
+        let sequentialPlanSteps = !uiSettings.planBuildParallelStepsEnabled
+        interactionState.isPlanBuildCheckpointInFlight = true
+        Task { @MainActor in
+            defer { interactionState.isPlanBuildCheckpointInFlight = false }
+
+            let gitStates: [ConversationCheckpointGitState]
+            do {
+                gitStates = try await Task.detached { [checkpointGitStore] in
+                    try checkpointGitStore.captureSnapshots(
+                        conversationId: agentConvId,
+                        workspacePaths: pathStrings
+                    )
+                }.value
+            } catch {
+                if let gitError = error as? ConversationCheckpointGitStore.GitStoreError,
+                   case .notGitRepository = gitError {
+                    gitStates = []
+                } else {
+                    appendTechnicalErrorMessage(
+                        "[Checkpoint error: \(error.localizedDescription)]",
+                        in: agentConvId
+                    )
+                    return
+                }
+            }
+            chatStore.createCheckpoint(
+                for: agentConvId,
+                gitStates: gitStates,
                 planConversationIdForSnapshot: planConversationId
             )
-        } catch {
-            appendTechnicalErrorMessage(
-                "[Checkpoint error: \(error.localizedDescription)]", in: agentConvId)
-            return
-        }
 
-        let selectionResponse = applyPlanUIIntent(
-            "choose_plan_option",
-            conversationId: planConversationId,
-            text: choice
-        )
-        let canonicalTodoTitles = selectionResponse?.state?.runtimeSnapshot?.plan?.canonicalTodos ?? []
-        guard !canonicalTodoTitles.isEmpty else {
-            appendTechnicalErrorMessage(
-                "[Plan] Build requires a todo checklist in the selected option.",
-                in: conversationId
+            let selectionResponse = applyPlanUIIntent(
+                "choose_plan_option",
+                conversationId: planConversationId,
+                text: choice
             )
-            if !showPlanPanel {
-                openPlanPanelForCurrentContext(
-                    preserveHistorySelection: true,
-                    source: .manualDeepLink
+            let canonicalTodoTitles = selectionResponse?.state?.runtimeSnapshot?.plan?.canonicalTodos ?? []
+            guard !canonicalTodoTitles.isEmpty else {
+                appendTechnicalErrorMessage(
+                    "[Plan] Build requires a todo checklist in the selected option.",
+                    in: conversationId
                 )
+                if !showPlanPanel {
+                    openPlanPanelForCurrentContext(
+                        preserveHistorySelection: true,
+                        source: .manualDeepLink
+                    )
+                }
+                return
             }
-            return
+
+            todoStore.upsertCanonicalPlanTodos(canonicalTodoTitles, conversationId: planConversationId)
+            let canonicalTodos = todoStore.prepareCanonicalPlanTodosForBuild(
+                conversationId: planConversationId
+            )
+            chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planConversationId)
+
+            if let selected = planHistoryStore.selectedEntryId {
+                planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
+                planHistoryStore.markRebuilt(id: selected)
+            }
+            providerRegistry.selectedProviderId = provider.id
+            coderMode = .agent
+            _ = applyPlanUIIntent(
+                "begin_plan_build",
+                conversationId: planConversationId
+            )
+            activeBuildPlanConversationId = planConversationId
+            activeBuildAgentConversationId = agentConvId
+
+            let planBuildAssistantMessageId = UUID()
+            chatStore.addMessage(
+                ChatMessage(
+                    id: planBuildAssistantMessageId,
+                    role: .assistant,
+                    content: "",
+                    isStreaming: true
+                ),
+                to: agentConvId
+            )
+            suppressedEmptyBuildAssistantMessageIds.insert(planBuildAssistantMessageId)
+            startToolTraceTurn(
+                conversationId: agentConvId,
+                assistantMessageId: planBuildAssistantMessageId,
+                providerId: provider.id
+            )
+            chatStore.beginTask(conversationId: agentConvId)
+            if shouldResetTaskActivityStoreBeforeStartingTurn(
+                activeTaskConversationIds: chatStore.activeTaskConversationIds,
+                targetConversationId: agentConvId
+            ) {
+                clearTaskActivityPipeline()
+            }
+            scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
+
+            executePlanBuildViaPipeline(
+                provider: provider,
+                ctx: ctx,
+                planTodos: canonicalTodoTitles,
+                agentConvId: agentConvId,
+                planConversationId: planConversationId,
+                planBuildAssistantMessageId: planBuildAssistantMessageId,
+                sequentialPlanSteps: sequentialPlanSteps
+            )
         }
-
-        todoStore.upsertCanonicalPlanTodos(canonicalTodoTitles, conversationId: planConversationId)
-        let canonicalTodos = todoStore.prepareCanonicalPlanTodosForBuild(
-            conversationId: planConversationId
-        )
-        chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planConversationId)
-
-        if let selected = planHistoryStore.selectedEntryId {
-            planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
-            planHistoryStore.markRebuilt(id: selected)
-        }
-        // Keep the user on the plan conversation — build progress is visible
-        // in the plan panel's trace section. Only switch mode and phase.
-        providerRegistry.selectedProviderId = provider.id
-        coderMode = .agent
-        _ = applyPlanUIIntent(
-            "begin_plan_build",
-            conversationId: planConversationId
-        )
-        activeBuildPlanConversationId = planConversationId
-        activeBuildAgentConversationId = agentConvId
-
-        let planBuildAssistantMessageId = UUID()
-        chatStore.addMessage(
-            ChatMessage(
-                id: planBuildAssistantMessageId,
-                role: .assistant,
-                content: "",
-                isStreaming: true
-            ),
-            to: agentConvId
-        )
-        suppressedEmptyBuildAssistantMessageIds.insert(planBuildAssistantMessageId)
-        startToolTraceTurn(
-            conversationId: agentConvId,
-            assistantMessageId: planBuildAssistantMessageId,
-            providerId: provider.id
-        )
-        chatStore.beginTask(conversationId: agentConvId)
-        if shouldResetTaskActivityStoreBeforeStartingTurn(
-            activeTaskConversationIds: chatStore.activeTaskConversationIds,
-            targetConversationId: agentConvId
-        ) {
-            clearTaskActivityPipeline()
-        }
-        scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
-
-        executePlanBuildViaPipeline(
-            provider: provider,
-            ctx: ctx,
-            planTodos: canonicalTodoTitles,
-            agentConvId: agentConvId,
-            planConversationId: planConversationId,
-            planBuildAssistantMessageId: planBuildAssistantMessageId
-        )
     }
 
     // MARK: - Pipeline Path
@@ -195,14 +216,16 @@ extension ChatPanelView {
         planTodos: [String],
         agentConvId: UUID,
         planConversationId: UUID,
-        planBuildAssistantMessageId: UUID
+        planBuildAssistantMessageId: UUID,
+        sequentialPlanSteps: Bool
     ) {
         let todoItems = planTodos.map { PlanTodoItem(title: $0) }
         let workspace = ctx.workspacePath.path
         let (job, tasks) = PipelineJobFactory.fromPlanBuild(
             todos: todoItems,
             workspace: workspace,
-            providerId: provider.id
+            providerId: provider.id,
+            sequentialPlanSteps: sequentialPlanSteps
         )
         let workerAdapter = AgentWorkerAdapter(
             provider: provider,

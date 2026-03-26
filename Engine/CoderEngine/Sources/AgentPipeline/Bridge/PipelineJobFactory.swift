@@ -9,14 +9,17 @@ public enum PipelineJobFactory {
     // MARK: - Plan Build
 
     /// Crea un job + task DAG da una lista di plan todos.
-    /// Ogni todo diventa un TaskNode con dipendenza sequenziale sul precedente.
+    /// - When `sequentialPlanSteps` is `true` (default), ogni todo dipende dal precedente (ordine sicuro).
+    /// - When `false`, i task non hanno dipendenze incrociate e possono essere eseguiti in parallelo fino a `maxConcurrentWorkers`.
+    ///   Usare solo se il flusso è stato validato: passi paralleli possono modificare gli stessi file e corrompere il workspace.
     public static func fromPlanBuild(
         todos: [PlanTodoItem],
         workspace: String,
         providerId: String,
         mode: PipelineMode = .strict,
         maxConcurrentWorkers: Int = 4,
-        jobTimeoutMs: Int = 1_800_000
+        jobTimeoutMs: Int = 1_800_000,
+        sequentialPlanSteps: Bool = true
     ) -> (job: PipelineJob, tasks: [TaskNode]) {
         let jobId = "plan_\(UUID().uuidString.prefix(8))"
 
@@ -35,10 +38,14 @@ public enum PipelineJobFactory {
 
         for (index, todo) in todos.enumerated() {
             let taskId = "task_\(index)_\(sanitizeForId(todo.title))"
+            let dependsOn: [String] = {
+                guard sequentialPlanSteps else { return [] }
+                return previousId.map { [$0] } ?? []
+            }()
             var node = TaskNode(
                 taskId: taskId,
                 title: todo.title,
-                dependsOn: previousId.map { [$0] } ?? [],
+                dependsOn: dependsOn,
                 priority: max(0, 100 - index * 5),
                 risk: estimateRisk(from: todo.title),
                 taskType: inferTaskType(from: todo.title),
@@ -48,7 +55,9 @@ public enum PipelineJobFactory {
             )
             node.deriveTaskLabel()
             tasks.append(node)
-            previousId = taskId
+            if sequentialPlanSteps {
+                previousId = taskId
+            }
         }
 
         return (job, tasks)

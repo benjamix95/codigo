@@ -23,8 +23,10 @@ func shouldAllowStartingPlanBuild(
     isLoadingCurrentConversation: Bool,
     phase: PlanFlowPhase,
     activeBuildPlanConversationId: UUID?,
-    hasActiveBuildTask: Bool
+    hasActiveBuildTask: Bool,
+    isPlanBuildCheckpointInFlight: Bool = false
 ) -> Bool {
+    guard !isPlanBuildCheckpointInFlight else { return false }
     guard canStartPlanBuild(isLoading: isLoadingCurrentConversation, phase: phase) else {
         return false
     }

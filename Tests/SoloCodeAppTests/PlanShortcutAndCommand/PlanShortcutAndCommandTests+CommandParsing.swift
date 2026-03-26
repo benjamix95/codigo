@@ -259,4 +259,16 @@ extension PlanShortcutAndCommandTests {
         )
     }
 
+    func testShouldAllowStartingPlanBuildBlocksWhileCheckpointInFlight() {
+        XCTAssertFalse(
+            shouldAllowStartingPlanBuild(
+                isLoadingCurrentConversation: false,
+                phase: .readyToBuild,
+                activeBuildPlanConversationId: nil,
+                hasActiveBuildTask: false,
+                isPlanBuildCheckpointInFlight: true
+            )
+        )
+    }
+
 }

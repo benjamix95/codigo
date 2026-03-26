@@ -13,6 +13,8 @@ struct ChatPanelUISettings: DynamicProperty {
     @AppStorage("global_yolo") var globalYolo = false
     @AppStorage("task_panel_enabled") var taskPanelEnabled = false
     @AppStorage("plan_mode_backend") var planModeBackend = "codex"
+    /// When true, plan build pipeline tasks have no step-to-step dependencies (faster, higher conflict risk).
+    @AppStorage("plan_build_parallel_steps_enabled") var planBuildParallelStepsEnabled = false
     @AppStorage("unified_tool_runtime_enabled") var unifiedToolRuntimeEnabled = true
     @AppStorage("agents_hard_block_enabled") var agentsHardBlockEnabled = true
     @AppStorage("mcp_edit_enforcement_enabled") var mcpEditEnforcementEnabled = true

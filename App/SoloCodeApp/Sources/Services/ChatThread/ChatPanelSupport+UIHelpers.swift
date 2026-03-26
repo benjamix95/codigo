@@ -318,6 +318,8 @@ struct ChatPanelInteractionViewState {
     var isProviderReady = false
     var isSummarizing = false
     var isRewinding = false
+    /// Evita doppi avvii plan build mentre il checkpoint Git gira fuori dal main thread.
+    var isPlanBuildCheckpointInFlight = false
     var isAnyAgentProviderReady = false
     var checkProviderAuthGeneration = 0
     var userModeOverrideUntilConversationChange = false
@@ -601,6 +603,11 @@ extension ChatPanelView {
     var isRewinding: Bool {
         get { interactionState.isRewinding }
         nonmutating set { interactionState.isRewinding = newValue }
+    }
+
+    var isPlanBuildCheckpointInFlight: Bool {
+        get { interactionState.isPlanBuildCheckpointInFlight }
+        nonmutating set { interactionState.isPlanBuildCheckpointInFlight = newValue }
     }
 
     var isAnyAgentProviderReady: Bool {

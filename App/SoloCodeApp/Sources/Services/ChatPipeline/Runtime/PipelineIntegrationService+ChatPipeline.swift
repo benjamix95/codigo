@@ -38,67 +38,69 @@ extension PipelineIntegrationService {
               let runtime = runtime(for: conversationId),
               let chatStore
         else { return }
-        let coalescedEvents = coalescePipelineEvents(events)
-        var shouldPersistImmediately = false
-        let sequencedEvents = coalescedEvents.map { event -> ChatPipelineEvent in
-            let sequenced = ChatPipelineEvent(
-                conversationId: event.conversationId,
-                assistantMessageId: event.assistantMessageId,
-                turnId: event.turnId,
-                sequence: runtime.nextPipelineSequence,
-                source: event.source,
-                kind: event.kind,
-                payload: event.payload,
-                timestamp: event.timestamp
-            )
-            runtime.nextPipelineSequence += 1
-            return sequenced
-        }
-
-        for sequenced in sequencedEvents where sequenced.kind == .textDelta || sequenced.kind == .textReplace {
-            let delta = sequenced.payload["delta"] ?? sequenced.payload["replacement"] ?? ""
-            print(
-                "[ChatDebug] pipeline \(sequenced.kind.rawValue): delta=\(delta.count) payload=\(sequenced.payload.keys.sorted().joined(separator: ","))"
-            )
-        }
-
-        if !applyPipelineEventsThroughRustBoundary(
-            sequencedEvents,
-            runtime: runtime,
-            chatStore: chatStore
-        ) {
-            for sequenced in sequencedEvents {
-                NSLog(
-                    "[PipelineIntegrationService] Rust pipeline boundary unavailable for %@, applying Swift fallback",
-                    sequenced.kind.rawValue
+        PipelineIntegrationConsumeEventsSignpost.measure(eventCount: events.count) {
+            let coalescedEvents = coalescePipelineEvents(events)
+            var shouldPersistImmediately = false
+            let sequencedEvents = coalescedEvents.map { event -> ChatPipelineEvent in
+                let sequenced = ChatPipelineEvent(
+                    conversationId: event.conversationId,
+                    assistantMessageId: event.assistantMessageId,
+                    turnId: event.turnId,
+                    sequence: runtime.nextPipelineSequence,
+                    source: event.source,
+                    kind: event.kind,
+                    payload: event.payload,
+                    timestamp: event.timestamp
                 )
-                runtime.chatTurnState = ChatPipelineReducer.apply(
-                    state: runtime.chatTurnState,
-                    event: sequenced
-                )
-                ChatPipelineCommitter.commit(
-                    runtime.chatTurnState,
-                    chatStore: chatStore,
-                    persistImmediately: false
+                runtime.nextPipelineSequence += 1
+                return sequenced
+            }
+
+            for sequenced in sequencedEvents where sequenced.kind == .textDelta || sequenced.kind == .textReplace {
+                let delta = sequenced.payload["delta"] ?? sequenced.payload["replacement"] ?? ""
+                print(
+                    "[ChatDebug] pipeline \(sequenced.kind.rawValue): delta=\(delta.count) payload=\(sequenced.payload.keys.sorted().joined(separator: ","))"
                 )
             }
-        }
 
-        if sequencedEvents.contains(where: { $0.kind == .turnCompleted || $0.kind == .turnFailed }) {
-            shouldPersistImmediately = true
-        }
-        let primaryText = runtime.chatTurnState.primaryTextSnapshot
-        let textKeys = runtime.chatTurnState.textByStreamId.keys.sorted()
-        let streamIds = runtime.chatTurnState.orderedTextStreamIds
-        if !primaryText.isEmpty || !coalescedEvents.filter({ $0.kind == .textDelta || $0.kind == .textReplace }).isEmpty {
-            print(
-                "[ChatDebug] commit: primaryText=\(primaryText.count) textKeys=\(textKeys.joined(separator: ",")) streamIds=\(streamIds.joined(separator: ",")) blocks=\(runtime.chatTurnState.blocks.count)"
-            )
-        }
-        if shouldPersistImmediately {
-            chatStore.saveConversationsImmediately()
-        } else {
-            chatStore.saveConversations()
+            if !applyPipelineEventsThroughRustBoundary(
+                sequencedEvents,
+                runtime: runtime,
+                chatStore: chatStore
+            ) {
+                for sequenced in sequencedEvents {
+                    NSLog(
+                        "[PipelineIntegrationService] Rust pipeline boundary unavailable for %@, applying Swift fallback",
+                        sequenced.kind.rawValue
+                    )
+                    runtime.chatTurnState = ChatPipelineReducer.apply(
+                        state: runtime.chatTurnState,
+                        event: sequenced
+                    )
+                    ChatPipelineCommitter.commit(
+                        runtime.chatTurnState,
+                        chatStore: chatStore,
+                        persistImmediately: false
+                    )
+                }
+            }
+
+            if sequencedEvents.contains(where: { $0.kind == .turnCompleted || $0.kind == .turnFailed }) {
+                shouldPersistImmediately = true
+            }
+            let primaryText = runtime.chatTurnState.primaryTextSnapshot
+            let textKeys = runtime.chatTurnState.textByStreamId.keys.sorted()
+            let streamIds = runtime.chatTurnState.orderedTextStreamIds
+            if !primaryText.isEmpty || !coalescedEvents.filter({ $0.kind == .textDelta || $0.kind == .textReplace }).isEmpty {
+                print(
+                    "[ChatDebug] commit: primaryText=\(primaryText.count) textKeys=\(textKeys.joined(separator: ",")) streamIds=\(streamIds.joined(separator: ",")) blocks=\(runtime.chatTurnState.blocks.count)"
+                )
+            }
+            if shouldPersistImmediately {
+                chatStore.saveConversationsImmediately()
+            } else {
+                chatStore.saveConversations()
+            }
         }
     }
 
@@ -116,20 +118,50 @@ extension PipelineIntegrationService {
             output: nil
         )
         let rustStartTime = CFAbsoluteTimeGetCurrent()
-        let bridgeContext = MainChatUIBridgeContext.pipeline(
+
+        // Use cached store snapshot when available to avoid re-serializing
+        // all conversations on every pipeline event. The cache is populated
+        // from the Rust boundary response and invalidated on retarget/teardown.
+        let storeSnapshot = runtime.cachedStoreSnapshot
+            ?? RustMainChatStoreAdapter.snapshot(from: chatStore)
+
+        let uiState = MainChatUIStateBridge(
+            storeSnapshot: storeSnapshot,
             runtimeSnapshot: runtimeSnapshot,
-            conversationId: runtime.conversationId
+            taskRuntimeState: RustMainChatStoreAdapter.taskRuntimeState(from: chatStore),
+            selectedConversationId: runtime.conversationId.lowercasedString,
+            draftText: "",
+            planPanelVisible: false,
+            followLive: true,
+            collapsedArtifactIdsByTurn: [:],
+            autoTodoRuntimeStateByMessage: [:]
         )
-        guard let response = RustMainChatStoreAdapter.applyPipelineEvents(
-            events,
+
+        guard let first = events.first else { return true }
+        let request = MainChatUIIntentRequestBridge(
+            intent: "pipeline_apply_events",
+            state: uiState,
+            conversationId: first.conversationId,
+            turnId: first.turnId,
+            artifactId: nil,
+            text: nil,
+            timestamp: events.last?.timestamp,
+            pipelineEvent: nil,
+            pipelineEvents: events,
+            payload: [:]
+        )
+
+        guard let response = RustMainChatStoreAdapter.applyUIIntent(
+            request,
             to: chatStore,
-            context: bridgeContext,
             preserveLocalMessages: false
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
             let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - rustStartTime) * 1000)
             if elapsedMs > 100 {
                 NSLog("[PipelineIntegrationService] Rust batch boundary took %dms (>100ms threshold), events=%d", elapsedMs, events.count)
             }
+            // Invalidate cache on failure — next call will rebuild from store
+            runtime.cachedStoreSnapshot = nil
             if events.count == 1 {
                 return applyPipelineEventThroughRustBoundary(
                     events[0],
@@ -144,6 +176,8 @@ extension PipelineIntegrationService {
             NSLog("[PipelineIntegrationService] Rust batch boundary took %dms (>100ms threshold), events=%d", elapsedMs, events.count)
         }
         runtime.chatTurnState = nextState
+        // Cache the updated store snapshot from the Rust response
+        runtime.cachedStoreSnapshot = response.state?.storeSnapshot
         return true
     }
 
@@ -160,16 +194,41 @@ extension PipelineIntegrationService {
             output: nil
         )
         let rustStartTime = CFAbsoluteTimeGetCurrent()
-        let bridgeContext = MainChatUIBridgeContext.pipeline(
+
+        // Use cached store snapshot to avoid full re-serialization
+        let storeSnapshot = runtime.cachedStoreSnapshot
+            ?? RustMainChatStoreAdapter.snapshot(from: chatStore)
+
+        let uiState = MainChatUIStateBridge(
+            storeSnapshot: storeSnapshot,
             runtimeSnapshot: runtimeSnapshot,
-            conversationId: runtime.conversationId
+            taskRuntimeState: RustMainChatStoreAdapter.taskRuntimeState(from: chatStore),
+            selectedConversationId: runtime.conversationId.lowercasedString,
+            draftText: "",
+            planPanelVisible: false,
+            followLive: true,
+            collapsedArtifactIdsByTurn: [:],
+            autoTodoRuntimeStateByMessage: [:]
         )
-        guard let response = RustMainChatStoreAdapter.applyPipelineEvent(
-            event,
+
+        let request = MainChatUIIntentRequestBridge(
+            intent: "pipeline_apply_event",
+            state: uiState,
+            conversationId: event.conversationId,
+            turnId: event.turnId,
+            artifactId: nil,
+            text: nil,
+            timestamp: event.timestamp,
+            pipelineEvent: event,
+            payload: [:]
+        )
+
+        guard let response = RustMainChatStoreAdapter.applyUIIntent(
+            request,
             to: chatStore,
-            context: bridgeContext,
             preserveLocalMessages: false
         ), let nextState = response.state?.runtimeSnapshot?.turnState.chatTurnState else {
+            runtime.cachedStoreSnapshot = nil
             return false
         }
         let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - rustStartTime) * 1000)
@@ -177,6 +236,8 @@ extension PipelineIntegrationService {
             NSLog("[PipelineIntegrationService] Rust single-event boundary took %dms (>100ms threshold), kind=%@", elapsedMs, event.kind.rawValue)
         }
         runtime.chatTurnState = nextState
+        // Cache the updated store snapshot
+        runtime.cachedStoreSnapshot = response.state?.storeSnapshot
         return true
     }
 
