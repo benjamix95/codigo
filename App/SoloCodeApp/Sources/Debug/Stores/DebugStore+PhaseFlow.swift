@@ -71,6 +71,8 @@ extension DebugStore {
 
         if newPhase == .reproducing {
             clearStreamLogs()
+        } else if newPhase == .verifying, currentPhase == .fixing {
+            clearStreamLogs()
         }
         phase = newPhase
         if newPhase == .reproducing && currentRunId == nil {

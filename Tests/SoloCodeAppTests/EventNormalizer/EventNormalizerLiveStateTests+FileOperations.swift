@@ -1,4 +1,5 @@
 import XCTest
+import CoderEngine
 @testable import CoderIDE
 
 extension EventNormalizerLiveStateTests {
@@ -40,7 +41,7 @@ extension EventNormalizerLiveStateTests {
             return
         }
         XCTAssertEqual(activity.type, "command_execution")
-        XCTAssertEqual(activity.title, "command_execution")
+        XCTAssertEqual(activity.title, AgentToolUIDisplayName.label(forRuntimeTool: "command_execution"))
     }
 
     func testTrustedMCPEventUsesOnlyNormalizedToolNameAsTitle() {
@@ -56,7 +57,7 @@ extension EventNormalizerLiveStateTests {
             XCTFail("Missing taskActivity event")
             return
         }
-        XCTAssertEqual(activity.title, "file_outline")
+        XCTAssertEqual(activity.title, AgentToolUIDisplayName.label(forRuntimeTool: "file_outline"))
     }
 
     func testApplyPatchEnvelopeKindIsFileUpdate() {

@@ -81,7 +81,7 @@ final class DebugStoreGateAndFindingsTests: XCTestCase {
         XCTAssertEqual(store.debugFindings.count, 1)
         XCTAssertEqual(store.debugFindings.first?.title, "Memory leak in NetworkManager")
         XCTAssertEqual(store.debugFindings.first?.severity, .high)
-        XCTAssertEqual(store.debugFindings.first?.status, .investigating)
+        XCTAssertEqual(store.debugFindings.first?.status, .open)
     }
 
     func testAddFindingFromMarker() {

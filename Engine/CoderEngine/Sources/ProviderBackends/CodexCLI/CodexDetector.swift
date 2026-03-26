@@ -51,7 +51,10 @@ public enum CodexDetector {
 
     /// Rileva path di Codex CLI
     public static func findCodexPath(customPath: String? = nil) -> String? {
-        if let custom = customPath, !custom.isEmpty, FileManager.default.isExecutableFile(atPath: custom) {
+        if let custom = customPath, !custom.isEmpty {
+            guard FileManager.default.isExecutableFile(atPath: custom) else {
+                return nil
+            }
             return custom
         }
         return PathFinder.find(executable: "codex")

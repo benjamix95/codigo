@@ -260,5 +260,19 @@ extension CodeReviewPanelStore {
             )
             return
         }
+        if ReviewCoreBridge.isEnabled,
+           let fallback = snapshotApplyingPatchPrepareFailure(
+            snapshot,
+            findingId: findingId,
+            message: message
+        ) {
+            taskActivityStore.scheduleCodeReviewSnapshotIngest(fallback, conversationId: conversationId)
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Patch fallita",
+                detail: message
+            )
+        }
     }
 }
