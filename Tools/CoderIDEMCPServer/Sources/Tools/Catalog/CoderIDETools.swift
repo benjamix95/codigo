@@ -3,6 +3,11 @@ import MCP
 
 /// All tools exposed by CoderIDE MCP Server, with their JSON schemas.
 /// Codex CLI will register these as available tools for the model.
+///
+/// **Parità con Rust:** i nomi devono coincidere con `Native/CoderideMCPServerRust/src/tool_names.txt`.
+/// Le descrizioni mostrate dal server MCP Rust in `tools/list` sono il testo unione di
+/// `tool_descriptions.json` + blurbs audit in `tool_descriptions.rs` (ogni voce include la clausola **Usage:**).
+/// Aggiorna entrambi quando aggiungi o rinomini un tool.
 struct CoderIDETools {
     static let all: [Tool] = fileTools
         + searchTools

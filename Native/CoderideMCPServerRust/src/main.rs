@@ -1,5 +1,6 @@
 mod audit_tools;
 mod catalog;
+mod tool_descriptions;
 mod debug_tools;
 mod diagnostics_tools;
 mod mcp_index_cache;

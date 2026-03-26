@@ -26,11 +26,11 @@ pub enum ToolFamily {
     Web,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ToolSpec {
     pub name: &'static str,
     pub family: ToolFamily,
-    pub description: &'static str,
+    pub description: String,
     pub read_only: bool,
 }
 
@@ -40,7 +40,7 @@ pub fn all_tools() -> Vec<ToolDefinition> {
         .map(|spec| {
             ToolDefinition::with_schema(
                 spec.name,
-                Some(spec.description.to_string()),
+                Some(spec.description.clone()),
                 spec.read_only,
                 input_schema_for(spec.name),
             )
@@ -56,7 +56,7 @@ fn tool_spec(name: &'static str) -> ToolSpec {
     ToolSpec {
         name,
         family: family_for(name),
-        description: description_for(name),
+        description: crate::tool_descriptions::description_for(name),
         read_only: is_read_only(name),
     }
 }
@@ -100,36 +100,11 @@ fn family_for(name: &str) -> ToolFamily {
             | "coderide_write" => ToolFamily::Edit,
             "coderide_git_diff" => ToolFamily::Git,
             "coderide_glob" | "coderide_grep" => ToolFamily::Search,
-            "coderide_mermaid_render"
-            | "coderide_policy_ack"
-            | "coderide_activate_debug_mode" => ToolFamily::Policy,
+            "coderide_mermaid_render" | "coderide_policy_ack" => ToolFamily::Policy,
             "coderide_list_dir" | "coderide_read" | "coderide_read_range" => ToolFamily::File,
             "coderide_show_swarm_panel" | "coderide_show_task_panel" => ToolFamily::Ui,
             _ => ToolFamily::Policy,
         }
-    }
-}
-
-fn description_for(name: &str) -> &'static str {
-    match name {
-        "coderide_read" => "Read a file from the current workspace",
-        "coderide_list_dir" => "List files and directories in the current workspace",
-        "coderide_glob" => "Find files matching a glob pattern",
-        "coderide_grep" => "Search file contents using ripgrep-compatible semantics",
-        "coderide_todo_read" => "Read the shared IDE todo list",
-        "coderide_todo_write" => "Write or update items in the shared IDE todo list",
-        "coderide_subagent_explorer" => "Launch an Explorer subagent",
-        "coderide_subagent_reviewer" => "Launch a Reviewer subagent",
-        "coderide_subagent_coder" => "Launch a Coder subagent",
-        "coderide_subagent_debugger" => "Launch a Debugger subagent",
-        "coderide_review_start" => "Queue a code review session",
-        "coderide_review_status" => "Read the current code review status",
-        "coderide_review_findings" => "List code review findings",
-        "coderide_security_status" => "Read the current security review status",
-        "coderide_bughunter_status" => "Read the current BugHunter status",
-        "coderide_run_tests" => "Run tests: cargo, swift test, or xcodebuild when a .xcodeproj exists (optional scheme, filter)",
-        "coderide_export_debug_bundle" => "Zip AgentDebug NDJSON logs into .solocode; optional workspace_roots CSV for multi-root fingerprint",
-        _ => "Rust-migrated MCP tool",
     }
 }
 
