@@ -8,6 +8,7 @@ use crate::main_chat::providers::session::{emit_error, emit_raw, emit_text_delta
 use app_core_protocol::main_chat_provider::MainChatProviderSessionConfig;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, ChildStdin, Command, Stdio};
 
@@ -57,6 +58,8 @@ struct CodexAgentMessageGate {
     final_answer_text: String,
     /// Fase Responses “commentary”: non deve finire nel primary text.
     commentary_text: String,
+    /// `phase` dell’item `agentMessage` da `item/started` (le delta spesso non la ripetono).
+    agent_message_phase_by_item_id: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +73,35 @@ impl CodexAgentMessageGate {
         match phase.map(|p| p.trim().to_lowercase()).as_deref() {
             Some("commentary") => CodexAgentMessagePhaseKind::Commentary,
             _ => CodexAgentMessagePhaseKind::FinalAnswer,
+        }
+    }
+
+    fn record_agent_message_item_started(&mut self, item_id: String, phase: String) {
+        self.agent_message_phase_by_item_id.insert(item_id, phase);
+    }
+
+    fn clear_agent_message_item(&mut self, item_id: &str) {
+        self.agent_message_phase_by_item_id.remove(item_id);
+    }
+
+    /// Risolve `phase` per una delta: campo sul payload, altrimenti ultimo valore da `item/started` / delta precedente.
+    fn resolve_agent_message_phase_for_delta_payload(&self, payload: &Value) -> Option<String> {
+        if let Some(p) = payload.get("phase").and_then(string_value) {
+            return Some(p);
+        }
+        payload
+            .get("itemId")
+            .and_then(string_value)
+            .and_then(|id| self.agent_message_phase_by_item_id.get(&id).cloned())
+    }
+
+    /// Aggiorna la mappa quando una delta (o started) riporta esplicitamente `phase`.
+    fn refresh_agent_message_phase_from_delta_payload(&mut self, payload: &Value) {
+        if let (Some(id), Some(ph)) = (
+            payload.get("itemId").and_then(string_value),
+            payload.get("phase").and_then(string_value),
+        ) {
+            self.agent_message_phase_by_item_id.insert(id, ph);
         }
     }
 
@@ -310,7 +342,7 @@ fn handle_notification(
         }
         "item/agentMessage/delta" => {
             if let Some(delta) = raw_string_field(&payload, "delta") {
-                let phase = payload.get("phase").and_then(string_value);
+                let phase = gate.resolve_agent_message_phase_for_delta_payload(&payload);
                 rust_codex_trace(format!(
                     "agent delta chars={} phase={}",
                     delta.len(),
@@ -361,6 +393,7 @@ fn handle_notification(
                         }
                     }
                 }
+                gate.refresh_agent_message_phase_from_delta_payload(&payload);
             }
         }
         "item/reasoning/textDelta" | "item/reasoning/summaryTextDelta" => {
@@ -516,8 +549,19 @@ fn handle_item_notification(
             emit_text_delta(session_id, &buffered);
         }
     } else if item_type == "agentMessage" {
+        if method == "item/started" {
+            if let (Some(id), Some(ph)) = (
+                item.get("id").and_then(string_value),
+                item.get("phase").and_then(string_value),
+            ) {
+                gate.record_agent_message_item_started(id, ph);
+            }
+        }
         let phase = item.get("phase").and_then(string_value);
         if method == "item/completed" {
+            if let Some(id) = item.get("id").and_then(string_value) {
+                gate.clear_agent_message_item(&id);
+            }
             let is_commentary = CodexAgentMessageGate::classify_agent_phase(phase.as_deref())
                 == CodexAgentMessagePhaseKind::Commentary;
             if is_commentary {
@@ -1099,6 +1143,7 @@ mod tests {
         codex_truncate_str, is_operational_mcp_tool, ChildProcessGuard, CodexAgentMessageGate,
         CodexAgentMessagePhaseKind,
     };
+    use serde_json::json;
     use std::process::Command;
 
     #[test]
@@ -1138,6 +1183,24 @@ mod tests {
             gate.cumulative_text(),
             "Prima risposta. Ancora testo. Dopo il tool."
         );
+    }
+
+    #[test]
+    fn codex_agent_message_gate_resolves_phase_from_item_started_map() {
+        let mut gate = CodexAgentMessageGate::default();
+        gate.record_agent_message_item_started(
+            "item_am_1".to_string(),
+            "commentary".to_string(),
+        );
+        let payload = json!({"itemId": "item_am_1", "delta": "piano"});
+        assert_eq!(
+            gate.resolve_agent_message_phase_for_delta_payload(&payload).as_deref(),
+            Some("commentary")
+        );
+        let ph = gate.resolve_agent_message_phase_for_delta_payload(&payload);
+        let (k, _) = gate.push_agent_message_delta("piano", ph.as_deref()).unwrap();
+        assert_eq!(k, CodexAgentMessagePhaseKind::Commentary);
+        assert_eq!(gate.cumulative_text(), "");
     }
 
     #[test]
