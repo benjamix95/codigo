@@ -39,7 +39,7 @@ struct ReviewPanelFindingDetail: View {
                         patchFailureSection
                     }
                     if let patch {
-                        patchSection(patch)
+                        patchPresentation(patch)
                         if let validationSection = validationSection(for: patch) {
                             validationSection
                         }

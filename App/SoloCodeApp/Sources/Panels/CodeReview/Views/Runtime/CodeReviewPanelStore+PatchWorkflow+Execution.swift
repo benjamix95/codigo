@@ -14,8 +14,20 @@ extension CodeReviewPanelStore {
         guard let snapshot = taskActivityStore.codeReviewSnapshot(
             sessionId: sessionId,
             conversationId: conversationId
-        ), snapshot.findings.contains(where: { $0.id == findingId }),
+        ),
+              let finding = snapshot.findings.first(where: { $0.id == findingId }),
         let workspaceRoot = workspaceStore.activeWorkspacePaths.first?.path else {
+            return
+        }
+
+        guard finding.isBugConfirmedForPatchPreparation else {
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Verifica richiesta",
+                detail:
+                    "Esegui «Verifica bug approfondita» e attendi un esito confermato prima di preparare la patch."
+            )
             return
         }
 
@@ -55,9 +67,23 @@ extension CodeReviewPanelStore {
             return
         }
         guard let artifact = patchesForSession(sessionId).first(where: { $0.findingId == findingId }) else {
-            await preparePatch(sessionId: sessionId, findingId: findingId)
-            guard let prepared = patchesForSession(sessionId).first(where: { $0.findingId == findingId }) else { return }
-            await applyPreparedPatch(sessionId: sessionId, artifact: prepared, workspaceRoot: workspaceRoot)
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Prepara patch richiesta",
+                detail:
+                    "Usa «Prepara patch» per generare il diff. Apply Patch è disponibile quando la patch risulta verificata e pronta."
+            )
+            return
+        }
+        guard artifact.isReadyForUserApply else {
+            appendVerifiedFindingSystemMessage(
+                sessionId: sessionId,
+                findingId: findingId,
+                title: "Patch non pronta",
+                detail:
+                    "Completa «Prepara patch» o attendi la verifica del diff; Apply Patch si abilita con diff disponibile e verificato."
+            )
             return
         }
         await applyPreparedPatch(sessionId: sessionId, artifact: artifact, workspaceRoot: workspaceRoot)

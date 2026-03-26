@@ -122,11 +122,33 @@ extension CodeReviewPanelStore {
         ) else {
             return
         }
-        let findings = sourceSnapshot.findings.filter { findingIds.contains($0.id) }
-        guard !findings.isEmpty else { return }
+        let readyIds = findingIds.filter { fid in
+            sourceSnapshot.patches.contains {
+                $0.findingId == fid && $0.isReadyForUserApply
+            }
+        }
+        guard !readyIds.isEmpty else {
+            if !findingIds.isEmpty {
+                appendPanelSystemMessage(
+                    "Fix All: nessuna patch pronta tra i finding selezionati. Per ciascuno: verifica il bug, prepara la patch e attendi diff verificato.",
+                    kind: .statusNote,
+                    selectChatTab: false
+                )
+            }
+            return
+        }
 
-        for finding in findings {
-            await applyPatch(sessionId: sessionId, findingId: finding.id)
+        for findingId in readyIds {
+            await applyPatch(sessionId: sessionId, findingId: findingId)
+        }
+
+        let skipped = findingIds.count - readyIds.count
+        if skipped > 0 {
+            appendPanelSystemMessage(
+                "Fix All: applicate \(readyIds.count) patch pronte; \(skipped) finding saltati (patch assente o non ancora verificata).",
+                kind: .statusNote,
+                selectChatTab: false
+            )
         }
     }
 

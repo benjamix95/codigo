@@ -344,7 +344,11 @@ extension SoloCodeApp {
     ) async throws -> CodeReviewSessionSnapshot {
         switch command.action {
         case "verify_finding":
-            return try verifyFinding(snapshot: snapshot, findingId: findingId, workspaceRoot: workspaceRoot)
+            return try ReviewFindingDeepVerificationService.snapshotAfterVerification(
+                snapshot: snapshot,
+                findingId: findingId,
+                workspaceRoot: workspaceRoot
+            )
         default:
             return try await VerifiedFindingsPatchExecutionService.execute(
                 action: command.action,
@@ -357,42 +361,4 @@ extension SoloCodeApp {
         }
     }
 
-    private func verifyFinding(
-        snapshot: CodeReviewSessionSnapshot,
-        findingId: String,
-        workspaceRoot: String
-    ) throws -> CodeReviewSessionSnapshot {
-        let workspaceURL = URL(fileURLWithPath: workspaceRoot)
-        let scopeFiles = Set((snapshot.scope?.files ?? []).map {
-            $0.hasPrefix("./") ? String($0.dropFirst(2)) : $0
-        })
-        var candidates = snapshot.candidates
-        if let index = candidates.firstIndex(where: { $0.id == findingId }) {
-            let result = ReviewCandidateVerificationService.verify(
-                candidate: candidates[index],
-                workspacePath: workspaceURL,
-                scopeFiles: scopeFiles
-            )
-            candidates[index].verificationStatus = result.status
-            candidates[index].verificationMethod = result.method
-            candidates[index].verificationReport = result.report
-            candidates[index].falsePositiveReason = result.falsePositiveReason
-            candidates[index].verifiedAt = result.status == .verified ? Date() : nil
-            var findings = snapshot.findings
-            if result.status == .verified && !findings.contains(where: { $0.id == findingId }) {
-                findings.append(.fromCandidate(candidates[index]))
-            }
-            return snapshot.copying(
-                findings: findings,
-                candidates: candidates,
-                events: snapshot.events + [
-                    result.status == .verified
-                        ? .candidateVerified(candidateId: findingId)
-                        : .candidateRejected(candidateId: findingId, reason: result.falsePositiveReason ?? result.status.rawValue),
-                ],
-                outcome: snapshot.copying(findings: findings, candidates: candidates).buildOutcomeSummary()
-            )
-        }
-        return snapshot
-    }
 }

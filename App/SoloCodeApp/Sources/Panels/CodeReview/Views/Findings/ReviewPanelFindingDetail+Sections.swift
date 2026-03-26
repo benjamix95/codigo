@@ -99,6 +99,21 @@ extension ReviewPanelFindingDetail {
         }
     }
 
+    @ViewBuilder
+    func patchPresentation(_ patch: ReviewPatchArtifact) -> some View {
+        let diff = patch.diffPreview.trimmingCharacters(in: .whitespacesAndNewlines)
+        if diff.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                sectionLabel("PATCH")
+                Text("Diff in preparazione: attendi il completamento di «Prepare Patch».")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            patchSection(patch)
+        }
+    }
+
     func patchSection(_ patch: ReviewPatchArtifact) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             sectionLabel("PATCH PREVIEW")
@@ -150,10 +165,24 @@ extension ReviewPanelFindingDetail {
     }
 
     var actionsSection: some View {
-        HStack(spacing: 8) {
+        let bugConfirmed = finding.isBugConfirmedForPatchPreparation
+        let applyReady = patch?.isReadyForUserApply == true
+        return HStack(spacing: 8) {
             if (finding.status.isOpenState || finding.status == .patchFailed),
                let sessionId = store.selectedSessionId {
-                if patch == nil || finding.status == .patchFailed {
+                if !bugConfirmed {
+                    Button {
+                        Task { await store.verifyFindingDeepAnalysis(sessionId: sessionId, findingId: finding.id) }
+                    } label: {
+                        Label("Verify bug", systemImage: "checkmark.shield")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .controlSize(.small)
+                }
+
+                if bugConfirmed && (patch == nil || finding.status == .patchFailed) {
                     Button {
                         Task { await store.preparePatch(sessionId: sessionId, findingId: finding.id) }
                     } label: {
@@ -167,11 +196,24 @@ extension ReviewPanelFindingDetail {
                     .controlSize(.small)
                 }
 
-                if patch != nil {
+                if patch != nil && !applyReady {
+                    Button {
+                        Task {}
+                    } label: {
+                        Label("Apply Patch", systemImage: "wrench.and.screwdriver")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(true)
+                    .help("Il diff deve essere verificato prima dell’applicazione.")
+                }
+
+                if applyReady {
                     Button {
                         Task { await store.applyPatch(sessionId: sessionId, findingId: finding.id) }
                     } label: {
-                        Label("Fix", systemImage: "wrench.and.screwdriver")
+                        Label("Apply Patch", systemImage: "wrench.and.screwdriver")
                             .font(.system(size: 10, weight: .semibold))
                     }
                     .buttonStyle(.borderedProminent)

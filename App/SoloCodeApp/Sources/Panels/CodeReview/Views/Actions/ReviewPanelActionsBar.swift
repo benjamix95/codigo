@@ -9,6 +9,7 @@ struct ReviewPanelActionsBar: View {
         let findings = store.currentFindings
         let openCount = findings.filter { $0.status == .open }.count
         let fixedCount = findings.filter { $0.status.isAppliedState }.count
+        let readyApplyCount = store.openFindingIdsReadyForPatchApply.count
 
         HStack(spacing: 8) {
             // Stats
@@ -18,7 +19,7 @@ struct ReviewPanelActionsBar: View {
 
             // Bulk actions (only when session available and not running)
             if let sessionId = store.selectedSessionId, openCount > 0 {
-                applyAllButton(sessionId: sessionId, count: openCount)
+                applyAllButton(sessionId: sessionId, readyCount: readyApplyCount, openCount: openCount)
                 dismissAllButton(sessionId: sessionId, count: openCount)
             }
         }
@@ -54,28 +55,31 @@ struct ReviewPanelActionsBar: View {
 
     // MARK: - Bulk Actions
 
-    private func applyAllButton(sessionId: String, count: Int) -> some View {
-        let openIds = store.currentFindings
-            .filter { $0.status == .open }
-            .map(\.id)
+    private func applyAllButton(sessionId: String, readyCount: Int, openCount: Int) -> some View {
+        let readyIds = store.openFindingIdsReadyForPatchApply
         return Button {
-            Task { await store.applyAllFixes(sessionId: sessionId, findingIds: openIds) }
+            Task { await store.applyAllFixes(sessionId: sessionId, findingIds: readyIds) }
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "wrench.and.screwdriver")
                     .font(.system(size: 8))
-                Text("Fix All (\(count))")
+                Text("Fix All (\(readyCount)/\(openCount))")
                     .font(.system(size: 9, weight: .semibold))
             }
-            .foregroundStyle(store.accent)
+            .foregroundStyle(readyCount > 0 ? store.accent : .secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(
-                store.accent.opacity(0.1),
+                (readyCount > 0 ? store.accent : Color.secondary).opacity(0.1),
                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
             )
         }
         .buttonStyle(.plain)
+        .disabled(readyCount == 0)
+        .help(readyCount == 0
+            ? "Nessuna patch pronta: verifica il bug, prepara la patch e attendi diff verificato."
+            : "Applica tutte le patch già pronte (diff verificato)."
+        )
     }
 
     private func dismissAllButton(sessionId: String, count: Int) -> some View {

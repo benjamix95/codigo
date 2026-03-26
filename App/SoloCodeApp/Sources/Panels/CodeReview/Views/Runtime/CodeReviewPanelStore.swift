@@ -308,6 +308,17 @@ final class CodeReviewPanelStore: ObservableObject {
         currentSnapshot?.patches ?? []
     }
 
+    /// Finding aperti con patch già preparata e pronta per Apply (diff non vuoto + verify).
+    var openFindingIdsReadyForPatchApply: [String] {
+        guard let snapshot = currentSnapshot else { return [] }
+        return snapshot.findings
+            .filter { $0.status == .open }
+            .map(\.id)
+            .filter { findingId in
+                snapshot.patches.first { $0.findingId == findingId }?.isReadyForUserApply == true
+            }
+    }
+
     var currentOutcome: ReviewSessionOutcome {
         currentSnapshot?.outcome ?? .empty
     }
