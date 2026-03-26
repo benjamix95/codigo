@@ -70,6 +70,8 @@ extension ChatPanelView {
                     ?? notification.userInfo?["conversation_id"] as? String
                 guard let rawConversationId,
                       let conversationId = UUID(uuidString: rawConversationId) else { return }
+                // Solo snapshot UI; pipeline teardown (`discardConversationRuntime`) fa unregister + resolve coda.
+                conversationRuntime.debugStateByConversation.removeValue(forKey: conversationId)
                 interruptTask(for: conversationId)
             }
     }

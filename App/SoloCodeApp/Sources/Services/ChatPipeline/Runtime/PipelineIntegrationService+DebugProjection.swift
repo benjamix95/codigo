@@ -51,9 +51,19 @@ extension PipelineIntegrationService {
     func resumeDebugProjection(for conversationId: UUID?) {
         guard let conversationId else { return }
         suppressedDebugProjectionConversationIds.remove(conversationId)
-        if let binding = debugStoresByConversation[conversationId],
-           let store = binding.store {
+        guard let binding = debugStoresByConversation[conversationId] else { return }
+        if let store = binding.store {
             flushPendingDebugEvents(for: conversationId, into: store)
+            return
+        }
+        let pendingCount = pendingDebugEventsByConversation[conversationId]?.count ?? 0
+        debugStoresByConversation.removeValue(forKey: conversationId)
+        if pendingCount > 0 {
+            NSLog(
+                "[PipelineIntegration] resumeDebugProjection: removed zombie binding; %d buffered debug event(s) for conv=%@ await registerDebugStore",
+                pendingCount,
+                conversationId.uuidString.lowercased()
+            )
         }
     }
 
