@@ -98,6 +98,22 @@ extension ChatPanelView {
     }
 }
 
+/// Evità falsi positivi tipo `file` dentro `profile` o `changes` dentro `exchanges`.
+private func textContainsWholeWord(_ haystack: String, _ needle: String) -> Bool {
+    let h = haystack.lowercased()
+    let n = needle.lowercased()
+    guard !n.isEmpty else { return false }
+    var start = h.startIndex
+    while let r = h.range(of: n, range: start..<h.endIndex) {
+        let beforeOK = r.lowerBound == h.startIndex
+            || !h[h.index(before: r.lowerBound)].isLetter
+        let afterOK = r.upperBound == h.endIndex || !h[r.upperBound].isLetter
+        if beforeOK && afterOK { return true }
+        start = r.upperBound
+    }
+    return false
+}
+
 private func matchAutoCodeReviewIntent(_ text: String) -> AutoCodeReviewIntentMatch {
     let lowercased = text.lowercased()
 
@@ -110,11 +126,11 @@ private func matchAutoCodeReviewIntent(_ text: String) -> AutoCodeReviewIntentMa
     ]
     let reviewVerbs = [
         "review", "revisione", "rivedi", "analizza", "controlla",
-        "audit", "check", "valuta", "ispeziona",
+        "audit", "check", "valuta", "ispeziona", "verifica",
     ]
     let scopedTargets = [
-        "diff", "modifiche", "changes", "commit", "branch", "patch",
-        "pull request", "merge request", "file", "files",
+        "diff", "modifiche", "changes", "commit", "commits", "branch", "patch",
+        "file", "files",
     ]
     let securitySignals = [
         "security review", "security audit", "audit di sicurezza", "sicurezza",
@@ -132,7 +148,7 @@ private func matchAutoCodeReviewIntent(_ text: String) -> AutoCodeReviewIntentMa
     ]
 
     let hasReviewPhrase = reviewSignals.contains(where: lowercased.contains)
-    let hasReviewVerb = reviewVerbs.contains(where: lowercased.contains)
+    let hasReviewVerb = reviewVerbs.contains { textContainsWholeWord(lowercased, $0) }
     let hasPullRequestTarget =
         lowercased.contains("pull request")
         || lowercased.contains("merge request")
@@ -140,7 +156,7 @@ private func matchAutoCodeReviewIntent(_ text: String) -> AutoCodeReviewIntentMa
         || lowercased.contains("questa mr")
         || lowercased.hasPrefix("pr ")
         || lowercased.contains(" pr ")
-    let hasScopedTarget = scopedTargets.contains(where: lowercased.contains) || hasPullRequestTarget
+    let hasScopedTarget = scopedTargets.contains { textContainsWholeWord(lowercased, $0) } || hasPullRequestTarget
     let hasSecuritySignal = securitySignals.contains(where: lowercased.contains)
     let hasBugSignal = bugSignals.contains(where: lowercased.contains)
     let hasNegativeSignal = negativeSignals.contains(where: lowercased.contains)

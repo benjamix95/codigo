@@ -153,6 +153,36 @@ final class ProviderFactoryCodeReviewTests: XCTestCase {
         XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
     }
 
+    func testAutoCodeReviewRequestDoesNotTriggerOnProfileSubstringOfFile() {
+        let request = makeAutoCodeReviewRequest(
+            userText: "Analizza questo user profile e suggerisci miglioramenti UX.",
+            coderMode: .agent
+        )
+
+        XCTAssertEqual(request.prompt, "Analizza questo user profile e suggerisci miglioramenti UX.")
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+    }
+
+    func testAutoCodeReviewRequestDoesNotTriggerOnChangesInsideExchanges() {
+        let request = makeAutoCodeReviewRequest(
+            userText: "Controlla gli exchanges nella API e spiega il formato.",
+            coderMode: .agent
+        )
+
+        XCTAssertEqual(request.prompt, "Controlla gli exchanges nella API e spiega il formato.")
+        XCTAssertFalse(request.prefersCodeReviewRuntimeProvider)
+    }
+
+    func testAutoCodeReviewRequestVerificaWithDiffStillRoutes() {
+        let request = makeAutoCodeReviewRequest(
+            userText: "Verifica questo diff prima del merge.",
+            coderMode: .agent
+        )
+
+        XCTAssertTrue(request.prefersCodeReviewRuntimeProvider)
+        XCTAssertTrue(request.prompt.contains("[REVIEW_SCOPE:"))
+    }
+
     func testAutoCodeReviewRequestUsesSwiftPromptFallbackWhenReviewCoreDeferred() {
         setenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT", "1", 1)
         defer { unsetenv("SOLOCODE_REVIEW_CORE_FORCE_SWIFT") }
