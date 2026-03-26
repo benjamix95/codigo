@@ -26,5 +26,107 @@ Solo Code.app
 # Release artifacts
 dist/
 
+# Esportazioni / build locali (PDF, report, ecc.)
+output/
+
+# ---------------------------------------------------------------------------
+# Toolchain & dipendenze multi-linguaggio
+# Cartelle generate da gestori di pacchetti / build: non versionare; ridurre
+# rumore in indice semantic search e ricerca progetto.
+# ---------------------------------------------------------------------------
+
+# JavaScript / TypeScript
+node_modules/
+jspm_packages/
+bower_components/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.parcel-cache/
+.turbo/
+.next/
+.nuxt/
+.svelte-kit/
+.vercel/
+.eslintcache
+.stylelintcache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+venv/
+.venv/
+env/
+ENV/
+.conda/
+
+# Composer (PHP), Bundler gemme in vendor/, Go vendor tree
+vendor/
+.bundle/
+
+# Rust / Maven / sbt: cartella `target` ovunque (output di build)
+**/target/
+
+# JVM — Gradle / Kotlin / Android sidecar
+.gradle/
+
+# .NET
+**/bin/
+**/obj/
+
+# Elixir / Erlang (Mix: `deps/` può comparire in altri stack; tipicamente ok)
+_build/
+deps/
+.elixir_ls/
+
+# Zig
+zig-cache/
+zig-out/
+
+# R (renv)
+renv/library/
+renv/local/
+renv/cellar/
+
+# Haskell
+dist-newstyle/
+.stack-work/
+
+# Scala / sbt (metallo/bloop IDE)
+.metals/
+.bloop/
+
+# CMake / Ninja locali
+cmake-build-*/
+out/build/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Coverage / strumenti
+coverage/
+.nyc_output/
+lcov.info
+htmlcov/
+
+# iOS — CocoaPods / Carthage (workspace esterni o sottoprogetti)
+Pods/
+Carthage/Build/
+
 # CodexCustomModel cached/generated images (not for bundle)
 Sources/CoderIDE/Modules/Settings/CodexCustomModel/image/
