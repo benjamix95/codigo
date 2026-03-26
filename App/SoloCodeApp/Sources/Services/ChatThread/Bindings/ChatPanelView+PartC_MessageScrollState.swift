@@ -389,20 +389,23 @@ extension ChatPanelView {
             activities: scoped
         )
         let detail: String? = {
-            if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scoped) {
-                return assistantUpdate
+            if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scoped),
+               let line = ChatStore.sanitizedStreamingDetailLine(assistantUpdate) {
+                return line
             }
             if let fromActivities = TaskActivityStore.streamingDetailText(
                 activities: scoped,
                 activeOperationsCount: scopedActiveOperationsCount(for: convId)
-            ) {
-                return fromActivities
+            ), let line = ChatStore.sanitizedStreamingDetailLine(fromActivities) {
+                return line
             }
-            if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: activeAssistant.content) {
-                return fromContent
+            if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: activeAssistant.content),
+               let line = ChatStore.sanitizedStreamingDetailLine(fromContent) {
+                return line
             }
-            if let codexLine = streaming.codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId {
-                return codexLine.count > 80 ? String(codexLine.prefix(77)) + "..." : codexLine
+            if let codexLine = streaming.codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId,
+               let line = ChatStore.sanitizedStreamingDetailLine(codexLine) {
+                return line
             }
             if convId == streaming.streamingReasoningConversationId,
                let reasoning = streaming.streamingReasoningText,
@@ -410,8 +413,8 @@ extension ChatPanelView {
                 let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)
                     .last?
                     .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-                if !lastLine.isEmpty {
-                    return lastLine.count > 80 ? String(lastLine.prefix(77)) + "…" : lastLine
+                if !lastLine.isEmpty, let line = ChatStore.sanitizedStreamingDetailLine(lastLine, ellipsis: "…") {
+                    return line
                 }
             }
             return nil

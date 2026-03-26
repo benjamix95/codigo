@@ -48,6 +48,20 @@ final class ChatStreamFailureHandlingTests: XCTestCase {
         )
     }
 
+    func testCoderideDisplayLineFilterRemovesPolicyErrorAndCoderideLines() {
+        let content = """
+        A
+        [Policy error] Emit before starting real execution.
+        B
+        Thinking · [CODERIDE:policy_ack|hash=ab
+        """
+        let out = CoderideDisplayLineFilter.stripDisplayLinesWithCoderideToolPrefix(content)
+        XCTAssertTrue(out.contains("A"))
+        XCTAssertTrue(out.contains("B"))
+        XCTAssertNil(out.range(of: "policy error", options: .caseInsensitive))
+        XCTAssertFalse(out.contains("CODERIDE"))
+    }
+
     func testInlineTodoWritePayloadsForStreamingUpdateExtractsNewlyClosedMarker() {
         let payloads = inlineTodoWritePayloadsForStreamingUpdate(
             existingContent: "[CODERIDE:todo_write|title=Run",

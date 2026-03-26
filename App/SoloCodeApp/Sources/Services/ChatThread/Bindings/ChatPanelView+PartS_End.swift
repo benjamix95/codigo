@@ -85,27 +85,30 @@ extension ChatPanelView {
     internal func streamingDetailText(for message: ChatMessage, conversationId convId: UUID?) -> String? {
         guard message.isStreaming, message.role == .assistant else { return nil }
         let scopedActivities = scopedTaskActivities(for: convId)
-        if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scopedActivities) {
-            return assistantUpdate
+        if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scopedActivities),
+           let line = ChatStore.sanitizedStreamingDetailLine(assistantUpdate) {
+            return line
         }
         if let fromActivities = TaskActivityStore.streamingDetailText(
             activities: scopedActivities,
             activeOperationsCount: scopedActiveOperationsCount(for: convId)
-        ) {
-            return fromActivities
+        ), let line = ChatStore.sanitizedStreamingDetailLine(fromActivities) {
+            return line
         }
-        if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: message.content) {
-            return fromContent
+        if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: message.content),
+           let line = ChatStore.sanitizedStreamingDetailLine(fromContent) {
+            return line
         }
-        if let codexLine = streaming.codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId {
-            return codexLine.count > 80 ? String(codexLine.prefix(77)) + "..." : codexLine
+        if let codexLine = streaming.codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId,
+           let line = ChatStore.sanitizedStreamingDetailLine(codexLine) {
+            return line
         }
         if convId == streaming.streamingReasoningConversationId, let reasoning = streaming.streamingReasoningText, !reasoning.isEmpty {
             let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)
                 .last?
                 .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
-            if !lastLine.isEmpty {
-                return lastLine.count > 80 ? String(lastLine.prefix(77)) + "…" : lastLine
+            if !lastLine.isEmpty, let line = ChatStore.sanitizedStreamingDetailLine(lastLine, ellipsis: "…") {
+                return line
             }
         }
         return nil

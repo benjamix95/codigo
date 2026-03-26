@@ -14,6 +14,12 @@ pub fn coderide_marker() -> &'static Regex {
     REGEX.get_or_init(|| regex(r"\[\s*CODERIDE\s*:[^\]\n]*\]", true, false))
 }
 
+/// Frammenti `[Policy error] …` iniettati dalla pipeline policy (mai mostrati in bolla/thinking).
+pub fn policy_error_run() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| regex(r"(?i)\[Policy error\][^\n\r]*", false, false))
+}
+
 pub fn inline_marker_prefix() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| regex(r"\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|", true, false))

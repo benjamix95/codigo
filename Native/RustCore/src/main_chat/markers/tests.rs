@@ -58,6 +58,16 @@ mod tests {
     }
 
     #[test]
+    fn strip_removes_policy_error_runs_and_coderide_only_lines() {
+        let input = "Hello\n[Policy error] Emit before starting.\nRow\nThinking · [CODERIDE:policy_ack|hash=ab";
+        let sanitized = strip(input, true);
+        assert!(sanitized.contains("Hello"));
+        assert!(sanitized.contains("Row"));
+        assert!(!sanitized.to_lowercase().contains("policy error"));
+        assert!(!sanitized.contains("CODERIDE"));
+    }
+
+    #[test]
     fn strip_removes_inline_marker_payloads() {
         let input = "Proceeding markers:plan_step|step_id=1|status=running|then continuing with the analysis.";
         let sanitized = strip(input, true);

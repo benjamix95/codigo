@@ -133,10 +133,18 @@ extension ChatStore {
     nonisolated private static var isRustMarkersRuntimeAvailable: Bool { ReviewCoreBridge.isEnabled }
 
     nonisolated static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
-        guard isRustMarkersRuntimeAvailable else { return swiftFallbackStripCoderideMarkers(content, aggressive: aggressive) }
-        let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "strip_coderide_markers", text: content, aggressive: aggressive)
-        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else { return swiftFallbackStripCoderideMarkers(content, aggressive: aggressive) }
-        return result
+        let core: String
+        if isRustMarkersRuntimeAvailable {
+            let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "strip_coderide_markers", text: content, aggressive: aggressive)
+            core = RustMainChatStoreAdapter.handleMarkers(request) ?? swiftFallbackStripCoderideMarkers(content, aggressive: aggressive)
+        } else {
+            core = swiftFallbackStripCoderideMarkers(content, aggressive: aggressive)
+        }
+        let filtered = CoderideDisplayLineFilter.stripDisplayLinesWithCoderideToolPrefix(core)
+        if aggressive {
+            return filtered.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return filtered
     }
 
     /// Reasoning / thinking: sempre senza marker operativi `[CODERIDE:…]` in UI e persistenza.
@@ -144,8 +152,18 @@ extension ChatStore {
         stripCoderideMarkers(text, aggressive: true)
     }
 
+    /// Dettaglio sotto "Thinking…" (riga singola): strip + troncamento; `nil` se il testo è vuoto dopo strip.
+    nonisolated static func sanitizedStreamingDetailLine(_ raw: String, ellipsis: String = "...") -> String? {
+        let s = stripCoderideMarkers(raw, aggressive: true).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return nil }
+        if s.count > 80 {
+            return String(s.prefix(77)) + ellipsis
+        }
+        return s
+    }
+
     nonisolated private static func swiftFallbackStripCoderideMarkers(_ content: String, aggressive: Bool) -> String {
-        var working = CoderideDisplayLineFilter.stripDisplayLinesWithCoderideToolPrefix(content)
+        var working = content
         let pattern = "\\[\\s*CODERIDE\\s*:[^\\]\\n]*\\]"
         working = working.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
         // Marker senza `]` (streaming/troncato): rimuovi dalla `[` fino a fine riga o fine stringa.

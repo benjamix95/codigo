@@ -105,6 +105,9 @@ fn line_should_be_hidden_as_coderide_tool_noise(line: &str) -> bool {
         return false;
     }
     let lower = core.to_lowercase();
+    if lower.contains("[policy error]") || lower.contains("[coderide") {
+        return true;
+    }
     lower.starts_with("coderide_")
         || lower.starts_with("mcp__coderide__coderide_")
         || lower.starts_with("functions.mcp__coderide__coderide_")
@@ -169,6 +172,7 @@ fn strip_prose_segment(text: &str, aggressive: bool) -> String {
     let mut out = patterns::coderide_marker()
         .replace_all(text, "")
         .into_owned();
+    out = patterns::policy_error_run().replace_all(&out, "").into_owned();
     out = remove_incomplete_markers(out);
     if aggressive {
         out = patterns::inline_op_prefix()
