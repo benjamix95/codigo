@@ -12,6 +12,10 @@ extension ChatPanelView {
     /// decisione (likely desync `onChange` vs `let` sul modifier); questa policy elimina il caso.
     internal var shouldShowMessagesAreaEmptyState: Bool {
         guard !isLoadingForCurrentConversation else { return false }
+        // Con zero thread selezionato, lo store non ha contesto: senza questo guard l’overlay
+        // “vuoto” si attiva (storeCount 0, snapshot spesso vuoto) e copre tutta l’area. Se
+        // `selectedConversationId` vira nil per un frame, effetto “chat sparita” (evidenza
+        // fba6fd: empty_overlay_allowed con conversationId nil).
         guard conversationId != nil else { return false }
 
         let storeCount = chatStore.conversation(for: conversationId)?.messages.count ?? 0
@@ -27,10 +31,12 @@ extension ChatPanelView {
         if aligned {
             guard snapCount == 0 else { return false }
         } else if let s = snap, !s.messages.isEmpty {
+            // Snapshot ancora di un altro thread ma la lista lo sta ancora mostrando: non coprire.
             return false
         }
 
         let result = true
+        // #region agent log
         AgentDebugSessionNDJSONLog.appendThrottled(
             gateKey: "H2-empty-overlay-allowed",
             hypothesisId: "H2",
@@ -43,6 +49,7 @@ extension ChatPanelView {
                 "conversationId": conversationId?.uuidString ?? "nil",
             ]
         )
+        // #endregion
         return result
     }
 
@@ -67,12 +74,19 @@ extension ChatPanelView {
 
     internal func handleMessagesCountChange(proxy: ScrollViewProxy) {
         guard isFollowingLive else { return }
+        // Use a longer delay than streamContentVersion (0.04s) so that
+        // during streaming, the content version handler handles the scroll
+        // and this one gets coalesced by scheduleAutoScroll's throttle.
+        // Previously both fired within 10ms of each other with animation,
+        // causing duplicate layout passes.
         scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, delay: 0.12)
     }
 
     internal func handleLiveTraceEventsChange(proxy: ScrollViewProxy) {
         guard isLoadingForCurrentConversation, isFollowingLive else { return }
         if let target = liveScrollTarget() {
+            // Use a slightly longer delay to let streamContentVersion
+            // handle the primary scroll; this acts as a fallback.
             scheduleAutoScroll(proxy: proxy, target: target, delay: 0.14)
         }
     }
@@ -106,6 +120,11 @@ extension ChatPanelView {
             cancelFallbackTurnStartEvent()
             isFollowingLive = true
             if let target = latestMessageScrollTarget() {
+                // Previously scheduled two overlapping scrolls (0s + 0.16s) with
+                // animation. The double schedule raced with other handlers and
+                // contributed to main thread saturation. A single delayed scroll
+                // is sufficient — the 0.35s throttle in scheduleAutoScroll
+                // prevents rapid-fire duplicates.
                 scheduleAutoScroll(proxy: proxy, target: target, delay: 0.08)
             }
         }
@@ -118,6 +137,9 @@ extension ChatPanelView {
         }
     }
 
+    /// Lista messaggi: **una** sorgente per `messagesStack` per evitare che SwiftUI alterni due
+    /// rami distinti (`if snapshot` vs `else store`) durante refresh → remount e flicker.
+    /// Priorità: snapshot solo se `snap.id == conversationId`, altrimenti `chatStore`.
     internal var conversationForMessagesList: Conversation? {
         guard let cid = conversationId else { return nil }
         if let snap = messagesConversationSnapshot, snap.id == cid {

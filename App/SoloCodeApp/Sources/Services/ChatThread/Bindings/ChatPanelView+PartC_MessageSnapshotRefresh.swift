@@ -9,6 +9,7 @@ extension ChatPanelView {
     internal func refreshMessagesSnapshot() {
         let fresh = chatStore.conversation(for: conversationId)
 
+        // Always update loading state.
         let freshLoading = chatStore.isTaskActive(for: conversationId)
             || pipelineIntegrationService.isRunning(for: conversationId)
         if snapshotIsLoading != freshLoading {
@@ -52,6 +53,7 @@ extension ChatPanelView {
         let snapshotLastBlocks = messagesConversationSnapshot?.messages.last?.blocks?.count ?? -1
         let freshLastBlocks = fresh?.messages.last?.blocks?.count ?? -1
 
+        // Only update conversation if actually different.
         let needsSnapshotUpdate =
             messagesConversationSnapshot?.id != fresh?.id
             || snapshotCount != freshCount
@@ -63,6 +65,8 @@ extension ChatPanelView {
         if needsSnapshotUpdate {
             if let fresh {
                 let prevSnapId = messagesConversationSnapshot?.id.uuidString ?? "nil"
+                // Durante task/piano attivo, uno store Rust transitorio può restituire `messages` vuoti
+                // per lo stesso thread: sostituire lo snapshot svuoterebbe la lista (“chat sparita”).
                 let spuriousEmptyWhileBusy =
                     fresh.messages.isEmpty
                     && chromeBusy
@@ -102,6 +106,10 @@ extension ChatPanelView {
                     )
                 }
             } else {
+                // `conversation(for:)` può essere nil per un frame (coalescing store, binding,
+                // ecc.): **non** assegnare mai `messagesConversationSnapshot = nil` in quel caso,
+                // altrimenti `needsSnapshotUpdate` è vero (conteggi -1 vs N) e la lista svuota —
+                // sfarfallio / “chat ferma” (regressione post-refactor refresh).
                 if conversationId == nil {
                     messagesConversationSnapshot = nil
                 } else if let snap = messagesConversationSnapshot, snap.id != conversationId {
@@ -140,6 +148,11 @@ extension ChatPanelView {
             )
         }
 
+        // Throttle trace events refresh: only update at most every 250ms.
+        // This prevents the barrier fingerprint from changing on every
+        // streamContentVersion increment (215+ per session), which was
+        // causing ~710 EQ-MISS. Text deltas are the most frequent
+        // streamContentVersion source but don't affect trace events.
         let now = CFAbsoluteTimeGetCurrent()
         let elapsed = now - lastTraceRefreshTime
         if elapsed >= 0.25 || !snapshotIsLoading {
@@ -147,6 +160,8 @@ extension ChatPanelView {
             lastTraceRefreshTime = now
         }
 
+        // Sottotitolo live e planning: aggiornare sempre col messaggio (il throttle qui
+        // causava lag vs overlay composer e detail "Planning next move" fuori sync).
         refreshLiveActivitySnapshot(fresh: fresh)
 
         let storeCount = chatStore.conversation(for: conversationId)?.messages.count ?? -1
