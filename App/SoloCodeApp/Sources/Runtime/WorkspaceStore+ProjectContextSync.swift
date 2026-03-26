@@ -1,5 +1,6 @@
 import Foundation
 import CoderEngine
+import os
 
 func shouldBufferOperationalRawEventUntilNarrative(
     rawType: String,
@@ -71,6 +72,8 @@ func shouldBufferOperationalRawEventUntilNarrative(
 
     return ToolTraceVisibility.requiresPolicyAck(type: type, payload: payload)
 }
+
+private let runtimeStreamLogger = Logger(subsystem: "com.solocode.app", category: "RuntimeStream")
 
 /// Legacy flow coordinator retained as a Swift adapter around the Rust-backed
 /// direct stream runtime while provider transport remains in Swift.
@@ -230,15 +233,32 @@ final class ConversationFlowCoordinator: ObservableObject {
             var bufferedRawEvents: [(String, [String: String])] = []
             var renderedTextSnapshot = turnState.primaryTextSnapshot
             var pendingReasoningSnapshot = ""
+            var coalescedAssistantTextDirty = false
+            var consecutiveEmptyUiPolls = 0
+            func flushCoalescedAssistantText() async {
+                guard coalescedAssistantTextDirty else { return }
+                coalescedAssistantTextDirty = false
+                let textCopy = renderedTextSnapshot
+                await MainActor.run {
+                    RuntimeStreamSignpost.measureMainActorTextFlush {
+                        onText(textCopy)
+                    }
+                }
+            }
             while true {
                 try Task.checkCancellation()
-                let timeoutMs = max(1, (runtimeSnapshot.currentPollTimeoutSeconds ?? 90) * 1000)
-                guard let response = provider.pollRuntime(
-                    sessionId: sessionId,
-                    providerId: provider.id,
-                    snapshot: runtimeSnapshot,
-                    timeoutMs: timeoutMs
-                ), let nextSnapshot = response.runtimeSnapshot else {
+                let baseTimeoutMs = max(1, (runtimeSnapshot.currentPollTimeoutSeconds ?? 90) * 1000)
+                let adaptiveExtraMs = min(consecutiveEmptyUiPolls * 2_500, 25_000)
+                let timeoutMs = min(baseTimeoutMs + adaptiveExtraMs, 600_000)
+                let response = RuntimeStreamSignpost.measurePoll(timeoutMs: timeoutMs) {
+                    provider.pollRuntime(
+                        sessionId: sessionId,
+                        providerId: provider.id,
+                        snapshot: runtimeSnapshot,
+                        timeoutMs: timeoutMs
+                    )
+                }
+                guard let response, let nextSnapshot = response.runtimeSnapshot else {
                     await setState(.error)
                     throw StreamExecutionError.providerError("Rust main chat provider runtime poll unavailable.")
                 }
@@ -247,6 +267,11 @@ final class ConversationFlowCoordinator: ObservableObject {
                 runtimeSnapshot = nextSnapshot
                 setDirectRuntimeSnapshot(nextSnapshot)
                 turnState = nextSnapshot.turnState.chatTurnState
+                if response.uiEvents.isEmpty, !response.isTerminal {
+                    consecutiveEmptyUiPolls += 1
+                } else {
+                    consecutiveEmptyUiPolls = 0
+                }
                 let eventTimestamp = Date()
 
                 for signal in response.signals {
@@ -291,8 +316,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                         } else {
                             hasSeenNarrativeEvent = true
                             renderedTextSnapshot += event.text
-                            let textCopy = renderedTextSnapshot
-                            await MainActor.run { onText(textCopy) }
+                            coalescedAssistantTextDirty = true
                         }
                     case .textReplace:
                         let isClaudeCliReplace = provider.id == "claude-cli"
@@ -313,9 +337,9 @@ final class ConversationFlowCoordinator: ObservableObject {
                         } else {
                             hasSeenNarrativeEvent = true
                             renderedTextSnapshot = event.text
-                            let textCopy = renderedTextSnapshot
-                            await MainActor.run { onText(textCopy) }
+                            coalescedAssistantTextDirty = true
                         }
+                        await flushCoalescedAssistantText()
                         if !bufferedRawEvents.isEmpty {
                             let pending = bufferedRawEvents
                             bufferedRawEvents.removeAll(keepingCapacity: true)
@@ -324,9 +348,12 @@ final class ConversationFlowCoordinator: ObservableObject {
                             }
                         }
                     case .raw:
+                        await flushCoalescedAssistantText()
                         let rawType = event.rawType ?? "provider_raw"
-                        if rawType == "reasoning" {
-                            print("[RUNSTREAM_DEBUG] .raw reasoning event in runStream! keys=\(event.payload.keys.sorted()) hasSeenNarrative=\(hasSeenNarrativeEvent)")
+                        if rawType == "reasoning", runtimeStreamLogger.isEnabled(type: .debug) {
+                            runtimeStreamLogger.debug(
+                                ".raw reasoning keys=\(event.payload.keys.sorted(), privacy: .public) hasSeenNarrative=\(hasSeenNarrativeEvent, privacy: .public)"
+                            )
                         }
                         if rawType == "assistant_update" || rawType == "reasoning" {
                             hasSeenNarrativeEvent = true
@@ -339,8 +366,8 @@ final class ConversationFlowCoordinator: ObservableObject {
                         {
                             bufferedRawEvents.append((rawType, event.payload))
                         } else {
-                            if rawType == "reasoning" {
-                                print("[RUNSTREAM_DEBUG] FORWARDING reasoning to onRaw callback")
+                            if rawType == "reasoning", runtimeStreamLogger.isEnabled(type: .debug) {
+                                runtimeStreamLogger.debug("forwarding reasoning to onRaw")
                             }
                             await MainActor.run { onRaw(rawType, event.payload, provider.id) }
                             if hasSeenNarrativeEvent, !bufferedRawEvents.isEmpty {
@@ -352,6 +379,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                             }
                         }
                     case .error:
+                        await flushCoalescedAssistantText()
                         let message = event.text.isEmpty
                             ? (runtimeSnapshot.output?.terminalError ?? "Provider stream failed")
                             : event.text
@@ -367,6 +395,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                         await setState(.error)
                         throw StreamExecutionError.providerError(message)
                     case .completed:
+                        await flushCoalescedAssistantText()
                         if !bufferedRawEvents.isEmpty {
                             let pending = bufferedRawEvents
                             bufferedRawEvents.removeAll(keepingCapacity: true)
@@ -378,6 +407,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                         return renderedTextSnapshot.isEmpty ? turnState.primaryTextSnapshot : renderedTextSnapshot
                     }
                 }
+                await flushCoalescedAssistantText()
 
                 await Task.yield()
             }

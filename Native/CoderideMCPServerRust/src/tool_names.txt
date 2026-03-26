@@ -38,6 +38,7 @@ coderide_bughunter_uninstall_hook
 coderide_codebase_search
 coderide_create_file
 coderide_diagnostics
+coderide_export_debug_bundle
 coderide_file_outline
 coderide_find_files
 coderide_find_references
@@ -84,6 +85,7 @@ coderide_review_start
 coderide_review_status
 coderide_review_verify_finding
 coderide_review_verify_patch
+coderide_run_tests
 coderide_security_apply_patch
 coderide_security_close_finding
 coderide_security_findings

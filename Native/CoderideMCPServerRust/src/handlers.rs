@@ -9,6 +9,7 @@ use crate::review_tools;
 use crate::search_tools;
 use crate::skill_tools;
 use crate::subagent_tools;
+use crate::support_workflow_tools;
 use crate::todo_tools;
 use crate::web_tools;
 use app_core_protocol::mcp::{CallToolResult, ToolCallParams};
@@ -20,6 +21,10 @@ pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolRes
         return result;
     }
     if let Some(result) = diagnostics_tools::handle(params.name.as_str(), workspace, &arguments) {
+        return result;
+    }
+    if let Some(result) = support_workflow_tools::handle(params.name.as_str(), workspace, &arguments)
+    {
         return result;
     }
     if let Some(result) = debug_tools::handle(params.name.as_str(), workspace, &arguments) {
@@ -72,6 +77,7 @@ pub fn handle_tool_call(workspace: &Path, params: ToolCallParams) -> CallToolRes
 pub fn supports_tool_name(name: &str) -> bool {
     audit_tools::handle(name, Path::new("."), &Default::default()).is_some()
         || diagnostics_tools::handle(name, Path::new("."), &Default::default()).is_some()
+        || support_workflow_tools::supports(name)
         || debug_tools::handle(name, Path::new("."), &Default::default()).is_some()
         || edit_tools::handle(name, Path::new("."), &Default::default()).is_some()
         || file_tools::supports(name)

@@ -16,6 +16,7 @@ mod shared_review_state;
 mod shared_state;
 mod skill_tools;
 mod subagent_tools;
+mod support_workflow_tools;
 mod todo_tools;
 mod tool_schema;
 mod web_tools;

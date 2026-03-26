@@ -38,6 +38,29 @@ extension CoderIDETools {
             ]),
             annotations: .init(title: "Read Lints", readOnlyHint: true)
         ),
+        Tool(
+            name: "coderide_run_tests",
+            description: "Run unit tests (cargo test or swift test) in the workspace root.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "filter": .object([
+                        "type": "string",
+                        "description": "Optional test name filter (cargo) or swift test --filter pattern",
+                    ]),
+                ]),
+            ]),
+            annotations: .init(title: "Run Tests", readOnlyHint: false, idempotentHint: true)
+        ),
+        Tool(
+            name: "coderide_export_debug_bundle",
+            description: "Zip SoloCode AgentDebug NDJSON logs for this workspace into .solocode for support.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([:]),
+            ]),
+            annotations: .init(title: "Export Debug Bundle", readOnlyHint: false, idempotentHint: true)
+        ),
 
     ]
 }

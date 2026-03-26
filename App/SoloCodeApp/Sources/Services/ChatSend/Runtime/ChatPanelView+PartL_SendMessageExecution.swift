@@ -1,7 +1,10 @@
 import AppKit
 import CoderEngine
+import os
 import SwiftUI
 import UniformTypeIdentifiers
+
+private let chatSendStreamLog = Logger(subsystem: "com.solocode.app", category: "ChatSendStream")
 
 enum MainChatSendExecutionRoute {
     case planFlow
@@ -183,7 +186,11 @@ extension ChatPanelView {
                                 ),
                                 providerId: effectiveRuntimeProvider.id
                             )
-                            print("[STREAM_DEBUG] onText len=\(cleaned.count) routeToReasoning=\(shouldRouteToReasoning) coderMode=\(coderMode) preview=\(String(cleaned.prefix(80)))")
+                            if chatSendStreamLog.isEnabled(type: .debug) {
+                                chatSendStreamLog.debug(
+                                    "onText len=\(cleaned.count, privacy: .public) routeToReasoning=\(shouldRouteToReasoning, privacy: .public) coderMode=\(String(describing: coderMode), privacy: .public) preview=\(String(cleaned.prefix(80)), privacy: .public)"
+                                )
+                            }
                             if shouldRouteToReasoning {
                                 applyStreamingReasoningSnapshot(
                                     cleaned,

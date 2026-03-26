@@ -2,8 +2,8 @@ use app_core_protocol::mcp::ToolDefinition;
 use crate::tool_schema::input_schema_for;
 
 const TOOL_NAMES: &str = include_str!("tool_names.txt");
-pub const CATALOG_VERSION: &str = "2026-03-12";
-pub const CATALOG_TOOL_COUNT: usize = 114;
+pub const CATALOG_VERSION: &str = "2026-03-26";
+pub const CATALOG_TOOL_COUNT: usize = 116;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ToolFamily {
@@ -66,7 +66,10 @@ fn family_for(name: &str) -> ToolFamily {
         ToolFamily::Audit
     } else if name.starts_with("coderide_bughunter_") {
         ToolFamily::BugHunter
-    } else if name.starts_with("coderide_diagnostics") {
+    } else if name.starts_with("coderide_diagnostics")
+        || name == "coderide_export_debug_bundle"
+        || name == "coderide_run_tests"
+    {
         ToolFamily::Diagnostics
     } else if name.starts_with("coderide_plan_") || name == "coderide_activate_plan_mode" {
         ToolFamily::Plan
@@ -124,6 +127,8 @@ fn description_for(name: &str) -> &'static str {
         "coderide_review_findings" => "List code review findings",
         "coderide_security_status" => "Read the current security review status",
         "coderide_bughunter_status" => "Read the current BugHunter status",
+        "coderide_run_tests" => "Run unit tests (cargo test or swift test) in the workspace",
+        "coderide_export_debug_bundle" => "Zip SoloCode AgentDebug NDJSON logs for this workspace into .solocode for support",
         _ => "Rust-migrated MCP tool",
     }
 }
@@ -172,7 +177,7 @@ mod tests {
 
     #[test]
     fn catalog_version_is_frozen_for_tranche() {
-        assert_eq!(CATALOG_VERSION, "2026-03-12");
+        assert_eq!(CATALOG_VERSION, "2026-03-26");
     }
 
     #[test]

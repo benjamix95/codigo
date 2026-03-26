@@ -130,6 +130,11 @@ pub fn input_schema_for(name: &str) -> Value {
         "coderide_skill" => object_schema(&[("skill", "string"), ("name", "string"), ("task", "string"), ("args", "string")], &[]),
         "coderide_web_search" => object_schema(&[("query", "string"), ("explanation", "string")], &["query"]),
         "coderide_web_fetch" => object_schema(&[("url", "string")], &["url"]),
+        "coderide_run_tests" => object_schema(
+            &[("filter", "string")],
+            &[],
+        ),
+        "coderide_export_debug_bundle" => object_schema(&[], &[]),
         _ => object_schema(&[], &[]),
     }
 }
