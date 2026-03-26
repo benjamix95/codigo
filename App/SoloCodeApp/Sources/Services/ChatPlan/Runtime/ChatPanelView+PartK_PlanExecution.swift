@@ -133,6 +133,10 @@ extension ChatPanelView {
             )
 
             guard self.conversationId == planConversationId else {
+                appendTechnicalErrorMessage(
+                    "[Plan] Build annullato: conversazione cambiata durante il checkpoint. Torna al thread del plan e riprova.",
+                    in: planConversationId
+                )
                 return
             }
 

@@ -91,8 +91,9 @@ extension ChatPanelView {
         attachmentsToSend: [LLMAttachment]?,
         conversationId: UUID,
         shouldRunPlanInline: Bool,
+        fullTurnPromptForScreeningFallback: String,
         skipScreening: Bool = false
-    ) async throws {
+    ) async throws -> MultiTurnPlanFlowOutcome {
         // ========================
         // PHASE 0: Screening (internal; chat shows only neutral status)
         // ========================
@@ -108,7 +109,7 @@ extension ChatPanelView {
                 await MainActor.run {
                     cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
                 }
-                return
+                return .completed
             }
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
@@ -148,10 +149,36 @@ extension ChatPanelView {
                 await MainActor.run {
                     cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
                 }
-                return
+                return .completed
             }
             let screeningStatus = screeningSnapshot?.output?.chatContentOverride
                 ?? "Starting codebase analysis..."
+            let skipFullPipeline = screeningSnapshot?.output?.skipFullPlanPipeline == true
+                || parsePlanScreeningDecision(from: screeningText) == .noPlanNeeded
+
+            if skipFullPipeline {
+                await MainActor.run {
+                    guard self.conversationId == conversationId else { return }
+                    chatStore.updateLastAssistantMessage(
+                        content: screeningStatus,
+                        in: conversationId,
+                        persistImmediately: true
+                    )
+                    chatStore.setLastAssistantStreaming(true, in: conversationId)
+                    planFlowPhase = .idle
+                    planningState = .idle
+                    clearPlanStreamingState()
+                    _ = planRuntimeAction(
+                        "plan_reset",
+                        shouldRunInline: shouldRunPlanInline,
+                        planIntentConversationId: conversationId
+                    )
+                }
+                return .continueWithDirectChat(
+                    prompt: fullTurnPromptForScreeningFallback,
+                    attachments: attachmentsToSend
+                )
+            }
 
             // Finalize screening in chat and open plan panel
             await MainActor.run {
@@ -202,7 +229,7 @@ extension ChatPanelView {
             await MainActor.run {
                 cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
             }
-            return
+            return .completed
         }
 
         let analysisPrompt = await MainActor.run { () -> String in
@@ -216,7 +243,7 @@ extension ChatPanelView {
             await MainActor.run {
                 cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
             }
-            return
+            return .completed
         }
         let analysisResult = try await flowCoordinator.runStream(
             provider: provider,
@@ -251,7 +278,7 @@ extension ChatPanelView {
             await MainActor.run {
                 cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
             }
-            return
+            return .completed
         }
         let shouldRequestClarifications = analysisRuntimeSnapshot?.plan?.phase == .questioning
 
@@ -291,7 +318,7 @@ extension ChatPanelView {
                 conversationId: conversationId,
                 shouldRunPlanInline: shouldRunPlanInline
             )
-            return
+            return .completed
         }
 
         // ========================
@@ -338,14 +365,14 @@ extension ChatPanelView {
             await MainActor.run {
                 cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
             }
-            return
+            return .completed
         }
 
         let questionPrompt = await MainActor.run { () -> String in
             guard self.conversationId == conversationId else { return "" }
             return buildPhase2QuestionPrompt(
                 userRequest: planUserRequest,
-                analysisContext: analysisResult,
+                analysisContext: analysisText,
                 planIntentConversationId: conversationId
             )
         }
@@ -353,7 +380,7 @@ extension ChatPanelView {
             await MainActor.run {
                 cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
             }
-            return
+            return .completed
         }
         let questionResult = try await flowCoordinator.runStream(
             provider: provider,
@@ -380,7 +407,7 @@ extension ChatPanelView {
         }
         if didReceiveToolDrivenQuestionnaire {
             finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
-            return
+            return .completed
         }
 
         let questionRuntimeSnapshot = await MainActor.run { () -> MainChatRuntimeSnapshotBridge? in
@@ -396,7 +423,7 @@ extension ChatPanelView {
             await MainActor.run {
                 cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
             }
-            return
+            return .completed
         }
 
         if let questionRuntimeSnapshot,
@@ -430,7 +457,7 @@ extension ChatPanelView {
             }
             // STOP — Phase 3 will be triggered by submitPlanClarificationAnswers() → continuePlanFlowPhase3()
             finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
-            return
+            return .completed
         }
         finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
         let phase2Summary = questionRuntimeSnapshot?.output?.chatContentOverride
@@ -459,5 +486,6 @@ extension ChatPanelView {
             conversationId: conversationId,
             shouldRunPlanInline: shouldRunPlanInline
         )
+        return .completed
     }
 }

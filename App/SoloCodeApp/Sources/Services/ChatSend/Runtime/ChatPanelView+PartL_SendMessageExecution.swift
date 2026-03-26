@@ -1,10 +1,7 @@
 import AppKit
 import CoderEngine
-import os
 import SwiftUI
 import UniformTypeIdentifiers
-
-private let chatSendStreamLog = Logger(subsystem: "com.solocode.app", category: "ChatSendStream")
 
 enum MainChatSendExecutionRoute {
     case planFlow
@@ -19,8 +16,14 @@ func shouldRouteStreamingTextToReasoning(
 ) -> Bool {
     // Claude CLI already emits reasoning via separate `thinking` blocks.
     // Its text_delta IS the real response — never route it to reasoning.
-    // Only Codex CLI needs this routing because it doesn't separate them.
     if providerId == "claude-cli" { return false }
+    // Codex (presentation `.suppressed`): niente UI reasoning — il flusso testo va nella bolla principale.
+    if ChatReasoningPresentationPolicy.shouldSuppressReasoningUI(
+        messageProviderId: nil,
+        fallbackTurnProviderId: providerId
+    ) {
+        return false
+    }
     return coderMode == .agent
 }
 
@@ -59,6 +62,22 @@ extension ChatPanelView {
                 isPlanMultiTurnFlow: isPlanMultiTurnFlow,
                 usesRustTransport: effectiveRuntimeProvider is MainChatRustTransportProvider
             )
+            // #region agent log
+            AgentDebugSessionNDJSONLog.append(
+                hypothesisId: "SEND",
+                location: "executeSendMessageTurn",
+                message: "async_turn_started",
+                data: [
+                    "targetConversationId": targetConversationId.uuidString,
+                    "selectedBinding": conversationId?.uuidString ?? "nil",
+                    "assistantMessageId": assistantMessageId.uuidString,
+                    "providerId": effectiveRuntimeProvider.id,
+                    "executionRoute": "\(executionRoute)",
+                    "isPlanMultiTurnFlow": "\(isPlanMultiTurnFlow)",
+                    "usesRustTransport": "\(effectiveRuntimeProvider is MainChatRustTransportProvider)",
+                ]
+            )
+            // #endregion
             print(
                 "[ChatDebug] executeSendMessageTurn: coderMode=\(String(describing: self.coderMode)) isPlan=\(isPlanMultiTurnFlow ? 1 : 0) provider=\(effectiveRuntimeProvider.id)"
             )
@@ -66,13 +85,24 @@ extension ChatPanelView {
                 switch executionRoute {
                 case .planFlow:
                     // Multi-turn forced sequential plan flow
-                    try await runMultiTurnPlanFlow(
+                    let planOutcome = try await runMultiTurnPlanFlow(
                         provider: effectiveRuntimeProvider,
                         ctx: ctx,
                         attachmentsToSend: attachmentsToSend,
                         conversationId: targetConversationId,
-                        shouldRunPlanInline: shouldRunPlanInline
+                        shouldRunPlanInline: shouldRunPlanInline,
+                        fullTurnPromptForScreeningFallback: prompt
                     )
+                    if case let .continueWithDirectChat(fallbackPrompt, fallbackAttachments) = planOutcome {
+                        try await runStandardMainChatSendStream(
+                            targetConversationId: targetConversationId,
+                            effectiveRuntimeProvider: effectiveRuntimeProvider,
+                            prompt: fallbackPrompt,
+                            shouldRunPlanInline: shouldRunPlanInline,
+                            ctx: ctx,
+                            attachmentsToSend: fallbackAttachments
+                        )
+                    }
                     // Safety net: if the flow returned without advancing to a terminal
                     // state (e.g., early return from a conversation-ID guard), reset the
                     // phase so the user isn't permanently stuck.
@@ -162,104 +192,30 @@ extension ChatPanelView {
                     // Both .agent and other modes use the same linear stream
                     // flow only when the main-chat transport is backed by the
                     // Rust runtime.
-                    print("[ChatDebug] -> STANDARD mode path taken")
-                    let rustAvailable = ReviewCoreBridge.isEnabled
-                    if !rustAvailable {
-                        print("[ChatDebug] Rust bridge unavailable — using Swift pipeline fallback for raw events")
-                    }
-                    // Rust UI projection is optional — the stream still works
-                    // with the Swift fallback path in applyMainChatUIStreamIntent.
-                    _ = await MainActor.run {
-                        projectMainChatUISnapshot(conversationId: targetConversationId)
-                    }
-                    let streamResult = try await flowCoordinator.runStream(
-                        provider: effectiveRuntimeProvider,
+                    try await runStandardMainChatSendStream(
+                        targetConversationId: targetConversationId,
+                        effectiveRuntimeProvider: effectiveRuntimeProvider,
                         prompt: prompt,
-                        context: ctx,
-                        attachments: attachmentsToSend,
-                        onText: { content in
-                            let cleaned = ChatStore.stripCoderideMarkers(content, aggressive: true)
-                            let shouldRouteToReasoning = shouldRouteStreamingTextToReasoning(
-                                coderMode: coderMode,
-                                hasOperationalActivityInTurn: hasOperationalActivityInCurrentTurn(
-                                    conversationId: targetConversationId
-                                ),
-                                providerId: effectiveRuntimeProvider.id
-                            )
-                            if chatSendStreamLog.isEnabled(type: .debug) {
-                                chatSendStreamLog.debug(
-                                    "onText len=\(cleaned.count, privacy: .public) routeToReasoning=\(shouldRouteToReasoning, privacy: .public) coderMode=\(String(describing: coderMode), privacy: .public) preview=\(String(cleaned.prefix(80)), privacy: .public)"
-                                )
-                            }
-                            if shouldRouteToReasoning {
-                                applyStreamingReasoningSnapshot(
-                                    cleaned,
-                                    conversationId: targetConversationId
-                                )
-                            } else {
-                                processInlinePolicyAckMarkers(
-                                    in: content,
-                                    providerId: effectiveRuntimeProvider.id,
-                                    conversationId: targetConversationId
-                                )
-                                applyMainChatUIStreamIntent(
-                                    "stream_replace_text",
-                                    conversationId: targetConversationId,
-                                    providerId: effectiveRuntimeProvider.id,
-                                    text: cleaned
-                                )
-                            }
-                        },
-                        onRaw: { t, p, pid in
-                            handleRawStreamEvent(
-                                type: t,
-                                payload: p,
-                                providerId: pid,
-                                conversationId: targetConversationId,
-                                shouldApplyPipelineArtifacts: true,
-                                shouldUpdateInlineReasoningVisuals: true
-                            )
-                            if rustAvailable {
-                                applyMainChatUIStreamIntent(
-                                    "stream_apply_raw_event",
-                                    conversationId: targetConversationId,
-                                    providerId: pid,
-                                    payload: ["event_kind": t].merging(p) { _, new in new }
-                                )
-                            }
-                        },
-                        onError: { content in
-                            Task { @MainActor in
-                                applyMainChatUIStreamIntent(
-                                    "stream_finish_failure",
-                                    conversationId: targetConversationId,
-                                    providerId: effectiveRuntimeProvider.id,
-                                    text: content
-                                )
-                            }
-                        },
-                        onSignal: nil
-                    )
-
-                    let finalizedResult = try await continueIfPrematureStub(
-                        initial: streamResult,
-                        provider: effectiveRuntimeProvider,
-                        originalPrompt: prompt,
-                        context: ctx,
-                        conversationId: targetConversationId,
-                        hideContentDuringPlanDiscovery: false
-                    )
-
-                    await handleStreamResult(
-                        conversationId: targetConversationId,
-                        fullText: finalizedResult,
                         shouldRunPlanInline: shouldRunPlanInline,
                         ctx: ctx,
-                        attachmentsToSend: attachmentsToSend,
-                        prompt: prompt
+                        attachmentsToSend: attachmentsToSend
                     )
                 }
             } catch {
+                // #region agent log
+                let interrupted = isInterruptedStreamError(error)
+                AgentDebugSessionNDJSONLog.append(
+                    hypothesisId: "SEND",
+                    location: "executeSendMessageTurn",
+                    message: interrupted ? "stream_error_interrupted" : "stream_error_failed",
+                    data: [
+                        "targetConversationId": targetConversationId.uuidString,
+                        "executionRoute": "\(executionRoute)",
+                        "errorType": String(describing: type(of: error)),
+                        "errorDesc": String(error.localizedDescription.prefix(240)),
+                    ]
+                )
+                // #endregion
                 if isInterruptedStreamError(error) {
                     traceOutcome = .aborted
                     await MainActor.run {

@@ -5,6 +5,29 @@ use app_core_protocol::main_chat_runtime::{
 };
 
 #[test]
+fn screening_no_plan_skips_panel_and_flags_pipeline_skip() {
+    let snapshot = handle_plan_action(
+        base_snapshot(),
+        "plan_apply_screening_result",
+        Some("Quick fix.\nNO_PLAN_NEEDED".to_string()),
+        None,
+        None,
+        Vec::new(),
+        None,
+    )
+    .expect("snapshot");
+    let plan = snapshot.plan.expect("plan");
+    assert_eq!(plan.phase, Some(MainChatPlanPhase::Idle));
+    assert_eq!(
+        plan.planning_state_kind,
+        Some(MainChatPlanningStateKind::Idle)
+    );
+    let output = snapshot.output.expect("output");
+    assert!(!output.should_open_plan_panel);
+    assert!(output.skip_full_plan_pipeline);
+}
+
+#[test]
 fn phase2_action_opens_panel_and_sets_questions() {
     let snapshot = handle_plan_action(
         base_snapshot(),

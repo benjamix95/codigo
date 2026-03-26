@@ -118,6 +118,9 @@ pub struct MainChatRuntimeOutput {
     pub follow_up_prompt: Option<String>,
     pub generated_prompt: Option<String>,
     pub terminal_error: Option<String>,
+    /// When true after screening, the app should skip phases 1–3 and answer in a normal chat stream.
+    #[serde(default)]
+    pub skip_full_plan_pipeline: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]

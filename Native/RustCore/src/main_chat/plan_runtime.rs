@@ -12,7 +12,7 @@ use crate::main_chat::plan_prompts::{
 };
 use crate::main_chat::state::{ensure_plan_defaults, reset_output};
 use app_core_protocol::main_chat_runtime::{
-    MainChatPlanPhase, MainChatPlanningStateKind, MainChatRuntimeSnapshot,
+    MainChatPlanPhase, MainChatPlanSnapshot, MainChatPlanningStateKind, MainChatRuntimeSnapshot,
 };
 
 pub fn handle_plan_action(
@@ -29,7 +29,11 @@ pub fn handle_plan_action(
     }
     ensure_plan_defaults(&mut snapshot);
     reset_output(&mut snapshot);
-    let plan = snapshot.plan.as_mut().expect("plan");
+    let plan = snapshot.plan.get_or_insert_with(|| MainChatPlanSnapshot {
+        phase: Some(MainChatPlanPhase::Idle),
+        planning_state_kind: Some(MainChatPlanningStateKind::Idle),
+        ..Default::default()
+    });
 
     match action {
         "plan_prepare_phase0_screening_prompt" => {
@@ -39,11 +43,22 @@ pub fn handle_plan_action(
                 Some(build_phase0_screening_prompt(&plan.user_request));
         }
         "plan_apply_screening_result" => {
-            plan.phase = Some(MainChatPlanPhase::Analyzing);
-            snapshot.output.as_mut()?.chat_content_override = Some(plan_screening_status_message(
-                parse_plan_screening_decision(text.as_deref().unwrap_or_default()),
-            ));
-            snapshot.output.as_mut()?.should_open_plan_panel = true;
+            let decision = parse_plan_screening_decision(text.as_deref().unwrap_or_default());
+            let output = snapshot.output.as_mut()?;
+            output.chat_content_override = Some(plan_screening_status_message(decision));
+            match decision {
+                "no_plan_needed" => {
+                    plan.phase = Some(MainChatPlanPhase::Idle);
+                    plan.planning_state_kind = Some(MainChatPlanningStateKind::Idle);
+                    output.should_open_plan_panel = false;
+                    output.skip_full_plan_pipeline = true;
+                }
+                _ => {
+                    plan.phase = Some(MainChatPlanPhase::Analyzing);
+                    output.should_open_plan_panel = true;
+                    output.skip_full_plan_pipeline = false;
+                }
+            }
         }
         "plan_prepare_phase1_analysis_prompt" => {
             plan.phase = Some(MainChatPlanPhase::Analyzing);
