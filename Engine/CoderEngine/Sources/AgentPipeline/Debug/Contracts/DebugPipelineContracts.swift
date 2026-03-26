@@ -30,6 +30,8 @@ public enum DebugBackendPolicy: String, Codable, Sendable, Equatable, CaseIterab
 public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
     /// Un solo turno MCP: activate_debug_mode → debug_session(start) → debug_set_phase(describing).
     case describePipelineBootstrap = "describe_pipeline_bootstrap"
+    /// Un solo turno MCP: debug_set_phase(reproducing) → debug_request_user(reproduce).
+    case reproducePipelineBootstrap = "reproduce_pipeline_bootstrap"
     case activateMode = "activate_mode"
     case sessionStart = "session_start"
     case sessionExport = "session_export"
@@ -68,7 +70,8 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
         case .describePipelineBootstrap, .activateMode, .sessionStart, .setDescribePhase,
              .gatherContext, .analyzeIssue, .requestClarification:
             return .describing
-        case .setReproducePhase, .requestReproduction, .reproduce, .awaitReproduceGate:
+        case .reproducePipelineBootstrap, .setReproducePhase, .requestReproduction, .reproduce,
+             .awaitReproduceGate:
             return .reproducing
         case .instrument:
             return .instrumenting
@@ -87,13 +90,12 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
 
     public var defaultExecutionStyle: TaskExecutionStyle {
         switch self {
-        case .describePipelineBootstrap:
-            return .mcpTool
         case .nativeStart, .nativeRefresh, .nativeSyncBreakpoints,
              .nativeSyncWatches, .nativeStepIn, .nativeStepOver,
              .nativeStepOut, .nativeStop:
             return .nativeCommand
-        case .describePipelineBootstrap, .activateMode, .sessionStart, .sessionExport, .sessionStop,
+        case .describePipelineBootstrap, .reproducePipelineBootstrap, .activateMode, .sessionStart,
+             .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase, .setVerifyPhase,
              .requestClarification, .requestReproduction,
              .resolve, .awaitReproduceGate, .awaitFixGate:
@@ -116,7 +118,8 @@ public enum DebugStageKind: String, Codable, Sendable, Equatable, CaseIterable {
         case .reproduce, .instrument, .snapshot, .hypothesize,
              .fix, .clean, .timeline:
             return .debugger
-        case .describePipelineBootstrap, .activateMode, .sessionStart, .sessionExport, .sessionStop,
+        case .describePipelineBootstrap, .reproducePipelineBootstrap, .activateMode, .sessionStart,
+             .sessionExport, .sessionStop,
              .setDescribePhase, .setReproducePhase, .setFixPhase, .setVerifyPhase,
              .requestClarification, .requestReproduction, .resolve,
              .awaitReproduceGate, .awaitFixGate,

@@ -29,11 +29,11 @@ final class PipelineDebugGateStagesTests: XCTestCase {
             providerId: "test-provider"
         )
 
-        let requestIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .requestReproduction })
+        let bootstrapIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .reproducePipelineBootstrap })
         let gateIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .awaitReproduceGate })
         let reproduceIdx = try XCTUnwrap(tasks.firstIndex { $0.debugStage == .reproduce })
 
-        XCTAssertLessThan(requestIdx, gateIdx, "requestReproduction must come before awaitReproduceGate")
+        XCTAssertLessThan(bootstrapIdx, gateIdx, "reproducePipelineBootstrap must come before awaitReproduceGate")
         XCTAssertLessThan(gateIdx, reproduceIdx, "awaitReproduceGate must come before reproduce")
     }
 

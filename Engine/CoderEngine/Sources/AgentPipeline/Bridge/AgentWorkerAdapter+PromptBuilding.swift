@@ -196,6 +196,10 @@ extension AgentWorkerAdapter {
             lines.append(
                 "Run the full describe-phase bootstrap: activate debug mode, start debug_session, then set phase to describing. Follow pipeline_full_prompt if present."
             )
+        case .reproducePipelineBootstrap:
+            lines.append(
+                "Run reproduce-phase bootstrap: set phase to reproducing, then debug_request_user for reproduction details. Follow pipeline_full_prompt if present."
+            )
         case .activateMode:
             lines.append("Activate debug mode and establish the debug session context.")
         case .sessionStart:

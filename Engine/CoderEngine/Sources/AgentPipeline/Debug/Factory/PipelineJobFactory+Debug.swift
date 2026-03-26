@@ -100,8 +100,8 @@ extension PipelineJobFactory {
             case .intake:
                 switch stage {
                 case .describePipelineBootstrap, .gatherContext,
-                     .requestClarification, .analyzeIssue, .setReproducePhase,
-                     .requestReproduction, .awaitReproduceGate:
+                     .requestClarification, .analyzeIssue, .reproducePipelineBootstrap,
+                     .awaitReproduceGate:
                     return true
                 default:
                     return false
@@ -230,28 +230,29 @@ extension PipelineJobFactory {
             dependsOn: analyzeIssueDeps,
             metadata: ["debug_tool": "debug_trace_analyze"]
         )
-        let setReproducePhaseId = appendStage(
-            .setReproducePhase,
-            title: "Set Reproduce Phase",
+        let reproduceBootstrapPrompt = """
+        In one turn, in strict order:
+        1) Tool debug_set_phase with phase=reproducing.
+        2) Tool debug_request_user with request_kind=reproduce (ask only what is needed to reproduce).
+        Summarize briefly that the flow is in reproducing phase.
+        """
+        let reproduceBootstrapId = appendStage(
+            .reproducePipelineBootstrap,
+            title: "Enter Reproduce Phase and Request Reproduction",
             taskType: .bugfix,
             priority: 90,
             dependsOn: [analyzeIssueId],
-            metadata: ["mcp_tool": "debug_set_phase", "phase": "reproducing"]
-        )
-        let requestReproductionId = appendStage(
-            .requestReproduction,
-            title: "Request Reproduction",
-            taskType: .bugfix,
-            priority: 88,
-            dependsOn: [setReproducePhaseId],
-            metadata: ["mcp_tool": "debug_request_user", "request_kind": "reproduce"]
+            metadata: [
+                "mcp_tool": "debug_set_phase",
+                "pipeline_full_prompt": reproduceBootstrapPrompt,
+            ]
         )
         let awaitReproduceGateId = appendStage(
             .awaitReproduceGate,
             title: "Await Reproduce Confirmation",
             taskType: .bugfix,
             priority: 87,
-            dependsOn: [requestReproductionId],
+            dependsOn: [reproduceBootstrapId],
             metadata: [
                 "mcp_tool": "debug_request_user",
                 "gate_kind": "reproduce",
