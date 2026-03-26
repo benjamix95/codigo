@@ -31,7 +31,10 @@ extension TodoStore {
             guard !key.isEmpty else { continue }
             if let existingIndex = seenTitles[key] {
                 let existing = todos[existingIndex]
-                if todo.updatedAt > existing.updatedAt {
+                let todoIsNewer = todo.updatedAt > existing.updatedAt
+                let tieBreakTodoWins =
+                    todo.updatedAt == existing.updatedAt && todo.id.uuidString < existing.id.uuidString
+                if todoIsNewer || tieBreakTodoWins {
                     todos[index].planConversationId =
                         todo.planConversationId ?? existing.planConversationId
                     todos[index].lastTouchedConversationId =

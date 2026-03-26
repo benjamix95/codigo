@@ -3,7 +3,7 @@ import Foundation
 extension TodoStore {
     /// Dopo `upsertFromAgent`, la riga aggiornata può non avere più `preferredId` se il merge è avvenuto per titolo nello stesso scope.
     /// Con `preferredId == nil`, la risoluzione è solo per titolo (`updatedAt`, `createdAt`, `id`).
-    /// Se `eventConversationId` è valorizzato ma nessun match ha quel `planConversationId`, restituisce `nil` (niente fallback verso altre chat).
+    /// Se `eventConversationId` è valorizzato ma nessun match ha quel `planConversationId` né `lastTouchedConversationId` uguale all’evento, restituisce `nil` (niente fallback verso altre chat).
     func planConversationIdForRuntimeTodoAfterUpsert(
         preferredId: UUID?,
         normalizedTitle: String,

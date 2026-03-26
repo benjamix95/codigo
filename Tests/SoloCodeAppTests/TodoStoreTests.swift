@@ -672,6 +672,33 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(kept.lastTouchedConversationId, conv)
     }
 
+    func testDedupeRuntimePicksLexicographicallySmallerIdWhenUpdatedAtEqual() {
+        let store = makeStore()
+        let moment = Date()
+        let idLo = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let idHi = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let rowHi = TodoItem(
+            id: idHi,
+            title: "Same time dedupe",
+            status: .pending,
+            source: .agent,
+            createdAt: moment,
+            updatedAt: moment
+        )
+        let rowLo = TodoItem(
+            id: idLo,
+            title: "Same time dedupe",
+            status: .pending,
+            source: .agent,
+            createdAt: moment,
+            updatedAt: moment
+        )
+        store.todos = [rowHi, rowLo]
+        XCTAssertTrue(store.deduplicateRuntimeTodosByTitle())
+        XCTAssertEqual(store.todos.count, 1)
+        XCTAssertEqual(store.todos[0].id, idLo)
+    }
+
     func testAdvanceNextRuntimeTodoProceedsWhenCanonicalStepsAreAllDone() {
         let store = makeStore()
         let conversationId = UUID()
