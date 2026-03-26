@@ -28,6 +28,9 @@ extension DebugStore {
         var isAwaitingFixConfirmation: Bool
         var skippedQuestionsWarning: Bool
         var pendingResolutionAfterClean: String?
+        var debugFindings: [DebugFinding]
+        var streamLogs: [DebugStreamLogEntry]
+        var streamLogNewCount: Int
         var severityFilter: Set<DebugEntrySeverity>
         var categoryFilter: String?
         var searchQuery: String
@@ -70,6 +73,9 @@ extension DebugStore {
             isAwaitingFixConfirmation: isAwaitingFixConfirmation,
             skippedQuestionsWarning: skippedQuestionsWarning,
             pendingResolutionAfterClean: pendingResolutionAfterClean,
+            debugFindings: debugFindings,
+            streamLogs: streamLogs,
+            streamLogNewCount: streamLogNewCount,
             severityFilter: severityFilter,
             categoryFilter: categoryFilter,
             searchQuery: searchQuery,
@@ -84,47 +90,63 @@ extension DebugStore {
     }
 
     func restore(from snapshot: SessionSnapshot) {
-        phase = snapshot.phase
-        logs = snapshot.logs
-        hypotheses = snapshot.hypotheses
-        breakpoints = snapshot.breakpoints
-        streamingContent = snapshot.streamingContent
-        errorSummary = snapshot.errorSummary
-        clarificationQuestions = snapshot.clarificationQuestions
-        resolutionSummary = snapshot.resolutionSummary
-        debugMarkers = snapshot.debugMarkers
-        runtimeLogs = snapshot.runtimeLogs
-        instrumentationPoints = snapshot.instrumentationPoints
-        currentRunId = snapshot.currentRunId
-        activeDebugSessionId = snapshot.activeDebugSessionId
-        debugWorkspacePath = snapshot.debugWorkspacePath
-        debugFlowDiagram = snapshot.debugFlowDiagram
-        lastTraceAnalysis = snapshot.lastTraceAnalysis
-        lastSnapshotReport = snapshot.lastSnapshotReport
-        lastTimelineReport = snapshot.lastTimelineReport
-        lastTestCheckReport = snapshot.lastTestCheckReport
-        lastSessionExport = snapshot.lastSessionExport
-        fixLoopIteration = snapshot.fixLoopIteration
-        userConfirmedReproduce = snapshot.userConfirmedReproduce
-        awaitingDebugClean = snapshot.awaitingDebugClean
-        isAwaitingUserClarification = snapshot.isAwaitingUserClarification
-        isAwaitingReproduceConfirmation = snapshot.isAwaitingReproduceConfirmation
-        isAwaitingFixConfirmation = snapshot.isAwaitingFixConfirmation
-        skippedQuestionsWarning = snapshot.skippedQuestionsWarning
-        pendingResolutionAfterClean = snapshot.pendingResolutionAfterClean
-        severityFilter = snapshot.severityFilter
-        categoryFilter = snapshot.categoryFilter
-        searchQuery = snapshot.searchQuery
-        nativeSession = snapshot.nativeSession
-        nativeTargetPathInput = snapshot.nativeTargetPathInput
-        nativeArgumentsInput = snapshot.nativeArgumentsInput
-        nativeWatchExpressionsInput = snapshot.nativeWatchExpressionsInput
-        nativeBreakpointFilePathInput = snapshot.nativeBreakpointFilePathInput
-        nativeBreakpointLineInput = snapshot.nativeBreakpointLineInput
-        nativeBreakpointConditionInput = snapshot.nativeBreakpointConditionInput
-
         stopLogFileMonitor()
-        guard phase != .idle else { return }
+
+        flow = DebugFlowState(
+            phase: snapshot.phase,
+            logs: snapshot.logs,
+            hypotheses: snapshot.hypotheses,
+            breakpoints: snapshot.breakpoints,
+            streamingContent: snapshot.streamingContent,
+            errorSummary: snapshot.errorSummary,
+            clarificationQuestions: snapshot.clarificationQuestions,
+            resolutionSummary: snapshot.resolutionSummary
+        )
+        markers = DebugMarkerState(
+            debugMarkers: snapshot.debugMarkers,
+            runtimeLogs: snapshot.runtimeLogs,
+            instrumentationPoints: snapshot.instrumentationPoints
+        )
+        session = DebugSessionState(
+            currentRunId: snapshot.currentRunId,
+            activeDebugSessionId: snapshot.activeDebugSessionId,
+            debugWorkspacePath: snapshot.debugWorkspacePath,
+            debugFlowDiagram: snapshot.debugFlowDiagram,
+            fixLoopIteration: snapshot.fixLoopIteration,
+            userConfirmedReproduce: snapshot.userConfirmedReproduce,
+            awaitingDebugClean: snapshot.awaitingDebugClean
+        )
+        nativeInput = DebugNativeInputState(
+            nativeSession: snapshot.nativeSession,
+            nativeTargetPathInput: snapshot.nativeTargetPathInput,
+            nativeArgumentsInput: snapshot.nativeArgumentsInput,
+            nativeWatchExpressionsInput: snapshot.nativeWatchExpressionsInput,
+            nativeBreakpointFilePathInput: snapshot.nativeBreakpointFilePathInput,
+            nativeBreakpointLineInput: snapshot.nativeBreakpointLineInput,
+            nativeBreakpointConditionInput: snapshot.nativeBreakpointConditionInput
+        )
+        filters = DebugFilterState(
+            severityFilter: snapshot.severityFilter,
+            categoryFilter: snapshot.categoryFilter,
+            searchQuery: snapshot.searchQuery
+        )
+        reports = DebugReportState(
+            debugFindings: snapshot.debugFindings,
+            isAwaitingUserClarification: snapshot.isAwaitingUserClarification,
+            isAwaitingReproduceConfirmation: snapshot.isAwaitingReproduceConfirmation,
+            isAwaitingFixConfirmation: snapshot.isAwaitingFixConfirmation,
+            skippedQuestionsWarning: snapshot.skippedQuestionsWarning,
+            lastTraceAnalysis: snapshot.lastTraceAnalysis,
+            lastSnapshotReport: snapshot.lastSnapshotReport,
+            lastTimelineReport: snapshot.lastTimelineReport,
+            lastTestCheckReport: snapshot.lastTestCheckReport,
+            lastSessionExport: snapshot.lastSessionExport,
+            streamLogs: snapshot.streamLogs,
+            streamLogNewCount: snapshot.streamLogNewCount
+        )
+        pendingResolutionAfterClean = snapshot.pendingResolutionAfterClean
+
+        guard flow.phase != .idle else { return }
         startLogFileMonitor(path: activeDebugLogPath)
     }
 }

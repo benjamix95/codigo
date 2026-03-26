@@ -66,6 +66,25 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertFalse(updated)
     }
 
+    func testSessionSnapshotPreservesFindingsAndStreamLogs() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "ctx")
+        let finding = DebugFinding(title: "Leak", filePath: "App.swift", lineNumber: 10)
+        store.debugFindings = [finding]
+        store.streamLogs = [DebugStreamLogEntry(message: "chunk")]
+        store.streamLogNewCount = 7
+
+        let snap = store.snapshot()
+        let restored = DebugStore()
+        restored.restore(from: snap)
+
+        XCTAssertEqual(restored.debugFindings.count, 1)
+        XCTAssertEqual(restored.debugFindings.first?.title, "Leak")
+        XCTAssertEqual(restored.streamLogs.count, 1)
+        XCTAssertEqual(restored.streamLogs.first?.message, "chunk")
+        XCTAssertEqual(restored.streamLogNewCount, 7)
+    }
+
     func testBeginMarkFixedWaitsForDebugCleanBeforeResolving() {
         let store = DebugStore()
         store.startDebugSession(errorContext: "boom")

@@ -110,7 +110,7 @@ extension DebugStore {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
             eventMask: [.write, .extend],
-            queue: .global(qos: .utility)
+            queue: .main
         )
 
         source.setEventHandler { [weak self] in
@@ -121,21 +121,13 @@ extension DebugStore {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
 
-            var entries: [RuntimeLogEntry] = []
             for line in lines {
                 guard let data = line.data(using: .utf8),
                       let entry = try? decoder.decode(DebugLogJSONLEntry.self, from: data),
                       entry.isRuntimeLike else { continue }
-                entries.append(entry.runtimeLogEntry(defaultLocation: "live"))
-            }
-
-            if !entries.isEmpty {
-                DispatchQueue.main.async { [weak self] in
-                    for e in entries {
-                        guard self?.runtimeLogs.contains(where: { $0.id == e.id }) != true else { continue }
-                        self?.addRuntimeLog(e)
-                    }
-                }
+                let e = entry.runtimeLogEntry(defaultLocation: "live")
+                guard self?.runtimeLogs.contains(where: { $0.id == e.id }) != true else { continue }
+                self?.addRuntimeLog(e)
             }
         }
 

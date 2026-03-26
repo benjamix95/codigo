@@ -36,11 +36,16 @@ extension PipelineIntegrationService {
         }) {
             handleRawTodoWrite(p, for: conversationId)
         } else if envelopeContainsDebugEvent(normalizedEnvelope) {
-            handleRawDebugEvent(
-                p,
-                normalizedEnvelope: normalizedEnvelope,
-                for: conversationId
-            )
+            // `rawEventHandler` invoca `handleRawStreamEvent` → `recordTaskActivity` →
+            // `routeDebugEvent` / `applyOrBufferDebugEvent`. Evita doppia applicazione
+            // degli stessi eventi debug quando il job pipeline ha incollato questo callback.
+            if currentRuntime?.rawEventHandler == nil {
+                handleRawDebugEvent(
+                    p,
+                    normalizedEnvelope: normalizedEnvelope,
+                    for: conversationId
+                )
+            }
         } else if rawType == RawEventType.planStep {
             handleRawPlanStep(p, for: conversationId)
         } else if rawType == RawEventType.showTaskPanel {

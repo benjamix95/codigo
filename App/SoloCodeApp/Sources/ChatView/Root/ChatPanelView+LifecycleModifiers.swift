@@ -39,7 +39,6 @@ extension ChatPanelView {
                 }
                 planHistoryStore.setSelectedEntry(id: nil)
                 restoreDebugState(for: newId)
-                applyPendingDebugEvents(for: newId)
                 if let newId {
                     bindRuntimeDebugProjection(for: newId)
                 }

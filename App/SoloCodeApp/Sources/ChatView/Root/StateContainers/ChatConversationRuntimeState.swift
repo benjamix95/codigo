@@ -29,7 +29,6 @@ struct ChatConversationRuntimeState {
     // MARK: - Debug Local
 
     var debugStateByConversation: [UUID: DebugStore.SessionSnapshot] = [:]
-    var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
 
     // MARK: - Fallback
 

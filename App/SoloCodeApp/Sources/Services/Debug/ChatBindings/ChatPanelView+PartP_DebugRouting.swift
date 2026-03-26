@@ -18,7 +18,7 @@ extension ChatPanelView {
         guard !SwarmMetadata.isSwarmEvent(payload), let eventConversationId else {
             return
         }
-        conversationRuntime.pendingDebugEventsByConversation[eventConversationId, default: []].append(event)
+        pipelineIntegrationService.applyOrBufferDebugEvent(event, for: eventConversationId)
     }
 
     @MainActor
@@ -44,20 +44,6 @@ extension ChatPanelView {
         } else {
             debugStore.resetSession()
         }
-    }
-
-    @MainActor
-    internal func applyPendingDebugEvents(for conversationId: UUID?) {
-        guard let conversationId,
-              let pending = conversationRuntime.pendingDebugEventsByConversation.removeValue(forKey: conversationId),
-              !pending.isEmpty
-        else {
-            return
-        }
-        for event in pending {
-            applyDebugEventToActiveStore(event)
-        }
-        persistDebugState(for: conversationId)
     }
 
     @MainActor
