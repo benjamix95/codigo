@@ -28,6 +28,8 @@ struct ComposerTodoOverlayView: View {
     let onReviewChanges: () -> Void
     /// Solo tap sull’header: `true` dopo expand, `false` dopo collapse (non chiamato per auto-expand da parent).
     var onUserExpandedAfterHeaderTap: ((Bool) -> Void)? = nil
+    var isPlanningNextMoveInteractive: Bool = false
+    var onPlanningNextMoveTap: (() -> Void)? = nil
 
     // MARK: - Derived
 
@@ -50,7 +52,17 @@ struct ComposerTodoOverlayView: View {
 
                 if let microStatusText, !microStatusText.isEmpty {
                     Divider().overlay(Color.primary.opacity(0.08))
-                    microStatusRow(text: microStatusText)
+                    if isPlanningNextMoveInteractive, let onTap = onPlanningNextMoveTap {
+                        Button(action: onTap) {
+                            microStatusRow(text: microStatusText)
+                        }
+                        .buttonStyle(.plain)
+                        .help(
+                            "Avvia il prossimo todo del piano o, se l’agente è fermo, invia un promemoria per proseguire."
+                        )
+                    } else {
+                        microStatusRow(text: microStatusText)
+                    }
                 }
 
                 checklistContainer
@@ -120,6 +132,11 @@ struct ComposerTodoOverlayView: View {
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .lineLimit(1)
                 .textShimmer(active: isStreaming)
+            if isPlanningNextMoveInteractive {
+                Image(systemName: "hand.tap.fill")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textQuaternary)
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)

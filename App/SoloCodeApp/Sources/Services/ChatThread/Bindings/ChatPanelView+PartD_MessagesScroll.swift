@@ -331,6 +331,9 @@ extension ChatPanelView {
                                     deleteAction?()
                                 }
                             },
+                            onPlanningNextMoveTap: (resolvedStreamingStatusText == "Planning next move" && cellIsLoading)
+                                ? { performPlanningNextMoveUserAction() }
+                                : nil,
                             showTopDivider: needsDivider
                         )
                     }

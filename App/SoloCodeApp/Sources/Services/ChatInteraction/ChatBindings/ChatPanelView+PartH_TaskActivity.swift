@@ -336,6 +336,15 @@ extension ChatPanelView {
         let resolvedComposerFileChanges = composerTodoFileChanges
         let resolvedComposerMicroStatus = composerTodoMicroStatus
         let resolvedComposerStreaming = composerTodoIsStreaming
+        let planningNextMoveInteractive: Bool = {
+            guard let cid = conversationId else { return false }
+            let scoped = scopedTaskActivities(for: cid)
+            let label = TaskActivityStore.streamingStatusText(
+                isPaused: executionController.runState == .paused,
+                activities: scoped
+            )
+            return label == "Planning next move" && isLoadingForCurrentConversation
+        }()
         VStack(spacing: 0) {
             ChatComposerView(
                 inputText: $composerState.inputText,
@@ -405,7 +414,11 @@ extension ChatPanelView {
                                         signature: composerTodoAutoExpandSignature(items: stabilizedComposerTodoItems)
                                     )
                                 }
-                            }
+                            },
+                            isPlanningNextMoveInteractive: planningNextMoveInteractive,
+                            onPlanningNextMoveTap: planningNextMoveInteractive
+                                ? { performPlanningNextMoveUserAction() }
+                                : nil
                         )
                     )
                     : nil

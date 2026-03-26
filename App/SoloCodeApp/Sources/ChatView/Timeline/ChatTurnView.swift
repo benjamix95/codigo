@@ -158,6 +158,8 @@ struct ChatTurnView: View, Equatable {
     let canEdit: Bool
     let canDelete: Bool
     let onAction: (ChatTurnAction) -> Void
+    /// Tap su “Planning next move”: promuove todo o invia nudge se il thread è fermo.
+    var onPlanningNextMoveTap: (() -> Void)? = nil
     let showTopDivider: Bool
 
     nonisolated static func == (lhs: ChatTurnView, rhs: ChatTurnView) -> Bool {
@@ -279,6 +281,7 @@ struct ChatTurnView: View, Equatable {
         }
     }
 
+    @ViewBuilder
     private var streamingFooter: some View {
         let status = streamingStatusText.isEmpty ? "Thinking" : streamingStatusText
         let reasoningSuppressed = ChatReasoningPresentationPolicy.shouldSuppressReasoningUI(
@@ -289,11 +292,16 @@ struct ChatTurnView: View, Equatable {
         let footerColor = mutedPlanOrThink
             ? DesignSystem.Colors.textTertiary
             : Color.secondary
-        // “Thinking”: nessuna seconda riga (evita duplicare reasoning). Planning mostra todo/step reale.
         let showDetail = !reasoningSuppressed
             && status != "Thinking"
             && !(streamingDetailText?.isEmpty ?? true)
-        return HStack(spacing: 6) {
+        let planningInteractive =
+            status == "Planning next move"
+            && message.isStreaming
+            && isActuallyLoading
+            && onPlanningNextMoveTap != nil
+
+        let row = HStack(spacing: 6) {
             Text(status)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(footerColor)
@@ -307,7 +315,26 @@ struct ChatTurnView: View, Equatable {
                     .lineLimit(1)
                     .textShimmer(active: true)
             }
+            if planningInteractive {
+                Image(systemName: "hand.tap.fill")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(footerColor.opacity(0.9))
+            }
             Spacer()
+        }
+
+        Group {
+            if planningInteractive, let onTap = onPlanningNextMoveTap {
+                Button(action: onTap) {
+                    row
+                }
+                .buttonStyle(.plain)
+                .help(
+                    "Avvia il prossimo todo del piano o, se l’agente è fermo, invia un promemoria per proseguire."
+                )
+            } else {
+                row
+            }
         }
         .padding(.top, 2)
     }

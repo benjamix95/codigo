@@ -38,6 +38,7 @@ extension TaskActivityStore {
         "plan_step_upsert",
         "plan_step_batch_update",
         "plan_step_reorder",
+        "plan_next_move_user",
         "plan_step_dependency_set",
         "plan_set_walkthrough",
         "plan_history_read",
