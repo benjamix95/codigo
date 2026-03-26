@@ -110,9 +110,14 @@ public struct TaskCompletedPayload: Sendable {
 public struct TaskFailedPayload: Sendable {
     public let jobId: String
     public let taskId: String
+    /// Titolo del task dal DAG (per aggiornare Swarm/UI quando fallisce).
+    public let title: String
     public let error: String
-    public init(jobId: String, taskId: String, error: String) {
-        self.jobId = jobId; self.taskId = taskId; self.error = error
+    public init(jobId: String, taskId: String, title: String = "", error: String) {
+        self.jobId = jobId
+        self.taskId = taskId
+        self.title = title
+        self.error = error
     }
 }
 

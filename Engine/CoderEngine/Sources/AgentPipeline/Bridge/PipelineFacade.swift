@@ -358,8 +358,9 @@ public actor PipelineFacade {
         case .taskFailed:
             if let taskId = event.taskId {
                 let error = event.payload["error"] ?? "unknown error"
+                let taskTitle = await scheduler.task(byId: taskId)?.title ?? ""
                 results.append(.taskFailed(TaskFailedPayload(
-                    jobId: jobId, taskId: taskId, error: error
+                    jobId: jobId, taskId: taskId, title: taskTitle, error: error
                 )))
             }
 

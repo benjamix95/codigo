@@ -11,7 +11,9 @@ extension PipelineIntegrationService {
     ]
 
     func handleEvent(_ event: PipelineUIEvent, for conversationId: UUID) {
+        #if DEBUG
         print("[ChatDebug] handleEvent: \(String(describing: event).prefix(200))")
+        #endif
         switch event {
         case .jobStarted(let p):
             handleJobStarted(p, for: conversationId)
@@ -207,10 +209,21 @@ extension PipelineIntegrationService {
     }
 
     private func handleTaskFailed(_ p: TaskFailedPayload, for conversationId: UUID) {
+        if let runtime = runtime(for: conversationId) {
+            if let existing = runtime.lastError, !existing.isEmpty {
+                if !existing.contains(p.error) {
+                    runtime.lastError = "\(existing); \(p.error)"
+                }
+            } else {
+                runtime.lastError = p.error
+            }
+            persistSnapshot(for: conversationId)
+        }
         consumePipelineUIEvent(.taskFailed(p), for: conversationId)
+        let failureTitle = p.title.trimmingCharacters(in: .whitespacesAndNewlines)
         recordStructuredPipelineTaskActivity(
             type: "pipeline_task_failed",
-            title: "Task failed",
+            title: failureTitle.isEmpty ? "Task failed" : failureTitle,
             detail: p.error,
             conversationId: conversationId,
             isRunning: false,
@@ -218,12 +231,17 @@ extension PipelineIntegrationService {
         )
         recordPipelineSwarmLifecycleActivity(
             agentName: nil,
-            title: "Task failed",
+            title: failureTitle.isEmpty ? "Task failed" : failureTitle,
             detail: p.error,
             conversationId: conversationId,
             isRunning: false,
             taskId: p.taskId,
             status: "failed"
+        )
+        swarmProgressStore?.markFailed(name: failureTitle, conversationId: conversationId)
+        chatStore?.setTaskStatus(
+            failureTitle.isEmpty ? "Task failed: \(p.error)" : "\(failureTitle): \(p.error)",
+            for: conversationId
         )
     }
 

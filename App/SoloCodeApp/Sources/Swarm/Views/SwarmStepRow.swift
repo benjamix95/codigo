@@ -9,6 +9,7 @@ struct SwarmStepRow: View {
         switch step.status {
         case .completed: return "done"
         case .inProgress: return "running"
+        case .failed: return "failed"
         case .pending: return "pending"
         }
     }
@@ -17,6 +18,7 @@ struct SwarmStepRow: View {
         switch step.status {
         case .completed: return DesignSystem.Colors.success
         case .inProgress: return DesignSystem.Colors.warning
+        case .failed: return DesignSystem.Colors.error
         case .pending: return .secondary.opacity(0.7)
         }
     }
@@ -25,6 +27,7 @@ struct SwarmStepRow: View {
         switch step.status {
         case .completed: return DesignSystem.Colors.success.opacity(0.18)
         case .inProgress: return DesignSystem.Colors.warning.opacity(0.18)
+        case .failed: return DesignSystem.Colors.error.opacity(0.18)
         case .pending: return Color.primary.opacity(0.06)
         }
     }
@@ -33,6 +36,7 @@ struct SwarmStepRow: View {
         switch step.status {
         case .completed: return DesignSystem.Colors.success.opacity(0.38)
         case .inProgress: return DesignSystem.Colors.warning.opacity(0.42)
+        case .failed: return DesignSystem.Colors.error.opacity(0.42)
         case .pending: return DesignSystem.Colors.borderSubtle.opacity(0.95)
         }
     }
@@ -41,20 +45,27 @@ struct SwarmStepRow: View {
         switch step.status {
         case .completed: return DesignSystem.Colors.success.opacity(0.08)
         case .inProgress: return DesignSystem.Colors.warning.opacity(0.09)
+        case .failed: return DesignSystem.Colors.error.opacity(0.08)
         case .pending: return Color.primary.opacity(0.03)
         }
     }
 
     private var connectorColor: Color {
-        step.status == .completed
-            ? DesignSystem.Colors.success.opacity(0.28)
-            : DesignSystem.Colors.borderSubtle.opacity(0.9)
+        switch step.status {
+        case .completed:
+            return DesignSystem.Colors.success.opacity(0.28)
+        case .failed:
+            return DesignSystem.Colors.error.opacity(0.28)
+        default:
+            return DesignSystem.Colors.borderSubtle.opacity(0.9)
+        }
     }
 
     private var titleColor: Color {
         switch step.status {
         case .completed: return .secondary
         case .inProgress: return .primary
+        case .failed: return DesignSystem.Colors.error
         case .pending: return .secondary.opacity(0.78)
         }
     }

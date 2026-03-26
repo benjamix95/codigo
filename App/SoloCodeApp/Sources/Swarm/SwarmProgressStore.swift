@@ -5,6 +5,7 @@ enum SwarmStepStatus: String {
     case pending
     case inProgress
     case completed
+    case failed
 }
 
 struct SwarmStep: Identifiable {
@@ -99,6 +100,46 @@ final class SwarmProgressStore: ObservableObject {
         var updated = steps
         updated[idx].status = .completed
         steps = updated
+    }
+
+    /// Segna fallito uno step per titolo; se `name` è vuoto usa il primo step ancora `inProgress`.
+    func markFailed(name: String, conversationId: UUID? = nil) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedName: String? = {
+            if !trimmed.isEmpty { return trimmed }
+            if let scope = normalizedConversationScope(conversationId),
+               let steps = stepsByConversation[scope],
+               let stuck = steps.first(where: { $0.status == .inProgress }) {
+                return stuck.name
+            }
+            if let stuck = steps.first(where: { $0.status == .inProgress }) {
+                return stuck.name
+            }
+            return nil
+        }()
+
+        guard let targetName = resolvedName else { return }
+
+        if let scope = normalizedConversationScope(conversationId) {
+            tryMarkFailed(targetName, scope: scope)
+            return
+        }
+
+        guard let idx = steps.firstIndex(where: { $0.name == targetName }) else { return }
+        var updated = steps
+        if updated[idx].status != .completed {
+            updated[idx].status = .failed
+        }
+        steps = updated
+    }
+
+    private func tryMarkFailed(_ targetName: String, scope: String) {
+        guard let idx = stepsByConversation[scope]?.firstIndex(where: { $0.name == targetName }) else { return }
+        var updated = stepsByConversation[scope] ?? []
+        if updated[idx].status != .completed {
+            updated[idx].status = .failed
+        }
+        stepsByConversation[scope] = updated
     }
 
     func clear(conversationId: UUID? = nil) {

@@ -52,7 +52,13 @@ extension SwarmPanelView {
                         .foregroundStyle(stepColor(step))
                     Text(step.name)
                         .font(.system(size: 11, weight: step.status == .inProgress ? .medium : .regular))
-                        .foregroundStyle(step.status == .completed ? .tertiary : .primary)
+                        .foregroundStyle(
+                            step.status == .completed
+                                ? Color.secondary
+                                : step.status == .failed
+                                    ? DesignSystem.Colors.error
+                                    : Color.primary
+                        )
                         .strikethrough(step.status == .completed)
                         .lineLimit(1)
                         .textShimmer(active: step.status == .inProgress)

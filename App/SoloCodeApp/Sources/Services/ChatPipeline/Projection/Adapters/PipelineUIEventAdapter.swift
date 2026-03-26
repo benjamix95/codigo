@@ -53,6 +53,7 @@ enum PipelineUIEventAdapter {
                 ),
             ]
         case .taskFailed(let payload):
+            let title = payload.title.trimmingCharacters(in: .whitespacesAndNewlines)
             return [
                 ChatPipelineEvent(
                     conversationId: conversationId,
@@ -63,7 +64,7 @@ enum PipelineUIEventAdapter {
                     kind: .statusBadge,
                     payload: [
                         "artifact_id": "task-failed-\(payload.taskId)",
-                        "title": "Task failed",
+                        "title": title.isEmpty ? "Task failed" : title,
                         "detail": payload.error,
                         "status": "failed",
                         "provider_id": providerId,

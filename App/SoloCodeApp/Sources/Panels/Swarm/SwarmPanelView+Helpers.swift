@@ -30,6 +30,7 @@ extension SwarmPanelView {
         switch step.status {
         case .completed: return "checkmark.circle.fill"
         case .inProgress: return "arrow.right.circle.fill"
+        case .failed: return "xmark.circle.fill"
         case .pending: return "circle"
         }
     }
@@ -38,6 +39,7 @@ extension SwarmPanelView {
         switch step.status {
         case .completed: return DesignSystem.Colors.success
         case .inProgress: return DesignSystem.Colors.warning
+        case .failed: return DesignSystem.Colors.error
         case .pending: return DesignSystem.Colors.borderAccent
         }
     }

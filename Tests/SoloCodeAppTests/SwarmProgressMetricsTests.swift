@@ -17,7 +17,27 @@ final class SwarmProgressMetricsTests: XCTestCase {
         XCTAssertEqual(metrics.runningSteps, 1)
         XCTAssertEqual(metrics.pendingSteps, 1)
         XCTAssertEqual(metrics.progressLabel, "2/3 steps")
+        XCTAssertEqual(metrics.failedSteps, 0)
         XCTAssertEqual(metrics.summaryLabel, "1 done • 1 running • 1 pending")
+    }
+
+    func testMetricsCountFailedStepsInPendingAndSummary() {
+        let metrics = SwarmProgressMetrics(
+            steps: [
+                SwarmStep(name: "A", status: .completed),
+                SwarmStep(name: "B", status: .failed),
+                SwarmStep(name: "C", status: .pending),
+            ],
+            pipelineSnapshot: nil
+        )
+
+        XCTAssertEqual(metrics.totalSteps, 3)
+        XCTAssertEqual(metrics.completedSteps, 1)
+        XCTAssertEqual(metrics.failedSteps, 1)
+        XCTAssertEqual(metrics.runningSteps, 0)
+        XCTAssertEqual(metrics.pendingSteps, 1)
+        XCTAssertEqual(metrics.progressLabel, "2/3 steps")
+        XCTAssertTrue(metrics.summaryLabel?.contains("1 failed") == true)
     }
 
     func testMetricsFallbackToPipelineSnapshotWhenNamedStepsAreNotAvailableYet() {

@@ -56,12 +56,14 @@ extension PipelineIntegrationService {
                 return sequenced
             }
 
+            #if DEBUG
             for sequenced in sequencedEvents where sequenced.kind == .textDelta || sequenced.kind == .textReplace {
                 let delta = sequenced.payload["delta"] ?? sequenced.payload["replacement"] ?? ""
                 print(
                     "[ChatDebug] pipeline \(sequenced.kind.rawValue): delta=\(delta.count) payload=\(sequenced.payload.keys.sorted().joined(separator: ","))"
                 )
             }
+            #endif
 
             if !applyPipelineEventsThroughRustBoundary(
                 sequencedEvents,
@@ -91,11 +93,13 @@ extension PipelineIntegrationService {
             let primaryText = runtime.chatTurnState.primaryTextSnapshot
             let textKeys = runtime.chatTurnState.textByStreamId.keys.sorted()
             let streamIds = runtime.chatTurnState.orderedTextStreamIds
+            #if DEBUG
             if !primaryText.isEmpty || !coalescedEvents.filter({ $0.kind == .textDelta || $0.kind == .textReplace }).isEmpty {
                 print(
                     "[ChatDebug] commit: primaryText=\(primaryText.count) textKeys=\(textKeys.joined(separator: ",")) streamIds=\(streamIds.joined(separator: ",")) blocks=\(runtime.chatTurnState.blocks.count)"
                 )
             }
+            #endif
             if shouldPersistImmediately {
                 chatStore.saveConversationsImmediately()
             } else {
