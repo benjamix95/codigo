@@ -18,6 +18,7 @@ extension DebugStore {
             awaitingDebugClean = false
             pendingResolutionAfterClean = nil
             phase = .verifying
+            rescheduleDebugIdleWarningIfNeeded()
             addLog(
                 severity: .warning,
                 source: "debug_clean",

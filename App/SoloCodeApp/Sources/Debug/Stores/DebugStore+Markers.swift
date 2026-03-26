@@ -31,6 +31,7 @@ extension DebugStore {
         isAwaitingReproduceConfirmation = false
         clearStreamLogs()
         phase = .fixing
+        rescheduleDebugIdleWarningIfNeeded()
         startNativeDebugSession()
         addLog(severity: .info, source: "debug_session", message: "Bug reproduced — proceeding to fix phase", category: "system")
     }
@@ -41,6 +42,7 @@ extension DebugStore {
         pendingResolutionAfterClean = normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
         awaitingDebugClean = true
         phase = .verifying
+        rescheduleDebugIdleWarningIfNeeded()
 
         let files = Set(debugMarkers.map(\.filePath) + instrumentationPoints.map(\.filePath)).sorted()
         addLog(

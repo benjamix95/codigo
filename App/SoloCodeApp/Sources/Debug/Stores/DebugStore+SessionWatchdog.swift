@@ -50,6 +50,7 @@ extension DebugStore {
                 message: "Debug session idle for a long time. If the agent stalled, stop or resolve manually.",
                 category: "system"
             )
+            self.rescheduleDebugIdleWarningIfNeeded()
         }
     }
 }
