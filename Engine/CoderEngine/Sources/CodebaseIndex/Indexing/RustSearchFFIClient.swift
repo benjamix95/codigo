@@ -154,7 +154,7 @@ final class RustSearchFFIClient: @unchecked Sendable {
                 rustFFILogger.debug("  [\(index)] MISS: \(candidate)")
                 continue
             }
-            rustFFILogger.info("  [\(index)] EXISTS: \(candidate) — attempting dlopen")
+            rustFFILogger.debug("  [\(index)] EXISTS: \(candidate) — attempting dlopen")
             guard let handle = dlopen(candidate, RTLD_NOW | RTLD_LOCAL) else {
                 let dlErr = Self.currentDLError() ?? "unknown"
                 lastFailureReason = "dlopen_failed:\(candidate):\(dlErr)"

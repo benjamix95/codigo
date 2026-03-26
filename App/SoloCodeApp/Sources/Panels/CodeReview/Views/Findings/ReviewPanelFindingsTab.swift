@@ -61,8 +61,12 @@ struct ReviewPanelFindingsTab: View {
         let publishReadyFindings = store.currentPublishedFindings
         VStack(alignment: .leading, spacing: 10) {
             if let pipeline = store.currentPipelineJobState {
-                ReviewPipelineJobCard(state: pipeline)
-                    .padding(.horizontal, 10)
+                ReviewPipelineJobCard(
+                    state: pipeline.replacingTitle(
+                        ReviewPanelLiveBoardPresentation.pipelineCardTitle(modes: store.selectedModes)
+                    )
+                )
+                .padding(.horizontal, 10)
             }
 
             if findings.isEmpty && liveCandidates.isEmpty {

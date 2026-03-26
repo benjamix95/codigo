@@ -123,6 +123,12 @@ struct ReviewPipelineJobCard: View {
     let state: ReviewPipelineJobState
 
     var body: some View {
+        TimelineView(.animation(minimumInterval: 0.35, paused: state.isTerminal)) { _ in
+            innerCard
+        }
+    }
+
+    private var innerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if !state.phaseLedger.isEmpty {
@@ -171,20 +177,23 @@ struct ReviewPipelineJobCard: View {
     }
 
     private var progressRing: some View {
-        ZStack {
+        let pct = CGFloat(max(0, min(state.displayProgressPercent, 100))) / 100.0
+        return ZStack {
             Circle()
                 .stroke(Color.primary.opacity(0.08), lineWidth: 6)
             Circle()
-                .trim(from: 0, to: CGFloat(max(0, min(state.progressPercent, 100))) / 100.0)
+                .trim(from: 0, to: pct)
                 .stroke(state.phaseColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.28), value: state.displayProgressPercent)
             VStack(spacing: 1) {
-                if !state.isTerminal && state.toolsRunning > 0 {
+                if !state.isTerminal {
                     ProgressView()
-                        .controlSize(.mini)
-                        .scaleEffect(0.7)
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                        .scaleEffect(0.72)
                 }
-                Text(state.progressText)
+                Text(state.displayProgressText)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(state.phaseColor)
             }

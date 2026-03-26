@@ -1,3 +1,4 @@
+import AppKit
 import CoderEngine
 import SwiftUI
 
@@ -61,6 +62,7 @@ struct ReviewPanelFindingsHistoryTab: View {
                         state: liveState,
                         onOpenFileAtLocation: onOpenFileAtLocation
                     )
+                    .id(store.historyLiveRefreshKey)
                 }
 
                 if store.isHistoryLoading && store.historyRecords.isEmpty && liveState == nil {
@@ -121,6 +123,24 @@ struct ReviewPanelFindingsHistoryTab: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+            }
+            if store.currentHistoricalLiveRunState != nil {
+                HStack(spacing: 8) {
+                    Text("PID \(ProcessInfo.processInfo.processIdentifier)")
+                        .font(.system(size: 8.5, design: .monospaced))
+                        .foregroundStyle(.quaternary)
+                    Button("Copia comando sample") {
+                        let pid = ProcessInfo.processInfo.processIdentifier
+                        let cmd = "sample \(pid) 10 -file ~/Desktop/SoloCode_sample.txt"
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(cmd, forType: .string)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    Text("Esegui in Terminale se la UI si blocca durante la review.")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.quaternary)
+                }
             }
         }
         .padding(10)

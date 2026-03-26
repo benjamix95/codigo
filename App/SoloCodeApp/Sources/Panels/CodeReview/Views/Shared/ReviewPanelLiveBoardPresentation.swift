@@ -1,0 +1,80 @@
+import CoderEngine
+import Foundation
+
+/// Titoli e sottotitoli del Live Board coerenti con scope e profili selezionati nel panel.
+enum ReviewPanelLiveBoardPresentation {
+    static func boardHeaderTitle(isRunning: Bool, modes: Set<CodeReviewPanelMode>, scope: ReviewSessionScope?) -> String {
+        let scan = scanLabel(modes: modes)
+        let scopeBit = scope.map { shortScopeLabel($0) } ?? "scope"
+        if isRunning {
+            return "\(scan) — \(scopeBit)"
+        }
+        return "Run completata — \(scan)"
+    }
+
+    static func boardSubtitle(isRunning: Bool, modes: Set<CodeReviewPanelMode>) -> String {
+        let scan = scanLabel(modes: modes)
+        if isRunning {
+            return "Profilo: \(scan). File e worker aggiornati mentre la sessione evolve."
+        }
+        return "Riepilogo dell’ultima sessione con profilo \(scan)."
+    }
+
+    static func pipelineCardTitle(modes: Set<CodeReviewPanelMode>) -> String {
+        "Avanzamento — \(scanLabel(modes: modes))"
+    }
+
+    private static func scanLabel(modes: Set<CodeReviewPanelMode>) -> String {
+        let ordered: [CodeReviewPanelMode] = [.standard, .securityAudit, .bugFinder]
+        let active = ordered.filter { modes.contains($0) }
+        if active.isEmpty {
+            return CodeReviewPanelMode.standard.rawValue
+        }
+        if active.count == ordered.count {
+            return "Standard + Security + Bug"
+        }
+        return active.map(\.rawValue).joined(separator: " · ")
+    }
+
+    private static func shortScopeLabel(_ scope: ReviewSessionScope) -> String {
+        switch scope.type {
+        case .uncommitted: return "non committato"
+        case .staged: return "staging"
+        case .workspace: return "workspace"
+        case .codebase: return "codebase"
+        case .againstRef: return "vs \(scope.ref ?? "ref")"
+        }
+    }
+}
+
+extension ReviewPipelineJobState {
+    /// Percentuale mostrata: non scende sotto la frazione della fase corrente (anello allineato a “Fase N di M”).
+    var displayProgressPercent: Int {
+        let stepPortion = (visibleStepNumber * 100) / max(visibleStepsTotal, 1)
+        return min(100, max(progressPercent, stepPortion))
+    }
+
+    var displayProgressText: String { "\(displayProgressPercent)%" }
+
+    func replacingTitle(_ newTitle: String) -> ReviewPipelineJobState {
+        ReviewPipelineJobState(
+            title: newTitle,
+            phase: phase,
+            progressPercent: progressPercent,
+            stepsCompleted: stepsCompleted,
+            stepsTotal: stepsTotal,
+            toolsTotal: toolsTotal,
+            toolsCompleted: toolsCompleted,
+            toolsRunning: toolsRunning,
+            candidateCount: candidateCount,
+            verifiedCount: verifiedCount,
+            publishedFindingCount: publishedFindingCount,
+            hiddenFindingCount: hiddenFindingCount,
+            gates: gates,
+            tools: tools,
+            phaseLedger: phaseLedger,
+            bundleModes: bundleModes,
+            isTerminal: isTerminal
+        )
+    }
+}

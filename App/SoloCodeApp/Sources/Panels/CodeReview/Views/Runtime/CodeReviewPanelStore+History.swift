@@ -3,7 +3,9 @@ import Foundation
 extension CodeReviewPanelStore {
     var historyLiveRefreshKey: String {
         let sessionKey = selectedSessionId ?? "no-session"
-        let snapshotKey = currentSnapshot?.lastUpdatedAt.timeIntervalSince1970.description ?? "0"
+        let snapshotKey = currentSnapshot.map {
+            "\($0.mutationSequence)|\($0.lastUpdatedAt.timeIntervalSince1970)|\($0.phase.rawValue)|\($0.activeWorkerCount)"
+        } ?? "0"
         let workerKey = currentHistoryLiveWorkerPlans
             .map { "\($0.workerId):\($0.fileCount):\($0.files.joined(separator: ","))" }
             .joined(separator: "|")
@@ -26,16 +28,40 @@ extension CodeReviewPanelStore {
             || !workerPlans.isEmpty
             || !liveCards.isEmpty
         guard hasArtifacts else { return nil }
+        let base: ReviewHistoricalLiveBoardState?
         if let rustBoard = ReviewPanelHistoryLiveRustAdapter
             .derive(snapshot: snapshot, workerPlans: workerPlans, liveCards: liveCards)?
             .makeBoardState(pipeline: pipeline) {
-            return rustBoard
+            base = rustBoard
+        } else {
+            base = ReviewPanelHistoryLiveSwiftFallback.derive(
+                snapshot: snapshot,
+                workerPlans: workerPlans,
+                liveCards: liveCards,
+                pipeline: pipeline
+            )
         }
-        return ReviewPanelHistoryLiveSwiftFallback.derive(
-            snapshot: snapshot,
-            workerPlans: workerPlans,
-            liveCards: liveCards,
-            pipeline: pipeline
+        guard let board = base else { return nil }
+        let running = board.isRunning
+        let title = ReviewPanelLiveBoardPresentation.boardHeaderTitle(
+            isRunning: running,
+            modes: selectedModes,
+            scope: snapshot.scope
+        )
+        let subtitle = ReviewPanelLiveBoardPresentation.boardSubtitle(
+            isRunning: running,
+            modes: selectedModes
+        )
+        let headerPipeline = board.pipeline.replacingTitle(
+            ReviewPanelLiveBoardPresentation.pipelineCardTitle(modes: selectedModes)
+        )
+        return ReviewHistoricalLiveBoardState(
+            title: title,
+            subtitle: subtitle,
+            pipeline: headerPipeline,
+            workers: board.workers,
+            files: board.files,
+            isRunning: running
         )
     }
 
