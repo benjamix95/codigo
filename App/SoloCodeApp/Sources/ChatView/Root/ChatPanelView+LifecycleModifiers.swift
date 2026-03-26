@@ -89,6 +89,7 @@ extension ChatPanelView {
         let lifecycleTracked = content
             .onChangeCompat(of: showSwarmPanel) { wasOpen, isShowing in
                 if isShowing && !wasOpen {
+                    uiSettings.swarmPanelWidthStorage = SidePanelLayoutMetrics.swarmMax
                     adjustWindowForPanelToggle(
                         isOpening: true,
                         width: CGFloat(uiSettings.swarmPanelWidthStorage)
@@ -113,6 +114,7 @@ extension ChatPanelView {
                     selectMode(.agent)
                 }
                 if isShowing && !wasOpen {
+                    uiSettings.debugPanelWidthStorage = SidePanelLayoutMetrics.debugMax
                     adjustWindowForPanelToggle(
                         isOpening: true,
                         width: CGFloat(uiSettings.debugPanelWidthStorage)
@@ -142,6 +144,7 @@ extension ChatPanelView {
                     showDebugPanel = false
                 }
                 if isOpen && !wasOpen {
+                    uiSettings.planPanelWidthStorage = SidePanelLayoutMetrics.planMax
                     adjustWindowForPanelToggle(
                         isOpening: true,
                         width: CGFloat(uiSettings.planPanelWidthStorage)
@@ -180,6 +183,7 @@ extension ChatPanelView {
             }
             .onChangeCompat(of: showCodeReviewPanel) { wasOpen, isOpen in
                 if isOpen && !wasOpen {
+                    uiSettings.codeReviewPanelWidthStorage = SidePanelLayoutMetrics.codeReviewMax
                     adjustWindowForPanelToggle(
                         isOpening: true,
                         width: CGFloat(uiSettings.codeReviewPanelWidthStorage)
@@ -192,6 +196,11 @@ extension ChatPanelView {
                     if planToggleEnabled && !showPlanPanel && !showDebugPanel {
                         showPlanPanel = true
                     }
+                }
+            }
+            .onChangeCompat(of: gitPanelStore.isOpen) { wasOpen, isOpen in
+                if isOpen && !wasOpen {
+                    uiSettings.gitPanelWidthStorage = SidePanelLayoutMetrics.gitMax
                 }
             }
             .onChange(of: effectiveContext.primaryPath) { newPath in

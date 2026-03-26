@@ -64,6 +64,26 @@ extension ContentView {
             .padding(10)
         }
         .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity)
+        .onChangeCompat(of: panelCoordinator.showChatPanel) { wasOpen, isOpen in
+            guard isOpen && !wasOpen else { return }
+            ContentPanelWidthPolicy.snapStoredWidthToOpenMax(
+                storedWidth: &chatPanelWidth,
+                detailWidth: detailWidth,
+                fraction: 0.45
+            )
+        }
+        .onChangeCompat(of: panelCoordinator.showBrowserPanel) { wasOpen, isOpen in
+            guard isOpen && !wasOpen else { return }
+            ContentPanelWidthPolicy.snapStoredWidthToOpenMax(
+                storedWidth: &browserPanelWidth,
+                detailWidth: detailWidth,
+                fraction: 0.55
+            )
+        }
+        .onChangeCompat(of: showIDEWorkbenchSidebar) { wasVisible, isVisible in
+            guard isVisible && !wasVisible else { return }
+            sidePanelWidth = 380
+        }
     }
 
     @ViewBuilder
@@ -87,6 +107,14 @@ extension ContentView {
             }
         }
         .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity)
+        .onChangeCompat(of: panelCoordinator.showBrowserPanel) { wasOpen, isOpen in
+            guard isOpen && !wasOpen else { return }
+            ContentPanelWidthPolicy.snapStoredWidthToOpenMax(
+                storedWidth: &browserPanelWidth,
+                detailWidth: detailWidth,
+                fraction: 0.65
+            )
+        }
     }
 
     var fallbackModeContent: some View {

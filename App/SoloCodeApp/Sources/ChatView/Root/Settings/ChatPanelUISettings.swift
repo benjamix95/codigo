@@ -43,5 +43,5 @@ struct ChatPanelUISettings: DynamicProperty {
     @AppStorage("swarm_panel_width") var swarmPanelWidthStorage: Double = 360
     @AppStorage("code_review_panel_width") var codeReviewPanelWidthStorage: Double = 380
     @AppStorage("git_panel_width") var gitPanelWidthStorage: Double = 380
-    @AppStorage("auto_resize_side_panels") var autoResizeSidePanels = false
+    @AppStorage("auto_resize_side_panels") var autoResizeSidePanels = true
 }

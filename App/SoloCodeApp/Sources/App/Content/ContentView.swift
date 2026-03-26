@@ -40,7 +40,7 @@ struct ContentView: View {
     @AppStorage("git_panel_width") var gitPanelWidth: Double = 380
     @AppStorage("chat_panel_width") var chatPanelWidth: Double = 380
     @AppStorage("side_panel_width") var sidePanelWidth: Double = 240
-    @AppStorage("auto_resize_side_panels") var autoResizeSidePanels = false
+    @AppStorage("auto_resize_side_panels") var autoResizeSidePanels = true
     @AppStorage("chat_panel_position") var chatPanelPosition = "left"
     @AppStorage("browser_panel_width") var browserPanelWidth: Double = 500
 

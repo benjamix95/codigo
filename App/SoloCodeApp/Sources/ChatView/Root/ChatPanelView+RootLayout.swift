@@ -85,35 +85,45 @@ extension ChatPanelView {
             if showPlanPanel {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(uiSettings.planPanelWidthStorage) }, set: { uiSettings.planPanelWidthStorage = Double($0) }),
-                    minWidth: 220, maxWidth: 500, leadingEdge: true
+                    minWidth: CGFloat(SidePanelLayoutMetrics.planMin),
+                    maxWidth: CGFloat(SidePanelLayoutMetrics.planMax),
+                    leadingEdge: true
                 )
                 planPanelSidebar
             }
             if showDebugPanel {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(uiSettings.debugPanelWidthStorage) }, set: { uiSettings.debugPanelWidthStorage = Double($0) }),
-                    minWidth: 240, maxWidth: 500, leadingEdge: true
+                    minWidth: CGFloat(SidePanelLayoutMetrics.debugMin),
+                    maxWidth: CGFloat(SidePanelLayoutMetrics.debugMax),
+                    leadingEdge: true
                 )
                 debugPanelSidebar
             }
             if showSwarmPanel {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(uiSettings.swarmPanelWidthStorage) }, set: { uiSettings.swarmPanelWidthStorage = Double($0) }),
-                    minWidth: 260, maxWidth: 540, leadingEdge: true
+                    minWidth: CGFloat(SidePanelLayoutMetrics.swarmMin),
+                    maxWidth: CGFloat(SidePanelLayoutMetrics.swarmMax),
+                    leadingEdge: true
                 )
                 swarmPanelSidebar
             }
             if showCodeReviewPanel {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(uiSettings.codeReviewPanelWidthStorage) }, set: { uiSettings.codeReviewPanelWidthStorage = Double($0) }),
-                    minWidth: 280, maxWidth: 560, leadingEdge: true
+                    minWidth: CGFloat(SidePanelLayoutMetrics.codeReviewMin),
+                    maxWidth: CGFloat(SidePanelLayoutMetrics.codeReviewMax),
+                    leadingEdge: true
                 )
                 codeReviewPanelSidebar
             }
             if gitPanelStore.isOpen {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(uiSettings.gitPanelWidthStorage) }, set: { uiSettings.gitPanelWidthStorage = Double($0) }),
-                    minWidth: 280, maxWidth: 500, leadingEdge: false
+                    minWidth: CGFloat(SidePanelLayoutMetrics.gitMin),
+                    maxWidth: CGFloat(SidePanelLayoutMetrics.gitMax),
+                    leadingEdge: false
                 )
                 GitPanelView(
                     store: gitPanelStore,

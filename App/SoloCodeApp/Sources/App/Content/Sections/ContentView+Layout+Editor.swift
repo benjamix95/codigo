@@ -159,6 +159,13 @@ extension ContentView {
         }
         .padding(10)
         .background(Color.clear)
+        .onChangeCompat(of: panelCoordinator.showTerminal) { wasOpen, isOpen in
+            guard isOpen && !wasOpen else { return }
+            panelCoordinator.terminalHeight = max(
+                panelCoordinator.terminalHeight,
+                UIPanelCoordinator.terminalPreferredOpenHeight
+            )
+        }
     }
 
 }

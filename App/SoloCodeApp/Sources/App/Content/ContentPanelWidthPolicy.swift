@@ -23,4 +23,15 @@ enum ContentPanelWidthPolicy {
         guard candidate.isFinite, candidate > 0 else { return minWidth }
         return min(max(candidate, minWidth), maxWidth)
     }
+
+    /// All’apertura di un pannello aggancia la larghezza salvata al massimo consentito per la geometria corrente.
+    static func snapStoredWidthToOpenMax(
+        storedWidth: inout Double,
+        detailWidth: CGFloat,
+        fraction: CGFloat,
+        minWidth: CGFloat = minPanelWidth
+    ) {
+        let cap = maxWidth(detailWidth: detailWidth, fraction: fraction, minWidth: minWidth)
+        storedWidth = Double(cap)
+    }
 }

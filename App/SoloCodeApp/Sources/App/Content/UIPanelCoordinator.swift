@@ -5,6 +5,9 @@ import SwiftUI
 /// Centralizes panel visibility, layout flags, and folder-picker state
 /// that previously lived as ~22 @State in ContentView.
 final class UIPanelCoordinator: ObservableObject {
+    /// Altezza usata quando il terminale viene mostrato (pannello “intero” rispetto al default 200).
+    static let terminalPreferredOpenHeight: CGFloat = 400
+
     // MARK: Panel Visibility
     @Published var showTerminal = false
     @Published var terminalHeight: CGFloat = 200
