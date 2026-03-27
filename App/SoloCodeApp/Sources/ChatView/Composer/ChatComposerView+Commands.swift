@@ -182,19 +182,50 @@ extension ChatComposerView {
     }
 
     internal var noProjectOpenBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "folder.badge.plus")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            Text(
-                "Nessun progetto aperto. Apri una cartella o un workspace dalla barra laterale per inviare messaggi."
-            )
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
-            Spacer()
+        VStack(spacing: isIDEStyle ? 10 : 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.06))
+                    .frame(width: isIDEStyle ? 38 : 42, height: isIDEStyle ? 38 : 42)
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: isIDEStyle ? 15 : 17, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
+            }
+
+            VStack(spacing: 4) {
+                Text("Apri un progetto per iniziare")
+                    .font(.system(size: isIDEStyle ? 13 : 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .multilineTextAlignment(.center)
+
+                Text("Aggiungi una cartella o un workspace dalla barra laterale per creare thread e inviare messaggi.")
+                    .font(.system(size: isIDEStyle ? 11.5 : 12.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(1)
+            }
         }
-        .padding(.horizontal, isIDEStyle ? 12 : 16)
-        .padding(.vertical, isIDEStyle ? 6 : 8)
-        .background(Color.secondary.opacity(0.08))
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, isIDEStyle ? 18 : 24)
+        .padding(.vertical, isIDEStyle ? 16 : 18)
+        .background(
+            RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 18, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.05),
+                            Color.white.opacity(0.025),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 18, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8)
+        )
+        .padding(.horizontal, isIDEStyle ? 8 : 12)
+        .padding(.bottom, isIDEStyle ? 4 : 6)
     }
 }
