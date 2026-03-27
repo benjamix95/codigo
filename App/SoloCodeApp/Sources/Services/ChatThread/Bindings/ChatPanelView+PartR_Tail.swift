@@ -82,6 +82,12 @@ extension ChatPanelView {
                 text: shouldHidePlanMarkdown ? nil : finalVisibleChatContent
             )
             clearStreamingReasoning(for: streamConversationId)
+            syncAgentBackedPlanAfterStream(
+                conversationId: streamConversationId,
+                fullText: full,
+                shouldRunPlanInline: shouldRunPlanInline,
+                isBuildContext: isBuildContext
+            )
         }
         await trySummarizeIfNeeded(ctx: ctx)
 

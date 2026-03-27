@@ -101,22 +101,25 @@ final class ClaudeProviderIntegrationTests: XCTestCase {
         )
     }
 
-    func testPlanFlowTakesPriorityOverTransportType() {
+    func testPlanModeUsesStandardStreamWhenRustTransportIsAvailable() {
         XCTAssertEqual(
             resolveMainChatSendExecutionRoute(
                 coderMode: .agent,
                 isPlanMultiTurnFlow: true,
                 usesRustTransport: true
             ),
-            .planFlow
+            .standardStream
         )
+    }
+
+    func testPlanModeUsesAgentPipelineWhenRustTransportIsUnavailable() {
         XCTAssertEqual(
             resolveMainChatSendExecutionRoute(
                 coderMode: .agent,
                 isPlanMultiTurnFlow: true,
                 usesRustTransport: false
             ),
-            .planFlow
+            .agentPipeline
         )
     }
 

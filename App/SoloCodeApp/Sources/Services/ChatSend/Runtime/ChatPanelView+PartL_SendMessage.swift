@@ -111,6 +111,11 @@ extension ChatPanelView {
             planToggleEnabled: planToggleEnabled
         )
         let isPlanModeRequested = (coderMode == .plan || shouldRunPlanInline)
+        let planningStateBeforeSend = planningState
+        let isClarificationReplyTurn: Bool = {
+            if case .awaitingClarification = planningStateBeforeSend { return true }
+            return false
+        }()
         func resetPlanFlowAfterPreflightFailureIfNeeded() {
             guard shouldResetPlanFlowAfterPreflightFailure(
                 isPlanModeRequested: isPlanModeRequested,
@@ -125,6 +130,9 @@ extension ChatPanelView {
         if isPlanModeRequested {
             switch planFlowPhase {
             case .analyzing, .questioning, .generating, .building:
+                if planFlowPhase == .questioning, isClarificationReplyTurn {
+                    break
+                }
                 appendTechnicalErrorMessage(
                     "[Plan] A plan flow is already in progress. Please wait for it to finish or interrupt it first.",
                     in: targetConversationId
@@ -134,7 +142,9 @@ extension ChatPanelView {
                 break
             }
             planFlowPhase = .analyzing
-            planningState = .idle
+            if !isClarificationReplyTurn {
+                planningState = .idle
+            }
             planAnalysisContext = ""
             planUserRequest = String(text.prefix(16_000))
             planClarificationAnswers = ""
@@ -337,7 +347,11 @@ extension ChatPanelView {
 
         let attachmentsToSend = attachmentBundle.llm.isEmpty ? nil : attachmentBundle.llm
 
-        let basePrompt = buildPrompt(userText: text, shouldRunPlanInline: shouldRunPlanInline)
+        let basePrompt = buildPrompt(
+            userText: text,
+            shouldRunPlanInline: shouldRunPlanInline,
+            planningStateOverride: planningStateBeforeSend
+        )
         let prompt = attachmentBundle.fallbackPreamble.isEmpty
             ? basePrompt
             : "\(attachmentBundle.fallbackPreamble)\n\n\(basePrompt)"

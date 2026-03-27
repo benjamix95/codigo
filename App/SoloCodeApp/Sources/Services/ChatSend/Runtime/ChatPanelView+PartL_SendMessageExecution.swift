@@ -4,7 +4,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum MainChatSendExecutionRoute {
-    case planFlow
     case agentPipeline
     case standardStream
 }
@@ -32,10 +31,9 @@ func resolveMainChatSendExecutionRoute(
     isPlanMultiTurnFlow: Bool,
     usesRustTransport: Bool
 ) -> MainChatSendExecutionRoute {
-    if isPlanMultiTurnFlow {
-        return .planFlow
-    }
-    if coderMode == .agent && !usesRustTransport {
+    _ = coderMode
+    _ = isPlanMultiTurnFlow
+    if !usesRustTransport {
         return .agentPipeline
     }
     return .standardStream
@@ -67,60 +65,6 @@ extension ChatPanelView {
             )
             do {
                 switch executionRoute {
-                case .planFlow:
-                    // Multi-turn forced sequential plan flow
-                    let planOutcome = try await runMultiTurnPlanFlow(
-                        provider: effectiveRuntimeProvider,
-                        ctx: ctx,
-                        attachmentsToSend: attachmentsToSend,
-                        conversationId: targetConversationId,
-                        shouldRunPlanInline: shouldRunPlanInline,
-                        fullTurnPromptForScreeningFallback: prompt
-                    )
-                    if case let .continueWithDirectChat(fallbackPrompt, fallbackAttachments) = planOutcome {
-                        try await runStandardMainChatSendStream(
-                            targetConversationId: targetConversationId,
-                            effectiveRuntimeProvider: effectiveRuntimeProvider,
-                            prompt: fallbackPrompt,
-                            shouldRunPlanInline: shouldRunPlanInline,
-                            ctx: ctx,
-                            attachmentsToSend: fallbackAttachments
-                        )
-                    }
-                    // Safety net: if the flow returned without advancing to a terminal
-                    // state (e.g., early return from a conversation-ID guard), reset the
-                    // phase so the user isn't permanently stuck.
-                    // Exception: .questioning + .awaitingClarification is a legitimate
-                    // pause — the user needs to answer before the flow continues.
-                    await MainActor.run {
-                        guard shouldMutatePlanState(
-                            targetConversationId: targetConversationId,
-                            currentConversationId: self.conversationId
-                        ) else {
-                            cleanupPlanFlowAfterConversationSwitch(targetConversationId: targetConversationId)
-                            return
-                        }
-                        let isPausedForClarification: Bool = {
-                            if case .awaitingClarification = planningState { return true }
-                            return false
-                        }()
-                        switch planFlowPhase {
-                        case .analyzing, .generating:
-                            print("[PlanFlow] Safety reset: planFlowPhase was still \(String(describing: planFlowPhase)) after runMultiTurnPlanFlow returned")
-                            planFlowPhase = .idle
-                            planningState = .idle
-                            planClarificationQuestionnaire = nil
-                            clearPlanStreamingState()
-                        case .questioning where !isPausedForClarification:
-                            print("[PlanFlow] Safety reset: planFlowPhase was .questioning without awaitingClarification")
-                            planFlowPhase = .idle
-                            planningState = .idle
-                            planClarificationQuestionnaire = nil
-                            clearPlanStreamingState()
-                        default:
-                            break
-                        }
-                    }
                 case .agentPipeline:
                     print("[ChatDebug] -> AGENT fallback path taken (Swift provider pipeline)")
                     await MainActor.run {

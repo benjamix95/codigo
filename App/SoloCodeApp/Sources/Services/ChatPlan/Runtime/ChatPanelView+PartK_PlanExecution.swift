@@ -175,37 +175,24 @@ extension ChatPanelView {
             }
             providerRegistry.selectedProviderId = provider.id
             coderMode = .agent
-            _ = applyPlanUIIntent(
-                "begin_plan_build",
-                conversationId: planConversationId
-            )
             activeBuildPlanConversationId = planConversationId
             activeBuildAgentConversationId = agentConvId
-
-            let planBuildAssistantMessageId = UUID()
-            chatStore.addMessage(
-                ChatMessage(
-                    id: planBuildAssistantMessageId,
-                    role: .assistant,
-                    content: "",
-                    isStreaming: true
-                ),
-                to: agentConvId
-            )
-            suppressedEmptyBuildAssistantMessageIds.insert(planBuildAssistantMessageId)
-            startToolTraceTurn(
+            beginManualPlanBuildChatTransition(
                 conversationId: agentConvId,
-                assistantMessageId: planBuildAssistantMessageId,
                 providerId: provider.id
             )
-            chatStore.beginTask(conversationId: agentConvId)
-            if shouldResetTaskActivityStoreBeforeStartingTurn(
-                activeTaskConversationIds: chatStore.activeTaskConversationIds,
-                targetConversationId: agentConvId
-            ) {
-                clearTaskActivityPipeline()
+            guard let planBuildAssistantMessageId =
+                chatStore.conversation(for: agentConvId)?
+                .messages
+                .last(where: { $0.role == .assistant })?
+                .id
+            else {
+                appendTechnicalErrorMessage(
+                    "[Plan] Unable to start build assistant turn.",
+                    in: agentConvId
+                )
+                return
             }
-            scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
 
             executePlanBuildViaPipeline(
                 provider: provider,

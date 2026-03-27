@@ -32,9 +32,45 @@ extension ChatPanelView {
         providerId: String,
         conversationId: UUID?
     ) -> Bool {
+        if isPlanBuildGuardActive(
+            phase: planFlowPhase,
+            planningState: planningState,
+            coderMode: coderMode,
+            planToggleEnabled: planToggleEnabled
+        ), let violation = planBuildGuardViolation(type: type, payload: payload) {
+            recordTaskActivity(
+                type: "tool_validation_error",
+                payload: [
+                    "title": violation.title,
+                    "detail": violation.detail,
+                    "status": "failed",
+                    "error_code": violation.errorCode,
+                    "tool": payload["mcp_tool"] ?? payload["tool"] ?? type,
+                ],
+                providerId: providerId,
+                conversationId: conversationId
+            )
+            appendTechnicalErrorMessage(
+                "[Policy error] \(violation.detail)",
+                in: conversationId
+            )
+            stopTaskForPolicyViolation(
+                conversationId: conversationId,
+                reason: "plan_build_guard"
+            )
+            return true
+        }
         guard uiSettings.agentsHardBlockEnabled else { return false }
         guard requiresTodoPlanStartPolicy(providerId: providerId, coderMode: coderMode) else {
             return false
+        }
+        // Evidenza log H: durante plan multi-turn `coderMode` resta `.agent` (codex-cli) ma `planFlowPhase`
+        // è discovery — l’analisi deve poter lanciare `command_execution` / tool senza `todo_write` prima.
+        switch planFlowPhase {
+        case .analyzing, .questioning, .generating:
+            return false
+        case .idle, .proposalReady, .readyToBuild, .building:
+            break
         }
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return false
@@ -46,6 +82,26 @@ extension ChatPanelView {
             payload: payload
         ) {
             if !state.violationEmitted {
+                // #region agent log
+                let toolKey = payload["mcp_tool"] ?? payload["tool"] ?? payload["toolName"] ?? type
+                PlanFlowDebugNDJSONLog.append(
+                    hypothesisId: "H",
+                    location: "PartP_PolicyTodoFlush.shouldHardBlockForMissingTodoOrPlan",
+                    message: "todo_plan_start_policy_block",
+                    data: [
+                        "errorCode": violation.errorCode,
+                        "rawType": type,
+                        "toolKey": String(toolKey.prefix(120)),
+                        "providerId": providerId,
+                        "conv8": conversationId.map { String($0.uuidString.prefix(8)) } ?? "",
+                        "coderMode": String(describing: coderMode),
+                        "planFlowPhase": String(describing: planFlowPhase),
+                        "didSeeTodoWrite": state.didSeeTodoWrite ? "1" : "0",
+                        "hardBlock": uiSettings.agentsHardBlockEnabled ? "1" : "0",
+                        "detailLen": "\(violation.detail.count)",
+                    ]
+                )
+                // #endregion
                 state.violationEmitted = true
                 toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
                 recordTaskActivity(

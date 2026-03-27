@@ -420,14 +420,14 @@ final class RustMainChatProviderFactoryTests: XCTestCase {
         )
     }
 
-    func testPlanSendExecutionRouteKeepsPlanFlowPriorityOverProviderTransport() {
+    func testPlanSendExecutionRouteUsesPipelineWhenProviderDoesNotUseRustTransport() {
         XCTAssertEqual(
             resolveMainChatSendExecutionRoute(
                 coderMode: .agent,
                 isPlanMultiTurnFlow: true,
                 usesRustTransport: false
             ),
-            .planFlow
+            .agentPipeline
         )
     }
 

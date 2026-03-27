@@ -220,7 +220,7 @@ extension ChatPanelView {
             questionnaire: payload.questionnaire
         )
         chatStore.updateLastAssistantMessage(
-            content: "Questions ready — answer in the plan panel.",
+            content: questionsMarkdown,
             in: targetConversationId,
             persistImmediately: true
         )

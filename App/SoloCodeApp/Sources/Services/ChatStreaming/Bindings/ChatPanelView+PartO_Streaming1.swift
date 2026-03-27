@@ -4,18 +4,23 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
-    internal func buildPrompt(userText: String, shouldRunPlanInline: Bool) -> String {
+    internal func buildPrompt(
+        userText: String,
+        shouldRunPlanInline: Bool,
+        planningStateOverride: PlanningState? = nil
+    ) -> String {
         var prompt =
             userText.isEmpty
             ? "[The user attached an image. Analyze it and respond.]" : userText
+        let effectivePlanningState = planningStateOverride ?? planningState
 
         // Plan mode: response to clarification questions → include context to proceed
         if shouldUseClarificationPrompt(
             coderMode: coderMode,
-            planningState: planningState,
+            planningState: effectivePlanningState,
             shouldRunPlanInline: shouldRunPlanInline
         ),
-            case .awaitingClarification(let questions) = planningState
+            case .awaitingClarification(let questions) = effectivePlanningState
         {
             prompt = """
             The user has answered your clarification questions.
@@ -27,9 +32,10 @@ extension ChatPanelView {
             \(questions)
 
             Next steps:
-            1. Perform ADDITIONAL codebase analysis based on these answers (use Read, Glob, Grep).
-            2. If blocked by a hard missing decision, call `plan_request_user_input` with structured questions.
-            3. Otherwise proceed directly to generate ONE definitive plan with ## Plan: Title and ## Todo sections.
+            1. Perform ADDITIONAL codebase analysis based on these answers using the same project tools and subagents available in Agent mode.
+            2. Mutating tools remain blocked until the user presses Build. Restrict yourself to analysis, planning, read/search, MCP inspection, and subagent investigation.
+            3. If blocked by a hard missing decision, call `plan_request_user_input` with structured questions.
+            4. Otherwise proceed directly to generate ONE definitive plan with ## Plan: Title and ## Todo sections.
             CRITICAL: prefer proceeding to plan generation; follow-up questions are exceptional.
             """
         }
@@ -59,43 +65,47 @@ extension ChatPanelView {
 
         if isPlanningDiscoveryFlow {
             let planningInstructions = """
-            **MANDATORY Planning Workflow — Follow these phases in EXACT order:**
+            **Planning mode uses the same runtime contract as Agent mode.**
 
-            ## PHASE 1: CODEBASE ANALYSIS (ALWAYS REQUIRED)
-            Before producing ANY output, you MUST:
-            - Use Read, Glob, and Grep to explore at least 3-5 relevant files
-            - Understand the project structure, dependencies, and constraints
-            - DO NOT skip this phase. DO NOT produce questions or options without reading files first.
-
-            ## PHASE 2: CLARIFICATION QUESTIONS (ONLY IF BLOCKED)
-            After analysis, ask clarifications ONLY when there is a blocking ambiguity that prevents a concrete plan.
+            Planning contract:
+            - You may use the same project tools, MCP tools, and subagents available in Agent mode.
+            - Before Build, you are under a planning guard: do NOT mutate files, run mutating commands, apply patches, or execute implementation steps.
+            - Read/search/inspection/orchestration/subagent investigation are allowed.
+            - Produce a normal linear chat response. Do not hide the plan behind panel-only state.
+            - Ask clarifications ONLY when blocked by a hard missing decision.
             - If blocked, call `plan_request_user_input` with:
               * `questions` JSON array (1-3 questions)
               * each question with `prompt`, `options` (2-4), optional `multi_select`
               * options as objects with `label`, optional `description`, optional `recommended`
-            - After the tool call, output a short confirmation sentence only.
-            - Do NOT output markdown `## Questions` blocks when using the tool.
-            - Rules: 1-3 questions max, each with 2-4 concrete, mutually exclusive options.
-            - Include "Other/specify" ONLY for genuinely open-ended questions.
-            If the request is implementable with reasonable assumptions, skip questions.
+            - When using `plan_request_user_input`, the actual questions must remain visible in the chat timeline.
+            - If the request is implementable with reasonable assumptions, skip questions and produce the final plan in this same turn.
 
-            ## PHASE 3: DEFINITIVE PLAN (ONLY after Phases 1+2 resolved)
-            Generate ONE definitive implementation plan (the best approach):
+            Final plan format:
             ## Plan: Title
             Description, rationale, trade-offs.
             ## Todo
             - [ ] Step 1
             - [ ] Step 2
 
-            ## MERMAID DIAGRAMS (ALWAYS include when applicable)
-            When analyzing problems or creating plans, ALWAYS include a mermaid diagram to visualize:
+            Mermaid:
+            - Include a ```mermaid diagram when it helps visualize architecture, data flow, or implementation dependencies.
+
+            Additional rules:
+            - Do not start execution on your own. The user alone triggers Build.
+            - After Build, execution will continue in the same chat thread.
+            - Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) during planning.
+            - Never combine clarification questions and the final ## Plan in the same response.
+
+            Expected behavior:
+            - First gather enough context.
+            - Then either ask blocking questions, or produce the definitive plan.
+            - If the user adds more constraints before Build, update the plan instead of executing it.
+
+            Mermaid guidelines:
+            When analyzing problems or creating plans, include a mermaid diagram when useful to visualize:
             - Architecture and component relationships
             - Data flows and event pipelines
             - Implementation step dependencies
-            Use a ```mermaid code block in your response. The IDE will render it as an interactive diagram.
-
-            CRITICAL: NEVER combine clarification questions and ## Plan in the same response.
-            Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) during planning.
             """
             prompt = planningInstructions + "\n\n" + prompt
         } else if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
