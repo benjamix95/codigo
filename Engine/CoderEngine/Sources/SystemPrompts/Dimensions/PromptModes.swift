@@ -70,7 +70,11 @@ enum PromptModes {
         }
         let lines = records.map { record in
             let summary = shortDescription(record.description)
-            return "- `\(record.runtimeName)` / `\(record.mcpName)` — \(summary)"
+            let promptName = CoderIDECanonicalToolRegistry.shared.preferredPromptName(
+                forRuntimeName: record.runtimeName,
+                on: .app
+            )
+            return "- `\(promptName)` — \(summary)"
         }
         return lines.joined(separator: "\n    ")
     }

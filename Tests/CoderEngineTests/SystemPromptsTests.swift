@@ -100,4 +100,14 @@ final class SystemPromptsTests: XCTestCase {
         XCTAssertTrue(debugger.contains("debug_set_phase"))
         XCTAssertTrue(debugger.contains("debug_panel"))
     }
+
+    func testDebuggerModePrefersRuntimeNamesForIDEStateBootstrapTools() {
+        let debugger = SystemPrompts.debugger
+        XCTAssertTrue(debugger.contains("policy_ack"))
+        XCTAssertTrue(debugger.contains("activate_debug_mode"))
+        XCTAssertTrue(debugger.contains("debug_set_phase"))
+        XCTAssertFalse(debugger.contains("coderide_policy_ack"))
+        XCTAssertFalse(debugger.contains("coderide_activate_debug_mode"))
+        XCTAssertFalse(debugger.contains("coderide_debug_set_phase"))
+    }
 }
