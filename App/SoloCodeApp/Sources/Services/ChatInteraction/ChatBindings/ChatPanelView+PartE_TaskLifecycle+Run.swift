@@ -26,20 +26,51 @@ extension ChatPanelView {
         scrollState.lastAutoScrollTarget = target
         scrollState.lastAutoScrollAt = now
         scrollState.autoScrollWorkItem?.cancel()
-        let work = DispatchWorkItem { [showsSwarmViewOnly, chatStore, conversationId, chatScrollTopAnchorId, chatScrollBottomAnchorId] in
+        // Allineato a `conversationForMessagesList`: la lista può renderizzare da snapshot mentre lo
+        // store è ancora nil / non aggiornato per un frame. Senza questo, `canScrollToTarget` rifiuta
+        // gli anchor string e il follow-live non scrolla — evidenza 2fa5b8: H20 stesso ms con storeCount 0
+        // mentre lo snapshot ha già messaggi (H8/H13).
+        let snapCapture = messagesConversationSnapshot
+        let cidCapture = conversationId
+        let work = DispatchWorkItem { [showsSwarmViewOnly, chatStore, cidCapture, chatScrollTopAnchorId, chatScrollBottomAnchorId, snapCapture] in
             guard NSApplication.shared.isActive else { return }
             guard !showsSwarmViewOnly else { return }
-            let hasActiveConversation = chatStore.conversation(for: conversationId) != nil
-            let availableMessageIDs = Set(
-                chatStore.conversation(for: conversationId)?.messages.map(\.id) ?? []
-            )
-            guard canScrollToTarget(
+            let storeConv = chatStore.conversation(for: cidCapture)
+            let hasStoreConversation = storeConv != nil
+            let snapshotAlignedWithMessages: Bool = {
+                guard let cid = cidCapture, let s = snapCapture, s.id == cid else { return false }
+                return !s.messages.isEmpty
+            }()
+            let allowAnchorTargets = hasStoreConversation || snapshotAlignedWithMessages
+
+            var availableMessageIDs = Set(storeConv?.messages.map(\.id) ?? [])
+            if let cid = cidCapture, let s = snapCapture, s.id == cid {
+                availableMessageIDs.formUnion(s.messages.map(\.id))
+            }
+            let scrollAllowed = canScrollToTarget(
                 target,
                 topAnchorId: chatScrollTopAnchorId,
                 bottomAnchorId: chatScrollBottomAnchorId,
-                allowAnchorTargets: hasActiveConversation,
+                allowAnchorTargets: allowAnchorTargets,
                 availableMessageIDs: availableMessageIDs
-            ) else { return }
+            )
+            // #region agent log
+            if !scrollAllowed, snapshotAlignedWithMessages, let s = target as? String, s == chatScrollBottomAnchorId {
+                AgentDebugSessionNDJSONLog.appendThrottled(
+                    gateKey: "H22-autoscroll-blocked-bottom",
+                    minInterval: 0.5,
+                    hypothesisId: "H22",
+                    location: "scheduleAutoScroll",
+                    message: "autoscroll_bottom_blocked_despite_snapshot_messages",
+                    data: [
+                        "hasStore": "\(hasStoreConversation)",
+                        "allowAnchors": "\(allowAnchorTargets)",
+                        "msgIdCount": "\(availableMessageIDs.count)",
+                    ]
+                )
+            }
+            // #endregion
+            guard scrollAllowed else { return }
             // Never use withAnimation for auto-scroll during streaming.
             // Animated scrollTo blocks the main thread layout pass and
             // causes the UI to disappear (black screen) when multiple
