@@ -86,4 +86,42 @@ final class PlanPanelPreviewContentTests: XCTestCase {
             """
         )
     }
+
+    func testDisplayContentPrefersScopedHistoryWhenLiveBoardIsNotPreferred() {
+        let liveBoard = PlanBoard(
+            goal: "Live goal",
+            options: [PlanOption(id: 1, title: "A", fullText: "## Plan\n\nLive option")],
+            chosenPath: "## Plan\n\nLive chosen",
+            steps: [],
+            updatedAt: .now
+        )
+
+        let content = preferredPlanPanelDisplayContent(
+            preferLiveBoard: false,
+            liveBoard: liveBoard,
+            planningState: .idle,
+            selectedHistoryContent: "## Plan\n\nHistory snapshot"
+        )
+
+        XCTAssertEqual(content, "## Plan\n\nHistory snapshot")
+    }
+
+    func testDisplayContentPrefersLiveBoardWhenPlanStateRequiresIt() {
+        let liveBoard = PlanBoard(
+            goal: "Live goal",
+            options: [PlanOption(id: 2, title: "B", fullText: "## Plan\n\nLive option")],
+            chosenPath: "## Plan\n\nLive chosen",
+            steps: [],
+            updatedAt: .now
+        )
+
+        let content = preferredPlanPanelDisplayContent(
+            preferLiveBoard: true,
+            liveBoard: liveBoard,
+            planningState: .idle,
+            selectedHistoryContent: "## Plan\n\nHistory snapshot"
+        )
+
+        XCTAssertEqual(content, "## Plan\n\nLive chosen")
+    }
 }

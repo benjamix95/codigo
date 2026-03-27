@@ -195,6 +195,39 @@ func preferredPlanPanelOptionContent(
     return options.min(by: { $0.id < $1.id })?.fullText
 }
 
+func preferredPlanPanelDisplayContent(
+    preferLiveBoard: Bool,
+    liveBoard: PlanBoard?,
+    planningState: PlanningState,
+    selectedHistoryContent: String?
+) -> String? {
+    let normalizedHistoryContent = selectedHistoryContent?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    if !preferLiveBoard,
+       let normalizedHistoryContent,
+       !normalizedHistoryContent.isEmpty,
+       let selectedHistoryContent {
+        return selectedHistoryContent
+    }
+
+    guard let liveBoard else { return nil }
+    if case .awaitingChoice(_, let options) = planningState,
+       let preferredOptionContent = preferredPlanPanelOptionContent(
+           chosenPath: liveBoard.chosenPath,
+           options: options
+       ) {
+        return preferredOptionContent
+    }
+    if let chosen = liveBoard.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !chosen.isEmpty {
+        return chosen
+    }
+    if let first = liveBoard.options.min(by: { $0.id < $1.id }) {
+        return first.fullText
+    }
+    return nil
+}
+
 func fallbackPlanBuildContent(
     goal: String,
     chosenPath: String?,

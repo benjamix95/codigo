@@ -100,6 +100,10 @@ extension ChatPanelView {
                     clearTaskActivityPipeline()
                 }
                 swarmProgressStore.clear(conversationId: convId)
+                planHistoryStore.setSelectedEntry(id: nil, conversationId: convId)
+                if let linkedPlanConversationId = checkpoint?.linkedPlanConversationId {
+                    planHistoryStore.setSelectedEntry(id: nil, conversationId: linkedPlanConversationId)
+                }
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil
                 isRewinding = false
@@ -219,6 +223,10 @@ extension ChatPanelView {
                     clearTaskActivityPipeline()
                 }
                 swarmProgressStore.clear(conversationId: conversationId)
+                planHistoryStore.setSelectedEntry(id: nil, conversationId: conversationId)
+                if let linkedPlanConversationId = checkpoint?.linkedPlanConversationId {
+                    planHistoryStore.setSelectedEntry(id: nil, conversationId: linkedPlanConversationId)
+                }
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil
                 isRewinding = false
@@ -297,6 +305,10 @@ extension ChatPanelView {
                     clearTaskActivityPipeline()
                 }
                 swarmProgressStore.clear(conversationId: conversationId)
+                planHistoryStore.setSelectedEntry(id: nil, conversationId: conversationId)
+                if let linkedPlanConversationId = checkpoint?.linkedPlanConversationId {
+                    planHistoryStore.setSelectedEntry(id: nil, conversationId: linkedPlanConversationId)
+                }
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil
                 isRewinding = false

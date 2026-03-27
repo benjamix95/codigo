@@ -199,7 +199,7 @@ extension ChatPanelView {
         guard !normalized.isEmpty else { return }
         guard planFlowPhase != .building else { return }
         let planConversationId = explicitPlanConversationId ?? conversationId
-        if let selected = planHistoryStore.selectedEntryId {
+        if let selected = planHistoryStore.selectedEntryId(for: planConversationId) {
             planHistoryStore.updateChosenPath(id: selected, chosenPath: normalized)
         }
         _ = applyPlanUIIntent(

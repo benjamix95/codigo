@@ -137,6 +137,64 @@ final class ChatStoreCheckpointTests: XCTestCase {
         XCTAssertEqual(store.planBoard(for: planConversationId)?.walkthroughMarkdown, "Initial walkthrough")
     }
 
+    func testRewindConversationStateClearsStaleLinkedPlanBoardWhenTargetCheckpointHasNoLinkedSnapshot() throws {
+        let store = ChatStore()
+        let agentConversationId = try conversationID(from: store)
+        let linkedPlanConversationId = store.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: .plan
+        )
+
+        store.addMessage(ChatMessage(role: .user, content: "plain"), to: agentConversationId)
+        store.createCheckpoint(for: agentConversationId, gitStates: [])
+        guard let initialCheckpointId = store.previousCheckpoint(conversationId: agentConversationId)?.id else {
+            XCTFail("Initial checkpoint missing")
+            return
+        }
+
+        store.setPlanBoard(
+            PlanBoard(goal: "Linked goal", options: [], chosenPath: nil, steps: [], updatedAt: .now),
+            for: linkedPlanConversationId
+        )
+        store.addMessage(ChatMessage(role: .assistant, content: "build"), to: agentConversationId)
+        store.createCheckpoint(
+            for: agentConversationId,
+            gitStates: [],
+            planConversationIdForSnapshot: linkedPlanConversationId
+        )
+
+        let ok = store.rewindConversationState(to: initialCheckpointId, conversationId: agentConversationId)
+        XCTAssertTrue(ok)
+        XCTAssertNil(store.planBoard(for: linkedPlanConversationId))
+    }
+
+    func testRewindConversationToMessageCountClearsLinkedPlanBoardWhenNoCheckpointRemains() throws {
+        let store = ChatStore()
+        let agentConversationId = try conversationID(from: store)
+        let linkedPlanConversationId = store.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: .plan
+        )
+
+        store.setPlanBoard(
+            PlanBoard(goal: "Linked goal", options: [], chosenPath: nil, steps: [], updatedAt: .now),
+            for: linkedPlanConversationId
+        )
+        store.addMessage(ChatMessage(role: .user, content: "start"), to: agentConversationId)
+        store.createCheckpoint(
+            for: agentConversationId,
+            gitStates: [],
+            planConversationIdForSnapshot: linkedPlanConversationId
+        )
+
+        let ok = store.rewindConversationToMessageCount(0, conversationId: agentConversationId)
+        XCTAssertTrue(ok)
+        XCTAssertNil(store.planBoard(for: agentConversationId))
+        XCTAssertNil(store.planBoard(for: linkedPlanConversationId))
+    }
+
     private func clearPersistedState() {
         UserDefaults.standard.removeObject(forKey: convKey)
         UserDefaults.standard.removeObject(forKey: planKey)

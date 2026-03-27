@@ -169,7 +169,7 @@ extension ChatPanelView {
             )
             chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planConversationId)
 
-            if let selected = planHistoryStore.selectedEntryId {
+            if let selected = planHistoryStore.selectedEntryId(for: planConversationId) {
                 planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
                 planHistoryStore.markRebuilt(id: selected)
             }

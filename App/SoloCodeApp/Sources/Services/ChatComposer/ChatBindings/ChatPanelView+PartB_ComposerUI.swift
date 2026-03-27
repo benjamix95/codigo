@@ -199,7 +199,7 @@ extension ChatPanelView {
         planPanelPresentationSource = source
         planToggleEnabled = nextState.planToggleEnabled
         if nextState.shouldResetHistorySelection {
-            planHistoryStore.setSelectedEntry(id: nil)
+            planHistoryStore.setSelectedEntry(id: nil, conversationId: conversationId)
         }
         showPlanPanel = nextState.showPlanPanel
     }
@@ -233,7 +233,7 @@ extension ChatPanelView {
                         planningState = .idle
                         planFlowPhase = .idle
                         clearPlanStreamingState()
-                        planHistoryStore.setSelectedEntry(id: nil)
+                        planHistoryStore.setSelectedEntry(id: nil, conversationId: conversationId)
                     }
                 }
             }

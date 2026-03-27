@@ -2,6 +2,16 @@ import Foundation
 import SwiftUI
 
 extension PlanPanelView {
+    func historyEntriesForCurrentConversationThread() -> [PlanHistoryEntry] {
+        let conv = chatStore.conversation(for: conversationId)
+        let ctxId = conv?.contextId
+        let ctxPath = conv?.contextFolderPath
+        return planHistoryStore.entriesForContext(
+            contextId: ctxId,
+            contextFolderPath: ctxPath
+        ).filter { isPlanHistoryEntryAllowedForCurrentConversationThread($0) }
+    }
+
     func isExecutableBuildChoice(_ text: String?) -> Bool {
         hasExecutablePlanBuildChoice(resolvedBuildContent: text)
     }
@@ -39,7 +49,7 @@ extension PlanPanelView {
     }
 
     func selectedHistoryEntryForConversation() -> PlanHistoryEntry? {
-        guard let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) else { return nil }
+        guard let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId(for: conversationId)) else { return nil }
         guard let conversationId,
               let currentConversation = chatStore.conversation(for: conversationId) else {
             return nil
@@ -58,8 +68,7 @@ extension PlanPanelView {
         if let selected = selectedHistoryEntryForConversation() {
             return selected
         }
-        guard let conversationId else { return nil }
-        return planHistoryStore.findLatestEntry(for: conversationId)
+        return historyEntriesForCurrentConversationThread().first
     }
 
     func resolvedBuildContent(for entry: PlanHistoryEntry) -> String? {
@@ -136,6 +145,27 @@ extension PlanPanelView {
     }
 
     func downloadCurrentPlan() {
+        if let selected = selectedHistoryEntryForConversation() {
+            let content = resolvedPreviewContent(for: selected).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !content.isEmpty {
+                savePlanToFile(content: content, suggestedName: planFileName)
+                return
+            }
+        }
+
+        if let board = chatStore.planBoard(for: conversationId) {
+            let content: String
+            if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines), !chosen.isEmpty {
+                content = chosen
+            } else if let first = firstOption(byId: board.options) {
+                content = first.fullText
+            } else {
+                content = "# \(board.goal)\n\n"
+            }
+            savePlanToFile(content: content, suggestedName: planFileName)
+            return
+        }
+
         if let entry = latestPlanHistoryEntry() {
             let content = resolvedPreviewContent(for: entry).trimmingCharacters(in: .whitespacesAndNewlines)
             if !content.isEmpty {
@@ -143,17 +173,6 @@ extension PlanPanelView {
                 return
             }
         }
-
-        guard let board = chatStore.planBoard(for: conversationId) else { return }
-        let content: String
-        if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines), !chosen.isEmpty {
-            content = chosen
-        } else if let first = firstOption(byId: board.options) {
-            content = first.fullText
-        } else {
-            content = "# \(board.goal)\n\n"
-        }
-        savePlanToFile(content: content, suggestedName: planFileName)
     }
 
     func downloadPlan(_ entry: PlanHistoryEntry) {

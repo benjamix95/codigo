@@ -43,6 +43,24 @@ extension PlanHistoryStore {
         }
     }
 
+    func selectedEntryId(for conversationId: UUID?) -> UUID? {
+        guard let conversationId else { return nil }
+        return selectedEntryIdByConversation[conversationId]
+    }
+
+    func setSelectedEntry(id: UUID?, conversationId: UUID?) {
+        guard let conversationId else {
+            selectedEntryId = id
+            return
+        }
+        if let id {
+            selectedEntryIdByConversation[conversationId] = id
+        } else {
+            selectedEntryIdByConversation.removeValue(forKey: conversationId)
+        }
+        selectedEntryId = id
+    }
+
     func setSelectedEntry(id: UUID?) {
         selectedEntryId = id
     }

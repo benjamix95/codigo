@@ -2,6 +2,14 @@ import Foundation
 import CoderEngine
 
 extension ChatStore {
+private func staleLinkedPlanConversationIds(
+    from removedCheckpoints: [ConversationCheckpoint],
+    preserving preservedConversationIds: Set<UUID>
+) -> Set<UUID> {
+    Set(removedCheckpoints.compactMap(\.linkedPlanConversationId))
+        .subtracting(preservedConversationIds)
+}
+
 func createCheckpoint(
     for conversationId: UUID?,
     gitStates: [ConversationCheckpointGitState],
@@ -56,6 +64,7 @@ func rewindConversationState(to checkpointId: UUID, conversationId: UUID?) -> Bo
         else {
             return false
         }
+        let removedCheckpoints = Array(conversations[conversationIndex].checkpoints.suffix(from: checkpointIndex))
         let checkpoint = conversations[conversationIndex].checkpoints[checkpointIndex]
         guard checkpoint.messageCount <= conversations[conversationIndex].messages.count else {
             return false
@@ -74,6 +83,20 @@ func rewindConversationState(to checkpointId: UUID, conversationId: UUID?) -> Bo
             }
         }
         conversations[conversationIndex].checkpoints = Array(conversations[conversationIndex].checkpoints.prefix(checkpointIndex))
+        let preservedLinkedPlanConversationIds: Set<UUID> = {
+            var ids = Set(conversations[conversationIndex].checkpoints.compactMap(\.linkedPlanConversationId))
+            if checkpoint.linkedPlanBoardSnapshot != nil,
+               let linkedPlanConversationId = checkpoint.linkedPlanConversationId {
+                ids.insert(linkedPlanConversationId)
+            }
+            return ids
+        }()
+        for linkedPlanConversationId in staleLinkedPlanConversationIds(
+            from: removedCheckpoints,
+            preserving: preservedLinkedPlanConversationIds
+        ) {
+            planBoards.removeValue(forKey: linkedPlanConversationId)
+        }
         ok = true
     } else {
         ok = applyRustStoreAction("rewind_to_checkpoint") { request in
@@ -104,6 +127,7 @@ func rewindConversationToMessageCount(_ messageCount: Int, conversationId: UUID?
               messageCount <= conversations[conversationIndex].messages.count else {
             return false
         }
+        let removedCheckpoints = conversations[conversationIndex].checkpoints.filter { $0.messageCount > messageCount }
         conversations[conversationIndex].messages = Array(conversations[conversationIndex].messages.prefix(messageCount))
         conversations[conversationIndex].checkpoints.removeAll { $0.messageCount > messageCount }
         if let lastCheckpoint = conversations[conversationIndex].checkpoints.last {
@@ -121,6 +145,20 @@ func rewindConversationToMessageCount(_ messageCount: Int, conversationId: UUID?
             }
         } else {
             planBoards.removeValue(forKey: conversationId)
+        }
+        let preservedLinkedPlanConversationIds: Set<UUID> = {
+            guard let lastCheckpoint = conversations[conversationIndex].checkpoints.last,
+                  lastCheckpoint.linkedPlanBoardSnapshot != nil,
+                  let linkedPlanConversationId = lastCheckpoint.linkedPlanConversationId else {
+                return []
+            }
+            return [linkedPlanConversationId]
+        }()
+        for linkedPlanConversationId in staleLinkedPlanConversationIds(
+            from: removedCheckpoints,
+            preserving: preservedLinkedPlanConversationIds
+        ) {
+            planBoards.removeValue(forKey: linkedPlanConversationId)
         }
         ok = true
     } else {

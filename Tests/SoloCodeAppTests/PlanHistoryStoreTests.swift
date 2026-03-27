@@ -175,4 +175,59 @@ final class PlanHistoryStoreTests: XCTestCase {
         let latest = store.findLatestEntry(for: UUID())
         XCTAssertNil(latest)
     }
+
+    func testScopedSelectionIsIndependentPerConversation() {
+        let store = makeStore()
+        let conversationA = UUID()
+        let conversationB = UUID()
+        let entryA = store.createEntry(
+            conversationId: conversationA,
+            contextId: nil,
+            contextFolderPath: nil,
+            title: "Plan A",
+            markdown: "# Plan A",
+            options: [],
+            chosenPath: nil,
+            tags: [],
+            sourceMessageId: nil
+        )
+        let entryB = store.createEntry(
+            conversationId: conversationB,
+            contextId: nil,
+            contextFolderPath: nil,
+            title: "Plan B",
+            markdown: "# Plan B",
+            options: [],
+            chosenPath: nil,
+            tags: [],
+            sourceMessageId: nil
+        )
+
+        store.setSelectedEntry(id: entryA.id, conversationId: conversationA)
+        store.setSelectedEntry(id: entryB.id, conversationId: conversationB)
+
+        XCTAssertEqual(store.selectedEntryId(for: conversationA), entryA.id)
+        XCTAssertEqual(store.selectedEntryId(for: conversationB), entryB.id)
+    }
+
+    func testDeletingEntryClearsScopedSelectionForThatConversation() {
+        let store = makeStore()
+        let conversationId = UUID()
+        let entry = store.createEntry(
+            conversationId: conversationId,
+            contextId: nil,
+            contextFolderPath: nil,
+            title: "Plan A",
+            markdown: "# Plan A",
+            options: [],
+            chosenPath: nil,
+            tags: [],
+            sourceMessageId: nil
+        )
+
+        store.setSelectedEntry(id: entry.id, conversationId: conversationId)
+        store.deleteEntry(id: entry.id)
+
+        XCTAssertNil(store.selectedEntryId(for: conversationId))
+    }
 }

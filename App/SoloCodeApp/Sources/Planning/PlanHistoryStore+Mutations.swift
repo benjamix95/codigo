@@ -33,6 +33,7 @@ extension PlanHistoryStore {
         )
         entries.append(entry)
         _ = trimEntriesInMemory()
+        selectedEntryIdByConversation[conversationId] = entry.id
         selectedEntryId = entry.id
         save()
 
@@ -70,13 +71,22 @@ extension PlanHistoryStore {
         copy.sourceMessageId = nil
         entries.append(copy)
         _ = trimEntriesInMemory()
+        selectedEntryIdByConversation[copy.conversationId] = copy.id
         selectedEntryId = copy.id
         save()
         return copy
     }
 
     func deleteEntry(id: UUID) {
+        let removedConversationIds = entries
+            .filter { $0.id == id }
+            .map(\.conversationId)
         entries.removeAll { $0.id == id }
+        for conversationId in removedConversationIds {
+            if selectedEntryIdByConversation[conversationId] == id {
+                selectedEntryIdByConversation.removeValue(forKey: conversationId)
+            }
+        }
         if selectedEntryId == id { selectedEntryId = nil }
         save()
     }
@@ -88,12 +98,21 @@ extension PlanHistoryStore {
     func deleteAllForContext(contextId: UUID?, contextFolderPath: String?) {
         if contextId == nil && contextFolderPath == nil {
             entries.removeAll()
+            selectedEntryIdByConversation.removeAll()
             selectedEntryId = nil
         } else {
+            let removedEntries = entries.filter { entry in
+                let matchesContext = contextId != nil && entry.contextId == contextId
+                let matchesFolder = contextFolderPath != nil && entry.contextFolderPath == contextFolderPath
+                return matchesContext || matchesFolder
+            }
             entries.removeAll { entry in
                 let matchesContext = contextId != nil && entry.contextId == contextId
                 let matchesFolder = contextFolderPath != nil && entry.contextFolderPath == contextFolderPath
                 return matchesContext || matchesFolder
+            }
+            for entry in removedEntries where selectedEntryIdByConversation[entry.conversationId] == entry.id {
+                selectedEntryIdByConversation.removeValue(forKey: entry.conversationId)
             }
             if let sid = selectedEntryId,
                !entries.contains(where: { $0.id == sid }) {

@@ -20,29 +20,18 @@ extension PlanPanelView {
             return ""
         }
 
-        if let board = chatStore.planBoard(for: conversationId) {
-            if case .awaitingChoice(_, let options) = planningState,
-               let preferredOptionContent = preferredPlanPanelOptionContent(
-                   chosenPath: board.chosenPath,
-                   options: options
-               ) {
-                return preferredOptionContent
-            }
-            if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !chosen.isEmpty {
-                return chosen
-            }
-            if let first = firstOption(byId: board.options) {
-                return first.fullText
-            }
-        }
-
-        if !preferLiveBoard, let selected = latestPlanHistoryEntry() {
-            return resolvedPreviewContent(for: selected)
+        let selectedHistoryContent = latestPlanHistoryEntry().map(resolvedPreviewContent(for:))
+        if let preferredContent = preferredPlanPanelDisplayContent(
+            preferLiveBoard: preferLiveBoard,
+            liveBoard: chatStore.planBoard(for: conversationId),
+            planningState: planningState,
+            selectedHistoryContent: selectedHistoryContent
+        ) {
+            return preferredContent
         }
 
         let hasBoard = chatStore.planBoard(for: conversationId) != nil
-        let hasSelectedHistoryEntry = latestPlanHistoryEntry() != nil
+        let hasSelectedHistoryEntry = selectedHistoryContent != nil
         let hasContext = hasPlanContext(
             phase: planFlowPhase,
             planningState: planningState,
@@ -155,7 +144,7 @@ extension PlanPanelView {
                     textAlignment: .leading
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .id("workspace-\(planHistoryStore.selectedEntryId?.uuidString ?? "current")-\(historySelectionVersion)")
+                .id("workspace-\(selectedHistoryEntryForConversation()?.id.uuidString ?? "current")-\(historySelectionVersion)")
             } else {
                 HStack(spacing: 8) {
                     Image(systemName: "doc.text")

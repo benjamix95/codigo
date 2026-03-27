@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 final class PlanHistoryStore: ObservableObject {
     @Published var entries: [PlanHistoryEntry] = []
+    @Published var selectedEntryIdByConversation: [UUID: UUID] = [:]
     @Published var selectedEntryId: UUID?
     private var userDefaultsObserver: NSObjectProtocol?
     let userDefaults: UserDefaults

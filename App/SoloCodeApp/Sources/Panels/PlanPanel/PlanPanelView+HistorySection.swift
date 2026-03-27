@@ -5,10 +5,8 @@ extension PlanPanelView {
         let conv = chatStore.conversation(for: conversationId)
         let ctxId = conv?.contextId
         let ctxPath = conv?.contextFolderPath
-        let items = planHistoryStore.entriesForContext(
-            contextId: ctxId,
-            contextFolderPath: ctxPath
-        ).filter { isPlanHistoryEntryAllowedForCurrentConversationThread($0) }
+        let items = historyEntriesForCurrentConversationThread()
+        let selectedEntryId = planHistoryStore.selectedEntryId(for: conversationId)
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -50,7 +48,7 @@ extension PlanPanelView {
             } else {
                 ForEach(items) { entry in
                     let isExpanded = expandedHistoryEntryIds.contains(entry.id)
-                    let isSelected = planHistoryStore.selectedEntryId == entry.id
+                    let isSelected = selectedEntryId == entry.id
                     let selectedHistoryOptionId = selectedOptionIdForHistoryEntry(entry)
                     VStack(alignment: .leading, spacing: isExpanded ? 8 : 0) {
                         HStack(alignment: .center, spacing: 8) {
@@ -84,7 +82,7 @@ extension PlanPanelView {
                                     buildHint = phaseHint ?? "Build unavailable in this phase."
                                     return
                                 }
-                                planHistoryStore.setSelectedEntry(id: entry.id)
+                                planHistoryStore.setSelectedEntry(id: entry.id, conversationId: conversationId)
                                 guard let choice = resolvedBuildContent(for: entry) else {
                                     buildHint = "Select an option before rebuilding."
                                     return
@@ -124,11 +122,11 @@ extension PlanPanelView {
                         if isExpanded {
                             HStack(alignment: .center, spacing: 10) {
                                 Button {
-                                    if planHistoryStore.selectedEntryId == entry.id {
-                                        planHistoryStore.setSelectedEntry(id: nil)
+                                    if selectedEntryId == entry.id {
+                                        planHistoryStore.setSelectedEntry(id: nil, conversationId: conversationId)
                                         onHistoryEntrySelectedForBuild?(false)
                                     } else {
-                                        planHistoryStore.setSelectedEntry(id: entry.id)
+                                        planHistoryStore.setSelectedEntry(id: entry.id, conversationId: conversationId)
                                         onHistoryEntrySelectedForBuild?(canHistoryEntryTriggerReadyToBuild(entry))
                                     }
                                     historySelectionVersion &+= 1
@@ -147,7 +145,7 @@ extension PlanPanelView {
                                                     id: entry.id,
                                                     chosenPath: option.fullText
                                                 )
-                                                planHistoryStore.setSelectedEntry(id: entry.id)
+                                                planHistoryStore.setSelectedEntry(id: entry.id, conversationId: conversationId)
                                                 onHistoryEntrySelectedForBuild?(isExecutableBuildChoice(option.fullText))
                                                 historySelectionVersion &+= 1
                                                 buildHint = "Selected Option \(option.id)"
@@ -188,7 +186,7 @@ extension PlanPanelView {
                                 .help("Download")
 
                                 Button(role: .destructive) {
-                                    if planHistoryStore.selectedEntryId == entry.id {
+                                    if selectedEntryId == entry.id {
                                         historySelectionVersion &+= 1
                                     }
                                     expandedHistoryEntryIds.remove(entry.id)

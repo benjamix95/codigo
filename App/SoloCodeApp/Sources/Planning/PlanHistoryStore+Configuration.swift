@@ -70,6 +70,14 @@ extension PlanHistoryStore {
             selectedEntryId = nil
             updated = true
         }
+        let validEntryIds = Set(entries.map(\.id))
+        let beforeScopedSelections = selectedEntryIdByConversation.count
+        selectedEntryIdByConversation = selectedEntryIdByConversation.filter { _, entryId in
+            validEntryIds.contains(entryId)
+        }
+        if selectedEntryIdByConversation.count != beforeScopedSelections {
+            updated = true
+        }
         return updated
     }
 

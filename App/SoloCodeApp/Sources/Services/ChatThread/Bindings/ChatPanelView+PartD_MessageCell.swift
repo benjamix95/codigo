@@ -105,7 +105,7 @@ extension ChatPanelView {
                             planHistoryStore.markRebuilt(id: entry.id)
                         },
                         onOpenInPanel: {
-                            planHistoryStore.setSelectedEntry(id: entry.id)
+                            planHistoryStore.setSelectedEntry(id: entry.id, conversationId: conversationId)
                             openPlanPanelForCurrentContext(
                                 preserveHistorySelection: true,
                                 source: .manualDeepLink
@@ -113,7 +113,7 @@ extension ChatPanelView {
                         },
                         onRemove: { planHistoryStore.deleteEntry(id: entry.id) },
                         onExpandPlan: {
-                            planHistoryStore.setSelectedEntry(id: entry.id)
+                            planHistoryStore.setSelectedEntry(id: entry.id, conversationId: conversationId)
                             openPlanPanelForCurrentContext(
                                 preserveHistorySelection: true,
                                 source: .manualDeepLink
