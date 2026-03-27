@@ -43,52 +43,44 @@ public enum WorkspaceScanner {
 
     /// Elenco file sorgente non committati (git status --porcelain: modified, added, untracked)
     public static func listUncommittedSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["status", "--porcelain", "-u"]
-        process.currentDirectoryURL = workspacePath
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = nil
-        do {
-            try process.run()
-        } catch {
-            return []
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return [] }
-        guard let output = String(data: data, encoding: .utf8) else { return [] }
-        return collectSourceFilesFromGitStatusOutput(
-            output: output,
+        cachedGitScan(
+            mode: "status",
             workspacePath: workspacePath,
             excludedPaths: excludedPaths
-        )
+        ) {
+            guard let output = runGitCommand(
+                workspacePath: workspacePath,
+                arguments: ["status", "--porcelain", "-u"]
+            ) else {
+                return []
+            }
+            return collectSourceFilesFromGitStatusOutput(
+                output: output,
+                workspacePath: workspacePath,
+                excludedPaths: excludedPaths
+            )
+        }
     }
 
     /// Elenco file sorgente staged (`git diff --cached`).
     public static func listStagedSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["diff", "--name-only", "--cached", "--diff-filter=ACMR", "--"]
-        process.currentDirectoryURL = workspacePath
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = nil
-        do {
-            try process.run()
-        } catch {
-            return []
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return [] }
-        guard let output = String(data: data, encoding: .utf8) else { return [] }
-        return listSourceFilesFromGitDiffOutput(
-            output: output,
+        cachedGitScan(
+            mode: "staged",
             workspacePath: workspacePath,
             excludedPaths: excludedPaths
-        )
+        ) {
+            guard let output = runGitCommand(
+                workspacePath: workspacePath,
+                arguments: ["diff", "--name-only", "--cached", "--diff-filter=ACMR", "--"]
+            ) else {
+                return []
+            }
+            return listSourceFilesFromGitDiffOutput(
+                output: output,
+                workspacePath: workspacePath,
+                excludedPaths: excludedPaths
+            )
+        }
     }
 
     private static func unquoteGitPath(_ raw: String) -> String {
@@ -101,7 +93,7 @@ public enum WorkspaceScanner {
 
     /// Elenco ricorsivo di file sorgente nel workspace
     public static func listSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
-        if let gitFiles = listSourceFilesFromGitLsFiles(
+        if let gitFiles = cachedGitInventorySourceFiles(
             workspacePath: workspacePath,
             excludedPaths: excludedPaths
         ) {
@@ -119,35 +111,6 @@ public enum WorkspaceScanner {
             result: &result
         )
         return result
-    }
-
-    private static func listSourceFilesFromGitLsFiles(
-        workspacePath: URL,
-        excludedPaths: [String]
-    ) -> [String]? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["ls-files", "--cached", "--others", "--exclude-standard", "--"]
-        process.currentDirectoryURL = workspacePath
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = nil
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0,
-              let output = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        return listSourceFilesFromGitDiffOutput(
-            output: output,
-            workspacePath: workspacePath,
-            excludedPaths: excludedPaths
-        )
     }
 
     private static func enumerateSourceFiles(
@@ -189,7 +152,7 @@ public enum WorkspaceScanner {
         }
     }
 
-    private static func listSourceFilesFromGitDiffOutput(
+    static func listSourceFilesFromGitDiffOutput(
         output: String,
         workspacePath: URL,
         excludedPaths: [String]

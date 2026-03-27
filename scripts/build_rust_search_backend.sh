@@ -16,6 +16,27 @@ PRODUCTS_OUT="${BUILT_PRODUCTS_DIR:-}/solocode_rust"
 BUNDLE_OUT="${SOLOCODE_RUST_REVIEW_CORE_BUNDLE_DIR:-}"
 LIB_NAME="libsolocode_rust_core"
 DYLIB_EXT="dylib"
+STAMP_FILE="$OUT_DIR/.build-rust-search-$TARGET_PROFILE.stamp"
+
+needs_rebuild() {
+  local stamp_file="$1"
+  shift
+
+  if [[ ! -f "$stamp_file" ]]; then
+    return 0
+  fi
+
+  for path in "$@"; do
+    if [[ -d "$path" ]]; then
+      if find "$path" -type f -newer "$stamp_file" -print -quit | grep -q .; then
+        return 0
+      fi
+    elif [[ -f "$path" && "$path" -nt "$stamp_file" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 copy_artifact() {
   local src="$1"
@@ -71,6 +92,16 @@ mkdir -p "$OUT_DIR"
 [[ -n "${BUILT_PRODUCTS_DIR:-}" ]] && mkdir -p "$PRODUCTS_OUT"
 [[ -n "$BUNDLE_OUT" ]] && mkdir -p "$BUNDLE_OUT"
 
+PRIMARY_OUTPUT="$OUT_DIR/$LIB_NAME.$DYLIB_EXT"
+if [[ -f "$PRIMARY_OUTPUT" ]] && ! needs_rebuild "$STAMP_FILE" \
+  "$CRATE_DIR/Cargo.toml" \
+  "$CRATE_DIR/src" \
+  "$ROOT_DIR/Native/Cargo.toml" \
+  "$ROOT_DIR/scripts/build_rust_search_backend.sh"; then
+  echo "[rust-search] artifact gia' aggiornato, skip build"
+  exit 0
+fi
+
 BUILD_ARGS=(build --manifest-path "$CRATE_DIR/Cargo.toml")
 if [[ "$TARGET_PROFILE" == "release" ]]; then
   BUILD_ARGS+=(--release)
@@ -107,5 +138,7 @@ if [[ "$copied_dylib" -ne 1 ]]; then
   echo "[rust-search] artifact dylib mancante: cercato $LIB_NAME.$DYLIB_EXT in ${ARTIFACT_DIRS[*]}" >&2
   exit 1
 fi
+
+touch "$STAMP_FILE"
 
 echo "[rust-search] artifact pronti in $OUT_DIR"

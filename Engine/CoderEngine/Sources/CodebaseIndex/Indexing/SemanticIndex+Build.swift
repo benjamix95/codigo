@@ -4,6 +4,7 @@ import Foundation
 
 extension SemanticIndex {
     private static let merkleRebuildThreshold = 32
+    static var readTextFileObserver: (@Sendable (String) -> Void)?
 
     // MARK: - Full Index Build
 
@@ -13,6 +14,7 @@ extension SemanticIndex {
         indexedFiles: [IndexedFile],
         workspaceRoot: URL,
         contentCache: [String: String] = [:],
+        prebuiltMerkleRoot: MerkleNode? = nil,
         onIndexedFileBatchComplete: (@Sendable (Int, Int) async -> Void)? = nil
     ) async {
         Self.logger.info("buildIndex: starting for \(indexedFiles.count) files")
@@ -27,7 +29,7 @@ extension SemanticIndex {
         lastSearchMetrics = nil
         invalidateCachedRustSearchSnapshot()
 
-        merkleRoot = MerkleTree.build(root: workspaceRoot)
+        merkleRoot = prebuiltMerkleRoot ?? MerkleTree.build(root: workspaceRoot)
         if let root = merkleRoot {
             currentSimHash = MerkleTree.simHash(of: root)
         }
@@ -222,6 +224,7 @@ extension SemanticIndex {
     }
 
     nonisolated static func readTextFile(at path: String) -> String? {
+        readTextFileObserver?(path)
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: [.mappedIfSafe]) else {
             return nil
         }

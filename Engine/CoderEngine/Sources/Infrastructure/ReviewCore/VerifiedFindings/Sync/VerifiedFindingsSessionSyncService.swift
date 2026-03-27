@@ -198,14 +198,7 @@ public enum VerifiedFindingsSessionSyncService {
         findings: [VerifiedFinding],
         traceLog: [String]
     ) -> ReviewCoreVerifiedSyncResponse? {
-        ReviewCoreBridge.call(
-            functionName: "review_core_sync_verified_findings",
-            request: ReviewCoreVerifiedSyncRequest(
-                schemaVersion: 1,
-                findings: findings,
-                traceLog: traceLog
-            )
-        )
+        syncVerifiedFindings(findings: findings, traceLog: traceLog)
     }
 
     static func syncWithRustForBenchmark(

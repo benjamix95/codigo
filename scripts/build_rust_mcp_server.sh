@@ -6,6 +6,8 @@ CRATE_DIR="$ROOT_DIR/Native/CoderideMCPServerRust"
 PROFILE="${SOLOCODE_RUST_MCP_BUILD_PROFILE:-${CONFIGURATION:-Debug}}"
 PROFILE_LOWER="$(printf '%s' "$PROFILE" | tr '[:upper:]' '[:lower:]')"
 TARGET_PROFILE="debug"
+STAMP_ROOT="${SOLOCODE_RUST_MCP_TEST_OUT_DIR:-$ROOT_DIR/.build/rust-mcp-server/$TARGET_PROFILE}"
+STAMP_FILE="$STAMP_ROOT/.build-rust-mcp-server-$TARGET_PROFILE.stamp"
 
 if [[ "$PROFILE_LOWER" == *release* ]]; then
   TARGET_PROFILE="release"
@@ -41,6 +43,36 @@ if [[ ! -f "$CRATE_DIR/Cargo.toml" ]]; then
   exit 1
 fi
 
+needs_rebuild() {
+  local stamp_file="$1"
+  shift
+
+  if [[ ! -f "$stamp_file" ]]; then
+    return 0
+  fi
+
+  for path in "$@"; do
+    if [[ -d "$path" ]]; then
+      if find "$path" -type f -newer "$stamp_file" -print -quit | grep -q .; then
+        return 0
+      fi
+    elif [[ -f "$path" && "$path" -nt "$stamp_file" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+PRIMARY_OUTPUT="$ROOT_DIR/.build/rust-mcp-server/$TARGET_PROFILE/coderide-mcp-server-rust"
+if [[ -f "$PRIMARY_OUTPUT" ]] && ! needs_rebuild "$STAMP_FILE" \
+  "$CRATE_DIR/Cargo.toml" \
+  "$CRATE_DIR/src" \
+  "$ROOT_DIR/Native/Cargo.toml" \
+  "$ROOT_DIR/scripts/build_rust_mcp_server.sh"; then
+  echo "[rust-mcp] artifact gia' aggiornato, skip build"
+  exit 0
+fi
+
 BUILD_ARGS=(build --manifest-path "$CRATE_DIR/Cargo.toml")
 if [[ "$TARGET_PROFILE" == "release" ]]; then
   BUILD_ARGS+=(--release)
@@ -68,5 +100,7 @@ if [[ -n "${SOLOCODE_MCP_SERVER_BUNDLE_DIR:-}" ]]; then
   xattr -cr "$SOLOCODE_MCP_SERVER_BUNDLE_DIR/coderide-mcp-server-rust" 2>/dev/null || true
   chmod +x "$SOLOCODE_MCP_SERVER_BUNDLE_DIR/coderide-mcp-server-rust"
 fi
+
+touch "$STAMP_FILE"
 
 echo "[rust-mcp] artifact pronti in $TEST_OUT_DIR"

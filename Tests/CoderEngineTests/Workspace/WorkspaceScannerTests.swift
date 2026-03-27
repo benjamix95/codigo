@@ -2,6 +2,11 @@ import XCTest
 @testable import CoderEngine
 
 final class WorkspaceScannerTests: XCTestCase {
+    override func tearDown() {
+        WorkspaceScanner.resetGitScanCacheForTests()
+        super.tearDown()
+    }
+
     func testListSourceFilesUsesGitInventoryWhenWorkspaceIsRepository() throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("workspace-scanner-\(UUID().uuidString)")
@@ -38,6 +43,27 @@ final class WorkspaceScannerTests: XCTestCase {
         let files = WorkspaceScanner.listSourceFiles(workspacePath: workspace)
 
         XCTAssertEqual(files, ["new.swift", "tracked.swift"])
+    }
+
+    func testListUncommittedSourceFilesCachesRepeatedGitStatusCalls() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("workspace-scanner-cache-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        var invocationCount = 0
+        WorkspaceScanner.gitCommandRunnerForTests = { _, arguments in
+            invocationCount += 1
+            XCTAssertEqual(arguments, ["status", "--porcelain", "-u"])
+            return (0, " M Changed.swift\n")
+        }
+
+        let first = WorkspaceScanner.listUncommittedSourceFiles(workspacePath: workspace)
+        let second = WorkspaceScanner.listUncommittedSourceFiles(workspacePath: workspace)
+
+        XCTAssertEqual(first, ["Changed.swift"])
+        XCTAssertEqual(second, ["Changed.swift"])
+        XCTAssertEqual(invocationCount, 1)
     }
 
     private func runGit(_ arguments: [String], in workspace: URL) throws {

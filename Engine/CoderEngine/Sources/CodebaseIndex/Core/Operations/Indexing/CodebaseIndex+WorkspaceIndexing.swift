@@ -67,15 +67,20 @@ extension CodebaseIndex {
 
         setUnifiedIndexingProgress(0)
 
+        var contentCacheByAbsolutePath: [String: String] = [:]
         var reindexedForSemantic: [IndexedFile] = []
         var semanticPathsRemoved: [String] = []
 
-        if let hydration = await loadPrimarySymbolCacheHydration(
+        let hydration = await loadPrimarySymbolCacheHydration(
             cacheURL: primaryCacheURL,
             filesToIndex: filesToIndex,
             workspacePathsKey: pathsKey,
             settingsKey: settingsKey
-        ) {
+        )
+        let usedPrimaryHydration = hydration != nil
+        let captureFileContentsDuringIndexing = usedPrimaryHydration || filesToIndex.count <= 64
+
+        if let hydration {
             semanticPathsRemoved = hydration.semanticRemovals
             let fileTotal = max(1, filesToIndex.count)
             var processed = 0
@@ -97,11 +102,21 @@ extension CodebaseIndex {
                     }
                     let batchEnd = min(batchStart + batchSize, hydration.filesToReindex.count)
                     let batch = hydration.filesToReindex[batchStart..<batchEnd]
-                    let results: [IndexedFile] = await indexFilesInParallel(batch: batch)
-                    for indexed in results {
-                        addIndexedFile(indexed)
-                        reindexedForSemantic.append(indexed)
-                        processed += 1
+                    if captureFileContentsDuringIndexing {
+                        let results = await indexFilesInParallelWithContent(batch: batch)
+                        contentCacheByAbsolutePath.merge(results.contentByAbsolutePath) { current, _ in current }
+                        for indexed in results.indexedFiles {
+                            addIndexedFile(indexed)
+                            reindexedForSemantic.append(indexed)
+                            processed += 1
+                        }
+                    } else {
+                        let results = await indexFilesInParallel(batch: batch)
+                        for indexed in results {
+                            addIndexedFile(indexed)
+                            reindexedForSemantic.append(indexed)
+                            processed += 1
+                        }
                     }
                     setUnifiedIndexingProgress(wFile * Double(processed) / Double(fileTotal))
                 }
@@ -123,11 +138,19 @@ extension CodebaseIndex {
                 let batchEnd = min(batchStart + batchSize, filesToIndex.count)
                 let batch = filesToIndex[batchStart..<batchEnd]
 
-                let results: [IndexedFile] = await indexFilesInParallel(batch: batch)
-
-                for indexed in results {
-                    addIndexedFile(indexed)
-                    totalFilesScanned += 1
+                if captureFileContentsDuringIndexing {
+                    let results = await indexFilesInParallelWithContent(batch: batch)
+                    contentCacheByAbsolutePath.merge(results.contentByAbsolutePath) { current, _ in current }
+                    for indexed in results.indexedFiles {
+                        addIndexedFile(indexed)
+                        totalFilesScanned += 1
+                    }
+                } else {
+                    let results = await indexFilesInParallel(batch: batch)
+                    for indexed in results {
+                        addIndexedFile(indexed)
+                        totalFilesScanned += 1
+                    }
                 }
                 setUnifiedIndexingProgress(wFile * Double(batchEnd) / Double(max(1, filesToIndex.count)))
             }
@@ -143,6 +166,20 @@ extension CodebaseIndex {
 
         let allIndexed = indexedFiles.values.sorted { $0.relativePath < $1.relativePath }
         if let firstRoot = paths.first {
+            let shouldReuseContentCache = usedPrimaryHydration || allIndexed.count <= 64
+            let semanticContentCache = shouldReuseContentCache
+                ? await buildSemanticContentCache(
+                    for: allIndexed,
+                    seededByAbsolutePath: contentCacheByAbsolutePath
+                )
+                : [:]
+            let prebuiltMerkleRoot = shouldReuseContentCache
+                ? MerkleTree.build(
+                    indexedFiles: allIndexed,
+                    contentCache: semanticContentCache,
+                    workspaceRoot: firstRoot
+                )
+                : nil
             var semanticStatus = await semanticIndex.status()
             if semanticStatus.totalChunks == 0 {
                 await semanticIndex.loadFromDisk()
@@ -161,6 +198,8 @@ extension CodebaseIndex {
                 await semanticIndex.buildIndex(
                     indexedFiles: allIndexed,
                     workspaceRoot: firstRoot,
+                    contentCache: semanticContentCache,
+                    prebuiltMerkleRoot: prebuiltMerkleRoot,
                     onIndexedFileBatchComplete: { done, tot in
                         let frac = wFile + wSemantic * Double(done) / Double(max(1, tot))
                         await self.setUnifiedIndexingProgress(frac)
@@ -195,6 +234,8 @@ extension CodebaseIndex {
                 await semanticIndex.buildIndex(
                     indexedFiles: allIndexed,
                     workspaceRoot: firstRoot,
+                    contentCache: semanticContentCache,
+                    prebuiltMerkleRoot: prebuiltMerkleRoot,
                     onIndexedFileBatchComplete: { done, tot in
                         let frac = wFile + wSemantic * Double(done) / Double(max(1, tot))
                         await self.setUnifiedIndexingProgress(frac)
@@ -253,28 +294,6 @@ extension CodebaseIndex {
             languages: languageBreakdown()
         )
     }
-
-    private func indexFilesInParallel(batch: ArraySlice<FileNode>) async -> [IndexedFile] {
-        await withTaskGroup(of: IndexedFile?.self, returning: [IndexedFile].self) { group in
-            for node in batch {
-                group.addTask {
-                    SymbolExtractor.indexFile(
-                        absolutePath: node.absolutePath,
-                        relativePath: node.relativePath,
-                        language: node.language
-                    )
-                }
-            }
-            var collected: [IndexedFile] = []
-            for await result in group {
-                if let indexed = result {
-                    collected.append(indexed)
-                }
-            }
-            return collected
-        }
-    }
-
     func makeCurrentIndexResult(durationMs: Int, updatedFiles: Int = 0) -> IndexResult {
         let totalFilesCount = allFileNodes.values.reduce(into: 0) { count, node in
             if node.kind == .file { count += 1 }

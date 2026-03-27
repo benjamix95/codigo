@@ -43,6 +43,43 @@ final class MerkleTreeTests: XCTestCase {
         XCTAssertEqual(node!.hash.count, 64) // SHA-256 hex = 64 chars
     }
 
+    func testBuildFromIndexedFilesMatchesFilesystemTree() throws {
+        let mainFile = tmpDir.appendingPathComponent("main.swift")
+        let modelFile = tmpDir.appendingPathComponent("model.swift")
+        try "func hello() {}".write(to: mainFile, atomically: true, encoding: .utf8)
+        try "struct User {}".write(to: modelFile, atomically: true, encoding: .utf8)
+
+        let indexedMain = try XCTUnwrap(
+            SymbolExtractor.indexFileWithContent(
+                absolutePath: mainFile.path,
+                relativePath: "main.swift",
+                language: .swift
+            )
+        )
+        let indexedModel = try XCTUnwrap(
+            SymbolExtractor.indexFileWithContent(
+                absolutePath: modelFile.path,
+                relativePath: "model.swift",
+                language: .swift
+            )
+        )
+
+        let filesystemTree = try XCTUnwrap(MerkleTree.build(root: tmpDir))
+        let indexedTree = try XCTUnwrap(
+            MerkleTree.build(
+                indexedFiles: [indexedMain.file, indexedModel.file],
+                contentCache: [
+                    indexedMain.file.absolutePath: indexedMain.content,
+                    indexedModel.file.absolutePath: indexedModel.content,
+                ],
+                workspaceRoot: tmpDir
+            )
+        )
+
+        XCTAssertEqual(indexedTree.hash, filesystemTree.hash)
+        XCTAssertEqual(MerkleTree.simHash(of: indexedTree), MerkleTree.simHash(of: filesystemTree))
+    }
+
     func testBuildExcludesHiddenDirs() throws {
         let hiddenDir = tmpDir.appendingPathComponent(".hidden", isDirectory: true)
         try FileManager.default.createDirectory(at: hiddenDir, withIntermediateDirectories: true)

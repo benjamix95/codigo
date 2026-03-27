@@ -206,6 +206,40 @@ extension UnifiedToolRuntimeTests {
         )
     }
 
+    func testSemanticSearchUsesTextFallbackWhileIndexWarmsInBackground() async throws {
+        let index = CodebaseIndex()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try """
+        struct ColdStartSearchProbe {
+            func backgroundWarmupToken() { print("cold start") }
+        }
+        """.write(
+            to: tmp.appendingPathComponent("ColdStartSearchProbe.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let runtime = UnifiedToolRuntime(index: index, workspacePaths: [tmp])
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "background warmup token", "limit": "5"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(
+            (completed?["detail"] ?? "").contains("text fallback"),
+            "Expected semantic search to use text fallback during cold start: \(String(describing: completed))"
+        )
+        XCTAssertTrue(
+            (completed?["output"] ?? "").contains("ColdStartSearchProbe.swift")
+        )
+    }
+
     func testSemanticSearchNaturalLanguageRanksAuthBeforeGenericHandler() async throws {
         let index = CodebaseIndex()
         let tmp = try makeTmpWorkspace()
