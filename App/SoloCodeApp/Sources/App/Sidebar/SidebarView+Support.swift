@@ -49,27 +49,20 @@ extension SidebarView {
         sidebarSnapshotRefreshTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard !Task.isCancelled else { return }
-            let fingerprint = SidebarThreadSnapshotBuilder.snapshotFingerprint(
+            let update = SidebarThreadSnapshotBuilder.buildSnapshotAndFingerprint(
                 chatStore: chatStore,
                 contextId: activeContext?.id,
                 query: query,
                 showArchived: showArchived,
                 favoritesOnly: favoritesOnly
             )
-            guard fingerprint != sidebarSnapshotFingerprint else {
+            guard update.fingerprint != sidebarSnapshotFingerprint else {
                 scheduleSidebarRenderStateRefresh()
                 return
             }
-            let snapshot = SidebarThreadSnapshotBuilder.build(
-                chatStore: chatStore,
-                contextId: activeContext?.id,
-                query: query,
-                showArchived: showArchived,
-                favoritesOnly: favoritesOnly
-            )
-            sidebarSnapshotFingerprint = fingerprint
+            sidebarSnapshotFingerprint = update.fingerprint
             sidebarRenderFingerprint = nil
-            threadsSnapshot = snapshot
+            threadsSnapshot = update.snapshot
             scheduleSidebarRenderStateRefresh()
         }
     }
@@ -81,20 +74,15 @@ extension SidebarView {
         sidebarRenderStateRefreshTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 80_000_000)
             guard !Task.isCancelled else { return }
-            let fingerprint = SidebarThreadSnapshotBuilder.renderFingerprint(
+            let update = SidebarThreadSnapshotBuilder.buildRenderStatesAndFingerprint(
                 conversations: conversations,
                 chatStore: chatStore,
                 todoStore: todoStore,
                 toolTraceStore: toolTraceStore
             )
-            guard fingerprint != sidebarRenderFingerprint else { return }
-            sidebarRenderFingerprint = fingerprint
-            threadRenderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
-                conversations: conversations,
-                chatStore: chatStore,
-                todoStore: todoStore,
-                toolTraceStore: toolTraceStore
-            )
+            guard update.fingerprint != sidebarRenderFingerprint else { return }
+            sidebarRenderFingerprint = update.fingerprint
+            threadRenderStates = update.renderStates
         }
     }
 }

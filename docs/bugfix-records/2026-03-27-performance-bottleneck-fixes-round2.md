@@ -1,0 +1,60 @@
+## Bug Fix Record
+- Categoria: mix A/B focalizzato su performance runtime e regressioni di invalidazione
+- Bug: indexing symbols con deduplica lineare, invalidazione globale dei pipeline snapshots, doppio passaggio sidebar fingerprint/build, refresh chat che aggiornava anche il chrome runtime ad ogni tick testo, build phase tool descriptions sempre out-of-date
+- Sintomo: CPU evitabile su indexing/startup, re-render extra SwiftUI durante streaming, overhead costante su build incrementali
+- Impatto: lag UI, startup piu' lento, costo CPU cumulativo, build/test loop piu' rumoroso e meno prevedibile
+- Gravita': P1 sui path runtime, P2 sulla build phase
+- Steps to reproduce:
+  - avviare l'app con workspace grande e osservare startup/indexing
+  - far partire uno stream lungo in chat e osservare invalidazioni chat/sidebar
+  - eseguire build/test incrementali ripetuti e verificare la phase `Sync tool_descriptions Swift`
+- Risultato attuale:
+  - `CodebaseIndex.addIndexedFile(_)` faceva piu' `contains(where:)` lineari per simbolo
+  - `PipelineIntegrationService.snapshotsByConversation` emetteva `objectWillChange` largo
+  - sidebar calcolava separatamente fingerprint e snapshot/render states
+  - `refreshMessagesSnapshot()` aggiornava anche swarm/tasks/pipeline snapshot su tick testo
+  - la phase `Sync tool_descriptions Swift` girava sempre
+- Risultato atteso:
+  - deduplica simboli quasi lineare per file
+  - notifiche pipeline per-conversation senza invalidazione globale
+  - sidebar con singolo passaggio per snapshot/fingerprint e render states/fingerprint
+  - refresh testo separato dal refresh chrome runtime
+  - phase tool descriptions incrementale
+- Causa probabile:
+  - deduplica basata su array lineari
+  - uso di `@Published` per una mappa di snapshot interna
+  - fan-out di compute duplicato nei builder sidebar
+  - refresh chat troppo ampio sul main path
+  - `alwaysOutOfDate = 1` sulla build phase con input/output gia' dichiarati
+- Scope consentito:
+  - builder sidebar
+  - refresh snapshot chat
+  - `PipelineIntegrationService`
+  - `CodebaseIndex+IndexHelpers`
+  - `project.pbxproj` per la sola phase `Sync tool_descriptions Swift`
+  - test mirati app/engine
+- Non-scope:
+  - refactor architetturali larghi del workspace indexer
+  - redesign UI
+  - modifica delle altre phase Rust sempre out-of-date senza input/output espliciti
+- Moduli confinanti da verificare:
+  - `SidebarThreadSnapshotBuilder`
+  - `PipelineIntegrationService` publishers
+  - `CodebaseIndexIncrementalTests`
+  - build/test macOS
+- Test da aggiungere o aggiornare:
+  - `PipelineIntegrationSnapshotPublisherTests`
+  - `SidebarThreadSnapshotTests`
+  - `CodebaseIndexIncrementalTests`
+  - benchmark smoke `CodebaseIndexIndexingBenchmarkSmokeTests`
+- Strategia di fix minimo:
+  - sostituire i check lineari ripetuti con set locali per bucket durante `addIndexedFile`
+  - rendere interna non-published la mappa snapshots pipeline
+  - introdurre builder combinati sidebar e separare file render-related
+  - estrarre refresh dedicato per il chrome runtime della chat
+  - rendere incrementale solo la phase `Sync tool_descriptions Swift`
+- Verifica post-fix:
+  - `xcodebuild test -scheme 'Solo Code-Debug' -only-testing:SoloCodeAppTests/PipelineIntegrationSnapshotPublisherTests -only-testing:SoloCodeAppTests/SidebarThreadSnapshotTests`
+  - `xcodebuild test -scheme 'CoderEngineTests-Debug' -only-testing:CoderEngineTests/CodebaseIndexIncrementalTests/testDuplicateSymbolIDsDoNotInflateCounters -only-testing:CoderEngineTests/CodebaseIndexIncrementalTests/testReaddingIndexedFileDoesNotDuplicateStoredSymbols -only-testing:CoderEngineTests/CodebaseIndexIndexingBenchmarkSmokeTests/testIndexingBenchmarkSmoke`
+- Commit previsto:
+  - `fix(perf): reduce runtime invalidation and indexing hot paths`

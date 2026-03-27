@@ -101,6 +101,7 @@ struct ChatPanelView: View {
     @State var snapshotLiveSubagentCards: [SwarmLiveCardState] = []
     @State var messagesSnapshotRefreshTask: Task<Void, Never>?
     @State var liveActivitySnapshotRefreshTask: Task<Void, Never>?
+    @State var chromeRuntimeSnapshotRefreshTask: Task<Void, Never>?
     @State var composerRetainedTodoItems: [TodoItem] = []
     @State var composerTodoLastNonEmptySnapshotAt: CFAbsoluteTime = 0
     @State var composerTodoGraceTask: Task<Void, Never>?

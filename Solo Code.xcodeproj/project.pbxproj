@@ -732,7 +732,6 @@
 		};
 		B4E8C1F29A3D5607E1BC94F2 /* Sync tool_descriptions Swift */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);

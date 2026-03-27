@@ -79,7 +79,7 @@ final class PipelineIntegrationService: ObservableObject {
 
     // MARK: - Published State
 
-    @Published var snapshotsByConversation: [UUID: PipelineConversationSnapshot] = [:]
+    var snapshotsByConversation: [UUID: PipelineConversationSnapshot] = [:]
 
     /// Incrementato quando cambia la coda degli eventi debug bufferizzati o lo stato suppress (per aggiornare il pannello).
     @Published private(set) var debugProjectionBufferRevision: UInt = 0

@@ -47,6 +47,23 @@ final class PipelineIntegrationSnapshotPublisherTests: XCTestCase {
         wait(for: [emitted], timeout: 1.0)
     }
 
+    func testSnapshotUpdatesDoNotEmitObservableObjectWideInvalidation() {
+        let service = PipelineIntegrationService()
+        let invalidated = expectation(description: "objectWillChange should stay quiet")
+        invalidated.isInverted = true
+
+        service.objectWillChange
+            .sink { _ in invalidated.fulfill() }
+            .store(in: &cancellables)
+
+        _ = service.updateSnapshotIfNeeded(
+            makeSnapshot(jobId: "job-no-global-invalidation"),
+            for: UUID()
+        )
+
+        wait(for: [invalidated], timeout: 0.15)
+    }
+
     private func makeSnapshot(jobId: String) -> PipelineConversationSnapshot {
         PipelineConversationSnapshot(
             currentJobId: jobId,

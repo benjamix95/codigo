@@ -243,6 +243,7 @@ extension ChatPanelView {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            refreshChromeRuntimeSnapshot()
             refreshMessagesSnapshot()
         }
         .onChange(of: conversationId) { _ in
@@ -253,9 +254,11 @@ extension ChatPanelView {
             } else {
                 messagesConversationSnapshot = nil
             }
+            refreshChromeRuntimeSnapshot()
             refreshMessagesSnapshot()
         }
         .task(id: conversationId) {
+            refreshChromeRuntimeSnapshot()
             refreshMessagesSnapshot()
         }
         .onReceive(chatStore.objectWillChange) { _ in
@@ -264,9 +267,11 @@ extension ChatPanelView {
         }
         .onReceive(pipelineIntegrationService.snapshotDidChangePublisher(for: conversationId)) { _ in
             guard conversationId != nil else { return }
+            scheduleChromeRuntimeSnapshotRefresh()
             scheduleMessagesSnapshotRefresh()
             DispatchQueue.main.async {
                 guard pipelineIntegrationService.isRunning(for: conversationId) else { return }
+                scheduleChromeRuntimeSnapshotRefresh()
                 scheduleMessagesSnapshotRefresh()
             }
         }

@@ -206,4 +206,86 @@ final class SidebarThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(before, sameState)
         XCTAssertNotEqual(before, changedState)
     }
+
+    func testBuildSnapshotAndFingerprintMatchesLegacyBuilders() {
+        let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
+        let chatStore = ChatStore(userDefaults: defaults)
+        let contextId = UUID()
+        let now = Date()
+
+        chatStore.conversations = [
+            Conversation(title: "Pinned", createdAt: now, contextId: contextId, isPinned: true),
+            Conversation(title: "Normal", createdAt: now.addingTimeInterval(-10), contextId: contextId)
+        ]
+
+        let legacySnapshot = SidebarThreadSnapshotBuilder.build(
+            chatStore: chatStore,
+            contextId: contextId,
+            query: "",
+            showArchived: false,
+            favoritesOnly: false
+        )
+        let legacyFingerprint = SidebarThreadSnapshotBuilder.snapshotFingerprint(
+            chatStore: chatStore,
+            contextId: contextId,
+            query: "",
+            showArchived: false,
+            favoritesOnly: false
+        )
+        let combined = SidebarThreadSnapshotBuilder.buildSnapshotAndFingerprint(
+            chatStore: chatStore,
+            contextId: contextId,
+            query: "",
+            showArchived: false,
+            favoritesOnly: false
+        )
+
+        XCTAssertEqual(legacySnapshot.threads.map(\.id), combined.snapshot.threads.map(\.id))
+        XCTAssertEqual(legacySnapshot.pinnedThreads.map(\.id), combined.snapshot.pinnedThreads.map(\.id))
+        XCTAssertEqual(legacyFingerprint, combined.fingerprint)
+    }
+
+    func testBuildRenderStatesAndFingerprintMatchesLegacyBuilders() {
+        let defaults = UserDefaults(suiteName: #filePath + ".\(UUID().uuidString)") ?? .standard
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "SidebarThreadSnapshotTests.render-combined.todos",
+            userDefaults: defaults
+        )
+        let toolTraceStore = ToolTraceStore()
+        let conversationId = UUID()
+
+        chatStore.conversations = [
+            Conversation(
+                id: conversationId,
+                title: "Combined Render",
+                messages: [ChatMessage(role: .assistant, content: "Streaming", isStreaming: true)]
+            )
+        ]
+        chatStore.activeTaskConversationIds = [conversationId]
+        chatStore.taskStatusTexts[conversationId] = "Running"
+
+        let legacyRenderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
+            conversations: chatStore.conversations,
+            chatStore: chatStore,
+            todoStore: todoStore,
+            toolTraceStore: toolTraceStore
+        )
+        let legacyFingerprint = SidebarThreadSnapshotBuilder.renderFingerprint(
+            conversations: chatStore.conversations,
+            chatStore: chatStore,
+            todoStore: todoStore,
+            toolTraceStore: toolTraceStore
+        )
+        let combined = SidebarThreadSnapshotBuilder.buildRenderStatesAndFingerprint(
+            conversations: chatStore.conversations,
+            chatStore: chatStore,
+            todoStore: todoStore,
+            toolTraceStore: toolTraceStore
+        )
+
+        XCTAssertEqual(legacyRenderStates[conversationId]?.statusText, combined.renderStates[conversationId]?.statusText)
+        XCTAssertEqual(legacyRenderStates[conversationId]?.isStreaming, combined.renderStates[conversationId]?.isStreaming)
+        XCTAssertEqual(legacyFingerprint, combined.fingerprint)
+    }
 }

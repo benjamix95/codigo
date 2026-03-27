@@ -172,6 +172,28 @@ final class CodebaseIndexIncrementalTests: XCTestCase {
         XCTAssertEqual(status.totalSymbols, 1)
     }
 
+    func testReaddingIndexedFileDoesNotDuplicateStoredSymbols() async {
+        let index = CodebaseIndex()
+        let symbol = IndexedSymbol(name: "Stable", kind: .class, filePath: "Stable.swift", line: 1, endLine: 1, language: .swift)
+        let indexed = IndexedFile(
+            relativePath: "Stable.swift",
+            absolutePath: "/tmp/Stable.swift",
+            language: .swift,
+            symbols: [symbol],
+            imports: [],
+            lineCount: 1,
+            size: 10
+        )
+
+        await index.addIndexedFile(indexed)
+        await index.addIndexedFile(indexed)
+
+        let status = await index.status()
+        let symbols = await index.findSymbols(query: "Stable")
+        XCTAssertEqual(status.totalSymbols, 1)
+        XCTAssertEqual(symbols.count, 1)
+    }
+
     func testIndexSingleFileNonIndexableExtensionDoesNotCreateSymbolOrSemanticEntries() async throws {
         let workspace = try makeWorkspace()
         defer { try? FileManager.default.removeItem(at: workspace) }

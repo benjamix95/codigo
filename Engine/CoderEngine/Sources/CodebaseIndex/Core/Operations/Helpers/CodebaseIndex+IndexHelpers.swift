@@ -116,32 +116,44 @@ extension CodebaseIndex {
         indexedFiles[indexed.relativePath] = indexed
         contentHashes[indexed.absolutePath] = indexed.contentHash
 
+        var symbolsForFile = symbolsByFile[indexed.relativePath, default: []]
+        var symbolIdsForFile = Set(symbolsForFile.map(\.id))
+        var symbolsByNameCache: [String: (symbols: [IndexedSymbol], ids: Set<String>)] = [:]
+        var symbolsByKindCache: [SymbolKind: (symbols: [IndexedSymbol], ids: Set<String>)] = [:]
+
         for symbol in indexed.symbols {
             let key = symbol.name.lowercased()
-            var insertedInFile = false
 
-            var existingByName = symbolsByName[key, default: []]
-            if !existingByName.contains(where: { $0.id == symbol.id }) {
-                existingByName.append(symbol)
+            var symbolsForName = symbolsByNameCache[key] ?? {
+                let existing = symbolsByName[key, default: []]
+                return (existing, Set(existing.map(\.id)))
+            }()
+            if symbolsForName.ids.insert(symbol.id).inserted {
+                symbolsForName.symbols.append(symbol)
             }
-            symbolsByName[key] = existingByName
+            symbolsByNameCache[key] = symbolsForName
 
-            var existingByFile = symbolsByFile[indexed.relativePath, default: []]
-            if !existingByFile.contains(where: { $0.id == symbol.id }) {
-                existingByFile.append(symbol)
-                insertedInFile = true
-            }
-            symbolsByFile[indexed.relativePath] = existingByFile
-
-            var existingByKind = symbolsByKind[symbol.kind, default: []]
-            if !existingByKind.contains(where: { $0.id == symbol.id }) {
-                existingByKind.append(symbol)
-            }
-            symbolsByKind[symbol.kind] = existingByKind
-
-            if insertedInFile {
+            if symbolIdsForFile.insert(symbol.id).inserted {
+                symbolsForFile.append(symbol)
                 totalSymbolsExtracted += 1
             }
+
+            var symbolsForKind = symbolsByKindCache[symbol.kind] ?? {
+                let existing = symbolsByKind[symbol.kind, default: []]
+                return (existing, Set(existing.map(\.id)))
+            }()
+            if symbolsForKind.ids.insert(symbol.id).inserted {
+                symbolsForKind.symbols.append(symbol)
+            }
+            symbolsByKindCache[symbol.kind] = symbolsForKind
+        }
+
+        symbolsByFile[indexed.relativePath] = symbolsForFile
+        for (name, bucket) in symbolsByNameCache {
+            symbolsByName[name] = bucket.symbols
+        }
+        for (kind, bucket) in symbolsByKindCache {
+            symbolsByKind[kind] = bucket.symbols
         }
     }
 

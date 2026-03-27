@@ -40,6 +40,7 @@ extension ChatPanelView {
                 handlePlanningStateChange(new, proxy: proxy)
             }
             .onChangeCompat(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
+                scheduleChromeRuntimeSnapshotRefresh()
                 refreshMessagesSnapshot()
                 handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
             }
