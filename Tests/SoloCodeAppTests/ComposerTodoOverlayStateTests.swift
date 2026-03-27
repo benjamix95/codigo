@@ -2,8 +2,8 @@ import XCTest
 @testable import CoderIDE
 
 final class ComposerTodoOverlayStateTests: XCTestCase {
-    func testHasVisibleComposerTodoOverlayKeepsCompletedTodosVisibleButHidesPlaceholders() {
-        XCTAssertTrue(
+    func testHasVisibleComposerTodoOverlayRequiresActiveNonPlaceholderTodos() {
+        XCTAssertFalse(
             hasVisibleComposerTodoOverlay(
                 items: [
                     TodoItem(title: "Completato", status: .done),
@@ -135,5 +135,38 @@ final class ComposerTodoOverlayStateTests: XCTestCase {
         )
 
         XCTAssertTrue(resolved.isEmpty)
+    }
+
+    func testComposerTodoOverlayHiddenDuringPlanSurface() {
+        XCTAssertFalse(
+            shouldShowComposerTodoOverlay(
+                items: [TodoItem(title: "Plan task", status: .inProgress)],
+                coderMode: .plan,
+                planToggleEnabled: false,
+                planFlowPhase: .readyToBuild,
+                planningState: .idle
+            )
+        )
+        XCTAssertFalse(
+            shouldShowComposerTodoOverlay(
+                items: [TodoItem(title: "Plan task", status: .pending)],
+                coderMode: .agent,
+                planToggleEnabled: true,
+                planFlowPhase: .proposalReady,
+                planningState: .awaitingChoice(planContent: "plan", options: [])
+            )
+        )
+    }
+
+    func testComposerTodoOverlayVisibleForRegularAgentRuntimeTodo() {
+        XCTAssertTrue(
+            shouldShowComposerTodoOverlay(
+                items: [TodoItem(title: "Runtime task", status: .inProgress)],
+                coderMode: .agent,
+                planToggleEnabled: false,
+                planFlowPhase: .idle,
+                planningState: .idle
+            )
+        )
     }
 }

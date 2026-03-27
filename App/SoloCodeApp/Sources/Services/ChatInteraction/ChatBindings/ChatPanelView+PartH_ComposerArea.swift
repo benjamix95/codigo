@@ -13,6 +13,13 @@ extension ChatPanelView {
         let resolvedComposerFileChanges = composerTodoFileChanges
         let resolvedComposerMicroStatus = composerTodoMicroStatus
         let resolvedComposerStreaming = composerTodoIsStreaming
+        let shouldShowComposerOverlay = shouldShowComposerTodoOverlay(
+            items: stabilizedComposerTodoItems,
+            coderMode: coderMode,
+            planToggleEnabled: planToggleEnabled,
+            planFlowPhase: planFlowPhase,
+            planningState: planningState
+        )
         let planningNextMoveInteractive: Bool = {
             guard let cid = conversationId else { return false }
             let scoped = scopedTaskActivities(for: cid)
@@ -70,7 +77,7 @@ extension ChatPanelView {
                 onVoiceAction: { handleVoiceAction() },
                 onOptimizePrompt: { optimizeCurrentPrompt() },
                 isOptimizingPrompt: isOptimizingPrompt,
-                topOverlay: hasVisibleComposerTodoOverlay(items: stabilizedComposerTodoItems)
+                topOverlay: shouldShowComposerOverlay
                     ? AnyView(
                         ComposerTodoOverlayView(
                             items: stabilizedComposerTodoItems,

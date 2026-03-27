@@ -1,0 +1,42 @@
+# Bug Fix Record
+- Categoria: B - Importante ma non bloccante
+- Bug: il composer `todo overlay` restava montato in contesto `Plan`, sovrapponendosi visivamente alla timeline chat.
+- Sintomo:
+  - il riquadro todo sopra il composer copriva parte dei messaggi;
+  - in `Plan`/`Build` la UI mostrava contemporaneamente plan panel/chat e overlay composer, creando confusione visiva;
+  - i placeholder operativi potevano ancora influenzare la visibilità/auto-expand dell’overlay.
+- Impatto: UX degradata nel flusso plan; il composer diventava una terza superficie concorrente sopra chat e panel.
+- Gravità: P1
+- Steps to reproduce:
+  1. Attivare `Plan`.
+  2. Generare un piano e arrivare a `proposalReady` / `readyToBuild`.
+  3. Osservare il composer in basso.
+- Risultato attuale: `ComposerTodoOverlayView` viene ancora montato come `topOverlay` del composer e cresce verso l’alto sopra la chat.
+- Risultato atteso: in contesto `Plan` il composer non deve mostrare il todo overlay; i todo del piano restano nelle superfici dedicate (chat/panel).
+- Causa probabile:
+  - il mount del `topOverlay` era indipendente dal fatto che il thread fosse in `Plan`;
+  - la policy `hasVisibleComposerTodoOverlay(...)` e la signature auto-expand non escludevano completamente i placeholder.
+- Scope consentito:
+  - `ChatPanelTaskActivity+ComposerTodoOverlayPolicy.swift`
+  - `ChatPanelView+PartH_ComposerArea.swift`
+  - `ComposerTodoOverlayView.swift`
+  - test `ComposerTodoOverlayStateTests`
+- Non-scope:
+  - refactor del composer container
+  - modifiche ai todo canonici del piano
+- Moduli confinanti da verificare:
+  - visibilità overlay composer
+  - retention/auto-expand overlay
+  - regressioni sui todo runtime fuori plan
+- Test da aggiungere o aggiornare:
+  - overlay nascosto durante `Plan`
+  - overlay visibile per runtime agent normale
+  - placeholder esclusi da visibilità e signature
+- Strategia di fix minimo:
+  - introdurre una policy esplicita `shouldShowComposerTodoOverlay(...)`;
+  - restituire `false` in ogni fase/contesto `Plan`;
+  - escludere i placeholder da `hasVisibleComposerTodoOverlay(...)` e da `composerTodoAutoExpandSignature(...)`.
+- Verifica post-fix:
+  - `xcodebuild test -project 'Solo Code.xcodeproj' -scheme 'Solo Code' -only-testing:SoloCodeAppTests/ComposerTodoOverlayStateTests -only-testing:SoloCodeAppTests/TodoStoreTests -only-testing:SoloCodeAppTests/PlanBuildGuardTests`
+- Commit previsto:
+  - `fix(plan): hide composer todo overlay during planning`

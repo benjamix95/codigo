@@ -1,8 +1,42 @@
 import Foundation
+import SwiftUI
 
 /// Policy pura todo-overlay composer (condivisa da `ChatPanelView` retention).
 enum ChatPanelComposerTodoPolicy {
     static let retentionGraceIntervalSeconds: CFAbsoluteTime = 0.75
+}
+
+func shouldShowComposerTodoOverlay(
+    items: [TodoItem],
+    coderMode: CoderMode,
+    planToggleEnabled: Bool,
+    planFlowPhase: PlanFlowPhase,
+    planningState: PlanningState
+) -> Bool {
+    guard hasVisibleComposerTodoOverlay(items: items) else { return false }
+
+    let planSurfaceActive =
+        coderMode == .plan
+        || planToggleEnabled
+        || planFlowPhase == .analyzing
+        || planFlowPhase == .questioning
+        || planFlowPhase == .generating
+        || planFlowPhase == .proposalReady
+        || planFlowPhase == .readyToBuild
+        || planFlowPhase == .building
+
+    if planSurfaceActive {
+        return false
+    }
+
+    if case .awaitingClarification = planningState {
+        return false
+    }
+    if case .awaitingChoice = planningState {
+        return false
+    }
+
+    return true
 }
 
 func shouldHoldComposerTodoOverlay(
@@ -42,10 +76,14 @@ func resolveEffectiveComposerTodoItems(
 @MainActor
 func resolveComposerTodoItems(
     todoStore: TodoStore,
-    conversationId: UUID?
+    conversationId: UUID?,
+    includeOperationalRuntimeTodos: Bool = false
 ) -> [TodoItem] {
     guard let conversationId else {
         return []
     }
-    return todoStore.displayTodosForChat(for: conversationId)
+    return todoStore.displayTodosForComposer(
+        for: conversationId,
+        includeOperationalRuntimeTodos: includeOperationalRuntimeTodos
+    )
 }
