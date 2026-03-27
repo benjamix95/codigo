@@ -168,22 +168,8 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
             )
         )
         if let message = start?.error?.message {
-            // MARK: Agent debug ingest
-            AgentDebugIngestLog.append(
-                hypothesisId: "H2",
-                location: "RustMainChatProviderAdapter.startRuntimeSession",
-                message: "session_start_error",
-                data: ["providerId": id, "err": String(message.prefix(400))]
-            )
             throw CoderEngineError.apiError(message)
         }
-        // MARK: Agent debug ingest
-        AgentDebugIngestLog.append(
-            hypothesisId: "H2",
-            location: "RustMainChatProviderAdapter.startRuntimeSession",
-            message: "session_started",
-            data: ["providerId": id, "sessionId": sessionId]
-        )
         return sessionId
     }
 
