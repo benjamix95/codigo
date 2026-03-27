@@ -68,7 +68,7 @@ extension ChatPanelView {
         let hasSwarmSteps = !swarmProgressStore.steps(for: conversationId).isEmpty
         let hasLiveSwarmCards = !taskActivityStore.swarmCardStates(for: conversationId).isEmpty
         let hasPipelineProgress = pipelineIntegrationService.isRunning(for: conversationId)
-        return shouldShowLegacyTodoCardInChat(
+        let baseShow = shouldShowLegacyTodoCardInChat(
             coderMode: coderMode,
             planToggleEnabled: planToggleEnabled,
             planFlowPhase: planFlowPhase,
@@ -77,6 +77,38 @@ extension ChatPanelView {
             hasLiveSwarmCards: hasLiveSwarmCards,
             hasPipelineProgress: hasPipelineProgress
         )
+        let composerItems = resolveComposerTodoItems(
+            todoStore: todoStore,
+            conversationId: conversationId,
+            includeOperationalRuntimeTodos: false
+        )
+        let composerOverlayShowsTodos = shouldShowComposerTodoOverlay(
+            items: composerItems,
+            coderMode: coderMode,
+            planToggleEnabled: planToggleEnabled,
+            planFlowPhase: planFlowPhase,
+            planningState: planningState
+        )
+        let show = baseShow && !composerOverlayShowsTodos
+        // #region agent log
+        PlanFlowDebugNDJSONLog.append(
+            hypothesisId: "J",
+            location: "ChatPanelView+DisplayFlags.shouldShowPlanTodosInChat",
+            message: "legacy_todo_card_in_chat_flag",
+            data: [
+                "conversationId": conversationId?.uuidString.lowercased() ?? "nil",
+                "show": show ? "1" : "0",
+                "baseShow": baseShow ? "1" : "0",
+                "composerOverlaySuppress": composerOverlayShowsTodos ? "1" : "0",
+                "composerTodoCount": String(composerItems.count),
+                "planFlowPhase": String(describing: planFlowPhase),
+                "hasSwarmSteps": hasSwarmSteps ? "1" : "0",
+                "hasLiveSwarmCards": hasLiveSwarmCards ? "1" : "0",
+                "hasPipelineProgress": hasPipelineProgress ? "1" : "0",
+            ]
+        )
+        // #endregion
+        return show
     }
 
     var shouldRoutePlanStreamingToPanel: Bool {

@@ -59,6 +59,26 @@ extension ChatPanelView {
         return hasChecklist || hasMermaid
     }
 
+    /// Quando il composer mostra già i todo canonici del piano, nascondi il dump markdown del piano in timeline (anche se `shouldRoutePlanStreamingToPanel` è false).
+    private func shouldHidePlanMarkdownForComposerTodoParity(
+        conversationId: UUID,
+        fullLooksLikePlanPayload: Bool
+    ) -> Bool {
+        guard fullLooksLikePlanPayload else { return false }
+        let items = resolveComposerTodoItems(
+            todoStore: todoStore,
+            conversationId: conversationId,
+            includeOperationalRuntimeTodos: false
+        )
+        return shouldShowComposerTodoOverlay(
+            items: items,
+            coderMode: coderMode,
+            planToggleEnabled: planToggleEnabled,
+            planFlowPhase: planFlowPhase,
+            planningState: planningState
+        )
+    }
+
     /// Allineato a `handleStreamResult`: quando true, in chat si mostra solo `planInPanelPlaceholder` ma il messaggio in store conserva il testo completo.
     func planMarkdownHiddenInChat(
         effectiveFullText: String,
@@ -70,7 +90,7 @@ extension ChatPanelView {
         let shouldRoutePlanStreamToPanel = shouldRoutePlanStream(to: conversationId)
         let shouldHidePlanMarkdownForBuild = isBuildContext && shouldRoutePlanStreamToPanel
         let hasPlanContextForStreamConversation = hasActivePlanContext(for: conversationId)
-        return shouldHidePlanMarkdownInChat(
+        let hiddenByRoute = shouldHidePlanMarkdownInChat(
             shouldRoutePlanStreamToPanel: shouldRoutePlanStreamToPanel,
             coderMode: coderMode,
             shouldRunPlanInline: shouldRunPlanInline,
@@ -78,6 +98,34 @@ extension ChatPanelView {
             shouldHidePlanMarkdownForBuild: shouldHidePlanMarkdownForBuild,
             hasActivePlanContext: hasPlanContextForStreamConversation
         )
+        let hiddenByComposerParity = shouldHidePlanMarkdownForComposerTodoParity(
+            conversationId: conversationId,
+            fullLooksLikePlanPayload: fullLooksLikePlanPayload
+        )
+        let hidden = hiddenByRoute || hiddenByComposerParity
+        // #region agent log
+        PlanFlowDebugNDJSONLog.append(
+            hypothesisId: "J",
+            location: "ChatPanelView+PlanArtifactVisibility.planMarkdownHiddenInChat",
+            message: "plan_markdown_hidden_gate",
+            data: [
+                "conversationId": conversationId.uuidString.lowercased(),
+                "hidden": hidden ? "1" : "0",
+                "hiddenByRoute": hiddenByRoute ? "1" : "0",
+                "hiddenByComposerParity": hiddenByComposerParity ? "1" : "0",
+                "shouldRoutePlanStreamToPanel": shouldRoutePlanStreamToPanel ? "1" : "0",
+                "shouldRoutePlanStreamingToPanel": shouldRoutePlanStreamingToPanel ? "1" : "0",
+                "fullLooksLikePlanPayload": fullLooksLikePlanPayload ? "1" : "0",
+                "isBuildContext": isBuildContext ? "1" : "0",
+                "shouldHidePlanMarkdownForBuild": shouldHidePlanMarkdownForBuild ? "1" : "0",
+                "hasActivePlanContext": hasPlanContextForStreamConversation ? "1" : "0",
+                "shouldRunPlanInline": shouldRunPlanInline ? "1" : "0",
+                "coderMode": String(describing: coderMode),
+                "textLen": String(effectiveFullText.count),
+            ]
+        )
+        // #endregion
+        return hidden
     }
 
     func shouldSuppressPlanArtifactsInChat(
@@ -92,12 +140,27 @@ extension ChatPanelView {
             activeBuildPlanConversationId: activeBuildPlanConversationId,
             activeBuildAgentConversationId: activeBuildAgentConversationId
         )
-        return planMarkdownHiddenInChat(
+        let suppress = planMarkdownHiddenInChat(
             effectiveFullText: message.content,
             conversationId: conversationId,
             isBuildContext: isBuildContext,
             shouldRunPlanInline: planShouldRunInline
         )
+        // #region agent log
+        PlanFlowDebugNDJSONLog.append(
+            hypothesisId: "J",
+            location: "ChatPanelView+PlanArtifactVisibility.shouldSuppressPlanArtifactsInChat",
+            message: "suppress_plan_artifacts_assistant",
+            data: [
+                "conversationId": conversationId.uuidString.lowercased(),
+                "messageId": message.id.uuidString.lowercased(),
+                "suppress": suppress ? "1" : "0",
+                "isBuildContext": isBuildContext ? "1" : "0",
+                "blockCount": String(message.blocks?.count ?? 0),
+            ]
+        )
+        // #endregion
+        return suppress
     }
 
     func chatDisplayMessage(
@@ -106,6 +169,22 @@ extension ChatPanelView {
     ) -> ChatMessage {
         var displayMessage = message
         displayMessage.content = planInPanelPlaceholder
+        displayMessage.primaryTextSnapshot = planInPanelPlaceholder
+        if var blocks = displayMessage.blocks, !blocks.isEmpty {
+            displayMessage.blocks = blocks.compactMap { block in
+                if block.kind == .plan {
+                    return nil
+                }
+                if block.kind == .primaryText {
+                    var updated = block
+                    if looksLikePlanPayload(updated.text) || looksLikePlanPayload(message.content) {
+                        updated.text = planInPanelPlaceholder
+                    }
+                    return updated
+                }
+                return block
+            }
+        }
         return displayMessage
     }
 
