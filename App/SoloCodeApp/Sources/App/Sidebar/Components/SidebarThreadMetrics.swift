@@ -20,23 +20,18 @@ struct SidebarThreadMetrics {
         toolTraceStore: ToolTraceStore
     ) -> SidebarThreadMetrics {
         let totalMessages = conversation.messages.count
-
-        let allEvents = toolTraceStore.allEvents(conversationId: conversation.id)
-        guard !allEvents.isEmpty else {
+        let summary = toolTraceStore.conversationFileChangeSummary(conversationId: conversation.id)
+        guard summary.fileCount > 0 || summary.linesAdded > 0 || summary.linesRemoved > 0 else {
             return SidebarThreadMetrics(
                 messageCount: totalMessages, linesAdded: 0, linesRemoved: 0, fileCount: 0
             )
         }
 
-        let fileChanges = ToolTraceFileChangeMapper.collect(from: allEvents)
-        let linesAdded = fileChanges.reduce(0) { $0 + max(0, $1.added) }
-        let linesRemoved = fileChanges.reduce(0) { $0 + max(0, $1.removed) }
-
         return SidebarThreadMetrics(
             messageCount: totalMessages,
-            linesAdded: linesAdded,
-            linesRemoved: linesRemoved,
-            fileCount: fileChanges.count
+            linesAdded: summary.linesAdded,
+            linesRemoved: summary.linesRemoved,
+            fileCount: summary.fileCount
         )
     }
 }

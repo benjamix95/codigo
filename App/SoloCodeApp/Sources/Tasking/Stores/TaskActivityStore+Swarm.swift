@@ -3,10 +3,7 @@ import Foundation
 @MainActor
 extension TaskActivityStore {
     private func sortedSwarmCardsSnapshot() -> [SwarmLiveCardState] {
-        if isSortedSwarmCardsCacheDirty {
-            return SwarmLiveReducer.sorted(states: Array(swarmCards.values))
-        }
-        return sortedSwarmCardsCache
+        SwarmLiveReducer.sorted(states: Array(swarmCards.values))
     }
 
     func shouldPreserveSwarmCriticalEvent(_ activity: TaskActivity) -> Bool {
@@ -43,6 +40,7 @@ extension TaskActivityStore {
         swarmCards.removeAll()
         swarmCardDedupKeys.removeAll()
         sortedSwarmCardsCache.removeAll()
+        scopedSwarmCardsCache.removeAll()
         isSortedSwarmCardsCacheDirty = false
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
@@ -54,6 +52,7 @@ extension TaskActivityStore {
 
     func markSortedSwarmCardsDirty() {
         isSortedSwarmCardsCacheDirty = true
+        scopedSwarmCardsCache.removeAll(keepingCapacity: true)
     }
 
     func refreshSortedSwarmCardsCacheIfNeeded() {
@@ -63,6 +62,9 @@ extension TaskActivityStore {
     }
 
     func currentSortedSwarmCardsSnapshot() -> [SwarmLiveCardState] {
-        sortedSwarmCardsSnapshot()
+        if isSortedSwarmCardsCacheDirty {
+            return sortedSwarmCardsSnapshot()
+        }
+        return sortedSwarmCardsCache
     }
 }

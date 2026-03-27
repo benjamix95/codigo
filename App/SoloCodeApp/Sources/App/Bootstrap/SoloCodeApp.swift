@@ -113,7 +113,7 @@ struct SoloCodeApp: App {
                 }
                 .task {
                     guard !startupReady else { return }
-                    try? await Task.sleep(nanoseconds: 250_000_000)
+                    await Task.yield()
                     startupReady = true
                 }
             }
@@ -170,7 +170,10 @@ struct SoloCodeApp: App {
             contextStore: projectContextStore,
             workspaceStore: workspaceStore
         )
-        chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
+        Task { @MainActor [chatStore, planHistoryStore] in
+            await Task.yield()
+            chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
+        }
         CLIAccountsStore.shared.bootstrapAccountsIfNeeded()
         CLIAccountRouter.shared.bootstrapActiveSelectionsIfNeeded()
         CodexMCPHealthStore.shared.refresh()

@@ -55,6 +55,18 @@ struct ToolTraceBindingTarget: Equatable {
     let assistantMessageId: UUID
 }
 
+struct ToolTraceConversationFileChangeSummary {
+    let linesAdded: Int
+    let linesRemoved: Int
+    let fileCount: Int
+
+    static let empty = ToolTraceConversationFileChangeSummary(
+        linesAdded: 0,
+        linesRemoved: 0,
+        fileCount: 0
+    )
+}
+
 enum ToolTraceBindingResolver {
     static func resolve(
         activeTurn: ToolTraceBindingTarget?,
@@ -89,6 +101,8 @@ final class ToolTraceStore: ObservableObject {
     /// Lazy-loading from disk does NOT send change notifications, avoiding the
     /// "Publishing changes from within view updates" runtime warning.
     private var cache: [TraceKey: [ToolTraceEvent]] = [:]
+    private var allEventsCacheByConversation: [UUID: [ToolTraceEvent]] = [:]
+    private var fileChangeSummaryCacheByConversation: [UUID: ToolTraceConversationFileChangeSummary] = [:]
 
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -158,6 +172,7 @@ final class ToolTraceStore: ObservableObject {
         }
         throttledNotify()
         cache[key] = events
+        invalidateConversationCaches(conversationId: event.conversationId)
         // Encode on main thread (fast), dispatch write to background
         if let encoded = try? encoder.encode(event) {
             let url = fileURL(for: key)
@@ -173,7 +188,10 @@ final class ToolTraceStore: ObservableObject {
     }
 
     func allEvents(conversationId: UUID) -> [ToolTraceEvent] {
-        cache.filter { $0.key.conversationId == conversationId }
+        if let cached = allEventsCacheByConversation[conversationId] {
+            return cached
+        }
+        let events = cache.filter { $0.key.conversationId == conversationId }
             .flatMap(\.value)
             .sorted { lhs, rhs in
                 if lhs.timestamp != rhs.timestamp {
@@ -181,6 +199,27 @@ final class ToolTraceStore: ObservableObject {
                 }
                 return lhs.sequence < rhs.sequence
             }
+        allEventsCacheByConversation[conversationId] = events
+        return events
+    }
+
+    func conversationFileChangeSummary(conversationId: UUID) -> ToolTraceConversationFileChangeSummary {
+        if let cached = fileChangeSummaryCacheByConversation[conversationId] {
+            return cached
+        }
+        let allEvents = allEvents(conversationId: conversationId)
+        guard !allEvents.isEmpty else {
+            fileChangeSummaryCacheByConversation[conversationId] = .empty
+            return .empty
+        }
+        let fileChanges = ToolTraceFileChangeMapper.collect(from: allEvents)
+        let summary = ToolTraceConversationFileChangeSummary(
+            linesAdded: fileChanges.reduce(0) { $0 + max(0, $1.added) },
+            linesRemoved: fileChanges.reduce(0) { $0 + max(0, $1.removed) },
+            fileCount: fileChanges.count
+        )
+        fileChangeSummaryCacheByConversation[conversationId] = summary
+        return summary
     }
 
     func hasTrace(conversationId: UUID, assistantMessageId: UUID) -> Bool {
@@ -222,6 +261,7 @@ final class ToolTraceStore: ObservableObject {
         events[idx].isRunning = false
         throttledNotify()
         cache[key] = events
+        invalidateConversationCaches(conversationId: conversationId)
     }
 
     func finalizeTurn(conversationId _: UUID, assistantMessageId _: UUID) {
@@ -234,7 +274,13 @@ final class ToolTraceStore: ObservableObject {
         }
         let loaded = loadEventsFromDisk(for: key)
         cache[key] = loaded
+        invalidateConversationCaches(conversationId: key.conversationId)
         return loaded
+    }
+
+    private func invalidateConversationCaches(conversationId: UUID) {
+        allEventsCacheByConversation.removeValue(forKey: conversationId)
+        fileChangeSummaryCacheByConversation.removeValue(forKey: conversationId)
     }
 
     private func loadEventsFromDisk(for key: TraceKey) -> [ToolTraceEvent] {

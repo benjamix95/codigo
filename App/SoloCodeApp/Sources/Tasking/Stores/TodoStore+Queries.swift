@@ -2,7 +2,7 @@ import Foundation
 
 extension TodoStore {
     var userVisibleTodos: [TodoItem] {
-        todos.filter { !$0.isOperationalPlaceholder }
+        cachedUserVisibleTodos()
     }
 
     var visibleTodos: [TodoItem] {
@@ -70,9 +70,16 @@ extension TodoStore {
     /// - Con fallback unscoped solo se nessun altro thread ha todo con scope (`planConversationId` non-nil),
     ///   per evitare di mostrare la stessa coda “orfana” in chat che non sono la sorgente del lavoro scoped.
     func displayTodosForChat(for conversationId: UUID?) -> [TodoItem] {
+        let cacheKey = cachedDisplayTodosKey(for: conversationId)
+        if let cached = displayTodosCacheByConversationKey[cacheKey] {
+            return cached
+        }
         let visible = userVisibleTodos
+        let resolved: [TodoItem]
         guard let conversationId else {
-            return sortedCanonicalFirstTodos(visible)
+            resolved = sortedCanonicalFirstTodos(visible)
+            displayTodosCacheByConversationKey[cacheKey] = resolved
+            return resolved
         }
         let planScopeIds = Set(visible.compactMap(\.planConversationId))
         let inChat = visible.filter {
@@ -83,7 +90,9 @@ extension TodoStore {
                 planScopeIds: planScopeIds
             )
         }
-        return sortedCanonicalFirstTodos(inChat)
+        resolved = sortedCanonicalFirstTodos(inChat)
+        displayTodosCacheByConversationKey[cacheKey] = resolved
+        return resolved
     }
 
     func canonicalScopeFilter(for conversationId: UUID?) -> (TodoItem) -> Bool {

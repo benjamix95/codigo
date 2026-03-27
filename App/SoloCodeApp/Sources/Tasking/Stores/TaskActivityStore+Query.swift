@@ -24,6 +24,7 @@ extension TaskActivityStore {
         swarmCards.removeAll()
         swarmCardDedupKeys.removeAll()
         sortedSwarmCardsCache.removeAll()
+        scopedSwarmCardsCache.removeAll()
         isSortedSwarmCardsCacheDirty = false
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
@@ -101,6 +102,25 @@ extension TaskActivityStore {
         -> [SwarmLiveCardState]
     {
         if let conversationId {
+            let scope = conversationId.uuidString.lowercased()
+            if limitEventsPerCard == defaultSwarmEventsLimit {
+                if let cached = scopedSwarmCardsCache[scope] {
+                    return cached
+                }
+                let scoped = currentSortedSwarmCardsSnapshot().compactMap { card -> SwarmLiveCardState? in
+                    let scopedEvents = card.recentEvents.filter {
+                        activityBelongsToConversation($0, scope: scope)
+                    }
+                    guard !scopedEvents.isEmpty else { return nil }
+                    return SwarmLiveReducer.reduce(
+                        activities: scopedEvents,
+                        limitRecentEvents: defaultSwarmEventsLimit
+                    )[card.swarmId]
+                }
+                let sortedScoped = SwarmLiveReducer.sorted(states: scoped)
+                scopedSwarmCardsCache[scope] = sortedScoped
+                return sortedScoped
+            }
             let reduced = SwarmLiveReducer.reduce(
                 activities: scopedActivities(for: conversationId),
                 limitRecentEvents: limitEventsPerCard

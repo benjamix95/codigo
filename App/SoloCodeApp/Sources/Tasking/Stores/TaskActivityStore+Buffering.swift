@@ -248,6 +248,7 @@ extension TaskActivityStore {
         swarmCards.removeAll()
         swarmCardDedupKeys.removeAll()
         sortedSwarmCardsCache.removeAll()
+        scopedSwarmCardsCache.removeAll()
         isSortedSwarmCardsCacheDirty = true
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0

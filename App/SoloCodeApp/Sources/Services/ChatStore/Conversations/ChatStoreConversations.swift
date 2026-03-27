@@ -189,25 +189,35 @@ extension ChatStore {
 
         for conv in conversations {
             if !includeArchived, conv.isArchived { continue }
+            let document = threadSearchDocumentValues(for: conv)
             var score = 0
             var snippet = conv.title
-            let titleLower = conv.title.lowercased()
-            if titleLower.contains(q) { score += 2 }
+            if document.titleLower.contains(q) { score += 2 }
 
-            let assistantAndUser = conv.messages.map(\.content).joined(separator: "\n")
-            let bodyLower = assistantAndUser.lowercased()
-            if let range = assistantAndUser.range(of: q, options: .caseInsensitive) {
+            if let range = document.joinedContent.range(of: q, options: .caseInsensitive) {
                 score += 1
-                let idx = assistantAndUser.distance(from: assistantAndUser.startIndex, to: range.lowerBound)
+                let idx = document.joinedContent.distance(
+                    from: document.joinedContent.startIndex,
+                    to: range.lowerBound
+                )
                 let start = max(0, idx - 60)
-                let end = min(assistantAndUser.count, idx + 140)
-                let sIdx = assistantAndUser.index(assistantAndUser.startIndex, offsetBy: start)
-                let eIdx = assistantAndUser.index(assistantAndUser.startIndex, offsetBy: end)
-                snippet = String(assistantAndUser[sIdx..<eIdx]).replacingOccurrences(of: "\n", with: " ")
+                let end = min(document.joinedContent.count, idx + 140)
+                let sIdx = document.joinedContent.index(
+                    document.joinedContent.startIndex,
+                    offsetBy: start
+                )
+                let eIdx = document.joinedContent.index(
+                    document.joinedContent.startIndex,
+                    offsetBy: end
+                )
+                snippet = String(document.joinedContent[sIdx..<eIdx])
+                    .replacingOccurrences(of: "\n", with: " ")
             }
 
             guard score > 0 else { continue }
-            let count = titleLower.components(separatedBy: q).count - 1 + bodyLower.components(separatedBy: q).count - 1
+            let count =
+                document.titleLower.components(separatedBy: q).count - 1
+                + document.joinedContentLower.components(separatedBy: q).count - 1
             hits.append(ThreadSearchHit(
                 id: conv.id,
                 conversationId: conv.id,
@@ -296,8 +306,8 @@ extension ChatStore {
     }
 
     func conversation(for id: UUID?) -> Conversation? {
-        guard let id else { return nil }
-        return conversations.first { $0.id == id }
+        guard let index = conversationIndex(for: id) else { return nil }
+        return conversations[index]
     }
 
     func isAssistantStreaming(in conversationId: UUID?) -> Bool {

@@ -46,7 +46,7 @@ struct SidebarView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .task {
                     guard !sidebarComplexLayoutReady else { return }
-                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    await Task.yield()
                     sidebarComplexLayoutReady = true
                 }
             }

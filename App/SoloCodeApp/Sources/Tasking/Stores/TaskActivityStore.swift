@@ -116,6 +116,7 @@ final class TaskActivityStore: ObservableObject {
     var flushTask: Task<Void, Never>?
     var swarmCardDedupKeys: [String: Set<String>] = [:]
     var sortedSwarmCardsCache: [SwarmLiveCardState] = []
+    var scopedSwarmCardsCache: [String: [SwarmLiveCardState]] = [:]
     var isSortedSwarmCardsCacheDirty = true
     var pendingCodeReviewSnapshotsBySession: [String: (snapshot: CodeReviewSessionSnapshot, conversationId: UUID?)] = [:]
     var codeReviewSnapshotIngestTask: Task<Void, Never>?

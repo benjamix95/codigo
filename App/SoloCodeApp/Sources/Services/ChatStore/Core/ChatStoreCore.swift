@@ -3,6 +3,24 @@ import CoderEngine
 
 @MainActor
 final class ChatStore: ObservableObject {
+private struct ConversationIndexCache {
+    var isDirty = true
+    var byId: [UUID: Int] = [:]
+}
+
+private struct ThreadSearchDocumentFingerprint: Equatable {
+    let title: String
+    let messageCount: Int
+    let lastMessageId: UUID?
+    let lastMessageLength: Int
+}
+
+private struct ThreadSearchDocumentCacheEntry {
+    let fingerprint: ThreadSearchDocumentFingerprint
+    let titleLower: String
+    let joinedContent: String
+    let joinedContentLower: String
+}
 
 // MARK: - Conversations (throttled during streaming)
 
@@ -18,9 +36,13 @@ var conversations: [Conversation] {
     get { _conversations }
     set {
         _conversations = newValue
+        conversationIndexCache.isDirty = true
         conversationsDidChange()
     }
 }
+
+private var conversationIndexCache = ConversationIndexCache()
+private var threadSearchDocumentCache: [UUID: ThreadSearchDocumentCacheEntry] = [:]
 
 // MARK: - Throttle (conversations only)
 
@@ -154,6 +176,56 @@ init(userDefaults: UserDefaults = .standard) {
     ensureDefaultConversationIfNeeded()
 }
     static let asyncLoadThreshold = 100_000 // 100 KB
+
+func conversationIndex(for id: UUID?) -> Int? {
+    guard let id else { return nil }
+    rebuildConversationIndexIfNeeded()
+    return conversationIndexCache.byId[id]
+}
+
+private func rebuildConversationIndexIfNeeded() {
+    guard conversationIndexCache.isDirty else { return }
+    conversationIndexCache.byId = Dictionary(
+        uniqueKeysWithValues: conversations.enumerated().map { ($0.element.id, $0.offset) }
+    )
+    conversationIndexCache.isDirty = false
+}
+
+private func cachedThreadSearchDocument(for conversation: Conversation) -> ThreadSearchDocumentCacheEntry {
+    let fingerprint = ThreadSearchDocumentFingerprint(
+        title: conversation.title,
+        messageCount: conversation.messages.count,
+        lastMessageId: conversation.messages.last?.id,
+        lastMessageLength: conversation.messages.last?.content.count ?? 0
+    )
+    if let cached = threadSearchDocumentCache[conversation.id],
+       cached.fingerprint == fingerprint {
+        return cached
+    }
+
+    let joinedContent = conversation.messages.map(\.content).joined(separator: "\n")
+    let entry = ThreadSearchDocumentCacheEntry(
+        fingerprint: fingerprint,
+        titleLower: conversation.title.lowercased(),
+        joinedContent: joinedContent,
+        joinedContentLower: joinedContent.lowercased()
+    )
+    threadSearchDocumentCache[conversation.id] = entry
+    return entry
+}
+
+func threadSearchDocumentValues(for conversation: Conversation) -> (
+    titleLower: String,
+    joinedContent: String,
+    joinedContentLower: String
+) {
+    let cached = cachedThreadSearchDocument(for: conversation)
+    return (
+        titleLower: cached.titleLower,
+        joinedContent: cached.joinedContent,
+        joinedContentLower: cached.joinedContentLower
+    )
+}
 
 func ensureDefaultConversationIfNeeded() {
     guard !isAsyncConversationLoadPending else { return }
