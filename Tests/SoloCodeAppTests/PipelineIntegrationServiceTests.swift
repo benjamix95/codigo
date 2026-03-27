@@ -172,6 +172,166 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
     }
 
+    func testHandleTaskCompletedReviewerWithoutCanonicalFollowUpDoesNotAdvancePlanTodo() async {
+        let suiteName = "PipelineIntegrationServiceTests.review-no-followup.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let agentConversationId = chatStore.conversations[0].id
+        let planConversationId = chatStore.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: .plan
+        )
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: agentConversationId
+        )
+
+        todoStore.upsertCanonicalPlanTodos(
+            ["Implement fix"],
+            conversationId: planConversationId
+        )
+        _ = todoStore.prepareCanonicalPlanTodosForBuild(conversationId: planConversationId)
+
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-review-no-followup"),
+            tasks: [TaskNode(taskId: "task-review-no-followup", title: TodoExecutionFollowUpPolicy.reviewTitle)],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-review-no-followup",
+                    text: "ok",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-review-no-followup"
+            ),
+            providerId: "provider-review-no-followup",
+            conversationId: agentConversationId,
+            assistantMessageId: UUID(),
+            planConversationId: planConversationId
+        )
+
+        service.handleEvent(
+            .taskCompleted(
+                TaskCompletedPayload(
+                    jobId: "job-review-no-followup",
+                    taskId: "task-review-no-followup",
+                    title: TodoExecutionFollowUpPolicy.reviewTitle,
+                    agentName: AgentRole.reviewer.displayName,
+                    role: .reviewer,
+                    durationMs: 42
+                )
+            ),
+            for: agentConversationId
+        )
+
+        let canonical = todoStore.canonicalTodos(for: planConversationId)
+        XCTAssertEqual(canonical.map(\.title), ["Implement fix"])
+        XCTAssertEqual(canonical.first?.status, .inProgress)
+
+        XCTAssertTrue(service.cancelCurrentJob(for: agentConversationId))
+        try? await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    func testRawTodoWriteFollowUpWithoutCanonicalEntryDoesNotMutatePlanProgress() {
+        let suiteName = "PipelineIntegrationServiceTests.raw-followup-no-canonical.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let agentConversationId = chatStore.conversations[0].id
+        let planConversationId = chatStore.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: .plan
+        )
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: agentConversationId
+        )
+
+        todoStore.upsertCanonicalPlanTodos(
+            ["Implement fix"],
+            conversationId: planConversationId
+        )
+        _ = todoStore.prepareCanonicalPlanTodosForBuild(conversationId: planConversationId)
+
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-raw-followup-no-canonical"),
+            tasks: [TaskNode(taskId: "task-raw-followup-no-canonical", title: "Implement fix")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-raw-followup-no-canonical",
+                    text: "ok",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-raw-followup-no-canonical"
+            ),
+            providerId: "provider-raw-followup-no-canonical",
+            conversationId: agentConversationId,
+            assistantMessageId: UUID(),
+            planConversationId: planConversationId
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-raw-followup-no-canonical",
+                taskId: "task-raw-followup-no-canonical",
+                rawType: "todo_write",
+                payload: [
+                    "title": TodoExecutionFollowUpPolicy.reviewTitle,
+                    "status": "done",
+                ]
+            ),
+            for: agentConversationId
+        )
+
+        let canonical = todoStore.canonicalTodos(for: planConversationId)
+        XCTAssertEqual(canonical.map(\.title), ["Implement fix"])
+        XCTAssertEqual(canonical.first?.status, .inProgress)
+
+        XCTAssertTrue(service.cancelCurrentJob(for: agentConversationId))
+    }
+
     func testFinalizePlanBuildDoesNotCreateStandaloneRuntimeReviewTodo() {
         let suiteName = "PipelineIntegrationServiceTests.finalize-plan.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

@@ -207,6 +207,12 @@ extension PipelineIntegrationService {
         for todo in parsedTodos {
             let todoId = resolvedRawTodoID(from: p, parsedTodo: todo)
             if let planId = runtime.planConversationId {
+                guard todoStore.allowsPlanFollowUpMutation(
+                    title: todo.title,
+                    conversationId: planId
+                ) else {
+                    continue
+                }
                 var updated = todoStore.upsertCanonicalOnlyFromAgent(
                     id: todoId,
                     title: todo.title,

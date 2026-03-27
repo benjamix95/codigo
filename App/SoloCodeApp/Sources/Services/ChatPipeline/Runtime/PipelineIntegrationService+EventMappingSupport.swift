@@ -164,4 +164,24 @@ extension PipelineIntegrationService {
         }
         return true
     }
+
+    func shouldApplyCanonicalCompletion(
+        for payload: TaskCompletedPayload,
+        planConversationId: UUID
+    ) -> Bool {
+        guard Self.canonicalTodoCompletionRoles.contains(payload.role),
+              let todoStore else {
+            return false
+        }
+
+        switch payload.role {
+        case .reviewer, .testWriter, .docWriter:
+            return todoStore.allowsPlanFollowUpMutation(
+                title: payload.title,
+                conversationId: planConversationId
+            )
+        default:
+            return true
+        }
+    }
 }

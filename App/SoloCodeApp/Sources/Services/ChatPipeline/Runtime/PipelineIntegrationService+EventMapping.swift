@@ -3,7 +3,7 @@ import Foundation
 
 extension PipelineIntegrationService {
 
-    private static let canonicalTodoCompletionRoles: Set<AgentRole> = [
+    static let canonicalTodoCompletionRoles: Set<AgentRole> = [
         .coder,
         .docWriter,
         .reviewer,
@@ -164,7 +164,10 @@ extension PipelineIntegrationService {
         guard let todoStore else { return }
 
         if let planId = runtime.planConversationId {
-            if Self.canonicalTodoCompletionRoles.contains(p.role) {
+            if shouldApplyCanonicalCompletion(
+                for: p,
+                planConversationId: planId
+            ) {
                 var updated = todoStore.upsertCanonicalOnlyFromAgent(
                     id: nil,
                     title: p.title,

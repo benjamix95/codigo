@@ -40,6 +40,13 @@ extension ChatPanelView {
             activeBuildAgentConversationId: activeBuildAgentConversationId
         ) {
             let sourcePlanId = activeBuildPlanConversationId ?? conversationId
+            guard todoStore.allowsPlanFollowUpMutation(
+                title: todo.title,
+                conversationId: sourcePlanId
+            ) else {
+                recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
+                return
+            }
             var updated = todoStore.upsertCanonicalOnlyFromAgent(
                 id: todo.id,
                 title: todo.title,
@@ -95,11 +102,10 @@ extension ChatPanelView {
                 linkedFiles: todo.files,
                 conversationId: conversationId
             )
-            let missingFollowUps = TodoExecutionFollowUpPolicy.missingFinalFollowUpTitles(
+            for title in TodoRuntimeFollowUpInsertionPolicy.implicitFollowUpTitles(
                 in: todoStore.todos,
                 conversationId: conversationId
-            )
-            for title in missingFollowUps {
+            ) {
                 let isReview = TodoExecutionFollowUpPolicy.isReviewTitle(title)
                 todoStore.upsertFromAgent(
                     id: nil,

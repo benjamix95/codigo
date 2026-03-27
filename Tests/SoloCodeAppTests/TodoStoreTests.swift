@@ -41,6 +41,31 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.map(\.title).sorted(), ["Manual A", "Manual B"])
     }
 
+    func testClearAgentTodosPreservesCompletedAgentItems() {
+        let store = makeStore()
+        store.upsertFromAgent(
+            id: nil,
+            title: "Done agent",
+            status: .done,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: []
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Pending agent",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: []
+        )
+
+        store.clearAgentTodos()
+
+        XCTAssertEqual(store.todos.map(\.title), ["Done agent"])
+        XCTAssertEqual(store.todos.first?.status, .done)
+    }
+
     func testUpsertCanonicalPlanTodosKeepsStableIdsForSameTitles() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Step A", "Step B"])
@@ -306,6 +331,36 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.count, 1)
         XCTAssertEqual(store.todos.first?.title, "Manual A")
         XCTAssertEqual(store.todos.first?.source, .manual)
+    }
+
+    func testClearAgentTodosWithIncludePlanCanonicalPreservesCompletedTodos() {
+        let store = makeStore()
+        store.upsertCanonicalPlanTodos(["Plan A"])
+        guard let canonicalId = store.todos.first(where: \.isPlanCanonical)?.id else {
+            return XCTFail("Missing canonical todo")
+        }
+        store.setStatus(id: canonicalId, status: .done)
+        store.upsertFromAgent(
+            id: nil,
+            title: "Runtime done",
+            status: .done,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: []
+        )
+        store.add(title: "Manual A", source: .manual)
+
+        store.clearAgentTodos(includePlanCanonical: true)
+
+        XCTAssertEqual(
+            Set(store.todos.map(\.title)),
+            Set(["Plan A", "Runtime done", "Manual A"])
+        )
+        XCTAssertTrue(
+            store.todos
+                .filter { $0.title != "Manual A" }
+                .allSatisfy { $0.status == .done }
+        )
     }
 
     func testRemovedCanonicalTasksAreDeletedAndEmitBlockedCallback() {

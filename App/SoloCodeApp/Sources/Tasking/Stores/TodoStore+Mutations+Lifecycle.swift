@@ -38,23 +38,36 @@ extension TodoStore {
     }
 
     /// Rimuove solo i todo agent **canonici del piano** in scope (preserva i todo runtime per turni successivi).
-    func clearCanonicalAgentTodos(conversationId: UUID?) {
+    func clearCanonicalAgentTodos(
+        conversationId: UUID?,
+        preserveCompleted: Bool = true
+    ) {
         let isCanonicalInScope = canonicalScopeFilter(for: conversationId)
         todos.removeAll { item in
-            item.source == .agent && item.isPlanCanonical && isCanonicalInScope(item)
+            guard item.source == .agent,
+                  item.isPlanCanonical,
+                  isCanonicalInScope(item) else {
+                return false
+            }
+            if preserveCompleted, item.status == .done {
+                return false
+            }
+            return true
         }
         saveTodos()
     }
 
     func clearAgentTodos(
         conversationId: UUID? = nil,
-        includePlanCanonical: Bool = false
+        includePlanCanonical: Bool = false,
+        preserveCompleted: Bool = true
     ) {
         let isRuntimeInScope = runtimeScopeFilter(for: conversationId)
         let isCanonicalInScope = canonicalScopeFilter(for: conversationId)
         if includePlanCanonical {
             todos.removeAll { item in
                 guard item.source == .agent else { return false }
+                if preserveCompleted, item.status == .done { return false }
                 if item.isPlanCanonical {
                     return isCanonicalInScope(item)
                 }
@@ -64,6 +77,7 @@ extension TodoStore {
             todos.removeAll { item in
                 item.source == .agent
                     && !item.isPlanCanonical
+                    && (!preserveCompleted || item.status != .done)
                     && isRuntimeInScope(item)
             }
         }
