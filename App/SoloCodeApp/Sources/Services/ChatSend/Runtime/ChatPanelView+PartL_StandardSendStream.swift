@@ -134,6 +134,18 @@ extension ChatPanelView {
             hideContentDuringPlanDiscovery: false
         )
 
+        // MARK: Agent debug ingest
+        AgentDebugIngestLog.append(
+            hypothesisId: "H4",
+            location: "ChatPanelView+PartL_StandardSendStream.runStandardMainChatSendStream",
+            message: "stream_finished",
+            data: [
+                "providerId": effectiveRuntimeProvider.id,
+                "finalLen": "\(finalizedResult.count)",
+                "rustOn": ReviewCoreBridge.isEnabled ? "1" : "0",
+            ]
+        )
+
         await handleStreamResult(
             conversationId: targetConversationId,
             fullText: finalizedResult,

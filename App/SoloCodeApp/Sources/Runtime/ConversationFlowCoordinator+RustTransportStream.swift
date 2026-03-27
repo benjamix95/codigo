@@ -41,6 +41,7 @@ extension ConversationFlowCoordinator {
             let textFlushPolicy = ConversationFlowTextFlushPolicy()
             var claudeReasoningLastFlush = ContinuousClock.now
             var claudeReasoningLastSentLen = 0
+            var agentDebugPollWave = 0
 
             func flushClaudeCliReasoningDelta(force: Bool) async {
                 guard provider.id == "claude-cli", !hasSeenNarrativeEvent else { return }
@@ -112,6 +113,28 @@ extension ConversationFlowCoordinator {
                 turnState = nextSnapshot.turnState.chatTurnState
                 consecutiveEmptyUiPolls = response.uiEvents.isEmpty && !response.isTerminal ? (consecutiveEmptyUiPolls + 1) : 0
                 let eventTimestamp = Date()
+
+                // MARK: Agent debug ingest
+                agentDebugPollWave += 1
+                if agentDebugPollWave <= 5 {
+                    let kinds = response.uiEvents.map(\.kind.rawValue).joined(separator: ",")
+                    let errMsg = response.error.map { String($0.message.prefix(300)) } ?? ""
+                    AgentDebugIngestLog.append(
+                        hypothesisId: "H1",
+                        location: "ConversationFlowCoordinator+RustTransportStream.poll",
+                        message: "poll_wave",
+                        data: [
+                            "wave": "\(agentDebugPollWave)",
+                            "provider": provider.id,
+                            "isTerminal": response.isTerminal ? "1" : "0",
+                            "didTimeout": response.didTimeout ? "1" : "0",
+                            "uiCount": "\(response.uiEvents.count)",
+                            "kinds": String(kinds.prefix(500)),
+                            "pollErr": errMsg,
+                            "hasSnap": response.runtimeSnapshot != nil ? "1" : "0",
+                        ]
+                    )
+                }
 
                 for signal in response.signals {
                     await MainActor.run {
@@ -237,6 +260,17 @@ extension ConversationFlowCoordinator {
                         let textSnapshot = renderedTextSnapshot.isEmpty ? turnState.primaryTextSnapshot : renderedTextSnapshot
                         await MainActor.run { onError(textSnapshot + "\n\n[Error: \(message)]") }
                         await setState(.error)
+                        // MARK: Agent debug ingest
+                        AgentDebugIngestLog.append(
+                            hypothesisId: "H1",
+                            location: "ConversationFlowCoordinator+RustTransportStream.ui_event",
+                            message: "ui_error_event",
+                            data: [
+                                "provider": provider.id,
+                                "msg": String(message.prefix(400)),
+                                "renderedLen": "\(renderedTextSnapshot.count)",
+                            ]
+                        )
                         throw StreamExecutionError.providerError(message)
                     case .completed:
                         await flushCoalescedAssistantText()
@@ -246,6 +280,20 @@ extension ConversationFlowCoordinator {
                         }
                         await flushQueuedRawEvents()
                         await setState(.completed)
+                        // MARK: Agent debug ingest
+                        let outLen = renderedTextSnapshot.isEmpty ? turnState.primaryTextSnapshot.count : renderedTextSnapshot.count
+                        AgentDebugIngestLog.append(
+                            hypothesisId: "H1",
+                            location: "ConversationFlowCoordinator+RustTransportStream.ui_event",
+                            message: "ui_completed",
+                            data: [
+                                "provider": provider.id,
+                                "renderedLen": "\(renderedTextSnapshot.count)",
+                                "turnPrimaryLen": "\(turnState.primaryTextSnapshot.count)",
+                                "outLen": "\(outLen)",
+                                "pollWave": "\(agentDebugPollWave)",
+                            ]
+                        )
                         return renderedTextSnapshot.isEmpty ? turnState.primaryTextSnapshot : renderedTextSnapshot
                     }
                 }

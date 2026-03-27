@@ -62,6 +62,19 @@ extension ChatPanelView {
                 isPlanMultiTurnFlow: isPlanMultiTurnFlow,
                 usesRustTransport: effectiveRuntimeProvider is MainChatRustTransportProvider
             )
+            // MARK: Agent debug ingest
+            AgentDebugIngestLog.append(
+                hypothesisId: "H3",
+                location: "ChatPanelView+PartL_SendMessageExecution.executeSendMessageTurn",
+                message: "execution_route",
+                data: [
+                    "route": String(describing: executionRoute),
+                    "provider": effectiveRuntimeProvider.id,
+                    "coderMode": String(describing: coderMode),
+                    "isPlanMultiTurn": isPlanMultiTurnFlow ? "1" : "0",
+                    "usesRustTransport": (effectiveRuntimeProvider is MainChatRustTransportProvider) ? "1" : "0",
+                ]
+            )
             print(
                 "[ChatDebug] executeSendMessageTurn: coderMode=\(String(describing: self.coderMode)) isPlan=\(isPlanMultiTurnFlow ? 1 : 0) provider=\(effectiveRuntimeProvider.id)"
             )
@@ -186,6 +199,18 @@ extension ChatPanelView {
                     )
                 }
             } catch {
+                // MARK: Agent debug ingest
+                let errDesc = error.localizedDescription
+                AgentDebugIngestLog.append(
+                    hypothesisId: "H5",
+                    location: "ChatPanelView+PartL_SendMessageExecution.executeSendMessageTurn",
+                    message: "send_catch",
+                    data: [
+                        "provider": effectiveRuntimeProvider.id,
+                        "interrupted": isInterruptedStreamError(error) ? "1" : "0",
+                        "err": String(errDesc.prefix(500)),
+                    ]
+                )
                 if isInterruptedStreamError(error) {
                     traceOutcome = .aborted
                     await MainActor.run {
