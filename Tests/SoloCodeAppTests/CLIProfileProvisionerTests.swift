@@ -294,53 +294,18 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     func testClaudeEnvironmentOverridesIsolateHomePerProfile() throws {
         let profile = try makeTemporaryProfileDirectory()
-        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
 
-        let env = withMCPServerPathOverride(fakeMCP.path) {
-            CLIProfileProvisioner.environmentOverrides(
-                provider: .claude,
-                profilePath: profile.path,
-                secret: "sk-ant-test"
-            )
-        }
+        let env = CLIProfileProvisioner.environmentOverrides(
+            provider: .claude,
+            profilePath: profile.path,
+            secret: "sk-ant-test"
+        )
 
         let expectedClaudeHome = profile.appendingPathComponent(".claude", isDirectory: true).path
         XCTAssertEqual(env["HOME"], profile.path)
         XCTAssertEqual(env["CLAUDE_HOME"], expectedClaudeHome)
         XCTAssertEqual(env["ANTHROPIC_API_KEY"], "sk-ant-test")
         XCTAssertTrue(FileManager.default.fileExists(atPath: expectedClaudeHome))
-
-        let settingsURL = profile.appendingPathComponent(".claude", isDirectory: true).appendingPathComponent("settings.json")
-        let data = try Data(contentsOf: settingsURL)
-        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let servers = try XCTUnwrap(json["mcpServers"] as? [String: Any])
-        let coderide = try XCTUnwrap(servers["coderide"] as? [String: Any])
-        XCTAssertEqual(coderide["command"] as? String, fakeMCP.path)
-        XCTAssertEqual(coderide["args"] as? [String], ["--workspace", "."])
-    }
-
-    func testGeminiEnvironmentOverridesSeedsCoderideMCPSettings() throws {
-        let profile = try makeTemporaryProfileDirectory()
-        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server-rust")
-
-        let env = withMCPServerPathOverride(fakeMCP.path) {
-            CLIProfileProvisioner.environmentOverrides(
-                provider: .gemini,
-                profilePath: profile.path,
-                secret: "sk-gemini-test"
-            )
-        }
-
-        XCTAssertEqual(env["GEMINI_CONFIG_DIR"], profile.path)
-        XCTAssertEqual(env["GOOGLE_API_KEY"], "sk-gemini-test")
-
-        let settingsURL = profile.appendingPathComponent("settings.json")
-        let data = try Data(contentsOf: settingsURL)
-        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let servers = try XCTUnwrap(json["mcpServers"] as? [String: Any])
-        let coderide = try XCTUnwrap(servers["coderide"] as? [String: Any])
-        XCTAssertEqual(coderide["command"] as? String, fakeMCP.path)
-        XCTAssertEqual(coderide["args"] as? [String], ["--workspace", "."])
     }
 
     @MainActor

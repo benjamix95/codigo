@@ -9,6 +9,20 @@ extension ProviderFactory {
         "write",
         "search",
     ]
+    private static let claudeCoderideOverlapToolsLowercased: Set<String> = [
+        "read",
+        "edit",
+        "write",
+        "search",
+        "glob",
+        "grep",
+        "websearch",
+        "web_fetch",
+        "webfetch",
+        "notebookedit",
+        "todo_write",
+        "todowrite",
+    ]
 
     static func codexEnvironmentOverride(
         _ environmentOverride: [String: String]?
@@ -86,8 +100,13 @@ extension ProviderFactory {
 
     static func claudeTools(
         from configuredTools: [String],
-        toolPolicy: ToolRuntimePolicy?
+        toolPolicy: ToolRuntimePolicy?,
+        preferCoderideMCP: Bool = false
     ) -> [String] {
+        if preferCoderideMCP {
+            return configuredTools.filter { !claudeCoderideOverlapToolsLowercased.contains($0.lowercased()) }
+        }
+
         guard let policy = toolPolicy, !policy.allowMutatingTools else {
             return configuredTools
         }

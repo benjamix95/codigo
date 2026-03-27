@@ -45,4 +45,16 @@ final class ProviderFactoryClaudeAllowedToolsTests: XCTestCase {
 
         XCTAssertEqual(effective, ["Read"])
     }
+
+    func testClaudeToolsPreferCoderideMCPByRemovingOverlappingNativeTools() {
+        let configuredTools = ["Read", "Edit", "Bash", "Write", "Search", "Task", "Glob", "Grep"]
+
+        let effective = ProviderFactory.claudeTools(
+            from: configuredTools,
+            toolPolicy: nil,
+            preferCoderideMCP: true
+        )
+
+        XCTAssertEqual(effective, ["Bash", "Task"])
+    }
 }

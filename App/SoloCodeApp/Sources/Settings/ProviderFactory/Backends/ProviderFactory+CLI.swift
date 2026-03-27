@@ -56,7 +56,8 @@ extension ProviderFactory {
     ) -> any LLMProvider {
         let effectiveClaudeTools = claudeTools(
             from: config.claudeAllowedTools,
-            toolPolicy: toolPolicy
+            toolPolicy: toolPolicy,
+            preferCoderideMCP: config.unifiedToolRuntimeEnabled
         )
         let base = ClaudeCLIProvider(
             claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
