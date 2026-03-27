@@ -59,8 +59,9 @@ extension ChatPanelView {
         return hasChecklist || hasMermaid
     }
 
-    /// Messaggio assistente con piano in markdown già in timeline (fallback se il Plan panel non basta): usato per non duplicare la checklist nell’overlay del composer.
-    internal func hasPlanMarkdownFallbackInThread(conversationId: UUID?) -> Bool {
+    /// True solo per **documenti piano strutturati** (titoli `## Plan` / `## Todo` ecc.), non per normali risposte con checklist `- [ ]`.
+    /// Evita di nascondere l’overlay todo del composer sui thread “classici” dell’agente.
+    internal func hasStructuredPlanMarkdownDocumentInThread(conversationId: UUID?) -> Bool {
         guard let conversationId,
               let msgs = chatStore.conversation(for: conversationId)?.messages
         else { return false }
@@ -68,8 +69,21 @@ extension ChatPanelView {
             guard message.role == .assistant else { return false }
             let text = message.content
             guard text.count >= 400 else { return false }
-            return looksLikePlanPayload(text)
+            let cleaned = ChatStore
+                .stripCoderideMarkers(text, aggressive: false)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.range(
+                of: #"(?im)^\s*##\s*(?:plan|piano|todo|to-do|questions?|clarification|option(?:s)?)\b"#,
+                options: .regularExpression
+            ) != nil
         }
+    }
+
+    /// Duplica solo quando: (1) todo **canonici** del piano nel thread e (2) markdown di piano strutturato in chat.
+    internal func shouldSuppressComposerTodoWhenDuplicatePlanMarkdownInChat(conversationId: UUID?) -> Bool {
+        guard let conversationId else { return false }
+        guard !todoStore.canonicalTodos(for: conversationId).isEmpty else { return false }
+        return hasStructuredPlanMarkdownDocumentInThread(conversationId: conversationId)
     }
 
     /// Allineato a `handleStreamResult`: quando true, in chat si mostra solo `planInPanelPlaceholder` ma il messaggio in store conserva il testo completo.

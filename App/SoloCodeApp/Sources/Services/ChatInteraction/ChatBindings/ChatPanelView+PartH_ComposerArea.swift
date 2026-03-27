@@ -20,8 +20,9 @@ extension ChatPanelView {
             planFlowPhase: planFlowPhase,
             planningState: planningState
         )
-        let suppressComposerBecausePlanInChat = hasPlanMarkdownFallbackInThread(conversationId: conversationId)
-        let shouldShowComposerOverlay = policyWouldShowComposerOverlay && !suppressComposerBecausePlanInChat
+        let suppressDuplicatePlanMarkdown =
+            shouldSuppressComposerTodoWhenDuplicatePlanMarkdownInChat(conversationId: conversationId)
+        let shouldShowComposerOverlay = policyWouldShowComposerOverlay && !suppressDuplicatePlanMarkdown
         // #region agent log
         let _: Void = {
             PlanFlowDebugNDJSONLog.append(
@@ -32,7 +33,10 @@ extension ChatPanelView {
                     "conversationId": conversationId?.uuidString.lowercased() ?? "nil",
                     "show": shouldShowComposerOverlay ? "1" : "0",
                     "policyWouldShow": policyWouldShowComposerOverlay ? "1" : "0",
-                    "suppressForChatPlanFallback": suppressComposerBecausePlanInChat ? "1" : "0",
+                    "suppressDuplicatePlanMarkdown": suppressDuplicatePlanMarkdown ? "1" : "0",
+                    "canonicalTodoCount": String(
+                        conversationId.map { todoStore.canonicalTodos(for: $0).count } ?? 0
+                    ),
                     "todoCount": String(stabilizedComposerTodoItems.count),
                 ]
             )
