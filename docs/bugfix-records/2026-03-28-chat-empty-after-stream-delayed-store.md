@@ -49,3 +49,9 @@
 - **Evidenza:** H10 con `streamContentVersion` che salta (es. 12→13, 17, senza H8) mentre H11 mantiene `freshLastContentLen` costante (es. 97, 177, 331): il thread principale ticka ma `chatStore` + snapshot non ricevono ancora il commit; Fix 6 non basta se **fresh** e **snapshot** restano uguali tra loro.
 - **Causa:** la lista legge solo `Conversation` dallo snapshot; testo/blocchi più freschi stanno in `pendingStreamContent` (throttle prima di `applyMainChatUIStreamIntent`) o in `PipelineConversationRuntime.chatTurnState` (tra i round-trip Rust/debounce).
 - **Fix:** `messageForStreamingTimelineDisplay` fonde pending + `turn.blocks` / `primaryTextSnapshot` nel messaggio assistente attivo prima di `ChatTurnView` (`ChatPanelView+PartD_StreamingTimelineMerge.swift`, cella e riga streaming dedicated in `PartD_MessagesStack`). Log throttled **H25** (`streaming_timeline_merged_ahead_of_store`) quando il merge supera lo store.
+
+### Fix 8 — Markdown streaming: cache per lunghezza UTF-16 (mar 2026)
+
+- **Evidenza:** H11 con `freshLastContentLen` / `freshTimelinePayloadLen` **uguali** (es. 98) mentre `streamContentVersion` sale (13→19): il dato può essere aggiornato ma la UI no se il testo cambia **senza** cambiare `utf16.count`.
+- **Causa:** `MarkdownContentView.buildStreamingAttributed` usava solo `lastStreamingAttributedLength` come chiave della cache statica.
+- **Fix:** chiave sulla **stringa sorgente** (`lastStreamingAttributedSource == text`) prima di riusare `AttributedString` cache (`MarkdownContentView+Views.swift`). H25 log solo su merge materiale (`content` / `blocks` / `primaryTextSnapshot` / payload).

@@ -53,9 +53,14 @@ extension ChatPanelView {
             }
         }
 
-        if streamingTimelinePayloadCharSum(merged) != storePayload
-            || merged.resolvedPrimaryText != base.resolvedPrimaryText
-        {
+        let mergedPayload = streamingTimelinePayloadCharSum(merged)
+        let blocksChanged = merged.blocks != base.blocks
+        let materialMerge =
+            mergedPayload != storePayload
+            || merged.content != base.content
+            || blocksChanged
+            || (merged.primaryTextSnapshot ?? "") != (base.primaryTextSnapshot ?? "")
+        if materialMerge {
             // #region agent log
             AgentDebugSessionNDJSONLog.appendThrottled(
                 gateKey: "H25-stream-display-merge",
@@ -67,7 +72,7 @@ extension ChatPanelView {
                     "conversationId": convId.uuidString,
                     "messageId": base.id.uuidString,
                     "storePayload": "\(storePayload)",
-                    "mergedPayload": "\(streamingTimelinePayloadCharSum(merged))",
+                    "mergedPayload": "\(mergedPayload)",
                     "streamContentVersion": "\(streaming.streamContentVersion)",
                     "hadPending": "\(streaming.pendingStreamConversationId == convId && streaming.pendingStreamContent != nil)",
                 ]

@@ -59,17 +59,14 @@ extension MarkdownContentView {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// Thread-local cache for the last streaming attributed string.
-    /// During streaming, text grows incrementally (append-only). We cache
-    /// the last result keyed by text length — if the length hasn't changed,
-    /// the content hasn't changed and we skip the expensive
-    /// `AttributedString(markdown:)` parse + run iteration.
-    private static var lastStreamingAttributedLength: Int = 0
+    /// Cache dell’ultimo `AttributedString` in streaming sul main thread.
+    /// **Non** usare solo `utf16.count`: delta che sostituiscono caratteri senza
+    /// cambiare la lunghezza (o collisioni tra bolle) lasciavano testo obsoleto in chat (log H11).
+    private static var lastStreamingAttributedSource: String?
     private static var lastStreamingAttributedResult: AttributedString?
 
     fileprivate func buildStreamingAttributed(_ text: String) -> AttributedString {
-        let length = text.utf16.count
-        if length == Self.lastStreamingAttributedLength,
+        if let prev = Self.lastStreamingAttributedSource, prev == text,
            let cached = Self.lastStreamingAttributedResult {
             return cached
         }
@@ -99,7 +96,7 @@ extension MarkdownContentView {
                 result[range].foregroundColor = NSColor(inlineCodeColor)
             }
         }
-        Self.lastStreamingAttributedLength = length
+        Self.lastStreamingAttributedSource = text
         Self.lastStreamingAttributedResult = result
         return result
     }
