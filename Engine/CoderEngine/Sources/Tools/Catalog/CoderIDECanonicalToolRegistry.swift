@@ -188,18 +188,28 @@ public final class CoderIDECanonicalToolRegistryStore {
             .sorted { $0.mcpName < $1.mcpName }
     }
 
-    public func preferredPromptName(forRuntimeName name: String, preferMCP: Bool = true) -> String {
+    public func preferredPromptName(
+        forRuntimeName name: String,
+        preferMCP: Bool? = nil,
+        on surface: CanonicalToolSurface = .app
+    ) -> String {
         guard let record = record(forRuntimeName: name) else {
             return name
         }
-        return preferMCP ? record.mcpName : record.runtimeName
+        let effectivePreferMCP = preferMCP ?? (availability(for: record, on: surface) == .mcpRequired)
+        return effectivePreferMCP ? record.mcpName : record.runtimeName
     }
 
-    public func preferredPromptName(forMCPName name: String, preferMCP: Bool = true) -> String {
+    public func preferredPromptName(
+        forMCPName name: String,
+        preferMCP: Bool? = nil,
+        on surface: CanonicalToolSurface = .app
+    ) -> String {
         guard let record = record(forMCPName: name) else {
             return name
         }
-        return preferMCP ? record.mcpName : record.runtimeName
+        let effectivePreferMCP = preferMCP ?? (availability(for: record, on: surface) == .mcpRequired)
+        return effectivePreferMCP ? record.mcpName : record.runtimeName
     }
 
     public func availability(for record: CanonicalToolRecord, on surface: CanonicalToolSurface) -> CanonicalToolAvailability {

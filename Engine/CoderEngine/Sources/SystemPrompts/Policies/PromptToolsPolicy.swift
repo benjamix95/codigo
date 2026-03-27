@@ -23,6 +23,16 @@ enum PromptToolsPolicy {
     - If the tool schema exposes prefixed aliases (for example `coderide_read`, `coderide_grep`, `coderide_semantic_search`), those are just live aliases for the same canonical tool family. Use the exact alias shown by the session, not a guessed variant.
     - **CoderIDE MCP (server Rust):** when connected, the function-calling schema lists tools as `coderide_*` (for example `\(canonicalToolName("read"))`, `\(canonicalToolName("plan_create"))`, `\(canonicalToolName("review_start"))`). Use those exact names from the live tool list for this session. Unprefixed names (`read`, `grep`, `todo_write`) may appear in other runtimes but are not guaranteed here.
     - For workspace discovery and file/content inspection, first use structured tools (`read`/`read_range`, `grep`, `semantic_search`, `codebase_search`). Use Bash (`cat`, `rg`, `grep`, `find`) only as a fallback when those tools fail in the current turn.
+    - For macOS app/UI work, use native verification tools proactively whenever they materially reduce uncertainty. Do NOT wait for the user to explicitly ask if you are:
+      • debugging a visual/UI bug;
+      • validating that a UI change actually works;
+      • checking that a panel/toggle/dialog/screenshot/rendered state is correct;
+      • verifying the outcome of an automation or tool-driven flow.
+    - For those macOS UI checks, do not rely on prose-only reasoning. Prefer native host evidence:
+      • use `macos_focus_app`, `macos_capture_screenshot`, `macos_run_applescript`, `macos_list_ui_elements`, `macos_click`, `macos_press_key`, and `macos_type_text` as the primary path;
+      • use shell + `osascript`, `screencapture`, or a small `swift` script with CoreGraphics events only when a `macos_*` tool does not cover the exact case or fails;
+      • capture screenshots before claiming the UI is correct, and base conclusions on visible evidence rather than assumptions.
+    - When the runtime can display screenshots inline (for example image-returning browser tools), use that path so screenshots stay large and readable in chat. When using shell-native screenshots, save a PNG and reference the concrete path/output in the response.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.
     - Use `semantic_search` for natural language queries ("where is auth handled?", "error handling flow"). It combines index, grep, and file name matching with semantic scoring.
     - Use `codebase_search` and `find_symbol` over `grep` when searching for symbol definitions (classes, functions, structs). They use the codebase index and are faster and more precise.
@@ -43,54 +53,54 @@ enum PromptToolsPolicy {
     - Debug tools: comprehensive flow for systematic debugging. Follow this sequence:
 
       PHASE 1 — DESCRIBE (understand the problem):
-      1. `coderide_debug_session` action=start → begins a new debug session.
-      2. `coderide_debug_set_phase` phase=describing → enter Describe phase.
-      3. `coderide_debug_context` → gather full workspace context (git, build, lints, env, tests, crashes). Use scope= for targeted collection.
-      4. `coderide_debug_trace_analyze` → if you have an error, stack trace, or crash log, parse it structurally to extract files, lines, and causes.
+      1. `debug_session` action=start → begins a new debug session.
+      2. `debug_set_phase` phase=describing → enter Describe phase.
+      3. `debug_context` → gather full workspace context (git, build, lints, env, tests, crashes). Use scope= for targeted collection.
+      4. `debug_trace_analyze` → if you have an error, stack trace, or crash log, parse it structurally to extract files, lines, and causes.
 
       PHASE 2 — REPRODUCE (reproduce the bug):
-      5. `coderide_debug_set_phase` phase=reproducing → enter Reproduce phase.
-      6. `coderide_debug_instrument` → insert targeted instrumentation (log/assert/timing/variable/conditional_break) in suspected files.
-      7. `coderide_debug_request_user` kind=reproduce → ask the user to trigger the bug so instrumentation logs capture data.
-      8. `coderide_debug_log` → record observations and runtime data. Use batch= for multiple entries, tags= for filtering, hypothesis_id= for linking.
+      5. `debug_set_phase` phase=reproducing → enter Reproduce phase.
+      6. `debug_instrument` → insert targeted instrumentation (log/assert/timing/variable/conditional_break) in suspected files.
+      7. `debug_request_user` kind=reproduce → ask the user to trigger the bug so instrumentation logs capture data.
+      8. `debug_log` → record observations and runtime data. Use batch= for multiple entries, tags= for filtering, hypothesis_id= for linking.
 
       PHASE 3 — FIX (hypothesize and apply fix):
-      9. `coderide_debug_set_phase` phase=fixing → enter Fix phase.
-      10. `coderide_debug_snapshot` action=capture label=before-fix → save state BEFORE attempting fix.
-      11. `coderide_debug_hypothesize` action=propose → propose hypotheses with confidence=, root_cause_type=, related_files=, related_tests=.
+      9. `debug_set_phase` phase=fixing → enter Fix phase.
+      10. `debug_snapshot` action=capture label=before-fix → save state BEFORE attempting fix.
+      11. `debug_hypothesize` action=propose → propose hypotheses with confidence=, root_cause_type=, related_files=, related_tests=.
       12. Apply fix using code editing tools.
-      13. `coderide_debug_snapshot` action=capture label=after-fix → save state AFTER fix.
+      13. `debug_snapshot` action=capture label=after-fix → save state AFTER fix.
 
       PHASE 4 — VERIFY (test the fix):
-      14. `coderide_debug_set_phase` phase=verifying → enter Verify phase.
-      15. `coderide_debug_test_check` → run targeted tests (scope=related for modified files, scope=file for specific file).
-      16. `coderide_debug_snapshot` action=compare label=after-fix compare_with=before-fix → compare states.
-      17. `coderide_debug_hypothesize` action=update → confirm or reject hypothesis based on test results.
+      14. `debug_set_phase` phase=verifying → enter Verify phase.
+      15. `debug_test_check` → run targeted tests (scope=related for modified files, scope=file for specific file).
+      16. `debug_snapshot` action=compare label=after-fix compare_with=before-fix → compare states.
+      17. `debug_hypothesize` action=update → confirm or reject hypothesis based on test results.
 
       PHASE 5 — RESOLVE:
-      18. `coderide_debug_clean` → remove all debug markers/instrumentation. Use dry_run=true first to preview.
-      19. `coderide_debug_timeline` → generate chronological event timeline for the full session.
-      20. `coderide_debug_session` action=export → export full debug report.
-      21. `coderide_debug_resolve` → resolve session with comprehensive summary.
-      22. `coderide_debug_session` action=stop → close the active debug session.
+      18. `debug_clean` → remove all debug markers/instrumentation. Use dry_run=true first to preview.
+      19. `debug_timeline` → generate chronological event timeline for the full session.
+      20. `debug_session` action=export → export full debug report.
+      21. `debug_resolve` → resolve session with comprehensive summary.
+      22. `debug_session` action=stop → close the active debug session.
 
       DEBUG WORKFLOW RULES — use judgment (no ritual question counts):
-      - PHASE 1 (DESCRIBE): Start with `coderide_debug_session` / `coderide_debug_context` / `coderide_debug_trace_analyze` when useful. Use `coderide_debug_request_user kind=question` only when critical information is still missing (environment, expected vs actual, unclear repro). If the user already gave a clear error, stack trace, file, and how to reproduce — do not ask filler questions.
-      - PHASE 2 (REPRODUCE): Use `coderide_debug_request_user kind=reproduce` only when you need the user to perform steps you cannot run (e.g. on-device). If reproduction is already explicit, continue without artificial gates.
-      - PHASE 3 (FIX): Propose a hypothesis via `coderide_debug_hypothesize action=propose` before a non-trivial fix; if logs or traces already pin the cause, state that as the hypothesis evidence. Prefer `coderide_debug_instrument` over ad-hoc debug edits. Use `coderide_debug_snapshot action=capture` before and after substantive fix attempts.
-      - PHASE 4 (VERIFY): Run `coderide_debug_test_check` or equivalent checks; use `coderide_debug_request_user kind=fix_confirmation` when user judgment is needed, not when verification is fully automated and clear.
-      - Track phases with `coderide_debug_set_phase`. Do not skip phases without reason, but do not block progress solely to satisfy a question quota. Do not use `coderide_debug_request_user` as padding.
-      - Use `coderide_debug_instrument` for executable instrumentation (log/assert/timing/variable); `coderide_debug_clean` removes tracked markers.
-      - Use `coderide_debug_log` with hypothesis_id= to link observations to hypotheses.
+      - PHASE 1 (DESCRIBE): Start with `debug_session` / `debug_context` / `debug_trace_analyze` when useful. Use `debug_request_user kind=question` only when critical information is still missing (environment, expected vs actual, unclear repro). If the user already gave a clear error, stack trace, file, and how to reproduce — do not ask filler questions.
+      - PHASE 2 (REPRODUCE): Use `debug_request_user kind=reproduce` only when you need the user to perform steps you cannot run (e.g. on-device). If reproduction is already explicit, continue without artificial gates.
+      - PHASE 3 (FIX): Propose a hypothesis via `debug_hypothesize action=propose` before a non-trivial fix; if logs or traces already pin the cause, state that as the hypothesis evidence. Prefer `debug_instrument` over ad-hoc debug edits. Use `debug_snapshot action=capture` before and after substantive fix attempts.
+      - PHASE 4 (VERIFY): Run `debug_test_check` or equivalent checks; use `debug_request_user kind=fix_confirmation` when user judgment is needed, not when verification is fully automated and clear.
+      - Track phases with `debug_set_phase`. Do not skip phases without reason, but do not block progress solely to satisfy a question quota. Do not use `debug_request_user` as padding.
+      - Use `debug_instrument` for executable instrumentation (log/assert/timing/variable); `debug_clean` removes tracked markers.
+      - Use `debug_log` with hypothesis_id= to link observations to hypotheses.
 
       Additional debug tool tips:
-      - `coderide_debug_mark` vs `coderide_debug_instrument`: Use coderide_debug_mark for simple comment markers. Use coderide_debug_instrument for real executable code (logging, assertions, timing).
-      - `coderide_debug_query` supports group_by= for aggregation, time_range= for recent logs, export formats (json/markdown).
-      - `coderide_debug_snapshot` action=capture before AND after every fix attempt — compare to track progress.
-      - `coderide_debug_timeline` format=mermaid for visual diagrams, format=text for plain lists.
-      - For debug panel control, use typed tools: `coderide_debug_set_phase`, `coderide_debug_request_user`, `coderide_debug_resolve`. Legacy `debug_panel` is invalid.
+      - `debug_mark` vs `debug_instrument`: Use debug_mark for simple comment markers. Use debug_instrument for real executable code (logging, assertions, timing).
+      - `debug_query` supports group_by= for aggregation, time_range= for recent logs, export formats (json/markdown).
+      - `debug_snapshot` action=capture before AND after every fix attempt — compare to track progress.
+      - `debug_timeline` format=mermaid for visual diagrams, format=text for plain lists.
+      - For debug panel control, use typed tools: `debug_set_phase`, `debug_request_user`, `debug_resolve`. Legacy `debug_panel` is invalid.
 
-    Mandatory execution workflow — for normal tasks only: if you are actively driving the debug tool sequence above (`coderide_debug_session`, `coderide_debug_set_phase`, etc.), treat that sequence as primary; use direct read/grep/semantic_search and debug_* tools first, and use subagents only when parallel exploration clearly helps. TodoWrite: optional until the fix is genuinely multi-step — do not block the first investigative debug round on todos.
+    Mandatory execution workflow — for normal tasks only: if you are actively driving the debug tool sequence above (`debug_session`, `debug_set_phase`, etc.), treat that sequence as primary; use direct read/grep/semantic_search and debug_* tools first, and use subagents only when parallel exploration clearly helps. TodoWrite: optional until the fix is genuinely multi-step — do not block the first investigative debug round on todos.
 
     For other (non-debug-driven) tasks, follow this sequence:
     1. INVESTIGATE VIA SUBAGENTS (MANDATORY): Spawn 2–3 subagent_explorer in PARALLEL to investigate different areas of the codebase simultaneously. Do NOT manually grep/read across multiple files yourself — delegate to explorers. Each explorer investigates a different aspect (e.g., one explores the data model, another explores the UI layer, another explores tests). Only use direct tools (grep/read) for quick single-file lookups while waiting for subagent results.
@@ -115,7 +125,7 @@ enum PromptToolsPolicy {
 
     Mode auto-activation policy:
     - Do NOT auto-open panels for "find bugs" or proactive bug hunting. The user opens Debug panel manually when they have a bug to debug. For "find bugs", "look for issues", "audit the code" — emit NO mode activation, just spawn subagents (subagent_explorer, subagent_debugger, etc.) and execute.
-    - `coderide_activate_debug_mode` / `activate_debug_mode`: Emit ONLY when the user explicitly debugs an existing/known bug (e.g. "debug this error", "help me fix this crash", "there's a bug in X, fix it"). NOT for proactive "find bugs" tasks. Prefer the `coderide_*` name when the session tool list uses it.
+    - `activate_debug_mode`: Emit ONLY when the user explicitly debugs an existing/known bug (e.g. "debug this error", "help me fix this crash", "there's a bug in X, fix it"). NOT for proactive "find bugs" tasks. For IDE-state tools such as `policy_ack`, `activate_debug_mode`, and `debug_set_phase`, prefer the runtime canonical names so they route through the local runtime instead of an external MCP approval path.
     - `activate_plan_mode`: Emit ONLY when the task genuinely requires structured planning. Concrete criteria — emit if ANY apply:
       • The task touches 3+ files with interdependent changes (e.g. refactor, new feature with model/view/controller).
       • The task is architectural (new system, major restructure, design decision with trade-offs).
@@ -149,7 +159,11 @@ enum PromptToolsPolicy {
         }
         let lines = records.map { record in
             let summary = shortDescription(record.description)
-            return "- `\(record.mcpName)` — \(summary)"
+            let promptName = CoderIDECanonicalToolRegistry.shared.preferredPromptName(
+                forRuntimeName: record.runtimeName,
+                on: .app
+            )
+            return "- `\(promptName)` — \(summary)"
         }
         return lines.joined(separator: "\n    ")
     }

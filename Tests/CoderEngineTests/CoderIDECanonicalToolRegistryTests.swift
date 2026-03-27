@@ -66,7 +66,7 @@ final class CoderIDECanonicalToolRegistryTests: XCTestCase {
 
         XCTAssertEqual(
             registry.preferredPromptName(forRuntimeName: "debug_set_phase"),
-            "coderide_debug_set_phase"
+            "debug_set_phase"
         )
         XCTAssertEqual(
             registry.preferredPromptName(forMCPName: "coderide_plan_create", preferMCP: false),
