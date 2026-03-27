@@ -215,6 +215,17 @@ extension ChatPanelView {
                         "errorDesc": String(error.localizedDescription.prefix(240)),
                     ]
                 )
+                RuntimeEvidenceDebugLog.append(
+                    hypothesisId: interrupted ? "H9" : "H8",
+                    location: "executeSendMessageTurn",
+                    message: interrupted ? "stream_catch_interrupted" : "stream_catch_failed",
+                    data: [
+                        "targetConversationId": targetConversationId.uuidString,
+                        "executionRoute": "\(executionRoute)",
+                        "errorType": String(describing: type(of: error)),
+                        "errorDesc": String(error.localizedDescription.prefix(180)),
+                    ]
+                )
                 // #endregion
                 if isInterruptedStreamError(error) {
                     traceOutcome = .aborted
@@ -263,6 +274,18 @@ extension ChatPanelView {
                     clearPlanStreamingState()
                 }
             }
+            // #region agent log
+            RuntimeEvidenceDebugLog.append(
+                hypothesisId: "H8",
+                location: "executeSendMessageTurn",
+                message: "success_path_before_task_finalization",
+                data: [
+                    "targetConversationId": targetConversationId.uuidString,
+                    "traceOutcome": "\(traceOutcome)",
+                    "executionRoute": "\(executionRoute)",
+                ]
+            )
+            // #endregion
             finalizeToolTraceTurn(conversationId: targetConversationId, outcome: traceOutcome)
             snapshotSubagentCardsAndEndTask(
                 conversationId: targetConversationId,

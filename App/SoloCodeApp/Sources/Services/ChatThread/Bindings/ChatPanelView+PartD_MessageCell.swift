@@ -237,7 +237,7 @@ extension ChatPanelView {
                                     showSwarmPanel = true
                                 case .stopSubagent:
                                     lastTaskEndedByManualStop = true
-                                    interruptTask()
+                                    interruptTask(for: conversationId, source: "chat_turn_stop_subagent")
                                 case .reply:
                                     replyAction?()
                                 case .edit:

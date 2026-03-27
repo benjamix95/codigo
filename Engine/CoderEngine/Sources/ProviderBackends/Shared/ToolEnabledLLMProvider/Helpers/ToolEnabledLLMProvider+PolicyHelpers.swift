@@ -117,7 +117,13 @@ extension ToolEnabledLLMProvider {
     }
 
     static func requiredPolicyHash(from context: WorkspaceContext) -> String? {
-        let prompt = context.contextPrompt()
+        if let requiredHash = context.requiredInstructionPolicyHash {
+            return requiredHash
+        }
+        return requiredPolicyHashFallback(from: context.contextPrompt())
+    }
+
+    private static func requiredPolicyHashFallback(from prompt: String) -> String? {
         guard !prompt.isEmpty else { return nil }
         let pattern = #"\bpolicy_ack\b[^\]]*\bhash=([^\s|\]\n]+)"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }

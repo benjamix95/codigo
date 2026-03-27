@@ -163,7 +163,7 @@ extension ChatPanelView {
                         },
                         onStop: {
                             lastTaskEndedByManualStop = true
-                            interruptTask()
+                            interruptTask(for: conversationId, source: "live_subagent_card_stop")
                         }
                     )
                 }

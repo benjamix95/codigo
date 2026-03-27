@@ -3,20 +3,29 @@ import Foundation
 enum TodoExecutionFollowUpPolicy {
     static let reviewTitle = "Code Review & Test"
     static let docWriterTitle = "Doc Writer"
-    static let scopeTitle = "Definire scope"
-    static let targetAnalysisTitle = "Analizzare target"
-    static let findingsConsolidationTitle = "Consolidare findings / output"
 
     static func normalizeExecutionTitles(_ titles: [String]) -> [String] {
-        let sanitizedTitles = sanitizeMeaningfulExecutionTitles(titles)
-        guard !sanitizedTitles.isEmpty else { return [] }
+        var seenKeys = Set<String>()
+        var executableTitles: [String] = []
 
-        if sanitizedTitles.count == 1,
-           let expandedTitles = expandedSequenceIfNeeded(for: sanitizedTitles[0]) {
-            return appendMissingFinalFollowUps(to: expandedTitles)
+        for raw in titles {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard !isExecutionFollowUpTitle(trimmed) else { continue }
+
+            let key = normalizedTitleKey(trimmed)
+            guard seenKeys.insert(key).inserted else { continue }
+            executableTitles.append(trimmed)
         }
 
-        return appendMissingFinalFollowUps(to: sanitizedTitles)
+        guard !executableTitles.isEmpty else { return [] }
+        guard requiresFinalFollowUps(forExecutableTitles: executableTitles) else {
+            return executableTitles
+        }
+
+        executableTitles.append(reviewTitle)
+        executableTitles.append(docWriterTitle)
+        return executableTitles
     }
 
     static func isReviewTitle(_ title: String) -> Bool {
@@ -38,9 +47,21 @@ enum TodoExecutionFollowUpPolicy {
     }
 
     static func runtimeOrderRank(for item: TodoItem) -> Int {
-        if isReviewTitle(item.title) { return 100 }
-        if isDocWriterTitle(item.title) { return 200 }
-        return 0
+        let followUpBase: Int = {
+            if isReviewTitle(item.title) { return 100 }
+            if isDocWriterTitle(item.title) { return 200 }
+            return 0
+        }()
+        switch item.status {
+        case .inProgress:
+            return followUpBase
+        case .pending:
+            return followUpBase + 10
+        case .blocked:
+            return followUpBase + 20
+        case .done:
+            return followUpBase + 30
+        }
     }
 
     static func scopedExecutionTodos(
@@ -64,53 +85,82 @@ enum TodoExecutionFollowUpPolicy {
         in todos: [TodoItem],
         conversationId: UUID?
     ) -> Bool {
-        !missingFinalFollowUpTitles(in: todos, conversationId: conversationId).isEmpty
+        scopedExecutionTodos(in: todos, conversationId: conversationId).contains { item in
+            item.source == .agent
+                && !item.isOperationalPlaceholder
+                && !isExecutionFollowUpTitle(item.title)
+                && titleRequiresFinalFollowUps(item.title)
+        }
     }
 
     static func missingFinalFollowUpTitles(
         in todos: [TodoItem],
         conversationId: UUID?
     ) -> [String] {
-        let scopedTodos = scopedExecutionTodos(in: todos, conversationId: conversationId)
-            .filter { $0.source == .agent && !$0.isOperationalPlaceholder }
-        let executableTitles = scopedTodos
-            .map(\.title)
-            .filter { !isExecutionFollowUpTitle($0) }
-            .compactMap(meaningfulExecutionTitle(from:))
-
-        guard !executableTitles.isEmpty else {
+        guard shouldCreateFinalFollowUps(in: todos, conversationId: conversationId) else {
             return []
         }
-
-        let requiresReview = shouldRequireReviewFollowUp(forExecutableTitles: executableTitles)
-        let requiresDocWriter = shouldRequireDocWriterFollowUp(forExecutableTitles: executableTitles)
+        let scoped = scopedExecutionTodos(in: todos, conversationId: conversationId)
         var missing: [String] = []
-
-        if requiresReview, !scopedTodos.contains(where: { isReviewTitle($0.title) }) {
+        if !scoped.contains(where: { isReviewTitle($0.title) }) {
             missing.append(reviewTitle)
         }
-        if requiresDocWriter, !scopedTodos.contains(where: { isDocWriterTitle($0.title) }) {
+        if !scoped.contains(where: { isDocWriterTitle($0.title) }) {
             missing.append(docWriterTitle)
         }
         return missing
     }
 
-    static func implicitRuntimeFollowUpTitles(
-        in todos: [TodoItem],
-        conversationId: UUID?
-    ) -> [String] {
-        missingFinalFollowUpTitles(in: todos, conversationId: conversationId)
-    }
-
     static func requiresFinalFollowUps(forExecutableTitles titles: [String]) -> Bool {
-        !finalFollowUpTitles(forExecutableTitles: titles).isEmpty
+        titles.contains(where: titleRequiresFinalFollowUps(_:))
     }
 
     static func titleRequiresFinalFollowUps(_ title: String) -> Bool {
-        shouldRequireReviewFollowUp(forExecutableTitles: [title])
+        let normalized = normalizedTitleKey(title)
+        guard !normalized.isEmpty else { return false }
+        guard !isExecutionFollowUpTitle(title) else { return false }
+
+        let mutationSignals = [
+            "implement",
+            "fix",
+            "refactor",
+            "update",
+            "modify",
+            "edit",
+            "patch",
+            "add",
+            "remove",
+            "delete",
+            "rename",
+            "replace",
+            "create file",
+            "split",
+            "migrate",
+            "wire",
+            "integrate",
+            "write code",
+            "correggere",
+            "implementare",
+            "rifattorizzare",
+            "aggiornare",
+            "modificare",
+            "editare",
+            "aggiungere",
+            "rimuovere",
+            "eliminare",
+            "rinominare",
+            "sostituire",
+            "creare file",
+            "dividere",
+            "migrare",
+            "collegare",
+            "integrare",
+        ]
+
+        return mutationSignals.contains { normalized.contains($0) }
     }
 
-    static func normalizedTitleKey(_ title: String) -> String {
+    private static func normalizedTitleKey(_ title: String) -> String {
         title
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()

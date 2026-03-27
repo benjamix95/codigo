@@ -32,6 +32,7 @@ struct ContentView: View {
     // MARK: - Centralized Panel State
 
     @StateObject var panelCoordinator = UIPanelCoordinator()
+    @State var conversationSelectionRepairTask: Task<Void, Never>?
 
     // MARK: - Layout AppStorage
 

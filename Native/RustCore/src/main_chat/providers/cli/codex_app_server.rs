@@ -80,8 +80,9 @@ impl Drop for ChildProcessGuard {
 
 #[derive(Default)]
 struct CodexAgentMessageGate {
-    /// Testo visibile nella bolla risposta (`text_delta` / `assistant_update` “output”).
-    final_answer_text: String,
+    /// Testo visibile nella timeline assistant (`text_delta` / `assistant_update` "output").
+    /// Deve includere anche i preamboli `commentary`, non solo la final answer.
+    visible_timeline_text: String,
     /// `phase` dell’item `agentMessage` da `item/started` (le delta spesso non la ripetono).
     agent_message_phase_by_item_id: HashMap<String, String>,
 }
@@ -139,17 +140,12 @@ impl CodexAgentMessageGate {
             return None;
         }
         let kind = Self::classify_agent_phase(phase);
-        match kind {
-            CodexAgentMessagePhaseKind::Commentary => return None,
-            CodexAgentMessagePhaseKind::FinalAnswer => {
-                self.final_answer_text.push_str(delta);
-            }
-        }
+        self.visible_timeline_text.push_str(delta);
         Some((kind, delta.to_string()))
     }
 
     fn cumulative_text(&self) -> String {
-        self.final_answer_text.clone()
+        self.visible_timeline_text.clone()
     }
     fn release_after_operational_event(&mut self) -> Option<String> {
         None
@@ -382,34 +378,29 @@ fn handle_notification(
                 if let Some((kind, visible_delta)) =
                     gate.push_agent_message_delta(&delta, phase.as_deref())
                 {
-                    match kind {
-                        CodexAgentMessagePhaseKind::Commentary => {}
-                        CodexAgentMessagePhaseKind::FinalAnswer => {
-                            rust_codex_trace(format!(
-                                "emit text_delta chars={}",
-                                visible_delta.len()
-                            ));
-                            emit_text_delta(session_id, &visible_delta);
-                            let cumulative = gate.cumulative_text();
-                            let detail = cumulative
-                                .split('\n')
-                                .last()
-                                .unwrap_or_default()
-                                .chars()
-                                .take(240)
-                                .collect::<String>();
-                            let mut card = BTreeMap::from([
-                                ("title".to_string(), "Working".to_string()),
-                                ("detail".to_string(), detail),
-                                ("output".to_string(), cumulative),
-                                ("status".to_string(), "in_progress".to_string()),
-                            ]);
-                            if let Some(p) = phase {
-                                card.insert("phase".to_string(), p);
-                            }
-                            emit_raw(session_id, "assistant_update", card);
-                        }
-                    }
+                    let emitted_phase_kind = match kind {
+                        CodexAgentMessagePhaseKind::Commentary => "commentary",
+                        CodexAgentMessagePhaseKind::FinalAnswer => "final_answer",
+                    };
+                    rust_codex_trace(format!("emit text_delta chars={}", visible_delta.len()));
+                    emit_text_delta(session_id, &visible_delta);
+                    // App-server documenta `item/*/delta` come stream incrementale
+                    // e `item/completed` come stato finale autorevole. Per tenere
+                    // il percorso hot il piu' leggero possibile, la timeline testo
+                    // passa solo da `text_delta`; gli `assistant_update` restano
+                    // riservati ai lifecycle `item/started` e `item/completed`.
+                    let cumulative_chars = gate.cumulative_text().len();
+                    agent_debug_log(
+                        "H21",
+                        "codex_app_server.rs:item/agentMessage/delta",
+                        "agent_message_delta_emitted_to_timeline",
+                        json!({
+                            "chars": visible_delta.len(),
+                            "phase": phase.as_deref().unwrap_or(""),
+                            "phaseKind": emitted_phase_kind,
+                            "cumulativeChars": cumulative_chars,
+                        }),
+                    );
                 } else {
                     agent_debug_log(
                         "H19",
@@ -516,6 +507,19 @@ fn handle_item_notification(
 ) {
     let item = payload.get("item").cloned().unwrap_or(Value::Null);
     let item_type = item.get("type").and_then(string_value).unwrap_or_default();
+    agent_debug_log(
+        "H20",
+        "codex_app_server.rs:handle_item_notification",
+        "app_server_item_notification",
+        json!({
+            "method": method,
+            "itemType": item_type,
+            "itemId": item.get("id").and_then(string_value).unwrap_or_default(),
+            "phase": item.get("phase").and_then(string_value).unwrap_or_default(),
+            "hasText": item.get("text").and_then(string_value).map(|s| !s.is_empty()).unwrap_or(false),
+            "hasDelta": payload.get("delta").and_then(string_value).map(|s| !s.is_empty()).unwrap_or(false),
+        }),
+    );
     if item_type == "mcpToolCall" {
         emit_mcp_events(session_id, method, &item);
         let tool = item.get("tool").and_then(string_value).unwrap_or_default();
@@ -562,33 +566,32 @@ fn handle_item_notification(
             if let Some(id) = item.get("id").and_then(string_value) {
                 gate.clear_agent_message_item(&id);
             }
-            let is_commentary = CodexAgentMessageGate::classify_agent_phase(phase.as_deref())
-                == CodexAgentMessagePhaseKind::Commentary;
-            if is_commentary {
-                rust_codex_trace("drop commentary completion");
-            } else {
-                let mut card = BTreeMap::new();
-                if let Some(p) = phase {
-                    card.insert("phase".to_string(), p);
-                }
-                if let Some(text) = item.get("text").and_then(string_value) {
-                    card.insert("output".to_string(), codex_truncate_str(&text, 2_000));
-                }
-                card.insert("lifecycle".to_string(), "completed".to_string());
-                card.insert("title".to_string(), "Agent message".to_string());
-                emit_raw(session_id, "assistant_update", card);
+            let mut card = BTreeMap::new();
+            if let Some(p) = phase {
+                let phase_kind = match CodexAgentMessageGate::classify_agent_phase(Some(&p)) {
+                    CodexAgentMessagePhaseKind::Commentary => "commentary",
+                    CodexAgentMessagePhaseKind::FinalAnswer => "final_answer",
+                };
+                card.insert("phase".to_string(), p);
+                card.insert("phase_kind".to_string(), phase_kind.to_string());
             }
+            if let Some(text) = item.get("text").and_then(string_value) {
+                card.insert("output".to_string(), codex_truncate_str(&text, 2_000));
+            }
+            card.insert("lifecycle".to_string(), "completed".to_string());
+            card.insert("title".to_string(), "Agent message".to_string());
+            emit_raw(session_id, "assistant_update", card);
         } else if let Some(p) = phase {
-            let is_commentary = CodexAgentMessageGate::classify_agent_phase(Some(&p))
-                == CodexAgentMessagePhaseKind::Commentary;
-            if is_commentary {
-                return;
-            }
+            let phase_kind = match CodexAgentMessageGate::classify_agent_phase(Some(&p)) {
+                CodexAgentMessagePhaseKind::Commentary => "commentary",
+                CodexAgentMessagePhaseKind::FinalAnswer => "final_answer",
+            };
             emit_raw(
                 session_id,
                 "assistant_update",
                 BTreeMap::from([
                     ("phase".to_string(), p),
+                    ("phase_kind".to_string(), phase_kind.to_string()),
                     ("lifecycle".to_string(), "started".to_string()),
                     ("title".to_string(), "Agent message".to_string()),
                 ]),
@@ -1200,23 +1203,28 @@ mod tests {
             Some("commentary")
         );
         let ph = gate.resolve_agent_message_phase_for_delta_payload(&payload);
-        assert!(gate.push_agent_message_delta("piano", ph.as_deref()).is_none());
-        assert_eq!(gate.cumulative_text(), "");
+        let (kind, visible) = gate
+            .push_agent_message_delta("piano", ph.as_deref())
+            .expect("commentary should remain visible");
+        assert_eq!(kind, CodexAgentMessagePhaseKind::Commentary);
+        assert_eq!(visible, "piano");
+        assert_eq!(gate.cumulative_text(), "piano");
     }
 
     #[test]
-    fn codex_agent_message_gate_splits_commentary_from_final_answer() {
+    fn codex_agent_message_gate_keeps_commentary_and_final_answer_in_timeline() {
         let mut gate = CodexAgentMessageGate::default();
-        assert!(gate
-            .push_agent_message_delta("Userò skill.", Some("commentary"))
-            .is_none());
-        assert_eq!(gate.cumulative_text(), "");
+        let (k0, _) = gate
+            .push_agent_message_delta("Usero skill. ", Some("commentary"))
+            .expect("commentary should stay visible");
+        assert_eq!(k0, CodexAgentMessagePhaseKind::Commentary);
+        assert_eq!(gate.cumulative_text(), "Usero skill. ");
 
         let (k1, _) = gate
             .push_agent_message_delta("Ecco la risposta.", Some("final_answer"))
             .unwrap();
         assert_eq!(k1, CodexAgentMessagePhaseKind::FinalAnswer);
-        assert_eq!(gate.cumulative_text(), "Ecco la risposta.");
+        assert_eq!(gate.cumulative_text(), "Usero skill. Ecco la risposta.");
     }
 
     #[test]

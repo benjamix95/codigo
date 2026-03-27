@@ -2,9 +2,9 @@ import Foundation
 import CoderEngine
 
 extension SoloCodeApp {
-    func registerProviders() {
+    func registerCoreProviders() {
         let cfg = providerFactoryConfig()
-        // ── CLI Providers first (Codex is default) ──────────────
+        // Provider minimi per rendere subito operativa la chat.
         if providerRegistry.provider(for: "codex-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.codexProvider(
@@ -39,23 +39,6 @@ extension SoloCodeApp {
                 )
             )
         }
-        if providerRegistry.provider(for: "kilo-cli") == nil {
-            providerRegistry.register(
-                ProviderFactory.kiloProvider(
-                    config: cfg,
-                    executionController: executionController,
-                    codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
-                        "kilo-cli",
-                        config: cfg,
-                        executionController: executionController,
-                        codebaseIndex: workspaceStore.codebaseIndex,
-                        workspacePaths: workspaceStore.activeWorkspacePaths
-                    )
-                )
-            )
-        }
         if providerRegistry.provider(for: "gemini-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.geminiProvider(
@@ -73,7 +56,6 @@ extension SoloCodeApp {
                 )
             )
         }
-        // ── API Providers ───────────────────────────────────────
         if providerRegistry.provider(for: "openai-api") == nil {
             let effort = OpenAIAPIProvider.isReasoningModel(model) ? "medium" : nil
             providerRegistry.register(
@@ -127,6 +109,28 @@ extension SoloCodeApp {
                 )
             )
         }
+        finalizeProviderRegistrationBatch()
+    }
+
+    func registerDeferredProviders() {
+        let cfg = providerFactoryConfig()
+        if providerRegistry.provider(for: "kilo-cli") == nil {
+            providerRegistry.register(
+                ProviderFactory.kiloProvider(
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "kilo-cli",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
+                )
+            )
+        }
         registerMiniMax(subagentFactory: ProviderFactory.subagentProviderFactoryForParent(
             "minimax-api",
             config: cfg,
@@ -148,6 +152,19 @@ extension SoloCodeApp {
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: workspaceStore.activeWorkspacePaths
         ))
+        finalizeProviderRegistrationBatch()
+    }
+
+    func registerProviders() {
+        registerCoreProviders()
+        registerDeferredProviders()
+    }
+
+    private func finalizeProviderRegistrationBatch() {
+        if let lastUsed = providerRegistry.lastUsedProviderId,
+           providerRegistry.provider(for: lastUsed) != nil {
+            providerRegistry.selectedProviderId = lastUsed
+        }
         NotificationCenter.default.post(name: .providersDidRegister, object: nil)
     }
 

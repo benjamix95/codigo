@@ -95,6 +95,8 @@ extension EventNormalizer {
 
     static func phaseForType(_ type: String, payload: [String: String]) -> ActivityPhase {
         switch type {
+        case "assistant_update":
+            return .executing
         case "command_execution", "bash":
             return .executing
         case "mcp_tool_call":
@@ -156,6 +158,8 @@ extension EventNormalizer {
     static func runningStateForType(_ type: String, payload: [String: String]) -> Bool {
         let status = payload["status"]?.lowercased()
         switch type {
+        case "assistant_update":
+            return status == "started" || status == "running" || status == "in_progress"
         case "command_execution", "bash":
             return status == "started" || status == "running" || status == "in_progress"
         case "mcp_tool_call":

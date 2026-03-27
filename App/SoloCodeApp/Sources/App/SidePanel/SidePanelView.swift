@@ -2,7 +2,7 @@ import SwiftUI
 import CoderEngine
 
 struct SidePanelView: View {
-    struct ExplorerEntry: Hashable {
+    struct ExplorerEntry: Hashable, Sendable {
         let name: String
         let fullPath: String
         let isDirectory: Bool
@@ -17,6 +17,8 @@ struct SidePanelView: View {
     @State var expandedFolders: Set<String> = []
     @State var searchQuery = ""
     @State var searchResults: [(path: String, line: Int, text: String)] = []
+    @State var explorerEntriesByDirectory: [String: [ExplorerEntry]] = [:]
+    @State var loadingExplorerDirectories: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {

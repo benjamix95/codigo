@@ -89,8 +89,9 @@ extension DebugPanelView {
             }
 
             Button {
-                guard let submission = composeClarificationSubmission(parsed: parsed) else { return }
-                onSubmitDebugClarification(submission)
+                let body = composeClarificationSubmission(parsed: parsed)
+                guard !body.isEmpty else { return }
+                onSubmitDebugClarification(body)
                 clarificationSelectedLetter = nil
                 clarificationCustomNotes = ""
             } label: {
@@ -166,11 +167,17 @@ extension DebugPanelView {
 
     func composeClarificationSubmission(
         parsed: DebugClarificationPromptParser.Parsed
-    ) -> DebugClarificationSubmission? {
-        DebugClarificationSubmissionComposer.compose(
-            parsed: parsed,
-            selectedLetter: clarificationSelectedLetter,
-            customNotes: clarificationCustomNotes
-        )
+    ) -> String {
+        var lines: [String] = ["[Risposta dal pannello Debug — chiarimento]"]
+        let extra = clarificationCustomNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let letter = clarificationSelectedLetter,
+           let chosen = parsed.options.first(where: { $0.letter == letter }) {
+            lines.append("Scelta: (\(chosen.letter)) \(chosen.text)")
+        }
+        if !extra.isEmpty {
+            lines.append("Dettagli / contesto: \(extra)")
+        }
+        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

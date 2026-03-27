@@ -157,58 +157,8 @@ struct SoloCodeApp: App {
 
     @MainActor
     private func performDeferredRootBootstrap() async {
-        // Avoid mutating observed stores in the same SwiftUI update turn that
-        // mounts the root view. This startup path is especially sensitive in
-        // the app-host test runner.
         await Task.yield()
-
-        bootstrapPersistenceIfNeeded()
-        SoloCodeSkillsPolicySource.ensureSkillsDirectoryExists()
-        FontPreferences.registerBundledFonts()
-        projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
-        workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
-        SoloCodeSkillsPolicySource.ensureProjectSkillsDirectories(
-            forWorkspacePaths: workspaceStore.activeWorkspacePaths.map(\.path)
-        )
-        chatStore.migrateLegacyContextsIfNeeded(
-            contextStore: projectContextStore,
-            workspaceStore: workspaceStore
-        )
-        Task { @MainActor [chatStore, planHistoryStore] in
-            await Task.yield()
-            chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
-        }
-        CLIAccountsStore.shared.bootstrapAccountsIfNeeded()
-        CLIAccountRouter.shared.bootstrapActiveSelectionsIfNeeded()
-        CodexMCPHealthStore.shared.refresh()
-        await appUpdateCenter.checkForUpdates()
-        registerProviders()
-        pipelineIntegrationService.configure(
-            chatStore: chatStore,
-            taskActivityStore: taskActivityStore,
-            swarmProgressStore: swarmProgressStore,
-            todoStore: todoStore,
-            executionController: executionController
-        )
-        gitPanelStore.postCommitBugHunterObserver = { commit, gitRoot in
-            Task { @MainActor in
-                self.enqueueBugHunterPostCommit(
-                    commit: commit,
-                    gitRoot: gitRoot,
-                    triggerKind: .appCommit
-                )
-            }
-        }
-        startCodeReviewCommandLoopIfNeeded()
-        startBugHunterCommandLoopIfNeeded()
-        NotificationCenter.default.addObserver(
-            forName: .soloCodeWillTerminateSaveDrafts,
-            object: nil,
-            queue: .main
-        ) { [chatStore] _ in
-            MainActor.assumeIsolated {
-                chatStore.saveDraftsImmediately()
-            }
-        }
+        configureCriticalStartupServices()
+        scheduleDeferredStartupServices()
     }
 }

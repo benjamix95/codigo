@@ -222,8 +222,11 @@ struct ChatTurnView: View {
         let footerColor = mutedPlanOrThink
             ? DesignSystem.Colors.textTertiary
             : Color.secondary
-        let showDetail = !reasoningSuppressed
-            && status != "Thinking"
+        let showDetail = (
+            reasoningSuppressed
+                ? true
+                : status != "Thinking"
+        )
             && !(streamingDetailText?.isEmpty ?? true)
         let planningInteractive =
             status == "Planning next move"

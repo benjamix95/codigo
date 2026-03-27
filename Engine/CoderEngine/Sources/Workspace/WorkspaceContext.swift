@@ -45,6 +45,9 @@ public struct WorkspaceContext: Sendable {
     /// When true and `systemPromptOverride` is nil, use `SystemPrompts.debugSessionAgentBase` instead of `taskCompletionStrict`.
     public let preferDebuggerPromptProfile: Bool
 
+    /// Source of truth for instruction policy text/hash for this context.
+    public let instructionPolicyBundle: InstructionPolicyBundle
+
     public init(
         workspacePaths: [URL],
         isNamedWorkspace: Bool = false,
@@ -57,9 +60,16 @@ public struct WorkspaceContext: Sendable {
         activeRootPath: String? = nil,
         skipContextEnrichment: Bool = false,
         systemPromptOverride: String? = nil,
-        preferDebuggerPromptProfile: Bool = false
+        preferDebuggerPromptProfile: Bool = false,
+        instructionPolicyBundle: InstructionPolicyBundle? = nil
     ) {
-        self.workspacePaths = workspacePaths.isEmpty ? [URL(fileURLWithPath: "/tmp")] : workspacePaths
+        let resolvedWorkspacePaths = workspacePaths.isEmpty ? [URL(fileURLWithPath: "/tmp")] : workspacePaths
+        let resolvedPolicyBundle = instructionPolicyBundle
+            ?? Self.resolveInstructionPolicyBundle(
+                workspacePaths: resolvedWorkspacePaths,
+                skipContextEnrichment: skipContextEnrichment
+            )
+        self.workspacePaths = resolvedWorkspacePaths
         self.isNamedWorkspace = isNamedWorkspace
         self.workspaceName = workspaceName
         self.excludedPaths = excludedPaths
@@ -71,6 +81,7 @@ public struct WorkspaceContext: Sendable {
         self.skipContextEnrichment = skipContextEnrichment
         self.systemPromptOverride = systemPromptOverride
         self.preferDebuggerPromptProfile = preferDebuggerPromptProfile
+        self.instructionPolicyBundle = resolvedPolicyBundle
     }
     
     /// Legacy initializer (single path).
@@ -84,9 +95,16 @@ public struct WorkspaceContext: Sendable {
         activeRootPath: String? = nil,
         skipContextEnrichment: Bool = false,
         systemPromptOverride: String? = nil,
-        preferDebuggerPromptProfile: Bool = false
+        preferDebuggerPromptProfile: Bool = false,
+        instructionPolicyBundle: InstructionPolicyBundle? = nil
     ) {
-        self.workspacePaths = [workspacePath]
+        let resolvedWorkspacePaths = [workspacePath]
+        let resolvedPolicyBundle = instructionPolicyBundle
+            ?? Self.resolveInstructionPolicyBundle(
+                workspacePaths: resolvedWorkspacePaths,
+                skipContextEnrichment: skipContextEnrichment
+            )
+        self.workspacePaths = resolvedWorkspacePaths
         self.isNamedWorkspace = false
         self.workspaceName = nil
         self.excludedPaths = excludedPaths
@@ -98,6 +116,7 @@ public struct WorkspaceContext: Sendable {
         self.skipContextEnrichment = skipContextEnrichment
         self.systemPromptOverride = systemPromptOverride
         self.preferDebuggerPromptProfile = preferDebuggerPromptProfile
+        self.instructionPolicyBundle = resolvedPolicyBundle
     }
 
     /// Context for prompt optimization: uses only the optimizer system instruction,
@@ -191,9 +210,7 @@ public struct WorkspaceContext: Sendable {
             parts.append("\n\(rulesBlock)")
         }
 
-        let policyBlock = InstructionPolicyBundle.promptBlock(
-            workspacePaths: workspacePaths.map(\.path)
-        )
+        let policyBlock = instructionPolicyBundle.policyText
         if !policyBlock.isEmpty {
             parts.append("\n\(policyBlock)")
         }
@@ -202,6 +219,16 @@ public struct WorkspaceContext: Sendable {
             return ""
         }
         return "\n\n" + parts.joined(separator: "\n")
+    }
+
+    private static func resolveInstructionPolicyBundle(
+        workspacePaths: [URL],
+        skipContextEnrichment: Bool
+    ) -> InstructionPolicyBundle {
+        guard !skipContextEnrichment else {
+            return .empty
+        }
+        return InstructionPolicyBundle.load(workspacePaths: workspacePaths.map(\.path))
     }
 }
 

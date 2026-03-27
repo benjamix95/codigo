@@ -18,6 +18,14 @@ extension SidePanelView {
             }
             .padding(10)
         }
+        .onAppear {
+            resetExplorerSnapshot()
+            primeExplorerRootsIfNeeded()
+        }
+        .onChange(of: explorerContextFingerprint) { _ in
+            resetExplorerSnapshot()
+            primeExplorerRootsIfNeeded()
+        }
     }
 
     private func explorerRootTabs(_ ctx: ProjectContext) -> some View {
@@ -82,57 +90,80 @@ extension SidePanelView {
             if expanded {
                 AnyView(folderItems(ctx, root: root, atPath: root, depth: 1))
                     .padding(.top, 6)
+                    .task(id: explorerCacheKey(root: root, dir: root)) {
+                        scheduleExplorerLoadIfNeeded(ctx, root: root, dir: root)
+                    }
             }
         }
         .padding(.horizontal, 6)
     }
 
     private func folderItems(_ ctx: ProjectContext, root: String, atPath: String, depth: Int) -> some View {
-        let items = depth > 14 ? [] : filteredItems(ctx, root: root, dir: atPath)
-        return ForEach(items, id: \.fullPath) { item in
-            let fullPath = item.fullPath
-            let isDir = item.isDirectory
-            let key = "\(root)::\(fullPath)"
-            let expanded = expandedFolders.contains(key)
-            let selected = openFilesStore.openFilePath == fullPath
-
-            VStack(alignment: .leading, spacing: 0) {
-                Button {
-                    if isDir {
-                        toggleExpandedState(key)
-                    } else {
-                        projectContextStore.setActiveRoot(contextId: ctx.id, rootPath: root)
-                        openFilesStore.openFile(fullPath)
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Spacer().frame(width: CGFloat(depth - 1) * 14 + 10)
-                        Image(systemName: fileIcon(for: item.name, isDirectory: isDir, expanded: expanded))
-                            .font(.system(size: isDir ? 8 : 10, weight: isDir ? .bold : .regular))
-                            .foregroundStyle(isDir ? Color.secondary.opacity(0.5) : fileIconColor(for: item.name))
-                        .frame(width: 12)
-                        Text(item.name)
-                            .font(.system(size: 12, weight: selected ? .semibold : .medium))
-                            .foregroundStyle(selected ? Color.accentColor : .primary)
-                            .lineLimit(1)
-                        Spacer()
-                        if openFilesStore.isDirty(path: fullPath) {
-                            Circle().fill(DesignSystem.Colors.warning).frame(width: 6, height: 6)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .contentShape(Rectangle())
+        let items = depth > 14 ? [] : cachedExplorerItems(root: root, dir: atPath)
+        let loading = isExplorerDirectoryLoading(root: root, dir: atPath)
+        return VStack(alignment: .leading, spacing: 0) {
+            if loading && items.isEmpty {
+                HStack(spacing: 8) {
+                    Spacer().frame(width: CGFloat(depth - 1) * 14 + 10)
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("Loading…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selected ? Color.accentColor.opacity(0.11) : Color.clear)
-                )
-                .hoverHighlight(Color.white.opacity(0.03))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+            }
 
-                if isDir, expanded {
-                    AnyView(folderItems(ctx, root: root, atPath: fullPath, depth: depth + 1))
+            ForEach(items, id: \.fullPath) { item in
+                let fullPath = item.fullPath
+                let isDir = item.isDirectory
+                let key = "\(root)::\(fullPath)"
+                let expanded = expandedFolders.contains(key)
+                let selected = openFilesStore.openFilePath == fullPath
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Button {
+                        if isDir {
+                            toggleExpandedState(key)
+                        } else {
+                            projectContextStore.setActiveRoot(contextId: ctx.id, rootPath: root)
+                            openFilesStore.openFile(fullPath)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Spacer().frame(width: CGFloat(depth - 1) * 14 + 10)
+                            Image(systemName: fileIcon(for: item.name, isDirectory: isDir, expanded: expanded))
+                                .font(.system(size: isDir ? 8 : 10, weight: isDir ? .bold : .regular))
+                                .foregroundStyle(isDir ? Color.secondary.opacity(0.5) : fileIconColor(for: item.name))
+                            .frame(width: 12)
+                            Text(item.name)
+                                .font(.system(size: 12, weight: selected ? .semibold : .medium))
+                                .foregroundStyle(selected ? Color.accentColor : .primary)
+                                .lineLimit(1)
+                            Spacer()
+                            if openFilesStore.isDirty(path: fullPath) {
+                                Circle().fill(DesignSystem.Colors.warning).frame(width: 6, height: 6)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(selected ? Color.accentColor.opacity(0.11) : Color.clear)
+                    )
+                    .hoverHighlight(Color.white.opacity(0.03))
+
+                    if isDir, expanded {
+                        AnyView(folderItems(ctx, root: root, atPath: fullPath, depth: depth + 1))
+                            .task(id: explorerCacheKey(root: root, dir: fullPath)) {
+                                scheduleExplorerLoadIfNeeded(ctx, root: root, dir: fullPath)
+                            }
+                    }
                 }
             }
         }

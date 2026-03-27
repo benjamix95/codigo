@@ -1,0 +1,45 @@
+# Bug Fix Record — 2026-03-27 — Startup deep analysis, regressione footer Git e hotspot indexing residuo
+
+- Categoria: A — Prestazioni / startup / regressione funzionale
+- Bug:
+  - il tentativo iniziale di alleggerire Git allo startup aveva degradato il footer Git, facendo sparire branch picker e switch branch quando il pannello Git non era aperto;
+  - dopo la correzione, il sample del PID conferma che il collo di bottiglia dominante allo startup resta `WorkspaceStore.indexActiveWorkspace()`, con `GitService.changedFiles(...)` ancora costoso solo nei refresh dettagliati espliciti.
+- Sintomo:
+  - footer Git senza branch o con menu branch vuoto;
+  - branch switch non disponibile dal footer;
+  - launch percepito lento anche dopo i primi refactor, con sample che continua a mostrare indexing pieno in background.
+- Impatto:
+  - regressione UX su una feature Git primaria;
+  - startup ancora competitivo lato CPU per via dell'indicizzazione completa.
+- Gravita':
+  - regressione footer Git: alta
+  - indexing residuo: alta
+- Causa radice confermata:
+  - il footer usa `gitPanelStore.currentBranch` e `gitPanelStore.branches`, quindi azzerare i branch a pannello chiuso rompe immediatamente la UI;
+  - il sample startup piu' recente mostra che il path pesante residuo e' soprattutto `WorkspaceStore.indexActiveWorkspace() -> CodebaseIndex.indexWorkspace(...)`;
+  - `GitService.changedFiles(...)` e' ancora costoso quando viene richiesto il dettaglio completo del pannello/lista file modificati.
+- Correzione applicata:
+  - `GitPanelStore.refresh(...)` ora separa:
+    - snapshot base sempre disponibile: `gitRoot`, `currentBranch`, `branches`, `status`, ahead/behind
+    - snapshot dettagliato: `changedFiles`, history, stash, remote branches
+  - i refresh passivi del footer non tagliano piu' branch/status e non caricano il dettaglio pesante;
+  - i refresh forzati o con pannello Git aperto continuano a caricare il dettaglio completo;
+  - il badge footer usa `status.changedFiles` come fallback immediato, senza dipendere dall'array `changedFiles`;
+  - lo startup index bootstrap e' stato ulteriormente abbassato a priorita' `.background`, con delay iniziale aumentato e provisioning CI locale spostato fuori dalla finestra critica.
+- Scope del fix:
+  - `App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+Refresh.swift`
+  - `App/SoloCodeApp/Sources/Git/GitPanelStore.swift`
+  - `App/SoloCodeApp/Sources/Git/Stores/GitPanelStore+Branches.swift`
+  - `App/SoloCodeApp/Sources/Panels/Git/GitPanelView+Header.swift`
+  - `App/SoloCodeApp/Sources/Tasking/Views/Usage/UsageFooterView+Sections.swift`
+  - `App/SoloCodeApp/Sources/ChatView/Root/ChatPanelView+LifecycleModifiers.swift`
+  - `App/SoloCodeApp/Sources/Services/Project/WorkspaceStore.swift`
+- Verifica:
+  - `xcodebuild build -workspace "Solo Code.xcworkspace" -scheme "Solo Code-Debug" -destination 'platform=macOS'` -> OK
+  - sample startup aggiornato:
+    - hotspot principale ancora `WorkspaceStore.indexActiveWorkspace()`
+    - Git non deve piu' amputare branch/status nel footer
+    - il costo `changedFiles` resta confinato ai refresh dettagliati, non al path base del footer
+- Follow-up consigliato:
+  - rifasare davvero `CodebaseIndex.indexWorkspace(...)` in quick pass + full pass, perche' e' il collo di bottiglia strutturale rimasto;
+  - se il pannello Git viene ripristinato aperto allo startup, valutare skeleton/loading per la lista changed files con stat hydration successiva, cosi' anche il pannello aperto non trascina subito il costo pieno.

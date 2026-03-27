@@ -124,13 +124,20 @@ extension UsageFooterView {
         return "128K"
     }
 
+    var footerChangedFilesCount: Int {
+        if !gitPanelStore.changedFiles.isEmpty {
+            return gitPanelStore.changedFiles.count
+        }
+        return gitPanelStore.status?.changedFiles ?? 0
+    }
+
     var gitButtonLabel: some View {
         HStack(spacing: 6) {
             Image(systemName: "arrow.triangle.branch")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(gitPanelStore.isOpen ? DesignSystem.Colors.agentColor : .primary)
-            if !gitPanelStore.changedFiles.isEmpty {
-                Text("\(gitPanelStore.changedFiles.count)")
+            if footerChangedFilesCount > 0 {
+                Text("\(footerChangedFilesCount)")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 5)

@@ -87,6 +87,10 @@ pub struct MainChatProviderSessionConfig {
     pub prompt: String,
     pub system_prompt: Option<String>,
     pub context_prompt: Option<String>,
+    pub policy_ref: Option<String>,
+    pub policy_hash: Option<String>,
+    #[serde(default = "default_true")]
+    pub should_reinject_policy_text: bool,
     pub model: Option<String>,
     pub api_key: Option<String>,
     pub base_url: Option<String>,
@@ -120,6 +124,10 @@ pub struct MainChatProviderSessionConfig {
     pub attachments: Vec<MainChatProviderAttachment>,
     #[serde(default)]
     pub cli_accounts: Vec<MainChatCLIAccountSnapshot>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]

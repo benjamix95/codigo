@@ -95,6 +95,9 @@ struct MainChatProviderSessionConfigBridge: Codable, Equatable {
     let prompt: String
     let systemPrompt: String?
     let contextPrompt: String?
+    let policyRef: String?
+    let policyHash: String?
+    let shouldReinjectPolicyText: Bool
     let model: String?
     let apiKey: String?
     let baseURL: String?

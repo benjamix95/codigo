@@ -62,6 +62,19 @@ final class ChatStreamFailureHandlingTests: XCTestCase {
         XCTAssertFalse(out.contains("CODERIDE"))
     }
 
+    func testStripStreamingCoderideMarkersRemovesInlinePolicyAckWithoutTrimmingVisibleText() {
+        let content = """
+        [CODERIDE:policy_ack|hash=abc123]
+
+        Faccio un audit 
+        """
+
+        XCTAssertEqual(
+            ChatStore.stripStreamingCoderideMarkers(content),
+            "Faccio un audit "
+        )
+    }
+
     func testInlineTodoWritePayloadsForStreamingUpdateExtractsNewlyClosedMarker() {
         let payloads = inlineTodoWritePayloadsForStreamingUpdate(
             existingContent: "[CODERIDE:todo_write|title=Run",

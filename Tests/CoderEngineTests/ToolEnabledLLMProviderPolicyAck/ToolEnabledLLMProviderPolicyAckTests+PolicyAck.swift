@@ -147,6 +147,28 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
     }
+
+    func testRequiredPolicyHashPrefersResolvedBundleOverRegexFallback() throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("policy-ack-bundle-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let context = WorkspaceContext(
+            workspacePath: workspace,
+            instructionPolicyBundle: InstructionPolicyBundle(
+                policyText: "Custom policy body without inline marker",
+                policyHash: "bundle-derived-hash",
+                requiredAckMarker: "policy_ack hash=bundle-derived-hash"
+            )
+        )
+
+        XCTAssertEqual(
+            ToolEnabledLLMProvider.requiredPolicyHash(from: context),
+            "bundle-derived-hash"
+        )
+    }
+
     func testOperationalToolIsRejectedUntilPolicyAckArrives() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("policy-ack-inject-\(UUID().uuidString)", isDirectory: true)

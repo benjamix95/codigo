@@ -4,15 +4,29 @@ import Foundation
 public struct InstructionPolicyBundle: Sendable, Equatable {
     public let policyText: String
     public let policyHash: String
+    public let policyRef: String
     public let requiredAckMarker: String
 
     public var hasPolicy: Bool {
         !policyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    public init(policyText: String, policyHash: String, requiredAckMarker: String) {
+    public static let empty = InstructionPolicyBundle(
+        policyText: "",
+        policyHash: "",
+        policyRef: "",
+        requiredAckMarker: ""
+    )
+
+    public init(
+        policyText: String,
+        policyHash: String,
+        policyRef: String? = nil,
+        requiredAckMarker: String
+    ) {
         self.policyText = policyText
         self.policyHash = policyHash
+        self.policyRef = (policyRef ?? policyHash).trimmingCharacters(in: .whitespacesAndNewlines)
         self.requiredAckMarker = requiredAckMarker
     }
 
@@ -48,9 +62,8 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         }
         let skills = collectSkillCatalog(workspacePaths: workspacePaths)
         guard !sections.isEmpty || !skills.isEmpty else {
-            let empty = InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
-            storeCachedBundle(empty, for: cacheKey)
-            return empty
+            storeCachedBundle(.empty, for: cacheKey)
+            return .empty
         }
 
         var lines: [String] = []
@@ -70,9 +83,8 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         }
         let policyBody = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !policyBody.isEmpty else {
-            let empty = InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
-            storeCachedBundle(empty, for: cacheKey)
-            return empty
+            storeCachedBundle(.empty, for: cacheKey)
+            return .empty
         }
 
         let hash = hashForPolicy(policyBody)
@@ -84,7 +96,12 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         You MUST acknowledge policy ingestion before any operational tool call.
         Use the `policy_ack` tool with hash=\(hash)
         """
-        let bundle = InstructionPolicyBundle(policyText: promptBlock, policyHash: hash, requiredAckMarker: ackMarker)
+        let bundle = InstructionPolicyBundle(
+            policyText: promptBlock,
+            policyHash: hash,
+            policyRef: hash,
+            requiredAckMarker: ackMarker
+        )
         storeCachedBundle(bundle, for: cacheKey)
         return bundle
     }
@@ -285,72 +302,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         return files
     }
 
-    /// Resolve skill name to full SKILL.md content (markdown body; frontmatter optional).
-    /// - Parameter workspacePaths: Percorsi cartelle workspace; le skill in `.solocode/skills` del progetto hanno priorità su `~/.solocode/skills`.
-    public static func skillContent(for name: String, workspacePaths: [String] = []) -> String? {
-        let home = NSHomeDirectory()
-        let roots = [
-            "\(home)/.codex/skills",
-            "\(home)/.agents/skills",
-            "\(home)/.claude/skills",
-        ]
-        let normalized = normalizedSkillToken(forSkillTool: name)
-        guard let normalized else { return nil }
-        for root in roots {
-            let rootURL = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL
-            let candidates = [
-                rootURL.appendingPathComponent(normalized).appendingPathComponent("SKILL.md"),
-                rootURL.appendingPathComponent(".system").appendingPathComponent(normalized).appendingPathComponent("SKILL.md"),
-            ]
-            for candidate in candidates {
-                let candidateURL = candidate.standardizedFileURL
-                guard isPath(candidateURL.path, insideRoot: rootURL.path),
-                      FileManager.default.fileExists(atPath: candidateURL.path),
-                      let raw = try? String(contentsOf: candidateURL, encoding: .utf8)
-                else { continue }
-                var content = raw
-                if raw.hasPrefix("---") {
-                    if let end = raw.range(of: "\n---", range: raw.index(raw.startIndex, offsetBy: 3)..<raw.endIndex) {
-                        content = String(raw[end.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    }
-                }
-                return String(content.prefix(30_000))
-            }
-        }
-        if let solo = SoloCodeSkillsPolicySource.skillMarkdown(forNormalizedName: normalized, workspacePaths: workspacePaths) {
-            return solo
-        }
-        return nil
-    }
-
-    /// Nome token per cartelle Codex/Claude o file piatto `~/.solocode/skills/*.md` (stem opzionale `.md`).
-    private static func normalizedSkillToken(forSkillTool name: String) -> String? {
-        if let n = normalizedSkillName(name) { return n }
-        let t = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard t.hasSuffix(".md"), t.count > 3 else { return nil }
-        return normalizedSkillName(String(t.dropLast(3)))
-    }
-
-    private static func normalizedSkillName(_ name: String) -> String? {
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-        guard !normalized.isEmpty,
-              !normalized.contains("/"),
-              !normalized.contains("\\\\"),
-              !normalized.contains("..")
-        else {
-            return nil
-        }
-
-        let allowedCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
-        guard normalized.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
-            return nil
-        }
-        return normalized
-    }
-
-    private static func isPath(_ path: String, insideRoot rootPath: String) -> Bool {
+    static func isPath(_ path: String, insideRoot rootPath: String) -> Bool {
         let normalizedRoot = URL(fileURLWithPath: rootPath, isDirectory: true).standardizedFileURL.path
         let rootPrefix = normalizedRoot.hasSuffix("/") ? normalizedRoot : normalizedRoot + "/"
         return path.hasPrefix(rootPrefix)

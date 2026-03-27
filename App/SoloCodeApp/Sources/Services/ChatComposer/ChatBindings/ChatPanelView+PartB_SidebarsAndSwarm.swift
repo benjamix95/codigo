@@ -53,7 +53,7 @@ extension ChatPanelView {
             },
             onStop: {
                 lastTaskEndedByManualStop = true
-                interruptTask()
+                interruptTask(for: conversationId, source: "plan_panel_stop")
             },
             onHistoryEntrySelectedForBuild: {
                 if planFlowPhase == .idle, planningState == .idle {
@@ -77,7 +77,7 @@ extension ChatPanelView {
             onStop: {
                 suspendRuntimeDebugProjection(for: conversationId)
                 lastTaskEndedByManualStop = true
-                interruptTask()
+                interruptTask(for: conversationId, source: "debug_panel_stop")
                 debugStore.resetSession()
                 persistDebugState(for: conversationId)
             },
@@ -95,8 +95,8 @@ extension ChatPanelView {
                     return
                 }
             },
-            onSubmitDebugClarification: { submission in
-                submitDebugClarificationToAgent(submission)
+            onSubmitDebugClarification: { answer in
+                submitDebugClarificationToAgent(answer)
             }
         )
         .frame(width: CGFloat(uiSettings.debugPanelWidthStorage))

@@ -64,7 +64,7 @@ extension ChatPanelView {
                 onPauseResume: { pauseOrResumeActiveTask() },
                 onStop: {
                     lastTaskEndedByManualStop = true
-                    interruptTask()
+                    interruptTask(for: conversationId, source: "composer_stop_button")
                 },
                 onDismissFrozenTimer: { composerFrozenTimerState = nil },
                 onVoiceAction: { handleVoiceAction() },

@@ -263,6 +263,12 @@ extension TaskActivityStore {
             return assistantUpdate
         }
         guard let last = lastConcreteVisibleActivity(in: activities) else { return nil }
+        if !last.isRunning {
+            let elapsed = Date().timeIntervalSince(last.timestamp)
+            if elapsed > 1.5 {
+                return nil
+            }
+        }
         if activeOperationsCount > 1 {
             return "\(last.title) • \(activeOperationsCount) operations"
         }

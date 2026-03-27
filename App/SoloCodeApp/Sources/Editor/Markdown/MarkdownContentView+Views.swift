@@ -45,12 +45,9 @@ extension MarkdownContentView {
         VStack(alignment: .leading, spacing: 0) {
             let text = displayContent
             if text.isEmpty {
-                StreamingCursorView()
+                EmptyView()
             } else {
-                (Text(buildStreamingAttributed(text))
-                    + Text(" \u{258C}")
-                    .font(FontPreferences.resolveSansFont(size: bodyFont, family: uiSansFontFamily))
-                    .foregroundColor(textPrimary.opacity(0.45)))
+                Text(buildStreamingAttributed(text))
                 .font(FontPreferences.resolveSansFont(size: bodyFont, family: uiSansFontFamily))
                 .foregroundStyle(textPrimary)
                 .lineSpacing(bodyLineSpacing)
@@ -110,22 +107,15 @@ extension MarkdownContentView {
     // MARK: - Streaming Full Markdown Body
 
     /// Block-level rendering during streaming. Uses the same parser as
-    /// `fullMarkdownBody` but appends a blinking cursor after the last block.
+    /// `fullMarkdownBody` while the content is still being appended.
     var streamingFullMarkdownBody: some View {
         let blocks = cachedBlocks ?? parseBlocks()
         return VStack(alignment: .leading, spacing: 0) {
             if blocks.isEmpty {
-                StreamingCursorView()
+                EmptyView()
             } else {
                 ForEach(Array(blocks.enumerated()), id: \.offset) { idx, block in
                     blockView(for: block, prevBlock: idx > 0 ? blocks[idx - 1] : nil)
-                }
-                // Streaming cursor after the last block
-                HStack(spacing: 0) {
-                    Text(" \u{258C}")
-                        .font(FontPreferences.resolveSansFont(size: bodyFont, family: uiSansFontFamily))
-                        .foregroundColor(textPrimary.opacity(0.45))
-                    Spacer()
                 }
             }
         }

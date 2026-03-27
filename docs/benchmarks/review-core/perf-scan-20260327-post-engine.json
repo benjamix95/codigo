@@ -1,0 +1,1 @@
+{"audit_suite_duration_ms":0.24199485778808594,"historical_shape_p95_ms":4.4459104537963867,"projection_build_p95_ms":5.9570074081420898,"rust_review_core_failure_reason":"","rust_review_core_loaded":true,"security_gate_p95_ms":11.340022087097168,"verified_sync_p95_ms":12.498021125793457,"verify_candidate_p95_ms":0.247955322265625}

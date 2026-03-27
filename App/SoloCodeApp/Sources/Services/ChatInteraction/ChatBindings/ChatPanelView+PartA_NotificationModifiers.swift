@@ -72,7 +72,7 @@ extension ChatPanelView {
                       let conversationId = UUID(uuidString: rawConversationId) else { return }
                 // Solo snapshot UI; pipeline teardown (`discardConversationRuntime`) fa unregister + resolve coda.
                 conversationRuntime.debugStateByConversation.removeValue(forKey: conversationId)
-                interruptTask(for: conversationId)
+                interruptTask(for: conversationId, source: "thread_deletion_notification")
             }
     }
 }

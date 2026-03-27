@@ -7,7 +7,70 @@ extension SidePanelView {
         ".DS_Store", "__pycache__", ".tox", ".eggs", "Pods"
     ]
 
-    func filteredItems(_ ctx: ProjectContext, root: String, dir: String) -> [ExplorerEntry] {
+    var explorerContextFingerprint: String {
+        guard let context else { return "no-context" }
+        let roots = context.folderPaths.joined(separator: "|")
+        let excluded = context.excludedPaths.joined(separator: "|")
+        return "\(context.id.uuidString)#\(roots)#\(excluded)#\(context.activeFolderPath ?? "")"
+    }
+
+    func explorerCacheKey(root: String, dir: String) -> String {
+        "\(root)::\(dir)"
+    }
+
+    @MainActor
+    func resetExplorerSnapshot() {
+        explorerEntriesByDirectory = [:]
+        loadingExplorerDirectories = []
+    }
+
+    @MainActor
+    func primeExplorerRootsIfNeeded() {
+        guard activeItem == .explorer, let context else { return }
+        for root in context.folderPaths {
+            let key = "root::\(root)"
+            if expandedFolders.contains(key) {
+                scheduleExplorerLoadIfNeeded(context, root: root, dir: root)
+            }
+        }
+    }
+
+    @MainActor
+    func scheduleExplorerLoadIfNeeded(_ ctx: ProjectContext, root: String, dir: String) {
+        let key = explorerCacheKey(root: root, dir: dir)
+        guard explorerEntriesByDirectory[key] == nil else { return }
+        guard !loadingExplorerDirectories.contains(key) else { return }
+        loadingExplorerDirectories.insert(key)
+
+        let expectedFingerprint = explorerContextFingerprint
+        let excludedPaths = ctx.excludedPaths
+        Task.detached(priority: .utility) {
+            let entries = Self.loadExplorerEntries(
+                root: root,
+                dir: dir,
+                excludedPaths: excludedPaths
+            )
+            await MainActor.run {
+                guard self.explorerContextFingerprint == expectedFingerprint else { return }
+                self.loadingExplorerDirectories.remove(key)
+                self.explorerEntriesByDirectory[key] = entries
+            }
+        }
+    }
+
+    func cachedExplorerItems(root: String, dir: String) -> [ExplorerEntry] {
+        explorerEntriesByDirectory[explorerCacheKey(root: root, dir: dir)] ?? []
+    }
+
+    func isExplorerDirectoryLoading(root: String, dir: String) -> Bool {
+        loadingExplorerDirectories.contains(explorerCacheKey(root: root, dir: dir))
+    }
+
+    static func loadExplorerEntries(
+        root: String,
+        dir: String,
+        excludedPaths: [String]
+    ) -> [ExplorerEntry] {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
         var entries: [ExplorerEntry] = []
         entries.reserveCapacity(names.count)
@@ -18,7 +81,7 @@ extension SidePanelView {
 
             let full = (dir as NSString).appendingPathComponent(name)
             let rel = full.replacingOccurrences(of: root + "/", with: "")
-            let isExcluded = ctx.excludedPaths.contains { rel.hasPrefix($0) || full.hasPrefix($0) }
+            let isExcluded = excludedPaths.contains { rel.hasPrefix($0) || full.hasPrefix($0) }
             if isExcluded { continue }
 
             var isDir: ObjCBool = false

@@ -1,6 +1,8 @@
 import Foundation
 
 extension GitService {
+    private typealias GitNumstat = (added: Int, removed: Int)
+
     func status(gitRoot: String) throws -> GitStatusSummary {
         let porcelain = try runGit(["status", "--porcelain"], gitRoot: gitRoot)
         let lines = porcelain.split(separator: "\n").map(String.init)
@@ -59,6 +61,8 @@ extension GitService {
     func changedFiles(gitRoot: String) throws -> [GitChangedFile] {
         let porcelain = try runGit(["status", "--porcelain"], gitRoot: gitRoot)
         let lines = porcelain.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+        let unstagedStats = parseNumstatMap(try runGit(["diff", "--numstat"], gitRoot: gitRoot))
+        let stagedStats = parseNumstatMap(try runGit(["diff", "--numstat", "--cached"], gitRoot: gitRoot))
         var result: [GitChangedFile] = []
         for line in lines {
             guard line.count >= 3 else { continue }
@@ -91,24 +95,18 @@ extension GitService {
                     if content.hasSuffix("\n") { added = max(0, added - 1) }
                 }
             } else {
-                // Use --cached for staged files, plain diff for unstaged
-                var diffArgs = ["diff", "--numstat"]
-                if isStaged {
-                    diffArgs.append("--cached")
-                }
-                diffArgs.append(contentsOf: ["--", path])
-                let stat = try runGit(diffArgs, gitRoot: gitRoot)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !stat.isEmpty {
-                    // Take only the last non-empty line (in case of multi-line output)
-                    let lastLine = stat.components(separatedBy: .newlines)
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                        .last(where: { !$0.isEmpty }) ?? stat
-                    let comps = lastLine.split(separator: "\t")
-                    if comps.count >= 2 {
-                        added = Int(comps[0]) ?? 0
-                        removed = Int(comps[1]) ?? 0
-                    }
+                let batchedStats = isStaged ? stagedStats : unstagedStats
+                if let stats = batchedStats[path] {
+                    added = stats.added
+                    removed = stats.removed
+                } else {
+                    let fallbackStats = try diffNumstatForSinglePath(
+                        gitRoot: gitRoot,
+                        path: path,
+                        isStaged: isStaged
+                    )
+                    added = fallbackStats.added
+                    removed = fallbackStats.removed
                 }
             }
 
@@ -121,5 +119,41 @@ extension GitService {
             ))
         }
         return result
+    }
+
+    private func parseNumstatMap(_ output: String) -> [String: GitNumstat] {
+        output
+            .split(separator: "\n")
+            .reduce(into: [String: GitNumstat]()) { partialResult, rawLine in
+                let comps = rawLine.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+                guard comps.count == 3 else { return }
+                let rawPath = String(comps[2]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !rawPath.isEmpty else { return }
+                partialResult[rawPath] = (
+                    added: Int(comps[0]) ?? 0,
+                    removed: Int(comps[1]) ?? 0
+                )
+            }
+    }
+
+    private func diffNumstatForSinglePath(
+        gitRoot: String,
+        path: String,
+        isStaged: Bool
+    ) throws -> GitNumstat {
+        var diffArgs = ["diff", "--numstat"]
+        if isStaged {
+            diffArgs.append("--cached")
+        }
+        diffArgs.append(contentsOf: ["--", path])
+        let stat = try runGit(diffArgs, gitRoot: gitRoot)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !stat.isEmpty else { return (0, 0) }
+        let lastLine = stat.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .last(where: { !$0.isEmpty }) ?? stat
+        let comps = lastLine.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+        guard comps.count >= 2 else { return (0, 0) }
+        return (Int(comps[0]) ?? 0, Int(comps[1]) ?? 0)
     }
 }

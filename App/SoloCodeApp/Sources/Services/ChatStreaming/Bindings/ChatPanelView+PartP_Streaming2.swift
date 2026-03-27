@@ -38,7 +38,10 @@ extension ChatPanelView {
                     "[Policy error] Invalid AGENTS/SKILL acknowledgment received. Expected hash \(enriched["expected_hash"] ?? "?").",
                     in: convId
                 )
-                stopTaskForPolicyViolation(conversationId: convId)
+                stopTaskForPolicyViolation(
+                    conversationId: convId,
+                    reason: "policy_ack_raw_invalid"
+                )
             case .ignored:
                 break
             }

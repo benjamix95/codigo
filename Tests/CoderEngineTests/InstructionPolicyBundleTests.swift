@@ -4,6 +4,16 @@ import XCTest
 import Darwin
 
 final class InstructionPolicyBundleTests: XCTestCase {
+    func testPolicyRefDefaultsToPolicyHash() {
+        let bundle = InstructionPolicyBundle(
+            policyText: "body",
+            policyHash: "abc123",
+            requiredAckMarker: "policy_ack hash=abc123"
+        )
+
+        XCTAssertEqual(bundle.policyRef, "abc123")
+    }
+
     func testHashForPolicyIsDeterministic() {
         let text = "line1\nline2\nline3"
         let h1 = InstructionPolicyBundle.hashForPolicy(text)
@@ -102,6 +112,36 @@ final class InstructionPolicyBundleTests: XCTestCase {
         XCTAssertFalse(bundle.policyText.contains("do-not-leak"))
     }
 
+    func testWorkspaceContextUsesProvidedInstructionPolicyBundle() throws {
+        let workspace = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("instruction-policy-context-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let bundle = InstructionPolicyBundle(
+            policyText: "## Injected policy\nbody",
+            policyHash: "hash-from-bundle",
+            policyRef: "policy-ref-from-bundle",
+            requiredAckMarker: "policy_ack hash=hash-from-bundle"
+        )
+
+        let context = WorkspaceContext(
+            workspacePath: workspace,
+            instructionPolicyBundle: bundle
+        )
+
+        XCTAssertTrue(context.contextPrompt().contains("## Injected policy"))
+        XCTAssertEqual(context.requiredInstructionPolicyHash, "hash-from-bundle")
+        XCTAssertEqual(context.instructionPolicyRef, "policy-ref-from-bundle")
+        XCTAssertEqual(
+            context.instructionPolicySessionDescriptor,
+            InstructionPolicySessionDescriptor(
+                policyRef: "policy-ref-from-bundle",
+                policyHash: "hash-from-bundle",
+                shouldReinjectPolicyText: true
+            )
+        )
+    }
 
 
     func testSkillContentRejectsPathTraversalName() throws {

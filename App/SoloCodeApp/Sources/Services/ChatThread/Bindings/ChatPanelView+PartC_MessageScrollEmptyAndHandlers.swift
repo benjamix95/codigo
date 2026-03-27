@@ -151,8 +151,44 @@ extension ChatPanelView {
     @ViewBuilder
     internal var chatMessagesAreaContent: some View {
         if let conv = conversationForMessagesList {
+            // #region agent log
+            if let cid = conversationId,
+               (messagesConversationSnapshot == nil || messagesConversationSnapshot?.id != cid) {
+                let _ = AgentDebugSessionNDJSONLog.appendThrottled(
+                    gateKey: "H19-store-fallback-render",
+                    minInterval: 0.10,
+                    hypothesisId: "H19",
+                    location: "chatMessagesAreaContent",
+                    message: "rendering_from_store_fallback",
+                    data: [
+                        "conversationId": cid.uuidString,
+                        "storeCount": "\(chatStore.conversation(for: cid)?.messages.count ?? -1)",
+                        "snapshotCount": "\(messagesConversationSnapshot?.messages.count ?? -1)",
+                        "snapshotId": messagesConversationSnapshot?.id.uuidString ?? "nil",
+                    ]
+                )
+            }
+            // #endregion
             messagesStack(for: conv)
         } else {
+            // #region agent log
+            if let cid = conversationId {
+                let _ = AgentDebugSessionNDJSONLog.appendThrottled(
+                    gateKey: "H19-placeholder-render",
+                    minInterval: 0.08,
+                    hypothesisId: "H19",
+                    location: "chatMessagesAreaContent",
+                    message: "rendering_placeholder_with_selected_conversation",
+                    data: [
+                        "conversationId": cid.uuidString,
+                        "storeCount": "\(chatStore.conversation(for: cid)?.messages.count ?? -1)",
+                        "snapshotCount": "\(messagesConversationSnapshot?.messages.count ?? -1)",
+                        "snapshotId": messagesConversationSnapshot?.id.uuidString ?? "nil",
+                        "isLoading": "\(snapshotIsLoading)",
+                    ]
+                )
+            }
+            // #endregion
             LazyVStack(alignment: .leading, spacing: 0) {
                 Color.clear
                     .frame(height: 1)

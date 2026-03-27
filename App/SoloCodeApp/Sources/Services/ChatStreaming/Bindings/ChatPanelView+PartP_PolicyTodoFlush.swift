@@ -21,6 +21,21 @@ extension ChatPanelView {
         if isTodoLifecycleEvent(type: type, payload: payload) {
             state.didSeeTodoWrite = true
             state.violationEmitted = false
+            // #region agent log
+            RuntimeEvidenceDebugLog.append(
+                hypothesisId: "H46",
+                location: "updateToolStartRequirementsStateIfNeeded",
+                message: "todo_start_requirement_satisfied",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "assistantMessageId": turn.assistantMessageId.uuidString,
+                    "type": type,
+                    "tool": payload["mcp_tool"] ?? payload["tool"] ?? "",
+                    "didSeeTodoWrite": "\(state.didSeeTodoWrite)",
+                    "violationEmitted": "\(state.violationEmitted)",
+                ]
+            )
+            // #endregion
         }
         toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
     }
@@ -45,6 +60,24 @@ extension ChatPanelView {
             type: type,
             payload: payload
         ) {
+            // #region agent log
+            RuntimeEvidenceDebugLog.append(
+                hypothesisId: "H47",
+                location: "shouldHardBlockForMissingTodoOrPlan",
+                message: "todo_start_policy_violation_evaluated",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "assistantMessageId": turn.assistantMessageId.uuidString,
+                    "incomingType": type,
+                    "tool": payload["mcp_tool"] ?? payload["tool"] ?? "",
+                    "didSeeTodoWrite": "\(state.didSeeTodoWrite)",
+                    "violationEmitted": "\(state.violationEmitted)",
+                    "errorCode": violation.errorCode,
+                    "title": violation.title,
+                    "detail": violation.detail,
+                ]
+            )
+            // #endregion
             if !state.violationEmitted {
                 state.violationEmitted = true
                 toolRuntime.toolStartRequirementsStateByMessage[turn.assistantMessageId] = state
@@ -64,7 +97,10 @@ extension ChatPanelView {
                     "[Policy error] \(violation.detail)",
                     in: conversationId
                 )
-                stopTaskForPolicyViolation(conversationId: conversationId)
+                stopTaskForPolicyViolation(
+                    conversationId: conversationId,
+                    reason: "todo_plan_start_policy"
+                )
             }
             return true
         }
@@ -97,7 +133,43 @@ extension ChatPanelView {
     }
 
     @MainActor
-    internal func stopTaskForPolicyViolation(conversationId: UUID?) {
+    internal func stopTaskForPolicyViolation(
+        conversationId: UUID?,
+        reason: String = "unspecified"
+    ) {
+        let activeAssistantMessageId = conversationId.flatMap {
+            toolRuntime.activeToolTraceTurnsByConversation[$0]?.assistantMessageId
+        }
+        let latestAssistantLen = conversationId.flatMap { id in
+            chatStore.conversation(for: id)?
+                .messages
+                .last(where: { $0.role == .assistant })?
+                .resolvedPrimaryText
+                .count
+        } ?? 0
+        let policyState = activeAssistantMessageId.flatMap {
+            toolRuntime.policyAckStateByMessage[$0]
+        }
+        let blockedQueueCount = activeAssistantMessageId.flatMap {
+            toolRuntime.policyAckBlockedQueue[$0]?.count
+        } ?? 0
+        // #region agent log
+        RuntimeEvidenceDebugLog.append(
+            hypothesisId: "H9",
+            location: "stopTaskForPolicyViolation",
+            message: "policy_violation_stop_requested",
+            data: [
+                "conversationId": conversationId?.uuidString ?? "nil",
+                "reason": reason,
+                "assistantMessageId": activeAssistantMessageId?.uuidString ?? "nil",
+                "expectedHash": policyState?.expectedHash ?? "",
+                "acknowledgedHash": policyState?.acknowledgedHash ?? "",
+                "isSatisfied": "\(policyState?.isSatisfied == true)",
+                "blockedQueueCount": "\(blockedQueueCount)",
+                "latestAssistantLen": "\(latestAssistantLen)",
+            ]
+        )
+        // #endregion
         let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: conversationId)
         var didCancelTask = didCancelPipeline || cancelRunTask(for: conversationId)
         if !didCancelTask, let target = conversationId,

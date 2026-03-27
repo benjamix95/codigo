@@ -167,7 +167,7 @@ struct UsageFooterView: View {
             return (true, true, true, true, false)
         case .minimal:
             // Composer stretto: sotto ~700px il tier diventa minimal; senza usage qui la riga spariva mentre il pill modello (1M) restava.
-            return (false, footerProviderHasUsageRow, false, false, false)
+            return (true, footerProviderHasUsageRow, false, false, false)
         }
     }
 

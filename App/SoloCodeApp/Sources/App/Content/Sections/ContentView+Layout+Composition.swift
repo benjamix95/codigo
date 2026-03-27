@@ -161,29 +161,9 @@ extension ContentView {
                 }
             }
         }
-        .onChange(of: chatStore.conversations.map(\.id)) { conversationIds in
-                guard !conversationIds.isEmpty else {
-                    panelCoordinator.selectedConversationId = nil
-                    return
-                }
-                if let selectedConversationId = panelCoordinator.selectedConversationId, conversationIds.contains(selectedConversationId) {
-                    return
-                }
-                let defaultContextId: UUID?
-                if panelCoordinator.preferActiveContextForGlobalThread {
-                    defaultContextId = projectContextStore.activeContextId
-                } else {
-                    defaultContextId = nil
-                }
-                let ctx = projectContextStore.context(id: defaultContextId)
-                let folderScope = (ctx?.folderPaths.count ?? 0) > 1 ? ctx?.activeFolderPath : nil
-                let preferred = chatStore.conversations.first { conv in
-                    !conv.isArchived
-                        && conv.contextId == defaultContextId
-                        && conv.contextFolderPath == folderScope
-                }?.id
-                panelCoordinator.selectedConversationId = preferred ?? conversationIds.first
-            }
+        .onReceive(chatStore.objectWillChange) { _ in
+            scheduleConversationSelectionRepair()
+        }
         .onChange(of: projectContextStore.activeContextId) { newContextId in
             guard let newContextId else { return }
             let ctx = projectContextStore.context(id: newContextId)
@@ -246,7 +226,6 @@ extension ContentView {
         .environmentObject(workspaceStore)
         .environmentObject(projectContextStore)
         .environmentObject(todoStore)
-        .environmentObject(openFilesStore)
         .environmentObject(toolTraceStore)
         .environmentObject(pipelineIntegrationService)
         .ignoresSafeArea(.container, edges: [.top, .bottom])

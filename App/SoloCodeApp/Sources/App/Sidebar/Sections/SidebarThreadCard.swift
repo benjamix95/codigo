@@ -7,15 +7,8 @@ extension SidebarView {
 
     func threadRow(_ conv: Conversation, now: Date) -> some View {
         let selected = selectedConversationId == conv.id
-        let hasDraft = !(chatStore.draftTexts[conv.id]?
-            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        let isActive = chatStore.isTaskActive(for: conv.id)
-        let isStreaming = chatStore.isAssistantStreaming(in: conv.id)
-        let showsWorkIndicator = isActive || isStreaming
-        let statusText = chatStore.taskStatusTexts[conv.id]
-        let metrics = SidebarThreadMetrics.compute(conversation: conv, toolTraceStore: toolTraceStore)
-        let chatTodos = todoStore.displayTodosForChat(for: conv.id)
-        let todoProgressLabel = SidebarThreadTodoCaption.progressLabel(displayTodos: chatTodos)
+        let renderState = threadRenderStates[conv.id] ?? .empty
+        let showsWorkIndicator = renderState.isActive || renderState.isStreaming
 
         return VStack(alignment: .leading, spacing: 4) {
             // Row 1: stato opzionale (pin / task / bozza) + titolo + badge modalità
@@ -30,7 +23,7 @@ extension SidebarView {
                         .controlSize(.mini)
                         .scaleEffect(0.52)
                         .frame(width: 10, height: 10)
-                } else if !conv.isPinned, hasDraft {
+                } else if !conv.isPinned, renderState.hasDraft {
                     Image(systemName: "pencil.line")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.orange)
@@ -41,7 +34,7 @@ extension SidebarView {
                     .lineLimit(1)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
 
-                if let todoProgressLabel {
+                if let todoProgressLabel = renderState.todoProgressLabel {
                     Text(todoProgressLabel)
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
                         .foregroundStyle(DesignSystem.Colors.textQuaternary)
@@ -58,14 +51,14 @@ extension SidebarView {
 
             // Row 2: status/date + diff stats
             HStack(spacing: 6) {
-                if isActive, let status = statusText, !status.isEmpty {
+                if renderState.isActive, let status = renderState.statusText, !status.isEmpty {
                     Text(status)
                         .font(.system(size: 10))
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .textShimmer(active: true)
-                } else if isStreaming {
+                } else if renderState.isStreaming {
                     Text("In risposta…")
                         .font(.system(size: 10))
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
@@ -79,10 +72,10 @@ extension SidebarView {
 
                 Spacer(minLength: 0)
 
-                if metrics.hasDiffStats {
+                if renderState.metrics.hasDiffStats {
                     SidebarThreadDiffBadge(
-                        linesAdded: metrics.linesAdded,
-                        linesRemoved: metrics.linesRemoved
+                        linesAdded: renderState.metrics.linesAdded,
+                        linesRemoved: renderState.metrics.linesRemoved
                     )
                 }
             }

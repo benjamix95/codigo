@@ -366,6 +366,20 @@ extension ChatPanelView {
                 "pipelineRunning": "\(pipelineIntegrationService.isRunning(for: targetConversationId))",
             ]
         )
+        RuntimeEvidenceDebugLog.append(
+            hypothesisId: "H1",
+            location: "sendMessage",
+            message: "send_turn_primed",
+            data: [
+                "targetConversationId": targetConversationId.uuidString,
+                "assistantMessageId": standardAssistantMessageId.uuidString,
+                "providerId": effectiveRuntimeProvider.id,
+                "route": "\(sendProbeRoute)",
+                "taskActive": "\(chatStore.isTaskActive(for: targetConversationId))",
+                "pipelineRunning": "\(pipelineIntegrationService.isRunning(for: targetConversationId))",
+                "promptLen": "\(prompt.count)",
+            ]
+        )
         // #endregion
 
         executeSendMessageTurn(

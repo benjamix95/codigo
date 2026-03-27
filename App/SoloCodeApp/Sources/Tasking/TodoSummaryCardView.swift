@@ -8,10 +8,22 @@ struct TodoSummaryCardView: View {
     var pendingLabel: String = "To-dos"
 
     private var displayedItems: [TodoItem] {
-        if let maxItems {
-            return Array(items.prefix(maxItems))
+        let sorted = items.sorted { lhs, rhs in
+            if lhs.status.rank != rhs.status.rank {
+                return lhs.status.rank < rhs.status.rank
+            }
+            if lhs.isPlanCanonical != rhs.isPlanCanonical {
+                return lhs.isPlanCanonical && !rhs.isPlanCanonical
+            }
+            if lhs.planOrder != rhs.planOrder {
+                return (lhs.planOrder ?? .max) < (rhs.planOrder ?? .max)
+            }
+            return lhs.createdAt < rhs.createdAt
         }
-        return items
+        if let maxItems {
+            return Array(sorted.prefix(maxItems))
+        }
+        return sorted
     }
 
     var body: some View {

@@ -77,6 +77,42 @@ final class GitServiceTests: XCTestCase {
         XCTAssertLessThan(worktreeAdded, headAdded)
     }
 
+    func testChangedFilesIncludesBatchedStatsForStagedUnstagedAndUntrackedFiles() throws {
+        let repo = try XCTUnwrap(repoURL)
+        let root = try git.resolveGitRoot(from: repo.path)
+
+        let unstagedURL = repo.appendingPathComponent("a.txt")
+        try "hello\nupdated\n".write(to: unstagedURL, atomically: true, encoding: .utf8)
+
+        let stagedURL = repo.appendingPathComponent("staged.txt")
+        try "staged line\n".write(to: stagedURL, atomically: true, encoding: .utf8)
+        try runGit(["add", "staged.txt"], cwd: repo.path)
+
+        let untrackedURL = repo.appendingPathComponent("untracked.txt")
+        try "one\ntwo\n".write(to: untrackedURL, atomically: true, encoding: .utf8)
+
+        let changedFiles = try git.changedFiles(gitRoot: root)
+        let byPath = Dictionary(uniqueKeysWithValues: changedFiles.map { ($0.path, $0) })
+
+        let unstaged = try XCTUnwrap(byPath["a.txt"])
+        XCTAssertEqual(unstaged.status, "M")
+        XCTAssertFalse(unstaged.isStaged)
+        XCTAssertEqual(unstaged.added, 1)
+        XCTAssertEqual(unstaged.removed, 0)
+
+        let staged = try XCTUnwrap(byPath["staged.txt"])
+        XCTAssertEqual(staged.status, "A")
+        XCTAssertTrue(staged.isStaged)
+        XCTAssertEqual(staged.added, 1)
+        XCTAssertEqual(staged.removed, 0)
+
+        let untracked = try XCTUnwrap(byPath["untracked.txt"])
+        XCTAssertEqual(untracked.status, "??")
+        XCTAssertFalse(untracked.isStaged)
+        XCTAssertEqual(untracked.added, 2)
+        XCTAssertEqual(untracked.removed, 0)
+    }
+
     func testCreateAndRemoveWorktreeLifecycle() throws {
         let repo = try XCTUnwrap(repoURL)
         let root = try git.resolveGitRoot(from: repo.path)

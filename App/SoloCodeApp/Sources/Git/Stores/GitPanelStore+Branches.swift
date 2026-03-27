@@ -14,7 +14,7 @@ extension GitPanelStore {
                 try gitService.checkoutBranch(name: name, gitRoot: gitRoot)
                 await MainActor.run {
                     successMessage = "Branch: \(name)"
-                    refresh(workingDirectory: gitRoot)
+                    refresh(workingDirectory: gitRoot, force: true)
                     isBusy = false
                 }
             } catch {
@@ -40,7 +40,7 @@ extension GitPanelStore {
                     successMessage = "Branch created: \(name)"
                     showCreateBranch = false
                     newBranchName = ""
-                    refresh(workingDirectory: gitRoot)
+                    refresh(workingDirectory: gitRoot, force: true)
                     isBusy = false
                 }
             } catch {
@@ -64,7 +64,7 @@ extension GitPanelStore {
                     successMessage = "Branch deleted: \(name)"
                     showDeleteBranchConfirm = false
                     branchToDelete = nil
-                    refresh(workingDirectory: gitRoot)
+                    refresh(workingDirectory: gitRoot, force: true)
                     isBusy = false
                 }
             } catch {
@@ -83,7 +83,7 @@ extension GitPanelStore {
                 try gitService.renameBranch(oldName: oldName, newName: newName, gitRoot: gitRoot)
                 await MainActor.run {
                     successMessage = "Branch renamed: \(oldName) → \(newName)"
-                    refresh(workingDirectory: gitRoot)
+                    refresh(workingDirectory: gitRoot, force: true)
                     isBusy = false
                 }
             } catch {
@@ -102,7 +102,7 @@ extension GitPanelStore {
                 try gitService.checkoutRemoteBranch(name: name, gitRoot: gitRoot)
                 await MainActor.run {
                     successMessage = "Checked out: \(name)"
-                    refresh(workingDirectory: gitRoot)
+                    refresh(workingDirectory: gitRoot, force: true)
                     isBusy = false
                 }
             } catch {

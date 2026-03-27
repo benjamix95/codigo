@@ -5,7 +5,9 @@ import Foundation
 enum AgentDebugSessionNDJSONLog {
     private static let queue = DispatchQueue(label: "solo.agent.debug.ndjson")
     private static var logFileURL: URL?
-    private static var sessionId = UUID().uuidString
+    private static let cursorDebugSessionId = "2fa5b8"
+    private static let cursorDebugRunId = "pre-fix"
+    private static var sessionId = cursorDebugSessionId
     private static var throttleLast: [String: CFAbsoluteTime] = [:]
     private static let throttleLock = NSLock()
 
@@ -25,7 +27,7 @@ enum AgentDebugSessionNDJSONLog {
                 return
             }
             let fingerprint = sha256Hex(sorted.joined(separator: "\u{1e}"))
-            sessionId = UUID().uuidString
+            sessionId = cursorDebugSessionId
             let dir = base
                 .appendingPathComponent("SoloCode", isDirectory: true)
                 .appendingPathComponent("AgentDebugNDJSON", isDirectory: true)
@@ -76,9 +78,9 @@ enum AgentDebugSessionNDJSONLog {
         append(hypothesisId: hypothesisId, location: location, message: message, data: data)
     }
 
-    /// Copia mirror nel repo (sessione Cursor debug `fba6fd`) oltre ad Application Support.
+    /// Copia mirror nel repo per la sessione Cursor debug corrente.
     private static let cursorWorkspaceMirrorPath =
-        "/Users/benjaminstoica/SoloCode/.cursor/debug-fba6fd.log"
+        "/Users/benjaminstoica/SoloCode/.cursor/debug-2fa5b8.log"
 
     static func append(
         hypothesisId: String,
@@ -89,12 +91,15 @@ enum AgentDebugSessionNDJSONLog {
         queue.async {
             let primaryURL = logFileURL ?? fallbackLogURL()
             let sid = sessionId
+            let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
             let payload: [String: Any] = [
+                "id": "log_\(timestamp)_\(UUID().uuidString)",
                 "sessionId": sid,
+                "runId": cursorDebugRunId,
                 "hypothesisId": hypothesisId,
                 "location": location,
                 "message": message,
-                "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+                "timestamp": timestamp,
                 "data": data,
             ]
             guard let json = try? JSONSerialization.data(withJSONObject: payload, options: []),

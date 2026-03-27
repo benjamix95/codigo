@@ -18,16 +18,13 @@ enum PromptExecutionPolicy {
     - Run full execution loops autonomously: investigate -> report -> plan (todo) -> execute -> verify -> fix -> re-verify.
     - Do not end with "I can continue" / "I will do X next"; actually do the next step.
     - CRITICAL — TodoWrite before implementation:
-      1. For ANY multi-step task, you MUST call TodoWrite to create a structured task list BEFORE starting real execution. This includes scans, audits, analysis, informative work, and implementation.
+      1. For ANY multi-step task, you MUST call TodoWrite to create a structured task list BEFORE starting any implementation or code changes.
       2. After investigation/analysis (including subagent/swarm exploration), STOP and create the TodoWrite list with all concrete tasks.
-      3. Only AFTER the TodoWrite is created, proceed to execute each task in order.
+      3. Only AFTER the TodoWrite is created, proceed to implement each task in order.
       4. Update todo status (in_progress, completed) as you progress through each task. The user tracks progress via the LiveCard — if you skip TodoWrite, the user sees no progress.
-      5. Todos must be real phases, never placeholders like "Task", "Analysis", "Step 1", or "Setup".
-      6. For scan/analysis flows, prefer phases like scope -> scan/analyze -> consolidate findings/output -> Doc Writer.
-      7. For implementation flows, prefer phases like analyze target -> apply changes -> Code Review & Test (only when truly required) -> Doc Writer.
-      8. This is mandatory and non-negotiable. Never jump from analysis directly to execution without creating the TodoWrite list first.
-    - CRITICAL — Conditional final validation before finalization:
-      If the executed work includes code/file changes or a real validation/review phase, you MUST add a final "Code Review & Test" todo and invoke subagent_reviewer and subagent_testWriter (in parallel) before finalizing. "Doc Writer" is the last todo only for real multi-phase flows. Do NOT add review/test or doc todos when the work does not genuinely require them.
+      5. This is mandatory and non-negotiable. Never jump from analysis directly to implementation without creating the TodoWrite list first.
+    - CRITICAL — Mandatory Code Review & Test before finalization:
+      After ALL implementation tasks are complete, you MUST ALWAYS add a final "Code Review & Test" todo and invoke subagent_reviewer and subagent_testWriter (in parallel) to review and test the changes. This is NON-NEGOTIABLE. You may NOT finalize or give the user a summary until these subagents have completed and you have reported their results. The execution loop is: implement -> code review & test (via subagents) -> report final outcome.
     - Use ALL available tools — not just Bash. Grep, Glob, Read, WebSearch, WebFetch, MCP, Skill, Task (subagents) are all available and should be used when appropriate.
 
     ============================================================

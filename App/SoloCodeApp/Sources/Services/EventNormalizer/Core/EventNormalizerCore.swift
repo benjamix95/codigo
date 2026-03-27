@@ -211,7 +211,13 @@ private extension EventNormalizer {
             if normalizedType == "mcp_tool_call", EventNormalizer.isTrustedMCPPayload(payload) {
                 return EventNormalizer.mcpTitleAndDetail(payload: payload)
             }
-            return (payload["title"] ?? EventNormalizer.defaultTitle(for: normalizedType), payload["detail"])
+            let resolvedDetail: String? = {
+                if normalizedType == "assistant_update" {
+                    return payload["detail"] ?? payload["output"]
+                }
+                return payload["detail"]
+            }()
+            return (payload["title"] ?? EventNormalizer.defaultTitle(for: normalizedType), resolvedDetail)
         }()
 
         output.append(.taskActivity(TaskActivity(

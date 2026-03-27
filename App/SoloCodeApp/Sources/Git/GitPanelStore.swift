@@ -119,10 +119,14 @@ final class GitPanelStore: ObservableObject {
     let commitMessageGenerator = GitCommitMessageGenerator()
     let refreshQueue = DispatchQueue(label: "com.solocode.git-panel.refresh", qos: .utility)
     var pendingRefreshWorkItem: DispatchWorkItem?
+    var pendingDetailRefreshWorkItem: DispatchWorkItem?
     var postCommitBugHunterObserver: ((GitCommitResult, String) -> Void)?
 
     // Monotonic counter used to discard stale refresh results.
     var refreshGeneration: Int = 0
+    var lastRefreshRequestKey: String?
+    var lastRefreshIncludedPanelDetails = false
+    var lastRefreshScheduledAt: Date = .distantPast
 
     // MARK: - Derived State
     var stagedFiles: [GitChangedFile] { changedFiles.filter(\.isStaged) }

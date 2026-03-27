@@ -21,11 +21,43 @@ extension ChatPanelView {
         let now = Date()
         let sinceLastScroll = now.timeIntervalSince(scrollState.lastAutoScrollAt)
         if scrollState.lastAutoScrollTarget == target, sinceLastScroll < Self.autoScrollMinInterval {
+            // #region agent log
+            RuntimeEvidenceDebugLog.appendThrottled(
+                gateKey: "H32-scroll-skip-\(conversationId?.uuidString ?? "nil")",
+                minInterval: 0.08,
+                hypothesisId: "H32",
+                location: "scheduleAutoScroll",
+                message: "auto_scroll_skipped_by_throttle",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "delayMs": "\(Int(delay * 1000))",
+                    "animated": "\(animated)",
+                    "sinceLastScrollMs": "\(Int(sinceLastScroll * 1000))",
+                    "target": String(describing: target),
+                ]
+            )
+            // #endregion
             return
         }
         scrollState.lastAutoScrollTarget = target
         scrollState.lastAutoScrollAt = now
         scrollState.autoScrollWorkItem?.cancel()
+        // #region agent log
+        RuntimeEvidenceDebugLog.appendThrottled(
+            gateKey: "H32-scroll-schedule-\(conversationId?.uuidString ?? "nil")",
+            minInterval: 0.08,
+            hypothesisId: "H32",
+            location: "scheduleAutoScroll",
+            message: "auto_scroll_scheduled",
+            data: [
+                "conversationId": conversationId?.uuidString ?? "nil",
+                "delayMs": "\(Int(delay * 1000))",
+                "animated": "\(animated)",
+                "sinceLastScrollMs": "\(Int(sinceLastScroll * 1000))",
+                "target": String(describing: target),
+            ]
+        )
+        // #endregion
         let work = DispatchWorkItem { [showsSwarmViewOnly, chatStore, conversationId, chatScrollTopAnchorId, chatScrollBottomAnchorId] in
             guard NSApplication.shared.isActive else { return }
             guard !showsSwarmViewOnly else { return }
@@ -44,6 +76,22 @@ extension ChatPanelView {
             // Animated scrollTo blocks the main thread layout pass and
             // causes the UI to disappear (black screen) when multiple
             // scroll operations overlap.
+            // #region agent log
+            RuntimeEvidenceDebugLog.appendThrottled(
+                gateKey: "H32-scroll-execute-\(conversationId?.uuidString ?? "nil")",
+                minInterval: 0.08,
+                hypothesisId: "H32",
+                location: "scheduleAutoScroll",
+                message: "auto_scroll_executed",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "delayMs": "\(Int(delay * 1000))",
+                    "animated": "\(animated)",
+                    "target": String(describing: target),
+                    "availableMessageCount": "\(availableMessageIDs.count)",
+                ]
+            )
+            // #endregion
             proxy.scrollTo(target, anchor: .bottom)
         }
         scrollState.autoScrollWorkItem = work
@@ -51,7 +99,7 @@ extension ChatPanelView {
     }
 
     internal func interruptTask() {
-        interruptTask(for: conversationId)
+        interruptTask(for: conversationId, source: "generic")
     }
 
     @MainActor
@@ -63,6 +111,12 @@ extension ChatPanelView {
             // #region agent log
             AgentDebugSessionNDJSONLog.append(
                 hypothesisId: "SEND",
+                location: "launchRunTask",
+                message: "cancelling_previous_task_same_conversation",
+                data: ["conversationId": conversationId.uuidString]
+            )
+            RuntimeEvidenceDebugLog.append(
+                hypothesisId: "H1",
                 location: "launchRunTask",
                 message: "cancelling_previous_task_same_conversation",
                 data: ["conversationId": conversationId.uuidString]
@@ -123,6 +177,21 @@ extension ChatPanelView {
             )
         )
             .map { SubagentCardSnapshot(from: $0) }
+        // #region agent log
+        RuntimeEvidenceDebugLog.append(
+            hypothesisId: "H8",
+            location: "snapshotSubagentCardsAndEndTask",
+            message: "task_finalization_requested",
+            data: [
+                "conversationId": targetConversationId?.uuidString ?? "nil",
+                "outcome": outcome.map { "\($0)" } ?? "nil",
+                "shouldEndTask": "\(shouldEndTask)",
+                "cardsCount": "\(cards.count)",
+                "latestAssistantStreaming": "\(chatStore.conversation(for: targetConversationId)?.messages.last(where: { $0.role == .assistant })?.isStreaming ?? false)",
+                "latestAssistantLen": "\(chatStore.conversation(for: targetConversationId)?.messages.last(where: { $0.role == .assistant })?.content.count ?? -1)",
+            ]
+        )
+        // #endregion
         if !cards.isEmpty {
             chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
         }

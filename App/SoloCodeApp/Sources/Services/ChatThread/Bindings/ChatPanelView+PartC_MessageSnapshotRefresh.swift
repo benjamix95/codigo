@@ -7,6 +7,7 @@ extension ChatPanelView {
     /// Refresh conversation and loading snapshot from ObservableObjects.
     /// Called on every streamContentVersion change and messages.count change.
     internal func refreshMessagesSnapshot() {
+        let refreshStartedAt = Date()
         let fresh = chatStore.conversation(for: conversationId)
         let now = Date()
 
@@ -25,6 +26,21 @@ extension ChatPanelView {
                     "streamContentVersion": "\(streaming.streamContentVersion)",
                 ]
             )
+            // #region agent log
+            RuntimeEvidenceDebugLog.append(
+                hypothesisId: "H3",
+                location: "refreshMessagesSnapshot",
+                message: "snapshot_loading_edge",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "from": "\(snapshotIsLoading)",
+                    "to": "\(freshLoading)",
+                    "streamContentVersion": "\(streaming.streamContentVersion)",
+                    "snapshotMessageCount": "\(messagesConversationSnapshot?.messages.count ?? -1)",
+                    "storeMessageCount": "\(fresh?.messages.count ?? -1)",
+                ]
+            )
+            // #endregion
             snapshotIsLoading = freshLoading
         }
 
@@ -103,6 +119,21 @@ extension ChatPanelView {
                             } ?? "nil",
                         ]
                     )
+                    // #region agent log
+                    RuntimeEvidenceDebugLog.appendThrottled(
+                        gateKey: "H3-preserve-empty-\(fresh.id.uuidString)",
+                        minInterval: 0.3,
+                        hypothesisId: "H3",
+                        location: "refreshMessagesSnapshot",
+                        message: "preserved_transient_empty_store",
+                        data: [
+                            "conversationId": fresh.id.uuidString,
+                            "previousCount": "\(messagesConversationSnapshot?.messages.count ?? -1)",
+                            "freshCount": "\(fresh.messages.count)",
+                            "chromeBusy": "\(chromeBusy)",
+                        ]
+                    )
+                    // #endregion
                 } else {
                     messagesConversationSnapshot = fresh
                     AgentDebugSessionNDJSONLog.appendThrottled(
@@ -185,6 +216,30 @@ extension ChatPanelView {
         let storeCount = chatStore.conversation(for: conversationId)?.messages.count ?? -1
         let snapCount = messagesConversationSnapshot?.messages.count ?? -1
         let snapNil = messagesConversationSnapshot == nil
+
+        // Safety net: se lo snapshot è allineato ma ha MENO messaggi dello store,
+        // è un residuo di lettura willSet-stale. Correzione immediata per evitare
+        // che il layout della ScrollView si blocchi su contenuto incompleto.
+        if let cid = conversationId,
+           let snap = messagesConversationSnapshot,
+           snap.id == cid,
+           storeCount > snapCount,
+           let storeConv = chatStore.conversation(for: cid) {
+            messagesConversationSnapshot = storeConv
+            AgentDebugSessionNDJSONLog.appendThrottled(
+                gateKey: "H20-willset-stale-correction",
+                minInterval: 0.06,
+                hypothesisId: "H20",
+                location: "refreshMessagesSnapshot",
+                message: "corrected_stale_willset_snapshot",
+                data: [
+                    "conversationId": cid.uuidString,
+                    "snapCountBefore": "\(snapCount)",
+                    "storeCount": "\(storeCount)",
+                ]
+            )
+        }
+
         if snapNil, storeCount > 0 {
             AgentDebugSessionNDJSONLog.appendThrottled(
                 gateKey: "H1-snapshot-nil",
@@ -245,5 +300,41 @@ extension ChatPanelView {
                 "snapMsgCount": "\(messagesConversationSnapshot?.messages.count ?? -1)",
             ]
         )
+        // #region agent log
+        RuntimeEvidenceDebugLog.appendThrottled(
+            gateKey: "H30-refresh-\(conversationId?.uuidString ?? "nil")",
+            minInterval: 0.15,
+            hypothesisId: "H30",
+            location: "refreshMessagesSnapshot",
+            message: "messages_snapshot_refresh_timing",
+            data: [
+                "conversationId": conversationId?.uuidString ?? "nil",
+                "streamContentVersion": "\(streaming.streamContentVersion)",
+                "freshLoading": "\(freshLoading)",
+                "needsSnapshotUpdate": "\(needsSnapshotUpdate)",
+                "snapshotCount": "\(snapshotCount)",
+                "freshCount": "\(freshCount)",
+                "snapshotLastContent": "\(snapshotLastContent)",
+                "freshLastContent": "\(freshLastContent)",
+                "durationMs": "\(Int(Date().timeIntervalSince(refreshStartedAt) * 1000))",
+            ]
+        )
+        // #endregion
+        if let lastApplyAt = streaming.lastMainChatStreamApplyAt {
+            RuntimeEvidenceDebugLog.appendThrottled(
+                gateKey: "H37-refresh-after-stream-apply-\(conversationId?.uuidString ?? "nil")",
+                minInterval: 0.08,
+                hypothesisId: "H37",
+                location: "refreshMessagesSnapshot",
+                message: "snapshot_refresh_after_stream_apply",
+                data: [
+                    "conversationId": conversationId?.uuidString ?? "nil",
+                    "ageSinceStreamApplyMs": "\(Int(Date().timeIntervalSince(lastApplyAt) * 1000))",
+                    "lastAppliedLen": "\(streaming.lastMainChatStreamApplyLen)",
+                    "snapshotLastContent": "\(messagesConversationSnapshot?.messages.last?.content.count ?? -1)",
+                    "freshLastContent": "\(chatStore.conversation(for: conversationId)?.messages.last?.content.count ?? -1)",
+                ]
+            )
+        }
     }
 }

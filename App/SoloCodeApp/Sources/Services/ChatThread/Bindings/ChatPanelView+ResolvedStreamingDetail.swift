@@ -35,9 +35,9 @@ extension ChatPanelView {
               let message = activeAssistant,
               message.isStreaming,
               message.role == .assistant else { return nil }
-        if isReasoningSuppressedForProvider(resolvedTurnProviderId(for: convId)) {
-            return nil
-        }
+        let suppressReasoning = isReasoningSuppressedForProvider(
+            resolvedTurnProviderId(for: convId)
+        )
 
         let status = TaskActivityStore.streamingStatusText(
             isPaused: executionController.runState == .paused,
@@ -45,6 +45,9 @@ extension ChatPanelView {
         )
 
         let base: String? = {
+            // `assistant_update` is operational/live response progress, not reasoning.
+            // Even when provider reasoning is suppressed (e.g. codex-cli), the footer
+            // should still reflect the latest assistant progress detail.
             if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scopedActivities),
                let line = ChatStore.sanitizedStreamingDetailLine(assistantUpdate) {
                 return line
@@ -55,17 +58,20 @@ extension ChatPanelView {
             ), let line = ChatStore.sanitizedStreamingDetailLine(fromActivities) {
                 return line
             }
-            if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: message.content),
+            if !suppressReasoning,
+               let fromContent = ChatStore.extractLastOperationalThinkingLine(from: message.content),
                let line = ChatStore.sanitizedStreamingDetailLine(fromContent) {
                 return line
             }
-            if let codexLine = streaming.codexLastReasoningLine,
+            if !suppressReasoning,
+               let codexLine = streaming.codexLastReasoningLine,
                !codexLine.isEmpty,
                convId == conversationId,
                let line = ChatStore.sanitizedStreamingDetailLine(codexLine) {
                 return line
             }
-            if convId == streaming.streamingReasoningConversationId,
+            if !suppressReasoning,
+               convId == streaming.streamingReasoningConversationId,
                let reasoning = streaming.streamingReasoningText,
                !reasoning.isEmpty {
                 let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)

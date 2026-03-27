@@ -14,6 +14,8 @@ struct ChatStreamingState {
 
     var pendingStreamContent: String?
     var pendingStreamConversationId: UUID?
+    var pendingStreamQueuedAt: Date?
+    var pendingStreamOverwriteCount: Int = 0
     var streamThrottleTask: Task<Void, Never>?
 
     // MARK: - Plan Stream Throttle
@@ -25,6 +27,8 @@ struct ChatStreamingState {
     // MARK: - Content Version
 
     var streamContentVersion: Int = 0
+    var lastMainChatStreamApplyAt: Date?
+    var lastMainChatStreamApplyLen: Int = 0
 
     // MARK: - Reasoning
 

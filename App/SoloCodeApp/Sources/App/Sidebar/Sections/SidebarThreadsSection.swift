@@ -3,10 +3,9 @@ import CoderEngine
 
 extension SidebarView {
     var threadsSection: some View {
-        let threads = visibleThreads
-        let pinnedThreads = threads.filter(\.isPinned)
-        let regularThreads = threads.filter { !$0.isPinned }
-        let dateGroups = SidebarDateGrouper.group(regularThreads)
+        let threads = threadsSnapshot.threads
+        let pinnedThreads = threadsSnapshot.pinnedThreads
+        let dateBuckets = threadsSnapshot.dateBuckets
         let now = Date()
 
         return VStack(alignment: .leading, spacing: 0) {
@@ -24,9 +23,9 @@ extension SidebarView {
                 }
 
                 // Date-grouped threads
-                ForEach(dateGroups, id: \.group) { dateGroup in
-                    dateSeparator(dateGroup.group.rawValue)
-                    ForEach(dateGroup.threads) { conv in
+                ForEach(dateBuckets) { dateBucket in
+                    dateSeparator(dateBucket.group.rawValue)
+                    ForEach(dateBucket.threads) { conv in
                         threadRow(conv, now: now)
                     }
                 }
@@ -149,12 +148,14 @@ extension SidebarView {
 
     private var aiSearchPrompt: some View {
         Group {
-            let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            if q.count >= 2 {
-                let hits = chatStore.searchThreads(query: q, includeArchived: true, limit: 12)
-                if !hits.isEmpty {
+            let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hits = threadsSnapshot.aiSearchHits
+            if normalizedQuery.count >= 2, !hits.isEmpty {
                     Button {
-                        let prompt = chatStore.buildThreadSearchAIPrompt(query: q, hits: hits)
+                        let prompt = chatStore.buildThreadSearchAIPrompt(
+                            query: normalizedQuery,
+                            hits: hits
+                        )
                         NotificationCenter.default.post(
                             name: Notification.Name("CoderIDE.ThreadSearchAskAI"),
                             object: nil,
@@ -179,7 +180,6 @@ extension SidebarView {
                     }
                     .buttonStyle(.plain)
                     .padding(.top, DesignSystem.Spacing.xs)
-                }
             }
         }
     }

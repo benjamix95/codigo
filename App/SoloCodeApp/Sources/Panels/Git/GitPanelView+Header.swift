@@ -48,7 +48,7 @@ extension GitPanelView {
             }
             Spacer()
             Button {
-                store.refresh(workingDirectory: effectiveContext.primaryPath)
+                store.refresh(workingDirectory: effectiveContext.primaryPath, force: true)
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 11, weight: .semibold))

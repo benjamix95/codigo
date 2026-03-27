@@ -1,49 +1,10 @@
 import Foundation
 import CoderEngine
 
-private enum PolicyBundleLookupCache {
-    static let ttl: TimeInterval = 2
-    static let lock = NSLock()
-    static nonisolated(unsafe) var byKey: [String: (bundle: InstructionPolicyBundle, createdAt: Date)] = [:]
-
-    static func key(for hints: [String]) -> String {
-        hints
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .sorted()
-            .joined(separator: "|")
-    }
-
-    static func lookup(for hints: [String]) -> InstructionPolicyBundle {
-        let cacheKey = key(for: hints)
-        let now = Date()
-
-        lock.lock()
-        if let cached = byKey[cacheKey], now.timeIntervalSince(cached.createdAt) <= ttl {
-            lock.unlock()
-            return cached.bundle
-        }
-        lock.unlock()
-
-        let bundle = InstructionPolicyBundle.load(workspacePaths: hints)
-
-        lock.lock()
-        byKey[cacheKey] = (bundle, now)
-        if byKey.count > 64 {
-            let staleCutoff = now.addingTimeInterval(-ttl)
-            byKey = byKey.filter { _, entry in
-                entry.createdAt >= staleCutoff
-            }
-        }
-        lock.unlock()
-        return bundle
-    }
-}
-
 extension ChatPanelView {
     internal func currentInstructionPolicyBundle() -> InstructionPolicyBundle {
         let hints = traceWorkspaceHints(for: effectiveContext)
-        return PolicyBundleLookupCache.lookup(for: hints)
+        return InstructionPolicyBundle.load(workspacePaths: hints)
     }
 
     internal func expectedPolicyAckHash() -> String? {
@@ -77,6 +38,23 @@ extension ChatPanelView {
             let hasRunningOperations = previousEvents.contains { $0.isRunning }
             let rolloverOutcome: ToolTraceTurnOutcome = hasRunningOperations ? .aborted : .success
             let previousPolicySatisfied = toolRuntime.policyAckStateByMessage[previous.assistantMessageId]?.isSatisfied == true
+            let previousTodoState = toolRuntime.toolStartRequirementsStateByMessage[previous.assistantMessageId]
+            // #region agent log
+            RuntimeEvidenceDebugLog.append(
+                hypothesisId: "H45",
+                location: "startToolTraceTurn",
+                message: "tool_trace_turn_rollover",
+                data: [
+                    "conversationId": conversationId.uuidString,
+                    "previousAssistantMessageId": previous.assistantMessageId.uuidString,
+                    "newAssistantMessageId": assistantMessageId.uuidString,
+                    "previousPolicySatisfied": "\(previousPolicySatisfied)",
+                    "previousDidSeeTodoWrite": "\(previousTodoState?.didSeeTodoWrite == true)",
+                    "previousTodoViolationEmitted": "\(previousTodoState?.violationEmitted == true)",
+                    "hasRunningOperations": "\(hasRunningOperations)",
+                ]
+            )
+            // #endregion
             finalizeAutoTodoIfNeeded(
                 messageId: previous.assistantMessageId,
                 outcome: rolloverOutcome,
@@ -122,11 +100,31 @@ extension ChatPanelView {
             assistantMessageId: assistantMessageId,
             providerId: providerId
         )
+        let hasExistingScopedTodos = !todoStore.displayTodosForChat(for: conversationId).isEmpty
+        let hasExistingPlanBoard = !(chatStore.planBoard(for: conversationId)?.steps.isEmpty ?? true)
+        let seededTodoRequirementState = ToolStartRequirementsState(
+            didSeeTodoWrite: hasExistingScopedTodos || hasExistingPlanBoard,
+            violationEmitted: false
+        )
         toolRuntime.activeToolTraceTurnsByConversation[conversationId] = turn
         toolRuntime.toolTraceNextSequenceByMessage[assistantMessageId] = 1
         toolRuntime.toolTraceOperationalSeenByMessage[assistantMessageId] = false
         toolRuntime.toolTraceOperationalCountByMessage[assistantMessageId] = 0
-        toolRuntime.toolStartRequirementsStateByMessage[assistantMessageId] = ToolStartRequirementsState()
+        toolRuntime.toolStartRequirementsStateByMessage[assistantMessageId] = seededTodoRequirementState
+        // #region agent log
+        RuntimeEvidenceDebugLog.append(
+            hypothesisId: "H48",
+            location: "startToolTraceTurn",
+            message: "tool_start_requirement_seeded",
+            data: [
+                "conversationId": conversationId.uuidString,
+                "assistantMessageId": assistantMessageId.uuidString,
+                "hasExistingScopedTodos": "\(hasExistingScopedTodos)",
+                "hasExistingPlanBoard": "\(hasExistingPlanBoard)",
+                "didSeeTodoWriteSeeded": "\(seededTodoRequirementState.didSeeTodoWrite)",
+            ]
+        )
+        // #endregion
         conversationRuntime.autoTodoRuntimeStateByMessage.removeValue(forKey: assistantMessageId.uuidString.lowercased())
         conversationRuntime.didReceiveExplicitTodoByMessage.remove(assistantMessageId)
         if isSwarmPolicyAckExemptProvider(providerId) {

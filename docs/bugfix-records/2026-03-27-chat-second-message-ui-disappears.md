@@ -17,6 +17,7 @@
   - inoltre uno store vuoto transiente subito dopo la fine del task poteva sostituire uno snapshot non vuoto dello stesso thread;
   - (fix 2) durante pipeline streaming, `chatStore.objectWillChange` è throttlato a 150ms ma `pipelineIntegrationService` pubblica ogni ~32ms — mancava un hook su `pipelineIntegrationService.objectWillChange` per lo snapshot refresh;
   - (fix 2) `shouldPreserveSnapshotAgainstTransientEmptyStore` proteggeva solo contro `freshMessageCount == 0`, non contro riduzione parziale dei messaggi (es. Rust ritorna 2 messaggi quando lo snapshot ne ha 4).
+  - (fix 3) `RustMainChatStoreAdapter.applyScopedForPipeline(...)` aggiornava l’elemento `store.conversations[existingIdx]` in-place: così `ChatStore.conversationsDidChange()` non veniva sempre riattivato come riassegnazione completa dell’array e SwiftUI poteva restare senza invalidazione visibile fino a un resize o a un publish successivo.
 - Scope consentito:
   - `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/ChatPanelView+PartC_MessageHeader.swift`
   - `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/ChatPanelView+PartC_MessageSnapshotRefresh.swift`
@@ -37,9 +38,11 @@
 - Strategia di fix minimo:
   - riallineare lo snapshot su `chatStore.objectWillChange`;
   - introdurre una breve grace window post-busy per ignorare empty store transienti dello stesso thread;
-  - forzare flush notifiche conversazione alla chiusura task.
+  - forzare flush notifiche conversazione alla chiusura task;
+  - garantire che gli update scoped del Rust bridge riassegnino sempre l’intero array `conversations`, così la chat emette invalidazione UI anche quando il numero messaggi resta invariato.
 - Verifica post-fix:
   - suite test mirata su `SoloCodeAppTests`
   - review dei file toccati
+  - test di regressione sul publish di `applyScopedForPipeline(...)` con stesso message count ma contenuto aggiornato
 - Commit previsto:
   - `fix(chat): prevent chat timeline disappearing after second message`

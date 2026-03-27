@@ -17,6 +17,31 @@ extension ChatPanelView {
                 checkProviderAuth()
             }
             .onChangeCompat(of: selectedConversationId) { oldId, newId in
+                // #region agent log
+                AgentDebugSessionNDJSONLog.append(
+                    hypothesisId: "H17",
+                    location: "ChatPanelView+LifecycleModifiers",
+                    message: "selected_conversation_changed",
+                    data: [
+                        "oldId": oldId?.uuidString ?? "nil",
+                        "newId": newId?.uuidString ?? "nil",
+                        "oldExists": "\(chatStore.conversation(for: oldId) != nil)",
+                        "newExists": "\(chatStore.conversation(for: newId) != nil)",
+                        "conversationTotal": "\(chatStore.conversations.count)",
+                    ]
+                )
+                if newId == nil, !chatStore.conversations.isEmpty {
+                    AgentDebugSessionNDJSONLog.append(
+                        hypothesisId: "H17",
+                        location: "ChatPanelView+LifecycleModifiers",
+                        message: "selected_conversation_became_nil_while_conversations_exist",
+                        data: [
+                            "oldId": oldId?.uuidString ?? "nil",
+                            "conversationTotal": "\(chatStore.conversations.count)",
+                        ]
+                    )
+                }
+                // #endregion
                 draftSaveTask?.cancel()
                 draftSaveTask = nil
                 persistThreadUIState(for: oldId)
@@ -73,7 +98,6 @@ extension ChatPanelView {
                 syncCodeReviewRuntimeConfig()
                 syncPlanProvider()
                 checkProviderAuth()
-                gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
                 restorePlanStateIfNeeded(for: selectedConversationId)
                 restoreThreadUIState(for: selectedConversationId)
                 wireTodoPlanBidirectionalSync()
@@ -215,9 +239,6 @@ extension ChatPanelView {
                     uiSettings.gitPanelWidthStorage = SidePanelLayoutMetrics.gitMax
                 }
             }
-            .onChange(of: effectiveContext.primaryPath) { newPath in
-                gitPanelStore.refresh(workingDirectory: newPath)
-            }
             .onChangeCompat(of: effectiveContext.agentDebugLogConfigurationKey) { _, _ in
                 AgentDebugSessionNDJSONLog.configure(workspaceRoots: effectiveContext.folderPaths)
             }
@@ -225,7 +246,6 @@ extension ChatPanelView {
                 AgentDebugSessionNDJSONLog.configure(workspaceRoots: effectiveContext.folderPaths)
             }
             .onChange(of: selectedConversationId) { _ in
-                gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
                 DispatchQueue.main.async {
                     composerFrozenTimerState = nil
                     composerTaskStartDate = nil
@@ -278,7 +298,7 @@ extension ChatPanelView {
                     }
                     DispatchQueue.main.async {
                         hasJustCompletedTask = true
-                        gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                        gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath, force: true)
                         isFollowingLive = true
                         newEventsWhileDetached = 0
                         let startDate = composerTaskStartDate ?? Date()

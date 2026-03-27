@@ -10,6 +10,34 @@ private let codebaseIndexExcludedFilePatternsKey = "codebase_index_excluded_file
 
 @MainActor
 final class WorkspaceStore: ObservableObject {
+    private enum IndexLaunchMode {
+        case startupBootstrap
+        case interactive
+
+        var taskPriority: TaskPriority {
+            switch self {
+            case .startupBootstrap:
+                return .background
+            case .interactive:
+                return .userInitiated
+            }
+        }
+
+        var progressPollIntervalNs: UInt64 {
+            switch self {
+            case .startupBootstrap:
+                return 1_000_000_000
+            case .interactive:
+                return 300_000_000
+            }
+        }
+    }
+
+    private static let workspaceManifestQueue = DispatchQueue(
+        label: "com.solocode.workspace.manifest",
+        qos: .utility
+    )
+
     static var workspaceManifestDirectoryOverrideURL: URL?
     @Published var workspaces: [Workspace] = []
     @Published var activeWorkspaceId: UUID?
@@ -23,6 +51,8 @@ final class WorkspaceStore: ObservableObject {
     private(set) var indexingEpoch: UUID = UUID()
     private(set) var progressPollingTask: Task<Void, Never>?
     private(set) var indexingTask: Task<Void, Never>?
+    private var initialIndexBootstrapTask: Task<Void, Never>?
+    private var workspaceManifestSyncWorkItem: DispatchWorkItem?
     /// Evita provision CI ripetuti se le root non cambiano.
     private var lastLocalCIProvisionFingerprint: String?
 
@@ -78,10 +108,16 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func indexActiveWorkspace() {
+        performIndexActiveWorkspace(launchMode: .interactive)
+    }
+
+    private func performIndexActiveWorkspace(launchMode: IndexLaunchMode) {
+        initialIndexBootstrapTask?.cancel()
+        initialIndexBootstrapTask = nil
         let activeToken = resetIndexingInfrastructure()
         let paths = activeWorkspacePaths
 
-        scheduleLocalCIScaffold(for: paths)
+        scheduleLocalCIScaffold(for: paths, launchMode: launchMode)
 
         guard isAutomaticIndexingEnabled, !paths.isEmpty else {
             resetIndexBadgeToIdle()
@@ -114,10 +150,12 @@ final class WorkspaceStore: ObservableObject {
             indexingEnabled: true
         )
 
-        startProgressPolling(activeToken: activeToken)
+        startProgressPolling(
+            activeToken: activeToken,
+            intervalNs: launchMode.progressPollIntervalNs
+        )
 
-        // Priorità > .utility così l’indicizzazione non resta in fondo alla coda sotto carico CPU/UI.
-        indexingTask = Task(priority: .userInitiated) { [weak self] in
+        indexingTask = Task(priority: launchMode.taskPriority) { [weak self] in
             defer {
                 Task { @MainActor [weak self] in
                     guard self?.indexingEpoch == activeToken else { return }
@@ -163,7 +201,7 @@ final class WorkspaceStore: ObservableObject {
         applyIndexStatus(info)
     }
 
-    private func startProgressPolling(activeToken: UUID) {
+    private func startProgressPolling(activeToken: UUID, intervalNs: UInt64) {
         let index = codebaseIndex
         progressPollingTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -191,7 +229,7 @@ final class WorkspaceStore: ObservableObject {
                 }
                 guard shouldContinue else { break }
 
-                try? await Task.sleep(nanoseconds: 300_000_000)
+                try? await Task.sleep(nanoseconds: intervalNs)
             }
         }
     }
@@ -230,8 +268,8 @@ final class WorkspaceStore: ObservableObject {
         if normalizedPersistedPaths {
             save()
         }
-        syncWorkspaceManifestFiles()
-        indexActiveWorkspace()
+        scheduleWorkspaceManifestSync()
+        scheduleInitialIndexActiveWorkspace()
     }
 
     func setActive(id: UUID?) {
@@ -250,11 +288,11 @@ final class WorkspaceStore: ObservableObject {
         } else {
             UserDefaults.standard.removeObject(forKey: activeWorkspaceIdKey)
         }
-        syncWorkspaceManifestFiles()
+        scheduleWorkspaceManifestSync()
     }
 
     /// Genera `.github/workflows/solocode-auto-ci.yml` e `scripts/solocode-run-local-ci.sh` in base ai linguaggi rilevati.
-    private func scheduleLocalCIScaffold(for paths: [URL]) {
+    private func scheduleLocalCIScaffold(for paths: [URL], launchMode: IndexLaunchMode) {
         guard !paths.isEmpty else {
             lastLocalCIProvisionFingerprint = nil
             return
@@ -266,13 +304,47 @@ final class WorkspaceStore: ObservableObject {
         guard fingerprint != lastLocalCIProvisionFingerprint else { return }
         lastLocalCIProvisionFingerprint = fingerprint
         let roots = paths.map { $0.standardizedFileURL }
-        Task.detached(priority: .utility) {
+        let delayNs: UInt64 = launchMode == .startupBootstrap ? 4_000_000_000 : 0
+        Task.detached(priority: .background) {
+            if delayNs > 0 {
+                try? await Task.sleep(nanoseconds: delayNs)
+            }
             WorkspaceLocalCIProvisioner.provision(roots: roots)
         }
     }
 
-    private func syncWorkspaceManifestFiles() {
+    private func scheduleInitialIndexActiveWorkspace() {
+        initialIndexBootstrapTask?.cancel()
+        guard !activeWorkspacePaths.isEmpty else {
+            indexActiveWorkspace()
+            return
+        }
+
+        let expectedWorkspaceId = activeWorkspaceId
+        initialIndexBootstrapTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard !Task.isCancelled, let self else { return }
+            guard self.activeWorkspaceId == expectedWorkspaceId else { return }
+            self.initialIndexBootstrapTask = nil
+            self.performIndexActiveWorkspace(launchMode: .startupBootstrap)
+        }
+    }
+
+    private func scheduleWorkspaceManifestSync() {
         guard let directory = workspaceManifestDirectoryURL() else { return }
+        let workspacesSnapshot = workspaces
+        workspaceManifestSyncWorkItem?.cancel()
+        let workItem = DispatchWorkItem {
+            Self.syncWorkspaceManifestFiles(
+                workspaces: workspacesSnapshot,
+                directory: directory
+            )
+        }
+        workspaceManifestSyncWorkItem = workItem
+        Self.workspaceManifestQueue.async(execute: workItem)
+    }
+
+    private static func syncWorkspaceManifestFiles(workspaces: [Workspace], directory: URL) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let eligibleWorkspaces = workspaces.filter { !$0.folderPaths.isEmpty }
@@ -309,7 +381,7 @@ final class WorkspaceStore: ObservableObject {
             .appendingPathComponent("workspace", isDirectory: true)
     }
 
-    private func workspaceManifestFileName(for workspace: Workspace) -> String {
+    private static func workspaceManifestFileName(for workspace: Workspace) -> String {
         let sanitized = workspace.name
             .lowercased()
             .replacingOccurrences(of: #"[^a-z0-9._-]+"#, with: "-", options: .regularExpression)

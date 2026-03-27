@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import CoderIDE
 
@@ -162,6 +163,36 @@ final class ChatStoreTaskOwnershipTests: XCTestCase {
         XCTAssertEqual(deletionOutcome.autoCreatedReplacementId, replacement.id)
     }
 
+    func testFlushConversationChangeNotificationPublishesPendingStreamingMutationImmediately() throws {
+        let store = ChatStore()
+        let convId = try XCTUnwrap(store.conversations.first?.id)
+        store.beginTask(conversationId: convId)
+
+        var emissionCount = 0
+        let firstEmission = expectation(description: "first streaming mutation publishes")
+        let flushed = expectation(description: "flush publishes pending conversation mutation")
+        let cancellable = store.objectWillChange.sink {
+            emissionCount += 1
+            if emissionCount == 1 {
+                firstEmission.fulfill()
+            } else if emissionCount >= 2 {
+                flushed.fulfill()
+            }
+        }
+        defer { cancellable.cancel() }
+
+        try mutateConversation(in: store, conversationId: convId, assistantContent: "first")
+        wait(for: [firstEmission], timeout: 0.05)
+
+        try mutateConversation(in: store, conversationId: convId, assistantContent: "second")
+        XCTAssertEqual(emissionCount, 1)
+
+        store.flushConversationChangeNotification()
+
+        wait(for: [flushed], timeout: 0.05)
+        XCTAssertGreaterThanOrEqual(emissionCount, 2)
+    }
+
     private func makePlanBoard(updatedAt: Date) -> PlanBoard {
         PlanBoard(
             goal: "Goal",
@@ -179,6 +210,19 @@ final class ChatStoreTaskOwnershipTests: XCTestCase {
             updatedAt: updatedAt,
             walkthroughMarkdown: nil
         )
+    }
+
+    private func mutateConversation(
+        in store: ChatStore,
+        conversationId: UUID,
+        assistantContent: String
+    ) throws {
+        let index = try XCTUnwrap(store.conversations.firstIndex(where: { $0.id == conversationId }))
+        var conversation = store.conversations[index]
+        conversation.messages = [
+            ChatMessage(role: .assistant, content: assistantContent, isStreaming: true)
+        ]
+        store.conversations[index] = conversation
     }
 
     private func clearPersistedState() {

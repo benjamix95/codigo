@@ -203,6 +203,7 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
     ) -> MainChatProviderSessionConfigBridge {
         let systemPrompt = context.systemPromptOverride ?? context.resolvedStandardAgentSystemPrompt
         let contextPrompt = context.contextPrompt()
+        let policySession = context.instructionPolicySessionDescriptor
         return MainChatProviderSessionConfigBridge(
             providerId: baseConfig.providerId,
             displayName: baseConfig.displayName,
@@ -212,6 +213,9 @@ final class MainChatRustTransportProvider: LLMProvider, @unchecked Sendable {
             prompt: prompt,
             systemPrompt: systemPrompt,
             contextPrompt: contextPrompt.isEmpty ? nil : contextPrompt,
+            policyRef: policySession.policyRef,
+            policyHash: policySession.policyHash,
+            shouldReinjectPolicyText: policySession.shouldReinjectPolicyText,
             model: baseConfig.model,
             apiKey: baseConfig.apiKey,
             baseURL: baseConfig.baseURL,

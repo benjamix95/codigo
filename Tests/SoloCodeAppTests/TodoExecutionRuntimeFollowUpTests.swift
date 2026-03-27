@@ -14,7 +14,6 @@ final class TodoExecutionRuntimeFollowUpTests: XCTestCase {
             [
                 "Analizzare stack trace",
                 "Leggere log runtime",
-                "Doc Writer",
             ]
         )
     }
@@ -53,64 +52,6 @@ final class TodoExecutionRuntimeFollowUpTests: XCTestCase {
 
         XCTAssertEqual(
             TodoExecutionFollowUpPolicy.missingFinalFollowUpTitles(
-                in: store.todos,
-                conversationId: conversationId
-            ),
-            [
-                "Code Review & Test",
-                "Doc Writer",
-            ]
-        )
-    }
-
-    func testMissingFinalFollowUpTitlesForAnalyticalChecklistAddsDocWriterOnly() {
-        let store = makeStore()
-        let conversationId = UUID()
-
-        store.upsertFromAgent(
-            id: nil,
-            title: "Definire scope",
-            status: .done,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-        store.upsertFromAgent(
-            id: nil,
-            title: "Scansionare servizi runtime",
-            status: .pending,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-
-        XCTAssertEqual(
-            TodoExecutionFollowUpPolicy.missingFinalFollowUpTitles(
-                in: store.todos,
-                conversationId: conversationId
-            ),
-            ["Doc Writer"]
-        )
-    }
-
-    func testImplicitRuntimeFollowUpTitlesAddsReviewAndDocWriterForImplementationFlow() {
-        let store = makeStore()
-        let conversationId = UUID()
-
-        store.upsertFromAgent(
-            id: nil,
-            title: "Implementare fix stream",
-            status: .pending,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-
-        XCTAssertEqual(
-            TodoExecutionFollowUpPolicy.implicitRuntimeFollowUpTitles(
                 in: store.todos,
                 conversationId: conversationId
             ),
@@ -217,97 +158,6 @@ final class TodoExecutionRuntimeFollowUpTests: XCTestCase {
                 "Code Review & Test",
                 "Doc Writer",
             ]
-        )
-    }
-
-    func testDisplayTodosForChatKeepsSequentialOrderAfterCompletion() {
-        let store = makeStore()
-        let conversationId = UUID()
-
-        store.upsertFromAgent(
-            id: nil,
-            title: "Definire scope",
-            status: .done,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-        store.upsertFromAgent(
-            id: nil,
-            title: "Scansionare servizi runtime",
-            status: .done,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-        store.upsertFromAgent(
-            id: nil,
-            title: "Consolidare findings / output",
-            status: .pending,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-        store.upsertFromAgent(
-            id: nil,
-            title: "Doc Writer",
-            status: .pending,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-
-        XCTAssertEqual(
-            store.displayTodosForChat(for: conversationId).map(\.title),
-            [
-                "Definire scope",
-                "Scansionare servizi runtime",
-                "Consolidare findings / output",
-                "Doc Writer",
-            ]
-        )
-    }
-
-    func testAdvanceNextRuntimeTodoStopsWhenEarlierTodoIsBlocked() {
-        let store = makeStore()
-        let conversationId = UUID()
-
-        store.upsertFromAgent(
-            id: nil,
-            title: "Definire scope",
-            status: .done,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-        store.upsertFromAgent(
-            id: nil,
-            title: "Scansionare servizi runtime",
-            status: .blocked,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-        store.upsertFromAgent(
-            id: nil,
-            title: "Consolidare findings / output",
-            status: .pending,
-            priority: .medium,
-            notes: nil,
-            linkedFiles: [],
-            conversationId: conversationId
-        )
-
-        XCTAssertFalse(store.advanceNextRuntimeTodoIfNeeded(conversationId: conversationId))
-        XCTAssertEqual(
-            store.todos.first { $0.title == "Consolidare findings / output" }?.status,
-            .pending
         )
     }
 

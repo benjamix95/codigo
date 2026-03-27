@@ -6,21 +6,15 @@ import SwiftUI
 /// Pinned between the messages scroll and the composer input.
 
 struct TaskControlBar: View {
-    @ObservedObject var chatStore: ChatStore
-    @ObservedObject var taskActivityStore: TaskActivityStore
-    @ObservedObject var executionController: ExecutionController
-    @ObservedObject var pipelineService: PipelineIntegrationService
-
-    let conversationId: UUID?
+    let pipelineSnapshot: PipelineConversationSnapshot?
+    let taskStartDate: Date?
+    let isTaskActive: Bool
+    let taskActivityStore: TaskActivityStore
+    let executionController: ExecutionController
     let coderMode: CoderMode
-    let debugPhase: DebugFlowPhase
     let isSummarizing: Bool
     let activeModeColor: Color
     let onInterrupt: () -> Void
-
-    private var pipelineSnapshot: PipelineConversationSnapshot? {
-        pipelineService.snapshot(for: conversationId)
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,8 +24,7 @@ struct TaskControlBar: View {
 
             if let snapshot = pipelineSnapshot, snapshot.isRunning {
                 pipelineStatusBar(snapshot: snapshot)
-            } else if chatStore.isTaskActive(for: conversationId),
-               let startDate = chatStore.taskStartDate(for: conversationId) {
+            } else if isTaskActive, let startDate = taskStartDate {
                 taskTimerBar(startDate: startDate)
             } else if isSummarizing {
                 summarizingBanner
