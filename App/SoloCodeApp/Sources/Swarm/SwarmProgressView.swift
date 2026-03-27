@@ -2,31 +2,19 @@ import Foundation
 import SwiftUI
 
 struct SwarmProgressView: View {
-    @ObservedObject var store: SwarmProgressStore
-    @EnvironmentObject var pipelineService: PipelineIntegrationService
+    let steps: [SwarmStep]
     let activities: [TaskActivity]
-    let conversationId: UUID?
+    let pipelineSnapshot: PipelineConversationSnapshot?
+    let isPipelineRunning: Bool
     let isTaskRunning: Bool
     let onSelectSwarm: ((String) -> Void)?
     private let inlineMaxWidth: CGFloat = 560
     @State private var showInlineLiveCards = false
     @State private var isExpanded = false
 
-    private var scopedSteps: [SwarmStep] {
-        store.steps(for: conversationId)
-    }
-
-    private var pipelineSnapshot: PipelineConversationSnapshot? {
-        pipelineService.snapshot(for: conversationId)
-    }
-
-    private var isPipelineRunningForConversation: Bool {
-        pipelineService.isRunning(for: conversationId)
-    }
-
     private var progressMetrics: SwarmProgressMetrics {
         SwarmProgressMetrics(
-            steps: scopedSteps,
+            steps: steps,
             pipelineSnapshot: pipelineSnapshot
         )
     }
@@ -44,9 +32,8 @@ struct SwarmProgressView: View {
         // Cache computed costosi una sola volta per render.
         let cards = liveSwarmCards
         let activeCount = cards.filter { $0.status == .running }.count
-        let steps = scopedSteps
         let metrics = progressMetrics
-        let pipelineRunning = isPipelineRunningForConversation
+        let pipelineRunning = isPipelineRunning
         let live = isTaskRunning || pipelineRunning
         let agentsLabel = activeCount == 1 ? "1 active" : "\(activeCount) active"
 

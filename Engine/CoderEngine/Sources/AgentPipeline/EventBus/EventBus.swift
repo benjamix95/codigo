@@ -84,22 +84,22 @@ public enum EventBusError: Error, Sendable, Equatable {
 /// - Inoltro a `DeadLetterQueue` per eventi non consegnabili
 public actor EventBus: EventBusProtocol {
 
-    private var subscriptions: [String: EventSubscription] = [:]
+    var subscriptions: [String: EventSubscription] = [:]
     /// Reverse index: eventType → subscription IDs that listen for that type.
-    private var subscriptionIdsByType: [PipelineEventType: Set<String>] = [:]
+    var subscriptionIdsByType: [PipelineEventType: Set<String>] = [:]
     /// Subscription IDs with no eventType filter (wildcard — match all events).
-    private var wildcardSubscriptionIds: Set<String> = []
-    private var seenIdempotencyKeys: [String: Date] = [:]
-    private var idempotencyKeyOrder: [String] = []
-    private var sequenceCounter: UInt64 = 0
-    private var isShutdown = false
+    var wildcardSubscriptionIds: Set<String> = []
+    var seenIdempotencyKeys: [String: Date] = [:]
+    var idempotencyKeyOrder: [String] = []
+    var sequenceCounter: UInt64 = 0
+    var isShutdown = false
 
-    private let deliveryManager: EventDeliveryManager
+    let deliveryManager: EventDeliveryManager
     private let deadLetterQueue: DeadLetterQueue
-    private let maxTrackedIdempotencyKeys: Int
-    private let idempotencyKeyMaxAge: TimeInterval
-    private var lastPruneTime: Date = .distantPast
-    private let pruneThrottleInterval: TimeInterval = 5.0
+    let maxTrackedIdempotencyKeys: Int
+    let idempotencyKeyMaxAge: TimeInterval
+    var lastPruneTime: Date = .distantPast
+    let pruneThrottleInterval: TimeInterval = 5.0
 
     public init(
         deliveryManager: EventDeliveryManager,
@@ -159,7 +159,7 @@ public actor EventBus: EventBusProtocol {
 
         try event.validate()
         let now = Date()
-        pruneIdempotencyKeysInternal(olderThan: idempotencyKeyMaxAge, now: now)
+        pruneIdempotencyKeysIfNeeded(now: now)
 
         if seenIdempotencyKeys[event.idempotencyKey] != nil {
             throw EventBusError.duplicateIdempotencyKey(event.idempotencyKey)
@@ -184,12 +184,7 @@ public actor EventBus: EventBusProtocol {
             return
         }
 
-        for subscription in matchingSubscriptions {
-            await deliveryManager.deliver(
-                event: enriched,
-                to: subscription
-            )
-        }
+        await deliverConcurrently(enriched, to: matchingSubscriptions)
     }
 
     // MARK: - Subscribe / Unsubscribe
@@ -257,90 +252,6 @@ public actor EventBus: EventBusProtocol {
             if let jid = sub.filter.jobId, event.jobId != jid { return nil }
             if let tid = sub.filter.taskId, event.taskId != tid { return nil }
             return sub
-        }
-    }
-
-    // MARK: - Lifecycle
-
-    public func shutdown() async {
-        isShutdown = true
-        subscriptions.removeAll()
-        subscriptionIdsByType.removeAll()
-        wildcardSubscriptionIds.removeAll()
-        seenIdempotencyKeys.removeAll()
-        idempotencyKeyOrder.removeAll()
-        await deliveryManager.cancelAll()
-    }
-
-    /// Ripulisce le idempotency key più vecchie di `maxAge`.
-    /// Previene crescita illimitata del set in-memory.
-    public func pruneIdempotencyKeys(olderThan maxAge: TimeInterval) {
-        pruneIdempotencyKeysInternal(olderThan: maxAge, now: Date())
-    }
-
-    /// Reset completo — utile per i test.
-    public func reset() async {
-        subscriptions.removeAll()
-        seenIdempotencyKeys.removeAll()
-        idempotencyKeyOrder.removeAll()
-        sequenceCounter = 0
-        isShutdown = false
-        await deliveryManager.reset()
-    }
-
-    // MARK: - Idempotency Cache
-
-    private func registerIdempotencyKey(_ key: String, at now: Date) {
-        seenIdempotencyKeys[key] = now
-        idempotencyKeyOrder.append(key)
-
-        while seenIdempotencyKeys.count > maxTrackedIdempotencyKeys {
-            evictOldestTrackedIdempotencyKey()
-        }
-    }
-
-    private func evictOldestTrackedIdempotencyKey() {
-        while !idempotencyKeyOrder.isEmpty {
-            let oldestKey = idempotencyKeyOrder.removeFirst()
-            if seenIdempotencyKeys.removeValue(forKey: oldestKey) != nil {
-                break
-            }
-        }
-    }
-
-    private func pruneIdempotencyKeysInternal(olderThan maxAge: TimeInterval, now: Date) {
-        if maxAge <= 0 {
-            seenIdempotencyKeys.removeAll()
-            idempotencyKeyOrder.removeAll()
-            return
-        }
-
-        // Throttle: skip if we pruned recently and under hard cap.
-        let elapsed = now.timeIntervalSince(lastPruneTime)
-        if elapsed < pruneThrottleInterval,
-           seenIdempotencyKeys.count <= maxTrackedIdempotencyKeys {
-            return
-        }
-        lastPruneTime = now
-
-        // Walk the ordered list front-to-back (oldest first) and remove expired.
-        let cutoff = now.addingTimeInterval(-maxAge)
-        var removedCount = 0
-        for key in idempotencyKeyOrder {
-            guard let timestamp = seenIdempotencyKeys[key],
-                  timestamp < cutoff else { break }
-            seenIdempotencyKeys.removeValue(forKey: key)
-            removedCount += 1
-        }
-        if removedCount > 0 {
-            idempotencyKeyOrder.removeFirst(removedCount)
-        }
-
-        // Hard cap: evict oldest until 80% capacity.
-        let hardCapTarget = maxTrackedIdempotencyKeys * 4 / 5
-        while seenIdempotencyKeys.count > hardCapTarget {
-            guard !idempotencyKeyOrder.isEmpty else { break }
-            evictOldestTrackedIdempotencyKey()
         }
     }
 }

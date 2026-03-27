@@ -2,6 +2,8 @@ import Foundation
 import CoderEngine
 
 extension TodoStore {
+    private static let sharedStateSyncDebounceNs: UInt64 = 150_000_000
+
     func loadTodos() {
         guard let data = userDefaults.data(forKey: storageKey) else { return }
         do {
@@ -76,7 +78,7 @@ extension TodoStore {
             guard data != lastSavedVisibleTodosData else { return }
             userDefaults.set(data, forKey: storageKey)
             lastSavedVisibleTodosData = data
-            syncToSharedState(visibleTodos: visibleTodos)
+            scheduleSharedStateSync(visibleTodos: visibleTodos)
         } catch {
             #if DEBUG
             print("[TodoStore] ⚠️ Failed to encode todos: \(error.localizedDescription)")
@@ -108,7 +110,23 @@ extension TodoStore {
     /// Write current todos to the shared state file so the MCP server
     /// can serve them via `coderide_todo_read`.
     func syncToSharedState() {
+        sharedStateSyncTask?.cancel()
+        sharedStateSyncTask = nil
         syncToSharedState(visibleTodos: userVisibleTodos)
+    }
+
+    private func scheduleSharedStateSync(visibleTodos: [TodoItem]) {
+        sharedStateSyncTask?.cancel()
+        sharedStateSyncTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: Self.sharedStateSyncDebounceNs)
+            } catch {
+                return
+            }
+            guard let self, !Task.isCancelled else { return }
+            self.syncToSharedState(visibleTodos: visibleTodos)
+            self.sharedStateSyncTask = nil
+        }
     }
 
     private func syncToSharedState(visibleTodos: [TodoItem]) {

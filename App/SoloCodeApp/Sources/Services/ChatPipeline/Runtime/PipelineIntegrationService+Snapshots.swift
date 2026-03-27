@@ -1,3 +1,4 @@
+import Combine
 import CoderEngine
 import Foundation
 
@@ -5,6 +6,16 @@ extension PipelineIntegrationService {
     func snapshot(for conversationId: UUID?) -> PipelineConversationSnapshot? {
         guard let conversationId else { return nil }
         return snapshotsByConversation[conversationId]
+    }
+
+    func snapshotDidChangePublisher(for conversationId: UUID?) -> AnyPublisher<Void, Never> {
+        guard let conversationId else {
+            return Empty<Void, Never>(completeImmediately: false).eraseToAnyPublisher()
+        }
+        return snapshotDidChange
+            .filter { $0 == conversationId }
+            .map { _ in () }
+            .eraseToAnyPublisher()
     }
 
     func isRunning(for conversationId: UUID?) -> Bool {
@@ -49,6 +60,7 @@ extension PipelineIntegrationService {
             updateSnapshotIfNeeded(runtime.snapshot, for: conversationId)
         } else if snapshotsByConversation[conversationId] != nil {
             snapshotsByConversation.removeValue(forKey: conversationId)
+            snapshotDidChange.send(conversationId)
         }
     }
 
@@ -66,6 +78,7 @@ extension PipelineIntegrationService {
                         self.updateSnapshotIfNeeded(runtime.snapshot, for: conversationId)
                     } else if self.snapshotsByConversation[conversationId] != nil {
                         self.snapshotsByConversation.removeValue(forKey: conversationId)
+                        self.snapshotDidChange.send(conversationId)
                     }
                 }
             }
@@ -79,6 +92,7 @@ extension PipelineIntegrationService {
     ) -> Bool {
         guard snapshotsByConversation[conversationId] != snapshot else { return false }
         snapshotsByConversation[conversationId] = snapshot
+        snapshotDidChange.send(conversationId)
         return true
     }
 }

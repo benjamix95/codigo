@@ -41,9 +41,13 @@ extension ChatPanelView {
         if let cid = conversationId {
             snapshotRootLayoutSwarmSteps = swarmProgressStore.steps(for: cid)
             snapshotRootLayoutSwarmCards = taskActivityStore.swarmCardStates(for: cid)
+            snapshotRootLayoutActivities = taskActivityStore.activities(for: cid)
+            snapshotPipelineConversationSnapshot = pipelineIntegrationService.snapshot(for: cid)
         } else {
             snapshotRootLayoutSwarmSteps = []
             snapshotRootLayoutSwarmCards = []
+            snapshotRootLayoutActivities = []
+            snapshotPipelineConversationSnapshot = nil
         }
 
         let snapshotCount = messagesConversationSnapshot?.messages.count ?? -1

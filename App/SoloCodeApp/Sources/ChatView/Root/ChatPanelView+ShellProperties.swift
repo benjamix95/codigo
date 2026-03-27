@@ -24,7 +24,7 @@ extension ChatPanelView {
 
     var composerRuntimeStartDate: Date? {
         guard isLoadingForCurrentConversation else { return nil }
-        return pipelineIntegrationService.snapshot(for: conversationId)?.jobStartTime
+        return snapshotPipelineConversationSnapshot?.jobStartTime
             ?? chatStore.taskStartDate(for: conversationId)
             ?? composerTaskStartDate
     }

@@ -83,6 +83,8 @@ struct ChatPanelView: View {
     /// Copia throttle di step/cards swarm per evitare letture dirette da store nel `rootLayout`.
     @State var snapshotRootLayoutSwarmSteps: [SwarmStep] = []
     @State var snapshotRootLayoutSwarmCards: [SwarmLiveCardState] = []
+    @State var snapshotRootLayoutActivities: [TaskActivity] = []
+    @State var snapshotPipelineConversationSnapshot: PipelineConversationSnapshot?
 
     /// Timestamp of last trace events refresh. Used to throttle trace
     /// snapshot updates to max 4/sec during streaming.
@@ -195,8 +197,7 @@ struct ChatPanelView: View {
     }
 
     var isLoadingForCurrentConversation: Bool {
-        chatStore.isTaskActive(for: conversationId)
-            || pipelineIntegrationService.isRunning(for: conversationId)
+        snapshotIsLoading
             || (planFlowPhase == .building && activeBuildPlanConversationId == conversationId)
     }
 }

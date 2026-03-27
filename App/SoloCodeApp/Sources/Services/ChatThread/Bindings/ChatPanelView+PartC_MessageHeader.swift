@@ -262,7 +262,7 @@ extension ChatPanelView {
             guard conversationId != nil else { return }
             scheduleMessagesSnapshotRefresh()
         }
-        .onReceive(pipelineIntegrationService.objectWillChange) { _ in
+        .onReceive(pipelineIntegrationService.snapshotDidChangePublisher(for: conversationId)) { _ in
             guard conversationId != nil else { return }
             scheduleMessagesSnapshotRefresh()
             DispatchQueue.main.async {

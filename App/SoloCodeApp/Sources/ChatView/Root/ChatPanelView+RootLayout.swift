@@ -18,10 +18,6 @@ func shouldShowLegacyChatTaskBar(
 }
 
 struct ChatHeaderSectionView<Content: View>: View {
-    @ObservedObject var chatStore: ChatStore
-    @ObservedObject var todoStore: TodoStore
-    @ObservedObject var toolTraceStore: ToolTraceStore
-    @ObservedObject var pipelineIntegrationService: PipelineIntegrationService
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -30,12 +26,6 @@ struct ChatHeaderSectionView<Content: View>: View {
 }
 
 struct ChatMessagesSectionView<Content: View>: View {
-    @ObservedObject var chatStore: ChatStore
-    @ObservedObject var todoStore: TodoStore
-    @ObservedObject var toolTraceStore: ToolTraceStore
-    @ObservedObject var taskActivityStore: TaskActivityStore
-    @ObservedObject var executionController: ExecutionController
-    @ObservedObject var pipelineIntegrationService: PipelineIntegrationService
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -44,12 +34,6 @@ struct ChatMessagesSectionView<Content: View>: View {
 }
 
 struct ChatComposerSectionView<Content: View>: View {
-    @ObservedObject var chatStore: ChatStore
-    @ObservedObject var todoStore: TodoStore
-    @ObservedObject var toolTraceStore: ToolTraceStore
-    @ObservedObject var taskActivityStore: TaskActivityStore
-    @ObservedObject var executionController: ExecutionController
-    @ObservedObject var pipelineIntegrationService: PipelineIntegrationService
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -58,17 +42,11 @@ struct ChatComposerSectionView<Content: View>: View {
 }
 
 struct ChatRuntimeChromeSectionView<FinalActions: View, LegacyTaskBar: View>: View {
-    @ObservedObject var chatStore: ChatStore
-    @ObservedObject var taskActivityStore: TaskActivityStore
-    @ObservedObject var toolTraceStore: ToolTraceStore
-    @ObservedObject var swarmProgressStore: SwarmProgressStore
-    @ObservedObject var executionController: ExecutionController
-    @ObservedObject var pipelineIntegrationService: PipelineIntegrationService
-
     let coderMode: CoderMode
-    let conversationId: UUID?
     let swarmSteps: [SwarmStep]
     let swarmCards: [SwarmLiveCardState]
+    let activities: [TaskActivity]
+    let pipelineSnapshot: PipelineConversationSnapshot?
     let chromeLoading: Bool
     let showLegacyTaskBar: Bool
     let shouldShowFinalActions: () -> Bool
@@ -79,13 +57,12 @@ struct ChatRuntimeChromeSectionView<FinalActions: View, LegacyTaskBar: View>: Vi
     var body: some View {
         ChatPanelRootSwarmProgressSlot(
             coderMode: coderMode,
-            conversationId: conversationId,
             swarmSteps: swarmSteps,
             swarmCards: swarmCards,
+            pipelineSnapshot: pipelineSnapshot,
             chromeLoading: chromeLoading,
-            activities: taskActivityStore.activities(for: conversationId),
-            onSelectSwarm: onSelectSwarm,
-            swarmProgressStore: swarmProgressStore
+            activities: activities,
+            onSelectSwarm: onSelectSwarm
         )
 
         if shouldShowFinalActions() {
@@ -112,28 +89,18 @@ extension ChatPanelView {
                 Color.clear
                     .frame(height: topInteractiveInset)
                     .allowsHitTesting(false)
-                ChatHeaderSectionView(
-                    chatStore: chatStore,
-                    todoStore: todoStore,
-                    toolTraceStore: toolTraceStore,
-                    pipelineIntegrationService: pipelineIntegrationService
-                ) {
+                ChatHeaderSectionView {
                     chatHeader
                 }
 
                 ConnectionStatusBanner(monitor: networkMonitor)
 
                 ChatRuntimeChromeSectionView(
-                    chatStore: chatStore,
-                    taskActivityStore: taskActivityStore,
-                    toolTraceStore: toolTraceStore,
-                    swarmProgressStore: swarmProgressStore,
-                    executionController: executionController,
-                    pipelineIntegrationService: pipelineIntegrationService,
                     coderMode: coderMode,
-                    conversationId: conversationId,
                     swarmSteps: snapshotRootLayoutSwarmSteps,
                     swarmCards: snapshotRootLayoutSwarmCards,
+                    activities: snapshotRootLayoutActivities,
+                    pipelineSnapshot: snapshotPipelineConversationSnapshot,
                     chromeLoading: snapshotChromeLoading,
                     showLegacyTaskBar: shouldShowLegacyTaskBarSection,
                     shouldShowFinalActions: { shouldShowFinalChatActions },
@@ -146,16 +113,15 @@ extension ChatPanelView {
                     },
                     legacyTaskBarContent: {
                         TaskControlBar(
-                            chatStore: chatStore,
+                            pipelineSnapshot: snapshotPipelineConversationSnapshot,
+                            taskStartDate: chatStore.taskStartDate(for: conversationId),
+                            isTaskActive: chatStore.isTaskActive(for: conversationId),
                             taskActivityStore: taskActivityStore,
                             executionController: executionController,
-                            pipelineService: pipelineIntegrationService,
-                            conversationId: conversationId,
                             coderMode: coderMode,
-                            debugPhase: debugStore.phase,
                             isSummarizing: isSummarizing,
                             activeModeColor: activeModeColor,
-                            onInterrupt: { interruptTask() }
+                            onInterrupt: { interruptTask(for: conversationId, source: "task_control_bar") }
                         )
                     }
                 )
@@ -163,14 +129,7 @@ extension ChatPanelView {
                 if showsSwarmViewOnly {
                     swarmDashboardArea
                 } else {
-                    ChatMessagesSectionView(
-                        chatStore: chatStore,
-                        todoStore: todoStore,
-                        toolTraceStore: toolTraceStore,
-                        taskActivityStore: taskActivityStore,
-                        executionController: executionController,
-                        pipelineIntegrationService: pipelineIntegrationService
-                    ) {
+                    ChatMessagesSectionView {
                         messagesArea
                             .layoutPriority(1)
                             // #region agent log
@@ -188,14 +147,7 @@ extension ChatPanelView {
                 }
 
                 if shouldShowComposerArea {
-                    ChatComposerSectionView(
-                        chatStore: chatStore,
-                        todoStore: todoStore,
-                        toolTraceStore: toolTraceStore,
-                        taskActivityStore: taskActivityStore,
-                        executionController: executionController,
-                        pipelineIntegrationService: pipelineIntegrationService
-                    ) {
+                    ChatComposerSectionView {
                         composerArea
                     }
                 }

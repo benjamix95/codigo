@@ -1,3 +1,4 @@
+import Combine
 import CoderEngine
 import Foundation
 import SwiftUI
@@ -101,6 +102,7 @@ final class PipelineIntegrationService: ObservableObject {
     private let facadeConfig: PipelineFacadeConfig
     var dirtySnapshotConversationIds: Set<UUID> = []
     var snapshotFlushScheduled = false
+    let snapshotDidChange = PassthroughSubject<UUID, Never>()
 
     // MARK: - Init
 

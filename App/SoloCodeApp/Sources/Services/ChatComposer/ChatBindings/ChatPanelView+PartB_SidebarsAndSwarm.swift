@@ -154,9 +154,10 @@ extension ChatPanelView {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 SwarmProgressView(
-                    store: swarmProgressStore,
+                    steps: swarmProgressStore.steps(for: conversationId),
                     activities: scopedTaskActivities(for: conversationId),
-                    conversationId: conversationId,
+                    pipelineSnapshot: snapshotPipelineConversationSnapshot,
+                    isPipelineRunning: snapshotPipelineConversationSnapshot?.isRunning == true,
                     isTaskRunning: isLoadingForCurrentConversation,
                     onSelectSwarm: { swarmId in
                         showSwarmPanel = true

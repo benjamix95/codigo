@@ -4,13 +4,12 @@ import SwiftUI
 /// così il body principale non legge `swarmProgressStore` / `taskActivityStore` per la sola visibilità.
 struct ChatPanelRootSwarmProgressSlot: View {
     let coderMode: CoderMode
-    let conversationId: UUID?
     let swarmSteps: [SwarmStep]
     let swarmCards: [SwarmLiveCardState]
+    let pipelineSnapshot: PipelineConversationSnapshot?
     let chromeLoading: Bool
     let activities: [TaskActivity]
     let onSelectSwarm: (String) -> Void
-    @ObservedObject var swarmProgressStore: SwarmProgressStore
 
     var body: some View {
         let showStrip =
@@ -19,9 +18,10 @@ struct ChatPanelRootSwarmProgressSlot: View {
         Group {
             if showStrip {
                 SwarmProgressView(
-                    store: swarmProgressStore,
+                    steps: swarmSteps,
                     activities: activities,
-                    conversationId: conversationId,
+                    pipelineSnapshot: pipelineSnapshot,
+                    isPipelineRunning: pipelineSnapshot?.isRunning == true,
                     isTaskRunning: chromeLoading,
                     onSelectSwarm: onSelectSwarm
                 )
