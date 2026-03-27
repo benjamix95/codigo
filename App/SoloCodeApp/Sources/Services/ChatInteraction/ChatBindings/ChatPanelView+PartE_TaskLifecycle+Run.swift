@@ -16,11 +16,16 @@ extension ChatPanelView {
         proxy: ScrollViewProxy,
         target: AnyHashable,
         animated: Bool = false,
-        delay: TimeInterval = 0.08
+        delay: TimeInterval = 0.08,
+        /// Quando `true`, programma comunque lo scroll (es. fine stream: il coalesce 350ms può aver
+        /// mangiato l’ultimo tick mentre il `LazyVStack` rimonta la history → area apparentemente vuota).
+        bypassCoalesce: Bool = false
     ) {
         let now = Date()
         let sinceLastScroll = now.timeIntervalSince(scrollState.lastAutoScrollAt)
-        if scrollState.lastAutoScrollTarget == target, sinceLastScroll < Self.autoScrollMinInterval {
+        if !bypassCoalesce,
+           scrollState.lastAutoScrollTarget == target,
+           sinceLastScroll < Self.autoScrollMinInterval {
             return
         }
         scrollState.lastAutoScrollTarget = target

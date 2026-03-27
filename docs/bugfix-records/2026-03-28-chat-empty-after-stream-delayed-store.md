@@ -22,3 +22,8 @@
 - **Evidenza:** nella stessa finestra temporale compaiono H20 con `storeCount: 0` / `listHasConv: false` e subito dopo H8/H13 con messaggi nello snapshot; nessun `empty_overlay` e altezza ZStack ~696 — coerente con **scroll vietato** mentre la lista è già alimentata dallo snapshot.
 - **Causa:** `scheduleAutoScroll` usava solo `chatStore` per `allowAnchorTargets` e per gli id messaggio; se lo store è indietro rispetto allo snapshot, `canScrollToTarget` bloccava lo scroll verso l’anchor basso durante il follow-live.
 - **Fix:** `allowAnchorTargets` e `availableMessageIDs` tengono conto anche di `messagesConversationSnapshot` allineato al thread con messaggi non vuoti (`ChatPanelView+PartE_TaskLifecycle+Run.swift`). Log throttled `H22` se resta bloccato nonostante lo snapshot.
+
+### Fix 3 — fine stream e coalesce scroll (mar 2026)
+
+- **Evidenza:** run 2fa5b8 corto con `snapshotIsLoading` `true` → `false` (H12) e `snapMsgCount` stabile; nessun H22 — il blocco `canScrollToTarget` non è la sola causa. Possibile che l’ultimo `scrollTo` utile sia stato **saltato** dal coalesce 350ms sullo stesso target mentre il `LazyVStack` rimonta la history quando `snapshotIsLoading` diventa `false`.
+- **Fix:** su `onChange(snapshotIsLoading)` quando diventa `false` e `isFollowingLive`, `scheduleAutoScroll(..., bypassCoalesce: true)` con leggero delay. Log throttled **H23**.

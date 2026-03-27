@@ -36,6 +36,28 @@ extension ChatPanelView {
                 guard isFollowingLive || isLoadingForCurrentConversation else { return }
                 handleMessagesCountChange(proxy: proxy)
             }
+            .onChange(of: snapshotIsLoading) { newLoading in
+                guard !newLoading, isFollowingLive else { return }
+                // #region agent log
+                AgentDebugSessionNDJSONLog.appendThrottled(
+                    gateKey: "H23-snapshot-loading-false",
+                    minInterval: 0.35,
+                    hypothesisId: "H23",
+                    location: "messagesAreaScrollView",
+                    message: "scroll_after_snapshot_loading_false",
+                    data: [
+                        "conversationId": conversationId?.uuidString ?? "nil",
+                        "taskLoading": "\(isLoadingForCurrentConversation)",
+                    ]
+                )
+                // #endregion
+                scheduleAutoScroll(
+                    proxy: proxy,
+                    target: chatScrollBottomAnchorId,
+                    delay: 0.14,
+                    bypassCoalesce: true
+                )
+            }
             .onChange(of: planningState) { new in
                 handlePlanningStateChange(new, proxy: proxy)
             }
