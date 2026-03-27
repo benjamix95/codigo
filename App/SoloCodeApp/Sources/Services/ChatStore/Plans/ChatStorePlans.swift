@@ -34,7 +34,7 @@ func attachPlanEntry(
     conversationId: UUID?,
     entry: PlanHistoryEntry
 ) {
-    guard let cidx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+    guard let cidx = conversationIndex(for: conversationId) else { return }
     guard let midx = conversations[cidx].messages.firstIndex(where: { $0.id == messageId }) else { return }
     conversations[cidx].messages[midx].planAttachment = PlanAttachment(
         historyEntryId: entry.id,
@@ -50,7 +50,7 @@ func attachPlanEntryToLastAssistant(
     conversationId: UUID?,
     entry: PlanHistoryEntry
 ) -> UUID? {
-    guard let cidx = conversations.firstIndex(where: { $0.id == conversationId }) else { return nil }
+    guard let cidx = conversationIndex(for: conversationId) else { return nil }
     guard let midx = conversations[cidx].messages.lastIndex(where: { $0.role == .assistant }) else {
         return nil
     }

@@ -17,7 +17,7 @@ func summarizeConversation(
     provider: any CoderEngine.LLMProvider,
     context: CoderEngine.WorkspaceContext
 ) async throws -> Bool {
-    guard let cid = id, let idx = conversations.firstIndex(where: { $0.id == cid }) else { return false }
+    guard let cid = id, let idx = conversationIndex(for: cid) else { return false }
     let msgs = conversations[idx].messages
     let safeKeepLast = max(2, keepLast)
     guard msgs.count > safeKeepLast + 2 else { return false }
@@ -85,7 +85,7 @@ func summarizeConversation(
     var summary = ""
     var sawProviderError = false
     for try await ev in stream {
-        if case .textDelta(let d) = ev { summary += d }
+        if case .textDelta(let delta) = ev { summary += delta }
         if case .error = ev { sawProviderError = true }
     }
     let cleanedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)

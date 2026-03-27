@@ -70,14 +70,10 @@ final class RustSearchFFIClient: @unchecked Sendable {
         let startedAt = Date()
 
         do {
-            let request = RustSearchRequestPayload(
+            let raw = try RustSearchPayloadBuilder.makeRawJSON(
                 query: query,
-                snapshot: RustSearchSnapshotPayload(from: snapshot)
+                snapshot: snapshot
             )
-            let payload = try JSONEncoder().encode(request)
-            guard let raw = String(data: payload, encoding: .utf8) else {
-                return nil
-            }
             let response: RustSearchResponsePayload = try api.callSearch(raw)
             let finishedAt = Date()
             return SearchEngineBackendResponse(
@@ -198,84 +194,6 @@ final class RustSearchFFIClient: @unchecked Sendable {
         loadedLibraryPath = nil
         lastFailureReason = nil
     }
-
-    private static func candidateLibraryPaths() -> [String] {
-        var candidates: [String] = []
-        let env = ProcessInfo.processInfo.environment
-        let libName = "libsolocode_rust_core.dylib"
-        let subdir = "solocode_rust"
-
-        for key in ["SOLOCODE_REVIEW_CORE_LIBRARY_PATH", "SOLOCODE_RUST_SEARCH_LIBRARY_PATH"] {
-            guard let path = env[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else { continue }
-            candidates.append(path)
-        }
-
-        if let executableDir = Bundle.main.executableURL?.deletingLastPathComponent() {
-            candidates.append(executableDir.appendingPathComponent("\(subdir)/\(libName)").path)
-        }
-        for relativePath in [
-            "Contents/MacOS/\(subdir)/\(libName)",
-            "Contents/Resources/\(subdir)/\(libName)",
-        ] {
-            candidates.append(Bundle.main.bundleURL.appendingPathComponent(relativePath).path)
-        }
-
-        if let builtProducts = env["BUILT_PRODUCTS_DIR"]?.trimmingCharacters(in: .whitespacesAndNewlines), !builtProducts.isEmpty {
-            candidates.append("\(builtProducts)/\(subdir)/\(libName)")
-        }
-        if let srcRoot = env["SRCROOT"]?.trimmingCharacters(in: .whitespacesAndNewlines), !srcRoot.isEmpty {
-            candidates.append("\(srcRoot)/Native/RustCore/build/lib/\(libName)")
-            candidates.append("\(srcRoot)/Native/target/debug/\(libName)")
-        }
-
-        let cwd = FileManager.default.currentDirectoryPath
-        candidates.append("\(cwd)/Native/target/debug/\(libName)")
-        candidates.append("\(cwd)/Native/RustCore/build/lib/\(libName)")
-
-        if let workspace = env["SOLOCODE_WORKSPACE_PATH"]?.trimmingCharacters(in: .whitespacesAndNewlines), !workspace.isEmpty {
-            candidates.append("\(workspace)/Native/target/debug/\(libName)")
-            candidates.append("\(workspace)/Native/RustCore/build/lib/\(libName)")
-        }
-
-        if shouldScanDerivedDataForRustReviewCoreFallback(
-            environment: env,
-            bundleURL: Bundle.main.bundleURL
-        ) {
-            scanDerivedDataForDylib(libName, subdir: subdir, into: &candidates)
-        }
-
-        var cursor = Bundle.main.bundleURL
-        for _ in 0..<4 {
-            cursor.deleteLastPathComponent()
-            candidates.append(cursor.appendingPathComponent("\(subdir)/\(libName)").path)
-            candidates.append(cursor.appendingPathComponent(libName).path)
-        }
-        return Array(NSOrderedSet(array: candidates)) as? [String] ?? candidates
-    }
-
-    private static func scanDerivedDataForDylib(
-        _ libName: String,
-        subdir: String,
-        into candidates: inout [String]
-    ) {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let derivedData = home.appendingPathComponent("Library/Developer/Xcode/DerivedData")
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: derivedData, includingPropertiesForKeys: nil
-        ) else { return }
-        for entry in entries where entry.lastPathComponent.hasPrefix("Solo_Code-") {
-            for config in ["Debug", "Release"] {
-                let path = entry
-                    .appendingPathComponent("Build/Products/\(config)/Solo Code.app/Contents/MacOS/\(subdir)/\(libName)")
-                candidates.append(path.path)
-            }
-        }
-    }
-
-    private static func currentDLError() -> String? {
-        guard let error = dlerror() else { return nil }
-        return String(cString: error)
-    }
 }
 
 private struct RustSearchFFIApi {
@@ -334,93 +252,9 @@ private struct RustSearchFFIApi {
     }
 }
 
-private enum RustSearchFFIClientError: Error {
+enum RustSearchFFIClientError: Error {
     case invalidPayloadEncoding
     case nilResponse
     case libraryUnavailable
     case missingSymbol(String)
-}
-
-private extension RustSearchSnapshotPayload {
-    init(from snapshot: SemanticIndexSearchSnapshot) {
-        self.chunks = snapshot.chunks.values.map {
-            RustSearchChunkPayload(
-                chunkId: $0.id,
-                filePath: $0.filePath,
-                scope: $0.scope,
-                kind: $0.kind,
-                content: $0.content,
-                symbolNames: $0.symbolNames,
-                contextualizedText: $0.contextualizedText
-            )
-        }
-        self.invertedIndex = snapshot.invertedIndex.mapValues { Array($0) }
-        self.termFrequencies = snapshot.termFrequencies.mapValues {
-            $0.mapValues { Int($0) }
-        }
-        self.docLengths = snapshot.docLengths.mapValues { Int($0) }
-        self.avgDocLength = snapshot.avgDocLength
-        self.totalDocs = snapshot.totalDocs
-        self.k1 = snapshot.k1
-        self.b = snapshot.b
-    }
-}
-
-public enum ReviewCoreBridge {
-    public static func loadedVersion() -> String? {
-        RustSearchFFIClient.shared.loadedReviewCoreVersion()
-    }
-
-    public static func loadedState() -> ReviewCoreLoadedState {
-        RustSearchFFIClient.shared.reviewCoreLoadedState()
-    }
-
-    public static func call<Request: Encodable, Response: Decodable>(
-        functionName: String,
-        request: Request
-    ) -> Response? {
-        guard isEnabled else { return nil }
-        do {
-            let payload = try JSONEncoder().encode(request)
-            guard let raw = String(data: payload, encoding: .utf8) else {
-                return nil
-            }
-            return try RustSearchFFIClient.shared.callReviewFunction(functionName, payload: raw)
-        } catch {
-            return nil
-        }
-    }
-
-    public static var isEnabled: Bool {
-        let env = ProcessInfo.processInfo.environment
-        let forceSwift = env["SOLOCODE_REVIEW_CORE_FORCE_SWIFT"] == "1"
-            || env["SOLOCODE_REVIEW_CORE_DISABLE_RUST"] == "1"
-        return !forceSwift
-            && !shouldDeferRustReviewCoreBootstrap(environment: env)
-            && loadedVersion() != nil
-    }
-
-    /// Messaggio localizzabile per UI quando il review core Rust non è disponibile (utente capisce perché le feature sono degrade).
-    public static func userFacingDisabledReason() -> String {
-        if isEnabled {
-            return ""
-        }
-        let env = ProcessInfo.processInfo.environment
-        if env["SOLOCODE_REVIEW_CORE_FORCE_SWIFT"] == "1"
-            || env["SOLOCODE_REVIEW_CORE_DISABLE_RUST"] == "1" {
-            return "Review Core disabilitato da variabile d’ambiente (SOLOCODE_REVIEW_CORE_FORCE_SWIFT / DISABLE_RUST). Rimuovi la flag e riavvia l’app."
-        }
-        if shouldDeferRustReviewCoreBootstrap(environment: env) {
-            return "Review Core non caricato in questo processo (es. test XCTest o bootstrap differito). Apri l’app normalmente o imposta SOLOCODE_REVIEW_CORE_LIBRARY_PATH."
-        }
-        let state = loadedState()
-        if let reason = state.failureReason, !reason.isEmpty {
-            return "Libreria Review Core non caricata: \(reason). Esegui una build completa dell’app (script Rust) o verifica il bundle."
-        }
-        return "Review Core Rust non disponibile: simbolo review_core_version assente. Ricompila il target con lo step “Build Rust Review Core”."
-    }
-
-    public static func resetForTests() {
-        RustSearchFFIClient.shared.resetForTests()
-    }
 }

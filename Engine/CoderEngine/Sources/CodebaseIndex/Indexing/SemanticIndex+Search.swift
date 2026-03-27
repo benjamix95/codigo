@@ -68,7 +68,9 @@ extension SemanticIndex {
             avgDocLength: avgDocLength,
             totalDocs: totalDocs,
             k1: k1,
-            b: b
+            b: b,
+            simHash: currentSimHash,
+            rustSnapshotJSON: cachedRustSearchSnapshotJSON()
         )
     }
 

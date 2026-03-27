@@ -8,7 +8,7 @@ func createCheckpoint(
     planConversationIdForSnapshot: UUID? = nil
 ) {
     guard let conversationId else { return }
-    guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+    guard let conversationIndex = conversationIndex(for: conversationId) else { return }
     let linkedPlanConversationId: UUID? = {
         guard let planConversationIdForSnapshot else { return nil }
         return planConversationIdForSnapshot == conversationId ? nil : planConversationIdForSnapshot
@@ -32,17 +32,17 @@ func createCheckpoint(
 }
 
 func canRewind(conversationId: UUID?) -> Bool {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return false }
+    guard let idx = conversationIndex(for: conversationId) else { return false }
     return !conversations[idx].checkpoints.isEmpty
 }
 
 func previousCheckpoint(conversationId: UUID?) -> ConversationCheckpoint? {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return nil }
+    guard let idx = conversationIndex(for: conversationId) else { return nil }
     return conversations[idx].checkpoints.last
 }
 
 func checkpoint(forMessageIndex messageIndex: Int, conversationId: UUID?) -> ConversationCheckpoint? {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return nil }
+    guard let idx = conversationIndex(for: conversationId) else { return nil }
     return conversations[idx].checkpoints.last { $0.messageCount == (messageIndex + 1) }
 }
 
@@ -51,7 +51,7 @@ func rewindConversationState(to checkpointId: UUID, conversationId: UUID?) -> Bo
     guard let conversationId else { return false }
     let ok: Bool
     if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
-        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+        guard let conversationIndex = conversationIndex(for: conversationId),
               let checkpointIndex = conversations[conversationIndex].checkpoints.lastIndex(where: { $0.id == checkpointId })
         else {
             return false
@@ -89,7 +89,7 @@ func rewindConversationState(to checkpointId: UUID, conversationId: UUID?) -> Bo
 }
 
 func trimFutureCheckpoints(conversationId: UUID?, maxMessageCount: Int) {
-    guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+    guard let idx = conversationIndex(for: conversationId) else { return }
     conversations[idx].checkpoints.removeAll { $0.messageCount > maxMessageCount }
     saveConversations()
 }
@@ -99,7 +99,7 @@ func rewindConversationToMessageCount(_ messageCount: Int, conversationId: UUID?
     guard let conversationId else { return false }
     let ok: Bool
     if shouldSkipRustStoreBootstrapForTests(environment: ProcessInfo.processInfo.environment) {
-        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+        guard let conversationIndex = conversationIndex(for: conversationId),
               messageCount >= 0,
               messageCount <= conversations[conversationIndex].messages.count else {
             return false

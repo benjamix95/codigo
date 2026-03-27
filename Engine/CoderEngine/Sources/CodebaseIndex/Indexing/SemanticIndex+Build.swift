@@ -25,6 +25,7 @@ extension SemanticIndex {
         totalTokenCount = 0
         deferredMerkleTouchedFiles = 0
         lastSearchMetrics = nil
+        invalidateCachedRustSearchSnapshot()
 
         merkleRoot = MerkleTree.build(root: workspaceRoot)
         if let root = merkleRoot {
@@ -93,6 +94,7 @@ extension SemanticIndex {
         changedFiles: [IndexedFile],
         workspaceRoot: URL
     ) async {
+        invalidateCachedRustSearchSnapshot()
         let shouldRebuildMerkle = shouldRebuildMerkleTree(forChangedFiles: changedFiles)
         if shouldRebuildMerkle {
             let newMerkle = MerkleTree.build(root: workspaceRoot)
@@ -148,6 +150,7 @@ extension SemanticIndex {
     /// Update a single file (called from file watcher callbacks).
     /// Uses async file I/O to avoid blocking the actor's serial executor.
     public func updateFile(_ indexed: IndexedFile) async {
+        invalidateCachedRustSearchSnapshot()
         removeChunksForFile(indexed.relativePath)
 
         // Read file content off the actor's executor to prevent blocking
@@ -171,6 +174,7 @@ extension SemanticIndex {
 
     /// Remove all semantic chunks for a single file.
     public func removeFile(_ relativePath: String) {
+        invalidateCachedRustSearchSnapshot()
         removeChunksForFile(relativePath)
         recalcAvgDocLength()
         if persistencePath != nil {
@@ -182,6 +186,7 @@ extension SemanticIndex {
     func alignMerkleState(withWorkspaceRoot root: URL) async {
         persistDebounceTask?.cancel()
         persistDebounceTask = nil
+        invalidateCachedRustSearchSnapshot()
         merkleRoot = MerkleTree.build(root: root)
         if let node = merkleRoot {
             currentSimHash = MerkleTree.simHash(of: node)
@@ -195,6 +200,7 @@ extension SemanticIndex {
 
     /// Clear the entire semantic index state.
     public func clear() {
+        invalidateCachedRustSearchSnapshot()
         chunks.removeAll()
         invertedIndex.removeAll()
         termFrequencies.removeAll()

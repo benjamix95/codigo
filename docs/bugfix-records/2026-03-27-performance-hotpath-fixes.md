@@ -1,0 +1,128 @@
+# 2026-03-27 — Performance hotpath fixes
+
+## Bug Fix Record
+- Categoria: B
+- Bug: `semantic_search` ricodificava tutto lo snapshot Rust ad ogni query.
+- Sintomo: latenza alta e quasi fissa anche su query ripetute sullo stesso indice.
+- Impatto: overhead CPU e allocazioni sul path di ricerca semantica.
+- Gravità: alta
+- Steps to reproduce:
+  - indicizzare un workspace con alcune centinaia di file
+  - eseguire piu' volte la stessa `semantic_search`
+  - osservare che ogni query ricostruisce il payload completo
+- Risultato attuale: serializzazione completa dell'indice ad ogni ricerca.
+- Risultato atteso: snapshot Rust riusato finche' il simhash dell'indice non cambia.
+- Causa probabile: payload FFI costruito sempre tramite `RustSearchRequestPayload(query + snapshot completo)`.
+- Scope consentito:
+  - `Engine/CoderEngine/Sources/CodebaseIndex/Indexing/*`
+- Non-scope:
+  - ranking BM25
+  - API Rust della query
+  - vector search
+- Moduli confinanti da verificare:
+  - `RustSearchFFIClient`
+  - `SemanticIndex`
+  - `SearchEngineBackend`
+- Test da aggiungere o aggiornare:
+  - `RustSearchPayloadBuilderTests`
+- Strategia di fix minimo:
+  - cache del JSON snapshot lato `SemanticIndex`
+  - builder del payload query+snapshot che riusa il JSON cached
+- Verifica post-fix:
+  - test `CoderEngineTests/RustSearchPayloadBuilderTests`
+  - benchmark ad-hoc su 300 file con query ripetuta
+- Commit previsto: `fix(perf): reduce search and chat hot-path overhead`
+
+## Bug Fix Record
+- Categoria: B
+- Bug: il bridge `ChatStore` ↔ Rust serializzava snapshot completi anche per azioni scoped.
+- Sintomo: ogni mutazione di una sola conversazione trascinava l'intero store chat nel reducer Rust.
+- Impatto: lavoro superlineare durante stream, append, update e preferenze thread.
+- Gravità: alta
+- Steps to reproduce:
+  - aprire piu' conversazioni
+  - eseguire append/update su una sola chat
+  - osservare snapshot completi nel path bridge
+- Risultato attuale: dump completo di `conversations` e `planBoards`.
+- Risultato atteso: payload scoped alla sola conversazione o plan board interessata.
+- Causa probabile: `applyRustStoreAction` costruiva sempre `normalizedRustStoreSnapshot()`.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Chat/Support/StoreRust/*`
+  - `App/SoloCodeApp/Sources/Services/ChatStore/*`
+- Non-scope:
+  - protocollo FFI Rust
+  - flusso pipeline UI gia' scoped
+- Moduli confinanti da verificare:
+  - fallback degraded path
+  - checkpoints
+  - plans
+  - summary helpers
+- Test da aggiungere o aggiornare:
+  - `RustMainChatScopedStoreActionTests`
+- Strategia di fix minimo:
+  - calcolo scope per azione
+  - snapshot scoped solo quando l'azione lo consente
+  - apply scoped sullo store Swift
+  - uso della `conversationIndex` cache nei path caldi
+- Verifica post-fix:
+  - test `SoloCodeAppTests/RustMainChatScopedStoreActionTests`
+- Commit previsto: `fix(perf): reduce search and chat hot-path overhead`
+
+## Bug Fix Record
+- Categoria: B
+- Bug: `PipelineIntegrationService` riscriveva snapshot uguali e notificava la UI senza cambi reali.
+- Sintomo: invalidazioni superflue durante flush di snapshot runtime.
+- Impatto: re-render e notify inutili sul main actor.
+- Gravità: media
+- Steps to reproduce:
+  - eseguire job pipeline
+  - forzare persist dello stesso snapshot
+  - osservare write/notify duplicati
+- Risultato attuale: update sempre applicato al dizionario `snapshotsByConversation`.
+- Risultato atteso: no-op se il valore e' identico.
+- Causa probabile: assenza di confronto `Equatable` sullo snapshot.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Services/ChatPipeline/Runtime/*`
+- Non-scope:
+  - semantica degli eventi pipeline
+  - stato chat
+- Moduli confinanti da verificare:
+  - `PipelineIntegrationService+Snapshots`
+  - `PipelineIntegrationService+Teardown`
+- Test da aggiungere o aggiornare:
+  - `PipelineIntegrationSnapshotTests`
+- Strategia di fix minimo:
+  - rendere `PipelineConversationSnapshot` `Equatable`
+  - saltare il set se il contenuto e' invariato
+- Verifica post-fix:
+  - test `SoloCodeAppTests/PipelineIntegrationSnapshotTests`
+- Commit previsto: `fix(perf): reduce search and chat hot-path overhead`
+
+## Bug Fix Record
+- Categoria: B
+- Bug: `TodoStore.saveTodos()` riscriveva payload visibili identici.
+- Sintomo: persistenza ridondante e sync shared-state inutili anche senza cambiamenti user-visible.
+- Impatto: I/O e encode JSON evitabili nei workflow todo.
+- Gravità: media
+- Steps to reproduce:
+  - creare un todo visibile
+  - aggiungere solo placeholder operativi nascosti
+  - salvare di nuovo
+- Risultato attuale: nuovo encode/write anche con `userVisibleTodos` invariati.
+- Risultato atteso: skip del salvataggio se il payload visibile non cambia.
+- Causa probabile: assenza di cache del payload persistito.
+- Scope consentito:
+  - `App/SoloCodeApp/Sources/Tasking/Stores/*`
+- Non-scope:
+  - logica di ordering/esecuzione dei todo
+- Moduli confinanti da verificare:
+  - `TodoStore`
+  - `TodoStore+Persistence`
+- Test da aggiungere o aggiornare:
+  - `TodoStorePersistenceTests`
+- Strategia di fix minimo:
+  - cache dell'ultimo payload visibile salvato
+  - encoder con chiavi ordinate per confronto stabile
+- Verifica post-fix:
+  - test `SoloCodeAppTests/TodoStorePersistenceTests`
+- Commit previsto: `fix(perf): reduce search and chat hot-path overhead`

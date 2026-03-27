@@ -200,6 +200,17 @@ extension ChatStore {
     @MainActor
     func beginTask(conversationId: UUID?) {
         guard let id = conversationId else { return }
+        // #region agent log
+        RuntimeEvidenceDebugLog.append(
+            hypothesisId: "H5",
+            location: "ChatStore.beginTask",
+            message: "task_began",
+            data: [
+                "conversationId": id.uuidString.lowercased(),
+                "activeTaskCount": "\(activeTaskConversationIds.count)",
+            ]
+        )
+        // #endregion
         requireRustTaskRuntime("begin_task") { request in
             request.conversationId = id.uuidString.lowercased()
             request.startedAt = Date()
@@ -214,10 +225,22 @@ extension ChatStore {
     @MainActor
     func endTask(conversationId: UUID?) {
         guard let id = conversationId else { return }
+        // #region agent log
+        RuntimeEvidenceDebugLog.append(
+            hypothesisId: "H5",
+            location: "ChatStore.endTask",
+            message: "task_end_requested",
+            data: [
+                "conversationId": id.uuidString.lowercased(),
+                "activeTaskCount": "\(activeTaskConversationIds.count)",
+            ]
+        )
+        // #endregion
         flushPendingAssistantContentRustSync()
         requireRustTaskRuntime("end_task") { request in
             request.conversationId = id.uuidString.lowercased()
         }
+        flushConversationChangeNotification()
     }
 
     @MainActor
@@ -285,7 +308,7 @@ extension ChatStore {
                 messageId.uuidString.lowercased()
             )
         }
-        if let convIdx = conversations.firstIndex(where: { $0.id == conversationId }),
+        if let convIdx = conversationIndex(for: conversationId),
            let msgIdx = conversations[convIdx].messages.firstIndex(where: { $0.id == messageId }) {
             if !applied {
                 conversations[convIdx].messages[msgIdx] = pipelineMessage

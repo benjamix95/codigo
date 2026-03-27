@@ -12,6 +12,7 @@ final class TodoStore: ObservableObject {
     let userDefaults: UserDefaults
     var userVisibleTodosCache: [TodoItem]?
     var displayTodosCacheByConversationKey: [String: [TodoItem]] = [:]
+    var lastSavedVisibleTodosData: Data?
 
     /// Callback invoked when a canonical todo's status changes, enabling plan board sync.
     var onCanonicalTodoStatusChange: ((String, TodoStatus, UUID?) -> Void)?

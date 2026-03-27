@@ -6,6 +6,7 @@ extension TodoStore {
         guard let data = userDefaults.data(forKey: storageKey) else { return }
         do {
             todos = try JSONDecoder().decode([TodoItem].self, from: data)
+            lastSavedVisibleTodosData = data
             var didClean = deduplicateCanonicalTodos()
             if deduplicateRuntimeTodosByTitle() { didClean = true }
             if didClean {
@@ -68,9 +69,14 @@ extension TodoStore {
     func saveTodos() {
         trimExcessTodos()
         do {
-            let data = try JSONEncoder().encode(userVisibleTodos)
+            let visibleTodos = userVisibleTodos
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let data = try encoder.encode(visibleTodos)
+            guard data != lastSavedVisibleTodosData else { return }
             userDefaults.set(data, forKey: storageKey)
-            syncToSharedState()
+            lastSavedVisibleTodosData = data
+            syncToSharedState(visibleTodos: visibleTodos)
         } catch {
             #if DEBUG
             print("[TodoStore] ⚠️ Failed to encode todos: \(error.localizedDescription)")
@@ -102,7 +108,11 @@ extension TodoStore {
     /// Write current todos to the shared state file so the MCP server
     /// can serve them via `coderide_todo_read`.
     func syncToSharedState() {
-        let items: [[String: Any]] = userVisibleTodos.map { todo in
+        syncToSharedState(visibleTodos: userVisibleTodos)
+    }
+
+    private func syncToSharedState(visibleTodos: [TodoItem]) {
+        let items: [[String: Any]] = visibleTodos.map { todo in
             var record: [String: Any] = [
                 "id": todo.id.uuidString,
                 "title": todo.title,

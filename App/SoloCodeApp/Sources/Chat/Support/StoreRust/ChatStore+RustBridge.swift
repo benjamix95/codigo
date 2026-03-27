@@ -9,7 +9,7 @@ extension ChatStore {
         _ message: ChatMessage,
         in conversationId: UUID
     ) {
-        guard let index = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let index = conversationIndex(for: conversationId) else { return }
         if conversations[index].messages.contains(where: { $0.id == message.id }) {
             return
         }
@@ -29,7 +29,7 @@ extension ChatStore {
         messageId: UUID? = nil,
         content: String
     ) {
-        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let conversationIndex = conversationIndex(for: conversationId) else { return }
         let targetIndex: Int? = {
             if let messageId {
                 return conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageId })
@@ -52,7 +52,7 @@ extension ChatStore {
         conversationId: UUID,
         streaming: Bool
     ) {
-        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }),
+        guard let conversationIndex = conversationIndex(for: conversationId),
               let targetIndex = fallbackAssistantMutationIndex(in: conversations[conversationIndex]) else { return }
         conversations[conversationIndex].messages[targetIndex].isStreaming = streaming
     }
@@ -63,7 +63,7 @@ extension ChatStore {
         before messageId: UUID,
         in conversationId: UUID
     ) {
-        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let conversationIndex = conversationIndex(for: conversationId) else { return }
         if conversations[conversationIndex].messages.contains(where: { $0.id == message.id }) {
             return
         }
@@ -73,123 +73,6 @@ extension ChatStore {
         } else {
             conversations[conversationIndex].messages.append(message)
         }
-    }
-
-    private static func fallbackTaskRuntimeState(
-        from request: MainChatTaskRuntimeRequestBridge
-    ) -> MainChatTaskRuntimeStateBridge? {
-        guard request.schemaVersion == 1 else { return nil }
-
-        var states = request.state.taskStates
-
-        func taskIndex(_ conversationId: String) -> Int? {
-            states.firstIndex { $0.conversationId == conversationId }
-        }
-
-        switch request.operation {
-        case "begin_task":
-            guard let conversationId = request.conversationId else { return nil }
-            if let index = taskIndex(conversationId) {
-                let current = states[index]
-                states[index] = MainChatTaskStateSnapshotBridge(
-                    conversationId: conversationId,
-                    startedAt: request.startedAt ?? current.startedAt,
-                    statusText: "Thinking"
-                )
-            } else {
-                states.append(
-                    MainChatTaskStateSnapshotBridge(
-                        conversationId: conversationId,
-                        startedAt: request.startedAt,
-                        statusText: "Thinking"
-                    )
-                )
-            }
-        case "end_task":
-            guard let conversationId = request.conversationId else { return nil }
-            states.removeAll { $0.conversationId == conversationId }
-        case "set_task_status":
-            guard let conversationId = request.conversationId,
-                  let statusText = request.statusText else { return nil }
-            if let index = taskIndex(conversationId) {
-                let current = states[index]
-                states[index] = MainChatTaskStateSnapshotBridge(
-                    conversationId: conversationId,
-                    startedAt: current.startedAt,
-                    statusText: statusText
-                )
-            }
-        default:
-            return nil
-        }
-
-        states.sort {
-            ($0.startedAt ?? .distantPast) < ($1.startedAt ?? .distantPast)
-                || (($0.startedAt == $1.startedAt) && $0.conversationId < $1.conversationId)
-        }
-        return MainChatTaskRuntimeStateBridge(taskStates: states)
-    }
-
-    nonisolated private static var isRustMarkersRuntimeAvailable: Bool { ReviewCoreBridge.isEnabled }
-
-    nonisolated static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
-        let core: String
-        if isRustMarkersRuntimeAvailable {
-            let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "strip_coderide_markers", text: content, aggressive: aggressive)
-            core = RustMainChatStoreAdapter.handleMarkers(request) ?? swiftFallbackStripCoderideMarkers(content, aggressive: aggressive)
-        } else {
-            core = swiftFallbackStripCoderideMarkers(content, aggressive: aggressive)
-        }
-        let filtered = CoderideDisplayLineFilter.stripDisplayLinesWithCoderideToolPrefix(core)
-        if aggressive {
-            return filtered.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return filtered
-    }
-
-    /// Reasoning / thinking: sempre senza marker operativi `[CODERIDE:…]` in UI e persistenza.
-    nonisolated static func sanitizedChatReasoningText(_ text: String) -> String {
-        stripCoderideMarkers(text, aggressive: true)
-    }
-
-    /// Dettaglio sotto "Thinking…" (riga singola): strip + troncamento; `nil` se il testo è vuoto dopo strip.
-    nonisolated static func sanitizedStreamingDetailLine(_ raw: String, ellipsis: String = "...") -> String? {
-        let s = stripCoderideMarkers(raw, aggressive: true).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !s.isEmpty else { return nil }
-        if s.count > 80 {
-            return String(s.prefix(77)) + ellipsis
-        }
-        return s
-    }
-
-    nonisolated private static func swiftFallbackStripCoderideMarkers(_ content: String, aggressive: Bool) -> String {
-        var working = content
-        let pattern = "\\[\\s*CODERIDE\\s*:[^\\]\\n]*\\]"
-        working = working.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
-        // Marker senza `]` (streaming/troncato): rimuovi dalla `[` fino a fine riga o fine stringa.
-        while let range = working.range(of: "[CODERIDE", options: .caseInsensitive) {
-            let tail = working[range.lowerBound...]
-            if let close = tail.firstIndex(of: "]") {
-                working.removeSubrange(range.lowerBound...close)
-            } else if let nl = tail.firstIndex(of: "\n") {
-                working.removeSubrange(range.lowerBound..<nl)
-            } else {
-                working.removeSubrange(range.lowerBound..<working.endIndex)
-                break
-            }
-        }
-        let stripped = working.trimmingCharacters(in: .whitespacesAndNewlines)
-        if aggressive {
-            return stripped
-        }
-        return stripped
-    }
-
-    nonisolated static func extractLastOperationalThinkingLine(from content: String) -> String? {
-        guard isRustMarkersRuntimeAvailable else { return nil }
-        let request = MainChatMarkersRequestBridge(schemaVersion: 1, operation: "extract_last_operational_thinking_line", text: content, aggressive: nil)
-        guard let result = RustMainChatStoreAdapter.handleMarkers(request) else { return nil }
-        return result.isEmpty ? nil : result
     }
 
     @MainActor
@@ -226,7 +109,7 @@ extension ChatStore {
         var request = MainChatStoreActionRequestBridge(
             schemaVersion: 1,
             action: action,
-            snapshot: normalizedRustStoreSnapshot(),
+            snapshot: MainChatStoreSnapshotBridge(conversations: [], planBoards: [:]),
             conversationId: nil,
             messageId: nil,
             checkpointId: nil,
@@ -248,6 +131,21 @@ extension ChatStore {
             subagentCards: nil
         )
         configure(&request)
+
+        if let scope = rustStoreActionScope(for: request) {
+            request.snapshot = scopedRustStoreSnapshot(for: request, scope: scope)
+            guard let snapshot = RustMainChatStoreAdapter.handle(request) else {
+                return false
+            }
+            RustMainChatStoreAdapter.applyScopedStoreAction(
+                snapshot: snapshot,
+                to: self,
+                scope: scope
+            )
+            return true
+        }
+
+        request.snapshot = normalizedRustStoreSnapshot()
         guard let snapshot = RustMainChatStoreAdapter.handle(request) else {
             return false
         }

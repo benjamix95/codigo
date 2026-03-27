@@ -1,7 +1,7 @@
 import CoderEngine
 import Foundation
 
-struct PipelineConversationSnapshot {
+struct PipelineConversationSnapshot: Equatable {
     let currentJobId: String
     let providerId: String
     let assistantMessageId: UUID

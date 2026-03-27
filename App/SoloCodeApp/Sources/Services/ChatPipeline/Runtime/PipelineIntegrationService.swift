@@ -78,7 +78,7 @@ final class PipelineIntegrationService: ObservableObject {
 
     // MARK: - Published State
 
-    @Published private(set) var snapshotsByConversation: [UUID: PipelineConversationSnapshot] = [:]
+    @Published var snapshotsByConversation: [UUID: PipelineConversationSnapshot] = [:]
 
     /// Incrementato quando cambia la coda degli eventi debug bufferizzati o lo stato suppress (per aggiornare il pannello).
     @Published private(set) var debugProjectionBufferRevision: UInt = 0
@@ -94,13 +94,13 @@ final class PipelineIntegrationService: ObservableObject {
 
     // MARK: - Internal State
 
-    private var runtimesByConversation: [UUID: PipelineConversationRuntime] = [:]
+    var runtimesByConversation: [UUID: PipelineConversationRuntime] = [:]
     var debugStoresByConversation: [UUID: DebugProjectionStoreBinding] = [:]
     var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
     var suppressedDebugProjectionConversationIds: Set<UUID> = []
     private let facadeConfig: PipelineFacadeConfig
-    private var dirtySnapshotConversationIds: Set<UUID> = []
-    private var snapshotFlushScheduled = false
+    var dirtySnapshotConversationIds: Set<UUID> = []
+    var snapshotFlushScheduled = false
 
     // MARK: - Init
 
@@ -257,133 +257,4 @@ final class PipelineIntegrationService: ObservableObject {
         )
     }
 
-    // MARK: - Queries
-
-    func snapshot(for conversationId: UUID?) -> PipelineConversationSnapshot? {
-        guard let conversationId else { return nil }
-        return snapshotsByConversation[conversationId]
-    }
-
-    func isRunning(for conversationId: UUID?) -> Bool {
-        snapshot(for: conversationId)?.isRunning == true
-    }
-
-    // MARK: - Teardown
-
-    private func claimTeardownRuntime(for conversationId: UUID) -> PipelineConversationRuntime? {
-        if let runtime = runtimesByConversation[conversationId], let chatStore {
-            flushPendingRustBridgeEventsIfNeeded(
-                conversationId: conversationId,
-                runtime: runtime,
-                chatStore: chatStore
-            )
-        }
-        guard let runtime = runtimesByConversation[conversationId] else { return nil }
-        guard runtime.beginTeardownIfNeeded() else { return nil }
-        flushSnapshotNow(for: conversationId)
-        return runtime
-    }
-
-    private func completionContext(
-        for runtime: PipelineConversationRuntime,
-        conversationId: UUID
-    ) -> PipelineCompletionContext {
-        let durationMs = Int(Date().timeIntervalSince(runtime.jobStartTime) * 1000)
-        return PipelineCompletionContext(
-            jobId: runtime.currentJobId,
-            planConversationId: runtime.planConversationId,
-            conversationId: conversationId,
-            completedTasks: runtime.completedTasks,
-            totalTasks: runtime.totalTasks,
-            durationMs: durationMs,
-            success: !runtime.wasCancelled && runtime.lastError == nil,
-            wasCancelled: runtime.wasCancelled
-        )
-    }
-
-    private func completeTeardown(
-        _ runtime: PipelineConversationRuntime,
-        for conversationId: UUID,
-        completionContext: PipelineCompletionContext?
-    ) {
-        guard runtime.teardownState != .finished else { return }
-
-        runtime.finishTeardown()
-        chatStore?.setLastAssistantStreaming(false, in: conversationId)
-        chatStore?.endTask(conversationId: conversationId)
-        if let completionContext {
-            runtime.onCompletion?(completionContext)
-        }
-        runtimesByConversation.removeValue(forKey: conversationId)
-        snapshotsByConversation.removeValue(forKey: conversationId)
-        swarmProgressStore?.clear(conversationId: conversationId)
-        resolvePendingDebugEventsBeforeTeardown(for: conversationId)
-        unregisterDebugStore(for: conversationId)
-        suppressedDebugProjectionConversationIds.remove(conversationId)
-        flushSnapshotNow(for: conversationId)
-    }
-
-    // MARK: - Runtime Helpers
-
-    func runtime(for conversationId: UUID) -> PipelineConversationRuntime? {
-        guard let runtime = runtimesByConversation[conversationId],
-              runtime.teardownState == .running else {
-            return nil
-        }
-        return runtime
-    }
-
-    func providerId(for conversationId: UUID?) -> String? {
-        guard let conversationId else { return nil }
-        return runtimesByConversation[conversationId]?.providerId
-            ?? snapshotsByConversation[conversationId]?.providerId
-    }
-
-    func retargetAssistantMessage(
-        for conversationId: UUID,
-        assistantMessageId: UUID,
-        turnId: String
-    ) {
-        guard let runtime = runtimesByConversation[conversationId] else { return }
-        runtime.retargetAssistantMessage(
-            assistantMessageId: assistantMessageId,
-            turnId: turnId
-        )
-        flushSnapshotNow(for: conversationId)
-    }
-
-    func persistSnapshot(for conversationId: UUID) {
-        dirtySnapshotConversationIds.insert(conversationId)
-        scheduleSnapshotFlush()
-    }
-
-    /// Forces immediate snapshot flush for a conversation (used during teardown).
-    private func flushSnapshotNow(for conversationId: UUID) {
-        dirtySnapshotConversationIds.remove(conversationId)
-        if let runtime = runtimesByConversation[conversationId] {
-            snapshotsByConversation[conversationId] = runtime.snapshot
-        } else {
-            snapshotsByConversation.removeValue(forKey: conversationId)
-        }
-    }
-
-    private func scheduleSnapshotFlush() {
-        guard !snapshotFlushScheduled else { return }
-        snapshotFlushScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.snapshotFlushScheduled = false
-            let dirty = self.dirtySnapshotConversationIds
-            self.dirtySnapshotConversationIds.removeAll()
-            PipelineSnapshotFlushSignpost.measureBatch(dirtyCount: dirty.count) {
-                for conversationId in dirty {
-                    if let runtime = self.runtimesByConversation[conversationId] {
-                        self.snapshotsByConversation[conversationId] = runtime.snapshot
-                    } else {
-                        self.snapshotsByConversation.removeValue(forKey: conversationId)
-                    }
-                }
-            }
-        }
-    }
 }

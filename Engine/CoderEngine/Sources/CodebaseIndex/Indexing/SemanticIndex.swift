@@ -9,8 +9,10 @@ public actor SemanticIndex {
     static let logger = Logger(subsystem: "com.solocode.CoderEngine", category: "SemanticIndex")
 
     // MARK: - BM25 Parameters
+    // swiftlint:disable identifier_name
     let k1: Double = 1.2
     let b: Double = 0.75
+    // swiftlint:enable identifier_name
 
     // MARK: - State
     var chunks: [String: SemanticChunk] = [:]  // chunkId → chunk
@@ -44,6 +46,10 @@ public actor SemanticIndex {
     /// by addChunks/removeChunksForFile/removeChunk so that avgDocLength can be
     /// recomputed in O(1) instead of O(n).
     var totalTokenCount: Int = 0
+    /// Cached JSON snapshot for Rust semantic search requests. Rebuilt only
+    /// when the index simhash changes.
+    var cachedRustSearchSnapshotSimHash: UInt64?
+    var cachedRustSearchSnapshotJSONString: String?
     /// Soglia di warning (80% della capacità).
     static let capacityWarningThreshold: Double = 0.8
 

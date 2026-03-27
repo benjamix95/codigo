@@ -62,8 +62,12 @@ public struct SemanticIndexSearchSnapshot: Codable, Sendable {
     public let docLengths: [String: Int]
     public let avgDocLength: Double
     public let totalDocs: Int
+    // swiftlint:disable identifier_name
     public let k1: Double
     public let b: Double
+    // swiftlint:enable identifier_name
+    public let simHash: UInt64
+    public let rustSnapshotJSON: String?
 
     public init(
         chunks: [String: SemanticChunk],
@@ -72,8 +76,12 @@ public struct SemanticIndexSearchSnapshot: Codable, Sendable {
         docLengths: [String: Int],
         avgDocLength: Double,
         totalDocs: Int,
+        // swiftlint:disable identifier_name
         k1: Double,
-        b: Double
+        b: Double,
+        // swiftlint:enable identifier_name
+        simHash: UInt64 = 0,
+        rustSnapshotJSON: String? = nil
     ) {
         self.chunks = chunks
         self.invertedIndex = invertedIndex
@@ -83,6 +91,8 @@ public struct SemanticIndexSearchSnapshot: Codable, Sendable {
         self.totalDocs = totalDocs
         self.k1 = k1
         self.b = b
+        self.simHash = simHash
+        self.rustSnapshotJSON = rustSnapshotJSON
     }
 }
 

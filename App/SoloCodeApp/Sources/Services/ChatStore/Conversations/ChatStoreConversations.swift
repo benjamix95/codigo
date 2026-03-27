@@ -155,7 +155,7 @@ extension ChatStore {
             request.conversationId = conversationId.uuidString.lowercased()
             request.title = trimmed
         }
-        if !rustApplied, let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+        if !rustApplied, let idx = conversationIndex(for: conversationId) {
             conversations[idx].title = trimmed
         }
         saveConversations()
@@ -176,15 +176,15 @@ extension ChatStore {
             request.conversationId = id.uuidString.lowercased()
             request.providerId = providerId
         }
-        if !applied, let index = conversations.firstIndex(where: { $0.id == id }) {
+        if !applied, let index = conversationIndex(for: id) {
             conversations[index].preferredProviderId = providerId
         }
         saveConversations()
     }
 
     func searchThreads(query: String, includeArchived: Bool = true, limit: Int = 50) -> [ThreadSearchHit] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return [] }
+        let queryText = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !queryText.isEmpty else { return [] }
         var hits: [ThreadSearchHit] = []
 
         for conv in conversations {
@@ -192,9 +192,9 @@ extension ChatStore {
             let document = threadSearchDocumentValues(for: conv)
             var score = 0
             var snippet = conv.title
-            if document.titleLower.contains(q) { score += 2 }
+            if document.titleLower.contains(queryText) { score += 2 }
 
-            if let range = document.joinedContent.range(of: q, options: .caseInsensitive) {
+            if let range = document.joinedContent.range(of: queryText, options: .caseInsensitive) {
                 score += 1
                 let idx = document.joinedContent.distance(
                     from: document.joinedContent.startIndex,
@@ -216,8 +216,8 @@ extension ChatStore {
 
             guard score > 0 else { continue }
             let count =
-                document.titleLower.components(separatedBy: q).count - 1
-                + document.joinedContentLower.components(separatedBy: q).count - 1
+                document.titleLower.components(separatedBy: queryText).count - 1
+                + document.joinedContentLower.components(separatedBy: queryText).count - 1
             hits.append(ThreadSearchHit(
                 id: conv.id,
                 conversationId: conv.id,
@@ -274,7 +274,7 @@ extension ChatStore {
             request.contextFolderPath = nil
             request.stringList = []
         }
-        if !applied, let index = conversations.firstIndex(where: { $0.id == conversationId }) {
+        if !applied, let index = conversationIndex(for: conversationId) {
             conversations[index].contextId = contextId
         }
         saveConversations()
