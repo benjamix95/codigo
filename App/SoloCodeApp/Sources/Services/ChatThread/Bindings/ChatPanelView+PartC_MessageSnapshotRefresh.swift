@@ -7,11 +7,11 @@ extension ChatPanelView {
     /// Refresh conversation and loading snapshot from ObservableObjects.
     /// Called on every streamContentVersion change and messages.count change.
     internal func refreshMessagesSnapshot() {
-        let refreshStartedAt = Date()
         let fresh = chatStore.conversation(for: conversationId)
         let now = Date()
 
         // Always update loading state.
+        let wasLoadingForPostTaskGrace = snapshotIsLoading
         let freshLoading = chatStore.isTaskActive(for: conversationId)
             || pipelineIntegrationService.isRunning(for: conversationId)
         if snapshotIsLoading != freshLoading {
@@ -27,6 +27,11 @@ extension ChatPanelView {
                 ]
             )
             snapshotIsLoading = freshLoading
+        }
+        // Ancorare la grace anti-store-vuoto al momento preciso in cui il task termina (non solo
+        // all’ultimo tick mentre `chromeBusy` era true), così copriamo buchi lunghi come in debug `2fa5b8`.
+        if wasLoadingForPostTaskGrace, !freshLoading {
+            snapshotLastBusyAt = now
         }
 
         let planBuilding =
@@ -49,6 +54,11 @@ extension ChatPanelView {
         let freshLastStreaming = fresh?.messages.last?.isStreaming ?? false
         let snapshotLastBlocks = messagesConversationSnapshot?.messages.last?.blocks?.count ?? -1
         let freshLastBlocks = fresh?.messages.last?.blocks?.count ?? -1
+        // Streaming aggiorna spesso `primaryTextSnapshot` mentre `content` resta indietro fino al flush:
+        // senza questo confronto `needsSnapshotUpdate` resta falso e la lista non rispecchia il testo live (log H11).
+        let snapshotLastResolvedPrimary =
+            messagesConversationSnapshot?.messages.last.map { $0.resolvedPrimaryText.count } ?? -1
+        let freshLastResolvedPrimary = fresh?.messages.last.map { $0.resolvedPrimaryText.count } ?? -1
 
         // Only update conversation if actually different.
         let needsSnapshotUpdate =
@@ -58,6 +68,7 @@ extension ChatPanelView {
             || snapshotLastReasoning != freshLastReasoning
             || snapshotLastStreaming != freshLastStreaming
             || snapshotLastBlocks != freshLastBlocks
+            || snapshotLastResolvedPrimary != freshLastResolvedPrimary
 
         if needsSnapshotUpdate {
             if let fresh {
