@@ -238,4 +238,35 @@ final class DebugProjectionEventConsumerGateTests: XCTestCase {
 
         XCTAssertTrue(store.clarificationQuestions.isEmpty)
     }
+
+    func testDuplicateSamePhaseUpdateIsIgnoredWithoutExtraLogNoise() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "bug")
+        let initialLogCount = store.logs.count
+
+        _ = DebugProjectionEventConsumer.apply(
+            .debugPhaseUpdate(phase: .describing, detail: "Bootstrap describe"),
+            to: store
+        )
+
+        XCTAssertEqual(store.phase, .describing)
+        XCTAssertEqual(
+            store.logs.count,
+            initialLogCount,
+            "same-phase updates should not generate duplicate phase logs"
+        )
+    }
+
+    func testAwaitingUserClarificationDoesNotArmIdleWarningTask() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "bug")
+
+        _ = DebugProjectionEventConsumer.apply(
+            .debugUserRequest(kind: "question", prompt: "What happened exactly?"),
+            to: store
+        )
+
+        XCTAssertTrue(store.isAwaitingUserClarification)
+        XCTAssertNil(store.sessionIdleWarningTask)
+    }
 }

@@ -7,6 +7,17 @@ extension DebugStore {
     /// Inactivity warning while phase stays active (no automatic phase change).
     static var sessionIdleLogWarningSeconds: UInt64 { 900 }
 
+    private var shouldScheduleIdleWarningForCurrentState: Bool {
+        guard phase.isActive, phase != .resolved, phase != .idle else { return false }
+        // `describing` is the bootstrap / intake phase; do not warn just because the panel remains open.
+        guard phase != .describing else { return false }
+        // Waiting on the user is not an agent stall.
+        guard !isAwaitingUserClarification,
+              !isAwaitingReproduceConfirmation,
+              !isAwaitingFixConfirmation else { return false }
+        return true
+    }
+
     func cancelDebugSessionWatchdogTasks() {
         debugCleanAwaitingTask?.cancel()
         debugCleanAwaitingTask = nil
@@ -38,12 +49,12 @@ extension DebugStore {
     func rescheduleDebugIdleWarningIfNeeded() {
         sessionIdleWarningTask?.cancel()
         sessionIdleWarningTask = nil
-        guard phase.isActive, phase != .resolved else { return }
+        guard shouldScheduleIdleWarningForCurrentState else { return }
         let nanos = Self.sessionIdleLogWarningSeconds * 1_000_000_000
         sessionIdleWarningTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: nanos)
             guard let self, !Task.isCancelled else { return }
-            guard self.phase.isActive, self.phase != .resolved, self.phase != .idle else { return }
+            guard self.shouldScheduleIdleWarningForCurrentState else { return }
             self.addLog(
                 severity: .warning,
                 source: "debug_session",

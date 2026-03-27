@@ -59,6 +59,9 @@ enum DebugProjectionEventConsumer {
                 }
             }
             let previousPhase = debugStore.phase
+            if previousPhase == phase {
+                return effects
+            }
             // Warn if agent jumped to fixing without asking questions or proposing hypotheses
             if phase == .fixing
                 && debugStore.clarificationQuestions.isEmpty

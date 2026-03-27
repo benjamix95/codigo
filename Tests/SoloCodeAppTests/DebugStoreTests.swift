@@ -85,9 +85,23 @@ final class DebugStoreTests: XCTestCase {
         )
     }
 
-    func testRestoreFromSnapshotReschedulesIdleWarningWhenPhaseActive() {
+    func testRestoreFromSnapshotDoesNotScheduleIdleWarningDuringDescribeBootstrap() {
         let active = DebugStore()
         active.startDebugSession(errorContext: "ctx")
+        XCTAssertNil(active.sessionIdleWarningTask)
+        let snap = active.snapshot()
+        active.cancelDebugSessionWatchdogTasks()
+        XCTAssertNil(active.sessionIdleWarningTask)
+
+        active.restore(from: snap)
+
+        XCTAssertNil(active.sessionIdleWarningTask)
+    }
+
+    func testRestoreFromSnapshotReschedulesIdleWarningWhenPhaseRequiresProgress() {
+        let active = DebugStore()
+        active.startDebugSession(errorContext: "ctx")
+        _ = active.setPhase(.reproducing)
         XCTAssertNotNil(active.sessionIdleWarningTask)
         let snap = active.snapshot()
         active.cancelDebugSessionWatchdogTasks()
@@ -97,7 +111,7 @@ final class DebugStoreTests: XCTestCase {
 
         XCTAssertNotNil(
             active.sessionIdleWarningTask,
-            "restore con fase attiva deve riavviare l’avviso idle"
+            "restore con fase operativa deve riavviare l’avviso idle"
         )
     }
 
