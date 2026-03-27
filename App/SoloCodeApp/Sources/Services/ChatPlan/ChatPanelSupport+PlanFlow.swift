@@ -115,6 +115,23 @@ extension ChatPanelView {
         planningState = .idle
         clearPlanStreamingState()
     }
+
+    /// Quando un prefight del piano fallisce (es. prompt vuoto) restando sulla stessa conversazione,
+    /// `cleanupPlanFlowAfterConversationSwitch` non fa nulla (non è un cambio thread). Serve reset esplicito.
+    @MainActor
+    internal func resetPlanFlowAfterAbortedPreflight(targetConversationId: UUID) {
+        if shouldMutatePlanState(
+            targetConversationId: targetConversationId,
+            currentConversationId: conversationId
+        ) {
+            planFlowPhase = .idle
+            planningState = .idle
+            planClarificationQuestionnaire = nil
+            clearPlanStreamingState()
+        } else {
+            cleanupPlanFlowAfterConversationSwitch(targetConversationId: targetConversationId)
+        }
+    }
 }
 
 func shouldHidePlanMarkdownInChat(

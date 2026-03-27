@@ -1,9 +1,14 @@
 # Finding: toggle Plan → prima risposta poi si ferma
 
-- **Stato**: indagine con log NDJSON sessione Cursor `773578` → `.cursor/debug-773578.log`.
-- **Ipotesi**:
-  - **H1**: Screening (fase 0) imposta skip pipeline / `continueWithDirectChat` → una sola risposta “normale”, plan reset.
-  - **H2**: Safety reset dopo `runMultiTurnPlanFlow` con fase ancora `.analyzing`/`.generating`, oppure `isPlanMultiTurnFlow` falso → route sbagliato.
-  - **H3**: Secondo invio bloccato da “plan already in progress” (`planFlowPhase` ancora in volo).
-  - **H4**: Fase 1 non passa a chiarimenti / fase 2 come previsto (`shouldRequestClarifications` falso e stop).
-- **Strumentazione**: `CursorDebugSession773578Log` in send, execute turn, fase 0 skip, fase 1, safety reset.
+- **Stato**: fix applicato; verifica post-fix con NDJSON consigliata.
+- **Evidenza (NDJSON `773578`)**:
+  - `runMultiTurnPlanFlow_returned`: `outcome=completed`, `planPhase=analyzing`, `planningState=idle`.
+  - Subito dopo: `reset_stuck_analyzing_or_generating` (`phase=analyzing`).
+  - Assenza di `phase1_after_analysis` in ~120ms → uscita anticipata (tipicamente **prompt di fase vuoto** prima della prima `runStream` lunga di analisi).
+- **Ipotesi valutate**:
+  - **H1** (screening skip → direct chat): **RESPINTA** per questa run (nessun `screening_skip_full_pipeline`).
+  - **H2** (safety reset su fase bloccata): **CONFERMATA** come sintomo; la causa era il prefight abort senza reset UI sulla stessa conversazione.
+  - **H3/H4**: **NON applicabili** a questa run (nessun secondo invio / fase 1 non raggiunta).
+- **Causa root**: `cleanupPlanFlowAfterConversationSwitch` azzera la fase solo se `targetConversationId != conversationId`. Con lo stesso thread, guard su prompt vuoto chiamava solo quello → nessun reset → `planFlowPhase` restava `.analyzing` con outcome `completed`.
+- **Fix**: `resetPlanFlowAfterAbortedPreflight` sui guard `prompt.isEmpty` (fasi 0–3).
+- **Strumentazione**: `CursorDebugSession773578Log` — rimuovere dopo conferma utente post-fix.

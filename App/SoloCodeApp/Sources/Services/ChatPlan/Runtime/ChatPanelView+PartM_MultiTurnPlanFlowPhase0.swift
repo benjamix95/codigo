@@ -27,7 +27,7 @@ extension ChatPanelView {
             }
             guard !screeningPrompt.isEmpty else {
                 await MainActor.run {
-                    cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+                    resetPlanFlowAfterAbortedPreflight(targetConversationId: conversationId)
                 }
                 return .completed
             }
