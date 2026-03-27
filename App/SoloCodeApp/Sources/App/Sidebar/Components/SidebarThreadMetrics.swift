@@ -1,6 +1,6 @@
 import Foundation
 
-struct SidebarThreadMetrics {
+struct SidebarThreadMetrics: Equatable {
     let messageCount: Int
     let linesAdded: Int
     let linesRemoved: Int

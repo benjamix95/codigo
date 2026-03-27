@@ -23,7 +23,13 @@ struct SidebarView: View {
     @State var showSkillsSheet = false
     @State var showRulesSheet = false
     @State var showWorkspaceRequiredAlert = false
-    @State private var sidebarComplexLayoutReady = false
+    @State var sidebarComplexLayoutReady = false
+    @State var threadsSnapshot = SidebarThreadListSnapshot.empty
+    @State var threadRenderStates: [UUID: SidebarThreadRenderState] = [:]
+    @State var sidebarSnapshotRefreshTask: Task<Void, Never>?
+    @State var sidebarRenderStateRefreshTask: Task<Void, Never>?
+    @State var sidebarSnapshotFingerprint: SidebarThreadSnapshotFingerprint?
+    @State var sidebarRenderFingerprint: SidebarThreadRenderFingerprint?
 
     @AppStorage("context_scope_mode") var contextScopeModeRaw = "auto"
 
@@ -53,6 +59,37 @@ struct SidebarView: View {
             }
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .onAppear {
+                scheduleSidebarSnapshotRefresh()
+            }
+            .onChange(of: query) { _ in
+                scheduleSidebarSnapshotRefresh()
+            }
+            .onChange(of: showArchived) { _ in
+                scheduleSidebarSnapshotRefresh()
+            }
+            .onChange(of: favoritesOnly) { _ in
+                scheduleSidebarSnapshotRefresh()
+            }
+            .onChange(of: selectedConversationId) { _ in
+                scheduleSidebarSnapshotRefresh()
+            }
+            .onChange(of: projectContextStore.activeContextId) { _ in
+                scheduleSidebarSnapshotRefresh()
+            }
+            .onReceive(chatStore.objectWillChange) { _ in
+                scheduleSidebarSnapshotRefresh()
+            }
+            .onReceive(todoStore.objectWillChange) { _ in
+                scheduleSidebarRenderStateRefresh()
+            }
+            .onReceive(toolTraceStore.objectWillChange) { _ in
+                scheduleSidebarRenderStateRefresh()
+            }
+            .onDisappear {
+                sidebarSnapshotRefreshTask?.cancel()
+                sidebarRenderStateRefreshTask?.cancel()
+            }
             .alert("Nessun progetto aperto", isPresented: $showWorkspaceRequiredAlert) {
                 Button("OK", role: .cancel) {}
             } message: {

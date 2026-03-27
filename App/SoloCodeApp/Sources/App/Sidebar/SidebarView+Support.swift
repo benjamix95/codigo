@@ -40,22 +40,62 @@ extension SidebarView {
     }
 
     var visibleThreads: [Conversation] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let contextId = activeContext?.id
+        threadsSnapshot.threads
+    }
 
-        return chatStore.conversations
-            .filter { conv in
-                if let contextId { return conv.contextId == contextId }
-                return conv.contextId == nil
+    @MainActor
+    func scheduleSidebarSnapshotRefresh() {
+        sidebarSnapshotRefreshTask?.cancel()
+        sidebarSnapshotRefreshTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+            let fingerprint = SidebarThreadSnapshotBuilder.snapshotFingerprint(
+                chatStore: chatStore,
+                contextId: activeContext?.id,
+                query: query,
+                showArchived: showArchived,
+                favoritesOnly: favoritesOnly
+            )
+            guard fingerprint != sidebarSnapshotFingerprint else {
+                scheduleSidebarRenderStateRefresh()
+                return
             }
-            .filter { showArchived || !$0.isArchived || $0.isFavorite }
-            .filter { !favoritesOnly || $0.isFavorite }
-            .filter { q.isEmpty || $0.title.lowercased().contains(q) }
-            .sorted { lhs, rhs in
-                if lhs.isPinned != rhs.isPinned { return lhs.isPinned && !rhs.isPinned }
-                if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite && !rhs.isFavorite }
-                return lhs.createdAt > rhs.createdAt
-            }
+            let snapshot = SidebarThreadSnapshotBuilder.build(
+                chatStore: chatStore,
+                contextId: activeContext?.id,
+                query: query,
+                showArchived: showArchived,
+                favoritesOnly: favoritesOnly
+            )
+            sidebarSnapshotFingerprint = fingerprint
+            sidebarRenderFingerprint = nil
+            threadsSnapshot = snapshot
+            scheduleSidebarRenderStateRefresh()
+        }
+    }
+
+    @MainActor
+    func scheduleSidebarRenderStateRefresh() {
+        let conversations = threadsSnapshot.threads
+        sidebarRenderStateRefreshTask?.cancel()
+        sidebarRenderStateRefreshTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard !Task.isCancelled else { return }
+            let fingerprint = SidebarThreadSnapshotBuilder.renderFingerprint(
+                conversations: conversations,
+                chatStore: chatStore,
+                todoStore: todoStore,
+                toolTraceStore: toolTraceStore
+            )
+            guard fingerprint != sidebarRenderFingerprint else { return }
+            sidebarRenderFingerprint = fingerprint
+            threadRenderStates = SidebarThreadSnapshotBuilder.buildRenderStates(
+                conversations: conversations,
+                chatStore: chatStore,
+                todoStore: todoStore,
+                toolTraceStore: toolTraceStore
+            )
+        }
     }
 }
 

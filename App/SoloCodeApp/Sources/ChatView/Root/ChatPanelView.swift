@@ -73,6 +73,9 @@ struct ChatPanelView: View {
     /// Whether a task is currently active for the snapshot conversation.
     /// Cached to avoid reading chatStore/pipelineIntegrationService in body.
     @State var snapshotIsLoading: Bool = false
+    /// Ultimo istante in cui la chat era sicuramente in stato busy.
+    /// Serve a proteggere lo snapshot da svuotamenti transienti subito dopo fine stream.
+    @State var snapshotLastBusyAt: Date?
 
     /// Include fase plan "building" per chrome (task bar / swarm) senza leggere `planState` nel body di rootLayout.
     @State var snapshotChromeLoading: Bool = false
@@ -94,6 +97,8 @@ struct ChatPanelView: View {
     @State var snapshotInlineActivities: [TaskActivity] = []
     @State var snapshotSupervisorActivities: [TaskActivity] = []
     @State var snapshotLiveSubagentCards: [SwarmLiveCardState] = []
+    @State var messagesSnapshotRefreshTask: Task<Void, Never>?
+    @State var liveActivitySnapshotRefreshTask: Task<Void, Never>?
     @State var composerRetainedTodoItems: [TodoItem] = []
     @State var composerTodoLastNonEmptySnapshotAt: CFAbsoluteTime = 0
     @State var composerTodoGraceTask: Task<Void, Never>?

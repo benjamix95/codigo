@@ -1,6 +1,12 @@
 import Foundation
 
 extension CodebaseIndex {
+    private struct FileNodeMetadata {
+        let isDirectory: Bool
+        let size: UInt64
+        let modifiedAt: Date
+    }
+
     func buildFileTree(
         at url: URL,
         relativePath: String,
@@ -9,8 +15,7 @@ extension CodebaseIndex {
         let fm = FileManager.default
         let name = url.lastPathComponent
 
-        var isDir: ObjCBool = false
-        guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else {
+        guard let metadata = fileNodeMetadata(for: url, fileManager: fm) else {
             return FileNode(
                 name: name,
                 kind: .file,
@@ -21,7 +26,7 @@ extension CodebaseIndex {
             )
         }
 
-        if isDir.boolValue {
+        if metadata.isDirectory {
             let relPath = relativePath.isEmpty ? name : relativePath
 
             // Check if excluded
@@ -80,13 +85,6 @@ extension CodebaseIndex {
         } else {
             // File
             let ext = url.pathExtension.lowercased()
-            var size: UInt64 = 0
-            var modDate = Date.distantPast
-            if let attrs = try? fm.attributesOfItem(atPath: url.path) {
-                size = attrs[.size] as? UInt64 ?? 0
-                modDate = attrs[.modificationDate] as? Date ?? .distantPast
-            }
-
             return FileNode(
                 name: name,
                 kind: .file,
@@ -94,8 +92,8 @@ extension CodebaseIndex {
                 relativePath: relativePath.isEmpty ? name : relativePath,
                 absolutePath: url.path,
                 depth: depth,
-                size: size,
-                modifiedAt: modDate
+                size: metadata.size,
+                modifiedAt: metadata.modifiedAt
             )
         }
     }
@@ -210,5 +208,28 @@ extension CodebaseIndex {
             counts[indexed.language, default: 0] += 1
         }
         return counts
+    }
+
+    private func fileNodeMetadata(for url: URL, fileManager: FileManager) -> FileNodeMetadata? {
+        if let values = try? url.resourceValues(
+            forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+        ), let isDirectory = values.isDirectory {
+            return FileNodeMetadata(
+                isDirectory: isDirectory,
+                size: UInt64(values.fileSize ?? 0),
+                modifiedAt: values.contentModificationDate ?? .distantPast
+            )
+        }
+
+        var isDirectoryFlag: ObjCBool = false
+        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectoryFlag) else {
+            return nil
+        }
+        let attrs = try? fileManager.attributesOfItem(atPath: url.path)
+        return FileNodeMetadata(
+            isDirectory: isDirectoryFlag.boolValue,
+            size: attrs?[.size] as? UInt64 ?? 0,
+            modifiedAt: attrs?[.modificationDate] as? Date ?? .distantPast
+        )
     }
 }

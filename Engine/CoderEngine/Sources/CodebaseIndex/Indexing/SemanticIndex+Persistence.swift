@@ -90,18 +90,12 @@ extension SemanticIndex {
             if lhs.startLine != rhs.startLine { return lhs.startLine < rhs.startLine }
             return lhs.id < rhs.id
         }
-        var lines: [String] = []
-        lines.reserveCapacity(chunks.count)
-        for chunk in orderedChunks {
-            if let data = try? encoder.encode(chunk),
-               let line = String(data: data, encoding: .utf8) {
-                lines.append(line)
-            }
-        }
-
-        let content = lines.joined(separator: "\n")
         do {
-            try content.write(to: path, atomically: true, encoding: .utf8)
+            try await writeFullPersistenceSnapshot(
+                orderedChunks: orderedChunks,
+                encoder: encoder,
+                to: path
+            )
         } catch {
             Self.logger.error("persist: failed to write semantic index — \(error.localizedDescription)")
             return
@@ -122,26 +116,12 @@ extension SemanticIndex {
     ) async {
         let deltaPath = Self.deltaPath(for: indexPath)
 
-        var lines: [String] = []
-        lines.reserveCapacity(dirtyChunkIds.count + dirtyFilePaths.count)
-
-        // Write removal markers for dirty files (so load knows to drop old chunks)
-        for filePath in dirtyFilePaths {
-            lines.append("#REMOVE:\(filePath)")
-        }
-
-        // Write current chunks for dirty files
-        for chunkId in dirtyChunkIds {
-            guard let chunk = chunks[chunkId] else { continue }
-            if let data = try? encoder.encode(chunk),
-               let line = String(data: data, encoding: .utf8) {
-                lines.append(line)
-            }
-        }
-
-        let content = lines.joined(separator: "\n")
         do {
-            try content.write(to: deltaPath, atomically: true, encoding: .utf8)
+            try await writeIncrementalPersistenceSnapshot(
+                dirtyChunkIds: dirtyChunkIds,
+                encoder: encoder,
+                to: deltaPath
+            )
         } catch {
             Self.logger.error("persistIncremental: failed to write delta — \(error.localizedDescription)")
             // Fallback: schedule full persist
@@ -185,7 +165,7 @@ extension SemanticIndex {
     /// Load index from disk.
     public func loadFromDisk() async {
         guard let path = persistencePath,
-              let content = try? String(contentsOf: path, encoding: .utf8) else {
+              FileManager.default.fileExists(atPath: path.path) else {
             return
         }
 
@@ -219,14 +199,8 @@ extension SemanticIndex {
             return
         }
 
-        let lines = content.components(separatedBy: "\n").filter { !$0.isEmpty }
-
-        var loadedChunks: [SemanticChunk] = []
-        for line in lines {
-            if let data = line.data(using: .utf8),
-               let chunk = try? decoder.decode(SemanticChunk.self, from: data) {
-                loadedChunks.append(chunk)
-            }
+        guard let loadedChunks = try? await loadPersistedChunks(from: path, decoder: decoder) else {
+            return
         }
 
         // When a delta file exists, the base file may have fewer chunks than
@@ -255,8 +229,8 @@ extension SemanticIndex {
         currentSimHash = metadata.simHash
 
         // Apply incremental delta if present
-        if let deltaContent = try? String(contentsOf: deltaPath, encoding: .utf8) {
-            applyDelta(deltaContent, decoder: decoder)
+        if FileManager.default.fileExists(atPath: deltaPath.path) {
+            try? await applyDelta(from: deltaPath, decoder: decoder)
             rebuildTotalTokenCount()
             // Remove delta after successful merge — next persist will be a full write
             try? FileManager.default.removeItem(at: deltaPath)
@@ -289,34 +263,5 @@ extension SemanticIndex {
             (partial ^ UInt64(byte)) &* 1099511628211
         }
         return String(hash, radix: 16)
-    }
-
-    /// Apply a delta file produced by `persistIncremental`.
-    /// Delta lines are either `#REMOVE:<filePath>` markers or JSON chunk lines.
-    private func applyDelta(_ content: String, decoder: JSONDecoder) {
-        let lines = content.components(separatedBy: "\n").filter { !$0.isEmpty }
-
-        // Phase 1: remove chunks for files marked in the delta
-        for line in lines where line.hasPrefix("#REMOVE:") {
-            let filePath = String(line.dropFirst("#REMOVE:".count))
-            removeChunksForFile(filePath)
-        }
-
-        // Phase 2: add updated chunks from the delta
-        var chunksByFile: [String: [SemanticChunk]] = [:]
-        for line in lines where !line.hasPrefix("#") {
-            if let data = line.data(using: .utf8),
-               let chunk = try? decoder.decode(SemanticChunk.self, from: data) {
-                chunksByFile[chunk.filePath, default: []].append(chunk)
-            }
-        }
-
-        for (filePath, fileChunks) in chunksByFile {
-            let ordered = fileChunks.sorted { lhs, rhs in
-                if lhs.startLine != rhs.startLine { return lhs.startLine < rhs.startLine }
-                return lhs.id < rhs.id
-            }
-            addChunks(ordered, forFile: filePath)
-        }
     }
 }

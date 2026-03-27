@@ -260,20 +260,15 @@ extension ChatPanelView {
         }
         .onReceive(chatStore.objectWillChange) { _ in
             guard conversationId != nil else { return }
-            // La chat non legge più `chatStore.conversations` direttamente nel body:
-            // senza questo hook, publish tardivi del ChatStore possono aggiornare lo store
-            // ma lasciare `messagesConversationSnapshot` fermo fino a un resize / nuovo evento.
-            refreshMessagesSnapshot()
+            scheduleMessagesSnapshotRefresh()
         }
         .onReceive(pipelineIntegrationService.objectWillChange) { _ in
-            // Durante lo streaming pipeline, chatStore.objectWillChange è throttlato a 150ms
-            // ma pipelineIntegrationService pubblica ad ogni batch di eventi (~32ms).
-            // Senza questo hook, lo snapshot resta stale e la UI "sparisce" finché
-            // il throttle del chatStore non si sblocca o l'utente fa resize.
-            guard conversationId != nil,
-                  pipelineIntegrationService.isRunning(for: conversationId)
-            else { return }
-            refreshMessagesSnapshot()
+            guard conversationId != nil else { return }
+            scheduleMessagesSnapshotRefresh()
+            DispatchQueue.main.async {
+                guard pipelineIntegrationService.isRunning(for: conversationId) else { return }
+                scheduleMessagesSnapshotRefresh()
+            }
         }
         // Inject markdown font settings once at the messages area root.
         // All child MarkdownContentView instances read these via
@@ -284,7 +279,7 @@ extension ChatPanelView {
 
     @ViewBuilder
     internal func messagesAreaScrollView(using proxy: ScrollViewProxy) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
+        let scrollView = ScrollView(.vertical, showsIndicators: false) {
             chatMessagesAreaContent
         }
         .padding(.top, 20)
@@ -292,48 +287,8 @@ extension ChatPanelView {
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 24)
-        .onChange(of: streaming.streamContentVersion) { newVersion in
-            // #region agent log
-            AgentDebugSessionNDJSONLog.appendThrottled(
-                gateKey: "H10-stream-version",
-                minInterval: 0.08,
-                hypothesisId: "H10",
-                location: "messagesAreaScrollView",
-                message: "stream_content_version_tick",
-                data: [
-                    "version": "\(newVersion)",
-                    "conversationId": conversationId?.uuidString ?? "nil",
-                    "isFollowingLive": "\(isFollowingLive)",
-                    "taskLoading": "\(isLoadingForCurrentConversation)",
-                ]
-            )
-            // #endregion
-            // Refresh the snapshot on every stream content update.
-            refreshMessagesSnapshot()
-            guard isFollowingLive || isLoadingForCurrentConversation else { return }
-            handleStreamContentVersionChange(proxy: proxy)
-        }
-        .onChange(of: messagesConversationSnapshot?.messages.count) { _ in
-            guard isFollowingLive || isLoadingForCurrentConversation else { return }
-            handleMessagesCountChange(proxy: proxy)
-        }
-        // NOTE: liveTraceEventCount and scopedTaskActivityCount onChange removed.
-        // These caused excessive re-renders (3-4 scroll passes per streaming event)
-        // leading to black screen flicker. The streamContentVersion onChange already
-        // handles auto-scrolling during streaming, which is sufficient.
-        .onChange(of: planningState) { new in
-            handlePlanningStateChange(new, proxy: proxy)
-        }
-        .onChangeCompat(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
-            // Task started/ended may change isStreaming on messages.
-            refreshMessagesSnapshot()
-            handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
-        }
-        .onReceive(todoStore.objectWillChange) { _ in
-            guard isLoadingForCurrentConversation else { return }
-            refreshMessagesSnapshot()
-        }
-        .onDisappear { }
+
+        applyMessagesAreaRefreshModifiers(to: scrollView, proxy: proxy)
     }
 
 }

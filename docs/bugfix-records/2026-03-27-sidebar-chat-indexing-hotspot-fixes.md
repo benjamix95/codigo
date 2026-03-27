@@ -1,0 +1,57 @@
+# Bug Fix Record — 2026-03-27 — Sidebar, chat streaming e indexing hotpath
+
+- Categoria: A — Prestazioni / regressione di fluidita'
+- Bug:
+  - la sidebar ricostruiva snapshot e render state globali anche quando cambiava solo contenuto live non rilevante per la lista;
+  - la chat eseguiva refresh completi dello snapshot messaggi anche per eventi `todo` e `taskActivity` che richiedevano solo aggiornamento live-state;
+  - il traversal del `CodebaseIndex` faceva syscalls ridondanti (`fileExists` + `attributesOfItem`) su ogni nodo del file tree;
+  - la persistenza del `SemanticIndex` usava path bulk con allocazione dell'intero JSONL in memoria sia in write sia in load.
+- Sintomo:
+  - sidebar meno fluida con molti thread e streaming attivo;
+  - chat con troppo lavoro sul `MainActor` durante stream/tool activity;
+  - bootstrap index costoso su workspace grandi;
+  - picchi inutili di memoria/CPU durante persist/load dell'indice semantico.
+- Impatto:
+  - degrado della reattivita' percepita della UI;
+  - startup/indexing piu' pesanti del necessario;
+  - path di persistenza meno scalabile sui repository grandi.
+- Gravita':
+  - sidebar/chat live invalidation: P1
+  - traversal indexing / semantic persistence: P2
+- Causa radice confermata:
+  - assenza di fingerprint cheap per distinguere cambi strutturali da semplici delta di contenuto;
+  - `refreshMessagesSnapshot()` veniva usato come martello unico anche per eventi che toccano solo stato live;
+  - `buildFileTree(...)` non riusava i `resourceValues` gia' richiesti durante l'enumerazione;
+  - `SemanticIndex` costruiva `String` complete del file JSONL invece di streammare linee.
+- Correzione applicata:
+  - sidebar:
+    - aggiunti fingerprint strutturale e render fingerprint per saltare rebuild inutili;
+    - mantenuto il refresh dei render state quando il layout lista resta uguale ma cambia lo stato visivo dei thread;
+    - cancellazione esplicita dei task debounce su `onDisappear`;
+  - chat:
+    - aggiunto scheduler dedicato per coalescere i refresh completi dello snapshot messaggi;
+    - separato il refresh live-activity/task-card dal refresh completo della conversazione;
+    - estratti i modifier della message area in un file dedicato per ridurre il peso del file principale;
+  - indexing:
+    - `CodebaseIndex+IndexHelpers` ora usa metadata basati su `URL.resourceValues` con fallback, evitando syscalls ridondanti;
+    - `SemanticIndex` ora streamma JSONL su file temporaneo atomico in write e legge/applica il delta in streaming.
+- Scope del fix:
+  - `App/SoloCodeApp/Sources/App/Sidebar/SidebarView.swift`
+  - `App/SoloCodeApp/Sources/App/Sidebar/SidebarView+Support.swift`
+  - `App/SoloCodeApp/Sources/App/Sidebar/SidebarThreadListSnapshot.swift`
+  - `App/SoloCodeApp/Sources/App/Sidebar/Components/SidebarThreadMetrics.swift`
+  - `App/SoloCodeApp/Sources/ChatView/Root/ChatPanelView.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/ChatPanelView+PartC_MessageHeader.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/ChatPanelView+PartC_MessageAreaRefreshModifiers.swift`
+  - `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/ChatPanelView+PartC_MessageSnapshotScheduling.swift`
+  - `Engine/CoderEngine/Sources/CodebaseIndex/Core/Operations/Helpers/CodebaseIndex+IndexHelpers.swift`
+  - `Engine/CoderEngine/Sources/CodebaseIndex/Indexing/SemanticIndex+Persistence.swift`
+  - `Engine/CoderEngine/Sources/CodebaseIndex/Indexing/SemanticIndex+PersistenceIO.swift`
+  - `Tests/SoloCodeAppTests/SidebarThreadSnapshotTests.swift`
+- Verifica:
+  - `xcodebuild test -project 'Solo Code.xcodeproj' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/SidebarThreadSnapshotTests` -> OK
+  - `xcodebuild test -project 'Solo Code.xcodeproj' -scheme 'CoderEngineTests-Debug' -destination 'platform=macOS' -only-testing:CoderEngineTests/SemanticIndexTests -only-testing:CoderEngineTests/CodebaseIndexIncrementalTests -only-testing:CoderEngineTests/CodebaseIndexIndexingBenchmarkSmokeTests` -> OK
+- Follow-up consigliato:
+  - portare la sidebar da fingerprint globale a invalidazione per-thread se la cardinalita' thread cresce ancora;
+  - aggiungere un perf test dedicato alla chat streaming per quantificare i refresh coalesced;
+  - introdurre benchmark specifico di persist/load JSONL grande per il `SemanticIndex`.
