@@ -191,6 +191,16 @@ private func rebuildConversationIndexIfNeeded() {
     conversationIndexCache.isDirty = false
 }
 
+func upsertConversationFromScopedRustBridge(_ conversation: Conversation) {
+    if let index = conversationIndex(for: conversation.id) {
+        _conversations[index] = conversation
+    } else {
+        _conversations.append(conversation)
+    }
+    conversationIndexCache.isDirty = true
+    conversationsDidChange()
+}
+
 private func cachedThreadSearchDocument(for conversation: Conversation) -> ThreadSearchDocumentCacheEntry {
     let fingerprint = ThreadSearchDocumentFingerprint(
         title: conversation.title,

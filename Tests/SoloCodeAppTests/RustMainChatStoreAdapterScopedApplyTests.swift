@@ -4,6 +4,50 @@ import XCTest
 
 @MainActor
 final class RustMainChatStoreAdapterScopedApplyTests: XCTestCase {
+    func testScopedSnapshotIncludesOnlyRequestedConversationAndPlanBoard() throws {
+        let suiteName = "RustMainChatStoreAdapterScopedApplyTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ChatStore(userDefaults: defaults)
+        let firstConversationId = try XCTUnwrap(store.conversations.first?.id)
+        let secondConversationId = store.createConversation(contextId: nil, contextFolderPath: nil, mode: .agent)
+
+        store.planBoards = [
+            firstConversationId: PlanBoard(
+                goal: "First board",
+                options: [PlanOption(id: 1, title: "One", fullText: "Do one thing")],
+                chosenPath: nil,
+                steps: [
+                    PlanStep(
+                        id: "1",
+                        title: "Step",
+                        description: "Step",
+                        targetFile: nil,
+                        status: .pending
+                    ),
+                ],
+                updatedAt: .now
+            ),
+        ]
+
+        let snapshot = RustMainChatStoreAdapter.scopedSnapshot(
+            from: store,
+            conversationIds: Set([secondConversationId]),
+            planBoardConversationIds: Set([firstConversationId])
+        )
+
+        XCTAssertEqual(snapshot.conversations.count, 1)
+        XCTAssertEqual(
+            UUID(uuidString: try XCTUnwrap(snapshot.conversations.first?.id)),
+            secondConversationId
+        )
+        XCTAssertEqual(snapshot.planBoards.count, 1)
+        XCTAssertNotNil(snapshot.planBoards[firstConversationId.lowercasedString])
+        XCTAssertNil(snapshot.planBoards[secondConversationId.lowercasedString])
+    }
+
     func testApplyScopedForPipelinePublishesWhenReplacingExistingConversationWithSameMessageCount() throws {
         let suiteName = "RustMainChatStoreAdapterScopedApplyTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

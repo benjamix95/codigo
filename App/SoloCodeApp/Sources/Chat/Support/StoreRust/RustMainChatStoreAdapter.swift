@@ -73,202 +73,6 @@ enum RustMainChatStoreAdapter {
         })
     }
 
-    /// Scoped apply for pipeline events: updates only the active conversation
-    /// instead of replacing the entire `store.conversations` array.
-    /// This avoids O(N) COW + @Published notification for all conversations
-    /// when only one is being streamed to (~20-50 times/sec during streaming).
-    @MainActor
-    static func applyScopedForPipeline(
-        snapshot: MainChatStoreSnapshotBridge,
-        to store: ChatStore,
-        conversationId: UUID
-    ) {
-        // Update only the target conversation in-place
-        let newConversations = snapshot.conversations.compactMap(conversation)
-        guard let updatedConv = newConversations.first(where: { $0.id == conversationId }) else {
-            // Fallback: full apply if target conversation not found in response
-            apply(snapshot: snapshot, to: store, preserveLocalMessages: false)
-            return
-        }
-
-        if let existingIdx = store.conversations.firstIndex(where: { $0.id == conversationId }) {
-            store.conversations[existingIdx] = updatedConv
-        } else {
-            // Conversation was created by Rust — append it
-            store.conversations.append(updatedConv)
-        }
-
-        // Plan boards: only update keys that changed
-        for (key, value) in snapshot.planBoards {
-            guard let uuid = UUID(uuidString: key) else { continue }
-            store.planBoards[uuid] = planBoard(value)
-        }
-    }
-
-    static func loadNormalizedSnapshot(
-        _ snapshot: MainChatStoreSnapshotBridge
-    ) -> MainChatStoreSnapshotBridge? {
-        let response: MainChatStoreResponseBridge? = ReviewCoreBridge.call(
-            functionName: "chat_core_store_load",
-            request: snapshot
-        )
-        return response?.error == nil ? response?.snapshot : nil
-    }
-
-    static func handle(_ request: MainChatStoreActionRequestBridge) -> MainChatStoreSnapshotBridge? {
-        let response: MainChatStoreResponseBridge? = ReviewCoreBridge.call(
-            functionName: "chat_core_store_handle_action",
-            request: request
-        )
-        return response?.error == nil ? response?.snapshot : nil
-    }
-
-    static func handleTaskRuntime(
-        _ request: MainChatTaskRuntimeRequestBridge
-    ) -> MainChatTaskRuntimeStateBridge? {
-        let response: MainChatTaskRuntimeResponseBridge? = ReviewCoreBridge.call(
-            functionName: "chat_core_task_runtime_handle_action",
-            request: request
-        )
-        return response?.error == nil ? response?.state : nil
-    }
-
-    static func handleMarkers(_ request: MainChatMarkersRequestBridge) -> String? {
-        let response: MainChatMarkersResponseBridge? = ReviewCoreBridge.call(
-            functionName: "chat_core_markers_handle",
-            request: request
-        )
-        return response?.error == nil ? response?.text : nil
-    }
-
-    @MainActor
-    static func uiState(
-        from store: ChatStore,
-        context: MainChatUIBridgeContext
-    ) -> MainChatUIStateBridge {
-        MainChatUIStateBridge(
-            storeSnapshot: snapshot(from: store),
-            runtimeSnapshot: context.runtimeSnapshot,
-            taskRuntimeState: taskRuntimeState(from: store),
-            selectedConversationId: context.selectedConversationId?.lowercasedString,
-            draftText: context.draftText,
-            planPanelVisible: context.planPanelVisible,
-            followLive: context.followLive,
-            collapsedArtifactIdsByTurn: Dictionary(uniqueKeysWithValues: context.collapsedArtifactsByTurn.map {
-                ($0.key, Array($0.value).sorted())
-            }),
-            autoTodoRuntimeStateByMessage: context.autoTodoRuntimeStateByMessage
-        )
-    }
-
-    static func projectUI(_ state: MainChatUIStateBridge) -> MainChatUISnapshotBridge? {
-        let response: MainChatUIProjectResponseBridge? = ReviewCoreBridge.call(
-            functionName: "chat_core_ui_project",
-            request: MainChatUIProjectRequestBridge(schemaVersion: 1, state: state)
-        )
-        return response?.error == nil ? response?.snapshot : nil
-    }
-
-    static func handleUIIntent(
-        _ request: MainChatUIIntentRequestBridge
-    ) -> MainChatUIIntentResponseBridge? {
-        ReviewCoreBridge.call(functionName: "chat_core_ui_handle_intent", request: request)
-    }
-
-    @MainActor
-    static func applyUIIntent(
-        _ request: MainChatUIIntentRequestBridge,
-        to store: ChatStore,
-        preserveLocalMessages: Bool = true
-    ) -> MainChatUIIntentResponseBridge? {
-        RustMainChatAdapterSignpost.measureApplyUIIntent(intentLabel: request.intent) {
-            guard let response = handleUIIntent(request) else { return nil }
-            if let state = response.state {
-                apply(
-                    snapshot: state.storeSnapshot,
-                    to: store,
-                    preserveLocalMessages: preserveLocalMessages
-                )
-                apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
-            }
-            return response
-        }
-    }
-
-    /// Pipeline-optimized variant: updates only the active conversation
-    /// instead of replacing the entire conversations array.
-    @MainActor
-    static func applyUIIntentScopedForPipeline(
-        _ request: MainChatUIIntentRequestBridge,
-        to store: ChatStore,
-        conversationId: UUID
-    ) -> MainChatUIIntentResponseBridge? {
-        RustMainChatAdapterSignpost.measureApplyUIIntent(intentLabel: request.intent) {
-            guard let response = handleUIIntent(request) else { return nil }
-            if let state = response.state {
-                applyScopedForPipeline(
-                    snapshot: state.storeSnapshot,
-                    to: store,
-                    conversationId: conversationId
-                )
-                apply(taskRuntimeState: state.taskRuntimeState ?? .init(taskStates: []), to: store)
-            }
-            return response
-        }
-    }
-
-    @MainActor
-    static func applyPipelineEvent(
-        _ event: ChatPipelineEvent,
-        to store: ChatStore,
-        context: MainChatUIBridgeContext,
-        preserveLocalMessages: Bool = false
-    ) -> MainChatUIIntentResponseBridge? {
-        let request = MainChatUIIntentRequestBridge(
-            intent: "pipeline_apply_event",
-            state: uiState(from: store, context: context),
-            conversationId: event.conversationId,
-            turnId: event.turnId,
-            artifactId: nil,
-            text: nil,
-            timestamp: event.timestamp,
-            pipelineEvent: event,
-            payload: [:]
-        )
-        return applyUIIntent(
-            request,
-            to: store,
-            preserveLocalMessages: preserveLocalMessages
-        )
-    }
-
-    @MainActor
-    static func applyPipelineEvents(
-        _ events: [ChatPipelineEvent],
-        to store: ChatStore,
-        context: MainChatUIBridgeContext,
-        preserveLocalMessages: Bool = false
-    ) -> MainChatUIIntentResponseBridge? {
-        guard let first = events.first else { return nil }
-        let request = MainChatUIIntentRequestBridge(
-            intent: "pipeline_apply_events",
-            state: uiState(from: store, context: context),
-            conversationId: first.conversationId,
-            turnId: first.turnId,
-            artifactId: nil,
-            text: nil,
-            timestamp: events.last?.timestamp,
-            pipelineEvent: nil,
-            pipelineEvents: events,
-            payload: [:]
-        )
-        return applyUIIntent(
-            request,
-            to: store,
-            preserveLocalMessages: preserveLocalMessages
-        )
-    }
-
     static func conversationSnapshot(_ conversation: Conversation) -> MainChatStoreConversationSnapshotBridge {
         MainChatStoreConversationSnapshotBridge(
             id: conversation.id.lowercasedString,
@@ -310,7 +114,7 @@ enum RustMainChatStoreAdapter {
         )
     }
 
-    private static func conversation(_ snapshot: MainChatStoreConversationSnapshotBridge) -> Conversation? {
+    static func conversation(_ snapshot: MainChatStoreConversationSnapshotBridge) -> Conversation? {
         guard let id = UUID(uuidString: snapshot.id),
               let rootId = UUID(uuidString: snapshot.threadRootConversationId) else { return nil }
         return Conversation(
@@ -449,7 +253,7 @@ enum RustMainChatStoreAdapter {
     static func planBoardSnapshot(_ board: PlanBoard) -> MainChatStorePlanBoardSnapshotBridge {
         MainChatStorePlanBoardSnapshotBridge(goal: board.goal, options: board.options.map { .init(id: $0.id, title: $0.title, fullText: $0.fullText) }, chosenPath: board.chosenPath, steps: board.steps.map(planStepSnapshot), updatedAt: board.updatedAt, walkthroughMarkdown: board.walkthroughMarkdown, walkthroughSummary: board.walkthroughSummary, walkthroughOutcome: board.walkthroughOutcome)
     }
-    private static func planBoard(_ snapshot: MainChatStorePlanBoardSnapshotBridge) -> PlanBoard {
+    static func planBoard(_ snapshot: MainChatStorePlanBoardSnapshotBridge) -> PlanBoard {
         PlanBoard(goal: snapshot.goal, options: snapshot.options.map { PlanOption(id: $0.id, title: $0.title, fullText: $0.fullText) }, chosenPath: snapshot.chosenPath, steps: snapshot.steps.map(planStep), updatedAt: snapshot.updatedAt ?? .now, walkthroughMarkdown: snapshot.walkthroughMarkdown, walkthroughSummary: snapshot.walkthroughSummary, walkthroughOutcome: snapshot.walkthroughOutcome)
     }
     private static func planStepSnapshot(_ step: PlanStep) -> MainChatStorePlanStepSnapshotBridge {
