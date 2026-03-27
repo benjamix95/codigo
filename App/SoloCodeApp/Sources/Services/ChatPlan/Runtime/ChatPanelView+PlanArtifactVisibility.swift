@@ -59,24 +59,17 @@ extension ChatPanelView {
         return hasChecklist || hasMermaid
     }
 
-    /// Quando il composer mostra già i todo canonici del piano, nascondi il dump markdown del piano in timeline (anche se `shouldRoutePlanStreamingToPanel` è false).
-    private func shouldHidePlanMarkdownForComposerTodoParity(
-        conversationId: UUID,
-        fullLooksLikePlanPayload: Bool
-    ) -> Bool {
-        guard fullLooksLikePlanPayload else { return false }
-        let items = resolveComposerTodoItems(
-            todoStore: todoStore,
-            conversationId: conversationId,
-            includeOperationalRuntimeTodos: false
-        )
-        return shouldShowComposerTodoOverlay(
-            items: items,
-            coderMode: coderMode,
-            planToggleEnabled: planToggleEnabled,
-            planFlowPhase: planFlowPhase,
-            planningState: planningState
-        )
+    /// Messaggio assistente con piano in markdown già in timeline (fallback se il Plan panel non basta): usato per non duplicare la checklist nell’overlay del composer.
+    internal func hasPlanMarkdownFallbackInThread(conversationId: UUID?) -> Bool {
+        guard let conversationId,
+              let msgs = chatStore.conversation(for: conversationId)?.messages
+        else { return false }
+        return msgs.contains { message in
+            guard message.role == .assistant else { return false }
+            let text = message.content
+            guard text.count >= 400 else { return false }
+            return looksLikePlanPayload(text)
+        }
     }
 
     /// Allineato a `handleStreamResult`: quando true, in chat si mostra solo `planInPanelPlaceholder` ma il messaggio in store conserva il testo completo.
@@ -98,11 +91,7 @@ extension ChatPanelView {
             shouldHidePlanMarkdownForBuild: shouldHidePlanMarkdownForBuild,
             hasActivePlanContext: hasPlanContextForStreamConversation
         )
-        let hiddenByComposerParity = shouldHidePlanMarkdownForComposerTodoParity(
-            conversationId: conversationId,
-            fullLooksLikePlanPayload: fullLooksLikePlanPayload
-        )
-        let hidden = hiddenByRoute || hiddenByComposerParity
+        let hidden = hiddenByRoute
         // #region agent log
         PlanFlowDebugNDJSONLog.append(
             hypothesisId: "J",
@@ -112,7 +101,7 @@ extension ChatPanelView {
                 "conversationId": conversationId.uuidString.lowercased(),
                 "hidden": hidden ? "1" : "0",
                 "hiddenByRoute": hiddenByRoute ? "1" : "0",
-                "hiddenByComposerParity": hiddenByComposerParity ? "1" : "0",
+                "hiddenByComposerParity": "0",
                 "shouldRoutePlanStreamToPanel": shouldRoutePlanStreamToPanel ? "1" : "0",
                 "shouldRoutePlanStreamingToPanel": shouldRoutePlanStreamingToPanel ? "1" : "0",
                 "fullLooksLikePlanPayload": fullLooksLikePlanPayload ? "1" : "0",
@@ -169,22 +158,6 @@ extension ChatPanelView {
     ) -> ChatMessage {
         var displayMessage = message
         displayMessage.content = planInPanelPlaceholder
-        displayMessage.primaryTextSnapshot = planInPanelPlaceholder
-        if var blocks = displayMessage.blocks, !blocks.isEmpty {
-            displayMessage.blocks = blocks.compactMap { block in
-                if block.kind == .plan {
-                    return nil
-                }
-                if block.kind == .primaryText {
-                    var updated = block
-                    if looksLikePlanPayload(updated.text) || looksLikePlanPayload(message.content) {
-                        updated.text = planInPanelPlaceholder
-                    }
-                    return updated
-                }
-                return block
-            }
-        }
         return displayMessage
     }
 

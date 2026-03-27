@@ -13,13 +13,31 @@ extension ChatPanelView {
         let resolvedComposerFileChanges = composerTodoFileChanges
         let resolvedComposerMicroStatus = composerTodoMicroStatus
         let resolvedComposerStreaming = composerTodoIsStreaming
-        let shouldShowComposerOverlay = shouldShowComposerTodoOverlay(
+        let policyWouldShowComposerOverlay = shouldShowComposerTodoOverlay(
             items: stabilizedComposerTodoItems,
             coderMode: coderMode,
             planToggleEnabled: planToggleEnabled,
             planFlowPhase: planFlowPhase,
             planningState: planningState
         )
+        let suppressComposerBecausePlanInChat = hasPlanMarkdownFallbackInThread(conversationId: conversationId)
+        let shouldShowComposerOverlay = policyWouldShowComposerOverlay && !suppressComposerBecausePlanInChat
+        // #region agent log
+        let _: Void = {
+            PlanFlowDebugNDJSONLog.append(
+                hypothesisId: "J",
+                location: "ChatPanelView+PartH_ComposerArea.composerArea",
+                message: "composer_todo_overlay_policy",
+                data: [
+                    "conversationId": conversationId?.uuidString.lowercased() ?? "nil",
+                    "show": shouldShowComposerOverlay ? "1" : "0",
+                    "policyWouldShow": policyWouldShowComposerOverlay ? "1" : "0",
+                    "suppressForChatPlanFallback": suppressComposerBecausePlanInChat ? "1" : "0",
+                    "todoCount": String(stabilizedComposerTodoItems.count),
+                ]
+            )
+        }()
+        // #endregion
         let planningNextMoveInteractive: Bool = {
             guard let cid = conversationId else { return false }
             let scoped = scopedTaskActivities(for: cid)

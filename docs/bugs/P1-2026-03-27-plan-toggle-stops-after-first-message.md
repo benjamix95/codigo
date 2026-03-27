@@ -59,7 +59,8 @@ File `.cursor/debug-773578.log`: marker A–E per lunghezze prompt e `preflight_
 ## Fix 2026-03-27 (evidenza J): duplicazione piano / todo in chat vs composer
 
 - **Evidenza**: `shouldRoutePlanStreamingToPanel=0` → `hidden=0` nonostante `fullLooksLikePlanPayload=1` e `displayContentLen` ~11k; `composer_todo_overlay_visible` con 17 item; `shouldShowTodoCardInTurn=1` sul messaggio `3f7604d1-…` mentre il target todo era lo stesso thread.
-- **Fix**:
-  1. **`planMarkdownHiddenInChat`**: se il payload è plan-like e **`shouldShowComposerTodoOverlay`** è vero per gli stessi item del composer, imposta `hidden` anche senza routing al Plan panel (`hiddenByComposerParity=1` nei log **J**).
-  2. **`chatDisplayMessage`**: oltre a `content`, aggiorna **`primaryTextSnapshot`** e normalizza blocchi `primaryText` / rimuovi blocchi `plan` così `resolvedTimelineBlocks` non ridisegna il muro di markdown.
-  3. **`shouldShowPlanTodosInChat`**: se il composer mostra già l’overlay todo (`composerOverlaySuppress=1`), non mostrare la checklist legacy nella timeline (`show=0` anche se `baseShow=1`).
+- **Fix (prima iterazione, rollback UX)**: nascondere il markdown del piano in chat era stato richiesto per eliminare il duplicato, ma il piano in chat deve restare **fallback** visibile (come prima). La checklist duplicata è soprattutto **overlay composer** sopra lo stesso contenuto già in timeline.
+- **Fix attuale**:
+  1. **Niente** `hiddenByComposerParity` su `planMarkdownHiddenInChat`; **`chatDisplayMessage`** di nuovo solo sostituzione `content` quando il routing panel richiede soppressione.
+  2. **`hasPlanMarkdownFallbackInThread`**: se esiste un messaggio assistente con piano plan-like (≥ ~400 caratteri), **non mostrare** `ComposerTodoOverlay` (`suppressForChatPlanFallback=1` nel log **J** `composer_todo_overlay_policy`) così resta una sola superficie: il piano in chat + Plan panel.
+  3. **`shouldShowPlanTodosInChat`**: tornato al comportamento precedente (senza gate composer).
