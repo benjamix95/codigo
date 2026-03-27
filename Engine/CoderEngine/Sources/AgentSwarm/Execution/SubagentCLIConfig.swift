@@ -64,7 +64,7 @@ public enum SubagentCLIConfig {
 
         switch basename {
         case "codex":
-            var args = ["exec", "--full-auto"]
+            var args = ["exec", "--full-auto", "--skip-git-repo-check"]
             if readOnly {
                 args += ["--sandbox", "read-only"]
             } else {

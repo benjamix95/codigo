@@ -13,7 +13,7 @@ final class MCPSubagentPipelineTests: XCTestCase {
             readOnly: true
         )
         XCTAssertEqual(args, [
-            "exec", "--full-auto",
+            "exec", "--full-auto", "--skip-git-repo-check",
             "--sandbox", "read-only",
             "--cd", "/tmp/project",
             "Investigate auth flow",
@@ -28,7 +28,7 @@ final class MCPSubagentPipelineTests: XCTestCase {
             readOnly: false
         )
         XCTAssertEqual(args, [
-            "exec", "--full-auto",
+            "exec", "--full-auto", "--skip-git-repo-check",
             "--sandbox", "workspace-write",
             "--cd", "/home/user/repo",
             "Fix the bug",
@@ -44,6 +44,7 @@ final class MCPSubagentPipelineTests: XCTestCase {
         )
         XCTAssertFalse(args.contains("-q"), "-q is not a valid codex flag")
         XCTAssertTrue(args.contains("exec"), "codex requires the exec subcommand")
+        XCTAssertTrue(args.contains("--skip-git-repo-check"))
     }
 
     // MARK: - buildCLIArgs — Claude
@@ -73,6 +74,54 @@ final class MCPSubagentPipelineTests: XCTestCase {
             "-p", "Write tests",
             "--output-format", "text",
         ])
+    }
+
+    func testBuildCLIArgs_claude_prefersCoderideMCPWhenConfigExists() {
+        let args = SubagentCLIConfig.buildCLIArgs(
+            cliPath: "/usr/local/bin/claude",
+            prompt: "Review code",
+            workspacePath: "/tmp/project",
+            readOnly: true,
+            claudeMCPConfigPath: "/tmp/claude-mcp-config.json"
+        )
+        XCTAssertEqual(args, [
+            "-p", "Review code",
+            "--output-format", "text",
+            "--mcp-config", "/tmp/claude-mcp-config.json",
+            "--permission-mode", "bypassPermissions",
+            "--disallowedTools", "Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,NotebookEdit,TodoWrite",
+        ])
+    }
+
+    func testMakeClaudeMCPConfigPath_writesWorkspaceScopedConfig() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fakeServer = root.appendingPathComponent("coderide-mcp-server-rust")
+        try Data("stub".utf8).write(to: fakeServer)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o755))],
+            ofItemAtPath: fakeServer.path
+        )
+
+        let configPath = try XCTUnwrap(
+            SubagentCLIConfig.makeClaudeMCPConfigPath(
+                workspacePath: root.path,
+                explicitServerPath: fakeServer.path
+            )
+        )
+        let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let servers = try XCTUnwrap(json["mcpServers"] as? [String: Any])
+        let coderide = try XCTUnwrap(servers["coderide"] as? [String: Any])
+        let env = try XCTUnwrap(coderide["env"] as? [String: Any])
+
+        XCTAssertEqual(coderide["command"] as? String, fakeServer.path)
+        XCTAssertEqual(env["SOLOCODE_WORKSPACE"] as? String, root.path)
     }
 
     // MARK: - buildCLIArgs — Gemini
