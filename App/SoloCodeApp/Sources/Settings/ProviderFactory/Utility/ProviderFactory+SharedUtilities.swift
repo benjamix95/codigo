@@ -103,16 +103,16 @@ extension ProviderFactory {
         toolPolicy: ToolRuntimePolicy?,
         preferCoderideMCP: Bool = false
     ) -> [String] {
-        if preferCoderideMCP {
-            return configuredTools.filter { !claudeCoderideOverlapToolsLowercased.contains($0.lowercased()) }
-        }
+        let effectiveTools = preferCoderideMCP
+            ? configuredTools.filter { !claudeCoderideOverlapToolsLowercased.contains($0.lowercased()) }
+            : configuredTools
 
         guard let policy = toolPolicy, !policy.allowMutatingTools else {
-            return configuredTools
+            return effectiveTools
         }
 
         let readOnlyToolSet: Set<String> = ["read", "search", "glob", "grep"]
-        let filtered = configuredTools.filter { readOnlyToolSet.contains($0.lowercased()) }
+        let filtered = effectiveTools.filter { readOnlyToolSet.contains($0.lowercased()) }
 
         return filtered.isEmpty ? ["Read"] : filtered
     }

@@ -57,4 +57,17 @@ final class ProviderFactoryClaudeAllowedToolsTests: XCTestCase {
 
         XCTAssertEqual(effective, ["Bash", "Task"])
     }
+
+    func testClaudeToolsPreferCoderideMCPStillHonorsReadOnlyPolicy() {
+        let configuredTools = ["Read", "Edit", "Bash", "Write", "Search", "Task", "Glob", "Grep"]
+        let readOnlyPolicy = ToolRuntimePolicy(allowMutatingTools: false)
+
+        let effective = ProviderFactory.claudeTools(
+            from: configuredTools,
+            toolPolicy: readOnlyPolicy,
+            preferCoderideMCP: true
+        )
+
+        XCTAssertEqual(effective, ["Read"])
+    }
 }
