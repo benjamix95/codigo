@@ -55,12 +55,36 @@ extension ChatPanelView {
         // 5. Execute async stream
         let isPlanMultiTurnFlow = (coderMode == .plan || shouldRunPlanInline)
             && planFlowPhase == .analyzing
+        // MARK: Agent debug session 773578
+        CursorDebugSession773578Log.append(
+            hypothesisId: "H2",
+            location: "ChatPanelView+PartL_SendMessageExecution.executeSendMessageTurn",
+            message: "pre_launch_task",
+            data: [
+                "isPlanMultiTurnFlow": isPlanMultiTurnFlow ? "1" : "0",
+                "planPhase": String(describing: planFlowPhase),
+                "coderMode": String(describing: coderMode),
+                "inline": shouldRunPlanInline ? "1" : "0",
+                "provider": effectiveRuntimeProvider.id,
+            ]
+        )
         launchRunTask(for: targetConversationId) {
             var traceOutcome: ToolTraceTurnOutcome = .success
             let executionRoute = resolveMainChatSendExecutionRoute(
                 coderMode: coderMode,
                 isPlanMultiTurnFlow: isPlanMultiTurnFlow,
                 usesRustTransport: effectiveRuntimeProvider is MainChatRustTransportProvider
+            )
+            // MARK: Agent debug session 773578
+            CursorDebugSession773578Log.append(
+                hypothesisId: "H2",
+                location: "ChatPanelView+PartL_SendMessageExecution.task_body",
+                message: "execution_route",
+                data: [
+                    "route": String(describing: executionRoute),
+                    "isPlanMultiTurnFlow": isPlanMultiTurnFlow ? "1" : "0",
+                    "provider": effectiveRuntimeProvider.id,
+                ]
             )
             print(
                 "[ChatDebug] executeSendMessageTurn: coderMode=\(String(describing: self.coderMode)) isPlan=\(isPlanMultiTurnFlow ? 1 : 0) provider=\(effectiveRuntimeProvider.id)"
@@ -77,6 +101,25 @@ extension ChatPanelView {
                         shouldRunPlanInline: shouldRunPlanInline,
                         fullTurnPromptForScreeningFallback: prompt
                     )
+                    let planOutcomeTag: String = {
+                        switch planOutcome {
+                        case .completed: return "completed"
+                        case .continueWithDirectChat: return "continueWithDirectChat"
+                        }
+                    }()
+                    // MARK: Agent debug session 773578
+                    await MainActor.run {
+                        CursorDebugSession773578Log.append(
+                            hypothesisId: "H1",
+                            location: "ChatPanelView+PartL_SendMessageExecution.after_plan_flow",
+                            message: "runMultiTurnPlanFlow_returned",
+                            data: [
+                                "outcome": planOutcomeTag,
+                                "planPhase": String(describing: self.planFlowPhase),
+                                "planningState": String(describing: self.planningState),
+                            ]
+                        )
+                    }
                     if case let .continueWithDirectChat(fallbackPrompt, fallbackAttachments) = planOutcome {
                         try await runStandardMainChatSendStream(
                             targetConversationId: targetConversationId,
@@ -106,6 +149,16 @@ extension ChatPanelView {
                         }()
                         switch planFlowPhase {
                         case .analyzing, .generating:
+                            // MARK: Agent debug session 773578
+                            CursorDebugSession773578Log.append(
+                                hypothesisId: "H2",
+                                location: "ChatPanelView+PartL_SendMessageExecution.safety_reset",
+                                message: "reset_stuck_analyzing_or_generating",
+                                data: [
+                                    "phase": String(describing: planFlowPhase),
+                                    "pausedClarification": isPausedForClarification ? "1" : "0",
+                                ]
+                            )
                             print("[PlanFlow] Safety reset: planFlowPhase was still \(String(describing: planFlowPhase)) after runMultiTurnPlanFlow returned")
                             planFlowPhase = .idle
                             planningState = .idle

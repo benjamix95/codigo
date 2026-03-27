@@ -79,6 +79,17 @@ extension ChatPanelView {
             if skipFullPipeline {
                 let rustFlag = screeningSnapshot?.output?.skipFullPlanPipeline == true
                 let swiftParse = parsePlanScreeningDecision(from: screeningText) == .noPlanNeeded
+                // MARK: Agent debug session 773578
+                CursorDebugSession773578Log.append(
+                    hypothesisId: "H1",
+                    location: "ChatPanelView+PartM_MultiTurnPlanFlowPhase0",
+                    message: "screening_skip_full_pipeline",
+                    data: [
+                        "rustSkip": rustFlag ? "1" : "0",
+                        "swiftNoPlan": swiftParse ? "1" : "0",
+                        "screenLen": "\(screeningText.count)",
+                    ]
+                )
                 AgentDebugSessionNDJSONLog.append(
                     hypothesisId: "PLAN_SCREEN",
                     location: "ChatPanelView+PartM_MultiTurnPlanFlow.swift:screening",

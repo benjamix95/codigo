@@ -125,6 +125,18 @@ extension ChatPanelView {
         if isPlanModeRequested {
             switch planFlowPhase {
             case .analyzing, .questioning, .generating, .building:
+                // MARK: Agent debug session 773578
+                CursorDebugSession773578Log.append(
+                    hypothesisId: "H3",
+                    location: "ChatPanelView+PartL_SendMessage.sendMessage",
+                    message: "plan_send_blocked_in_flight",
+                    data: [
+                        "phase": String(describing: planFlowPhase),
+                        "coderMode": String(describing: coderMode),
+                        "planToggle": planToggleEnabled ? "1" : "0",
+                        "inline": shouldRunPlanInline ? "1" : "0",
+                    ]
+                )
                 appendTechnicalErrorMessage(
                     "[Plan] A plan flow is already in progress. Please wait for it to finish or interrupt it first.",
                     in: targetConversationId
@@ -133,6 +145,18 @@ extension ChatPanelView {
             default:
                 break
             }
+            // MARK: Agent debug session 773578
+            CursorDebugSession773578Log.append(
+                hypothesisId: "H3",
+                location: "ChatPanelView+PartL_SendMessage.sendMessage",
+                message: "plan_send_start_new_turn",
+                data: [
+                    "prevPhase": String(describing: planFlowPhase),
+                    "coderMode": String(describing: coderMode),
+                    "planToggle": planToggleEnabled ? "1" : "0",
+                    "inline": shouldRunPlanInline ? "1" : "0",
+                ]
+            )
             planFlowPhase = .analyzing
             planningState = .idle
             planAnalysisContext = ""

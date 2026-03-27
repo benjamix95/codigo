@@ -83,6 +83,17 @@ extension ChatPanelView {
             return .finished(.completed)
         }
         let shouldRequestClarifications = analysisRuntimeSnapshot?.plan?.phase == .questioning
+        // MARK: Agent debug session 773578
+        CursorDebugSession773578Log.append(
+            hypothesisId: "H4",
+            location: "ChatPanelView+PartM_MultiTurnPlanFlowPhase1",
+            message: "phase1_after_analysis",
+            data: [
+                "shouldRequestClarifications": shouldRequestClarifications ? "1" : "0",
+                "rustPlanPhase": analysisRuntimeSnapshot?.plan?.phase.map { String(describing: $0) } ?? "nil",
+                "analysisLen": "\(analysisText.count)",
+            ]
+        )
 
         await MainActor.run {
             guard self.conversationId == conversationId else { return }
