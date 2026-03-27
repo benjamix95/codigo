@@ -121,13 +121,17 @@ extension ChatPanelView {
                         }
                     )
                 } else {
+                    let streamMerged = messageForStreamingTimelineDisplay(
+                        base: message,
+                        conversationId: conversationId
+                    )
                     let suppressPlanArtifacts = shouldSuppressPlanArtifactsInChat(
-                        message: message,
+                        message: streamMerged,
                         conversationId: conversationId
                     )
                     let displayMessage = suppressPlanArtifacts
-                        ? chatDisplayMessage(from: message, conversationId: conversationId)
-                        : message
+                        ? chatDisplayMessage(from: streamMerged, conversationId: conversationId)
+                        : streamMerged
                     let fallbackStreamingStatusText = streamingStatusText(for: displayMessage)
                     let fallbackStreamingDetailText = streamingDetailText(
                         for: displayMessage,
@@ -202,6 +206,28 @@ extension ChatPanelView {
                             shouldShowPlanTodosInChat
                             && !planScopedTodoItems.isEmpty
                             && message.id == todoCardAssistantMessageId
+                        let blockKinds = displayMessage.resolvedTimelineBlocks
+                            .map(\.kind.rawValue).joined(separator: ",")
+                        // #region agent log
+                        let _: Void = {
+                            PlanFlowDebugNDJSONLog.append(
+                                hypothesisId: "J",
+                                location: "ChatPanelView+PartD_MessageCell.chatTurn_assistant",
+                                message: "assistant_message_render_gate",
+                                data: [
+                                    "conversationId": conversationId.uuidString.lowercased(),
+                                    "messageId": message.id.uuidString.lowercased(),
+                                    "suppressPlanArtifacts": suppressPlanArtifacts ? "1" : "0",
+                                    "shouldShowTodoCardInTurn": shouldShowTodoCardInTurn ? "1" : "0",
+                                    "todoCardTargetId": todoCardAssistantMessageId?.uuidString.lowercased() ?? "nil",
+                                    "planScopedTodoCount": String(planScopedTodoItems.count),
+                                    "displayContentLen": String(displayMessage.content.count),
+                                    "resolvedBlockCount": String(displayMessage.resolvedTimelineBlocks.count),
+                                    "blockKinds": String(blockKinds.prefix(200)),
+                                ]
+                            )
+                        }()
+                        // #endregion
                         let liveInlineActivities: [TaskActivity] =
                             (footerResolution.usesSnapshot)
                             ? snapshotInlineActivities : []

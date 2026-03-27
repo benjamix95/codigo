@@ -119,8 +119,12 @@ extension ChatPanelView {
             }
             if let activeStreamingMessage {
                 let index = messageIndexById[activeStreamingMessage.id] ?? 0
+                let displayActive = messageForStreamingTimelineDisplay(
+                    base: activeStreamingMessage,
+                    conversationId: convId
+                )
                 chatMessageCell(
-                    message: activeStreamingMessage,
+                    message: displayActive,
                     index: index,
                     lastMsg: lastMsg,
                     todoCardAssistantMessageId: todoCardAssistantMessageId,

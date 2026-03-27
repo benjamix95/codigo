@@ -43,3 +43,9 @@
 - **Evidenza:** `refresh_ran_but_snapshot_unchanged_while_active` (H11) con `freshLastContentLen` piatto (es. 569, 97, 177) per molti tick mentre `streamContentVersion` sale; a volte **`resolvedPrimaryText`** resta ferma perché `primaryTextSnapshot` non vuoto ma obsoleto mentre il delta sta in **`blocks[].text`**.
 - **Causa:** `needsSnapshotUpdate` non confrontava l’universo testo **`resolvedTimelineBlocks`** (somma `text` + `items`).
 - **Fix:** in `ChatPanelView+PartC_MessageSnapshotRefresh.swift`, oltre a `resolvedPrimaryText`, aggiungere `chatMessageTimelinePayloadCharSum` su `messages.last` al gate `needsSnapshotUpdate`. Log H11 arricchito con `freshTimelinePayloadLen`.
+
+### Fix 7 — timeline live: pipeline + pending davanti allo store (mar 2026)
+
+- **Evidenza:** H10 con `streamContentVersion` che salta (es. 12→13, 17, senza H8) mentre H11 mantiene `freshLastContentLen` costante (es. 97, 177, 331): il thread principale ticka ma `chatStore` + snapshot non ricevono ancora il commit; Fix 6 non basta se **fresh** e **snapshot** restano uguali tra loro.
+- **Causa:** la lista legge solo `Conversation` dallo snapshot; testo/blocchi più freschi stanno in `pendingStreamContent` (throttle prima di `applyMainChatUIStreamIntent`) o in `PipelineConversationRuntime.chatTurnState` (tra i round-trip Rust/debounce).
+- **Fix:** `messageForStreamingTimelineDisplay` fonde pending + `turn.blocks` / `primaryTextSnapshot` nel messaggio assistente attivo prima di `ChatTurnView` (`ChatPanelView+PartD_StreamingTimelineMerge.swift`, cella e riga streaming dedicated in `PartD_MessagesStack`). Log throttled **H25** (`streaming_timeline_merged_ahead_of_store`) quando il merge supera lo store.
