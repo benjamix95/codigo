@@ -10,14 +10,8 @@ extension CodebaseIndex {
         defer { finishIndexingTransaction(transaction) }
 
         refreshGitignoreRules()
-        rebuildWorkspaceFileTrees()
-
-        let sourceNodes = allFileNodes.filter { _, node in
-            node.isSourceFile
-                && node.size <= Self.maxFileSize
-                && !isFileExcluded(node.relativePath)
-                && !isGitignored(node.relativePath, isDirectory: false)
-        }
+        let inventory = collectIncrementalWorkspaceInventory()
+        let sourceNodes = inventory.sourceNodes
 
         let currentSourcePaths = Set(sourceNodes.keys)
         let indexedPaths = Set(indexedFiles.keys)
@@ -52,6 +46,8 @@ extension CodebaseIndex {
                 updatedFiles: removedCount + pipelineResult.updatedCount
             )
         }
+
+        applyIncrementalWorkspaceInventory(inventory)
 
         // Re-build import graph
         buildImportGraph()

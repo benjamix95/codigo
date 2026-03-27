@@ -16,10 +16,7 @@ public enum ReviewCoreBridge {
         guard isEnabled else { return nil }
         do {
             let payload = try JSONEncoder().encode(request)
-            guard let raw = String(data: payload, encoding: .utf8) else {
-                return nil
-            }
-            return try RustSearchFFIClient.shared.callReviewFunction(functionName, payload: raw)
+            return try RustSearchFFIClient.shared.callReviewFunction(functionName, payloadData: payload)
         } catch {
             return nil
         }

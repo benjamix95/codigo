@@ -225,6 +225,37 @@ final class CodebaseIndexIncrementalTests: XCTestCase {
         XCTAssertTrue(oldSymbols.isEmpty, "Old symbol should be removed after reindex")
     }
 
+    func testIncrementalUpdateReindexesOnlyChangedFiles() async throws {
+        let workspace = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let changed = workspace.appendingPathComponent("Changed.swift")
+        let unchanged = workspace.appendingPathComponent("Unchanged.swift")
+        try "struct Changed { func oldName() {} }\n".write(to: changed, atomically: true, encoding: .utf8)
+        try "struct Unchanged { func keepName() {} }\n".write(to: unchanged, atomically: true, encoding: .utf8)
+
+        let index = CodebaseIndex()
+        _ = await index.indexWorkspace(paths: [workspace])
+
+        let lock = NSLock()
+        var parsedPaths: [String] = []
+        let originalObserver = SymbolExtractor.indexFileWithContentObserver
+        SymbolExtractor.indexFileWithContentObserver = { path in
+            lock.lock()
+            parsedPaths.append((path as NSString).lastPathComponent)
+            lock.unlock()
+        }
+        defer {
+            SymbolExtractor.indexFileWithContentObserver = originalObserver
+        }
+
+        try "struct Changed { func newName() {} }\n".write(to: changed, atomically: true, encoding: .utf8)
+        _ = await index.incrementalUpdate()
+
+        XCTAssertTrue(parsedPaths.contains("Changed.swift"))
+        XCTAssertFalse(parsedPaths.contains("Unchanged.swift"))
+    }
+
     func testStatusAndResultTotalFilesCountOnlyFiles() async throws {
         let workspace = try makeWorkspace()
         defer { try? FileManager.default.removeItem(at: workspace) }

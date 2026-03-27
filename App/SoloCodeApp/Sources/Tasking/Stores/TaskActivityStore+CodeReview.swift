@@ -8,7 +8,8 @@ extension TaskActivityStore {
     /// for LiveCard display. Called from the `CodeReviewSessionState.onStateChange` callback.
     func ingestCodeReviewSnapshot(
         _ snapshot: CodeReviewSessionSnapshot,
-        conversationId: UUID? = nil
+        conversationId: UUID? = nil,
+        derivedState precomputedDerivedState: ReviewPanelDerivedState? = nil
     ) {
         if let current = codeReviewSnapshotsBySession[snapshot.sessionId] {
             if snapshot.mutationSequence < current.mutationSequence {
@@ -23,10 +24,13 @@ extension TaskActivityStore {
         #if DEBUG
         let deriveT0 = Date()
         #endif
-        let derivedState = deriveReviewPanelState(
+        let derivedState = precomputedDerivedState ?? deriveReviewPanelState(
             snapshot: snapshot,
             conversationId: resolvedConversationId
         )
+        if precomputedDerivedState != nil {
+            updateReviewPanelDerivedState(derivedState, conversationId: resolvedConversationId)
+        }
         #if DEBUG
         let deriveMs = Int(Date().timeIntervalSince(deriveT0) * 1000)
         if deriveMs > 24 {
@@ -112,10 +116,11 @@ extension TaskActivityStore {
                 "findings": resolvedSnapshot.findings.count,
             ]
         )
-        let pipe = ReviewPipelineJobStateBuilder.build(
-            snapshot: resolvedSnapshot,
-            entryPoint: .panel
-        )
+        let pipe = derivedState.pipelineJobState
+            ?? ReviewPipelineJobStateBuilder.build(
+                snapshot: resolvedSnapshot,
+                entryPoint: .panel
+            )
         let vGate = pipe.gates.first { $0.title == "Verification" }?.isReady ?? false
         let pGate = pipe.gates.first { $0.title == "Patch" }?.isReady ?? false
         ReviewPanelDebugNDJSON.emitThrottled(

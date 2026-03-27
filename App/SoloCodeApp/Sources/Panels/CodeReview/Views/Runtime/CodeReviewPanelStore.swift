@@ -117,6 +117,7 @@ final class CodeReviewPanelStore: ObservableObject {
     var finishedReviewRunActivityIds: Set<UUID> = []
     var isGitContextRefreshInFlight = false
     var isHistoryRefreshInFlight = false
+    var cachedHistoricalFallbacksByRefreshKey: [String: [HistoricalFindingRecord]] = [:]
 
     /// Buffer per coalescing `textDelta` prima del reducer Rust (meno round-trip FFI).
     var reviewPanelStreamDeltaCoalesceBuffers: [UUID: String] = [:]

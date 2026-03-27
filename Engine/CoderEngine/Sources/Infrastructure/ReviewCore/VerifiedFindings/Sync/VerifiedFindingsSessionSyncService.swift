@@ -1,15 +1,28 @@
 import Foundation
 
 public enum VerifiedFindingsSessionSyncService {
+    private static let cacheLock = NSLock()
+    private static var envelopeCache: [String: VerifiedFindingsSessionEnvelope] = [:]
+
     public static func sync(
         snapshot: CodeReviewSessionSnapshot,
         existingEnvelope: VerifiedFindingsSessionEnvelope? = nil,
         entryPoint: VerifiedFindingOriginEntryPoint = .reviewChat
     ) -> VerifiedFindingsSessionEnvelope {
+        let cacheKey = makeCacheKey(
+            snapshot: snapshot,
+            existingEnvelope: existingEnvelope,
+            entryPoint: entryPoint
+        )
+        if let cached = cachedEnvelope(for: cacheKey) {
+            return cached
+        }
+
+        let traceLog = snapshot.events.map { $0.detail ?? $0.type.rawValue }
         let baseFindings = buildBaseFindings(snapshot: snapshot, entryPoint: entryPoint)
         let rustSync = syncWithRust(
             findings: baseFindings,
-            traceLog: snapshot.events.map { $0.detail ?? $0.type.rawValue }
+            traceLog: traceLog
         )
         let identifiedFindings = rustSync?.findings ?? applyIdentityPolicy(to: baseFindings)
         let findings = applyVersionPolicy(
@@ -43,24 +56,29 @@ public enum VerifiedFindingsSessionSyncService {
                     createdAt: event.timestamp
                 )
             },
-            traceLog: snapshot.events.map { $0.detail ?? $0.type.rawValue }
+            traceLog: traceLog
         )
-        return VerifiedFindingsSessionEnvelope(
+        let envelope = VerifiedFindingsSessionEnvelope(
             sessionId: snapshot.sessionId,
             canonicalSnapshot: canonicalSnapshot,
             projectionSnapshot: rustSync?.projection ?? VerifiedFindingsProjectionBuilder.build(from: canonicalSnapshot),
             lastUpdatedAt: snapshot.lastUpdatedAt
         )
+        storeCachedEnvelope(envelope, for: cacheKey)
+        return envelope
     }
 
     static func buildBaseFindings(
         snapshot: CodeReviewSessionSnapshot,
         entryPoint: VerifiedFindingOriginEntryPoint
     ) -> [VerifiedFinding] {
+        let patchesByFindingId = Dictionary(
+            uniqueKeysWithValues: snapshot.patches.map { ($0.findingId, $0) }
+        )
         var results = snapshot.findings.map { finding in
             mapFinding(
                 finding,
-                patch: snapshot.patches.first(where: { $0.findingId == finding.id }),
+                patch: patchesByFindingId[finding.id],
                 entryPoint: entryPoint
             )
         }
@@ -195,6 +213,44 @@ public enum VerifiedFindingsSessionSyncService {
         traceLog: [String]
     ) -> ReviewCoreVerifiedSyncResponse? {
         syncWithRust(findings: findings, traceLog: traceLog)
+    }
+
+    private static func makeCacheKey(
+        snapshot: CodeReviewSessionSnapshot,
+        existingEnvelope: VerifiedFindingsSessionEnvelope?,
+        entryPoint: VerifiedFindingOriginEntryPoint
+    ) -> String {
+        let existingMarker: String
+        if let existingEnvelope {
+            existingMarker = "\(existingEnvelope.lastUpdatedAt.timeIntervalSince1970)#\(existingEnvelope.canonicalSnapshot.findings.count)"
+        } else {
+            existingMarker = "none"
+        }
+        return [
+            snapshot.sessionId,
+            String(snapshot.mutationSequence),
+            String(snapshot.lastUpdatedAt.timeIntervalSince1970),
+            entryPoint.rawValue,
+            existingMarker,
+        ].joined(separator: "#")
+    }
+
+    private static func cachedEnvelope(for key: String) -> VerifiedFindingsSessionEnvelope? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        return envelopeCache[key]
+    }
+
+    private static func storeCachedEnvelope(
+        _ envelope: VerifiedFindingsSessionEnvelope,
+        for key: String
+    ) {
+        cacheLock.lock()
+        envelopeCache[key] = envelope
+        if envelopeCache.count > 64 {
+            envelopeCache.removeValue(forKey: envelopeCache.keys.sorted().first ?? key)
+        }
+        cacheLock.unlock()
     }
 }
 

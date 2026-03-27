@@ -128,6 +128,16 @@ final class RustSearchFFIClient: @unchecked Sendable {
         return try api.call(functionName: functionName, payload: payload)
     }
 
+    func callReviewFunction<T: Decodable>(
+        _ functionName: String,
+        payloadData: Data
+    ) throws -> T {
+        guard let api = resolveApi() else {
+            throw RustSearchFFIClientError.libraryUnavailable
+        }
+        return try api.call(functionName: functionName, payloadData: payloadData)
+    }
+
     private func resolveApi() -> RustSearchFFIApi? {
         lock.lock()
         defer { lock.unlock() }
@@ -229,6 +239,16 @@ private struct RustSearchFFIApi {
         return try call(searchFn: fn, payload: payload)
     }
 
+    func call<T: Decodable>(
+        functionName: String,
+        payloadData: Data
+    ) throws -> T {
+        guard let fn: RustCoreFn = resolve(symbol: functionName) else {
+            throw RustSearchFFIClientError.missingSymbol(functionName)
+        }
+        return try call(searchFn: fn, payloadData: payloadData)
+    }
+
     private func call<T: Decodable>(
         searchFn: RustCoreFn,
         payload: String
@@ -238,6 +258,25 @@ private struct RustSearchFFIApi {
         }
         let resultPtr = encoded.withUnsafeBufferPointer { buffer in
             searchFn(buffer.baseAddress)
+        }
+        guard let resultPtr else { throw RustSearchFFIClientError.nilResponse }
+        defer { freeFn(resultPtr) }
+
+        let response = String(cString: resultPtr)
+        return try JSONDecoder().decode(T.self, from: Data(response.utf8))
+    }
+
+    private func call<T: Decodable>(
+        searchFn: RustCoreFn,
+        payloadData: Data
+    ) throws -> T {
+        var payload = payloadData
+        if payload.last != 0 {
+            payload.append(0)
+        }
+        let resultPtr = payload.withUnsafeBytes { rawBuffer -> UnsafeMutablePointer<CChar>? in
+            let baseAddress = rawBuffer.bindMemory(to: CChar.self).baseAddress
+            return searchFn(baseAddress)
         }
         guard let resultPtr else { throw RustSearchFFIClientError.nilResponse }
         defer { freeFn(resultPtr) }

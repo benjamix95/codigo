@@ -5,12 +5,13 @@ import XCTest
 final class CodebaseIndexIndexingBenchmarkSmokeTests: XCTestCase {
     func testIndexingBenchmarkSmoke() async throws {
         let env = ProcessInfo.processInfo.environment
+        let config = loadBenchmarkConfig()
         let isFull = env["RUN_INDEX_BENCHMARK_SMOKE"] == "1"
 
-        let measuredRuns = clampInt(env["INDEX_BENCHMARK_RUNS"], fallback: isFull ? 6 : 2, min: 1, max: 40)
-        let warmupRuns = clampInt(env["INDEX_BENCHMARK_WARMUP"], fallback: isFull ? 2 : 0, min: 0, max: 10)
-        let fileCount = clampInt(env["INDEX_BENCHMARK_FILES"], fallback: isFull ? 180 : 40, min: 10, max: 2_000)
-        let phase = env["INDEX_BENCHMARK_PHASE"] ?? "adhoc"
+        let measuredRuns = clampInt(env["INDEX_BENCHMARK_RUNS"] ?? config?.runsString, fallback: isFull ? 6 : 2, min: 1, max: 40)
+        let warmupRuns = clampInt(env["INDEX_BENCHMARK_WARMUP"] ?? config?.warmupRunsString, fallback: isFull ? 2 : 0, min: 0, max: 10)
+        let fileCount = clampInt(env["INDEX_BENCHMARK_FILES"] ?? config?.fileCountString, fallback: isFull ? 180 : 40, min: 10, max: 2_000)
+        let phase = env["INDEX_BENCHMARK_PHASE"] ?? config?.phase ?? "adhoc"
 
         let workspace = try makeWorkspace(fileCount: fileCount)
         defer { try? FileManager.default.removeItem(at: workspace) }
@@ -47,7 +48,8 @@ final class CodebaseIndexIndexingBenchmarkSmokeTests: XCTestCase {
         ]
 
         let encoded = try XCTUnwrap(encodeJSON(payload))
-        if let outputPath = env["INDEX_BENCHMARK_OUTPUT"], !outputPath.isEmpty {
+        let outputPath = env["INDEX_BENCHMARK_OUTPUT"] ?? config?.outputPath
+        if let outputPath, !outputPath.isEmpty {
             try encoded.write(
                 to: URL(fileURLWithPath: outputPath),
                 atomically: true,
@@ -55,6 +57,7 @@ final class CodebaseIndexIndexingBenchmarkSmokeTests: XCTestCase {
             )
         }
         print("INDEX_BENCHMARK_SMOKE_RESULT=\(encoded)")
+        NSLog("INDEX_BENCHMARK_SMOKE_RESULT=%@", encoded)
     }
 
     private func measureFullIndexing(
@@ -144,5 +147,37 @@ final class CodebaseIndexIndexingBenchmarkSmokeTests: XCTestCase {
             return nil
         }
         return String(data: data, encoding: .utf8)
+    }
+
+    private func loadBenchmarkConfig() -> BenchmarkConfig? {
+        let configURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("tmp/index-benchmark-config.json")
+        guard let data = try? Data(contentsOf: configURL) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(BenchmarkConfig.self, from: data)
+    }
+}
+
+private struct BenchmarkConfig: Decodable {
+    let phase: String?
+    let runs: Int?
+    let warmupRuns: Int?
+    let fileCount: Int?
+    let outputPath: String?
+
+    var runsString: String? { runs.map(String.init) }
+    var warmupRunsString: String? { warmupRuns.map(String.init) }
+    var fileCountString: String? { fileCount.map(String.init) }
+
+    private enum CodingKeys: String, CodingKey {
+        case phase
+        case runs
+        case warmupRuns = "warmup_runs"
+        case fileCount = "files"
+        case outputPath = "output_path"
     }
 }

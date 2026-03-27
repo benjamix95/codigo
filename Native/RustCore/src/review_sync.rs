@@ -20,6 +20,7 @@ pub fn sync_findings(
         if identity.finding_id.is_empty() {
             return Err("finding missing id".to_string());
         }
+        let mut inserted_identity = identity.clone();
         if let Some(existing_id) = index.exact_duplicate_id(&identity) {
             set_string_array(
                 &mut finding,
@@ -32,6 +33,7 @@ pub fn sync_findings(
                 Some(existing_id.clone()),
             );
             set_optional_string(&mut finding, "recurrenceGroupId", Some(existing_id));
+            inserted_identity = prepare(&finding);
         } else {
             let best = index
                 .candidates(&identity)
@@ -53,9 +55,10 @@ pub fn sync_findings(
                     vec![existing_id.clone()],
                 );
                 set_optional_string(&mut finding, "recurrenceGroupId", Some(existing_id));
+                inserted_identity = prepare(&finding);
             }
         }
-        index.insert(prepare(&finding));
+        index.insert(inserted_identity);
         output.push(finding);
     }
 

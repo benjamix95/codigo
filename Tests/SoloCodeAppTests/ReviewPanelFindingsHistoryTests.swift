@@ -4,6 +4,157 @@ import CoderEngine
 
 @MainActor
 final class ReviewPanelFindingsHistoryTests: XCTestCase {
+    func testLocalHistoryReducerMergePrefersNewestAndResumeEligibleFirst() {
+        let merged = ReviewPanelHistoricalFindingsLocalReducer.merge(
+            primary: [
+                HistoricalFindingRecord(
+                    findingId: "a",
+                    sessionId: "session-a",
+                    workspaceId: "/tmp/workspace",
+                    domain: .bug,
+                    severity: .medium,
+                    title: "Old",
+                    summary: "Old",
+                    status: .verified,
+                    filePath: "Sources/A.swift",
+                    lineStart: 1,
+                    sourceOrigin: nil,
+                    closedReason: nil,
+                    patchId: nil,
+                    patchApplyStatus: nil,
+                    revalidationReportId: nil,
+                    revalidationVerdict: nil,
+                    createdAt: Date(timeIntervalSince1970: 1),
+                    updatedAt: Date(timeIntervalSince1970: 10),
+                    resolvedAt: nil,
+                    resumeEligible: false,
+                    timeline: []
+                )
+            ],
+            fallback: [
+                HistoricalFindingRecord(
+                    findingId: "a",
+                    sessionId: "session-a",
+                    workspaceId: "/tmp/workspace",
+                    domain: .bug,
+                    severity: .high,
+                    title: "New",
+                    summary: "New",
+                    status: .patchPrepared,
+                    filePath: "Sources/A.swift",
+                    lineStart: 1,
+                    sourceOrigin: nil,
+                    closedReason: nil,
+                    patchId: nil,
+                    patchApplyStatus: nil,
+                    revalidationReportId: nil,
+                    revalidationVerdict: nil,
+                    createdAt: Date(timeIntervalSince1970: 1),
+                    updatedAt: Date(timeIntervalSince1970: 20),
+                    resolvedAt: nil,
+                    resumeEligible: true,
+                    timeline: []
+                ),
+                HistoricalFindingRecord(
+                    findingId: "b",
+                    sessionId: "session-b",
+                    workspaceId: "/tmp/workspace",
+                    domain: .security,
+                    severity: .medium,
+                    title: "Other",
+                    summary: "Other",
+                    status: .verified,
+                    filePath: "Sources/B.swift",
+                    lineStart: 2,
+                    sourceOrigin: nil,
+                    closedReason: nil,
+                    patchId: nil,
+                    patchApplyStatus: nil,
+                    revalidationReportId: nil,
+                    revalidationVerdict: nil,
+                    createdAt: Date(timeIntervalSince1970: 1),
+                    updatedAt: Date(timeIntervalSince1970: 15),
+                    resolvedAt: nil,
+                    resumeEligible: false,
+                    timeline: []
+                ),
+            ]
+        )
+
+        XCTAssertEqual(merged.map(\.findingId), ["a", "b"])
+        XCTAssertEqual(merged.first?.title, "New")
+    }
+
+    func testLocalHistoryReducerShapeDeduplicatesAndNormalizesTimelineOrdering() {
+        let late = HistoricalFindingTimelineItem(
+            eventId: "late",
+            eventType: "status_changed",
+            detail: nil,
+            createdAt: Date(timeIntervalSince1970: 5),
+            metadata: [:]
+        )
+        let early = HistoricalFindingTimelineItem(
+            eventId: "early",
+            eventType: "status_changed",
+            detail: nil,
+            createdAt: Date(timeIntervalSince1970: 1),
+            metadata: [:]
+        )
+
+        let shaped = ReviewPanelHistoricalFindingsLocalReducer.shape([
+            HistoricalFindingRecord(
+                findingId: "finding-1",
+                sessionId: "session-1",
+                workspaceId: "/tmp/workspace",
+                domain: .bug,
+                severity: .medium,
+                title: "Old",
+                summary: "Old",
+                status: .verified,
+                filePath: "Sources/A.swift",
+                lineStart: 10,
+                sourceOrigin: nil,
+                closedReason: nil,
+                patchId: nil,
+                patchApplyStatus: nil,
+                revalidationReportId: nil,
+                revalidationVerdict: nil,
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 5),
+                resolvedAt: nil,
+                resumeEligible: false,
+                timeline: [late, early]
+            ),
+            HistoricalFindingRecord(
+                findingId: "finding-1",
+                sessionId: "session-1",
+                workspaceId: "/tmp/workspace",
+                domain: .bug,
+                severity: .high,
+                title: "New",
+                summary: "New",
+                status: .patchPrepared,
+                filePath: "Sources/A.swift",
+                lineStart: 10,
+                sourceOrigin: nil,
+                closedReason: nil,
+                patchId: nil,
+                patchApplyStatus: nil,
+                revalidationReportId: nil,
+                revalidationVerdict: nil,
+                createdAt: Date(timeIntervalSince1970: 1),
+                updatedAt: Date(timeIntervalSince1970: 10),
+                resolvedAt: nil,
+                resumeEligible: true,
+                timeline: [late, early]
+            ),
+        ])
+
+        XCTAssertEqual(shaped.count, 1)
+        XCTAssertEqual(shaped.first?.title, "New")
+        XCTAssertEqual(shaped.first?.timeline.map(\.eventId), ["early", "late"])
+    }
+
     func testResumeQueuePrioritizesOpenHistoricalFindings() {
         let store = makeStore()
         store.historyRecords = [

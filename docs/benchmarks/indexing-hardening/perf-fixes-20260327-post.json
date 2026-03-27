@@ -1,0 +1,1 @@
+{"timestamp_utc":"2026-03-27T19:02:03Z","dataset_files":180,"full_max_ms":448,"warmup_runs":1,"full_p95_ms":448,"phase":"post","runs":4,"full_median_ms":439,"incremental_median_ms":10,"incremental_p95_ms":11,"incremental_max_ms":11}

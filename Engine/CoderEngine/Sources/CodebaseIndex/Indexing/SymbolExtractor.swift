@@ -5,6 +5,7 @@ import Foundation
 /// Motore di estrazione simboli multi-linguaggio basato su regex.
 /// Leggero e veloce, non richiede SourceKit o LSP.
 public enum SymbolExtractor {
+    static var indexFileWithContentObserver: ((String) -> Void)?
 
     // MARK: - Public API
 
@@ -24,6 +25,7 @@ public enum SymbolExtractor {
         relativePath: String,
         language: FileLanguage? = nil
     ) -> (file: IndexedFile, content: String)? {
+        indexFileWithContentObserver?(absolutePath)
         guard let data = FileManager.default.contents(atPath: absolutePath),
             let content = String(data: data, encoding: .utf8)
         else { return nil }
@@ -53,6 +55,13 @@ public enum SymbolExtractor {
             contentHash: contentHash
         )
         return (indexed, content)
+    }
+
+    static func contentHash(at absolutePath: String) -> UInt64? {
+        guard let data = FileManager.default.contents(atPath: absolutePath) else {
+            return nil
+        }
+        return fnv1aHash(data)
     }
 
     /// Estrae solo l'outline di un file (simboli top-level + nidificati 1 livello)

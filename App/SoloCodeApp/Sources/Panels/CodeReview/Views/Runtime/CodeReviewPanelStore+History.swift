@@ -69,16 +69,27 @@ extension CodeReviewPanelStore {
     }
 
     func fallbackHistoricalFindings() -> [HistoricalFindingRecord] {
+        let refreshKey = findingsHistoryRefreshKey
+        if let cached = cachedHistoricalFallbacksByRefreshKey[refreshKey] {
+            return cached
+        }
         let snapshots = availableSnapshots
         guard !snapshots.isEmpty else { return [] }
         let derived = snapshots
             .compactMap { snapshot -> [HistoricalFindingRecord]? in
-                deriveHistoricalFindingsFromSnapshotWithRust(snapshot)
-                    ?? ReviewPanelHistorySwiftFallback.deriveHistoricalFindings(from: snapshot)
+                ReviewPanelHistorySwiftFallback.deriveHistoricalFindings(from: snapshot)
+                    ?? deriveHistoricalFindingsFromSnapshotWithRust(snapshot)
             }
             .flatMap { $0 }
         guard !derived.isEmpty else { return [] }
-        return shapeHistoricalFindingsWithRust(derived) ?? derived
+        let shaped = ReviewPanelHistoricalFindingsLocalReducer.shape(derived)
+        cachedHistoricalFallbacksByRefreshKey[refreshKey] = shaped
+        if cachedHistoricalFallbacksByRefreshKey.count > 12 {
+            cachedHistoricalFallbacksByRefreshKey.removeValue(
+                forKey: cachedHistoricalFallbacksByRefreshKey.keys.sorted().first ?? refreshKey
+            )
+        }
+        return shaped
     }
 
     var findingsHistoryRefreshKey: String {
@@ -205,27 +216,10 @@ extension CodeReviewPanelStore {
         primary: [HistoricalFindingRecord],
         fallback: [HistoricalFindingRecord]
     ) -> [HistoricalFindingRecord] {
-        mergeHistoricalFindingsWithRust(
-            primary: primary,
-            fallback: fallback
-        ) ?? primary
-    }
-
-    private func mergeHistoricalFindingsWithRust(
-        primary: [HistoricalFindingRecord],
-        fallback: [HistoricalFindingRecord]
-    ) -> [HistoricalFindingRecord]? {
-        let request = ReviewCoreReduceHistoryRequest(
-            schemaVersion: 1,
-            operation: "merge_history",
+        ReviewPanelHistoricalFindingsLocalReducer.merge(
             primary: primary,
             fallback: fallback
         )
-        let response: ReviewCoreReduceHistoryResponse? = ReviewCoreBridge.call(
-            functionName: "review_core_reduce_panel_state",
-            request: request
-        )
-        return response?.mergedHistory
     }
 
     private func deriveHistoricalFindingsFromSnapshotWithRust(
@@ -237,20 +231,6 @@ extension CodeReviewPanelStore {
         )
         let response: ReviewCoreReduceHistoryResponse? = ReviewCoreBridge.call(
             functionName: "review_core_panel_history_records",
-            request: request
-        )
-        return response?.mergedHistory
-    }
-
-    private func shapeHistoricalFindingsWithRust(
-        _ records: [HistoricalFindingRecord]
-    ) -> [HistoricalFindingRecord]? {
-        let request = ReviewCoreHistoricalShapeRequest(
-            schemaVersion: 1,
-            records: records
-        )
-        let response: ReviewCoreReduceHistoryResponse? = ReviewCoreBridge.call(
-            functionName: "review_core_shape_historical_findings",
             request: request
         )
         return response?.mergedHistory
@@ -315,18 +295,6 @@ private struct ReviewCoreSnapshotHistoryRequest: Encodable {
     let snapshot: CodeReviewSessionSnapshot
 }
 
-private struct ReviewCoreHistoricalShapeRequest: Encodable {
-    let schemaVersion: Int
-    let records: [HistoricalFindingRecord]
-}
-
 private struct ReviewCoreReduceHistoryResponse: Decodable {
     let mergedHistory: [HistoricalFindingRecord]
-}
-
-private struct ReviewCoreReduceHistoryRequest: Encodable {
-    let schemaVersion: Int
-    let operation: String
-    let primary: [HistoricalFindingRecord]
-    let fallback: [HistoricalFindingRecord]
 }

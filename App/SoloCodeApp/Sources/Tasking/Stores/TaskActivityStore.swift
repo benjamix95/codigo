@@ -120,6 +120,10 @@ final class TaskActivityStore: ObservableObject {
     var isSortedSwarmCardsCacheDirty = true
     var pendingCodeReviewSnapshotsBySession: [String: (snapshot: CodeReviewSessionSnapshot, conversationId: UUID?)] = [:]
     var codeReviewSnapshotIngestTask: Task<Void, Never>?
+    let codeReviewDerivationQueue = DispatchQueue(
+        label: "com.solocode.task-activity.code-review-derivation",
+        qos: .userInitiated
+    )
     let persistenceBridge: TaskActivityPersistenceBridge
 
     init(
@@ -151,8 +155,8 @@ final class TaskActivityStore: ObservableObject {
             if uiCoalesceDelayNanoseconds > 0 {
                 try? await Task.sleep(nanoseconds: uiCoalesceDelayNanoseconds)
             }
-            await MainActor.run {
-                guard let self else { return }
+            let pending = await MainActor.run { () -> [(snapshot: CodeReviewSessionSnapshot, conversationId: UUID?, existingEnvelope: VerifiedFindingsSessionEnvelope?)] in
+                guard let self else { return [] }
                 let pending = self.pendingCodeReviewSnapshotsBySession.values
                     .sorted {
                         if $0.snapshot.lastUpdatedAt != $1.snapshot.lastUpdatedAt {
@@ -162,11 +166,36 @@ final class TaskActivityStore: ObservableObject {
                     }
                 self.pendingCodeReviewSnapshotsBySession.removeAll()
                 self.codeReviewSnapshotIngestTask = nil
-                for entry in pending {
-                    self.ingestCodeReviewSnapshot(
-                        entry.snapshot,
-                        conversationId: entry.conversationId
+                return pending.map { entry in
+                    (
+                        snapshot: entry.snapshot,
+                        conversationId: entry.conversationId,
+                        existingEnvelope: self.verifiedFindingsEnvelopesBySession[entry.snapshot.sessionId]
                     )
+                }
+            }
+            guard let self, !pending.isEmpty else { return }
+            self.codeReviewDerivationQueue.async { [weak self] in
+                guard let self else { return }
+                let prepared = pending.map { entry in
+                    PreparedCodeReviewSnapshotIngest(
+                        snapshot: entry.snapshot,
+                        conversationId: entry.conversationId,
+                        derivedState: ReviewPanelDerivedStateBuilder.build(
+                            snapshot: entry.snapshot,
+                            existingEnvelope: entry.existingEnvelope
+                        )
+                    )
+                }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    for entry in prepared {
+                        self.ingestCodeReviewSnapshot(
+                            entry.snapshot,
+                            conversationId: entry.conversationId,
+                            derivedState: entry.derivedState
+                        )
+                    }
                 }
             }
         }
@@ -236,6 +265,12 @@ final class TaskActivityStore: ObservableObject {
             )
         )
     }
+}
+
+private struct PreparedCodeReviewSnapshotIngest {
+    let snapshot: CodeReviewSessionSnapshot
+    let conversationId: UUID?
+    let derivedState: ReviewPanelDerivedState
 }
 
 final class TaskActivityPersistenceBridge: @unchecked Sendable {

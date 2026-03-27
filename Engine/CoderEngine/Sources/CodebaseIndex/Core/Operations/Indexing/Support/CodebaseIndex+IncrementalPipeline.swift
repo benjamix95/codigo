@@ -33,6 +33,7 @@ extension CodebaseIndex {
         let sortedEntries = sourceNodes.sorted { $0.key < $1.key }
         let hashSnapshot = contentHashes
         let indexedAtSnapshot = indexedFiles.mapValues(\.indexedAt)
+        let sizeSnapshot = indexedFiles.mapValues(\.size)
 
         var changedFiles: [IndexedFile] = []
         var failedReindexPaths: Set<String> = []
@@ -54,7 +55,8 @@ extension CodebaseIndex {
             let actions = await analyzeIncrementalBatch(
                 batch,
                 hashSnapshot: hashSnapshot,
-                indexedAtSnapshot: indexedAtSnapshot
+                indexedAtSnapshot: indexedAtSnapshot,
+                sizeSnapshot: sizeSnapshot
             )
 
             for action in actions.sorted(by: { $0.relativePath < $1.relativePath }) {
@@ -86,7 +88,8 @@ extension CodebaseIndex {
     private func analyzeIncrementalBatch(
         _ entries: ArraySlice<(key: String, value: FileNode)>,
         hashSnapshot: [String: UInt64],
-        indexedAtSnapshot: [String: Date]
+        indexedAtSnapshot: [String: Date],
+        sizeSnapshot: [String: UInt64]
     ) async -> [IncrementalReindexAction] {
         await withTaskGroup(
             of: IncrementalReindexAction.self,
@@ -97,8 +100,19 @@ extension CodebaseIndex {
                 let node = entry.value
                 let existingHash = hashSnapshot[node.absolutePath]
                 let existingIndexedAt = indexedAtSnapshot[relativePath]
+                let existingSize = sizeSnapshot[relativePath]
 
                 group.addTask {
+                    if let existingIndexedAt,
+                       existingIndexedAt >= node.modifiedAt,
+                       let existingHash,
+                       existingSize == node.size,
+                       let currentHash = SymbolExtractor.contentHash(at: node.absolutePath),
+                       currentHash == existingHash
+                    {
+                        return .unchanged(relativePath: relativePath)
+                    }
+
                     if let (indexed, content) = SymbolExtractor.indexFileWithContent(
                         absolutePath: node.absolutePath,
                         relativePath: relativePath,

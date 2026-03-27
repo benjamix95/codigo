@@ -44,25 +44,35 @@ if [[ -z "$TAG" ]]; then
 fi
 
 mkdir -p "$BENCH_DIR"
+mkdir -p "$ROOT_DIR/tmp"
 
 OUTPUT_JSON="$BENCH_DIR/${TAG}-${PHASE}.json"
 LOG_FILE="$BENCH_DIR/${TAG}-${PHASE}.log"
+CONFIG_FILE="$ROOT_DIR/tmp/index-benchmark-config.json"
+
+cat > "$CONFIG_FILE" <<EOF
+{"phase":"$PHASE","runs":$RUNS,"warmup_runs":$WARMUP,"files":$FILES,"output_path":"$OUTPUT_JSON"}
+EOF
+trap 'rm -f "$CONFIG_FILE"' EXIT
 
 echo "==> Eseguo benchmark $PHASE (tag=$TAG, runs=$RUNS, warmup=$WARMUP, files=$FILES)"
 (
-  cd "$ROOT_DIR/CoderEngine"
   RUN_INDEX_BENCHMARK_SMOKE=1 \
-  INDEX_BENCHMARK_PHASE="$PHASE" \
-  INDEX_BENCHMARK_RUNS="$RUNS" \
-  INDEX_BENCHMARK_WARMUP="$WARMUP" \
-  INDEX_BENCHMARK_FILES="$FILES" \
-  INDEX_BENCHMARK_OUTPUT="$OUTPUT_JSON" \
-  swift test --filter CodebaseIndexIndexingBenchmarkSmokeTests/testIndexingBenchmarkSmoke
+  xcodebuild test \
+    -workspace 'Solo Code.xcworkspace' \
+    -scheme 'Solo Code-Debug' \
+    -destination 'platform=macOS' \
+    -only-testing:CoderEngineTests/CodebaseIndexIndexingBenchmarkSmokeTests/testIndexingBenchmarkSmoke
 ) | tee "$LOG_FILE"
 
 if [[ ! -f "$OUTPUT_JSON" ]]; then
-  echo "Errore: output benchmark non trovato in $OUTPUT_JSON" >&2
-  exit 1
+  LOG_JSON="$(grep 'INDEX_BENCHMARK_SMOKE_RESULT=' "$LOG_FILE" | tail -n 1 | sed 's/^.*INDEX_BENCHMARK_SMOKE_RESULT=//')"
+  if [[ -n "$LOG_JSON" ]]; then
+    printf '%s\n' "$LOG_JSON" > "$OUTPUT_JSON"
+  else
+    echo "Errore: output benchmark non trovato in $OUTPUT_JSON" >&2
+    exit 1
+  fi
 fi
 
 echo "==> JSON scritto: $OUTPUT_JSON"

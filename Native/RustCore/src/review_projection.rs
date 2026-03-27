@@ -2,50 +2,50 @@ use crate::review_value::{get_str, normalize};
 use serde_json::{json, Value};
 
 pub fn build_projection(findings: &[Value], trace_log: &[String]) -> Value {
-    let items: Vec<Value> = findings.iter().map(list_item_projection).collect();
-    let candidates: Vec<Value> = items
-        .iter()
-        .filter(|item| matches!(get_str(item, "status"), Some("candidate" | "verifying")))
-        .cloned()
-        .collect();
-    let verified: Vec<Value> = items
-        .iter()
-        .filter(|item| {
-            matches!(
-                get_str(item, "status"),
-                Some(
-                    "verified"
-                        | "patch_preparing"
-                        | "patch_prepared"
-                        | "patch_reviewed"
-                        | "patch_applied"
-                        | "revalidating"
-                        | "fixed_verified"
-                        | "fix_failed"
-                        | "rollback_applied"
-                        | "closed"
-                )
-            )
-        })
-        .cloned()
-        .collect();
-    let duplicates_count = items
-        .iter()
-        .filter(|item| {
-            !item
-                .get("duplicateOf")
-                .and_then(Value::as_array)
-                .is_none_or(|value| value.is_empty())
-                || !item
-                    .get("mergedIntoFindingId")
-                    .map(Value::is_null)
-                    .unwrap_or(true)
-        })
-        .count();
-    let stale_candidates_count = candidates
-        .iter()
-        .filter(|item| get_str(item, "staleStatus").unwrap_or("active") != "active")
-        .count();
+    let mut candidates: Vec<Value> = Vec::new();
+    let mut verified: Vec<Value> = Vec::new();
+    let mut duplicates_count = 0;
+    let mut stale_candidates_count = 0;
+
+    for finding in findings {
+        let item = list_item_projection(finding);
+        let status = get_str(&item, "status").unwrap_or("candidate");
+        let is_duplicate = !item
+            .get("duplicateOf")
+            .and_then(Value::as_array)
+            .is_none_or(|value| value.is_empty())
+            || !item
+                .get("mergedIntoFindingId")
+                .map(Value::is_null)
+                .unwrap_or(true);
+        if is_duplicate {
+            duplicates_count += 1;
+        }
+
+        if matches!(status, "candidate" | "verifying") {
+            if get_str(&item, "staleStatus").unwrap_or("active") != "active" {
+                stale_candidates_count += 1;
+            }
+            candidates.push(item);
+            continue;
+        }
+
+        if matches!(
+            status,
+            "verified"
+                | "patch_preparing"
+                | "patch_prepared"
+                | "patch_reviewed"
+                | "patch_applied"
+                | "revalidating"
+                | "fixed_verified"
+                | "fix_failed"
+                | "rollback_applied"
+                | "closed"
+        ) {
+            verified.push(item);
+        }
+    }
 
     json!({
         "candidateQueue": sort_items(candidates),

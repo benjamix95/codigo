@@ -46,14 +46,36 @@ public enum SensitiveDataRedactionService {
 }
 
 public enum SecurityWorkflowService {
+    private static let cacheLock = NSLock()
+    private static var gateCache: [String: VerifiedFindingsSecurityGateReport] = [:]
+
     public static func evaluate(
         envelope: VerifiedFindingsSessionEnvelope
     ) -> VerifiedFindingsSecurityGateReport {
-        if let bridged = evaluateWithRust(envelope: envelope) {
-            return bridged
+        let cacheKey = [
+            envelope.sessionId,
+            String(envelope.lastUpdatedAt.timeIntervalSince1970),
+            String(envelope.canonicalSnapshot.findings.count),
+        ].joined(separator: "#")
+        if let cached = cachedReport(for: cacheKey) {
+            return cached
         }
+
+        let report: VerifiedFindingsSecurityGateReport
+        if shouldPreferRustGate, let bridged = evaluateWithRust(envelope: envelope) {
+            report = bridged
+        } else {
+            report = evaluateLocally(envelope: envelope)
+        }
+        storeCachedReport(report, for: cacheKey)
+        return report
+    }
+
+    private static func evaluateLocally(
+        envelope: VerifiedFindingsSessionEnvelope
+    ) -> VerifiedFindingsSecurityGateReport {
         let canonical = envelope.canonicalSnapshot
-        let rebuiltProjection = VerifiedFindingsProjectionBuilder.build(from: canonical)
+        let rebuiltProjection = VerifiedFindingsProjectionLocalBuilder.build(from: canonical)
         let mismatchCount = rebuiltProjection == envelope.projectionSnapshot ? 0 : 1
 
         let findings = Array(canonical.findings.values)
@@ -110,6 +132,28 @@ public enum SecurityWorkflowService {
                 applyRevalidateSuccessRate: applyRevalidateSuccessRate
             )
         )
+    }
+
+    private static var shouldPreferRustGate: Bool {
+        ProcessInfo.processInfo.environment["SOLOCODE_REVIEW_CORE_USE_RUST_SECURITY_GATE"] == "1"
+    }
+
+    private static func cachedReport(for key: String) -> VerifiedFindingsSecurityGateReport? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        return gateCache[key]
+    }
+
+    private static func storeCachedReport(
+        _ report: VerifiedFindingsSecurityGateReport,
+        for key: String
+    ) {
+        cacheLock.lock()
+        gateCache[key] = report
+        if gateCache.count > 64 {
+            gateCache.removeValue(forKey: gateCache.keys.sorted().first ?? key)
+        }
+        cacheLock.unlock()
     }
 
     public static func makeStartRequest(
