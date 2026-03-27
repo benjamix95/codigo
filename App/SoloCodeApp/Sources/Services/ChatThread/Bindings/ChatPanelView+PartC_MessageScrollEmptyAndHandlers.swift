@@ -55,7 +55,12 @@ extension ChatPanelView {
 
     internal func handleStreamContentVersionChange(proxy: ScrollViewProxy) {
         guard isFollowingLive else { return }
-        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, delay: 0.04)
+        scheduleAutoScroll(
+            proxy: proxy,
+            target: chatScrollBottomAnchorId,
+            delay: 0.04,
+            minCoalesceInterval: Self.autoScrollMinIntervalStreamFollow
+        )
     }
 
     internal func handleMessagesCountChange(proxy: ScrollViewProxy) {

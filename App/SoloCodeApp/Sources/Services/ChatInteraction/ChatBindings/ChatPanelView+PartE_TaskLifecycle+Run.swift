@@ -11,6 +11,11 @@ extension ChatPanelView {
     /// thread with overlapping scrollTo + layout passes. 0.35s is enough
     /// to coalesce bursts while still feeling responsive.
     private static let autoScrollMinInterval: TimeInterval = 0.35
+    /// Follow-live durante streaming: evidenza 2fa5b8 — log senza `snapshotIsLoading`→false (H23 mai)
+    /// mentre `taskLoading` e H10 restano attivi per minuti; con 350ms molti tick consecutivi verso
+    /// lo stesso anchor non programmano scroll e la viewport resta indietro (LazyVStack “vuoto”).
+    /// Internal: usato da `handleStreamContentVersionChange` (altro file di extension).
+    static let autoScrollMinIntervalStreamFollow: TimeInterval = 0.12
 
     internal func scheduleAutoScroll(
         proxy: ScrollViewProxy,
@@ -19,13 +24,16 @@ extension ChatPanelView {
         delay: TimeInterval = 0.08,
         /// Quando `true`, programma comunque lo scroll (es. fine stream: il coalesce 350ms può aver
         /// mangiato l’ultimo tick mentre il `LazyVStack` rimonta la history → area apparentemente vuota).
-        bypassCoalesce: Bool = false
+        bypassCoalesce: Bool = false,
+        /// Soglia anti storms per questo scheduling; default 350ms, più bassa per follow-live sui tick stream.
+        minCoalesceInterval: TimeInterval? = nil
     ) {
         let now = Date()
         let sinceLastScroll = now.timeIntervalSince(scrollState.lastAutoScrollAt)
+        let coalesceFloor = minCoalesceInterval ?? Self.autoScrollMinInterval
         if !bypassCoalesce,
            scrollState.lastAutoScrollTarget == target,
-           sinceLastScroll < Self.autoScrollMinInterval {
+           sinceLastScroll < coalesceFloor {
             return
         }
         scrollState.lastAutoScrollTarget = target
@@ -81,6 +89,18 @@ extension ChatPanelView {
             // causes the UI to disappear (black screen) when multiple
             // scroll operations overlap.
             proxy.scrollTo(target, anchor: .bottom)
+            // #region agent log
+            if let anchor = target as? String, anchor == chatScrollBottomAnchorId {
+                AgentDebugSessionNDJSONLog.appendThrottled(
+                    gateKey: "H24-autoscroll-bottom-exec",
+                    minInterval: 0.15,
+                    hypothesisId: "H24",
+                    location: "scheduleAutoScroll",
+                    message: "autoscroll_bottom_executed",
+                    data: ["conversationId": cidCapture?.uuidString ?? "nil"]
+                )
+            }
+            // #endregion
         }
         scrollState.autoScrollWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
