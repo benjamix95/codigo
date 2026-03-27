@@ -2,79 +2,89 @@
 
 ## Obiettivo
 
-Stabilizzare il workflow todo per evitare follow-up spuri, imporre l’ordine corretto dei task finali e mantenere visibili i completed nel composer overlay.
+Rifare la pipeline todo per:
+- creare checklist reali anche per scan/analisi multi-fase;
+- mantenere una sequenza unica e coerente tra store, UI e prompt;
+- rendere `Code Review & Test` una fase condizionale e `Doc Writer` l’ultimo passo reale delle checklist multi-fase;
+- lasciare i completed visibili con strikethrough senza riordinarli fuori sequenza.
 
 ## Modifiche principali
 
-### 1. Policy centralizzata per i follow-up finali
+### 1. Policy centralizzata per classificazione e follow-up
 
-Aggiunto:
+Aggiornati:
 - `App/SoloCodeApp/Sources/Tasking/Support/TodoExecutionFollowUpPolicy.swift`
+- `App/SoloCodeApp/Sources/Tasking/Support/TodoExecutionFollowUpPolicy+Classification.swift`
 
 Cosa fa:
-- normalizza le checklist di esecuzione;
-- rimuove follow-up orfani o duplicati;
-- riappende in ordine stabile i passi finali:
-  1. `Code Review & Test`
-  2. `Doc Writer`
+- classifica i titoli come analisi, implementazione, validazione, documentazione o placeholder non valido;
+- espande i single-step troppo generici in fasi reali:
+  - analisi: `Definire scope` -> task reale -> `Consolidare findings / output`;
+  - implementazione: `Analizzare target` -> task reale;
+- riappende i follow-up finali solo quando servono davvero:
+  - implementazione: `Code Review & Test` -> `Doc Writer`;
+  - analisi multi-fase: `Doc Writer`.
 
-### 2. Build del piano allineato alla nuova sequenza
+### 2. Ordinamento condiviso e sequenza rigorosa
 
 Modificato:
-- `App/SoloCodeApp/Sources/Services/ChatPlan/Runtime/ChatPanelView+PartK_PlanExecution.swift`
+- `App/SoloCodeApp/Sources/Tasking/Stores/TodoStore+RuntimeExecutionProgression.swift`
+- `App/SoloCodeApp/Sources/Tasking/TodoSummaryCardView.swift`
 
 Cosa cambia:
-- i todo del plan build vengono normalizzati prima di essere persistiti come canonical todos.
+- il runtime promuove solo il primo todo non terminale della coda;
+- un item `blocked` precedente blocca i successivi;
+- le summary card non riordinano più i todo per stato ma rispettano l’ordine fornito dallo store.
 
-### 3. Rimozione dei follow-up review spuri
+### 3. Prompt e UI allineati alla stessa checklist
 
 Modificati:
+- `App/SoloCodeApp/Sources/Services/ChatStreaming/Bindings/ChatPanelView+PartO_Streaming1.swift`
+- `App/SoloCodeApp/Sources/Services/ChatStreaming/Bindings/ChatPanelView+PartO_TodoPromptSection.swift`
+- `Engine/CoderEngine/Sources/SystemPrompts/Policies/PromptExecutionPolicy.swift`
+
+Cosa cambia:
+- il prompt istruisce il modello a creare todo reali per ogni task multi-fase, anche scan/audit/analisi;
+- `Current todos` viene serializzato nell’ordine della coda runtime, senza sort per stato;
+- la policy globale non impone più `Code Review & Test` come obbligo universale fuori contesto.
+
+### 4. Pipeline e follow-up runtime coerenti con la policy nuova
+
+Modificato:
+- `App/SoloCodeApp/Sources/Services/ChatTaskTrace/Bindings/ChatPanelView+PartF_TodoEvents.swift`
 - `App/SoloCodeApp/Sources/Services/ChatPipeline/Runtime/PipelineIntegrationService+EventSupport.swift`
-- `App/SoloCodeApp/Sources/Services/ChatThread/Bindings/ChatPanelView+PartR_Tail.swift`
+- `App/SoloCodeApp/Sources/Services/ChatPipeline/Runtime/PipelineIntegrationService+EventMapping.swift`
+- `App/SoloCodeApp/Sources/Services/ChatPipeline/Runtime/PipelineIntegrationService+EventMappingSupport.swift`
+- `App/SoloCodeApp/Sources/Tasking/Stores/TodoStore+FollowUpGating.swift`
 
 Cosa cambia:
-- il pipeline recap finale non crea più un runtime todo review standalone;
-- la finalizzazione di un turno con file edits non inietta più automaticamente un solo `Code Review & Test` fuori contesto.
-
-### 4. Auto-completion più rigorosa e sequenziale
-
-Modificato:
-- `App/SoloCodeApp/Sources/Services/ChatThread/ChatPanelSupport+Core.swift`
-
-Cosa cambia:
-- viene sempre completato prima l’item realmente `inProgress`;
-- il review step `pending` viene completato solo quando non esiste più lavoro esecutivo reale aperto;
-- `Doc Writer` non viene saltato né promosso implicitamente fuori ordine.
-
-### 5. Completed persistenti nel composer overlay
-
-Modificato:
-- `App/SoloCodeApp/Sources/ChatView/Composer/ComposerTodoOverlayView.swift`
-
-Cosa cambia:
-- l’overlay resta visibile anche quando tutti i todo reali sono `done`;
-- i placeholder operativi restano esclusi;
-- i completed continuano a mostrarsi con strikethrough nella checklist.
+- il runtime aggiunge solo i follow-up finali mancanti e coerenti con la checklist in scope;
+- la pipeline canonical continua a ignorare follow-up non autorizzati dal piano;
+- review/doc non vengono più promossi come side-effect generici.
 
 ## Test aggiunti/aggiornati
 
-Aggiunto:
-- `Tests/SoloCodeAppTests/TodoExecutionFollowUpPolicyTests.swift`
+Aggiunti:
+- `Tests/SoloCodeAppTests/TodoPromptSectionTests.swift`
 
 Aggiornati:
-- `Tests/SoloCodeAppTests/ComposerTodoOverlayStateTests.swift`
+- `Tests/SoloCodeAppTests/TodoExecutionFollowUpPolicyTests.swift`
+- `Tests/SoloCodeAppTests/TodoExecutionRuntimeFollowUpTests.swift`
+- `Tests/SoloCodeAppTests/TodoStoreTests.swift`
 - `Tests/SoloCodeAppTests/ChatPanelTodoFinalizationTests.swift`
 - `Tests/SoloCodeAppTests/PipelineIntegrationServiceTests.swift`
+- `Tests/SoloCodeAppTests/ComposerTodoOverlayStateTests.swift`
 
 ## Verifica eseguita
 
 Comando usato:
-- `xcodebuild test -project './Solo Code.xcodeproj' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:'SoloCodeAppTests/TodoExecutionFollowUpPolicyTests' -only-testing:'SoloCodeAppTests/ComposerTodoOverlayStateTests' -only-testing:'SoloCodeAppTests/ChatPanelTodoFinalizationTests' -only-testing:'SoloCodeAppTests/PipelineIntegrationServiceTests'`
+- `xcodebuild test -project 'Solo Code.xcodeproj' -scheme 'Solo Code-Debug' -destination 'platform=macOS' -only-testing:SoloCodeAppTests/TodoExecutionFollowUpPolicyTests -only-testing:SoloCodeAppTests/TodoExecutionRuntimeFollowUpTests -only-testing:SoloCodeAppTests/TodoPromptSectionTests -only-testing:SoloCodeAppTests/TodoStoreTests -only-testing:SoloCodeAppTests/ComposerTodoOverlayStateTests -only-testing:SoloCodeAppTests/ChatPanelTodoFinalizationTests -only-testing:SoloCodeAppTests/PipelineIntegrationServiceTests`
 
 Esito:
-- `37 test`, `0 failure`
+- `103 test`, `0 failure`
 - `** TEST SUCCEEDED **`
 
 ## Note
 
-In questa sessione `xcodebuildmcp` non era esposto nei tool live, quindi per i test macOS/Xcode ho usato il fallback diretto `xcodebuild`.
+- La suite macOS ha ricompilato anche i componenti Rust/Xcode collegati al target applicativo; non sono emersi failure bloccanti, solo warning preesistenti non in scope.
+- In questa sessione `xcodebuildmcp` non era disponibile tra i tool esposti; per il target macOS ho usato `xcodebuild` diretto come fallback verificabile.

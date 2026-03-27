@@ -37,9 +37,10 @@ extension TodoStore {
         let ordered = orderedRuntimeExecutionTodos(pool)
 
         guard !ordered.contains(where: { $0.status == .inProgress }) else { return false }
-        guard let nextPending = ordered.first(where: { $0.status == .pending }),
-              let idx = todos.firstIndex(where: { $0.id == nextPending.id })
-        else { return false }
+        guard let nextPending = nextSequentialRuntimePendingTodo(from: ordered),
+              let idx = todos.firstIndex(where: { $0.id == nextPending.id }) else {
+            return false
+        }
 
         todos[idx].status = .inProgress
         if todos[idx].activeForm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -69,5 +70,19 @@ extension TodoStore {
 private extension TodoStore {
     func hasIncompleteCanonicalPlanWork(for conversationId: UUID) -> Bool {
         canonicalTodos(for: conversationId).contains { $0.status != .done }
+    }
+
+    func nextSequentialRuntimePendingTodo(from orderedTodos: [TodoItem]) -> TodoItem? {
+        for item in orderedTodos {
+            switch item.status {
+            case .done:
+                continue
+            case .pending:
+                return item
+            case .blocked, .inProgress:
+                return nil
+            }
+        }
+        return nil
     }
 }

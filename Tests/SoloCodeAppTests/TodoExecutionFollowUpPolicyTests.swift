@@ -2,18 +2,33 @@ import XCTest
 @testable import CoderIDE
 
 final class TodoExecutionFollowUpPolicyTests: XCTestCase {
-    func testNormalizeExecutionTitlesAppendsReviewAndDocWriterAtEnd() {
+    func testNormalizeExecutionTitlesExpandsSingleImplementationIntoRealPhases() {
         let titles = TodoExecutionFollowUpPolicy.normalizeExecutionTitles([
             "Implementare fix",
-            "Aggiornare test",
         ])
 
         XCTAssertEqual(
             titles,
             [
+                "Analizzare target",
                 "Implementare fix",
-                "Aggiornare test",
                 "Code Review & Test",
+                "Doc Writer",
+            ]
+        )
+    }
+
+    func testNormalizeExecutionTitlesExpandsSingleAnalysisIntoRealPhases() {
+        let titles = TodoExecutionFollowUpPolicy.normalizeExecutionTitles([
+            "Scansionare il progetto per bug",
+        ])
+
+        XCTAssertEqual(
+            titles,
+            [
+                "Definire scope",
+                "Scansionare il progetto per bug",
+                "Consolidare findings / output",
                 "Doc Writer",
             ]
         )
@@ -39,8 +54,28 @@ final class TodoExecutionFollowUpPolicyTests: XCTestCase {
         XCTAssertEqual(
             titles,
             [
+                "Analizzare target",
                 "Implementare fix",
                 "Code Review & Test",
+                "Doc Writer",
+            ]
+        )
+    }
+
+    func testNormalizeExecutionTitlesDropsPlaceholderTodos() {
+        let titles = TodoExecutionFollowUpPolicy.normalizeExecutionTitles([
+            "Task",
+            "Step 1",
+            "Analizzare dipendenze",
+            "Doc Writer",
+        ])
+
+        XCTAssertEqual(
+            titles,
+            [
+                "Definire scope",
+                "Analizzare dipendenze",
+                "Consolidare findings / output",
                 "Doc Writer",
             ]
         )

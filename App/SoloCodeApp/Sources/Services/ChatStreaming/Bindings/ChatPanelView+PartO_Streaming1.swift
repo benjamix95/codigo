@@ -119,20 +119,22 @@ extension ChatPanelView {
                     return """
                     **Todo Workflow (use only when truly needed):**
                     1. Start with analysis (read/search) first. Initial codebase analysis is allowed before any todo creation.
-                    2. If the task is simple (single action or <=2 concrete operations), do NOT emit todo markers.
-                    3. If the task is genuinely multi-step, create ONE coherent todo list after analysis with only concrete, executable steps.
+                    2. If the task is truly single-phase, do NOT emit todo markers. If the task has 2 or more real phases, ALWAYS emit todos, including scans, audits, analysis, and informative work.
+                    3. If the task is multi-phase, create ONE coherent todo list after analysis with only concrete, executable steps that reflect the real workflow.
                     3b. For multi-step execution, emit the first \(CoderIDEMarkers.todoWritePrefix) update AFTER analysis but BEFORE any implementation, file modification, command that changes state, or other operational tool action.
-                    4. Never create placeholder todos (forbidden examples: "Task", "Analysis", "Step 1", "Setup task panel", "Todo update").
-                    5. Emit \(CoderIDEMarkers.showTaskPanel) only when a real todo list exists or when the user explicitly asks.
-                    6. During execution, update status only for real todos: in_progress before work, done after completion.
-                    7. Emit \(CoderIDEMarkers.todoRead) only for resume/reconciliation when needed, never as a default first action.
-                    8. If MCP is available and external/domain capabilities are needed, call native MCP tools directly by name. Use `mcp_call` only as a fallback for tools not registered natively.
-                    9. When MCP is used, explicitly report which MCP servers and MCP tools were used.
-                    10. If context contains a required marker `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
-                    11. If subagent tools are available, first send a short user-facing response, then start the first operational tool round. For independent workstreams, prefer 2-5 `subagent_*` calls in the same round.
-                    12. For implementation tasks, always run `subagent_reviewer` + `subagent_testWriter` before finalizing.
-                    13. Do NOT auto-open the swarm/subagent panel. Emit \(CoderIDEMarkers.showSwarmPanel) only when the user explicitly asks to open/focus that panel.
-                    14. For local code discovery/inspection, prefer dedicated tools (`read`/`grep`/`semantic_search` or aliases like `coderide_read`/`coderide_grep`/`coderide_semantic_search`) and avoid `bash` commands such as `cat`, `rg`, `grep`, `find` unless those dedicated tools fail first.
+                    4. Never create placeholder todos (forbidden examples: "Task", "Analysis", "Step 1", "Setup task panel", "Todo update"). Every todo must describe a real user-visible phase.
+                    5. For scans, audits, and analysis work, prefer real phases like scope -> scan/analyze -> consolidate findings/output -> Doc Writer.
+                    6. For implementation work, prefer real phases like analyze target -> apply changes -> Code Review & Test (only when truly required) -> Doc Writer.
+                    7. Emit \(CoderIDEMarkers.showTaskPanel) only when a real todo list exists or when the user explicitly asks.
+                    8. During execution, update status only for real todos: in_progress before work, done after completion.
+                    9. Emit \(CoderIDEMarkers.todoRead) only for resume/reconciliation when needed, never as a default first action.
+                    10. If MCP is available and external/domain capabilities are needed, call native MCP tools directly by name. Use `mcp_call` only as a fallback for tools not registered natively.
+                    11. When MCP is used, explicitly report which MCP servers and MCP tools were used.
+                    12. If context contains a required marker `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
+                    13. If subagent tools are available, first send a short user-facing response, then start the first operational tool round. For independent workstreams, prefer 2-5 `subagent_*` calls in the same round.
+                    14. Add `Code Review & Test` only when the work truly requires technical validation/review. `Doc Writer` is the final phase only when a real multi-phase todo flow exists.
+                    15. Do NOT auto-open the swarm/subagent panel. Emit \(CoderIDEMarkers.showSwarmPanel) only when the user explicitly asks to open/focus that panel.
+                    16. For local code discovery/inspection, prefer dedicated tools (`read`/`grep`/`semantic_search` or aliases like `coderide_read`/`coderide_grep`/`coderide_semantic_search`) and avoid `bash` commands such as `cat`, `rg`, `grep`, `find` unless those dedicated tools fail first.
                     Prefer MCP plan tools for plan tracking (`plan_create`, `plan_step_upsert`, `plan_step_batch_update`,
                     `plan_step_reorder`, `plan_step_dependency_set`, `plan_set_walkthrough`).
                     Keep `plan_step_update` only as legacy fallback compatibility.
@@ -148,26 +150,7 @@ extension ChatPanelView {
                 }()
                 prompt = baseInstructions + "\n" + prompt
                 let scopedTodos = todoStore.displayTodosForChat(for: conversationId)
-                if !scopedTodos.isEmpty {
-                    let todoSection = scopedTodos.sorted { $0.status.rank < $1.status.rank }
-                        .map { t -> String in
-                            let check = t.status == .done ? "x" : " "
-                            let trimmedNotes = t.notes.trimmingCharacters(in: .whitespacesAndNewlines)
-                            let notesSuffix = trimmedNotes.isEmpty ? "" : " — \(trimmedNotes)"
-                            let linkedPreview = t.linkedFiles.prefix(8)
-                            let linkedFilesSuffix: String
-                            if linkedPreview.isEmpty {
-                                linkedFilesSuffix = ""
-                            } else {
-                                let joined = linkedPreview.joined(separator: ", ")
-                                let overflow = t.linkedFiles.count > linkedPreview.count ? ", ..." : ""
-                                linkedFilesSuffix = " [files: \(joined)\(overflow)]"
-                            }
-                            return "- [\(check)] \(t.title) (\(t.status.rawValue))\(notesSuffix)\(linkedFilesSuffix)"
-                        }
-                        .joined(separator: "\n")
-                    prompt += "\n\n## Current todos\n\(todoSection)"
-                }
+                prompt += currentTodoPromptSection(for: scopedTodos)
             }
 
         let convoContext = recentConversationContextForPrompt()
