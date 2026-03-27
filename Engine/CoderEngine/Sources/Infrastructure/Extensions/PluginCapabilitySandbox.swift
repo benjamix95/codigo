@@ -1,23 +1,27 @@
 import Foundation
 
 enum PluginCapabilitySandbox {
-    private static let toolsByCapability: [PluginCapability: Set<String>] = [
-        .read: ["read", "read_range", "list_dir", "find_files", "glob", "grep", "semantic_search", "codebase_search", "find_symbol", "find_references", "file_outline"],
-        .edit: ["edit", "str_replace", "multi_edit", "parallel_apply", "apply_diff"],
+    private static let legacyToolsByCapability: [PluginCapability: Set<String>] = [
+        .read: ["file_read", "read_file"],
+        .edit: ["edit", "multi_edit", "parallel_apply", "apply_diff"],
         .write: ["write", "create_file", "write_json"],
-        .bash: ["bash", "run_tests", "build_project", "diagnostics", "read_lints"],
+        .bash: ["bash", "build_project"],
         .web: ["web_search", "web_fetch"],
         .mcp: ["mcp_call", "mcp_batch", "mcp_list_resources", "mcp_read_resource", "mcp_health", "mcp_reconnect", "mcp_restart_server"],
         .git: ["git_diff", "git_status", "git_show", "git_log_search"],
-        .debug: [
-            "activate_debug_mode",
-            "debug_context", "debug_log", "debug_query", "debug_session",
-            "debug_hypothesize", "debug_mark", "debug_instrument", "debug_clean",
-            "debug_set_phase", "debug_request_user", "debug_resolve",
-            "debug_trace_analyze", "debug_snapshot", "debug_timeline", "debug_test_check",
-        ],
-        .subagent: ["subagent_explorer", "subagent_coder", "subagent_reviewer", "subagent_bugHunter", "subagent_testWriter", "subagent_debugger", "subagent_docWriter", "subagent_securityAuditor"],
+        .debug: [],
+        .subagent: []
     ]
+
+    private static var toolsByCapability: [PluginCapability: Set<String>] {
+        var result = legacyToolsByCapability
+        for capability in PluginCapability.allCases {
+            result[capability, default: []].formUnion(
+                CoderIDECanonicalToolRegistry.shared.toolNames(for: capability)
+            )
+        }
+        return result
+    }
 
     static func validate(
         _ manifest: IDEPluginManifest,

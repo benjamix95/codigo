@@ -1,11 +1,8 @@
 import Foundation
 
 extension ProviderToolEventMapper {
-    private static let canonicalToolNames: Set<String> = [
+    private static let legacyCanonicalToolNames: Set<String> = [
         "agent", "apply_patch", "attempt_completion", "bash", "codebase_search", "command_execution", "create_file",
-        "debug_clean", "debug_context", "debug_hypothesize", "debug_log", "debug_mark",
-        "debug_query", "debug_session", "debug_set_phase", "debug_request_user", "debug_resolve",
-        "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
         "delete_file", "diagnostics", "edit", "fetch_file", "file_outline",
         "file_read", "find_and_replace_all", "find_files", "find_references", "find_symbol", "glob",
         "grep", "instant_grep", "list_dir", "list_symbols", "mcp", "mcp_call", "mcp_describe_tool",
@@ -16,31 +13,19 @@ extension ProviderToolEventMapper {
         "multiedit", "notebook_edit", "notebook_read", "notebook_write", "notebookread", "parallel_apply",
         "policy_ack",
         "plan_step_update",
-        "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update", "plan_step_reorder",
-        "plan_step_dependency_set", "plan_set_walkthrough", "plan_history_read", "plan_diff",
-        "plan_request_user_input",
         "read", "read_file", "read_lints", "read_range", "regex_replace", "rename_symbol", "rg",
         "run_agent", "search", "search_symbols", "semantic_search", "skill", "str_replace", "sub_agent",
         "subagent", "todo_write", "todo_read", "undo_edit", "web_fetch", "web_search", "write", "write_file",
-        // IDE state tools (mode activation, task panel, swarm)
-        "activate_plan_mode", "activate_debug_mode", "show_task_panel", "show_swarm_panel",
-        // Subagent tools
-        "subagent_explorer", "subagent_coder", "subagent_debugger", "subagent_reviewer",
-        "subagent_bughunter", "subagent_testwriter", "subagent_docwriter", "subagent_securityauditor", "subagent_tester",
+        "subagent_tester",
     ]
 
-    private static let canonicalToolAliases: [String: String] = [
+    private static var canonicalToolNames: Set<String> {
+        legacyCanonicalToolNames.union(CoderIDECanonicalToolRegistry.shared.allowedRuntimeToolNames)
+    }
+
+    private static let legacyCanonicalToolAliases: [String: String] = [
         "applypatch": "apply_patch",
         "codebasesearch": "codebase_search",
-        "debugcontext": "debug_context",
-        "debugsetphase": "debug_set_phase",
-        "debugrequestuser": "debug_request_user",
-        "debugresolve": "debug_resolve",
-        "debugtraceanalyze": "debug_trace_analyze",
-        "debuginstrument": "debug_instrument",
-        "debugtimeline": "debug_timeline",
-        "debugsnapshot": "debug_snapshot",
-        "debugtestcheck": "debug_test_check",
         "exec_command": "bash",
         "execute_command": "bash",
         "fileoutline": "file_outline",
@@ -63,25 +48,9 @@ extension ProviderToolEventMapper {
         "readrange": "read_range",
         "strreplace": "str_replace",
         "showswarmpanel": "show_swarm_panel",
-        // Subagent aliases / normalization
-        "subagent_test_writer": "subagent_testwriter",
-        "subagent_doc_writer": "subagent_docwriter",
-        "subagent_bug_hunter": "subagent_bughunter",
-        "subagent_security_auditor": "subagent_securityauditor",
         "subagent_tester": "subagent_testwriter",
         "todowrite": "todo_write",
         "todoread": "todo_read",
-        "planstepupdate": "plan_step_update",
-        "plancreate": "plan_create",
-        "planread": "plan_read",
-        "planstepupsert": "plan_step_upsert",
-        "planstepbatchupdate": "plan_step_batch_update",
-        "planstepreorder": "plan_step_reorder",
-        "planstepdependencyset": "plan_step_dependency_set",
-        "plansetwalkthrough": "plan_set_walkthrough",
-        "planhistoryread": "plan_history_read",
-        "plandiff": "plan_diff",
-        "planrequestuserinput": "plan_request_user_input",
         "webfetch": "web_fetch",
         "websearch": "web_search",
         "write_stdin": "bash",
@@ -94,6 +63,14 @@ extension ProviderToolEventMapper {
         "enterplanmode": "activate_plan_mode",
         "enter_plan_mode": "activate_plan_mode",
     ]
+
+    private static var canonicalToolAliases: [String: String] {
+        var merged = legacyCanonicalToolAliases
+        for (alias, canonical) in CoderIDECanonicalToolRegistry.shared.runtimeAliasesToCanonicalName {
+            merged[alias] = canonical
+        }
+        return merged
+    }
 
     static func normalizeToolIdentifier(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -139,7 +116,9 @@ extension ProviderToolEventMapper {
     public static func isWorkspaceCatalogTool(_ raw: String) -> Bool {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
-        if trimmed.lowercased().contains("coderide_") { return true }
+        if let runtime = CoderIDECanonicalToolRegistry.shared.runtimeName(forMCPName: trimmed) {
+            return canonicalToolNames.contains(runtime)
+        }
 
         let n = normalizeToolIdentifier(trimmed)
             .trimmingCharacters(in: .whitespacesAndNewlines)

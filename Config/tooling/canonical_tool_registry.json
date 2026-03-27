@@ -1,0 +1,2369 @@
+{
+  "version": 1,
+  "generated_from_bootstrap": true,
+  "tools": [
+    {
+      "mcp_name": "coderide_activate_debug_mode",
+      "runtime_name": "activate_debug_mode",
+      "family": "plan",
+      "description": "Open or focus IDE debug workflow / instrumentation UI. Usage: optional reason string.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_activate_plan_mode",
+      "runtime_name": "activate_plan_mode",
+      "family": "plan",
+      "description": "Open or focus the IDE plan panel for structured multi-step planning before large edits. Usage: optional reason string explaining why plan mode is needed.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "ask_user_question",
+        "askuserquestion",
+        "enter_plan_mode",
+        "enterplanmode",
+        "exit_plan_mode",
+        "exitplanmode"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_api_contracts",
+      "runtime_name": "audit_bug_api_contracts",
+      "family": "audit",
+      "description": "Read-only audit: API surface contracts, boundary mismatches, and unsafe assumptions across modules. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_concurrency",
+      "runtime_name": "audit_bug_concurrency",
+      "family": "audit",
+      "description": "Read-only audit: races, locks, actors, async boundaries, and shared mutable state risks. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_dependency_drift",
+      "runtime_name": "audit_bug_dependency_drift",
+      "family": "audit",
+      "description": "Read-only audit: dependency/version skew vs lockfiles and expected toolchain baselines. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_diff_risks",
+      "runtime_name": "audit_bug_diff_risks",
+      "family": "audit",
+      "description": "Read-only audit: risky patterns introduced by recent diffs (focused churn analysis). Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_diff_semantics",
+      "runtime_name": "audit_bug_diff_semantics",
+      "family": "audit",
+      "description": "Read-only audit: semantic behavior shifts in diffs (logic drift, unintended changes). Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_error_handling",
+      "runtime_name": "audit_bug_error_handling",
+      "family": "audit",
+      "description": "Read-only audit: error propagation, Result/throws gaps, swallowed errors, and recovery paths. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_hotspots",
+      "runtime_name": "audit_bug_hotspots",
+      "family": "audit",
+      "description": "Read-only audit: complexity hotspots, churn-heavy files, and fragile regions. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_nil_crash_paths",
+      "runtime_name": "audit_bug_nil_crash_paths",
+      "family": "audit",
+      "description": "Read-only audit: null/optional mishandling and likely crash paths (force-unwrap, unchecked). Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_state_machine",
+      "runtime_name": "audit_bug_state_machine",
+      "family": "audit",
+      "description": "Read-only audit: state machines, invalid transitions, and lifecycle edge cases. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_test_gaps",
+      "runtime_name": "audit_bug_test_gaps",
+      "family": "audit",
+      "description": "Read-only audit: missing or shallow tests for critical logic and regressions. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_bug_test_impact",
+      "runtime_name": "audit_bug_test_impact",
+      "family": "audit",
+      "description": "Read-only audit: test coverage vs recent changes; tests that should exist for touched code. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_correlate_findings",
+      "runtime_name": "audit_correlate_findings",
+      "family": "audit",
+      "description": "Read-only audit helper: correlate multiple findings into clusters/themes (meta-analysis). Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_explain_finding",
+      "runtime_name": "audit_explain_finding",
+      "family": "audit",
+      "description": "Read-only audit helper: produce a structured explanation for one audit finding. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_run_profile",
+      "runtime_name": "audit_run_profile",
+      "family": "audit",
+      "description": "Execute a named read-only audit profile bundle (host-defined grouping of checks). Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_authz",
+      "runtime_name": "audit_security_authz",
+      "family": "audit",
+      "description": "Read-only security audit: authorization, access control, privilege checks, and IDOR patterns. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_crypto",
+      "runtime_name": "audit_security_crypto",
+      "family": "audit",
+      "description": "Read-only security audit: cryptography misuse, weak algorithms, and secret handling in code. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_dataflow",
+      "runtime_name": "audit_security_dataflow",
+      "family": "audit",
+      "description": "Read-only security audit: sensitive data flow, logging leaks, and exfiltration patterns. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_dependencies",
+      "runtime_name": "audit_security_dependencies",
+      "family": "audit",
+      "description": "Read-only security audit: vulnerable or suspicious dependency usage and supply signals. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_deserialization",
+      "runtime_name": "audit_security_deserialization",
+      "family": "audit",
+      "description": "Read-only security audit: deserialization boundaries and injection/unsafe object graphs. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_patterns",
+      "runtime_name": "audit_security_patterns",
+      "family": "audit",
+      "description": "Read-only security audit: OWASP-style pattern scan (SQLi, XSS hooks, command injection shapes). Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_secrets",
+      "runtime_name": "audit_security_secrets",
+      "family": "audit",
+      "description": "Read-only security audit: hard-coded secrets, tokens, keys, and unsafe credential patterns. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_supply_chain",
+      "runtime_name": "audit_security_supply_chain",
+      "family": "audit",
+      "description": "Read-only security audit: supply-chain and third-party risk surfacing in the workspace. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_security_surface",
+      "runtime_name": "audit_security_surface",
+      "family": "audit",
+      "description": "Read-only security audit: attack surface expansion (new endpoints, parsers, IPC). Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_audit_verify_bundle",
+      "runtime_name": "audit_verify_bundle",
+      "family": "audit",
+      "description": "Read-only audit: validate a prior audit bundle/export for consistency and completeness. Usage: optional path, scope_files or scopeFiles (JSON array or CSV), file, profile, message, line, evidence — narrow the scope for faster, focused read-only audits.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_autofix_apply",
+      "runtime_name": "bughunter_autofix_apply",
+      "family": "bughunter",
+      "description": "Apply autofix for top verified finding. Usage: run_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_autofix_commit",
+      "runtime_name": "bughunter_autofix_commit",
+      "family": "bughunter",
+      "description": "Apply+commit autofix and queue follow-up review. Usage: run_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_autofix_preview",
+      "runtime_name": "bughunter_autofix_preview",
+      "family": "bughunter",
+      "description": "Preview autofix for top verified BugHunter finding. Usage: run_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_cancel_run",
+      "runtime_name": "bughunter_cancel_run",
+      "family": "bughunter",
+      "description": "Stop an in-flight BugHunter run. Usage: run_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_commit_window",
+      "runtime_name": "bughunter_commit_window",
+      "family": "bughunter",
+      "description": "Run BugHunter on a commit plus correlated history. Usage: git_root, primary_commit (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_explain_cluster",
+      "runtime_name": "bughunter_explain_cluster",
+      "family": "bughunter",
+      "description": "Explain strongest correlated defect cluster. Usage: run_id (required); optional conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_findings",
+      "runtime_name": "bughunter_findings",
+      "family": "bughunter",
+      "description": "List BugHunter-linked findings through review. Usage: run_id; optional kind/severity/status/conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_install_hook",
+      "runtime_name": "bughunter_install_hook",
+      "family": "bughunter",
+      "description": "Install managed post-commit BugHunter hook. Usage: git_root (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_run_history",
+      "runtime_name": "bughunter_run_history",
+      "family": "bughunter",
+      "description": "List prior BugHunter runs with summaries. Usage: optional conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_start",
+      "runtime_name": "bughunter_start",
+      "family": "bughunter",
+      "description": "Start BugHunter over uncommitted commits/commit windows/branch windows. Usage: source_kind, git_root plus primary_commit/branch fields as required by kind; optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_status",
+      "runtime_name": "bughunter_status",
+      "family": "bughunter",
+      "description": "Poll BugHunter run + linked review status. Usage: run_id; optional conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_bughunter_uninstall_hook",
+      "runtime_name": "bughunter_uninstall_hook",
+      "family": "bughunter",
+      "description": "Remove managed BugHunter hook. Usage: git_root (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_codebase_search",
+      "runtime_name": "codebase_search",
+      "family": "codebase",
+      "description": "Index-backed symbol search by name/pattern/kind (faster than grep for definitions). Usage: query; optional kind, filePattern/path (query stem); pathScope or target_directories to limit directory scope (path is not a scope key here).",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [
+        "codebasesearch"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_create_file",
+      "runtime_name": "create_file",
+      "family": "edit",
+      "description": "Atomically create a new file; fails if the path already exists. Usage: path and full content.",
+      "read_only": false,
+      "mutating_runtime": true,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "write"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_diagnostics",
+      "runtime_name": "diagnostics",
+      "family": "diagnostics",
+      "description": "Run a full diagnostic/build pass and return structured errors/warnings. Usage: optional manager string if the host supports it; slower than read_lints.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "bash"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_export_debug_bundle",
+      "runtime_name": "export_debug_bundle",
+      "family": "diagnostics",
+      "description": "Zip SoloCode AgentDebug NDJSON traces into a shareable .solocode bundle. Usage: optional workspace_roots CSV for multi-root fingerprint alignment.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_clean",
+      "runtime_name": "debug_clean",
+      "family": "debug",
+      "description": "Remove tracked debug markers or instrumentation from files or the workspace. Usage: optional path, type, dry_run, hypothesis_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_context",
+      "runtime_name": "debug_context",
+      "family": "debug",
+      "description": "Gather debug context for the current workspace, such as git status, diagnostics, and environment clues. Usage: optional scope, include_file_content, max_depth.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debugcontext"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_hypothesize",
+      "runtime_name": "debug_hypothesize",
+      "family": "debug",
+      "description": "Propose or update a structured debugging hypothesis with evidence and confidence. Usage: action (required); optional hypothesis_id, title, description, status, evidence, confidence, root_cause_type, related_files, related_tests.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_instrument",
+      "runtime_name": "debug_instrument",
+      "family": "debug",
+      "description": "Insert executable debug instrumentation into source code at a precise location. Usage: path, line, type, expression (required); optional condition, hypothesis_id, label.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debuginstrument"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_log",
+      "runtime_name": "debug_log",
+      "family": "debug",
+      "description": "Write structured entries to the debug log for the current investigation. Usage: message (required); optional severity, source, detail, category, run_id, hypothesis_id, data.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_mark",
+      "runtime_name": "debug_mark",
+      "family": "debug",
+      "description": "Insert a tagged debug marker or helper snippet into a file for later cleanup. Usage: path, line, comment (required); optional code, type, expression, hypothesis_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_query",
+      "runtime_name": "debug_query",
+      "family": "debug",
+      "description": "Query structured debug log entries by text or metadata. Usage: optional severity, category, source, search, tags, hypothesis_id, time_range, session_id, group_by, format, limit, offset.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_request_user",
+      "runtime_name": "debug_request_user",
+      "family": "debug",
+      "description": "Queue a user-facing request in the debug workflow, such as a question, repro step, or fix confirmation. Usage: kind, prompt (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debugrequestuser"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_resolve",
+      "runtime_name": "debug_resolve",
+      "family": "debug",
+      "description": "Resolve the current debug session with a final summary. Usage: summary (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debugresolve"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_session",
+      "runtime_name": "debug_session",
+      "family": "debug",
+      "description": "Manage the lifecycle of a debug session, including start, snapshot/export, and stop. Usage: action (required); optional label.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_set_phase",
+      "runtime_name": "debug_set_phase",
+      "family": "debug",
+      "description": "Set the current debug workflow phase for the active investigation. Usage: phase (required); optional detail.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debugsetphase"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_snapshot",
+      "runtime_name": "debug_snapshot",
+      "family": "debug",
+      "description": "Capture, compare, or list snapshots of the current debug session state. Usage: action (required); optional label, compare_with.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debugsnapshot"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_test_check",
+      "runtime_name": "debug_test_check",
+      "family": "debug",
+      "description": "Run targeted verification checks for a debug fix in the workspace. Usage: scope (required); optional path, filter, hypothesis_id, timeout_ms.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debugtestcheck"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_timeline",
+      "runtime_name": "debug_timeline",
+      "family": "debug",
+      "description": "Build a chronological view of debug events for the current session. Usage: optional filter, time_range, hypothesis_id, format.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debugtimeline"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_debug_trace_analyze",
+      "runtime_name": "debug_trace_analyze",
+      "family": "debug",
+      "description": "Analyze raw error text, crash output, or stack traces into actionable debug findings. Usage: error_text (required); optional error_type, context.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "debug"
+      ],
+      "runtime_aliases": [
+        "debugtraceanalyze"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_file_outline",
+      "runtime_name": "file_outline",
+      "family": "codebase",
+      "description": "Structural outline (symbols/sections) for one file. Usage: path.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [
+        "fileoutline"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_find_files",
+      "runtime_name": "find_files",
+      "family": "codebase",
+      "description": "Fuzzy / index-backed file discovery by name. Usage: query or pattern; optional path, pathScope, target_directories (comma-separated; first used as search root), filePattern, extension.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [
+        "findfiles"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_find_references",
+      "runtime_name": "find_references",
+      "family": "codebase",
+      "description": "List usages before refactors. Usage: query or name for the symbol; optional path, pathScope, or target_directories to limit search directory.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [
+        "findreferences"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_find_symbol",
+      "runtime_name": "find_symbol",
+      "family": "codebase",
+      "description": "Locate symbol definitions (types, functions, methods). Usage: query or name; optional kind filter; optional path, pathScope, or target_directories to limit search directory.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [
+        "findsymbol"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_git_diff",
+      "runtime_name": "git_diff",
+      "family": "git",
+      "description": "Show working-tree or scoped diff. Usage: optional path; optional staged hint when supported.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "git"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_glob",
+      "runtime_name": "glob",
+      "family": "search",
+      "description": "Find paths matching a glob (e.g. **/*.swift). Usage: pattern; optional path, pathScope, or target_directories (comma-separated; first segment used as root).",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_grep",
+      "runtime_name": "grep",
+      "family": "search",
+      "description": "Ripgrep-style content search (regex, filters, context lines). Usage: query or pattern; optional path/pathScope, fileType, glob, context_lines, case_sensitive, multiline, output_mode.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_list_dir",
+      "runtime_name": "list_dir",
+      "family": "file",
+      "description": "List files and subdirectories under a path (directory discovery). Usage: path to the folder to enumerate.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [
+        "listdir"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_mermaid_render",
+      "runtime_name": "mermaid_render",
+      "family": "policy",
+      "description": "Render Mermaid in the IDE (architecture/flow visualization). Usage: code (required); optional title.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_create",
+      "runtime_name": "plan_create",
+      "family": "plan",
+      "description": "Create/replace the visible IDE plan snapshot. Usage: goal (required); optional steps JSON, chosen_path, conversation_id, replace_existing.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "plancreate"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_diff",
+      "runtime_name": "plan_diff",
+      "family": "plan",
+      "description": "Compare two plan snapshots (what changed between rounds). Usage: from_snapshot_id (required); optional to_snapshot_id, conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "plandiff"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_history_read",
+      "runtime_name": "plan_history_read",
+      "family": "plan",
+      "description": "Read historical plan snapshots. Usage: optional conversation_id, limit.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "planhistoryread"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_read",
+      "runtime_name": "plan_read",
+      "family": "plan",
+      "description": "Fetch latest plan snapshot. Usage: optional conversation_id, include_history, history_limit.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "planread"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_request_user_input",
+      "runtime_name": "plan_request_user_input",
+      "family": "plan",
+      "description": "Block plan flow on structured clarification questions in the IDE. Usage: questions JSON (required); optional title, phase, round, context, conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "planrequestuserinput"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_set_walkthrough",
+      "runtime_name": "plan_set_walkthrough",
+      "family": "plan",
+      "description": "Store final walkthrough markdown and outcome for the plan. Usage: markdown (required); optional summary, outcome, conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "plansetwalkthrough"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_step_batch_update",
+      "runtime_name": "plan_step_batch_update",
+      "family": "plan",
+      "description": "Apply many step updates in one call. Usage: updates JSON array; optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "planstepbatchupdate"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_step_dependency_set",
+      "runtime_name": "plan_step_dependency_set",
+      "family": "plan",
+      "description": "Set prerequisites for a step. Usage: step_id, depends_on JSON array; optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "planstepdependencyset"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_step_reorder",
+      "runtime_name": "plan_step_reorder",
+      "family": "plan",
+      "description": "Reorder steps. Usage: ordered_step_ids JSON array; optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "planstepreorder"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_step_update",
+      "runtime_name": "plan_step_update",
+      "family": "plan",
+      "description": "Lightweight step status/title update while executing the plan in the IDE. Usage: step_id and status (required); optional title.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "planstepupdate"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_plan_step_upsert",
+      "runtime_name": "plan_step_upsert",
+      "family": "plan",
+      "description": "Create/update one plan step with metadata. Usage: step_id and status (required); optional title, description, target_file, linked_files, depends_on, notes, conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "planstepupsert"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_policy_ack",
+      "runtime_name": "policy_ack",
+      "family": "policy",
+      "description": "Acknowledge a repository policy hash before mutating tools when the host requires it. Usage: hash (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_read",
+      "runtime_name": "read",
+      "family": "file",
+      "description": "Read a file from the workspace with line numbers. Always read before editing. Usage: path (required). Optional offset/limit as line hints when supported by the host.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_read_lints",
+      "runtime_name": "read_lints",
+      "family": "codebase",
+      "description": "Read current linter/IDE diagnostics without a full build when available. Usage: optional path filter, severity, limit.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "bash"
+      ],
+      "runtime_aliases": [
+        "readlints"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_read_range",
+      "runtime_name": "read_range",
+      "family": "file",
+      "description": "Read an inclusive line slice from a file (faster than whole file for large sources). Usage: path; start and end as start_line/end_line or start/end integers when available.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [
+        "readrange"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_regex_replace",
+      "runtime_name": "regex_replace",
+      "family": "edit",
+      "description": "Regex-powered single-file replace (capture groups in replacement). Usage: path, pattern, replacement; optional flags (e.g. i for case-insensitive), replace_all (default false replaces one match).",
+      "read_only": false,
+      "mutating_runtime": true,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_apply_fix",
+      "runtime_name": "review_apply_fix",
+      "family": "review",
+      "description": "Apply an IDE-suggested fix for a finding. Usage: finding identifiers per host schema (finding_id, session_id, etc.).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_apply_patch",
+      "runtime_name": "review_apply_patch",
+      "family": "review",
+      "description": "Apply the verified patch to the workspace. The host runs build checks, targeted tests, regression audit, then the full Xcode scheme test suite (all test bundles in the scheme—not only files touched). Any failing tests must be fixed before considering the fix complete; do not ignore unrelated failures. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_close_finding",
+      "runtime_name": "review_close_finding",
+      "family": "review",
+      "description": "Close a finding after fix or explicit resolution. Usage: finding_id, session_id; optional reason; optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_comment",
+      "runtime_name": "review_comment",
+      "family": "review",
+      "description": "Attach analyst comment or metadata to a finding/session. Usage: fields per host schema.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_configure",
+      "runtime_name": "review_configure",
+      "family": "review",
+      "description": "Adjust live review settings (workers, rounds, toggles). Usage: fields per host schema.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_diff_summary",
+      "runtime_name": "review_diff_summary",
+      "family": "review",
+      "description": "Summarize diffs associated with the review scope (read-only). Usage: session identifiers as required.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_dismiss",
+      "runtime_name": "review_dismiss",
+      "family": "review",
+      "description": "Dismiss a finding with rationale. Usage: finding_id/session_id plus dismiss fields per host.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_findings",
+      "runtime_name": "review_findings",
+      "family": "review",
+      "description": "Filter/list findings (severity, file, status, origin). Usage: optional filters; session_id/conversation_id if needed.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_get_outcome",
+      "runtime_name": "review_get_outcome",
+      "family": "review",
+      "description": "Fetch structured outcome summary for a session. Usage: session_id (required); optional conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_list_sessions",
+      "runtime_name": "review_list_sessions",
+      "family": "review",
+      "description": "Enumerate review sessions (including finished). Usage: optional conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_merge_pr",
+      "runtime_name": "review_merge_pr",
+      "family": "review",
+      "description": "Merge the PR for a finding when policy allows. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_open_pr",
+      "runtime_name": "review_open_pr",
+      "family": "review",
+      "description": "Open a PR for the finding’s patch branch. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_prepare_patch",
+      "runtime_name": "review_prepare_patch",
+      "family": "review",
+      "description": "Materialize a patch plan for a verified finding. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_preview_patch",
+      "runtime_name": "review_preview_patch",
+      "family": "review",
+      "description": "Read-only view of the generated patch artifact. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_resolve_conflicts",
+      "runtime_name": "review_resolve_conflicts",
+      "family": "review",
+      "description": "Attempt safe conflict resolution on the review branch. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_revalidate_finding",
+      "runtime_name": "review_revalidate_finding",
+      "family": "review",
+      "description": "Re-run validation after patch application (same gates as apply: including full scheme tests when the host supports it). Fix every failing test surfaced—regressions outside the original finding are blocking. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_rollback_patch",
+      "runtime_name": "review_rollback_patch",
+      "family": "review",
+      "description": "Undo an applied patch when rollback metadata exists. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_start",
+      "runtime_name": "review_start",
+      "family": "review",
+      "description": "Start a code review session over uncommitted/staged/or-against-ref scope. Usage: scope/ref and backends as needed; optional session_id/conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_status",
+      "runtime_name": "review_status",
+      "family": "review",
+      "description": "Poll phase/workers/round status for the active review. Usage: optional session_id/conversation_id when multiple sessions exist.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_verify_finding",
+      "runtime_name": "review_verify_finding",
+      "family": "review",
+      "description": "Verify/promote a candidate finding before patching. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_review_verify_patch",
+      "runtime_name": "review_verify_patch",
+      "family": "review",
+      "description": "Validate patch before apply (checks / dry-run). After a real apply, failures in any project test are in scope for follow-up fixes. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_run_tests",
+      "runtime_name": "run_tests",
+      "family": "diagnostics",
+      "description": "Run tests (cargo/swift test/xcodebuild when applicable). Usage: optional filter; optional scheme for Xcode.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "bash"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_apply_patch",
+      "runtime_name": "security_apply_patch",
+      "family": "security",
+      "description": "Apply verified security patch; host validation includes full scheme tests when enabled—fix all failing tests, not only security-scoped ones. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_close_finding",
+      "runtime_name": "security_close_finding",
+      "family": "security",
+      "description": "Close or reject a security finding with reason. Usage: finding_id, session_id; optional reason; optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_findings",
+      "runtime_name": "security_findings",
+      "family": "security",
+      "description": "List security findings (verified/candidate). Usage: session_id; optional filters kind/severity/status/conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_prepare_patch",
+      "runtime_name": "security_prepare_patch",
+      "family": "security",
+      "description": "Prepare patch for verified security finding. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_preview_patch",
+      "runtime_name": "security_preview_patch",
+      "family": "security",
+      "description": "Preview stored security patch (read-only). Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_revalidate_finding",
+      "runtime_name": "security_revalidate_finding",
+      "family": "security",
+      "description": "Post-fix security revalidation. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_rollback_patch",
+      "runtime_name": "security_rollback_patch",
+      "family": "security",
+      "description": "Rollback applied security patch. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_start",
+      "runtime_name": "security_start",
+      "family": "security",
+      "description": "Start a security-hardened review session (shared VerifiedFindings backend). Usage: scope/ref; optional session_id/conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_status",
+      "runtime_name": "security_status",
+      "family": "security",
+      "description": "Read security gate/session status. Usage: session_id when needed; optional conversation_id.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_verify_finding",
+      "runtime_name": "security_verify_finding",
+      "family": "security",
+      "description": "Promote/verify a security finding before patching. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_security_verify_patch",
+      "runtime_name": "security_verify_patch",
+      "family": "security",
+      "description": "Validate security patch. Usage: finding_id and session_id (required); optional conversation_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_semantic_search",
+      "runtime_name": "semantic_search",
+      "family": "codebase",
+      "description": "Meaning-first code search (natural language) with optional directory scoping. Usage: query; optional target_directories (comma-separated, sandboxed), pathScope/path, num_results/limit.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "read"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_show_swarm_panel",
+      "runtime_name": "show_swarm_panel",
+      "family": "ui",
+      "description": "Reveal swarm/multi-agent UI. Usage: optional swarm_id.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "showswarmpanel"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_show_task_panel",
+      "runtime_name": "show_task_panel",
+      "family": "ui",
+      "description": "Reveal IDE task/activity UI. Usage: typically empty args.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_skill",
+      "runtime_name": "skill",
+      "family": "skill",
+      "description": "Execute a local SKILL.md workflow from user skill dirs. Usage: skill or name; task or args describing the work—prefer this when a skill matches the request.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_str_replace",
+      "runtime_name": "str_replace",
+      "family": "edit",
+      "description": "Surgical edit: replace exactly one occurrence of old_string with new_string. Usage: path, old_string, new_string. old_string must match exactly; add context if it is not unique.",
+      "read_only": false,
+      "mutating_runtime": true,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "edit"
+      ],
+      "runtime_aliases": [
+        "strreplace"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_subagent_bugHunter",
+      "runtime_name": "subagent_bugHunter",
+      "family": "subagent",
+      "description": "Spawn regression/crash-hunting specialist subagent. Usage: task (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "subagent"
+      ],
+      "runtime_aliases": [
+        "subagent_bug_hunter"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_subagent_coder",
+      "runtime_name": "subagent_coder",
+      "family": "subagent",
+      "description": "Spawn an editing subagent for isolated implementation work. Usage: task (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "subagent"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_subagent_debugger",
+      "runtime_name": "subagent_debugger",
+      "family": "subagent",
+      "description": "Spawn a debugger subagent for bug investigation and fix execution. Usage: task (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "subagent"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_subagent_docWriter",
+      "runtime_name": "subagent_docWriter",
+      "family": "subagent",
+      "description": "Spawn documentation-focused subagent. Usage: task (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "subagent"
+      ],
+      "runtime_aliases": [
+        "subagent_doc_writer"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_subagent_explorer",
+      "runtime_name": "subagent_explorer",
+      "family": "subagent",
+      "description": "Spawn a read-only explorer subagent for parallel investigation. Usage: task (required) describing what to map/read.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "subagent"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_subagent_reviewer",
+      "runtime_name": "subagent_reviewer",
+      "family": "subagent",
+      "description": "Spawn a reviewer subagent (quality/safety read-only review). Usage: task (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "subagent"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_subagent_securityAuditor",
+      "runtime_name": "subagent_securityAuditor",
+      "family": "subagent",
+      "description": "Spawn security audit subagent. Usage: task (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "subagent"
+      ],
+      "runtime_aliases": [
+        "subagent_security_auditor"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_subagent_testWriter",
+      "runtime_name": "subagent_testWriter",
+      "family": "subagent",
+      "description": "Spawn a tests-and-verification subagent. Usage: task (required).",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "subagent"
+      ],
+      "runtime_aliases": [
+        "subagent_test_writer",
+        "subagent_tester"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_todo_read",
+      "runtime_name": "todo_read",
+      "family": "todo",
+      "description": "Read the shared IDE todo list / LiveCard items. Usage: no required fields.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "todoread"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_todo_write",
+      "runtime_name": "todo_write",
+      "family": "todo",
+      "description": "Update structured todos shown in the IDE. Usage: pass todos JSON batch and/or single-item fields title, status, priority, notes, activeForm, linkedFiles.",
+      "read_only": false,
+      "mutating_runtime": false,
+      "first_round_exempt": true,
+      "plugin_capabilities": [],
+      "runtime_aliases": [
+        "todowrite"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_web_fetch",
+      "runtime_name": "web_fetch",
+      "family": "web",
+      "description": "Fetch public URL and return Markdown content. Usage: url (required).",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "web"
+      ],
+      "runtime_aliases": [
+        "webfetch"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_web_search",
+      "runtime_name": "web_search",
+      "family": "web",
+      "description": "Internet search for up-to-date docs, APIs, CVEs, releases. Usage: query (required); optional explanation/maxResults.",
+      "read_only": true,
+      "mutating_runtime": false,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "web"
+      ],
+      "runtime_aliases": [
+        "websearch"
+      ],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    },
+    {
+      "mcp_name": "coderide_write",
+      "runtime_name": "write",
+      "family": "edit",
+      "description": "Overwrite or create a file with full contents. Usage: path and content. Prefer coderide_str_replace for small edits to existing files.",
+      "read_only": false,
+      "mutating_runtime": true,
+      "first_round_exempt": false,
+      "plugin_capabilities": [
+        "write"
+      ],
+      "runtime_aliases": [],
+      "availability": {
+        "app": "available",
+        "subagents": "available",
+        "providers": "available"
+      }
+    }
+  ],
+  "non_mcp_aliases": {
+    "applypatch": "apply_patch",
+    "codebasesearch": "codebase_search",
+    "debugcontext": "debug_context",
+    "debugsetphase": "debug_set_phase",
+    "debugrequestuser": "debug_request_user",
+    "debugresolve": "debug_resolve",
+    "debugtraceanalyze": "debug_trace_analyze",
+    "debuginstrument": "debug_instrument",
+    "debugtimeline": "debug_timeline",
+    "debugsnapshot": "debug_snapshot",
+    "debugtestcheck": "debug_test_check",
+    "exec_command": "bash",
+    "execute_command": "bash",
+    "fileoutline": "file_outline",
+    "findfiles": "find_files",
+    "findreferences": "find_references",
+    "findsymbol": "find_symbol",
+    "listdir": "list_dir",
+    "listsymbols": "list_symbols",
+    "mcpcall": "mcp_call",
+    "mcpdescribetool": "mcp_describe_tool",
+    "mcphealth": "mcp_health",
+    "mcplistservers": "mcp_list_servers",
+    "mcplisttools": "mcp_list_tools",
+    "mcpreconnect": "mcp_reconnect",
+    "multi_tool_use_parallel": "parallel_apply",
+    "notebookedit": "notebook_edit",
+    "notebookwrite": "notebook_write",
+    "parallel": "parallel_apply",
+    "readlints": "read_lints",
+    "readrange": "read_range",
+    "strreplace": "str_replace",
+    "showswarmpanel": "show_swarm_panel",
+    "subagent_test_writer": "subagent_testwriter",
+    "subagent_doc_writer": "subagent_docwriter",
+    "subagent_bug_hunter": "subagent_bughunter",
+    "subagent_security_auditor": "subagent_securityauditor",
+    "subagent_tester": "subagent_testwriter",
+    "todowrite": "todo_write",
+    "todoread": "todo_read",
+    "planstepupdate": "plan_step_update",
+    "plancreate": "plan_create",
+    "planread": "plan_read",
+    "planstepupsert": "plan_step_upsert",
+    "planstepbatchupdate": "plan_step_batch_update",
+    "planstepreorder": "plan_step_reorder",
+    "planstepdependencyset": "plan_step_dependency_set",
+    "plansetwalkthrough": "plan_set_walkthrough",
+    "planhistoryread": "plan_history_read",
+    "plandiff": "plan_diff",
+    "planrequestuserinput": "plan_request_user_input",
+    "webfetch": "web_fetch",
+    "websearch": "web_search",
+    "write_stdin": "bash",
+    "writefile": "write_file",
+    "askuserquestion": "activate_plan_mode",
+    "ask_user_question": "activate_plan_mode",
+    "exitplanmode": "activate_plan_mode",
+    "exit_plan_mode": "activate_plan_mode",
+    "enterplanmode": "activate_plan_mode",
+    "enter_plan_mode": "activate_plan_mode"
+  }
+}

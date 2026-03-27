@@ -31,6 +31,23 @@ final class CoderIDErustCatalogContractTests: XCTestCase {
         return Set(names)
     }
 
+    private static func canonicalRegistryTools() throws -> [[String: Any]] {
+        let root = repoRoot(from: #filePath)
+        let url = root
+            .appendingPathComponent("Config/tooling/canonical_tool_registry.json")
+        let data = try Data(contentsOf: url)
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let dict = object as? [String: Any],
+              let tools = dict["tools"] as? [[String: Any]] else {
+            throw NSError(
+                domain: "CoderIDErustCatalogContractTests",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "canonical_tool_registry.json senza array 'tools'"]
+            )
+        }
+        return tools
+    }
+
     private static func catalogToolCount() throws -> Int {
         let root = repoRoot(from: #filePath)
         let url = root
@@ -79,6 +96,26 @@ final class CoderIDErustCatalogContractTests: XCTestCase {
             declared,
             "Righe tool_names.txt (\(rust.count)) ≠ CATALOG_TOOL_COUNT (\(declared))"
         )
+    }
+
+    func testCanonicalRegistryDrivesRustNamesAndDescriptions() throws {
+        let rustNames = try Self.rustToolNames()
+        let registryTools = try Self.canonicalRegistryTools()
+        let registryNames = Set(
+            registryTools.compactMap { $0["mcp_name"] as? String }
+        )
+        XCTAssertEqual(rustNames, registryNames)
+
+        let root = Self.repoRoot(from: #filePath)
+        let url = root.appendingPathComponent("Native/CoderideMCPServerRust/src/tool_descriptions.json")
+        let data = try Data(contentsOf: url)
+        let desc = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: String])
+
+        for tool in registryTools {
+            let mcpName = try XCTUnwrap(tool["mcp_name"] as? String)
+            let description = try XCTUnwrap(tool["description"] as? String)
+            XCTAssertEqual(desc[mcpName], description, "\(mcpName): description should be derived from canonical registry")
+        }
     }
 
     /// Anti-drift: ogni tool non-audit nel JSON Rust ha un omologo in `CoderIDETools` e il JSON contiene `Usage:` (fonte MCP `tools/list`).

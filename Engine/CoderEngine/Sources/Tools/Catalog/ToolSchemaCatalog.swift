@@ -159,11 +159,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
     }
 
     private static func runtimeAlias(for toolName: String) -> String? {
-        guard toolName.hasPrefix("coderide_") else { return nil }
-        let alias = String(toolName.dropFirst("coderide_".count))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !alias.isEmpty else { return nil }
-        return alias.lowercased()
+        CoderIDECanonicalToolRegistry.shared.runtimeName(forMCPName: toolName)
     }
 
     /// MCP tool metadata comes from external servers and must not be injected

@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import CoderEngine
 
 /// All tools exposed by CoderIDE MCP Server, with their JSON schemas.
 /// Codex CLI will register these as available tools for the model.
@@ -28,12 +29,14 @@ struct CoderIDETools {
         + securityWorkflowTools
         + codeReviewTools
 
-    private static let allowedRuntimeToolNames: Set<String> = Set(
-        all.map { runtimeToolName(from: $0.name) }
-    )
+    private static let allowedRuntimeToolNames: Set<String> =
+        CoderIDECanonicalToolRegistry.shared.allowedRuntimeToolNames
 
     static func isAllowedRuntimeToolName(_ runtimeToolName: String) -> Bool {
-        allowedRuntimeToolNames.contains(runtimeToolName)
+        let normalized = runtimeToolName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return allowedRuntimeToolNames.contains(normalized)
     }
 
     /// Map MCP tool name → UnifiedToolRuntime tool name.
@@ -45,9 +48,15 @@ struct CoderIDETools {
             let afterSlash = normalized[normalized.index(after: slash)...]
             normalized = afterSlash.isEmpty ? String(normalized[..<slash]) : String(afterSlash)
         }
+        if let runtime = CoderIDECanonicalToolRegistry.shared.runtimeName(forMCPName: normalized) {
+            return runtime
+        }
         if normalized.hasPrefix("coderide_") {
             return String(normalized.dropFirst("coderide_".count))
         }
-        return normalized
+        if let record = CoderIDECanonicalToolRegistry.shared.record(forRuntimeName: normalized) {
+            return record.runtimeName.lowercased()
+        }
+        return normalized.lowercased()
     }
 }

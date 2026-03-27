@@ -8,9 +8,13 @@ extension CoderIDETools {
 
     private static func makeAuditTool(suffix: String) -> Tool {
         let title = "Audit \(suffix.replacingOccurrences(of: "_", with: " "))"
+        let mcpName = "coderide_\(suffix)"
         return Tool(
-            name: "coderide_\(suffix)",
-            description: "Structured workspace audit scoped to files or directories (\(suffix)).",
+            name: mcpName,
+            description: RustSyncedToolDescriptions.text(
+                mcpName: mcpName,
+                fallback: "Structured workspace audit scoped to files or directories (\(suffix))."
+            ),
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
